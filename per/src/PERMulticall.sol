@@ -9,16 +9,24 @@ contract PERMulticall {
     event ReceivedETH(address sender, uint256 amount);
 
     address _perOperator;
+    address _perRegistry;
+    address _perSignatureValidation;
 
     /**
      * @notice PERMulticall constructor - Initializes a new multicall contract with given parameters
      * 
      * @param perOperatorAddress: address of PER operator EOA
+     * @param perRegistryAddress: address of PER registry contract
+     * @param perSignatureValidationAddress: address of PER signature validation contract
      */
     constructor(
-        address perOperatorAddress
+        address perOperatorAddress,
+        address perRegistryAddress,
+        address perSignatureValidationAddress
     ) {
         _perOperator = perOperatorAddress;
+        _perRegistry = perRegistryAddress;
+        _perSignatureValidation = perSignatureValidationAddress;
     }
 
     /**
@@ -31,11 +39,44 @@ contract PERMulticall {
     }
 
     /**
+     * @notice setPERRegistry function - sets the address of the PER registry
+     * 
+     * @param perRegistryAddress: address of PER registry contract
+     */
+    function setPERRegistry(address perRegistryAddress) public {
+        revert NotImplemented();
+    }
+
+    /**
+     * @notice setPERSignatureValidation function - sets the address of the PER Signature Validation contract
+     * 
+     * @param perSignatureValidationAddress: address of PER signature validation contract
+     */
+    function setPERSignatureValidation(address perSignatureValidationAddress) public {
+        revert NotImplemented();
+    }
+
+    /**
      * @notice getPEROperator function - returns the address of the PER operator
      */
     function getPEROperator() public view returns (address) {
         return _perOperator;
     }
+
+    /**
+     * @notice getPERRegistry function - returns the address of the PER registry
+     */
+    function getPERRegistry() public view returns (address) {
+        return _perRegistry;
+    }
+
+    /**
+     * @notice getPERSignatureValidation function - returns the address of the PER signature validation contract
+     */
+    function getPERSignatureValidation() public view returns (address) {
+        return _perSignatureValidation;
+    }
+    
 
 
     /**

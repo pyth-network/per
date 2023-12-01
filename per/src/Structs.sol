@@ -14,3 +14,8 @@ struct Vault {
    uint256 minHealthRatio;
    uint256 precisionRatio;
 }
+
+struct FeeMetadata {
+   uint256 feeSplitProtocol;
+   uint256 feeSplitPrecision;
+}

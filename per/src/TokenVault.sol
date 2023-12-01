@@ -135,7 +135,9 @@ contract TokenVault is MockOracle {
         /// prices. It performs the same logic as specified above for the slow oracle feed (of course
         /// checking collateralization at the fast oracle feed). In addition, it checks that:
         /// 1) tx.origin is the PER operator, i.e. the call originated with the PER operator
-        /// 2) the operator's signature matches this contract address and the current block number
+        /// 2) the PER operator's signature matches this contract address and the current block 
+        /// number--it can make this check by calling into the PERSignatureValidation contract's
+        /// validateSignaturePER method
         /// If either of these checks fail, it will revert.
     }
 
