@@ -4,13 +4,15 @@ pragma solidity ^0.8.13;
 import "./Errors.sol";
 import "forge-std/StdMath.sol";
 import "./PERMulticall.sol";
-import "./MockOracle.sol";
+import "./Structs.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-contract TokenVault is MockOracle {
+import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
+
+contract TokenVault {
     using SafeERC20 for IERC20;
 
     event VaultReceivedETH(address sender, uint256 amount);
@@ -19,17 +21,33 @@ contract TokenVault is MockOracle {
     uint256 _nVaults;
     address public immutable perMulticall;
     mapping(uint256 => Vault) _vaults;
+    address _oracle;
 
     /**
      * @notice TokenVault constructor - Initializes a new token vault contract with given parameters
      * 
      * @param delay: number of seconds to delay slow path by (i.e. min staleness of slow path oracle feed)
      * @param perMulticallAddress: address of PER contract
+     * @param oracleAddress: address of the oracle contract
      */
-    constructor(uint256 delay, address perMulticallAddress) {
+    constructor(uint256 delay, address perMulticallAddress, address oracleAddress) {
         _slowDelay = delay;
         _nVaults = 0;
         perMulticall = perMulticallAddress;
+        _oracle = oracleAddress;
+    }
+
+    /**
+     * @notice getPrice function - retrieves price of a given token from the oracle at a given delay
+     * 
+     * @param id: price feed ID of the token
+     * @param delay: delay at which to retrieve price
+     */
+    function getPrice(
+        bytes32 id,
+        uint256 delay
+    ) internal view returns (PythStructs.Price memory) {
+        revert NotImplemented();
     }
 
     /**
@@ -58,6 +76,8 @@ contract TokenVault is MockOracle {
      * @param amountDebt: amount of debt tokens in the vault
      * @param minHealthRatio: minimum health ratio of the vault, in precision units
      * @param precisionRatio: precision ratio of the vault
+     * @param tokenIDCollateral: price feed ID of the collateral token
+     * @param tokenIDDebt: price feed ID of the debt token
      */
     function createVault(
         address tokenCollateral,
@@ -65,7 +85,9 @@ contract TokenVault is MockOracle {
         uint256 amountCollateral,
         uint256 amountDebt,
         uint256 minHealthRatio,
-        uint256 precisionRatio
+        uint256 precisionRatio,
+        bytes32 tokenIDCollateral,
+        bytes32 tokenIDDebt
     ) public returns (uint256) {
         revert NotImplemented();
 
