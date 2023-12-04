@@ -11,7 +11,7 @@ import "./PERMulticall.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
-contract SearcherVault {
+contract Searcher {
     event ReceivedETH(address, uint);
 
     address public immutable perMulticall;
