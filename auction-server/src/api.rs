@@ -127,6 +127,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                     network_id: id,
                     bids: Default::default(),
                     config: chain_config.clone(),
+                    opps: Default::default()
                 },
             ))
         },
@@ -148,6 +149,8 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
         .route("/bid", post(rest::bid))
+        .route("/surface", post(rest::surface))
+        .route("/getOpps", get(rest::get_opps))
         .layer(CorsLayer::permissive())
         .with_state(server_store);
 

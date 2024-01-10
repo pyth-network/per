@@ -81,33 +81,35 @@ async def get_accounts() -> list[LiquidationAccount]:
 
 def create_liquidation_opp(
         account: LiquidationAccount,
-        prices: list[PriceFeed],
-        permissionless: bool) -> LiquidationOpportunity:
+        prices: list[PriceFeed]) -> LiquidationOpportunity:
     price_updates = [] ## [bytes.fromhex(update['vaa']) for update in prices] ## TODO: uncomment this, to add back price updates
     function_signature = web3.Web3.solidity_keccak(
         ["string"], ["liquidateWithPriceUpdate(uint256,bytes[])"])[:4].hex()
     calldata = function_signature + \
         encode(['uint256', 'bytes[]'], [account["account_number"], price_updates]).hex()
 
-    permission = None
-    if not permissionless:
-        msg = encode(["uint256"], [account["account_number"]])
-        permission = '0x' + \
-            encode(['address', 'bytes'], [TOKEN_VAULT_ADDRESS, msg]).hex()
+    msg = encode(["uint256"], [account["account_number"]])
+    permission = '0x' + \
+        encode(['address', 'bytes'], [TOKEN_VAULT_ADDRESS, msg]).hex()
 
     opp: LiquidationOpportunity = {
+        "chain_id": "development",
         "contract": TOKEN_VAULT_ADDRESS,
-        "data": calldata,
-        "permission": permission,
-        "account": account["account_number"],
+        "calldata": calldata,
+        "permission_key": permission,
+        "account": str(account["account_number"]),
         "repay_tokens": [
-            (account["token_address_debt"],
-             0,
-             account["amount_debt"])],
+            (
+                account["token_address_debt"],
+                hex(account["amount_debt"])
+            )
+        ],
         "receipt_tokens": [
-            (account["token_address_collateral"],
-             0,
-             account["amount_collateral"])],
+            (
+                account["token_address_collateral"],
+                hex(account["amount_collateral"])
+            )
+        ],
         "prices": price_updates,
     }
 
@@ -124,17 +126,14 @@ def create_liquidation_opp(
 get_liquidatable(accounts, prices) is the second method that the protocol should implement. It should take two arguments: account--a list of Account (defined above) objects--and prices--a dictionary of Pyth prices.
 accounts should be the list of all open accounts in the protocol (i.e. the output of get_accounts()).
 prices should be a dictionary of Pyth prices, where the keys are Pyth feed IDs and the values are PriceFeed objects. prices can be retrieved from the provided price retrieval functions.
-This function should return two lists of liquidation opportunities: one for permissionless liquidations and one for permissioned liquidations.
-Each opportunity should be of the form LiquidationOpportunity defined above.
+This function should return a lists of liquidation opportunities. Each opportunity should be of the form LiquidationOpportunity defined above.
 """
 
 
 def get_liquidatable(accounts: list[LiquidationAccount],
                      prices: dict[str,
-                                  PriceFeed]) -> (list[LiquidationOpportunity],
-                                                  list[LiquidationOpportunity]):
-    liquidatable_permissionless = []
-    liquidatable_per = []
+                                  PriceFeed]) -> (list[LiquidationOpportunity]):
+    liquidatable = []
 
     for account in accounts:
         price_collateral = prices[account["token_id_collateral"]]
@@ -144,22 +143,13 @@ def get_liquidatable(accounts: list[LiquidationAccount],
             price_collateral['price']['price']) * account["amount_collateral"]
         value_debt = int(price_debt['price']['price']) * account["amount_debt"]
 
-        # permissionless
-        if (value_debt *
-            int(account["min_permissionless_health_ratio"]) > value_collateral *
-                10**18):
+        if value_debt * int(account["min_health_ratio"]) > value_collateral * 10**18:
             price_updates = [price_collateral, price_debt]
-            liquidatable_permissionless.append(
+            liquidatable.append(
                 create_liquidation_opp(
-                    account, price_updates, True))
-        # permissioned
-        elif value_debt * int(account["min_health_ratio"]) > value_collateral * 10**18:
-            price_updates = [price_collateral, price_debt]
-            liquidatable_per.append(
-                create_liquidation_opp(
-                    account, price_updates, False))
-
-    return liquidatable_permissionless, liquidatable_per
+                    account, price_updates))
+    
+    return liquidatable
 
 
 
@@ -180,11 +170,9 @@ async def main():
     pyth_prices_latest = dict(pyth_prices_latest)
 
     # get liquidatable accounts
-    liquidatable_permissionless, liquidatable_per = get_liquidatable(
-        accounts, pyth_prices_latest)
+    liquidatable = get_liquidatable(accounts, pyth_prices_latest)
 
-    print(liquidatable_permissionless)
-    print(liquidatable_per)
+    print(liquidatable)
 
 if __name__ == "__main__":
     asyncio.run(main())

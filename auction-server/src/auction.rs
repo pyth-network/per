@@ -122,6 +122,10 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                 chain_id = chain_id,
                 auction_len = permission_bids.len()
             );
+            tracing::info!(
+                "Chain store: {n} contracts' vaults surfaced",
+                n = (chain_store.opps.write().await.keys().len())
+            );
             for (permission_key, bids) in permission_bids.iter() {
                 let mut cloned_bids = bids.clone();
                 let thread_store = store.clone();
