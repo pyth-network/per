@@ -3,13 +3,13 @@ __pycache__
 *.pyc
 
 # any config files
-*config.yaml
+config.yaml
 
 # MacOS config file
 .DS_Store
 
 # API key files
-*api_keys.py
+api_keys.py
 
 # env files
 *.env
