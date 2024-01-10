@@ -1,7 +1,7 @@
 from typing import TypedDict
 import web3
 
-from pythresearch.per.beacon.utils.pyth_prices import PriceFeed
+from beacon.utils.pyth_prices import PriceFeed
 
 LIQUIDATION_ADAPTER_ADDRESS = "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
 
