@@ -39,13 +39,6 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
     type Error = anyhow::Error;
 }
 
-// #[derive(Clone, Debug)]
-// pub struct MulticallStatus {
-//     pub external_success: bool,
-//     pub external_result: Bytes,
-//     pub multicall_revert_reason: String
-// }
-
 pub async fn simulate_bids(
     per_operator: Address,
     provider: Provider<Http>,
@@ -57,7 +50,6 @@ pub async fn simulate_bids(
 ) -> Result<Vec<MulticallStatus>, ContractError<Provider<Http>>> {
     let client = Arc::new(provider);
     let per_contract = PERContract::new(chain_config.contract_addr, client);
-    tracing::info!("Simulating bids {}, {}, {}, {}", permission, contracts[0], calldata[0], bids[0]);
     let call = per_contract
         .multicall(permission, contracts, calldata, bids)
         .from(per_operator);

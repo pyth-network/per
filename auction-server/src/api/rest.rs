@@ -1,19 +1,19 @@
 use crate::api::RestError;
-use crate::auction::simulate_bids;
 use crate::auction::per::MulticallStatus;
-use crate::state::{SimulatedBid, Store, Opportunity, GetOppsParams};
+use crate::auction::simulate_bids;
+use crate::state::{GetOppsParams, Opportunity, SimulatedBid, Store};
 use axum::{extract::State, Json};
 use ethers::abi::Address;
 use ethers::contract::EthError;
 use ethers::middleware::contract::ContractError;
 
+use axum::extract::Query;
 use ethers::signers::Signer;
 use ethers::types::{Bytes, U256};
 use ethers::utils::hex::FromHex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
-use axum::extract::Query;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct Bid {
@@ -76,26 +76,22 @@ pub async fn bid(
     );
 
     match call.await {
-        Ok(result) => {
-            let multicall_results: Vec<MulticallStatus> = result;
-            if !multicall_results.iter().all(|x| x.external_success) {
-                let first_reason = multicall_results
-                    .first()
-                    .cloned()
-                    .unwrap()
-                    .multicall_revert_reason;
-                let first_result = multicall_results
-                    .first()
-                    .cloned()
-                    .unwrap()
-                    .external_result;
-                return Err(RestError::BadParameters(format!(
-                    "Call Revert: {}, {}",
-                    first_result,
-                    first_reason
-                )));
+        Ok(multicall_results) => match multicall_results.first() {
+            Some(first_result) => {
+                if !multicall_results.iter().all(|x| x.external_success) {
+                    return Err(RestError::BadParameters(format!(
+                        "Call Revert: Result:{} - Reason:{}",
+                        first_result.external_result.clone(),
+                        first_result.multicall_revert_reason.clone()
+                    )));
+                }
             }
-        }
+            None => {
+                return Err(RestError::BadParameters(
+                    "No results from multicall".to_string(),
+                ))
+            }
+        },
         Err(e) => {
             return match e {
                 ContractError::Revert(reason) => Err(RestError::BadParameters(format!(
