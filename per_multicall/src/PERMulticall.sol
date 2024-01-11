@@ -13,20 +13,17 @@ contract PERMulticall {
     event ReceivedETH(address sender, uint256 amount);
 
     address _perOperator;
-    mapping (address => uint256) _feeConfig;
-    mapping (bytes32 => bool) _permissions;
+    mapping(address => uint256) _feeConfig;
+    mapping(bytes32 => bool) _permissions;
     uint256 _defaultFee;
 
     /**
      * @notice PERMulticall constructor - Initializes a new multicall contract with given parameters
-     * 
+     *
      * @param perOperatorAddress: address of PER operator EOA
      * @param defaultFee: default fee split to be paid to the protocol whose permissioning is being used
      */
-    constructor(
-        address perOperatorAddress, 
-        uint256 defaultFee
-    ) {
+    constructor(address perOperatorAddress, uint256 defaultFee) {
         _perOperator = perOperatorAddress;
         _defaultFee = defaultFee;
     }
@@ -38,7 +35,10 @@ contract PERMulticall {
         return _perOperator;
     }
 
-    function isPermissioned(address profitReceiver, bytes calldata message) public view returns (bool permissioned) {
+    function isPermissioned(
+        address profitReceiver,
+        bytes calldata message
+    ) public view returns (bool permissioned) {
         return _permissions[keccak256(abi.encode(profitReceiver, message))];
     }
 
@@ -48,8 +48,11 @@ contract PERMulticall {
      * @param feeRecipient: address of the fee recipient for the contract being registered
      * @param feeSplit: amount of fee to be split with the protocol. 10**18 is 100%
      */
-    function setFee(address feeRecipient,uint256 feeSplit) public {
-        require(msg.sender == _perOperator, "only PER operator can set the fees");
+    function setFee(address feeRecipient, uint256 feeSplit) public {
+        require(
+            msg.sender == _perOperator,
+            "only PER operator can set the fees"
+        );
         _feeConfig[feeRecipient] = feeSplit;
     }
 
@@ -61,7 +64,9 @@ contract PERMulticall {
         return (size > 0);
     }
 
-    function _bytesToAddress(bytes memory bys) private pure returns (address addr) {
+    function _bytesToAddress(
+        bytes memory bys
+    ) private pure returns (address addr) {
         (addr, ) = abi.decode(bys, (address, bytes));
     }
 
@@ -75,19 +80,28 @@ contract PERMulticall {
      */
     function multicall(
         bytes calldata permission,
-		address[] calldata contracts,
+        address[] calldata contracts,
         bytes[] calldata data,
         uint256[] calldata bids
     ) public payable returns (MulticallStatus[] memory multicallStatuses) {
-        require(msg.sender == _perOperator, "only PER operator can call this function");
-        require(permission.length >= 20, "permission size should be at least 20 bytes");
+        require(
+            msg.sender == _perOperator,
+            "only PER operator can call this function"
+        );
+        require(
+            permission.length >= 20,
+            "permission size should be at least 20 bytes"
+        );
         _permissions[keccak256(permission)] = true;
         multicallStatuses = new MulticallStatus[](data.length);
 
         uint256 totalBid = 0;
         for (uint256 i = 0; i < data.length; i++) {
             // try/catch will revert if call to searcher fails or if bid conditions not met
-            try this.callWithBid(contracts[i], data[i], bids[i]) returns (bool success, bytes memory result) {
+            try this.callWithBid(contracts[i], data[i], bids[i]) returns (
+                bool success,
+                bytes memory result
+            ) {
                 multicallStatuses[i].externalSuccess = success;
                 multicallStatuses[i].externalResult = result;
             } catch Error(string memory reason) {
@@ -105,11 +119,13 @@ contract PERMulticall {
         }
         uint256 feeProtocolNumerator = totalBid * protocolFee;
         if (feeProtocolNumerator > 0) {
-            uint256 feeProtocol = feeProtocolNumerator / 1000_000_000_000_000_000;
+            uint256 feeProtocol = feeProtocolNumerator /
+                1000_000_000_000_000_000;
             if (_isContract(feeReceiver)) {
-                PERFeeReceiver(feeReceiver).receiveAuctionProceedings{value: feeProtocol}(permission);
-            }
-            else{
+                PERFeeReceiver(feeReceiver).receiveAuctionProceedings{
+                    value: feeProtocol
+                }(permission);
+            } else {
                 payable(feeReceiver).transfer(feeProtocol);
             }
         }
@@ -118,7 +134,7 @@ contract PERMulticall {
 
     /**
      * @notice callWithBid function - contained call to function with check for bid invariant
-     * 
+     *
      * @param contractAddress: contract address to call into
      * @param data: calldata to call with
      * @param bid: bid to be paid; call will fail if it does not pay PER operator at least bid,
@@ -136,13 +152,17 @@ contract PERMulticall {
             uint256 balanceFinalEth = address(this).balance;
 
             // ensure that PER operator was paid at least bid ETH
-            require (!(balanceFinalEth - balanceInitEth < bid) && !(balanceFinalEth < balanceInitEth), "invalid bid");
+            require(
+                !(balanceFinalEth - balanceInitEth < bid) &&
+                    !(balanceFinalEth < balanceInitEth),
+                "invalid bid"
+            );
         }
 
         return (success, result);
     }
 
-    receive() external payable  { 
+    receive() external payable {
         emit ReceivedETH(msg.sender, msg.value);
     }
 }

@@ -18,7 +18,7 @@ The multicall contract is in `PERMulticall.sol`. It includes functionality to ca
 
 Tests can be found in `test/`. These tests include checks that the protocol functions work, as well as checks around permissioning, bid conditions, and appropriate failing of components of the multicall bundle (without failing the whole bundle).
 
-To run tests with the appropriate stack depth and console logging, run 
+To run tests with the appropriate stack depth and console logging, run
 
 ```shell
 $ forge test -vvv --via-ir
@@ -29,21 +29,25 @@ You can also run a local validator via `anvil --gas-limit 500000000000000000 --b
 To run the script runs in `Vault.s.sol`, you should startup the local validator. Then, run the necessary setup commands:
 
 1. Set up contracts and save to an environment JSON.
+
 ```shell
 $ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 -vvv --sig 'setUpContracts()' --broadcast
 ```
 
 2. Set oracle prices to allow for vault creation.
+
 ```shell
 $ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 110 190 --broadcast
 ```
 
 3. Vault creation.
+
 ```shell
 $ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 -vvv --sig 'setUpVault(uint256,uint256,bool)' 100 80 true --broadcast
 ```
 
 4. Undercollateralize the vault by moving prices.
+
 ```shell
 $ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 200 200 --broadcast
 ```

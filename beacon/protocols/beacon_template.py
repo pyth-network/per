@@ -13,6 +13,8 @@ CHAIN_RPC_ENDPOINT = "http://localhost:8545"
 The protocol should implement a class called LiquidationAccount. This will be the type of the objects in the list returned by get_accounts() and fed into get_liquidatable.
 This class should contain all the relevant information about a vault/account on this protocol that is necessary for identifying whether it is eligible for liquidation and constructing a LiquidationOpportunity object.
 """
+
+
 class LiquidationAccount(TypedDict):
     # Keys of the TypedDict and their types
     pass
@@ -22,6 +24,8 @@ class LiquidationAccount(TypedDict):
 get_accounts() is the first method that the protocol should implement. It should take no arguments and return all the open accounts in the protocol in the form of a list of objects of type LiquidationAccount (defined above). Each LiquidationAccount object represents an account/vault in the protocol.
 This function can be implemented in any way, but it should be able to return all the open accounts in the protocol. For some protocols, this may be easily doable by just querying on-chain state; however, most protocols will likely need to maintain or access an off-chain indexer to get the list of all open accounts.
 """
+
+
 async def get_accounts() -> list[LiquidationAccount]:
     # Fetch all vaults from on-chain state/indexer
     # Filter to just active vaults
@@ -34,6 +38,8 @@ async def get_accounts() -> list[LiquidationAccount]:
 create_liquidation_opp is an optional helper function to construct a LiquidationOpportunity from a LiquidationAccount and a set of relevant Pyth PriceFeeds.
 If you choose to implement this function, you can call it within get_liquidatable whenever you find a LiquidationAccount eligible for liquidation.
 """
+
+
 def create_liquidation_opp(
         account: LiquidationAccount,
         prices: list[PriceFeed]) -> LiquidationOpportunity:
@@ -46,6 +52,8 @@ accounts should be the list of all open accounts in the protocol (i.e. the outpu
 prices should be a dictionary of Pyth prices, where the keys are Pyth feed IDs and the values are PriceFeed objects. prices can be retrieved from the provided price retrieval functions.
 This function should return a list of type LiquidationOpportunity.
 """
+
+
 def get_liquidatable(accounts: list[LiquidationAccount],
                      prices: dict[str,
                                   PriceFeed]) -> (list[LiquidationOpportunity]):
@@ -58,6 +66,8 @@ def get_liquidatable(accounts: list[LiquidationAccount],
 """
 The main loop below is a good mechanism to check if your implementations of the functions above are working properly.
 """
+
+
 async def main():
     # get all accounts
     accounts = await get_accounts()

@@ -27,10 +27,12 @@ import "../src/Errors.sol";
 contract VaultScript is Script {
     string public latestEnvironmentPath = "latestEnvironment.json";
 
-
     function getAnvil() public view returns (address, uint256) {
         // TODO: these are mnemonic wallets. figure out how to transfer ETH from them outside of explicitly hardcoding them here.
-        return (address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266), 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80);
+        return (
+            address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266),
+            0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+        );
     }
 
     function deployWeth() public returns (address) {
@@ -43,21 +45,29 @@ contract VaultScript is Script {
     }
 
     function deployPER(address wethAddress) public returns (address, address) {
-        (address perOperatorAddress, uint256 perOperatorSk) = makeAddrAndKey("perOperator");
+        (address perOperatorAddress, uint256 perOperatorSk) = makeAddrAndKey(
+            "perOperator"
+        );
         console.log("pk per operator", perOperatorAddress);
         console.log("sk per operator", perOperatorSk);
-        (,uint256 skanvil) = getAnvil();
+        (, uint256 skanvil) = getAnvil();
 
         vm.startBroadcast(skanvil);
         payable(perOperatorAddress).transfer(10 ether);
         PERMulticall multicall = new PERMulticall(perOperatorAddress, 0);
         console.log("deployed PER contract at", address(multicall));
-        LiquidationAdapter liquidationAdapter = new LiquidationAdapter(address(multicall), wethAddress);
+        LiquidationAdapter liquidationAdapter = new LiquidationAdapter(
+            address(multicall),
+            wethAddress
+        );
         vm.stopBroadcast();
         return (address(multicall), address(liquidationAdapter));
     }
 
-    function deployVault(address multicall, address oracle) public returns (address) {
+    function deployVault(
+        address multicall,
+        address oracle
+    ) public returns (address) {
         // make token vault deployer wallet
         (, uint256 tokenVaultDeployerSk) = makeAddrAndKey("tokenVaultDeployer");
         console.log("sk token vault deployer", tokenVaultDeployerSk);
@@ -69,7 +79,7 @@ contract VaultScript is Script {
     }
 
     function deployMockPyth() public returns (address) {
-        (,uint256 skanvil) = getAnvil();
+        (, uint256 skanvil) = getAnvil();
         vm.startBroadcast(skanvil);
         MockPyth mockPyth = new MockPyth(1_000_000, 0);
         console.log("deployed mock pyth contract at", address(mockPyth));
@@ -77,7 +87,10 @@ contract VaultScript is Script {
         return address(mockPyth);
     }
 
-    function deployAll() public returns (address, address, address, address, address) {
+    function deployAll()
+        public
+        returns (address, address, address, address, address)
+    {
         address weth = deployWeth();
         (address per, address liquidationAdapter) = deployPER(weth);
         address mockPyth = deployMockPyth();
@@ -100,7 +113,7 @@ contract VaultScript is Script {
         uint256[] memory sksScript = new uint256[](5);
 
         uint256[] memory qtys;
-        
+
         // make searcherA and searcherB wallets
         (addressesScript[0], sksScript[0]) = makeAddrAndKey("searcherA");
         (addressesScript[1], sksScript[1]) = makeAddrAndKey("searcherB");
@@ -115,8 +128,10 @@ contract VaultScript is Script {
         (addressesScript[3], sksScript[3]) = makeAddrAndKey("perOperator");
 
         // make tokenVaultDeployer wallet
-        (addressesScript[4], sksScript[4]) = makeAddrAndKey("tokenVaultDeployer");
-        
+        (addressesScript[4], sksScript[4]) = makeAddrAndKey(
+            "tokenVaultDeployer"
+        );
+
         // TODO: these are mnemonic wallets. figure out how to transfer ETH from them outside of explicitly hardcoding them here.
         (address pkanvil, uint256 skanvil) = getAnvil();
 
@@ -135,9 +150,19 @@ contract VaultScript is Script {
         vm.stopBroadcast();
 
         // deploy weth, multicall, liquidationAdapter, oracle, tokenVault
-        address multicallAddress; address liquidationAdapterAddress; address oracleAddress; address tokenVaultAddress; address wethAddress;
-        (multicallAddress, liquidationAdapterAddress, oracleAddress, tokenVaultAddress, wethAddress) = deployAll();
-        
+        address multicallAddress;
+        address liquidationAdapterAddress;
+        address oracleAddress;
+        address tokenVaultAddress;
+        address wethAddress;
+        (
+            multicallAddress,
+            liquidationAdapterAddress,
+            oracleAddress,
+            tokenVaultAddress,
+            wethAddress
+        ) = deployAll();
+
         // instantiate searcher A's contract with searcher A as sender/origin
         vm.startBroadcast(sksScript[0]);
         console.log("balance of pk searcherA", addressesScript[0].balance);
@@ -208,20 +233,25 @@ contract VaultScript is Script {
 
         vm.stopBroadcast();
 
-
         // searchers A and B approve liquidation adapter to spend their tokens
         vm.startBroadcast(sksScript[0]);
         IERC20(address(token1)).approve(liquidationAdapterAddress, 199_999_999);
         IERC20(address(token2)).approve(liquidationAdapterAddress, 199_999_999);
         // deposit ETH to get WETH
-        WETH9(payable(wethAddress)).deposit{ value: 1 ether }();
-        WETH9(payable(wethAddress)).approve(liquidationAdapterAddress, 399_999_999);
+        WETH9(payable(wethAddress)).deposit{value: 1 ether}();
+        WETH9(payable(wethAddress)).approve(
+            liquidationAdapterAddress,
+            399_999_999
+        );
         vm.stopBroadcast();
         vm.startBroadcast(sksScript[1]);
         IERC20(address(token1)).approve(liquidationAdapterAddress, 199_999_999);
         IERC20(address(token2)).approve(liquidationAdapterAddress, 199_999_999);
-        WETH9(payable(wethAddress)).deposit{ value: 1 ether }();
-        WETH9(payable(wethAddress)).approve(liquidationAdapterAddress, 399_999_999);
+        WETH9(payable(wethAddress)).deposit{value: 1 ether}();
+        WETH9(payable(wethAddress)).approve(
+            liquidationAdapterAddress,
+            399_999_999
+        );
         vm.stopBroadcast();
 
         string memory obj = "latestEnvironment";
@@ -229,7 +259,11 @@ contract VaultScript is Script {
         vm.serializeAddress(obj, "searcherA", address(searcherA));
         vm.serializeAddress(obj, "searcherB", address(searcherB));
         vm.serializeAddress(obj, "multicall", multicallAddress);
-        vm.serializeAddress(obj, "liquidationAdapter", liquidationAdapterAddress);
+        vm.serializeAddress(
+            obj,
+            "liquidationAdapter",
+            liquidationAdapterAddress
+        );
         vm.serializeAddress(obj, "oracle", oracleAddress);
 
         vm.serializeAddress(obj, "weth", wethAddress);
@@ -255,7 +289,11 @@ contract VaultScript is Script {
         vm.writeJson(finalJSON, latestEnvironmentPath);
     }
 
-    function setOraclePrice(int64 priceT1, int64 priceT2, uint64 publishTime) public { 
+    function setOraclePrice(
+        int64 priceT1,
+        int64 priceT2,
+        uint64 publishTime
+    ) public {
         string memory json = vm.readFile(latestEnvironmentPath);
         address oracleLatest = vm.parseJsonAddress(json, ".oracle");
         bytes32 idToken1Latest = vm.parseJsonBytes32(json, ".idToken1");
@@ -264,8 +302,26 @@ contract VaultScript is Script {
         MockPyth oracle = MockPyth(payable(oracleLatest));
 
         // set initial oracle prices
-        bytes memory token1UpdateData = oracle.createPriceFeedUpdateData(idToken1Latest, priceT1, 1, 0, priceT1, 0, publishTime, 0);
-        bytes memory token2UpdateData = oracle.createPriceFeedUpdateData(idToken2Latest, priceT2, 1, 0, priceT2, 0, publishTime, 0);
+        bytes memory token1UpdateData = oracle.createPriceFeedUpdateData(
+            idToken1Latest,
+            priceT1,
+            1,
+            0,
+            priceT1,
+            0,
+            publishTime,
+            0
+        );
+        bytes memory token2UpdateData = oracle.createPriceFeedUpdateData(
+            idToken2Latest,
+            priceT2,
+            1,
+            0,
+            priceT2,
+            0,
+            publishTime,
+            0
+        );
 
         bytes[] memory updateData = new bytes[](2);
         updateData[0] = token1UpdateData;
@@ -291,23 +347,53 @@ contract VaultScript is Script {
         bytes32 idToken2Latest = vm.parseJsonBytes32(json, ".idToken2");
         uint256 numVaults;
 
-        console.log("depositor token balances, before:", IERC20(token1Latest).balanceOf(depositorLatest), IERC20(token2Latest).balanceOf(depositorLatest));
+        console.log(
+            "depositor token balances, before:",
+            IERC20(token1Latest).balanceOf(depositorLatest),
+            IERC20(token2Latest).balanceOf(depositorLatest)
+        );
 
         if (collatT1) {
             vm.startBroadcast(depositorSkLatest);
             IERC20(token1Latest).approve(address(tokenVaultLatest), qT1);
-            numVaults = TokenVault(payable(tokenVaultLatest)).createVault(token1Latest, token2Latest, qT1, qT2, 110 * (10**16), 1 * (10**16), idToken1Latest, idToken2Latest);
+            numVaults = TokenVault(payable(tokenVaultLatest)).createVault(
+                token1Latest,
+                token2Latest,
+                qT1,
+                qT2,
+                110 * (10 ** 16),
+                1 * (10 ** 16),
+                idToken1Latest,
+                idToken2Latest
+            );
             vm.stopBroadcast();
         } else {
             vm.startBroadcast(depositorSkLatest);
             IERC20(token2Latest).approve(address(tokenVaultLatest), qT2);
-            numVaults = TokenVault(payable(tokenVaultLatest)).createVault(token2Latest, token1Latest, qT2, qT1, 110 * (10**16), 1 * (10**16), idToken1Latest, idToken2Latest);
+            numVaults = TokenVault(payable(tokenVaultLatest)).createVault(
+                token2Latest,
+                token1Latest,
+                qT2,
+                qT1,
+                110 * (10 ** 16),
+                1 * (10 ** 16),
+                idToken1Latest,
+                idToken2Latest
+            );
             vm.stopBroadcast();
         }
 
-        console.log("depositor token balances, after:", IERC20(token1Latest).balanceOf(depositorLatest), IERC20(token2Latest).balanceOf(depositorLatest));
+        console.log(
+            "depositor token balances, after:",
+            IERC20(token1Latest).balanceOf(depositorLatest),
+            IERC20(token2Latest).balanceOf(depositorLatest)
+        );
 
-        vm.writeJson(Strings.toString(numVaults), latestEnvironmentPath, ".numVaults");
+        vm.writeJson(
+            Strings.toString(numVaults),
+            latestEnvironmentPath,
+            ".numVaults"
+        );
     }
 
     function getBalanceEth(address addy) public view returns (uint256) {
@@ -316,7 +402,10 @@ contract VaultScript is Script {
         return balance;
     }
 
-    function getBalanceErc(address addy, address token) public view returns (uint256) {
+    function getBalanceErc(
+        address addy,
+        address token
+    ) public view returns (uint256) {
         uint256 balance = IERC20(token).balanceOf(addy);
         console.log(balance);
         return balance;
@@ -334,27 +423,46 @@ contract VaultScript is Script {
     function getVault(uint256 vaultID) public view returns (Vault memory) {
         string memory json = vm.readFile(latestEnvironmentPath);
         address tokenVaultLatest = vm.parseJsonAddress(json, ".tokenVault");
-        Vault memory vault = TokenVault(payable(tokenVaultLatest)).getVault(vaultID);
-        console.log("vault amounts are", vault.amountCollateral, vault.amountDebt);
+        Vault memory vault = TokenVault(payable(tokenVaultLatest)).getVault(
+            vaultID
+        );
+        console.log(
+            "vault amounts are",
+            vault.amountCollateral,
+            vault.amountDebt
+        );
         return vault;
     }
 
-    function getAllowances(address from, address spender) public view returns (uint256, uint256) {
+    function getAllowances(
+        address from,
+        address spender
+    ) public view returns (uint256, uint256) {
         string memory json = vm.readFile(latestEnvironmentPath);
         address token1Latest = vm.parseJsonAddress(json, ".token1");
         address token2Latest = vm.parseJsonAddress(json, ".token2");
-        console.log("allowances are", IERC20(token1Latest).allowance(from, spender), IERC20(token2Latest).allowance(from, spender));
-        console.log("balances are", IERC20(token1Latest).balanceOf(from), IERC20(token2Latest).balanceOf(from));
-        return (IERC20(token1Latest).allowance(from, spender), IERC20(token2Latest).allowance(from, spender));
+        console.log(
+            "allowances are",
+            IERC20(token1Latest).allowance(from, spender),
+            IERC20(token2Latest).allowance(from, spender)
+        );
+        console.log(
+            "balances are",
+            IERC20(token1Latest).balanceOf(from),
+            IERC20(token2Latest).balanceOf(from)
+        );
+        return (
+            IERC20(token1Latest).allowance(from, spender),
+            IERC20(token2Latest).allowance(from, spender)
+        );
     }
 
     function tryLiquidationAdapterContract() public view returns (address) {
         string memory json = vm.readFile(latestEnvironmentPath);
-        address liquidationAdapter = vm.parseJsonAddress(json, ".liquidationAdapter");
+        address liquidationAdapter = vm.parseJsonAddress(
+            json,
+            ".liquidationAdapter"
+        );
         return LiquidationAdapter(payable(liquidationAdapter)).getWeth();
     }
 }
-
-
-
-

@@ -1,24 +1,49 @@
-use anyhow::anyhow;
-use std::{
-    sync::{atomic::Ordering, Arc},
-    time::Duration,
-};
-
-use ethers::{
-    contract::{abigen, ContractError},
-    middleware::{
-        transformer::{Transformer, TransformerError},
-        SignerMiddleware, TransformerMiddleware,
+use {
+    crate::{
+        api::SHOULD_EXIT,
+        config::EthereumConfig,
+        state::Store,
     },
-    providers::{Http, Provider, ProviderError},
-    signers::{LocalWallet, Signer},
-    types::{
-        transaction::eip2718::TypedTransaction, Address, Bytes, TransactionReceipt,
-        TransactionRequest, U256,
+    anyhow::anyhow,
+    ethers::{
+        contract::{
+            abigen,
+            ContractError,
+        },
+        middleware::{
+            transformer::{
+                Transformer,
+                TransformerError,
+            },
+            SignerMiddleware,
+            TransformerMiddleware,
+        },
+        providers::{
+            Http,
+            Provider,
+            ProviderError,
+        },
+        signers::{
+            LocalWallet,
+            Signer,
+        },
+        types::{
+            transaction::eip2718::TypedTransaction,
+            Address,
+            Bytes,
+            TransactionReceipt,
+            TransactionRequest,
+            U256,
+        },
+    },
+    std::{
+        sync::{
+            atomic::Ordering,
+            Arc,
+        },
+        time::Duration,
     },
 };
-
-use crate::{api::SHOULD_EXIT, config::EthereumConfig, state::Store};
 
 abigen!(PER, "src/PERMulticall.json");
 pub type PERContract = PER<Provider<Http>>;
@@ -39,13 +64,6 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
     type Error = anyhow::Error;
 }
 
-// #[derive(Clone, Debug)]
-// pub struct MulticallStatus {
-//     pub external_success: bool,
-//     pub external_result: Bytes,
-//     pub multicall_revert_reason: String
-// }
-
 pub async fn simulate_bids(
     per_operator: Address,
     provider: Provider<Http>,
@@ -57,7 +75,6 @@ pub async fn simulate_bids(
 ) -> Result<Vec<MulticallStatus>, ContractError<Provider<Http>>> {
     let client = Arc::new(provider);
     let per_contract = PERContract::new(chain_config.contract_addr, client);
-    tracing::info!("Simulating bids {}, {}, {}, {}", permission, contracts[0], calldata[0], bids[0]);
     let call = per_contract
         .multicall(permission, contracts, calldata, bids)
         .from(per_operator);

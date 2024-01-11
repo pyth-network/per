@@ -17,3 +17,9 @@ $ set +a
 ```
 
 The updated enviornment variables can then be seen via `env`. We can then run the appropriate forge tests which will pull the relevant bundle information from the environment variables. To do this, run `forge test -vvv --via-ir --match-test {TestToBeRun}`. Note that you need to `source` the `.env` file in the same session as the one in which you run the forge tests.
+
+### pre-commit hooks
+
+pre-commit is a tool that checks and fixes simple issues (formatting, ...) before each commit. You can install it by following [their website](https://pre-commit.com/). In order to enable checks for this repo run `pre-commit install` from command-line in the root of this repo.
+
+The checks are also performed in the CI to ensure the code follows consistent formatting.
