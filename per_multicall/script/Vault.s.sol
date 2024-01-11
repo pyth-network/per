@@ -456,4 +456,10 @@ contract VaultScript is Script {
             IERC20(token2Latest).allowance(from, spender)
         );
     }
+
+    function tryLiquidationAdapterContract() public view returns (address) {
+        string memory json = vm.readFile(latestEnvironmentPath);
+        address liquidationAdapter = vm.parseJsonAddress(json, ".liquidationAdapter");
+        return LiquidationAdapter(payable(liquidationAdapter)).getWeth();
+    }
 }

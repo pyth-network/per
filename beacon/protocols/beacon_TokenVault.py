@@ -3,8 +3,8 @@ from eth_abi import encode
 import json
 from typing import TypedDict
 
-from pythresearch.per.beacon.utils.pyth_prices import *
-from pythresearch.per.beacon.utils.types_liquidation_adapter import *
+from beacon.utils.pyth_prices import *
+from beacon.utils.types_liquidation_adapter import *
 
 TOKEN_VAULT_ADDRESS = "0x72A22FfcAfa6684d4EE449620270ac05afE963d0"
 CHAIN_RPC_ENDPOINT = "http://localhost:8545"
@@ -23,7 +23,7 @@ class LiquidationAccount(TypedDict):
 
 
 def get_vault_abi():
-    f = open('pythresearch/per/per_multicall/out/TokenVault.sol/TokenVault.json')
+    f = open('per_multicall/out/TokenVault.sol/TokenVault.json')
 
     data = json.load(f)
 

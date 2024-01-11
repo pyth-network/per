@@ -1,0 +1,173 @@
+<mxfile modified="2024-01-09T16:37:41.732Z" host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/22.1.16 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="Fjv_ffgJdlsLH8XNeaY3" version="22.1.16" type="device">
+  <diagram id="4IY6VFG3XauLAaiHCQAp" name="Page-1">
+    <mxGraphModel dx="858" dy="729" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-1" value="" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="610" y="590" width="280" height="161" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-2" value="" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="11" y="70" width="879" height="471" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-3" value="" style="rounded=0;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=middle;align=center;verticalAlign=middle;" parent="1" vertex="1">
+          <mxGeometry x="448" y="236" width="380" height="176" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-4" value="" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="688" y="250" width="101" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-5" value="" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="10" y="590" width="260" height="161" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-6" value="Searchers" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="665.5" y="625.75" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-9" value="dApp" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="79" y="643" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-10" value="Pyth DAO" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#6a00ff;fontColor=#ffffff;strokeColor=#3700CC;" parent="1" vertex="1">
+          <mxGeometry x="349" y="100" width="200" height="111" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-11" value="&amp;lt;&amp;lt;contracts&amp;gt;&amp;gt; &lt;br&gt;&lt;div&gt;protocol&lt;br&gt;&lt;/div&gt;&lt;div&gt;operator&amp;nbsp;&lt;/div&gt;&lt;div&gt;for S&amp;amp;M&lt;/div&gt;" style="endArrow=classic;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;endFill=1;startArrow=none;startFill=0;" parent="1" source="RIBvgHsxx3PkzVRlg80r-9" target="RIBvgHsxx3PkzVRlg80r-30" edge="1">
+          <mxGeometry x="-0.0085" y="-11" width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="400" y="454" as="sourcePoint" />
+            <mxPoint x="450" y="404" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="140" y="490" />
+              <mxPoint x="140" y="346" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-13" value="&amp;lt;&amp;lt;assign&amp;gt;&amp;gt;&lt;br&gt;operational function to" style="endArrow=none;html=1;entryX=0.25;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;strokeWidth=1;startArrow=classic;startFill=1;endFill=0;" parent="1" source="RIBvgHsxx3PkzVRlg80r-30" target="RIBvgHsxx3PkzVRlg80r-10" edge="1">
+          <mxGeometry x="0.1245" y="1" width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="368" y="300" as="sourcePoint" />
+            <mxPoint x="478" y="169" as="targetPoint" />
+            <Array as="points" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-14" value="dApps" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;dashed=1;dashPattern=1 1;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="10" y="590" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-15" value="&amp;lt;&amp;lt;interacts&amp;gt;&amp;gt;&lt;br&gt;with" style="endArrow=none;html=1;exitX=0.73;exitY=0.992;exitDx=0;exitDy=0;exitPerimeter=0;startArrow=classic;startFill=1;" parent="1" source="RIBvgHsxx3PkzVRlg80r-3" target="RIBvgHsxx3PkzVRlg80r-6" edge="1">
+          <mxGeometry x="-0.2648" y="-4" width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="726" y="420" as="sourcePoint" />
+            <mxPoint x="330" y="759" as="targetPoint" />
+            <Array as="points" />
+            <mxPoint y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-18" value="&amp;lt;&amp;lt;contracts&amp;gt;&amp;gt;&lt;br&gt;&lt;div&gt;protocol&lt;br&gt;&lt;/div&gt;&lt;div&gt;operator&amp;nbsp;&lt;/div&gt;&lt;div&gt;for S&amp;amp;M&lt;/div&gt;" style="endArrow=classic;html=1;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;endFill=1;startArrow=none;startFill=0;" parent="1" source="RIBvgHsxx3PkzVRlg80r-6" target="RIBvgHsxx3PkzVRlg80r-30" edge="1">
+          <mxGeometry x="-0.1024" y="-1" width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="460" y="319" as="sourcePoint" />
+            <mxPoint x="540" y="204" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="625" y="511" />
+              <mxPoint x="511" y="511" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-20" value="&lt;div&gt;&amp;lt;&amp;lt;owns&amp;gt;&amp;gt;&lt;br&gt;and&amp;nbsp;&lt;/div&gt;&lt;div&gt;&amp;lt;&amp;lt;collect&amp;gt;&amp;gt; fees&lt;/div&gt;" style="endArrow=none;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;endFill=0;exitX=0.75;exitY=0;exitDx=0;exitDy=0;startArrow=classic;startFill=1;" parent="1" source="RIBvgHsxx3PkzVRlg80r-3" target="RIBvgHsxx3PkzVRlg80r-10" edge="1">
+          <mxGeometry x="0.2103" y="-4" width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="738" y="230" as="sourcePoint" />
+            <mxPoint x="658" y="209" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="728" y="190" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-21" value="Pyth PER" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;dashed=1;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="10" y="70" width="105" height="47" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-22" value="&lt;div&gt;Searchers&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;dashed=1;dashPattern=1 1;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="792" y="591" width="100" height="41" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-24" value="Tech Stack" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="463" y="236" width="70" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-25" value="PER Auction" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="718" y="270" width="41" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-26" value="" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="599" y="300" width="182" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-23" value="Searchers" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="684.5" y="638.25" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-27" value="On-chain Contracts" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="619" y="335" width="59" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-28" value="Auction Resolution + Atomic Swap" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="701" y="310" width="65" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-29" value="&lt;div&gt;&amp;lt;&amp;lt;performs&amp;gt;&amp;gt;&amp;nbsp;&lt;/div&gt;&lt;div&gt;runtime services&lt;/div&gt;" style="endArrow=classic;html=1;endFill=1;" parent="1" edge="1">
+          <mxGeometry x="-0.0056" width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="419" y="366" as="sourcePoint" />
+            <mxPoint x="598" y="366" as="targetPoint" />
+            <Array as="points" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-30" value="PER Operator" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;strokeColor=#2D7600;fontColor=#ffffff;" parent="1" vertex="1">
+          <mxGeometry x="249" y="301" width="170" height="89" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-33" value="" style="endArrow=none;dashed=1;html=1;" parent="1" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="688" y="401" as="sourcePoint" />
+            <mxPoint x="688" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-34" value="&amp;lt;&amp;lt;deploys&amp;gt;&amp;gt;&lt;br&gt;stack&lt;br&gt;as defined by DAO" style="endArrow=classic;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;strokeWidth=1;startArrow=none;startFill=0;endFill=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;" parent="1" source="RIBvgHsxx3PkzVRlg80r-30" target="RIBvgHsxx3PkzVRlg80r-26" edge="1">
+          <mxGeometry x="-0.011" y="3" width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="421" y="338" as="sourcePoint" />
+            <mxPoint x="488" y="191" as="targetPoint" />
+            <Array as="points" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-41" value="" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;fillColor=default;" parent="1" vertex="1">
+          <mxGeometry x="309" y="591" width="260" height="161" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-36" value="&amp;lt;&amp;lt;interacts&amp;gt;&amp;gt;&lt;br&gt;with" style="endArrow=classic;html=1;endFill=1;startArrow=none;startFill=0;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" parent="1" source="RIBvgHsxx3PkzVRlg80r-9" target="RIBvgHsxx3PkzVRlg80r-3" edge="1">
+          <mxGeometry x="0.3309" width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="51" y="465" as="sourcePoint" />
+            <mxPoint x="175" y="183" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="110" y="280" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-38" value="Searchers" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="698.5" y="655.25" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-39" value="dApp" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="89" y="653" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-40" value="dApp" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="99" y="663" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-42" value="Douro Labs" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;dashed=1;dashPattern=1 1;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="459" y="591" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-43" value="Core Protocol&lt;br&gt;Development" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="389" y="643" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RIBvgHsxx3PkzVRlg80r-12" value="is" style="endArrow=none;html=1;entryX=0.365;entryY=1.011;entryDx=0;entryDy=0;entryPerimeter=0;endFill=0;startArrow=none;startFill=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" parent="1" source="RIBvgHsxx3PkzVRlg80r-43" target="RIBvgHsxx3PkzVRlg80r-30" edge="1">
+          <mxGeometry x="0.1811" y="6" width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="420" y="570" as="sourcePoint" />
+            <mxPoint x="435" y="380" as="targetPoint" />
+            <mxPoint x="1" as="offset" />
+            <Array as="points">
+              <mxPoint x="420" y="501" />
+              <mxPoint x="363" y="461" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

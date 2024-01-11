@@ -1,0 +1,17 @@
+# Python cache files
+__pycache__
+*.pyc
+
+# any config files
+config.yaml
+
+# MacOS config file
+.DS_Store
+
+# API key files
+api_keys.py
+
+# env files
+*.env
+per_multicall/latestEnvironment.json
+

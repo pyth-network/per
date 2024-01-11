@@ -1,9 +1,9 @@
 import httpx
 import asyncio
 
-from pythresearch.per.beacon.protocols import beacon_TokenVault
-from pythresearch.per.beacon.utils.pyth_prices import *
-from pythresearch.per.beacon.utils.endpoints import *
+from beacon.protocols import beacon_TokenVault
+from beacon.utils.pyth_prices import *
+from beacon.utils.endpoints import *
 
 # TODO: turn on authorization in the surface post requests
 OPERATOR_API_KEY = "password"

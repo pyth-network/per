@@ -3,8 +3,8 @@ from eth_abi import encode
 import json
 from typing import TypedDict
 
-from pythresearch.per.beacon.utils.pyth_prices import *
-from pythresearch.per.beacon.utils.types_liquidation_adapter import *
+from beacon.utils.pyth_prices import *
+from beacon.utils.types_liquidation_adapter import *
 
 PROTOCOL_ADDRESS = "{INSERT}"
 CHAIN_RPC_ENDPOINT = "http://localhost:8545"
