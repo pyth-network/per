@@ -347,6 +347,12 @@ contract VaultScript is Script {
         console.log("balances are", IERC20(token1Latest).balanceOf(from), IERC20(token2Latest).balanceOf(from));
         return (IERC20(token1Latest).allowance(from, spender), IERC20(token2Latest).allowance(from, spender));
     }
+
+    function tryLiquidationAdapterContract() public view returns (address) {
+        string memory json = vm.readFile(latestEnvironmentPath);
+        address liquidationAdapter = vm.parseJsonAddress(json, ".liquidationAdapter");
+        return LiquidationAdapter(payable(liquidationAdapter)).getWeth();
+    }
 }
 
 

@@ -6,9 +6,9 @@ from eth_abi import encode
 import httpx
 import asyncio
 
-from pythresearch.per.beacon.utils.types_liquidation_adapter import *
-from pythresearch.per.beacon.utils.endpoints import *
-from pythresearch.per.beacon.searcher.searcher_utils import *
+from beacon.utils.types_liquidation_adapter import *
+from beacon.utils.endpoints import *
+from beacon.searcher.searcher_utils import *
 
 TOKEN_VAULT_ADDRESS = "0x72A22FfcAfa6684d4EE449620270ac05afE963d0"
 

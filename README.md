@@ -2,17 +2,17 @@
 
 ## Off-chain server
 
-Run `uvicorn pythresearch.per.main:app --reload` to run the FastAPI server. This enables the endpoint for submitting and reading searcher submissions.
+Run `uvicorn main:app --reload` to run the FastAPI server. This enables the endpoint for submitting and reading searcher submissions.
 
 ## Off-chain auction
 
-In order to run the off-chain auction mechanism, run `python3 -m pythresearch.per.auction_offchain`. You can run `searcher.py` to submit some prescripted bids to the offchain auction pool, and running `auction_offchain.py` will run the determination for the auction, culminating in a bundle of calls to submit to the multicall contract.
+In order to run the off-chain auction mechanism, run `python3 -m auction_offchain`. You can run `searcher.py` to submit some prescripted bids to the offchain auction pool, and running `auction_offchain.py` will run the determination for the auction, culminating in a bundle of calls to submit to the multicall contract.
 
-This bundle is automatically saved in an environment file at `pythresearch/per/.env`. In order to save these variables into your environment, you should run the following commands to source the newly created `.env` file:
+This bundle is automatically saved in an environment file at `.env`. In order to save these variables into your environment, you should run the following commands to source the newly created `.env` file:
 
 ```shell
 $ set -a
-$ source pythresearch/per/.env
+$ source .env
 $ set +a
 ```
 
