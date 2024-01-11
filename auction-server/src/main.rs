@@ -1,15 +1,15 @@
-use std::io::IsTerminal;
-
-use anyhow::Result;
-use clap::Parser;
-use tracing_subscriber::filter::LevelFilter;
-
-use crate::api::start_server;
+use {
+    crate::api::start_server,
+    anyhow::Result,
+    clap::Parser,
+    std::io::IsTerminal,
+    tracing_subscriber::filter::LevelFilter,
+};
 
 mod api;
+mod auction;
 mod config;
 mod state;
-mod auction;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,9 +18,11 @@ async fn main() -> Result<()> {
         .with_file(false)
         .with_line_number(true)
         .with_thread_ids(true)
-        .with_env_filter(tracing_subscriber::EnvFilter::builder()
-            .with_default_directive(LevelFilter::INFO.into())
-            .from_env_lossy())
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env_lossy(),
+        )
         .with_ansi(std::io::stderr().is_terminal());
 
     // Use the compact formatter if we're in a terminal, otherwise use the JSON formatter.
@@ -33,9 +35,6 @@ async fn main() -> Result<()> {
     // Parse the command line arguments with StructOpt, will exit automatically on `--help` or
     // with invalid arguments.
     match config::Options::parse() {
-        config::Options::Run(opts) => {
-            start_server(opts).await
-        }
+        config::Options::Run(opts) => start_server(opts).await,
     }
 }
-

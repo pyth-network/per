@@ -1,27 +1,65 @@
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
-use axum::{
-    routing::{get, post},
-    Router,
+use {
+    crate::{
+        api::rest::Bid,
+        auction::run_submission_loop,
+        config::{
+            ChainId,
+            Config,
+            RunOptions,
+        },
+        state::{
+            ChainStore,
+            Store,
+        },
+    },
+    anyhow::{
+        anyhow,
+        Result,
+    },
+    axum::{
+        http::StatusCode,
+        response::{
+            IntoResponse,
+            Response,
+        },
+        routing::{
+            get,
+            post,
+        },
+        Router,
+    },
+    clap::crate_version,
+    ethers::{
+        providers::{
+            Http,
+            Middleware,
+            Provider,
+        },
+        signers::{
+            LocalWallet,
+            Signer,
+        },
+        types::Address,
+    },
+    futures::future::join_all,
+    std::{
+        collections::HashMap,
+        sync::{
+            atomic::{
+                AtomicBool,
+                Ordering,
+            },
+            Arc,
+        },
+    },
+    tower_http::cors::CorsLayer,
+    utoipa::{
+        OpenApi,
+        ToResponse,
+        ToSchema,
+    },
+    utoipa_swagger_ui::SwaggerUi,
 };
-use clap::crate_version;
-use ethers::providers::{Http, Middleware, Provider};
-use ethers::types::Address;
-use futures::future::join_all;
-use tower_http::cors::CorsLayer;
-use utoipa::{OpenApi, ToResponse, ToSchema};
-use utoipa_swagger_ui::SwaggerUi;
-
-use crate::api::rest::Bid;
-use crate::auction::run_submission_loop;
-use crate::config::{ChainId, Config, RunOptions};
-use crate::state::{ChainStore, Store};
-use anyhow::{anyhow, Result};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use ethers::signers::{LocalWallet, Signer};
 
 // A static exit flag to indicate to running threads that we're shutting down. This is used to
 // gracefully shutdown the application.
@@ -127,7 +165,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                     network_id: id,
                     bids: Default::default(),
                     config: chain_config.clone(),
-                    opps: Default::default()
+                    opps: Default::default(),
                 },
             ))
         },
@@ -137,7 +175,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     .collect();
 
     let store = Arc::new(Store {
-        chains: chain_store?,
+        chains:       chain_store?,
         per_operator: wallet,
     });
 

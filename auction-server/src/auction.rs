@@ -1,24 +1,49 @@
-use anyhow::anyhow;
-use std::{
-    sync::{atomic::Ordering, Arc},
-    time::Duration,
-};
-
-use ethers::{
-    contract::{abigen, ContractError},
-    middleware::{
-        transformer::{Transformer, TransformerError},
-        SignerMiddleware, TransformerMiddleware,
+use {
+    crate::{
+        api::SHOULD_EXIT,
+        config::EthereumConfig,
+        state::Store,
     },
-    providers::{Http, Provider, ProviderError},
-    signers::{LocalWallet, Signer},
-    types::{
-        transaction::eip2718::TypedTransaction, Address, Bytes, TransactionReceipt,
-        TransactionRequest, U256,
+    anyhow::anyhow,
+    ethers::{
+        contract::{
+            abigen,
+            ContractError,
+        },
+        middleware::{
+            transformer::{
+                Transformer,
+                TransformerError,
+            },
+            SignerMiddleware,
+            TransformerMiddleware,
+        },
+        providers::{
+            Http,
+            Provider,
+            ProviderError,
+        },
+        signers::{
+            LocalWallet,
+            Signer,
+        },
+        types::{
+            transaction::eip2718::TypedTransaction,
+            Address,
+            Bytes,
+            TransactionReceipt,
+            TransactionRequest,
+            U256,
+        },
+    },
+    std::{
+        sync::{
+            atomic::Ordering,
+            Arc,
+        },
+        time::Duration,
     },
 };
-
-use crate::{api::SHOULD_EXIT, config::EthereumConfig, state::Store};
 
 abigen!(PER, "src/PERMulticall.json");
 pub type PERContract = PER<Provider<Http>>;

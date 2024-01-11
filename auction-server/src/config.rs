@@ -1,8 +1,19 @@
-use anyhow::Result;
-use clap::{crate_authors, crate_description, crate_name, crate_version, Args, Parser};
-use ethers::abi::Address;
-use std::collections::HashMap;
-use std::fs;
+use {
+    anyhow::Result,
+    clap::{
+        crate_authors,
+        crate_description,
+        crate_name,
+        crate_version,
+        Args,
+        Parser,
+    },
+    ethers::abi::Address,
+    std::{
+        collections::HashMap,
+        fs,
+    },
+};
 
 mod server;
 
