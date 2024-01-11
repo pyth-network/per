@@ -459,7 +459,10 @@ contract VaultScript is Script {
 
     function tryLiquidationAdapterContract() public view returns (address) {
         string memory json = vm.readFile(latestEnvironmentPath);
-        address liquidationAdapter = vm.parseJsonAddress(json, ".liquidationAdapter");
+        address liquidationAdapter = vm.parseJsonAddress(
+            json,
+            ".liquidationAdapter"
+        );
         return LiquidationAdapter(payable(liquidationAdapter)).getWeth();
     }
 }
