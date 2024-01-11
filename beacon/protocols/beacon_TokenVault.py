@@ -9,6 +9,7 @@ from pythresearch.per.beacon.utils.types_liquidation_adapter import *
 TOKEN_VAULT_ADDRESS = "0x72A22FfcAfa6684d4EE449620270ac05afE963d0"
 CHAIN_RPC_ENDPOINT = "http://localhost:8545"
 
+
 class LiquidationAccount(TypedDict):
     account_number: int
     token_address_collateral: str
@@ -82,11 +83,13 @@ async def get_accounts() -> list[LiquidationAccount]:
 def create_liquidation_opp(
         account: LiquidationAccount,
         prices: list[PriceFeed]) -> LiquidationOpportunity:
-    price_updates = [] ## [bytes.fromhex(update['vaa']) for update in prices] ## TODO: uncomment this, to add back price updates
+    # [bytes.fromhex(update['vaa']) for update in prices] ## TODO: uncomment this, to add back price updates
+    price_updates = []
     function_signature = web3.Web3.solidity_keccak(
         ["string"], ["liquidateWithPriceUpdate(uint256,bytes[])"])[:4].hex()
     calldata = function_signature + \
-        encode(['uint256', 'bytes[]'], [account["account_number"], price_updates]).hex()
+        encode(['uint256', 'bytes[]'], [
+               account["account_number"], price_updates]).hex()
 
     msg = encode(["uint256"], [account["account_number"]])
     permission = '0x' + \
@@ -148,11 +151,8 @@ def get_liquidatable(accounts: list[LiquidationAccount],
             liquidatable.append(
                 create_liquidation_opp(
                     account, price_updates))
-    
+
     return liquidatable
-
-
-
 
 
 async def main():

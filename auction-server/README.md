@@ -8,7 +8,6 @@ Each blockchain is configured in `config.yaml`.
 This package uses Cargo for building and dependency management.
 Simply run `cargo build` and `cargo test` to build and test the project.
 
-
 ## Local Development
 
 To start an instance of the webserver for local testing, you first need to perform a few setup steps:

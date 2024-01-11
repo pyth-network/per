@@ -5,6 +5,7 @@ from pythresearch.per.beacon.utils.pyth_prices import PriceFeed
 
 LIQUIDATION_ADAPTER_ADDRESS = "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
 
+
 class LiquidationOpportunity(TypedDict):
     chain_id: str
     # Address of the contract where the liquidation method is called
@@ -20,9 +21,10 @@ class LiquidationOpportunity(TypedDict):
     prices: list[PriceFeed]
 
 
-
 LIQUIDATION_ADAPTER_CALLDATA_TYPES = '((address,uint256)[],(address,uint256)[],address,address,bytes,uint256,uint256,bytes)'
-LIQUIDATION_ADAPTER_FN_SIGNATURE = web3.Web3.solidity_keccak(["string"], [f"callLiquidation({LIQUIDATION_ADAPTER_CALLDATA_TYPES})"])[:4].hex()
+LIQUIDATION_ADAPTER_FN_SIGNATURE = web3.Web3.solidity_keccak(
+    ["string"], [f"callLiquidation({LIQUIDATION_ADAPTER_CALLDATA_TYPES})"])[:4].hex()
+
 
 class LiquidationAdapterCalldata(TypedDict):
     repay_tokens: list[(str, int)]
@@ -33,6 +35,7 @@ class LiquidationAdapterCalldata(TypedDict):
     valid_until: int
     bid: int
     signature_liquidator: bytes
+
 
 class LiquidationAdapterIntent(TypedDict):
     bid: str

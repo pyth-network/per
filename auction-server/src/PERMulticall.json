@@ -526,75 +526,29 @@
     "absolutePath": "src/PERMulticall.sol",
     "id": 48313,
     "exportedSymbols": {
-      "ExpiredSignature": [
-        47480
-      ],
-      "IERC20": [
-        44053
-      ],
-      "InvalidBid": [
-        47494
-      ],
-      "InvalidLiquidation": [
-        47492
-      ],
-      "InvalidPERSignature": [
-        47484
-      ],
-      "InvalidSearcherSignature": [
-        47478
-      ],
-      "InvalidTimestamp": [
-        47486
-      ],
-      "InvalidVaultUpdate": [
-        47490
-      ],
-      "LiquidationCallFailed": [
-        47498
-      ],
-      "LiquidationCallParams": [
-        48752
-      ],
-      "MulticallStatus": [
-        48731
-      ],
-      "NotPEROperator": [
-        47474
-      ],
-      "NotRegistered": [
-        47496
-      ],
-      "OracleState": [
-        48702
-      ],
-      "PERFeeReceiver": [
-        47910
-      ],
-      "PERMulticall": [
-        48312
-      ],
-      "SignatureAlreadyUsed": [
-        47482
-      ],
-      "Strings": [
-        44822
-      ],
-      "TokenQty": [
-        48724
-      ],
-      "Unauthorized": [
-        47476
-      ],
-      "UncollateralizedVaultCreation": [
-        47488
-      ],
-      "Vault": [
-        48719
-      ],
-      "console": [
-        22024
-      ]
+      "ExpiredSignature": [47480],
+      "IERC20": [44053],
+      "InvalidBid": [47494],
+      "InvalidLiquidation": [47492],
+      "InvalidPERSignature": [47484],
+      "InvalidSearcherSignature": [47478],
+      "InvalidTimestamp": [47486],
+      "InvalidVaultUpdate": [47490],
+      "LiquidationCallFailed": [47498],
+      "LiquidationCallParams": [48752],
+      "MulticallStatus": [48731],
+      "NotPEROperator": [47474],
+      "NotRegistered": [47496],
+      "OracleState": [48702],
+      "PERFeeReceiver": [47910],
+      "PERMulticall": [48312],
+      "SignatureAlreadyUsed": [47482],
+      "Strings": [44822],
+      "TokenQty": [48724],
+      "Unauthorized": [47476],
+      "UncollateralizedVaultCreation": [47488],
+      "Vault": [48719],
+      "console": [22024]
     },
     "nodeType": "SourceUnit",
     "src": "39:5523:37",
@@ -604,12 +558,7 @@
         "nodeType": "PragmaDirective",
         "src": "39:24:37",
         "nodes": [],
-        "literals": [
-          "solidity",
-          "^",
-          "0.8",
-          ".13"
-        ]
+        "literals": ["solidity", "^", "0.8", ".13"]
       },
       {
         "id": 47913,
@@ -1582,10 +1531,7 @@
                       "id": 47991,
                       "name": "require",
                       "nodeType": "Identifier",
-                      "overloadedDeclarations": [
-                        -18,
-                        -18
-                      ],
+                      "overloadedDeclarations": [-18, -18],
                       "referencedDeclaration": -18,
                       "src": "1747:7:37",
                       "typeDescriptions": {
@@ -1780,9 +1726,7 @@
               "nodes": [],
               "statements": [
                 {
-                  "assignments": [
-                    48014
-                  ],
+                  "assignments": [48014],
                   "declarations": [
                     {
                       "constant": false,
@@ -2392,10 +2336,7 @@
                       "id": 48063,
                       "name": "require",
                       "nodeType": "Identifier",
-                      "overloadedDeclarations": [
-                        -18,
-                        -18
-                      ],
+                      "overloadedDeclarations": [-18, -18],
                       "referencedDeclaration": -18,
                       "src": "2856:7:37",
                       "typeDescriptions": {
@@ -2518,10 +2459,7 @@
                       "id": 48071,
                       "name": "require",
                       "nodeType": "Identifier",
-                      "overloadedDeclarations": [
-                        -18,
-                        -18
-                      ],
+                      "overloadedDeclarations": [-18, -18],
                       "referencedDeclaration": -18,
                       "src": "2945:7:37",
                       "typeDescriptions": {
@@ -2734,9 +2672,7 @@
                             "pathNode": {
                               "id": 48088,
                               "name": "MulticallStatus",
-                              "nameLocations": [
-                                "3110:15:37"
-                              ],
+                              "nameLocations": ["3110:15:37"],
                               "nodeType": "IdentifierPath",
                               "referencedDeclaration": 48731,
                               "src": "3110:15:37"
@@ -2784,9 +2720,7 @@
                   "src": "3086:54:37"
                 },
                 {
-                  "assignments": [
-                    48098
-                  ],
+                  "assignments": [48098],
                   "declarations": [
                     {
                       "constant": false,
@@ -3523,9 +3457,7 @@
                   },
                   "id": 48165,
                   "initializationExpression": {
-                    "assignments": [
-                      48102
-                    ],
+                    "assignments": [48102],
                     "declarations": [
                       {
                         "constant": false,
@@ -3611,9 +3543,7 @@
                   "src": "3181:548:37"
                 },
                 {
-                  "assignments": [
-                    48167
-                  ],
+                  "assignments": [48167],
                   "declarations": [
                     {
                       "constant": false,
@@ -3698,9 +3628,7 @@
                   "src": "3803:49:37"
                 },
                 {
-                  "assignments": [
-                    48173
-                  ],
+                  "assignments": [48173],
                   "declarations": [
                     {
                       "constant": false,
@@ -3873,9 +3801,7 @@
                   }
                 },
                 {
-                  "assignments": [
-                    48188
-                  ],
+                  "assignments": [48188],
                   "declarations": [
                     {
                       "constant": false,
@@ -4007,9 +3933,7 @@
                     "src": "4131:347:37",
                     "statements": [
                       {
-                        "assignments": [
-                          48197
-                        ],
+                        "assignments": [48197],
                         "declarations": [
                           {
                             "constant": false,
@@ -4368,9 +4292,7 @@
                                   "isLValue": false,
                                   "isPure": false,
                                   "lValueRequested": false,
-                                  "names": [
-                                    "value"
-                                  ],
+                                  "names": ["value"],
                                   "nodeType": "FunctionCallOptions",
                                   "options": [
                                     {
@@ -4710,9 +4632,7 @@
                       "pathNode": {
                         "id": 48058,
                         "name": "MulticallStatus",
-                        "nameLocations": [
-                          "2802:15:37"
-                        ],
+                        "nameLocations": ["2802:15:37"],
                         "nodeType": "IdentifierPath",
                         "referencedDeclaration": 48731,
                         "src": "2802:15:37"
@@ -4754,9 +4674,7 @@
               "nodes": [],
               "statements": [
                 {
-                  "assignments": [
-                    48251
-                  ],
+                  "assignments": [48251],
                   "declarations": [
                     {
                       "constant": false,
@@ -4863,10 +4781,7 @@
                   "src": "5024:46:37"
                 },
                 {
-                  "assignments": [
-                    48259,
-                    48261
-                  ],
+                  "assignments": [48259, 48261],
                   "declarations": [
                     {
                       "constant": false,
@@ -5013,9 +4928,7 @@
                     "src": "5169:258:37",
                     "statements": [
                       {
-                        "assignments": [
-                          48269
-                        ],
+                        "assignments": [48269],
                         "declarations": [
                           {
                             "constant": false,
@@ -5349,10 +5262,7 @@
                             "id": 48276,
                             "name": "require",
                             "nodeType": "Identifier",
-                            "overloadedDeclarations": [
-                              -18,
-                              -18
-                            ],
+                            "overloadedDeclarations": [-18, -18],
                             "referencedDeclaration": -18,
                             "src": "5311:7:37",
                             "typeDescriptions": {
@@ -5740,16 +5650,12 @@
         "contractDependencies": [],
         "contractKind": "contract",
         "fullyImplemented": true,
-        "linearizedBaseContracts": [
-          48312
-        ],
+        "linearizedBaseContracts": [48312],
         "name": "PERMulticall",
         "nameLocation": "327:12:37",
         "scope": 48313,
         "usedErrors": [],
-        "usedEvents": [
-          47925
-        ]
+        "usedEvents": [47925]
       }
     ],
     "license": "UNLICENSED"

@@ -24,3 +24,9 @@ repos:
         entry: cargo +nightly-2023-07-23 fmt --manifest-path ./auction-server/Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
         files: auction-server
+
+  # for python files
+  - repo: https://github.com/hhatto/autopep8
+    rev: "v2.0.4"
+    hooks:
+      - id: autopep8

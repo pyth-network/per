@@ -5,8 +5,10 @@ from pythresearch.per.beacon.protocols import beacon_TokenVault
 from pythresearch.per.beacon.utils.pyth_prices import *
 from pythresearch.per.beacon.utils.endpoints import *
 
-OPERATOR_API_KEY = "password" ## TODO: turn on authorization in the surface post requests
+# TODO: turn on authorization in the surface post requests
+OPERATOR_API_KEY = "password"
 PROTOCOLS = [beacon_TokenVault]
+
 
 async def main():
     # get prices
@@ -24,8 +26,9 @@ async def main():
     for protocol in PROTOCOLS:
         accounts = await protocol.get_accounts()
 
-        liquidatable_protocol = protocol.get_liquidatable(accounts, pyth_prices_latest)
-        
+        liquidatable_protocol = protocol.get_liquidatable(
+            accounts, pyth_prices_latest)
+
         liquidatable += liquidatable_protocol
 
     CLIENT = httpx.AsyncClient()
