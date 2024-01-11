@@ -29,7 +29,7 @@ contract TokenVault is PERFeeReceiver {
 
     /**
      * @notice TokenVault constructor - Initializes a new token vault contract with given parameters
-     * 
+     *
      * @param perMulticallAddress: address of PER contract
      * @param oracleAddress: address of the oracle contract
      */
@@ -41,7 +41,7 @@ contract TokenVault is PERFeeReceiver {
 
     /**
      * @notice getPrice function - retrieves price of a given token from the oracle
-     * 
+     *
      * @param id: price feed ID of the token
      */
     function _getPrice(
@@ -61,16 +61,14 @@ contract TokenVault is PERFeeReceiver {
      *
      * @param vaultID: ID of the vault for which to calculate health
      */
-    function getVaultHealth(
-        uint256 vaultID
-    ) public view returns (uint256){
+    function getVaultHealth(uint256 vaultID) public view returns (uint256) {
         Vault memory vault = _vaults[vaultID];
         return _getVaultHealth(vault);
     }
 
     /**
      * @notice _getVaultHealth function - calculates vault collateral/debt ratio
-     * 
+     *
      * @param vault: vault struct containing vault parameters
      */
     function _getVaultHealth(
@@ -82,15 +80,16 @@ contract TokenVault is PERFeeReceiver {
         require(priceCollateral >= 0, "collateral price is negative");
         require(priceDebt >= 0, "debt price is negative");
 
-        uint256 valueCollateral = uint256(uint64(priceCollateral)) * vault.amountCollateral;
+        uint256 valueCollateral = uint256(uint64(priceCollateral)) *
+            vault.amountCollateral;
         uint256 valueDebt = uint256(uint64(priceDebt)) * vault.amountDebt;
 
-        return valueCollateral * 1_000_000_000_000_000_000 / valueDebt;
+        return (valueCollateral * 1_000_000_000_000_000_000) / valueDebt;
     }
 
     /**
      * @notice createVault function - creates a vault
-     * 
+     *
      * @param tokenCollateral: address of the collateral token of the vault
      * @param tokenDebt: address of the debt token of the vault
      * @param amountCollateral: amount of collateral tokens in the vault
@@ -110,24 +109,40 @@ contract TokenVault is PERFeeReceiver {
         bytes32 tokenIDCollateral,
         bytes32 tokenIDDebt
     ) public returns (uint256) {
-        Vault memory vault = Vault(tokenCollateral, tokenDebt, amountCollateral, amountDebt, minHealthRatio, minPermissionLessHealthRatio, tokenIDCollateral, tokenIDDebt);
-        require(minPermissionLessHealthRatio <= minHealthRatio, "minPermissionLessHealthRatio must be less than or equal to minHealthRatio");
+        Vault memory vault = Vault(
+            tokenCollateral,
+            tokenDebt,
+            amountCollateral,
+            amountDebt,
+            minHealthRatio,
+            minPermissionLessHealthRatio,
+            tokenIDCollateral,
+            tokenIDDebt
+        );
+        require(
+            minPermissionLessHealthRatio <= minHealthRatio,
+            "minPermissionLessHealthRatio must be less than or equal to minHealthRatio"
+        );
         if (_getVaultHealth(vault) < vault.minHealthRatio) {
             revert UncollateralizedVaultCreation();
         }
 
-        IERC20(vault.tokenCollateral).safeTransferFrom(msg.sender, address(this), vault.amountCollateral);
+        IERC20(vault.tokenCollateral).safeTransferFrom(
+            msg.sender,
+            address(this),
+            vault.amountCollateral
+        );
         IERC20(vault.tokenDebt).safeTransfer(msg.sender, vault.amountDebt);
 
         _vaults[_nVaults] = vault;
         _nVaults += 1;
-    
+
         return _nVaults;
     }
 
     /**
      * @notice updateVault function - updates a vault's collateral and debt amounts
-     * 
+     *
      * @param vaultID: ID of the vault to be updated
      * @param deltaCollateral: delta change to collateral amount (+ means adding collateral tokens, - means removing collateral tokens)
      * @param deltaDebt: delta change to debt amount (+ means withdrawing debt tokens from protocol, - means resending debt tokens to protocol)
@@ -142,18 +157,22 @@ contract TokenVault is PERFeeReceiver {
         uint256 qCollateral = stdMath.abs(deltaCollateral);
         uint256 qDebt = stdMath.abs(deltaDebt);
 
-        bool withdrawExcessiveCollateral = (deltaCollateral < 0) && (qCollateral > vault.amountCollateral);
+        bool withdrawExcessiveCollateral = (deltaCollateral < 0) &&
+            (qCollateral > vault.amountCollateral);
 
         if (withdrawExcessiveCollateral) {
             revert InvalidVaultUpdate();
         }
 
-        uint256 futureCollateral = (deltaCollateral >= 0) ? (vault.amountCollateral + qCollateral) : (vault.amountCollateral - qCollateral);
-        uint256 futureDebt = (deltaDebt >= 0) ? (vault.amountDebt + qDebt) : (vault.amountDebt - qDebt);
-        
+        uint256 futureCollateral = (deltaCollateral >= 0)
+            ? (vault.amountCollateral + qCollateral)
+            : (vault.amountCollateral - qCollateral);
+        uint256 futureDebt = (deltaDebt >= 0)
+            ? (vault.amountDebt + qDebt)
+            : (vault.amountDebt - qDebt);
+
         vault.amountCollateral = futureCollateral;
         vault.amountDebt = futureDebt;
-
 
         if (_getVaultHealth(vault) < vault.minHealthRatio) {
             revert InvalidVaultUpdate();
@@ -162,7 +181,11 @@ contract TokenVault is PERFeeReceiver {
         // update collateral position
         if (deltaCollateral >= 0) {
             // sender adds more collateral to their vault
-            IERC20(vault.tokenCollateral).safeTransferFrom(msg.sender, address(this), qCollateral);
+            IERC20(vault.tokenCollateral).safeTransferFrom(
+                msg.sender,
+                address(this),
+                qCollateral
+            );
             _vaults[vaultID].amountCollateral += qCollateral;
         } else {
             // sender takes back collateral from their vault
@@ -177,14 +200,18 @@ contract TokenVault is PERFeeReceiver {
             _vaults[vaultID].amountDebt += qDebt;
         } else {
             // sender sends back debt tokens
-            IERC20(vault.tokenDebt).safeTransferFrom(msg.sender, address(this), qDebt);
+            IERC20(vault.tokenDebt).safeTransferFrom(
+                msg.sender,
+                address(this),
+                qDebt
+            );
             _vaults[vaultID].amountDebt -= qDebt;
         }
     }
 
     /**
      * @notice getVault function - getter function to get a vault's parameters
-     * 
+     *
      * @param vaultID: ID of the vault
      */
     function getVault(uint256 vaultID) public view returns (Vault memory) {
@@ -193,17 +220,17 @@ contract TokenVault is PERFeeReceiver {
 
     /**
      * @notice _updatePriceFeeds function - updates the specified price feeds with given data
-     * 
+     *
      * @param updateData: data to update price feeds with
      */
     function _updatePriceFeeds(bytes[] calldata updateData) internal {
         MockPyth oracle = MockPyth(payable(_oracle));
-        oracle.updatePriceFeeds{ value: msg.value }(updateData);
+        oracle.updatePriceFeeds{value: msg.value}(updateData);
     }
 
     /**
      * @notice liquidate function - liquidates a vault
-     * 
+     *
      * @param vaultID: ID of the vault to be liquidated
      */
     function liquidate(uint256 vaultID) public {
@@ -213,12 +240,25 @@ contract TokenVault is PERFeeReceiver {
             revert InvalidLiquidation();
         }
 
-        if(vaultHealth>=vault.minPermissionLessHealthRatio && !PERMulticall(payable(perMulticall)).isPermissioned(address(this),abi.encode(vaultID))){
+        if (
+            vaultHealth >= vault.minPermissionLessHealthRatio &&
+            !PERMulticall(payable(perMulticall)).isPermissioned(
+                address(this),
+                abi.encode(vaultID)
+            )
+        ) {
             revert InvalidLiquidation();
         }
 
-        IERC20(vault.tokenDebt).transferFrom(msg.sender, address(this), vault.amountDebt);
-        IERC20(vault.tokenCollateral).transfer(msg.sender, vault.amountCollateral);
+        IERC20(vault.tokenDebt).transferFrom(
+            msg.sender,
+            address(this),
+            vault.amountDebt
+        );
+        IERC20(vault.tokenCollateral).transfer(
+            msg.sender,
+            vault.amountCollateral
+        );
 
         _vaults[vaultID].amountCollateral = 0;
         _vaults[vaultID].amountDebt = 0;
@@ -226,16 +266,21 @@ contract TokenVault is PERFeeReceiver {
 
     /**
      * @notice liquidateWithPriceUpdate function - liquidates a vault after updating the specified price feeds with given data
-     * 
+     *
      * @param vaultID: ID of the vault to be liquidated
      * @param updateData: data to update price feeds with
      */
-    function liquidateWithPriceUpdate(uint256 vaultID, bytes[] calldata updateData) external payable {
+    function liquidateWithPriceUpdate(
+        uint256 vaultID,
+        bytes[] calldata updateData
+    ) external payable {
         _updatePriceFeeds(updateData);
         liquidate(vaultID);
     }
 
-    function receiveAuctionProceedings(bytes calldata permissionKey) external payable {
+    function receiveAuctionProceedings(
+        bytes calldata permissionKey
+    ) external payable {
         emit VaultReceivedETH(msg.sender, msg.value, permissionKey);
     }
 

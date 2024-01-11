@@ -19,14 +19,11 @@ contract LiquidationAdapter is SigVerify {
 
     /**
      * @notice LiquidationAdapter constructor - Initializes a new liquidation adapter contract with given parameters
-     * 
+     *
      * @param perMulticall: address of PER multicall
      * @param weth: address of WETH contract
      */
-    constructor(
-        address perMulticall,
-        address weth
-    ) {
+    constructor(address perMulticall, address weth) {
         _perMulticall = perMulticall;
         _weth = weth;
     }
@@ -45,9 +42,11 @@ contract LiquidationAdapter is SigVerify {
         return _weth;
     }
 
-    function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
+    function _getRevertMsg(
+        bytes memory _returnData
+    ) internal pure returns (string memory) {
         // If the _res length is less than 68, then the transaction failed silently (without a revert message)
-        if (_returnData.length < 68) return 'Transaction reverted silently';
+        if (_returnData.length < 68) return "Transaction reverted silently";
 
         assembly {
             // Slice the sighash.
@@ -63,7 +62,18 @@ contract LiquidationAdapter is SigVerify {
             revert Unauthorized();
         }
 
-        bool validSignature = verifyCalldata(params.liquidator, abi.encode(params.repayTokens, params.expectedReceiptTokens, params.contractAddress, params.data, params.bid), params.validUntil, params.signatureLiquidator);
+        bool validSignature = verifyCalldata(
+            params.liquidator,
+            abi.encode(
+                params.repayTokens,
+                params.expectedReceiptTokens,
+                params.contractAddress,
+                params.data,
+                params.bid
+            ),
+            params.validUntil,
+            params.signatureLiquidator
+        );
         if (!validSignature) {
             revert InvalidSearcherSignature();
         }
@@ -74,55 +84,72 @@ contract LiquidationAdapter is SigVerify {
             revert SignatureAlreadyUsed();
         }
 
-        uint256[] memory balancesExpectedReceipt = new uint256[](params.expectedReceiptTokens.length);
+        uint256[] memory balancesExpectedReceipt = new uint256[](
+            params.expectedReceiptTokens.length
+        );
 
         // transfer repay tokens to this contract
         for (uint i = 0; i < params.repayTokens.length; i++) {
             IERC20 token = IERC20(params.repayTokens[i].token);
 
-            token.transferFrom(params.liquidator, address(this), params.repayTokens[i].amount);
+            token.transferFrom(
+                params.liquidator,
+                address(this),
+                params.repayTokens[i].amount
+            );
 
             // approve contract to spend repay tokens
             token.approve(params.contractAddress, params.repayTokens[i].amount);
         }
-        
+
         // get balances of receipt tokens before call
         for (uint i = 0; i < params.expectedReceiptTokens.length; i++) {
             IERC20 token = IERC20(params.expectedReceiptTokens[i].token);
             uint256 amount = params.expectedReceiptTokens[i].amount;
 
-            balancesExpectedReceipt[i] = token.balanceOf(address(this)) + amount;
+            balancesExpectedReceipt[i] =
+                token.balanceOf(address(this)) +
+                amount;
         }
 
-        (bool success, bytes memory reason) = params.contractAddress.call(params.data);
+        (bool success, bytes memory reason) = params.contractAddress.call(
+            params.data
+        );
 
         if (!success) {
             string memory revertData = _getRevertMsg(reason);
             revert LiquidationCallFailed(revertData);
         }
-        
+
         // check balances of receipt tokens after call and transfer to liquidator
         for (uint i = 0; i < params.expectedReceiptTokens.length; i++) {
             IERC20 token = IERC20(params.expectedReceiptTokens[i].token);
             uint256 amount = params.expectedReceiptTokens[i].amount;
 
             uint256 balanceFinal = token.balanceOf(address(this));
-            require(balanceFinal >= balancesExpectedReceipt[i], "insufficient token received");
+            require(
+                balanceFinal >= balancesExpectedReceipt[i],
+                "insufficient token received"
+            );
 
             // transfer receipt tokens to liquidator
             token.transfer(params.liquidator, amount);
         }
-    
+
         // transfer bid to PER adapter in the form of weth
         address weth = getWeth();
-        WETH9(payable(weth)).transferFrom(params.liquidator, address(this), params.bid);
+        WETH9(payable(weth)).transferFrom(
+            params.liquidator,
+            address(this),
+            params.bid
+        );
         // unwrap weth to eth
         WETH9(payable(weth)).withdraw(params.bid);
         // transfer eth to PER multicall
         payable(getPERMulticall()).transfer(params.bid);
 
         // mark signature as used
-        _signatureUsed[params.signatureLiquidator] = true;      
+        _signatureUsed[params.signatureLiquidator] = true;
     }
 
     receive() external payable {} // TODO: can we get rid of this? seems not but unsure why

@@ -40,12 +40,16 @@ contract PERVaultTest is Test, Signatures {
     bytes32 _idToken1;
     bytes32 _idToken2;
 
-    address _perOperatorAddress; uint256 _perOperatorSk; // address public immutable _perOperatorAddress = address(88);
-    address _searcherAOwnerAddress; uint256 _searcherAOwnerSk;
-    address _searcherBOwnerAddress; uint256 _searcherBOwnerSk;
-    address _tokenVaultDeployer; uint256 _tokenVaultDeployerSk;
-    
-    uint256 public healthPrecision = 10**16;
+    address _perOperatorAddress;
+    uint256 _perOperatorSk; // address public immutable _perOperatorAddress = address(88);
+    address _searcherAOwnerAddress;
+    uint256 _searcherAOwnerSk;
+    address _searcherBOwnerAddress;
+    uint256 _searcherBOwnerSk;
+    address _tokenVaultDeployer;
+    uint256 _tokenVaultDeployerSk;
+
+    uint256 public healthPrecision = 10 ** 16;
 
     address _depositor = address(44);
 
@@ -64,20 +68,23 @@ contract PERVaultTest is Test, Signatures {
     uint256 _defaultFeeSplitProtocol;
 
     uint256 _feeSplitTokenVault;
-    uint256 _feeSplitPrecisionTokenVault = 10**18;
+    uint256 _feeSplitPrecisionTokenVault = 10 ** 18;
 
     uint256 _signaturePerVersionNumber = 0;
-    
+
     function setUp() public {
         // make PER operator wallet
         (_perOperatorAddress, _perOperatorSk) = makeAddrAndKey("perOperator");
         console.log("pk per operator", _perOperatorSk);
 
-        _defaultFeeSplitProtocol = 50 * 10**16;
+        _defaultFeeSplitProtocol = 50 * 10 ** 16;
 
         // instantiate multicall contract with PER operator as sender/origin
         vm.prank(_perOperatorAddress, _perOperatorAddress);
-        multicall = new PERMulticall(_perOperatorAddress, _defaultFeeSplitProtocol);
+        multicall = new PERMulticall(
+            _perOperatorAddress,
+            _defaultFeeSplitProtocol
+        );
 
         // instantiate weth contract
         vm.prank(_perOperatorAddress, _perOperatorAddress);
@@ -85,15 +92,24 @@ contract PERVaultTest is Test, Signatures {
 
         // instantiate liquidation adapter contract
         vm.prank(_perOperatorAddress, _perOperatorAddress);
-        liquidationAdapter = new LiquidationAdapter(address(multicall), address(weth));
+        liquidationAdapter = new LiquidationAdapter(
+            address(multicall),
+            address(weth)
+        );
 
         // make searcherA and searcherB wallets
-        (_searcherAOwnerAddress, _searcherAOwnerSk) = makeAddrAndKey("searcherA");
-        (_searcherBOwnerAddress, _searcherBOwnerSk) = makeAddrAndKey("searcherB");
+        (_searcherAOwnerAddress, _searcherAOwnerSk) = makeAddrAndKey(
+            "searcherA"
+        );
+        (_searcherBOwnerAddress, _searcherBOwnerSk) = makeAddrAndKey(
+            "searcherB"
+        );
         console.log("pk searcherA", _searcherAOwnerSk);
         console.log("pk searcherB", _searcherBOwnerSk);
 
-        (_tokenVaultDeployer, _tokenVaultDeployerSk) = makeAddrAndKey("tokenVaultDeployer");
+        (_tokenVaultDeployer, _tokenVaultDeployerSk) = makeAddrAndKey(
+            "tokenVaultDeployer"
+        );
         console.log("pk token vault deployer", _tokenVaultDeployerSk);
 
         // instantiate mock pyth contract
@@ -164,9 +180,27 @@ contract PERVaultTest is Test, Signatures {
         uint64 prevPublishTime = 0;
 
         vm.warp(publishTime);
-        bytes memory token1UpdateData = mockPyth.createPriceFeedUpdateData(_idToken1, token1Price, token1Conf, token1Expo, token1Price, token1Conf, publishTime, prevPublishTime);
-        bytes memory token2UpdateData = mockPyth.createPriceFeedUpdateData(_idToken2, token2Price, token2Conf, token2Expo, token2Price, token2Conf, publishTime, prevPublishTime);
-        
+        bytes memory token1UpdateData = mockPyth.createPriceFeedUpdateData(
+            _idToken1,
+            token1Price,
+            token1Conf,
+            token1Expo,
+            token1Price,
+            token1Conf,
+            publishTime,
+            prevPublishTime
+        );
+        bytes memory token2UpdateData = mockPyth.createPriceFeedUpdateData(
+            _idToken2,
+            token2Price,
+            token2Conf,
+            token2Expo,
+            token2Price,
+            token2Conf,
+            publishTime,
+            prevPublishTime
+        );
+
         bytes[] memory updateData = new bytes[](2);
 
         updateData[0] = token1UpdateData;
@@ -180,7 +214,16 @@ contract PERVaultTest is Test, Signatures {
         vm.prank(_depositor, _depositor);
         token1.approve(address(tokenVault), _q1Vault0);
         vm.prank(_depositor, _depositor);
-        tokenVault.createVault(address(token1), address(token2), _q1Vault0, _q2Vault0, 110 * healthPrecision, 100 * healthPrecision, _idToken1, _idToken2);
+        tokenVault.createVault(
+            address(token1),
+            address(token2),
+            _q1Vault0,
+            _q2Vault0,
+            110 * healthPrecision,
+            100 * healthPrecision,
+            _idToken1,
+            _idToken2
+        );
         _q1Depositor -= _q1Vault0;
         _q2Depositor += _q2Vault0;
 
@@ -190,7 +233,16 @@ contract PERVaultTest is Test, Signatures {
         vm.prank(_depositor, _depositor);
         token1.approve(address(tokenVault), _q1Vault1);
         vm.prank(_depositor, _depositor);
-        tokenVault.createVault(address(token1), address(token2), _q1Vault1, _q2Vault1, 110 * healthPrecision, 100 * healthPrecision, _idToken1, _idToken2);
+        tokenVault.createVault(
+            address(token1),
+            address(token2),
+            _q1Vault1,
+            _q2Vault1,
+            110 * healthPrecision,
+            100 * healthPrecision,
+            _idToken1,
+            _idToken2
+        );
         _q1Depositor -= _q1Vault0;
         _q2Depositor += _q2Vault0;
 
@@ -199,19 +251,34 @@ contract PERVaultTest is Test, Signatures {
         vm.deal(address(searcherB), 1 ether);
 
         // fast forward to enable price updates in the below tests
-        vm.warp(publishTime+100);
+        vm.warp(publishTime + 100);
     }
 
     function testLiquidate() public {
         // test slow path liquidation
         // raise price of token 2 to make vault 0 undercollateralized, delayed oracle feed
-        bytes memory token2UpdateData = mockPyth.createPriceFeedUpdateData(_idToken2, 200, 1, 0, 200, 1, uint64(block.timestamp), 0);
+        bytes memory token2UpdateData = mockPyth.createPriceFeedUpdateData(
+            _idToken2,
+            200,
+            1,
+            0,
+            200,
+            1,
+            uint64(block.timestamp),
+            0
+        );
         bytes memory signatureSearcher;
 
         uint256 validUntil = 1_000_000_000_000;
 
         vm.prank(_searcherAOwnerAddress, _searcherAOwnerAddress);
-        searcherA.doLiquidate(0, 0, validUntil, token2UpdateData, signatureSearcher);
+        searcherA.doLiquidate(
+            0,
+            0,
+            validUntil,
+            token2UpdateData,
+            signatureSearcher
+        );
         assertEq(token1.balanceOf(address(searcherA)), _q1A + _q1Vault0);
         assertEq(token2.balanceOf(address(searcherA)), _q2A - _q2Vault0);
     }
@@ -226,10 +293,18 @@ contract PERVaultTest is Test, Signatures {
         uint256 vaultNumber = 0;
 
         // get permission key
-        bytes memory permission = abi.encode(address(tokenVault), abi.encodePacked(vaultNumber)); 
+        bytes memory permission = abi.encode(
+            address(tokenVault),
+            abi.encodePacked(vaultNumber)
+        );
 
         // create searcher signature
-        bytes memory signatureSearcher = createSearcherSignature(vaultNumber, bid, validUntil, _searcherAOwnerSk);
+        bytes memory signatureSearcher = createSearcherSignature(
+            vaultNumber,
+            bid,
+            validUntil,
+            _searcherAOwnerSk
+        );
 
         address[] memory contracts = new address[](1);
         bytes[] memory data = new bytes[](1);
@@ -237,20 +312,41 @@ contract PERVaultTest is Test, Signatures {
         address[] memory protocols = new address[](1);
 
         // raise price of token 2 to make vault 0 undercollateralized, fast oracle feed
-        bytes memory token2UpdateData = mockPyth.createPriceFeedUpdateData(_idToken2, 200, 1, 0, 200, 1, uint64(block.timestamp), 0);
+        bytes memory token2UpdateData = mockPyth.createPriceFeedUpdateData(
+            _idToken2,
+            200,
+            1,
+            0,
+            200,
+            1,
+            uint64(block.timestamp),
+            0
+        );
 
         contracts[0] = address(searcherA);
-        data[0] = abi.encodeWithSignature("doLiquidate(uint256,uint256,uint256,bytes,bytes)", 0, bid, validUntil, token2UpdateData, signatureSearcher);
+        data[0] = abi.encodeWithSignature(
+            "doLiquidate(uint256,uint256,uint256,bytes,bytes)",
+            0,
+            bid,
+            validUntil,
+            token2UpdateData,
+            signatureSearcher
+        );
         bids[0] = bid;
         protocols[0] = address(tokenVault);
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
         vm.prank(_perOperatorAddress, _perOperatorAddress);
-        MulticallStatus[] memory multicallStatuses =  multicall.multicall(permission, contracts, data, bids);
+        MulticallStatus[] memory multicallStatuses = multicall.multicall(
+            permission,
+            contracts,
+            data,
+            bids
+        );
 
         uint256 balanceProtocolPost = address(tokenVault).balance;
-        
+
         assertEq(token1.balanceOf(address(searcherA)), _q1A + _q1Vault0);
         assertEq(token2.balanceOf(address(searcherA)), _q2A - _q2Vault0);
 
@@ -261,7 +357,10 @@ contract PERVaultTest is Test, Signatures {
         console.log("Revert reason");
         console.log(multicallStatuses[0].multicallRevertReason);
 
-        assertEq(balanceProtocolPost - balanceProtocolPre, bid * _feeSplitTokenVault / _feeSplitPrecisionTokenVault);
+        assertEq(
+            balanceProtocolPost - balanceProtocolPre,
+            (bid * _feeSplitTokenVault) / _feeSplitPrecisionTokenVault
+        );
     }
 
     // function testLiquidateFastWrongContractAuction() public {
@@ -283,7 +382,7 @@ contract PERVaultTest is Test, Signatures {
 
     //     // raise price of token 2 to make vault 0 undercollateralized, fast oracle feed
     //     bytes memory token2UpdateData = mockPyth.createPriceFeedUpdateData(_idToken2, 200, 1, 0, 200, 1, uint64(block.timestamp), 0);
-        
+
     //     contracts[0] = address(searcherA);
     //     data[0] = abi.encodeWithSignature("doLiquidatePER(bytes,uint256,bytes,uint256,bytes)", signaturePer, 0, signatureSearcher, bid, token2UpdateData);
     //     bids[0] = bid;
@@ -317,7 +416,7 @@ contract PERVaultTest is Test, Signatures {
 
     //     // raise price of token 2 to make vault 0 undercollateralized, fast oracle feed
     //     bytes memory token2UpdateData = mockPyth.createPriceFeedUpdateData(_idToken2, 200, 1, 0, 200, 1, uint64(block.timestamp), 0);
-        
+
     //     contracts[0] = address(searcherA);
     //     data[0] = abi.encodeWithSignature("fakeFunctionSignature(bytes,uint256,bytes,uint256,bytes)", signaturePer, 0, signatureSearcher, bid, token2UpdateData);
     //     bids[0] = bid;
@@ -360,7 +459,7 @@ contract PERVaultTest is Test, Signatures {
     //     bytes[] memory data = new bytes[](2);
     //     uint256[] memory bids = new uint256[](2);
     //     address[] memory protocols = new address[](2);
-        
+
     //     contracts[0] = address(searcherA);
     //     contracts[1] = address(searcherB);
     //     data[0] = abi.encodeWithSignature("doLiquidatePER(bytes,uint256,bytes,uint256,bytes)", signaturePer, 0, signatureSearcher0, bid0, token2UpdateData0);
@@ -376,7 +475,7 @@ contract PERVaultTest is Test, Signatures {
     //     multicall.multicall(contracts, data, bids, protocols);
 
     //     uint256 balanceProtocolPost = address(tokenVault).balance;
-        
+
     //     uint256 token1AAfter = token1.balanceOf(address(searcherA));
     //     uint256 token2AAfter = token2.balanceOf(address(searcherA));
     //     assertEq(token1AAfter, _q1A + _q1Vault0);
@@ -414,7 +513,7 @@ contract PERVaultTest is Test, Signatures {
     //     bytes[] memory data = new bytes[](2);
     //     uint256[] memory bids = new uint256[](2);
     //     address[] memory protocols = new address[](2);
-        
+
     //     contracts[0] = address(searcherA);
     //     contracts[1] = address(searcherB);
     //     data[0] = abi.encodeWithSignature("doLiquidatePER(bytes,uint256,bytes,uint256,bytes)", signaturePer, 0, signatureSearcher0, bid0, token2UpdateData0);
@@ -439,7 +538,7 @@ contract PERVaultTest is Test, Signatures {
 
     //     assertEq(token1.balanceOf(address(searcherA)), _q1A + _q1Vault0);
     //     assertEq(token2.balanceOf(address(searcherA)), _q2A - _q2Vault0);
-        
+
     //     assertEq(token1.balanceOf(address(searcherB)), _q1B);
     //     assertEq(token2.balanceOf(address(searcherB)), _q2B);
 
@@ -477,7 +576,7 @@ contract PERVaultTest is Test, Signatures {
     //     bytes[] memory data = new bytes[](2);
     //     uint256[] memory bids = new uint256[](2);
     //     address[] memory protocols = new address[](2);
-        
+
     //     contracts[0] = address(searcherA);
     //     contracts[1] = address(searcherB);
     //     data[0] = abi.encodeWithSignature("doLiquidatePER(bytes,uint256,bytes,uint256,bytes)", signaturePer, 0, signatureSearcher0, bid0, token2UpdateData0);
@@ -489,7 +588,7 @@ contract PERVaultTest is Test, Signatures {
 
     //     vm.prank(_perOperatorAddress, _perOperatorAddress);
     //     (, bytes[] memory externalResults, string[] memory multicallRevertReasons) = multicall.multicall(contracts, data, bids, protocols);
-        
+
     //     uint256[] memory tokensAfter = new uint256[](4);
     //     tokensAfter[0] = token1.balanceOf(address(searcherA));
     //     tokensAfter[1] = token2.balanceOf(address(searcherA));
@@ -525,11 +624,11 @@ contract PERVaultTest is Test, Signatures {
     //     // read in bundle bids
     //     string memory keyBids = "PERBUNDLE_bids";
     //     uint256[] memory bids = vm.envUint(keyBids, delimiter);
-        
+
     //     // read in bundle protocols
     //     string memory keyProtocols = "PERBUNDLE_protocols";
     //     address[] memory protocols = vm.envAddress(keyProtocols, delimiter);
-                
+
     //     // read in block number
     //     string memory keyBlockNumber = "PERBUNDLE_blockNumber";
     //     uint256 blockNumber = vm.envUint(keyBlockNumber);
@@ -549,7 +648,7 @@ contract PERVaultTest is Test, Signatures {
     //     // now run multicall on the payload
     //     vm.prank(_perOperatorAddress, _perOperatorAddress);
     //     (bool[] memory externalSuccess, bytes[] memory externalResults, string[] memory multicallRevertReasons) = multicall.multicall(contracts, data, bids, protocols);
-        
+
     //     console.log("vault token 1 balance after:", token1.balanceOf(address(tokenVault)));
     //     console.log("vault token 2 balance after:", token2.balanceOf(address(tokenVault)));
 

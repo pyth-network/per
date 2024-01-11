@@ -25,7 +25,7 @@ contract SearcherVault is SigVerify {
 
     /**
      * @notice Searcher constructor - Initializes a new searcher contract with given parameters around token vault protocol
-     * 
+     *
      * @param perMulticallAddress: address of PER contract
      * @param protocolAddress: address of token vault protocol contract
      */
@@ -35,19 +35,16 @@ contract SearcherVault is SigVerify {
         tokenVault = protocolAddress;
     }
 
-    function _updatePriceFeed(
-        bytes calldata updateData
-    ) internal {
+    function _updatePriceFeed(bytes calldata updateData) internal {
         bytes[] memory updateDatas = new bytes[](1);
         updateDatas[0] = updateData;
         address oracle = TokenVault(payable(tokenVault)).getOracle();
         MockPyth(oracle).updatePriceFeeds(updateDatas);
     }
 
-
     /**
      * @notice doLiquidatePER function - liquidates a vault through PER
-     * 
+     *
      * @param vaultID: ID of the vault to be liquidated
      * @param bid: size of the bid to pay to PER operator
      * @param validUntil: block number until which signatureSearcher is valid
@@ -66,7 +63,12 @@ contract SearcherVault is SigVerify {
         }
 
         if (msg.sender == perMulticall) {
-            bool validSignatureSearcher = verifyCalldata(owner, abi.encodePacked(vaultID, bid), validUntil, signatureSearcher);
+            bool validSignatureSearcher = verifyCalldata(
+                owner,
+                abi.encodePacked(vaultID, bid),
+                validUntil,
+                signatureSearcher
+            );
             if (!validSignatureSearcher) {
                 revert InvalidSearcherSignature();
             }
@@ -78,7 +80,7 @@ contract SearcherVault is SigVerify {
             }
         }
 
-        if(updateData.length > 0) {
+        if (updateData.length > 0) {
             _updatePriceFeed(updateData);
         }
 
@@ -92,7 +94,7 @@ contract SearcherVault is SigVerify {
         IERC20(tokenDebt).approve(vaultContract, tokenAmount);
 
         TokenVault(vaultContract).liquidate(vaultID);
-        if(bid>0){
+        if (bid > 0) {
             payable(perMulticall).transfer(bid);
         }
 

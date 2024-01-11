@@ -26,15 +26,18 @@ contract PERSimpleTest is Test, Signatures {
     PERRegistry public registry;
     PERSignatureValidation public signatureValidation;
 
-    address _perOperatorAddress; uint256 _perOperatorSk; // address public immutable _perOperatorAddress = address(88);
-    address _searcherAOwnerAddress; uint256 _searcherAOwnerSk;
-    address _searcherBOwnerAddress; uint256 _searcherBOwnerSk;
-    
+    address _perOperatorAddress;
+    uint256 _perOperatorSk; // address public immutable _perOperatorAddress = address(88);
+    address _searcherAOwnerAddress;
+    uint256 _searcherAOwnerSk;
+    address _searcherBOwnerAddress;
+    uint256 _searcherBOwnerSk;
+
     uint256 _defaultFeeSplitProtocol;
     uint256 _defaultFeeSplitPrecision;
 
     uint256 _signaturePerVersionNumber = 0;
-    
+
     function setUp() public {
         // make PER operator wallet
         (_perOperatorAddress, _perOperatorSk) = makeAddrAndKey("perOperator");
@@ -44,7 +47,10 @@ contract PERSimpleTest is Test, Signatures {
 
         // instantiate registry contract
         vm.prank(_perOperatorAddress, _perOperatorAddress);
-        registry = new PERRegistry(_defaultFeeSplitProtocol, _defaultFeeSplitPrecision);
+        registry = new PERRegistry(
+            _defaultFeeSplitProtocol,
+            _defaultFeeSplitPrecision
+        );
 
         // instantiate PER signature validation contract
         vm.prank(_perOperatorAddress, _perOperatorAddress);
@@ -52,11 +58,19 @@ contract PERSimpleTest is Test, Signatures {
 
         // instantiate multicall contract with PER operator as sender/origin
         vm.prank(_perOperatorAddress, _perOperatorAddress);
-        multicall = new PERMulticall(_perOperatorAddress, address(registry), address(signatureValidation));
+        multicall = new PERMulticall(
+            _perOperatorAddress,
+            address(registry),
+            address(signatureValidation)
+        );
 
         // make searcherA and searcherB wallets
-        (_searcherAOwnerAddress, _searcherAOwnerSk) = makeAddrAndKey("searcherA");
-        (_searcherBOwnerAddress, _searcherBOwnerSk) = makeAddrAndKey("searcherB");
+        (_searcherAOwnerAddress, _searcherAOwnerSk) = makeAddrAndKey(
+            "searcherA"
+        );
+        (_searcherBOwnerAddress, _searcherBOwnerSk) = makeAddrAndKey(
+            "searcherB"
+        );
 
         // instantiate counter contract
         counter = new Counter(address(multicall));
@@ -107,7 +121,12 @@ contract PERSimpleTest is Test, Signatures {
 
         uint256 bid = 0;
 
-        bytes memory signature = createSearcherSignature(inc, bid, block.number, _searcherAOwnerSk);
+        bytes memory signature = createSearcherSignature(
+            inc,
+            bid,
+            block.number,
+            _searcherAOwnerSk
+        );
 
         bytes memory emptySignature;
         vm.prank(_searcherAOwnerAddress, _searcherAOwnerAddress);
@@ -121,23 +140,50 @@ contract PERSimpleTest is Test, Signatures {
         uint256 dec = 2;
 
         // create PER signature
-        bytes memory signaturePer = createPerSignature(_signaturePerVersionNumber, address(counter), block.number, _perOperatorSk);
+        bytes memory signaturePer = createPerSignature(
+            _signaturePerVersionNumber,
+            address(counter),
+            block.number,
+            _perOperatorSk
+        );
 
         // create searcher A increment message
-        bytes memory signatureA = createSearcherSignature(inc, bid0, block.number, _searcherAOwnerSk);
+        bytes memory signatureA = createSearcherSignature(
+            inc,
+            bid0,
+            block.number,
+            _searcherAOwnerSk
+        );
 
-        bytes memory searcherAData = abi.encodeWithSignature("doIncrement(bytes,uint256,bytes,uint256)", signaturePer, inc, signatureA, bid0);
+        bytes memory searcherAData = abi.encodeWithSignature(
+            "doIncrement(bytes,uint256,bytes,uint256)",
+            signaturePer,
+            inc,
+            signatureA,
+            bid0
+        );
 
         // create searcher B decrement message
-        bytes memory signatureB = createSearcherSignature(dec, bid1, block.number, _searcherBOwnerSk);
+        bytes memory signatureB = createSearcherSignature(
+            dec,
+            bid1,
+            block.number,
+            _searcherBOwnerSk
+        );
 
-        bytes memory searcherBData = abi.encodeWithSignature("doDecrement(bytes,uint256,bytes,uint256)", signaturePer, dec, signatureB, bid1);
+        bytes memory searcherBData = abi.encodeWithSignature(
+            "doDecrement(bytes,uint256,bytes,uint256)",
+            signaturePer,
+            dec,
+            signatureB,
+            bid1
+        );
 
         address[] memory contracts = new address[](2);
         bytes[] memory data = new bytes[](2);
         uint256[] memory bids = new uint256[](2);
         address[] memory protocols = new address[](2);
-        
+
         contracts[0] = address(searcherA);
         contracts[1] = address(searcherB);
         data[0] = searcherAData;
@@ -149,7 +195,7 @@ contract PERSimpleTest is Test, Signatures {
 
         vm.prank(_perOperatorAddress, _perOperatorAddress);
         multicall.multicall(contracts, data, bids, protocols);
-        assertEq(counter.number(), inc-dec);
+        assertEq(counter.number(), inc - dec);
     }
 
     function testMulticallPreRegistration() public {
@@ -174,7 +220,9 @@ contract PERSimpleTest is Test, Signatures {
         multicallScenario(bid0, bid1);
         uint256 balanceAfter = address(multicall).balance;
 
-        uint256 feesProtocol = (bid0 * _defaultFeeSplitProtocol / _defaultFeeSplitPrecision) + (bid1 * _defaultFeeSplitProtocol / _defaultFeeSplitPrecision);
+        uint256 feesProtocol = ((bid0 * _defaultFeeSplitProtocol) /
+            _defaultFeeSplitPrecision) +
+            ((bid1 * _defaultFeeSplitProtocol) / _defaultFeeSplitPrecision);
 
         assertEq(balanceAfter - balanceBefore, bid0 + bid1 - feesProtocol);
     }
