@@ -17,20 +17,19 @@ VALID_UNTIL = 1_000_000_000_000
 
 
 def create_liquidation_intent(
-    opp: LiquidationOpportunity,
-    sk_liquidator: str,
-    valid_until: int,
-    bid: int
+        opp: LiquidationOpportunity,
+        sk_liquidator: str,
+        valid_until: int,
+        bid: int
 ) -> LiquidationAdapterIntent:
-    repay_tokens = [(opp['repay_tokens'][0][0],
-                     int(opp['repay_tokens'][0][1], 16))]
-    receipt_tokens = [(opp['receipt_tokens'][0][0],
-                       int(opp['receipt_tokens'][0][1], 16))]
+    repay_tokens = [(opp['repay_tokens'][0]['contract'],
+                     int(opp['repay_tokens'][0]['amount']))]
+    receipt_tokens = [(opp['receipt_tokens'][0]['contract'],
+                       int(opp['receipt_tokens'][0]['amount']))]
 
     account: LocalAccount = Account.from_key(sk_liquidator)
     liquidator = account.address
-    liq_calldata = bytes.fromhex(
-        opp['calldata'][2:]) if opp['calldata'][:2] == "0x" else bytes.fromhex(opp['calldata'])
+    liq_calldata = bytes.fromhex(opp['calldata'].replace('0x', ''))
 
     signature_liquidator = construct_signature_liquidator(
         repay_tokens, receipt_tokens, opp['contract'], liq_calldata, bid, valid_until, sk_liquidator)
@@ -50,7 +49,7 @@ def create_liquidation_intent(
                tuple(liquidation_adapter_calldata.values())]).hex()
 
     intent: LiquidationAdapterIntent = {
-        "bid": hex(bid),
+        "bid": str(bid),
         "calldata": calldata,
         "chain_id": opp["chain_id"],
         "contract": LIQUIDATION_ADAPTER_ADDRESS,

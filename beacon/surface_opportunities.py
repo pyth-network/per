@@ -33,12 +33,13 @@ async def main():
 
     CLIENT = httpx.AsyncClient()
 
-    resp = await CLIENT.post(
-        f"{BEACON_SERVER_ENDPOINT_SURFACE}",
-        json=liquidatable
-    )
+    for item in liquidatable:
+        resp = await CLIENT.post(
+            f"{BEACON_SERVER_ENDPOINT_SURFACE}",
+            json=item
+        )
+        print(f"Response PER post: {resp.text}")
 
-    print(f"Response PER post: {resp.text}")
 
 if __name__ == "__main__":
     asyncio.run(main())

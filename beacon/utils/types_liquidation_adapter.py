@@ -6,6 +6,11 @@ from beacon.utils.pyth_prices import PriceFeed
 LIQUIDATION_ADAPTER_ADDRESS = "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
 
 
+class TokenAmount(TypedDict):
+    contract: str
+    amount: str
+
+
 class LiquidationOpportunity(TypedDict):
     chain_id: str
     # Address of the contract where the liquidation method is called
@@ -15,9 +20,9 @@ class LiquidationOpportunity(TypedDict):
     permission_key: str
     account: str
     # A list of tokens that can be used to repay this account's debt. Each entry in the list is a tuple (token address, hex string of repay amount)
-    repay_tokens: list[(str, str)]
+    repay_tokens: list[TokenAmount]
     # A list of tokens that ought to be received by the liquidator in exchange for the repay tokens. Each entry in the list is a tuple (token address, hex string of receipt amount)
-    receipt_tokens: list[(str, str)]
+    receipt_tokens: list[TokenAmount]
     prices: list[PriceFeed]
 
 

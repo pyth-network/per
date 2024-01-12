@@ -9,6 +9,7 @@ use {
 mod api;
 mod auction;
 mod config;
+mod liquidation_adapter;
 mod state;
 
 #[tokio::main]
