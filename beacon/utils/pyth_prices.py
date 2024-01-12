@@ -1,8 +1,11 @@
 import httpx
 import asyncio
 from typing import TypedDict
+import websockets
+import json
 
 HERMES_ENDPOINT = "https://hermes.pyth.network/api/"
+HERMES_WS = "wss://hermes.pyth.network/"
 
 
 class Price(TypedDict):
@@ -86,6 +89,26 @@ async def get_all_prices() -> dict[str, PriceFeed]:
     return dict(pyth_prices_latest)
 
 
+async def ws_pyth_prices(feed_ids: list[str]):
+    url_ws = "wss://hermes.pyth.network/ws"
+
+    json_subscribe = {
+        "ids": feed_ids,
+        "type": "subscribe",
+        "verbose": True,
+        "binary": True
+    }
+
+    async with websockets.connect(url_ws) as ws:
+        await ws.send(json.dumps(json_subscribe))
+        while True:
+            msg = json.loads(await ws.recv())
+            try:
+                print("0x"+msg["price_feed"]["id"], msg["price_feed"]["price"]["price"], msg["price_feed"]["price"]["publish_time"])
+            except:
+                print(f"couldn't parse msg, {msg}")
+
+
 async def main():
     pyth_price = await get_pyth_price_at_time("0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", 1703016621)
 
@@ -95,6 +118,11 @@ async def main():
 
 if __name__ == "__main__":
     pyth_price, data = asyncio.run(main())
+
+    # feedIds = asyncio.run(get_price_feed_ids())
+    # loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(loop)
+    # asyncio.get_event_loop().run_until_complete(ws_pyth_prices(feedIds))
 
     import pdb
     pdb.set_trace()
