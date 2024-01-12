@@ -29,11 +29,6 @@ def get_vault_abi():
     return data['abi']
 
 
-"""
-get_accounts(rpc_url) is the first method that the protocol should implement. It should take the RPC URL of the chain as an argument and return all the open accounts in the protocol in the form of a list of objects of type LiquidationAccount (defined above). Each LiquidationAccount object represents an account/vault in the protocol.
-This function can be implemented in any way, but it should be able to return all the open accounts in the protocol. For some protocols, this may be easily doable by just querying on-chain state; however, most protocols will likely need to maintain or access an off-chain indexer to get the list of all open accounts.
-"""
-
 
 async def get_accounts(rpc_url: str) -> list[LiquidationAccount]:
     abi = get_vault_abi()
@@ -123,13 +118,6 @@ def create_liquidation_opp(
 
     return opp
 
-
-"""
-get_liquidatable(accounts, prices) is the second method that the protocol should implement. It should take two arguments: account--a list of Account (defined above) objects--and prices--a dictionary of Pyth prices.
-accounts should be the list of all open accounts in the protocol (i.e. the output of get_accounts()).
-prices should be a dictionary of Pyth prices, where the keys are Pyth feed IDs and the values are PriceFeed objects. prices can be retrieved from the provided price retrieval functions.
-This function should return a lists of liquidation opportunities. Each opportunity should be of the form LiquidationOpportunity defined above.
-"""
 
 
 def get_liquidatable(accounts: list[LiquidationAccount],

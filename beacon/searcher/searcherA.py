@@ -19,7 +19,7 @@ def create_liquidation_intent(
     sk_liquidator: str,
     valid_until: int,
     bid: int
-) -> LiquidationAdapterIntent:
+) -> LiquidationAdapterTransaction:
     repay_tokens = [(opp['repay_tokens'][0][0],
                      int(opp['repay_tokens'][0][1], 16))]
     receipt_tokens = [(opp['receipt_tokens'][0][0],
@@ -47,7 +47,7 @@ def create_liquidation_intent(
         encode([LIQUIDATION_ADAPTER_CALLDATA_TYPES], [
                tuple(liquidation_adapter_calldata.values())]).hex()
 
-    intent: LiquidationAdapterIntent = {
+    intent: LiquidationAdapterTransaction = {
         "bid": hex(bid),
         "calldata": calldata,
         "chain_id": opp["chain_id"],
