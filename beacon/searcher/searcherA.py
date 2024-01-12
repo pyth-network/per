@@ -10,8 +10,6 @@ from beacon.utils.types_liquidation_adapter import *
 from beacon.utils.endpoints import *
 from beacon.searcher.searcher_utils import *
 
-TOKEN_VAULT_ADDRESS = "0x72A22FfcAfa6684d4EE449620270ac05afE963d0"
-
 BID = 10
 VALID_UNTIL = 1_000_000_000_000
 
@@ -63,7 +61,7 @@ def create_liquidation_intent(
 async def main():
     CLIENT = httpx.AsyncClient()
 
-    params = {"chain_id": "development", "contract": TOKEN_VAULT_ADDRESS}
+    params = {"chain_id": "development"}
 
     liquidatable = (await CLIENT.get(BEACON_SERVER_ENDPOINT_GETOPPS, params=params)).json()
 

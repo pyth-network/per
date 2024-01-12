@@ -6,8 +6,6 @@ from typing import TypedDict
 from beacon.utils.pyth_prices import *
 from beacon.utils.types_liquidation_adapter import *
 
-PROTOCOL_ADDRESS = "{INSERT}"
-CHAIN_RPC_ENDPOINT = "http://localhost:8545"
 
 """
 The protocol should implement a class called LiquidationAccount. This will be the type of the objects in the list returned by get_accounts() and fed into get_liquidatable.
@@ -21,12 +19,12 @@ class LiquidationAccount(TypedDict):
 
 
 """
-get_accounts() is the first method that the protocol should implement. It should take no arguments and return all the open accounts in the protocol in the form of a list of objects of type LiquidationAccount (defined above). Each LiquidationAccount object represents an account/vault in the protocol.
+get_accounts(rpc_url) is the first method that the protocol should implement. It should take the RPC URL of the chain as an argument and return all the open accounts in the protocol in the form of a list of objects of type LiquidationAccount (defined above). Each LiquidationAccount object represents an account/vault in the protocol.
 This function can be implemented in any way, but it should be able to return all the open accounts in the protocol. For some protocols, this may be easily doable by just querying on-chain state; however, most protocols will likely need to maintain or access an off-chain indexer to get the list of all open accounts.
 """
 
 
-async def get_accounts() -> list[LiquidationAccount]:
+async def get_accounts(rpc_url: str) -> list[LiquidationAccount]:
     # Fetch all vaults from on-chain state/indexer
     # Filter to just active vaults
     # Return list of LiquidationAccount

@@ -7,7 +7,6 @@ from beacon.utils.pyth_prices import *
 from beacon.utils.types_liquidation_adapter import *
 
 TOKEN_VAULT_ADDRESS = "0x72A22FfcAfa6684d4EE449620270ac05afE963d0"
-CHAIN_RPC_ENDPOINT = "http://localhost:8545"
 
 
 class LiquidationAccount(TypedDict):
@@ -31,14 +30,14 @@ def get_vault_abi():
 
 
 """
-get_accounts() is the first method that the protocol should implement. It should take no arguments and return all the open accounts in the protocol in the form of a list of objects of type LiquidationAccount (defined above). Each LiquidationAccount object represents an account/vault in the protocol.
+get_accounts(rpc_url) is the first method that the protocol should implement. It should take the RPC URL of the chain as an argument and return all the open accounts in the protocol in the form of a list of objects of type LiquidationAccount (defined above). Each LiquidationAccount object represents an account/vault in the protocol.
 This function can be implemented in any way, but it should be able to return all the open accounts in the protocol. For some protocols, this may be easily doable by just querying on-chain state; however, most protocols will likely need to maintain or access an off-chain indexer to get the list of all open accounts.
 """
 
 
-async def get_accounts() -> list[LiquidationAccount]:
+async def get_accounts(rpc_url: str) -> list[LiquidationAccount]:
     abi = get_vault_abi()
-    w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(CHAIN_RPC_ENDPOINT))
+    w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(rpc_url))
     token_vault = w3.eth.contract(
         address=TOKEN_VAULT_ADDRESS,
         abi=abi)

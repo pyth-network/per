@@ -1,16 +1,17 @@
 import httpx
 import asyncio
+import argparse
+import os
 
 from beacon.protocols import beacon_TokenVault
 from beacon.utils.pyth_prices import *
 from beacon.utils.endpoints import *
 
-# TODO: turn on authorization in the surface post requests
-OPERATOR_API_KEY = "password"
 PROTOCOLS = [beacon_TokenVault]
 
 
-async def main():
+# TODO: turn on authorization in the surface post requests
+async def main(operator_api_key: str, rpc_url: str):
     # get prices
     pyth_price_feed_ids = await get_price_feed_ids()
     pyth_prices_latest = []
@@ -24,7 +25,7 @@ async def main():
     liquidatable = []
 
     for protocol in PROTOCOLS:
-        accounts = await protocol.get_accounts()
+        accounts = await protocol.get_accounts(rpc_url)
 
         liquidatable_protocol = protocol.get_liquidatable(
             accounts, pyth_prices_latest)
@@ -41,4 +42,9 @@ async def main():
     print(f"Response PER post: {resp.text}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--operator_api_key", type=str, required=True, help="Operator API key, used to authenticate the surface post request")
+    parser.add_argument("--rpc_url", type=str, required=True, help="Chain RPC endpoint, used to fetch on-chain data via get_accounts")
+    args = parser.parse_args()
+
+    asyncio.run(main(args.operator_api_key, args.rpc_url))
