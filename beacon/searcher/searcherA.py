@@ -14,7 +14,7 @@ BID = 10
 VALID_UNTIL = 1_000_000_000_000
 
 
-def create_liquidation_intent(
+def create_liquidation_transaction(
     opp: LiquidationOpportunity,
     sk_liquidator: str,
     valid_until: int,
@@ -47,7 +47,7 @@ def create_liquidation_intent(
         encode([LIQUIDATION_ADAPTER_CALLDATA_TYPES], [
                tuple(liquidation_adapter_calldata.values())]).hex()
 
-    intent: LiquidationAdapterTransaction = {
+    tx: LiquidationAdapterTransaction = {
         "bid": hex(bid),
         "calldata": calldata,
         "chain_id": opp["chain_id"],
@@ -55,7 +55,7 @@ def create_liquidation_intent(
         "permission_key": opp['permission_key']
     }
 
-    return intent
+    return tx
 
 
 async def main():
@@ -67,12 +67,12 @@ async def main():
 
     # this is hardcoded to the searcher A SK
     sk_liquidator = "0x5b1efe5da513271c0d30cde7a2ad1d29456d68abd592efdaa7d2302e913b783f"
-    intent = create_liquidation_intent(
+    tx = create_liquidation_transaction(
         liquidatable[0], sk_liquidator, VALID_UNTIL, BID)
 
     resp = await CLIENT.post(
         AUCTION_SERVER_ENDPOINT,
-        json=intent
+        json=tx
     )
 
     print(resp.text)

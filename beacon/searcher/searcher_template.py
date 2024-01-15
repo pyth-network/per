@@ -15,7 +15,7 @@ def assess_liquidation_opportunity(
     pass
 
 
-def create_liquidation_intent(
+def create_liquidation_tx(
     opp: LiquidationOpportunity,
     sk_liquidator: str,
     valid_until: int,
