@@ -37,7 +37,7 @@ class LiquidationAdapterCalldata(TypedDict):
     signature_liquidator: bytes
 
 
-class LiquidationAdapterIntent(TypedDict):
+class LiquidationAdapterTransaction(TypedDict):
     bid: str
     calldata: str
     chain_id: str
