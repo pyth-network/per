@@ -1,0 +1,10 @@
+# Searcher
+
+Searchers can integrate with Express Relay by one of two means:
+
+1. LiquidationAdapter Contract interaction from an EOA
+2. Bespoke integration via a deployed contract
+
+Option 2 requires bespoke work to handle individual protocol interfaces and smart contract risk, and it is similar in nature to how many searchers currently do liquidations via their own deployed contracts--searchers can now call into their smart contracts via the Express Relay workflow. This option allows for greater customization by the searcher, but requires bespoke work per protocol that the searcher wants to integrate with.
+
+Meanwhile, option 1 requires much less bespoke work and does not require contract deployment by the searcher. For option 1, the searcher submits liquidation transactions to the LiquidationAdapter contract, which handles routing the liquidation logic to the protocol and also performs some basic safety checks to ensure that the searcher is paying and receiving the appropriate amounts. The searcher can submit transactions signed by their EOA that has custody of the tokens they wish to repay with. Searchers can listen to liquidation opportunities at the Beacon server, and if they wish to submit a liquidation transaction through Express Relay, they can submit it to the auction server endpoint. `searcher_template.py` contains a template for the actions that a searcher may wish to perform, namely getting and assessing opportunities at the Beacon server and constructing and sending a liquidation. Helper functions related to constructing the signature for the LiquidationAdapter contract are in `searcher_utils.py`. A sample workflow is in `searcherA.py` (note: this example lacks any serious evaluation of opportunities, and it simply carries out a liquidation if the opportunity is available).
