@@ -180,7 +180,7 @@ pub async fn surface(
 /// Get liquidation opportunities
 ///
 // #[axum_macros::debug_handler]
-#[utoipa::path(get, path = "/getOpps",
+#[utoipa::path(get, path = "/getOpps", 
     params(
         ("chain_id" = String, Query, description = "Chain ID to retrieve opportunities for"),
         ("contract" = Option<String>, Query, description = "Contract address to filter by")
@@ -192,11 +192,11 @@ pub async fn surface(
 ,)]
 pub async fn get_opps(
     State(store): State<Arc<Store>>,
-    Query(params): Query<GetOppsParams>,
-) -> Result<Json<Vec<Opportunity>>, RestError> {
+    Query(params): Query<GetOppsParams>
+) -> Result<Json<Vec<Opportunity>>, RestError> {    
     let chain_id = params.chain_id;
     let contract = params.contract;
-
+    
     let chain_store = store
         .chains
         .get(&chain_id)
@@ -210,25 +210,14 @@ pub async fn get_opps(
                 .parse::<Address>()
                 .map_err(|_| RestError::BadParameters("Invalid contract address".to_string()))?;
 
-            opps = chain_store
-                .opps
-                .write()
-                .await
-                .entry(key)
-                .or_default()
-                .to_vec();
-        }
+            opps = chain_store.opps.write().await.entry(key).or_default().to_vec();
+        },
         None => {
+            // TODO: fix this double write access, to make this work
             let opps_dict = chain_store.opps.write().await;
 
             for key in opps_dict.keys() {
-                let opps_key = chain_store
-                    .opps
-                    .write()
-                    .await
-                    .entry(key.clone())
-                    .or_default()
-                    .clone();
+                let opps_key = chain_store.opps.write().await.entry(key.clone()).or_default().clone();
                 opps.extend(opps_key);
             }
         }

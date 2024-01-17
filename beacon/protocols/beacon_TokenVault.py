@@ -2,6 +2,7 @@ import web3
 from eth_abi import encode
 import json
 from typing import TypedDict
+import argparse
 
 from beacon.utils.pyth_prices import *
 from beacon.utils.types_liquidation_adapter import *
@@ -143,23 +144,38 @@ def get_liquidatable(accounts: list[LiquidationAccount],
 
 
 async def main():
-    # get all accounts
-    accounts = await get_accounts()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--operator_api_key", type=str, required=True, help="Operator API key, used to authenticate the surface post request")
+    parser.add_argument("--rpc_url", type=str, required=True, help="Chain RPC endpoint, used to fetch on-chain data via get_accounts")
+    parser.add_argument("--beacon_server_url", type=str, help="Beacon server endpoint; if provided, will send liquidation opportunities to the beacon server; otherwise, will just print them out")
+    args = parser.parse_args()
 
     # get prices
-    pyth_price_feed_ids = await get_price_feed_ids()
-    pyth_prices_latest = []
-    i = 0
-    cntr = 100
-    while len(pyth_price_feed_ids[i:i + cntr]) > 0:
-        pyth_prices_latest += await get_pyth_prices_latest(pyth_price_feed_ids[i:i + cntr])
-        i += cntr
-    pyth_prices_latest = dict(pyth_prices_latest)
+    feed_ids = ["ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43"] # TODO: should this be automated rather than hardcoded?
+    price_feed_client = PriceFeedClient(feed_ids)
 
-    # get liquidatable accounts
-    liquidatable = get_liquidatable(accounts, pyth_prices_latest)
+    ws_call = price_feed_client.ws_pyth_prices()
+    task = asyncio.create_task(ws_call)
 
-    print(liquidatable)
+    client = httpx.AsyncClient()
+
+    await asyncio.sleep(2)
+
+    while True:
+        # get all accounts
+        accounts = await get_accounts(args.rpc_url)
+
+        liquidatable = get_liquidatable(accounts, price_feed_client.prices_dict)
+
+        if args.beacon_server_url:
+            resp = await client.post(
+                args.beacon_server_url,
+                json=liquidatable
+            )
+            print(f"Response, post to beacon: {resp.text}")
+        else:
+            print(liquidatable)
+        await asyncio.sleep(2)
 
 if __name__ == "__main__":
     asyncio.run(main())

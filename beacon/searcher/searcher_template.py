@@ -1,7 +1,7 @@
 from beacon.utils.types_liquidation_adapter import *
 
 def assess_liquidation_opportunity(
-    account: LiquidationOpportunity
+    opp: LiquidationOpportunity
 ) -> (int, int) | None:
     """
     Assesses whether a LiquidationOpportunity is worth liquidating; if so, returns a tuple of (bid, valid_until)

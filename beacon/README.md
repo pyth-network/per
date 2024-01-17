@@ -6,4 +6,4 @@ The LiquidationAdapter contract that is part of the Express Relay on-chain stack
 
 Each protocol that integrates with Express Relay and the LiquidationAdapter workflow must provide code that handles getting liquidatable accounts; the template and example files for this are found in `/protocols`. Some common types are defined in `utils/types_liquidation_adapter.py`, and standard functions for accessing Pyth Hermes prices can be found in `utils/pyth_prices.py`.
 
-The party that runs the beacon can add the protocol-provided modules for getting liquidatable accounts to `surface_opportunities.py`. Running that file should surface opportunities to the beacon web server.
+The party that runs the beacon can run the protocol-provided file to get and surface liquidatable accounts to the Beacon server.

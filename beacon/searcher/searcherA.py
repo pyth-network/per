@@ -12,7 +12,20 @@ from beacon.searcher.searcher_utils import *
 
 BID = 10
 VALID_UNTIL = 1_000_000_000_000
+CONTRACT_ADDRESS = "0x72A22FfcAfa6684d4EE449620270ac05afE963d0"
 
+class UserLiquidationParams(TypedDict):
+    bid: int
+    valid_until: int
+
+def assess_liquidation_opportunity(
+    opp: LiquidationOpportunity
+) -> UserLiquidationParams | None:
+    user_liquidation_params: UserLiquidationParams = {
+        "bid": BID,
+        "valid_until": VALID_UNTIL
+    }
+    return user_liquidation_params
 
 def create_liquidation_transaction(
     opp: LiquidationOpportunity,
@@ -59,26 +72,34 @@ def create_liquidation_transaction(
 
 
 async def main():
-    CLIENT = httpx.AsyncClient()
+    client = httpx.AsyncClient()
 
-    params = {"chain_id": "development"}
-
-    liquidatable = (await CLIENT.get(BEACON_SERVER_ENDPOINT_GETOPPS, params=params)).json()
+    params = {"chain_id": "development", "contract": CONTRACT_ADDRESS}
 
     # this is hardcoded to the searcher A SK
     sk_liquidator = "0x5b1efe5da513271c0d30cde7a2ad1d29456d68abd592efdaa7d2302e913b783f"
-    tx = create_liquidation_transaction(
-        liquidatable[0], sk_liquidator, VALID_UNTIL, BID)
 
-    resp = await CLIENT.post(
-        AUCTION_SERVER_ENDPOINT,
-        json=tx
-    )
+    while True:
+        liquidatable = (await client.get(BEACON_SERVER_ENDPOINT_GETOPPS, params=params)).json()
 
-    print(resp.text)
+        for liquidation_opp in liquidatable:
+            user_liquidation_params = assess_liquidation_opportunity(liquidation_opp)
 
-    import pdb
-    pdb.set_trace()
+            if user_liquidation_params is not None:
+                bid, valid_until = user_liquidation_params["bid"], user_liquidation_params["valid_until"]
+
+                tx = create_liquidation_transaction(
+                    liquidation_opp, sk_liquidator, valid_until, bid)
+
+                resp = await client.post(
+                    AUCTION_SERVER_ENDPOINT,
+                    json=tx
+                )
+
+                print(resp.text)
+
+                import pdb
+                pdb.set_trace()
 
 if __name__ == "__main__":
     asyncio.run(main())
