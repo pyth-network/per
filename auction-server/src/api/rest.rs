@@ -1,10 +1,7 @@
 use {
     crate::{
         api::RestError,
-        auction::{
-            per::MulticallStatus,
-            simulate_bids,
-        },
+        auction::simulate_bids,
         state::{
             GetOppsParams,
             Opportunity,
@@ -209,17 +206,17 @@ pub async fn get_opps(
             let key = x
                 .parse::<Address>()
                 .map_err(|_| RestError::BadParameters("Invalid contract address".to_string()))?;
-
-            opps = chain_store.opps.write().await.entry(key).or_default().to_vec();
+                        
+            if let Some(x) = chain_store.opps.read().await.get(&key) {
+                opps = x.clone();
+            }
         },
         None => {
-            // TODO: fix this double write access, to make this work
-            let opps_dict = chain_store.opps.write().await;
+            let opps_dict = chain_store.opps.read().await;
 
-            for key in opps_dict.keys() {
-                let opps_key = chain_store.opps.write().await.entry(key.clone()).or_default().clone();
-                opps.extend(opps_key);
-            }
+            opps_dict.iter().for_each(|(_, value)| {
+                opps.extend(value.clone());
+            });
         }
     }
     Ok(Json(opps))
