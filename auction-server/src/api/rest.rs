@@ -207,7 +207,9 @@ pub async fn get_opps(
                 .parse::<Address>()
                 .map_err(|_| RestError::BadParameters("Invalid contract address".to_string()))?;
                         
-            if let Some(x) = chain_store.opps.read().await.get(&key) {
+            let opps_contract = chain_store.opps.read().await.get(&key).cloned();
+
+            if let Some(x) = opps_contract {
                 opps = x.clone();
             }
         },

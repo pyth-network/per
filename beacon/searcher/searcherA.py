@@ -12,7 +12,6 @@ from beacon.searcher.searcher_utils import *
 
 BID = 10
 VALID_UNTIL = 1_000_000_000_000
-CONTRACT_ADDRESS = "0x72A22FfcAfa6684d4EE449620270ac05afE963d0"
 
 class UserLiquidationParams(TypedDict):
     bid: int
@@ -74,7 +73,7 @@ def create_liquidation_transaction(
 async def main():
     client = httpx.AsyncClient()
 
-    params = {"chain_id": "development", "contract": CONTRACT_ADDRESS}
+    params = {"chain_id": "development"}
 
     # this is hardcoded to the searcher A SK
     sk_liquidator = "0x5b1efe5da513271c0d30cde7a2ad1d29456d68abd592efdaa7d2302e913b783f"
