@@ -177,7 +177,7 @@ pub async fn surface(
 /// Get liquidation opportunities
 ///
 // #[axum_macros::debug_handler]
-#[utoipa::path(get, path = "/getOpps", 
+#[utoipa::path(get, path = "/getOpps",
     params(
         ("chain_id" = String, Query, description = "Chain ID to retrieve opportunities for"),
         ("contract" = Option<String>, Query, description = "Contract address to filter by")
@@ -190,10 +190,10 @@ pub async fn surface(
 pub async fn get_opps(
     State(store): State<Arc<Store>>,
     Query(params): Query<GetOppsParams>
-) -> Result<Json<Vec<Opportunity>>, RestError> {    
+) -> Result<Json<Vec<Opportunity>>, RestError> {
     let chain_id = params.chain_id;
     let contract = params.contract;
-    
+
     let chain_store = store
         .chains
         .get(&chain_id)
@@ -206,7 +206,7 @@ pub async fn get_opps(
             let key = x
                 .parse::<Address>()
                 .map_err(|_| RestError::BadParameters("Invalid contract address".to_string()))?;
-                        
+
             let opps_contract = chain_store.opps.read().await.get(&key).cloned();
 
             if let Some(x) = opps_contract {

@@ -1,5 +1,6 @@
 from beacon.utils.types_liquidation_adapter import *
 
+
 def assess_liquidation_opportunity(
     opp: LiquidationOpportunity
 ) -> (int, int) | None:
@@ -12,7 +13,7 @@ def assess_liquidation_opportunity(
     If the LiquidationOpportunity is deemed worthwhile, this function can return a bid amount representing the amount of native token to bid on this opportunity, and a timestamp representing the time at which the transaction will expire.
     Otherwise, this function can return None.
     """
-    pass
+    raise NotImplementedError
 
 
 def create_liquidation_tx(
@@ -26,4 +27,4 @@ def create_liquidation_tx(
 
     This function can handle constructing the LiquidationAdapterTransaction to submit. The calldata for the LiquidationAdapter contract should be constructed according to the LiquidationAdapterCalldata type; you can leverage the construct_signature_liquidator function to construct the signature field.
     """
-    pass
+    raise NotImplementedError

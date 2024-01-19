@@ -3,6 +3,7 @@ from eth_abi import encode
 import json
 from typing import TypedDict
 import argparse
+import logging
 
 from beacon.utils.pyth_prices import *
 from beacon.utils.types_liquidation_adapter import *
@@ -10,7 +11,12 @@ from beacon.utils.types_liquidation_adapter import *
 TOKEN_VAULT_ADDRESS = "0x72A22FfcAfa6684d4EE449620270ac05afE963d0"
 
 
-class LiquidationAccount(TypedDict):
+class ProtocolAccount(TypedDict):
+    """
+    ProtocolAccount is a TypedDict that represents an account/vault in the protocol.
+
+    This class contains all the relevant information about a vault/account on this protocol that is necessary for identifying whether it is eligible for liquidation and constructing a LiquidationOpportunity object.
+    """
     account_number: int
     token_address_collateral: str
     token_address_debt: str
@@ -30,8 +36,12 @@ def get_vault_abi():
     return data['abi']
 
 
+async def get_accounts(rpc_url: str) -> list[ProtocolAccount]:
+    """
+    Returns all the open accounts in the protocol in the form of a list of type ProtocolAccount.
 
-async def get_accounts(rpc_url: str) -> list[LiquidationAccount]:
+    get_accounts(rpc_url) takes the RPC URL of the chain as an argument and returns all the open accounts in the protocol in the form of a list of objects of type ProtocolAccount (defined above). Each ProtocolAccount object represents an account/vault in the protocol.
+    """
     abi = get_vault_abi()
     w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(rpc_url))
     token_vault = w3.eth.contract(
@@ -59,7 +69,7 @@ async def get_accounts(rpc_url: str) -> list[LiquidationAccount]:
                 16) == 0:
             done = True
         else:
-            account: LiquidationAccount = {
+            account: ProtocolAccount = {
                 "account_number": account_number,
                 "token_address_collateral": vault_dict['tokenCollateral'],
                 "token_id_collateral": vault_dict['tokenIDCollateral'].hex(),
@@ -76,8 +86,12 @@ async def get_accounts(rpc_url: str) -> list[LiquidationAccount]:
 
 
 def create_liquidation_opp(
-        account: LiquidationAccount,
+        account: ProtocolAccount,
         prices: list[PriceFeed]) -> LiquidationOpportunity:
+    """
+    Constructs a LiquidationOpportunity object from a ProtocolAccount object and a set of relevant Pyth PriceFeeds.
+    """
+
     # [bytes.fromhex(update['vaa']) for update in prices] ## TODO: uncomment this, to add back price updates
     price_updates = []
     function_signature = web3.Web3.solidity_keccak(
@@ -120,10 +134,17 @@ def create_liquidation_opp(
     return opp
 
 
-
-def get_liquidatable(accounts: list[LiquidationAccount],
+def get_liquidatable(accounts: list[ProtocolAccount],
                      prices: dict[str,
                                   PriceFeed]) -> (list[LiquidationOpportunity]):
+    """
+    Filters list of ProtocolAccount types to return a list of LiquidationOpportunity types.
+
+    get_liquidatable(accounts, prices) takes two arguments: account--a list of ProtocolAccount (defined above) objects--and prices--a dictionary of Pyth prices.
+    accounts should be the list of all open accounts in the protocol (i.e. the output of get_accounts()).
+    prices should be a dictionary of Pyth prices, where the keys are Pyth feed IDs and the values are PriceFeed objects. prices can be retrieved from the provided price retrieval functions.
+    """
+
     liquidatable = []
 
     for account in accounts:
@@ -145,36 +166,52 @@ def get_liquidatable(accounts: list[LiquidationAccount],
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--operator_api_key", type=str, required=True, help="Operator API key, used to authenticate the surface post request")
-    parser.add_argument("--rpc_url", type=str, required=True, help="Chain RPC endpoint, used to fetch on-chain data via get_accounts")
-    parser.add_argument("--beacon_server_url", type=str, help="Beacon server endpoint; if provided, will send liquidation opportunities to the beacon server; otherwise, will just print them out")
+    parser.add_argument("--operator-api-key", type=str, required=True,
+                        help="Operator API key, used to authenticate the surface post request")
+    parser.add_argument("--rpc-url", type=str, required=True,
+                        help="Chain RPC endpoint, used to fetch on-chain data via get_accounts")
+    group = parser.add_mutually_exclusive_group(
+        required=True, help="Either --dry-run or --beacon-server-url flag must be provided")
+    group.add_argument("--dry-run", action="store_false", dest="send_beacon",
+                       help="If provided, will not send liquidation opportunities to the beacon server")
+    group.add_argument("--beacon-server-url", type=str,
+                       help="Beacon server endpoint; if provided, will send liquidation opportunities to the beacon server")
+
+    parser.add_argument("--log-file", type=str,
+                        help="Path of log file where to save log statements; if not provided, will print to stdout")
     args = parser.parse_args()
 
-    # get prices
-    feed_ids = ["ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43"] # TODO: should this be automated rather than hardcoded?
+    if args.log_file:
+        logging.basicConfig(filename=args.log_file, level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+    feed_ids = ["ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+                "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43"]  # TODO: should this be automated rather than hardcoded?
     price_feed_client = PriceFeedClient(feed_ids)
 
     ws_call = price_feed_client.ws_pyth_prices()
-    task = asyncio.create_task(ws_call)
+    asyncio.create_task(ws_call)
 
     client = httpx.AsyncClient()
 
     await asyncio.sleep(2)
 
     while True:
-        # get all accounts
         accounts = await get_accounts(args.rpc_url)
 
-        liquidatable = get_liquidatable(accounts, price_feed_client.prices_dict)
+        liquidatable = get_liquidatable(
+            accounts, price_feed_client.prices_dict)
 
-        if args.beacon_server_url:
+        if args.send_beacon:
             resp = await client.post(
                 args.beacon_server_url,
                 json=liquidatable
             )
-            print(f"Response, post to beacon: {resp.text}")
+            logging.info(f"Response, post to beacon: {resp.text}")
         else:
-            print(liquidatable)
+            logging.info(f"List of liquidatable accounts:\n{liquidatable}")
+
         await asyncio.sleep(2)
 
 if __name__ == "__main__":

@@ -22,11 +22,10 @@ class PriceFeed(TypedDict):
     vaa: str
 
 
-
 async def get_price_feed_ids() -> list[str]:
     url = HERMES_ENDPOINT + "price_feed_ids"
     client = httpx.AsyncClient()
-    
+
     data = (await client.get(url)).json()
 
     return data
@@ -55,7 +54,7 @@ class PriceFeedClient:
             "vaa": vaa
         }
         return price_feed
-    
+
     async def get_pyth_prices_latest(
         self,
         feedIds: list[str]
@@ -72,7 +71,6 @@ class PriceFeedClient:
 
         return results
 
-
     async def get_pyth_price_at_time(
         self,
         feed_id: str,
@@ -86,7 +84,6 @@ class PriceFeedClient:
         price_feed = self.extract_price_feed(data)
 
         return (feed_id, price_feed)
-
 
     async def get_all_prices(self) -> dict[str, PriceFeed]:
         pyth_prices_latest = []
@@ -122,24 +119,20 @@ class PriceFeedClient:
                     new_feed = msg["price_feed"]
 
                     self.prices_dict[feed_id] = new_feed
-                
+
                 except:
                     raise Exception("Error in price_update message", msg)
 
-
-
-    
 
 async def main():
     feed_ids = await get_price_feed_ids()
     feed_ids = feed_ids[:1]
     price_feed_client = PriceFeedClient(feed_ids)
 
-    print("Starting...")
+    print("Starting web socket...")
     ws_call = price_feed_client.ws_pyth_prices()
     task = asyncio.create_task(ws_call)
 
-    # Can insert continuous loop to check vaults
     while True:
         await asyncio.sleep(1)
 

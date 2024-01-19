@@ -13,9 +13,11 @@ from beacon.searcher.searcher_utils import *
 BID = 10
 VALID_UNTIL = 1_000_000_000_000
 
+
 class UserLiquidationParams(TypedDict):
     bid: int
     valid_until: int
+
 
 def assess_liquidation_opportunity(
     opp: LiquidationOpportunity
@@ -25,6 +27,7 @@ def assess_liquidation_opportunity(
         "valid_until": VALID_UNTIL
     }
     return user_liquidation_params
+
 
 def create_liquidation_transaction(
     opp: LiquidationOpportunity,
@@ -82,7 +85,8 @@ async def main():
         liquidatable = (await client.get(BEACON_SERVER_ENDPOINT_GETOPPS, params=params)).json()
 
         for liquidation_opp in liquidatable:
-            user_liquidation_params = assess_liquidation_opportunity(liquidation_opp)
+            user_liquidation_params = assess_liquidation_opportunity(
+                liquidation_opp)
 
             if user_liquidation_params is not None:
                 bid, valid_until = user_liquidation_params["bid"], user_liquidation_params["valid_until"]
