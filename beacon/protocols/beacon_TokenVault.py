@@ -170,8 +170,7 @@ async def main():
                         help="Operator API key, used to authenticate the surface post request")
     parser.add_argument("--rpc-url", type=str, required=True,
                         help="Chain RPC endpoint, used to fetch on-chain data via get_accounts")
-    group = parser.add_mutually_exclusive_group(
-        required=True, help="Either --dry-run or --beacon-server-url flag must be provided")
+    group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--dry-run", action="store_false", dest="send_beacon",
                        help="If provided, will not send liquidation opportunities to the beacon server")
     group.add_argument("--beacon-server-url", type=str,
@@ -200,17 +199,17 @@ async def main():
     while True:
         accounts = await get_accounts(args.rpc_url)
 
-        liquidatable = get_liquidatable(
+        accounts_liquidatable = get_liquidatable(
             accounts, price_feed_client.prices_dict)
 
         if args.send_beacon:
             resp = await client.post(
                 args.beacon_server_url,
-                json=liquidatable
+                json=accounts_liquidatable
             )
             logging.info(f"Response, post to beacon: {resp.text}")
         else:
-            logging.info(f"List of liquidatable accounts:\n{liquidatable}")
+            logging.info(f"List of liquidatable accounts:\n{accounts_liquidatable}")
 
         await asyncio.sleep(2)
 

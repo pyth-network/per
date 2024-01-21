@@ -82,9 +82,9 @@ async def main():
     sk_liquidator = "0x5b1efe5da513271c0d30cde7a2ad1d29456d68abd592efdaa7d2302e913b783f"
 
     while True:
-        liquidatable = (await client.get(BEACON_SERVER_ENDPOINT_GETOPPS, params=params)).json()
+        accounts_liquidatable = (await client.get(BEACON_SERVER_ENDPOINT_GETOPPS, params=params)).json()
 
-        for liquidation_opp in liquidatable:
+        for liquidation_opp in accounts_liquidatable:
             user_liquidation_params = assess_liquidation_opportunity(
                 liquidation_opp)
 
