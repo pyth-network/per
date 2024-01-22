@@ -2,8 +2,8 @@ use {
     crate::{
         api::{
             marketplace::{
-                Order,
-                OrderBid,
+                LiquidationOpportunity,
+                OpportunityBid,
                 TokenAmount,
             },
             rest::Bid,
@@ -91,7 +91,7 @@ pub enum RestError {
     /// The chain id is not supported
     InvalidChainId,
     /// The order was not found
-    OrderNotFound,
+    OpportunityNotFound,
     /// The server cannot currently communicate with the blockchain, so is not able to verify
     /// which random values have been requested.
     TemporarilyUnavailable,
@@ -108,7 +108,7 @@ impl IntoResponse for RestError {
             RestError::InvalidChainId => {
                 (StatusCode::BAD_REQUEST, "The chain id is not supported").into_response()
             }
-            RestError::OrderNotFound => (
+            RestError::OpportunityNotFound => (
                 StatusCode::NOT_FOUND,
                 "Order with the specified id was not found",
             )
@@ -140,11 +140,11 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     #[openapi(
     paths(
     rest::bid,
-    marketplace::submit_order,
-    marketplace::fetch_orders,
+    marketplace::submit_opportunity,
+    marketplace::fetch_opportunities,
     ),
     components(
-        schemas(Bid),schemas(Order),schemas(OrderBid), schemas(TokenAmount),responses(RestError)
+        schemas(Bid),schemas(LiquidationOpportunity),schemas(OpportunityBid), schemas(TokenAmount),responses(RestError)
     ),
     tags(
     (name = "PER Auction", description = "Pyth Express Relay Auction Server")
@@ -204,8 +204,14 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
         .route("/bid", post(rest::bid))
-        .route("/orders/submit_order", post(marketplace::submit_order))
-        .route("/orders/fetch_orders", get(marketplace::fetch_orders))
+        .route(
+            "/liquidation/submit_opportunity",
+            post(marketplace::submit_opportunity),
+        )
+        .route(
+            "/liquidation/fetch_opportunities",
+            get(marketplace::fetch_opportunities),
+        )
         .layer(CorsLayer::permissive())
         .with_state(server_store);
 

@@ -1,7 +1,7 @@
 use {
     crate::{
-        api::marketplace::VerifiedOrderBid,
-        state::VerifiedOrder,
+        api::marketplace::VerifiedOpportunityBid,
+        state::VerifiedLiquidationOpportunity,
     },
     anyhow::{
         anyhow,
@@ -70,17 +70,24 @@ pub fn verify_signature(params: liquidation_adapter::LiquidationCallParams) -> R
     })
 }
 
-pub fn make_liquidator_calldata(order: VerifiedOrder, bid: VerifiedOrderBid) -> Result<Bytes> {
+pub fn make_liquidator_calldata(
+    opportunity: VerifiedLiquidationOpportunity,
+    bid: VerifiedOpportunityBid,
+) -> Result<Bytes> {
     let params = liquidation_adapter::LiquidationCallParams {
-        repay_tokens:            order.repay_tokens.into_iter().map(TokenQty::from).collect(), // TODO: consistent naming across rust, rest, and solidity
-        expected_receipt_tokens: order
+        repay_tokens:            opportunity
+            .repay_tokens
+            .into_iter()
+            .map(TokenQty::from)
+            .collect(), // TODO: consistent naming across rust, rest, and solidity
+        expected_receipt_tokens: opportunity
             .receipt_tokens
             .into_iter()
             .map(TokenQty::from)
             .collect(),
         liquidator:              bid.liquidator,
-        contract_address:        order.contract,
-        data:                    order.calldata,
+        contract_address:        opportunity.contract,
+        data:                    opportunity.calldata,
         valid_until:             bid.valid_until,
         bid:                     bid.bid_amount,
         signature_liquidator:    bid.signature.to_vec().into(),

@@ -21,7 +21,7 @@ use {
 };
 
 pub type PermissionKey = Bytes;
-pub type OrderId = Uuid;
+pub type OpportunityId = Uuid;
 
 #[derive(Clone)]
 pub struct SimulatedBid {
@@ -32,7 +32,7 @@ pub struct SimulatedBid {
 }
 
 #[derive(Clone)]
-pub struct VerifiedOrder {
+pub struct VerifiedLiquidationOpportunity {
     pub chain:          ChainId,
     pub permission:     PermissionKey,
     pub contract:       Address,
@@ -50,7 +50,7 @@ pub struct ChainStore {
 
 #[derive(Default)]
 pub struct LiquidationStore {
-    pub orders: RwLock<HashMap<OrderId, VerifiedOrder>>,
+    pub opportunities: RwLock<HashMap<OpportunityId, VerifiedLiquidationOpportunity>>,
 }
 
 pub struct Store {

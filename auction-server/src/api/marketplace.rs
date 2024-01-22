@@ -14,7 +14,6 @@ use {
     ethers::{
         abi::Address,
         core::types::Signature,
-        signers::Signer,
         types::{
             Bytes,
             U256,
@@ -39,17 +38,17 @@ pub struct TokenAmount {
     amount:   String,
 }
 
-/// An order ready to be fulfilled.
-/// If a searcher signs the order and have approved enough tokens to liquidation adapter, by calling this contract with the given calldata and order structures, they will receive the tokens specified in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
+/// A liquidation opportunity ready to be executed.
+/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter, by calling this contract with the given calldata and structures, they will receive the tokens specified in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct Order {
-    /// The permission key required for succesful execution of the order.
+pub struct LiquidationOpportunity {
+    /// The permission key required for succesful execution of the liquidation.
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
     permission_key: Bytes,
-    /// The chain id where the order will be executed.
+    /// The chain id where the liquidation will be executed.
     #[schema(example = "sepolia")]
     chain_id:       String,
-    /// The contract address to call for execution of the order.
+    /// The contract address to call for execution of the liquidation.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type=String)]
     contract:       Address,
     /// Calldata for the contract call.
@@ -60,45 +59,57 @@ pub struct Order {
     receipt_tokens: Vec<TokenAmount>,
 }
 
-fn parse_tokens(tokens: Vec<TokenAmount>) -> Result<Vec<(Address, U256)>, RestError> {
-    tokens
-        .iter()
-        .map(|token| {
-            let amount = U256::from_dec_str(token.amount.as_str())
-                .map_err(|_| RestError::BadParameters("Invalid token amount".to_string()))?;
-            Ok((token.contract, amount))
-        })
-        .collect::<Result<Vec<(Address, U256)>, RestError>>()
+impl From<(Address, U256)> for TokenAmount {
+    fn from(token: (Address, U256)) -> Self {
+        TokenAmount {
+            contract: token.0,
+            amount:   token.1.to_string(),
+        }
+    }
 }
 
-/// Submit an order ready to be fulfilled.
+impl TryFrom<TokenAmount> for (Address, U256) {
+    type Error = RestError;
+
+    fn try_from(token: TokenAmount) -> Result<Self, Self::Error> {
+        let amount = U256::from_dec_str(token.amount.as_str())
+            .map_err(|_| RestError::BadParameters("Invalid token amount".to_string()))?;
+        Ok((token.contract, amount))
+    }
+}
+
+fn parse_tokens(tokens: Vec<TokenAmount>) -> Result<Vec<(Address, U256)>, RestError> {
+    tokens.into_iter().map(|token| token.try_into()).collect()
+}
+
+/// Submit a liquidation opportunity ready to be executed.
 ///
-/// The order will be verified by the server. If the order is valid, it will be stored in the database and will be available for bidding.
-#[utoipa::path(post, path = "/orders/submit_order", request_body = Order, responses(
-    (status = 200, description = "Order was stored succesfuly", body = String),
+/// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database and will be available for bidding.
+#[utoipa::path(post, path = "/liquidation/submit_opportunity", request_body = LiquidationOpportunity, responses(
+    (status = 200, description = "Opportunity was stored succesfuly", body = String),
     (status = 400, response=RestError)
 ),)]
-pub async fn submit_order(
+pub async fn submit_opportunity(
     State(store): State<Arc<Store>>,
-    Json(order): Json<Order>,
+    Json(opportunity): Json<LiquidationOpportunity>,
 ) -> Result<String, RestError> {
     store
         .chains
-        .get(&order.chain_id)
+        .get(&opportunity.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let repay_tokens = parse_tokens(order.repay_tokens)?;
-    let receipt_tokens = parse_tokens(order.receipt_tokens)?;
+    let repay_tokens = parse_tokens(opportunity.repay_tokens)?;
+    let receipt_tokens = parse_tokens(opportunity.receipt_tokens)?;
 
     //TODO: Verify if the call actually works
 
-    store.liquidation_store.orders.write().await.insert(
+    store.liquidation_store.opportunities.write().await.insert(
         Uuid::new_v4(),
-        crate::state::VerifiedOrder {
-            chain: order.chain_id.clone(),
-            permission: order.permission_key,
-            contract: order.contract,
-            calldata: order.calldata,
+        crate::state::VerifiedLiquidationOpportunity {
+            chain: opportunity.chain_id.clone(),
+            permission: opportunity.permission_key,
+            contract: opportunity.contract,
+            calldata: opportunity.calldata,
             repay_tokens,
             receipt_tokens,
         },
@@ -107,105 +118,104 @@ pub async fn submit_order(
     Ok("OK".to_string())
 }
 
-/// Fetch all orders ready to be fulfilled.
-#[utoipa::path(get, path = "/orders/fetch_orders", responses(
-    (status = 200, description = "Array of orders ready to fulfilled", body = Vec<Order>),
+/// Fetch all liquidation opportunities ready to be exectued.
+#[utoipa::path(get, path = "/liquidation/fetch_opportunities", responses(
+    (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<LiquidationOpportunity>),
     (status = 400, response=RestError)
 ),)]
-pub async fn fetch_orders(
+pub async fn fetch_opportunities(
     State(store): State<Arc<Store>>,
-) -> Result<axum::Json<Vec<Order>>, RestError> {
-    let mut orders: Vec<Order> = Vec::new();
-    for order in store.liquidation_store.orders.read().await.values() {
-        orders.push(Order {
-            permission_key: order.permission.clone(),
-            chain_id:       order.chain.clone(),
-            contract:       order.contract,
-            calldata:       order.calldata.clone(),
-            repay_tokens:   order
+) -> Result<axum::Json<Vec<LiquidationOpportunity>>, RestError> {
+    let opportunities: Vec<LiquidationOpportunity> = store
+        .liquidation_store
+        .opportunities
+        .read()
+        .await
+        .values()
+        .cloned()
+        .map(|opportunity| LiquidationOpportunity {
+            permission_key: opportunity.permission,
+            chain_id:       opportunity.chain,
+            contract:       opportunity.contract,
+            calldata:       opportunity.calldata,
+            repay_tokens:   opportunity
                 .repay_tokens
-                .iter()
-                .map(|(contract, amount)| TokenAmount {
-                    contract: contract.clone(),
-                    amount:   amount.to_string(),
-                })
+                .into_iter()
+                .map(TokenAmount::from)
                 .collect(),
-            receipt_tokens: order
+            receipt_tokens: opportunity
                 .receipt_tokens
-                .iter()
-                .map(|(contract, amount)| TokenAmount {
-                    contract: contract.clone(),
-                    amount:   amount.to_string(),
-                })
+                .into_iter()
+                .map(TokenAmount::from)
                 .collect(),
-        });
-    }
+        })
+        .collect();
 
-    Ok(orders.into())
+    Ok(opportunities.into())
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct OrderBid {
-    /// The order id to bid on.
+pub struct OpportunityBid {
+    /// The opportunity id to bid on.
     #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479",value_type=String)]
-    order_id:    Uuid,
+    opportunity_id: Uuid,
     /// The bid amount in wei.
     #[schema(example = "1000000000000000000")]
-    bid_amount:  String,
-    /// How long the order will be valid for.
+    bid_amount:     String,
+    /// How long the bid will be valid for.
     #[schema(example = "1000000000000000000")]
-    valid_until: String,
+    valid_until:    String,
     /// Liquidator address
     #[schema(example = "0x5FbDB2315678afecb367f032d93F642f64180aa2", value_type=String)]
-    liquidator:  Address,
+    liquidator:     Address,
     #[schema(
         example = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12"
     ,value_type=String)]
-    signature:   Signature,
+    signature:      Signature,
 }
 
 #[derive(Clone, Copy)]
-pub struct VerifiedOrderBid {
-    pub order_id:    Uuid,
-    pub bid_amount:  U256,
-    pub valid_until: U256,
-    pub liquidator:  Address,
-    pub signature:   Signature,
+pub struct VerifiedOpportunityBid {
+    pub opportunity_id: Uuid,
+    pub bid_amount:     U256,
+    pub valid_until:    U256,
+    pub liquidator:     Address,
+    pub signature:      Signature,
 }
 
-pub async fn bid_order(
+pub async fn bid_opportunity(
     store: Arc<Store>,
-    Json(order_bid): Json<OrderBid>,
+    Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<String, RestError> {
-    let orders = store.liquidation_store.orders.read().await;
+    let opportunities = store.liquidation_store.opportunities.read().await;
 
-    let order = orders
-        .get(&order_bid.order_id)
-        .ok_or(RestError::OrderNotFound)?;
-    let bid_amount = U256::from_dec_str(order_bid.bid_amount.as_str())
+    let liquidation = opportunities
+        .get(&opportunity_bid.opportunity_id)
+        .ok_or(RestError::OpportunityNotFound)?;
+    let bid_amount = U256::from_dec_str(opportunity_bid.bid_amount.as_str())
         .map_err(|_| RestError::BadParameters("Invalid bid_amount".to_string()))?;
-    let valid_until = U256::from_dec_str(order_bid.valid_until.as_str())
+    let valid_until = U256::from_dec_str(opportunity_bid.valid_until.as_str())
         .map_err(|_| RestError::BadParameters("Invalid valid_until".to_string()))?;
 
-    let verified_order_bid = VerifiedOrderBid {
-        order_id: order_bid.order_id,
+    let verified_liquidation_bid = VerifiedOpportunityBid {
+        opportunity_id: opportunity_bid.opportunity_id,
         bid_amount,
         valid_until,
-        liquidator: order_bid.liquidator,
-        signature: order_bid.signature,
+        liquidator: opportunity_bid.liquidator,
+        signature: opportunity_bid.signature,
     };
 
-    let per_calldata = make_liquidator_calldata(order.clone(), verified_order_bid)
+    let per_calldata = make_liquidator_calldata(liquidation.clone(), verified_liquidation_bid)
         .map_err(|e| RestError::BadParameters(e.to_string()))?;
 
     handle_bid(
         store.clone(),
         crate::api::rest::ParsedBid {
-            permission_key: order.permission.clone(),
-            chain_id:       order.chain.clone(),
-            contract:       order.contract,
+            permission_key: liquidation.permission.clone(),
+            chain_id:       liquidation.chain.clone(),
+            contract:       liquidation.contract,
             calldata:       per_calldata,
-            bid_amount:     verified_order_bid.bid_amount,
+            bid_amount:     verified_liquidation_bid.bid_amount,
         },
     )
     .await
