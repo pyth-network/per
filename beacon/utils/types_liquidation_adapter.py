@@ -23,7 +23,6 @@ class LiquidationOpportunity(TypedDict):
     repay_tokens: list[TokenAmount]
     # A list of tokens that ought to be received by the liquidator in exchange for the repay tokens. Each entry in the list is a tuple (token address, hex string of receipt amount)
     receipt_tokens: list[TokenAmount]
-    prices: list[PriceFeed]
 
 
 LIQUIDATION_ADAPTER_CALLDATA_TYPES = '((address,uint256)[],(address,uint256)[],address,address,bytes,uint256,uint256,bytes)'

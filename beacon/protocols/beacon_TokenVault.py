@@ -116,8 +116,7 @@ def create_liquidation_opp(
                 "contract": account["token_address_collateral"],
                 "amount": str(account["amount_collateral"]),
             }
-        ],
-        "prices": price_updates,
+        ]
     }
 
     # TODO: figure out best interface to show partial liquidation possibility? Is this even important?
