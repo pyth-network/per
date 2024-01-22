@@ -4,7 +4,7 @@ use {
             marketplace::{
                 LiquidationOpportunity,
                 OpportunityBid,
-                TokenAmount,
+                TokenQty,
             },
             rest::Bid,
         },
@@ -144,7 +144,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     marketplace::fetch_opportunities,
     ),
     components(
-        schemas(Bid),schemas(LiquidationOpportunity),schemas(OpportunityBid), schemas(TokenAmount),responses(RestError)
+        schemas(Bid),schemas(LiquidationOpportunity),schemas(OpportunityBid), schemas(TokenQty),responses(RestError)
     ),
     tags(
     (name = "PER Auction", description = "Pyth Express Relay Auction Server")

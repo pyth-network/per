@@ -29,7 +29,7 @@ use {
 };
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct TokenAmount {
+pub struct TokenQty {
     /// Token contract address
     #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",value_type=String)]
     contract: Address,
@@ -55,30 +55,30 @@ pub struct LiquidationOpportunity {
     #[schema(example = "0xdeadbeef", value_type=String)]
     calldata:       Bytes,
 
-    repay_tokens:   Vec<TokenAmount>,
-    receipt_tokens: Vec<TokenAmount>,
+    repay_tokens:   Vec<TokenQty>,
+    receipt_tokens: Vec<TokenQty>,
 }
 
-impl From<(Address, U256)> for TokenAmount {
+impl From<(Address, U256)> for TokenQty {
     fn from(token: (Address, U256)) -> Self {
-        TokenAmount {
+        TokenQty {
             contract: token.0,
             amount:   token.1.to_string(),
         }
     }
 }
 
-impl TryFrom<TokenAmount> for (Address, U256) {
+impl TryFrom<TokenQty> for (Address, U256) {
     type Error = RestError;
 
-    fn try_from(token: TokenAmount) -> Result<Self, Self::Error> {
+    fn try_from(token: TokenQty) -> Result<Self, Self::Error> {
         let amount = U256::from_dec_str(token.amount.as_str())
             .map_err(|_| RestError::BadParameters("Invalid token amount".to_string()))?;
         Ok((token.contract, amount))
     }
 }
 
-fn parse_tokens(tokens: Vec<TokenAmount>) -> Result<Vec<(Address, U256)>, RestError> {
+fn parse_tokens(tokens: Vec<TokenQty>) -> Result<Vec<(Address, U256)>, RestError> {
     tokens.into_iter().map(|token| token.try_into()).collect()
 }
 
@@ -142,12 +142,12 @@ pub async fn fetch_opportunities(
             repay_tokens:   opportunity
                 .repay_tokens
                 .into_iter()
-                .map(TokenAmount::from)
+                .map(TokenQty::from)
                 .collect(),
             receipt_tokens: opportunity
                 .receipt_tokens
                 .into_iter()
-                .map(TokenAmount::from)
+                .map(TokenQty::from)
                 .collect(),
         })
         .collect();
