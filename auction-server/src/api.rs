@@ -47,10 +47,6 @@ use {
             LocalWallet,
             Signer,
         },
-        types::{
-            Address,
-            H160,
-        },
     },
     futures::future::join_all,
     std::{

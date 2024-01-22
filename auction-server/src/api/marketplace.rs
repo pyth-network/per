@@ -1,21 +1,11 @@
 use {
     crate::{
         api::{
-            rest::{
-                handle_bid,
-                ParsedBid,
-            },
+            rest::handle_bid,
             RestError,
         },
-        auction::simulate_bids,
-        liquidation_adapter::{
-            make_liquidator_calldata,
-            verify_signature,
-        },
-        state::{
-            SimulatedBid,
-            Store,
-        },
+        liquidation_adapter::make_liquidator_calldata,
+        state::Store,
     },
     axum::{
         extract::State,
@@ -23,25 +13,18 @@ use {
     },
     ethers::{
         abi::Address,
-        contract::EthError,
         core::types::Signature,
-        middleware::contract::ContractError,
         signers::Signer,
         types::{
             Bytes,
             U256,
         },
-        utils::hex::FromHex,
     },
     serde::{
         Deserialize,
         Serialize,
     },
-    std::{
-        ops::Add,
-        str::FromStr,
-        sync::Arc,
-    },
+    std::sync::Arc,
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -99,7 +82,7 @@ pub async fn submit_order(
     State(store): State<Arc<Store>>,
     Json(order): Json<Order>,
 ) -> Result<String, RestError> {
-    let chain_store = store
+    store
         .chains
         .get(&order.chain_id)
         .ok_or(RestError::InvalidChainId)?;
@@ -213,7 +196,7 @@ pub async fn bid_order(
     };
 
     let per_calldata = make_liquidator_calldata(order.clone(), verified_order_bid)
-        .map_err(|e| RestError::BadParameters(e))?;
+        .map_err(|e| RestError::BadParameters(e.to_string()))?;
 
     handle_bid(
         store.clone(),
