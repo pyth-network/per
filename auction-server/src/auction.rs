@@ -45,7 +45,10 @@ use {
     },
 };
 
-abigen!(PER, "src/PERMulticall.json");
+abigen!(
+    PER,
+    "../per_multicall/out/PERMulticall.sol/PERMulticall.json"
+);
 pub type PERContract = PER<Provider<Http>>;
 pub type SignableProvider =
     TransformerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>, LegacyTxTransformer>;

@@ -28,7 +28,10 @@ use {
     },
 };
 
-abigen!(LiquidationAdapter, "src/LiquidationAdapter.json");
+abigen!(
+    LiquidationAdapter,
+    "../per_multicall/out/LiquidationAdapter.sol/LiquidationAdapter.json"
+);
 impl From<(Address, U256)> for TokenQty {
     fn from(token: (Address, U256)) -> Self {
         TokenQty {
