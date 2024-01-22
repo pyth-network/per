@@ -104,8 +104,9 @@ pub async fn submit_opportunity(
     //TODO: Verify if the call actually works
 
     store.liquidation_store.opportunities.write().await.insert(
-        Uuid::new_v4(),
+        opportunity.permission_key.clone(),
         crate::state::VerifiedLiquidationOpportunity {
+            id: Uuid::new_v4(),
             chain: opportunity.chain_id.clone(),
             permission: opportunity.permission_key,
             contract: opportunity.contract,
@@ -159,6 +160,9 @@ pub struct OpportunityBid {
     /// The opportunity id to bid on.
     #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479",value_type=String)]
     opportunity_id: Uuid,
+    /// The opportunity permission key
+    #[schema(example = "0xdeadbeefcafe", value_type=String)]
+    permission_key: Bytes,
     /// The bid amount in wei.
     #[schema(example = "1000000000000000000")]
     bid_amount:     String,
@@ -190,8 +194,14 @@ pub async fn bid_opportunity(
     let opportunities = store.liquidation_store.opportunities.read().await;
 
     let liquidation = opportunities
-        .get(&opportunity_bid.opportunity_id)
+        .get(&opportunity_bid.permission_key)
         .ok_or(RestError::OpportunityNotFound)?;
+
+    if liquidation.id != opportunity_bid.opportunity_id {
+        return Err(RestError::BadParameters(
+            "Invalid opportunity_id".to_string(),
+        ));
+    }
     let bid_amount = U256::from_dec_str(opportunity_bid.bid_amount.as_str())
         .map_err(|_| RestError::BadParameters("Invalid bid_amount".to_string()))?;
     let valid_until = U256::from_dec_str(opportunity_bid.valid_until.as_str())
