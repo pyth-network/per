@@ -24,7 +24,7 @@ async def get_price_feed_ids() -> list[str]:
     """
     Queries the Hermes https endpoint for a list of the IDs of all Pyth price feeds.
     """
-    
+
     url = HERMES_ENDPOINT_HTTPS + "price_feed_ids"
     client = httpx.AsyncClient()
 
@@ -99,7 +99,7 @@ class PriceFeedClient:
     async def get_all_prices(self) -> dict[str, PriceFeed]:
         """
         Queries the Hermes http endpoint for the latest price feeds for all feed IDs in the class object.
-        
+
         There are limitations on the number of feed IDs that can be queried at once, so this function queries the feed IDs in batches.
         """
         pyth_prices_latest = []
@@ -132,8 +132,8 @@ class PriceFeedClient:
 
                 msg = json.loads(await ws.recv())
                 if msg["type"] == "response":
-                        if msg["status"] != "success":
-                            raise Exception("Error in subscribing to websocket")
+                    if msg["status"] != "success":
+                        raise Exception("Error in subscribing to websocket")
                 try:
                     if msg["type"] != "price_update":
                         continue
@@ -149,7 +149,8 @@ class PriceFeedClient:
 
 async def main():
     feed_ids = await get_price_feed_ids()
-    feed_ids = feed_ids[:1] # TODO: remove this line, once rate limits are figured out
+    # TODO: remove this line, once rate limits are figured out
+    feed_ids = feed_ids[:1]
     price_feed_client = PriceFeedClient(feed_ids)
 
     print("Starting web socket...")
