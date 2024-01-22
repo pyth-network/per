@@ -13,6 +13,11 @@ def assess_liquidation_opportunity(
     Individual searchers will have their own methods to determine market impact and the profitability of conducting a liquidation. This function can be expanded to include external prices to perform this evaluation.
     If the LiquidationOpportunity is deemed worthwhile, this function can return a bid amount representing the amount of native token to bid on this opportunity, and a timestamp representing the time at which the transaction will expire.
     Otherwise, this function can return None.
+
+    Args:
+        opp: A LiquidationOpportunity object, representing a single liquidation opportunity.
+    Returns:
+        If the LiquidationOpportunity is deemed worthwhile, this function can return a UserLiquidationParams object, representing the user's bid and the timestamp at which the user's transaction should expire. If the LiquidationOpportunity is not deemed worthwhile, this function can return None.
     """
     raise NotImplementedError
 
@@ -27,5 +32,13 @@ def create_liquidation_tx(
     Processes a LiquidationOpportunity into a LiquidationAdapterTransaction
 
     This function can handle constructing the LiquidationAdapterTransaction to submit. The calldata for the LiquidationAdapter contract should be constructed according to the LiquidationAdapterCalldata type; you can leverage the construct_signature_liquidator function to construct the signature field.
+
+    Args:
+        opp: A LiquidationOpportunity object, representing a single liquidation opportunity.
+        sk_liquidator: A 0x-prefixed hex string representing the liquidator's private key.
+        valid_until: An integer representing the timestamp at which the transaction will expire.
+        bid: An integer representing the amount of native token to bid on this opportunity.
+    Returns:
+        A LiquidationAdapterTransaction object, representing the transaction to submit.
     """
     raise NotImplementedError

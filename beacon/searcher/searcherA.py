@@ -1,5 +1,3 @@
-import web3
-from web3.auto import w3
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
 from eth_abi import encode
@@ -7,8 +5,8 @@ import httpx
 import asyncio
 
 from beacon.utils.types_liquidation_adapter import *
-from beacon.utils.endpoints import *
-from beacon.searcher.searcher_utils import *
+from beacon.utils.endpoints import BEACON_SERVER_ENDPOINT_GETOPPS, AUCTION_SERVER_ENDPOINT
+from beacon.searcher.searcher_utils import UserLiquidationParams, construct_signature_liquidator
 
 BID = 10
 VALID_UNTIL = 1_000_000_000_000

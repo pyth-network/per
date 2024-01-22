@@ -4,9 +4,11 @@ import json
 from typing import TypedDict
 import argparse
 import logging
+import asyncio
+import httpx
 
-from beacon.utils.pyth_prices import *
-from beacon.utils.types_liquidation_adapter import *
+from beacon.utils.pyth_prices import PriceFeedClient, PriceFeed
+from beacon.utils.types_liquidation_adapter import LiquidationOpportunity
 
 TOKEN_VAULT_ADDRESS = "0x72A22FfcAfa6684d4EE449620270ac05afE963d0"
 
@@ -40,7 +42,10 @@ async def get_accounts(rpc_url: str) -> list[ProtocolAccount]:
     """
     Returns all the open accounts in the protocol in the form of a list of type ProtocolAccount.
 
-    get_accounts(rpc_url) takes the RPC URL of the chain as an argument and returns all the open accounts in the protocol in the form of a list of objects of type ProtocolAccount (defined above). Each ProtocolAccount object represents an account/vault in the protocol.
+    Args:
+        rpc_url (str): The RPC URL of the chain
+    Returns:
+        List of objects of type ProtocolAccount (defined above). Each ProtocolAccount object represents an account/vault in the protocol.
     """
     abi = get_vault_abi()
     w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(rpc_url))
@@ -90,6 +95,12 @@ def create_liquidation_opp(
         prices: list[PriceFeed]) -> LiquidationOpportunity:
     """
     Constructs a LiquidationOpportunity object from a ProtocolAccount object and a set of relevant Pyth PriceFeeds.
+
+    Args:
+        account: A ProtocolAccount object, representing an account/vault in the protocol.
+        prices: A list of PriceFeed objects, representing the relevant Pyth price feeds for the tokens in the ProtocolAccount object.
+    Returns:
+        A LiquidationOpportunity object corresponding to the specified account.
     """
 
     # [bytes.fromhex(update['vaa']) for update in prices] ## TODO: uncomment this, to add back price updates
@@ -140,9 +151,11 @@ def get_liquidatable(accounts: list[ProtocolAccount],
     """
     Filters list of ProtocolAccount types to return a list of LiquidationOpportunity types.
 
-    get_liquidatable(accounts, prices) takes two arguments: account--a list of ProtocolAccount (defined above) objects--and prices--a dictionary of Pyth prices.
-    accounts should be the list of all open accounts in the protocol (i.e. the output of get_accounts()).
-    prices should be a dictionary of Pyth prices, where the keys are Pyth feed IDs and the values are PriceFeed objects. prices can be retrieved from the provided price retrieval functions.
+    Args:
+        accounts: A list of ProtocolAccount objects, representing all the open accounts in the protocol.
+        prices: A dictionary of Pyth price feeds, where the keys are Pyth feed IDs and the values are PriceFeed objects.
+    Returns:
+        A list of LiquidationOpportunity objects, one per account that is eligible for liquidation.
     """
 
     liquidatable = []
@@ -219,7 +232,8 @@ async def main():
                 logging.error("Provided beacon server endpoint url not found")
             elif resp.status_code == 405:
                 logging.error("Provided beacon server endpoint url does not support POST requests")
-            logging.info(f"Response, post to beacon: {resp.text}")
+            else:
+                logging.info(f"Response, post to beacon: {resp.text}")
         else:
             logging.info(f"List of liquidatable accounts:\n{accounts_liquidatable}")
 
