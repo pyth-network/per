@@ -1,7 +1,11 @@
 import web3
 from web3.auto import w3
 from eth_abi import encode
+from typing import TypedDict
 
+class UserLiquidationParams(TypedDict):
+    bid: int
+    valid_until: int
 
 def construct_signature_liquidator(
     repay_tokens: list[(str, int)],

@@ -1,9 +1,10 @@
-from beacon.utils.types_liquidation_adapter import *
+from beacon.utils.types_liquidation_adapter import LiquidationOpportunity, LiquidationAdapterTransaction
+from beacon.searcher.searcher_utils import UserLiquidationParams
 
 
 def assess_liquidation_opportunity(
     opp: LiquidationOpportunity
-) -> (int, int) | None:
+) -> UserLiquidationParams | None:
     """
     Assesses whether a LiquidationOpportunity is worth liquidating; if so, returns a tuple of (bid, valid_until)
 

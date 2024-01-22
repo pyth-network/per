@@ -148,8 +148,13 @@ def get_liquidatable(accounts: list[ProtocolAccount],
     liquidatable = []
 
     for account in accounts:
-        price_collateral = prices[account["token_id_collateral"]]
-        price_debt = prices[account["token_id_debt"]]
+        price_collateral = prices.get(account["token_id_collateral"])
+        if price_collateral is None:
+            raise Exception(f"Price for collateral token {account['token_id_collateral']} not found")
+            
+        price_debt = prices.get(account["token_id_debt"])
+        if price_debt is None:
+            raise Exception(f"Price for debt token {account['token_id_debt']} not found")
 
         value_collateral = int(
             price_collateral['price']['price']) * account["amount_collateral"]
@@ -189,6 +194,7 @@ async def main():
                 "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43"]  # TODO: should this be automated rather than hardcoded?
     price_feed_client = PriceFeedClient(feed_ids)
 
+    # TODO: sometimes the ws doesn't pull prices, understand why
     ws_call = price_feed_client.ws_pyth_prices()
     asyncio.create_task(ws_call)
 
@@ -207,6 +213,12 @@ async def main():
                 args.beacon_server_url,
                 json=accounts_liquidatable
             )
+            if resp.status_code == 422:
+                logging.error("Invalid request body format, should provide a list of LiquidationOpportunity")
+            elif resp.status_code == 404:
+                logging.error("Provided beacon server endpoint url not found")
+            elif resp.status_code == 405:
+                logging.error("Provided beacon server endpoint url does not support POST requests")
             logging.info(f"Response, post to beacon: {resp.text}")
         else:
             logging.info(f"List of liquidatable accounts:\n{accounts_liquidatable}")

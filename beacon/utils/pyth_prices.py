@@ -131,10 +131,10 @@ class PriceFeedClient:
                     self.pending_feed_ids = []
 
                 msg = json.loads(await ws.recv())
-                try:
-                    if msg["type"] == "response":
+                if msg["type"] == "response":
                         if msg["status"] != "success":
                             raise Exception("Error in subscribing to websocket")
+                try:
                     if msg["type"] != "price_update":
                         continue
 

@@ -14,11 +14,6 @@ BID = 10
 VALID_UNTIL = 1_000_000_000_000
 
 
-class UserLiquidationParams(TypedDict):
-    bid: int
-    valid_until: int
-
-
 def assess_liquidation_opportunity(
     opp: LiquidationOpportunity
 ) -> UserLiquidationParams | None:
