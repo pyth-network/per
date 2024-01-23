@@ -33,8 +33,8 @@ pub struct SimulatedBid {
 #[derive(Clone)]
 pub struct VerifiedLiquidationOpportunity {
     pub id:             Uuid,
-    pub chain:          ChainId,
-    pub permission:     PermissionKey,
+    pub chain_id:       ChainId,
+    pub permission_key: PermissionKey,
     pub contract:       Address,
     pub calldata:       Bytes,
     pub repay_tokens:   Vec<(Address, U256)>,

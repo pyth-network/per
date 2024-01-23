@@ -107,8 +107,8 @@ pub async fn submit_opportunity(
         opportunity.permission_key.clone(),
         crate::state::VerifiedLiquidationOpportunity {
             id: Uuid::new_v4(),
-            chain: opportunity.chain_id.clone(),
-            permission: opportunity.permission_key,
+            chain_id: opportunity.chain_id.clone(),
+            permission_key: opportunity.permission_key,
             contract: opportunity.contract,
             calldata: opportunity.calldata,
             repay_tokens,
@@ -135,8 +135,8 @@ pub async fn fetch_opportunities(
         .values()
         .cloned()
         .map(|opportunity| LiquidationOpportunity {
-            permission_key: opportunity.permission,
-            chain_id:       opportunity.chain,
+            permission_key: opportunity.permission_key,
+            chain_id:       opportunity.chain_id,
             contract:       opportunity.contract,
             calldata:       opportunity.calldata,
             repay_tokens:   opportunity
@@ -221,8 +221,8 @@ pub async fn bid_opportunity(
     handle_bid(
         store.clone(),
         crate::api::rest::ParsedBid {
-            permission_key: liquidation.permission.clone(),
-            chain_id:       liquidation.chain.clone(),
+            permission_key: liquidation.permission_key.clone(),
+            chain_id:       liquidation.chain_id.clone(),
             contract:       liquidation.contract,
             calldata:       per_calldata,
             bid_amount:     verified_liquidation_bid.bid_amount,

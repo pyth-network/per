@@ -79,7 +79,7 @@ pub fn make_liquidator_calldata(
             .repay_tokens
             .into_iter()
             .map(TokenQty::from)
-            .collect(), // TODO: consistent naming across rust, rest, and solidity
+            .collect(),
         expected_receipt_tokens: opportunity
             .receipt_tokens
             .into_iter()
