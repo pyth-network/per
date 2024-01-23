@@ -1,6 +1,13 @@
 use {
     crate::{
-        api::rest::Bid,
+        api::{
+            marketplace::{
+                LiquidationOpportunity,
+                OpportunityBid,
+                TokenQty,
+            },
+            rest::Bid,
+        },
         auction::run_submission_loop,
         config::{
             ChainId,
@@ -9,6 +16,7 @@ use {
         },
         state::{
             ChainStore,
+            LiquidationStore,
             Store,
         },
     },
@@ -39,7 +47,6 @@ use {
             LocalWallet,
             Signer,
         },
-        types::Address,
     },
     futures::future::join_all,
     std::{
@@ -73,6 +80,7 @@ async fn root() -> String {
     format!("PER Auction Server API {}", crate_version!())
 }
 
+pub(crate) mod marketplace;
 mod rest;
 
 #[derive(ToResponse, ToSchema)]
@@ -82,6 +90,8 @@ pub enum RestError {
     BadParameters(String),
     /// The chain id is not supported
     InvalidChainId,
+    /// The order was not found
+    OpportunityNotFound,
     /// The server cannot currently communicate with the blockchain, so is not able to verify
     /// which random values have been requested.
     TemporarilyUnavailable,
@@ -98,6 +108,11 @@ impl IntoResponse for RestError {
             RestError::InvalidChainId => {
                 (StatusCode::BAD_REQUEST, "The chain id is not supported").into_response()
             }
+            RestError::OpportunityNotFound => (
+                StatusCode::NOT_FOUND,
+                "Order with the specified id was not found",
+            )
+                .into_response(),
 
             RestError::TemporarilyUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -125,9 +140,11 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     #[openapi(
     paths(
     rest::bid,
+    marketplace::submit_opportunity,
+    marketplace::fetch_opportunities,
     ),
     components(
-    schemas(Bid), responses(RestError)
+        schemas(Bid),schemas(LiquidationOpportunity),schemas(OpportunityBid), schemas(TokenQty),responses(RestError)
     ),
     tags(
     (name = "PER Auction", description = "Pyth Express Relay Auction Server")
@@ -165,7 +182,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                     network_id: id,
                     bids: Default::default(),
                     config: chain_config.clone(),
-                    opps: Default::default(),
                 },
             ))
         },
@@ -175,8 +191,9 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     .collect();
 
     let store = Arc::new(Store {
-        chains:       chain_store?,
-        per_operator: wallet,
+        chains:            chain_store?,
+        liquidation_store: LiquidationStore::default(),
+        per_operator:      wallet,
     });
 
     let server_store = store.clone();
@@ -187,8 +204,14 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
         .route("/bid", post(rest::bid))
-        .route("/surface", post(rest::surface))
-        .route("/getOpps", get(rest::get_opps))
+        .route(
+            "/liquidation/submit_opportunity",
+            post(marketplace::submit_opportunity),
+        )
+        .route(
+            "/liquidation/fetch_opportunities",
+            get(marketplace::fetch_opportunities),
+        )
         .layer(CorsLayer::permissive())
         .with_state(server_store);
 

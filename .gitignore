@@ -1,6 +1,7 @@
 # Python cache files
 __pycache__
 *.pyc
+venv
 
 # any config files
 config.yaml
@@ -14,4 +15,3 @@ api_keys.py
 # env files
 *.env
 per_multicall/latestEnvironment.json
-
