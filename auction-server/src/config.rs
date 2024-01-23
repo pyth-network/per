@@ -25,7 +25,7 @@ mod server;
 #[command(version = crate_version!())]
 #[allow(clippy::large_enum_variant)]
 pub enum Options {
-    /// Run the benchmarks streaming service.
+    /// Run the auction server service.
     Run(RunOptions),
 }
 
