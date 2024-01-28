@@ -6,6 +6,7 @@ use {
 };
 
 mod config;
+mod simulator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,7 +33,10 @@ async fn main() -> Result<()> {
     // with invalid arguments.
     match config::Options::parse() {
         config::Options::Run(opts) => {
-
+            simulator::run_simulator(opts).await?;
+        },
+        config::Options::Deploy(opts) => {
+            simulator::deploy_contract(opts).await?;
         },
     };
     Ok(())
