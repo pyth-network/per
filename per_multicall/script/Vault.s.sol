@@ -87,8 +87,66 @@ contract VaultScript is Script {
         return (per, liquidationAdapter, mockPyth, vault, weth);
     }
 
+    /**
+         @notice Sets up the testnet environment
+        deploys WETH, PER, LiquidationAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
+        The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
+        @param pyth The address of the already deployed pyth contract to use
+    */
+    function setUpTestnet(address pyth) public {
+        (, uint256 skanvil) = getAnvil();
+        vm.startBroadcast(skanvil);
+        address weth = deployWeth();
+        (address per, address liquidationAdapter) = deployPER(weth);
+        address vault = deployVault(per, pyth);
+        vm.startBroadcast(skanvil);
+        address[] memory tokens = new address[](5);
+        uint256 lots_of_money = 10 ** 36;
+        tokens[0] = address(
+            new MyToken(
+                "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+                "BTC"
+            )
+        );
+        tokens[1] = address(
+            new MyToken(
+                "eaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a",
+                "USDC"
+            )
+        );
+        tokens[2] = address(
+            new MyToken(
+                "dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c",
+                "DOGE"
+            )
+        );
+        tokens[3] = address(
+            new MyToken(
+                "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+                "SOL"
+            )
+        );
+        tokens[4] = address(
+            new MyToken(
+                "0bbf28e9a841a1cc788f6a361b17ca072d0ea3098a1e5df1c3922d06719579ff",
+                "PYTH"
+            )
+        );
+        for (uint i = 0; i < 5; i++) {
+            MyToken(tokens[i]).mint(tokenVault, lots_of_money);
+        }
+        vm.stopBroadcast();
+        string memory obj = "";
+        vm.serializeAddress(obj, "tokens", tokens);
+        vm.serializeAddress(obj, "per", per);
+        vm.serializeAddress(obj, "liquidationAdapter", liquidationAdapter);
+        vm.serializeAddress(obj, "oracle", oracle);
+        vm.serializeAddress(obj, "tokenVault", tokenVault);
+        string memory finalJSON = vm.serializeAddress(obj, "weth", weth);
+        vm.writeJson(finalJSON, latestEnvironmentPath);
+    }
+
     function setUpContracts() public {
-        console.log("balance of this contract", address(this).balance);
         SearcherVault searcherA;
         SearcherVault searcherB;
 
@@ -274,7 +332,6 @@ contract VaultScript is Script {
         vm.serializeAddress(obj, "tokenVaultDeployer", addressesScript[4]);
         vm.serializeUint(obj, "tokenVaultDeployerSk", sksScript[4]);
         string memory finalJSON = vm.serializeUint(obj, "numVaults", 0);
-
         vm.writeJson(finalJSON, latestEnvironmentPath);
     }
 
