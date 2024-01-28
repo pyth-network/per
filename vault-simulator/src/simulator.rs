@@ -1,22 +1,44 @@
-use ethers::contract::ContractError;
-use ethers::core::utils::hex::FromHex;
-
-use base64::prelude::*;
-use ethers::abi::Address;
-use ethers::{
-    contract::abigen,
-    middleware::SignerMiddleware,
-    providers::{Http, Middleware, Provider},
-    signers::{LocalWallet, Signer},
-    types::{Bytes, U256},
+use {
+    crate::config::{
+        DeployOptions,
+        RunOptions,
+    },
+    anyhow::{
+        anyhow,
+        Context,
+        Result,
+    },
+    base64::prelude::*,
+    ethers::{
+        abi::Address,
+        contract::{
+            abigen,
+            ContractError,
+        },
+        core::utils::hex::FromHex,
+        middleware::SignerMiddleware,
+        providers::{
+            Http,
+            Middleware,
+            Provider,
+        },
+        signers::{
+            LocalWallet,
+            Signer,
+        },
+        types::{
+            Bytes,
+            U256,
+        },
+    },
+    rand::{
+        random,
+        seq::SliceRandom,
+    },
+    serde_json::Value,
+    std::sync::Arc,
+    url::Url,
 };
-use rand::{random, seq::SliceRandom};
-use serde_json::Value;
-use std::sync::Arc;
-use url::Url;
-
-use crate::config::{DeployOptions, RunOptions};
-use anyhow::{anyhow, Context, Result};
 
 abigen!(
     TokenVault,
@@ -31,14 +53,14 @@ pub type SignableTokenVaultContract = TokenVault<SignerMiddleware<Provider<Http>
 #[derive(Clone)]
 struct PythUpdate {
     price: U256,
-    vaa: Bytes,
+    vaa:   Bytes,
 }
 
 #[derive(Clone)]
 struct TokenInfo {
-    symbol: String,
+    symbol:   String,
     price_id: String,
-    address: Address,
+    address:  Address,
     contract: ERC20<SignerMiddleware<Provider<Http>, LocalWallet>>,
 }
 
@@ -66,7 +88,7 @@ fn parse_update(update: Value) -> Result<PythUpdate> {
 
     Ok(PythUpdate {
         price: price * multiple,
-        vaa: Bytes::from(
+        vaa:   Bytes::from(
             BASE64_STANDARD
                 .decode(update["vaa"].as_str().unwrap())
                 .unwrap(),

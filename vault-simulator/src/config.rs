@@ -1,8 +1,21 @@
 use {
     anyhow::Result,
-    clap::{crate_authors, crate_description, crate_name, crate_version, Arg, ArgAction, Args, Parser},
+    clap::{
+        crate_authors,
+        crate_description,
+        crate_name,
+        crate_version,
+        Arg,
+        ArgAction,
+        Args,
+        Parser,
+    },
     ethers::abi::Address,
-    std::{collections::HashMap, fs, net::SocketAddr},
+    std::{
+        collections::HashMap,
+        fs,
+        net::SocketAddr,
+    },
     url::Url,
 };
 
@@ -55,7 +68,6 @@ pub struct DeployOptions {
     #[arg(long = "private-key")]
     #[arg(env = "PRIVATE_KEY")]
     pub private_key: String,
-
 
     /// The per contract address
     #[arg(long = "per-contract")]

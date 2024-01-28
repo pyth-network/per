@@ -34,10 +34,10 @@ async fn main() -> Result<()> {
     match config::Options::parse() {
         config::Options::Run(opts) => {
             simulator::run_simulator(opts).await?;
-        },
+        }
         config::Options::Deploy(opts) => {
             simulator::deploy_contract(opts).await?;
-        },
+        }
     };
     Ok(())
 }
