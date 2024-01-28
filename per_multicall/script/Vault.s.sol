@@ -410,7 +410,8 @@ contract VaultScript is Script {
                 110 * (10 ** 16),
                 1 * (10 ** 16),
                 idToken1Latest,
-                idToken2Latest
+                idToken2Latest,
+                new bytes[](0)
             );
             vm.stopBroadcast();
         } else {
@@ -424,7 +425,8 @@ contract VaultScript is Script {
                 110 * (10 ** 16),
                 1 * (10 ** 16),
                 idToken1Latest,
-                idToken2Latest
+                idToken2Latest,
+                new bytes[](0)
             );
             vm.stopBroadcast();
         }
