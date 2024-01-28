@@ -28,19 +28,14 @@ contract VaultScript is Script {
     string public latestEnvironmentPath = "latestEnvironment.json";
 
     function getAnvil() public view returns (address, uint256) {
-        // TODO: these are mnemonic wallets. figure out how to transfer ETH from them outside of explicitly hardcoding them here.
-        return (
-            address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266),
-            0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-        );
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployerAddress = vm.addr(deployerPrivateKey);
+        return (deployerAddress, deployerPrivateKey);
     }
 
     function deployWeth() public returns (address) {
-        (, uint256 skanvil) = getAnvil();
-        vm.startBroadcast(skanvil);
         WETH9 weth = new WETH9();
         console.log("deployed weth contract at", address(weth));
-        vm.stopBroadcast();
         return address(weth);
     }
 
@@ -50,9 +45,6 @@ contract VaultScript is Script {
         );
         console.log("pk per operator", perOperatorAddress);
         console.log("sk per operator", perOperatorSk);
-        (, uint256 skanvil) = getAnvil();
-
-        vm.startBroadcast(skanvil);
         payable(perOperatorAddress).transfer(10 ether);
         PERMulticall multicall = new PERMulticall(perOperatorAddress, 0);
         console.log("deployed PER contract at", address(multicall));
@@ -60,7 +52,6 @@ contract VaultScript is Script {
             address(multicall),
             wethAddress
         );
-        vm.stopBroadcast();
         return (address(multicall), address(liquidationAdapter));
     }
 
@@ -71,19 +62,14 @@ contract VaultScript is Script {
         // make token vault deployer wallet
         (, uint256 tokenVaultDeployerSk) = makeAddrAndKey("tokenVaultDeployer");
         console.log("sk token vault deployer", tokenVaultDeployerSk);
-        vm.startBroadcast(tokenVaultDeployerSk);
         TokenVault vault = new TokenVault(multicall, oracle);
         console.log("deployed vault contract at", address(vault));
-        vm.stopBroadcast();
         return address(vault);
     }
 
     function deployMockPyth() public returns (address) {
-        (, uint256 skanvil) = getAnvil();
-        vm.startBroadcast(skanvil);
         MockPyth mockPyth = new MockPyth(1_000_000, 0);
         console.log("deployed mock pyth contract at", address(mockPyth));
-        vm.stopBroadcast();
         return address(mockPyth);
     }
 
@@ -91,10 +77,13 @@ contract VaultScript is Script {
         public
         returns (address, address, address, address, address)
     {
+        (, uint256 skanvil) = getAnvil();
+        vm.startBroadcast(skanvil);
         address weth = deployWeth();
         (address per, address liquidationAdapter) = deployPER(weth);
         address mockPyth = deployMockPyth();
         address vault = deployVault(per, mockPyth);
+        vm.stopBroadcast();
         return (per, liquidationAdapter, mockPyth, vault, weth);
     }
 

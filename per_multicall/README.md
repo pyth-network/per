@@ -26,7 +26,7 @@ $ forge test -vvv --via-ir
 
 You can also run a local validator via `anvil --gas-limit 500000000000000000 --block-time 2`, changing the values for the gas limit and block time as desired. Note that if you omit the `--block-time` flag, the local network will create a new block for each transaction (similar to how Optimism created L2 blocks pre-Bedrock). Running `auction_offchain.py` will spit out the final call to `forge script` you should run to send the transaction to the localnet.
 
-To run the script runs in `Vault.s.sol`, you should startup the local validator. Then, run the necessary setup commands:
+To run the script runs in `Vault.s.sol`, you should startup the local validator and create a `.env` file with the `PRIVATE_KEY` env variable which is used for submitting the transactions. Then, run the necessary setup commands:
 
 1. Set up contracts and save to an environment JSON.
 
