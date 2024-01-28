@@ -37,7 +37,7 @@ $ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --se
 2. Set oracle prices to allow for vault creation.
 
 ```shell
-$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 110 190 --broadcast
+$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 110 190 --broadcast
 ```
 
 3. Vault creation.

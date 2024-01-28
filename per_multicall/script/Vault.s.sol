@@ -88,10 +88,10 @@ contract VaultScript is Script {
     }
 
     /**
-         @notice Sets up the testnet environment
-        deploys WETH, PER, LiquidationAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
-        The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
-        @param pyth The address of the already deployed pyth contract to use
+    @notice Sets up the testnet environment
+    deploys WETH, PER, LiquidationAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
+    The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
+    @param pyth The address of the already deployed pyth contract to use
     */
     function setUpTestnet(address pyth) public {
         (, uint256 skanvil) = getAnvil();
