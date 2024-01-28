@@ -17,3 +17,5 @@ api_keys.py
 per_multicall/latestEnvironment.json
 
 **/target/
+node_modules
+.idea
