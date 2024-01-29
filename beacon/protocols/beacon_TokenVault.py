@@ -132,6 +132,7 @@ class VaultMonitor:
             "calldata": calldata,
             "permission_key": permission,
             "account": str(account["account_number"]),
+            "value": str(len(price_updates)),
             "repay_tokens": [
                 (account["token_address_debt"], str(account["amount_debt"]))
             ],

@@ -69,6 +69,7 @@ contract LiquidationAdapter is SigVerify {
                 params.expectedReceiptTokens,
                 params.contractAddress,
                 params.data,
+                params.value,
                 params.bid
             ),
             params.validUntil,
@@ -88,6 +89,7 @@ contract LiquidationAdapter is SigVerify {
             params.expectedReceiptTokens.length
         );
 
+        address weth = getWeth();
         // transfer repay tokens to this contract
         for (uint i = 0; i < params.repayTokens.length; i++) {
             IERC20 token = IERC20(params.repayTokens[i].token);
@@ -99,7 +101,17 @@ contract LiquidationAdapter is SigVerify {
             );
 
             // approve contract to spend repay tokens
-            token.approve(params.contractAddress, params.repayTokens[i].amount);
+            uint256 approveAmount = params.repayTokens[i].amount;
+            if (params.repayTokens[i].token == weth) {
+                if (approveAmount >= params.value) {
+                    // we need `parmas.value` of to be sent to the contract directly
+                    // so this amount should be subtracted from the approveAmount
+                    approveAmount = approveAmount - params.value;
+                } else {
+                    revert InsufficientWETHForMsgValue();
+                }
+            }
+            token.approve(params.contractAddress, approveAmount);
         }
 
         // get balances of receipt tokens before call
@@ -111,10 +123,14 @@ contract LiquidationAdapter is SigVerify {
                 token.balanceOf(address(this)) +
                 amount;
         }
+        if (params.value > 0) {
+            // unwrap weth to eth to use in call
+            WETH9(payable(weth)).withdraw(params.value);
+        }
 
-        (bool success, bytes memory reason) = params.contractAddress.call(
-            params.data
-        );
+        (bool success, bytes memory reason) = params.contractAddress.call{
+            value: params.value
+        }(params.data);
 
         if (!success) {
             string memory revertData = _getRevertMsg(reason);
@@ -137,7 +153,6 @@ contract LiquidationAdapter is SigVerify {
         }
 
         // transfer bid to PER adapter in the form of weth
-        address weth = getWeth();
         WETH9(payable(weth)).transferFrom(
             params.liquidator,
             address(this),

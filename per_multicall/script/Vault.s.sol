@@ -99,7 +99,6 @@ contract VaultScript is Script {
         address weth = deployWeth();
         (address per, address liquidationAdapter) = deployPER(weth);
         address vault = deployVault(per, pyth);
-        vm.startBroadcast(skanvil);
         address[] memory tokens = new address[](5);
         uint256 lots_of_money = 10 ** 36;
         tokens[0] = address(
@@ -133,15 +132,15 @@ contract VaultScript is Script {
             )
         );
         for (uint i = 0; i < 5; i++) {
-            MyToken(tokens[i]).mint(tokenVault, lots_of_money);
+            MyToken(tokens[i]).mint(vault, lots_of_money);
         }
         vm.stopBroadcast();
         string memory obj = "";
         vm.serializeAddress(obj, "tokens", tokens);
         vm.serializeAddress(obj, "per", per);
         vm.serializeAddress(obj, "liquidationAdapter", liquidationAdapter);
-        vm.serializeAddress(obj, "oracle", oracle);
-        vm.serializeAddress(obj, "tokenVault", tokenVault);
+        vm.serializeAddress(obj, "oracle", pyth);
+        vm.serializeAddress(obj, "tokenVault", vault);
         string memory finalJSON = vm.serializeAddress(obj, "weth", weth);
         vm.writeJson(finalJSON, latestEnvironmentPath);
     }

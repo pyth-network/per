@@ -11,6 +11,8 @@ error ExpiredSignature();
 
 error SignatureAlreadyUsed();
 
+error InsufficientWETHForMsgValue();
+
 error InvalidPERSignature();
 
 error InvalidTimestamp();

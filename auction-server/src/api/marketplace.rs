@@ -54,6 +54,9 @@ pub struct LiquidationOpportunity {
     /// Calldata for the contract call.
     #[schema(example = "0xdeadbeef", value_type=String)]
     calldata:       Bytes,
+    /// The value to send with the contract call.
+    #[schema(example = "1")]
+    value:          String,
 
     repay_tokens:   Vec<TokenQty>,
     receipt_tokens: Vec<TokenQty>,
@@ -111,6 +114,8 @@ pub async fn submit_opportunity(
             permission_key: opportunity.permission_key,
             contract: opportunity.contract,
             calldata: opportunity.calldata,
+            value: U256::from_dec_str(opportunity.value.as_str())
+                .map_err(|_| RestError::BadParameters("Invalid value".to_string()))?,
             repay_tokens,
             receipt_tokens,
         },
@@ -139,6 +144,7 @@ pub async fn fetch_opportunities(
             chain_id:       opportunity.chain_id,
             contract:       opportunity.contract,
             calldata:       opportunity.calldata,
+            value:          opportunity.value.to_string(),
             repay_tokens:   opportunity
                 .repay_tokens
                 .into_iter()

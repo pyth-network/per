@@ -37,6 +37,7 @@ pub struct VerifiedLiquidationOpportunity {
     pub permission_key: PermissionKey,
     pub contract:       Address,
     pub calldata:       Bytes,
+    pub value:          U256,
     pub repay_tokens:   Vec<(Address, U256)>,
     pub receipt_tokens: Vec<(Address, U256)>,
 }

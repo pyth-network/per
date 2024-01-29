@@ -26,7 +26,7 @@ async def main():
     for protocol in PROTOCOLS:
         accounts = await protocol.get_accounts()
 
-        liquidatable_protocol = protocol.get_liquidatable(
+        liquidatable_protocol = protocol.get_liquidation_opportunities(
             accounts, pyth_prices_latest)
 
         liquidatable += liquidatable_protocol

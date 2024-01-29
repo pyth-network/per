@@ -49,6 +49,7 @@ pub fn verify_signature(params: liquidation_adapter::LiquidationCallParams) -> R
         params.expected_receipt_tokens.into_token(),
         params.contract_address.into_token(),
         params.data.into_token(),
+        params.value.into_token(),
         params.bid.into_token(),
     ]);
     let nonce = params.valid_until;
@@ -88,6 +89,7 @@ pub fn make_liquidator_calldata(
         liquidator:              bid.liquidator,
         contract_address:        opportunity.contract,
         data:                    opportunity.calldata,
+        value:                   opportunity.value,
         valid_until:             bid.valid_until,
         bid:                     bid.bid_amount,
         signature_liquidator:    bid.signature.to_vec().into(),
