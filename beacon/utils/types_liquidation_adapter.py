@@ -18,7 +18,6 @@ class LiquidationOpportunity(TypedDict):
     # The calldata that needs to be passed in with the liquidation method call
     calldata: str
     permission_key: str
-    account: str
     # A list of tokens that can be used to repay this account's debt. Each entry in the list is a tuple (token address, hex string of repay amount)
     repay_tokens: list[TokenQty]
     # A list of tokens that ought to be received by the liquidator in exchange for the repay tokens. Each entry in the list is a tuple (token address, hex string of receipt amount)

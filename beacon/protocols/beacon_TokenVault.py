@@ -124,7 +124,6 @@ def create_liquidation_opp(
         "contract": TOKEN_VAULT_ADDRESS,
         "calldata": calldata,
         "permission_key": permission,
-        "account": str(account["account_number"]),
         "repay_tokens": [
             {
                 "contract": account["token_address_debt"],

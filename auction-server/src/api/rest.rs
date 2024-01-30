@@ -1,7 +1,10 @@
 use {
     crate::{
         api::RestError,
-        auction::simulate_bids,
+        auction::{
+            simulate_bids,
+            MulticallStatus,
+        },
         state::{
             SimulatedBid,
             Store,
