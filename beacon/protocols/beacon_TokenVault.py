@@ -106,14 +106,18 @@ def create_liquidation_opp(
     # [bytes.fromhex(update['vaa']) for update in prices] ## TODO: uncomment this, to add back price updates
     price_updates = []
     function_signature = web3.Web3.solidity_keccak(
-        ["string"], ["liquidateWithPriceUpdate(uint256,bytes[])"])[:4].hex()
-    calldata = function_signature + \
-        encode(['uint256', 'bytes[]'], [
-               account["account_number"], price_updates]).hex()
+        ["string"], ["liquidateWithPriceUpdate(uint256,bytes[])"]
+    )[:4].hex()
+    calldata = (
+        function_signature
+        + encode(
+            ["uint256", "bytes[]"], [account["account_number"], price_updates]
+        ).hex()
+    )
 
     msg = encode(["uint256"], [account["account_number"]])
-    permission = '0x' + \
-        encode(['address', 'bytes'], [TOKEN_VAULT_ADDRESS, msg]).hex()
+    permission = "0x" + encode(["address", "bytes"],
+                               [TOKEN_VAULT_ADDRESS, msg]).hex()
 
     opp: LiquidationOpportunity = {
         "chain_id": "development",
@@ -122,18 +126,17 @@ def create_liquidation_opp(
         "permission_key": permission,
         "account": str(account["account_number"]),
         "repay_tokens": [
-            (
-                account["token_address_debt"],
-                hex(account["amount_debt"])
-            )
+            {
+                "contract": account["token_address_debt"],
+                "amount": str(account["amount_debt"]),
+            }
         ],
         "receipt_tokens": [
-            (
-                account["token_address_collateral"],
-                hex(account["amount_collateral"])
-            )
-        ],
-        "prices": price_updates,
+            {
+                "contract": account["token_address_collateral"],
+                "amount": str(account["amount_collateral"]),
+            }
+        ]
     }
 
     # TODO: figure out best interface to show partial liquidation possibility? Is this even important?
@@ -171,15 +174,20 @@ def get_liquidatable(accounts: list[ProtocolAccount],
             raise Exception(
                 f"Price for debt token {account['token_id_debt']} not found")
 
-        value_collateral = int(
-            price_collateral['price']['price']) * account["amount_collateral"]
-        value_debt = int(price_debt['price']['price']) * account["amount_debt"]
+        value_collateral = (
+            int(price_collateral["price"]["price"]) *
+            account["amount_collateral"]
+        )
+        value_debt = int(price_debt["price"]["price"]) * account["amount_debt"]
 
         if value_debt * int(account["min_health_ratio"]) > value_collateral * 10**18:
+            print("unhealthy vault")
+            print(
+                value_debt * int(account["min_health_ratio"]),
+                value_collateral * 10**18,
+            )
             price_updates = [price_collateral, price_debt]
-            liquidatable.append(
-                create_liquidation_opp(
-                    account, price_updates))
+            liquidatable.append(create_liquidation_opp(account, price_updates))
 
     return liquidatable
 

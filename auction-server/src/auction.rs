@@ -45,7 +45,10 @@ use {
     },
 };
 
-abigen!(PER, "src/PERMulticall.json");
+abigen!(
+    PER,
+    "../per_multicall/out/PERMulticall.sol/PERMulticall.json"
+);
 pub type PERContract = PER<Provider<Http>>;
 pub type SignableProvider =
     TransformerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>, LegacyTxTransformer>;
@@ -139,10 +142,6 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                 chain_id = chain_id,
                 auction_len = permission_bids.len()
             );
-            tracing::info!(
-                "Chain store: {n} contracts' vaults surfaced",
-                n = (chain_store.opps.write().await.keys().len())
-            );
             for (permission_key, bids) in permission_bids.iter() {
                 let mut cloned_bids = bids.clone();
                 let thread_store = store.clone();
@@ -175,7 +174,7 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                                 permission_key.clone(),
                                 cloned_bids.iter().map(|b| b.contract).collect(),
                                 cloned_bids.iter().map(|b| b.calldata.clone()).collect(),
-                                cloned_bids.iter().map(|b| b.bid.into()).collect(),
+                                cloned_bids.iter().map(|b| b.bid).collect(),
                             )
                             .await;
                             match submission {

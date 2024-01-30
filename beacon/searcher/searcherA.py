@@ -28,15 +28,14 @@ def create_liquidation_transaction(
     valid_until: int,
     bid: int
 ) -> LiquidationAdapterTransaction:
-    repay_tokens = [(opp['repay_tokens'][0][0],
-                     int(opp['repay_tokens'][0][1], 16))]
-    receipt_tokens = [(opp['receipt_tokens'][0][0],
-                       int(opp['receipt_tokens'][0][1], 16))]
+    repay_tokens = [(opp['repay_tokens'][0]['contract'],
+                     int(opp['repay_tokens'][0]['amount'], 16))]
+    receipt_tokens = [(opp['receipt_tokens'][0]['contract'],
+                       int(opp['receipt_tokens'][0]['amount'], 16))]
 
     account: LocalAccount = Account.from_key(sk_liquidator)
     liquidator = account.address
-    liq_calldata = bytes.fromhex(
-        opp['calldata'][2:]) if opp['calldata'][:2] == "0x" else bytes.fromhex(opp['calldata'])
+    liq_calldata = bytes.fromhex(opp['calldata'].replace('0x', ''))
 
     signature_liquidator = construct_signature_liquidator(
         repay_tokens, receipt_tokens, opp['contract'], liq_calldata, bid, valid_until, sk_liquidator)
@@ -56,7 +55,7 @@ def create_liquidation_transaction(
                tuple(liquidation_adapter_calldata.values())]).hex()
 
     tx: LiquidationAdapterTransaction = {
-        "bid": hex(bid),
+        "bid": str(bid),
         "calldata": calldata,
         "chain_id": opp["chain_id"],
         "contract": LIQUIDATION_ADAPTER_ADDRESS,
