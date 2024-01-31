@@ -12,6 +12,8 @@ from eth_abi import encode
 from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient
 from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
 
+logger = logging.getLogger(__name__)
+
 
 class ProtocolAccount(TypedDict):
     """
@@ -111,8 +113,7 @@ class VaultMonitor:
         """
 
         price_updates = [base64.b64decode(update["vaa"]) for update in prices]
-        for update in prices:
-            print(update["feed_id"], update["price"]["publish_time"])
+
         calldata = self.token_vault.encodeABI(
             fn_name="liquidateWithPriceUpdate",
             args=[account["account_number"], price_updates],
@@ -198,7 +199,8 @@ class VaultMonitor:
                 int(price_collateral["price"]["price"]) * account["amount_collateral"]
             )
             value_debt = int(price_debt["price"]["price"]) * account["amount_debt"]
-            print(account["account_number"], value_collateral / value_debt)
+            health = value_collateral / value_debt
+            logger.debug(f"Account {account['account_number']} health: {health}")
             if (
                 value_debt * int(account["min_health_ratio"])
                 > value_collateral * 10**18
@@ -211,6 +213,7 @@ class VaultMonitor:
 
 async def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument(
         "--rpc-url",
         type=str,
@@ -245,8 +248,14 @@ async def main():
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
-    logging.getLogger("httpx").propagate = False
+    logger.setLevel(logging.INFO if args.verbose == 0 else logging.DEBUG)
+    log_handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s:%(name)s:%(module)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    log_handler.setFormatter(formatter)
+    logger.addHandler(log_handler)
 
     monitor = VaultMonitor(args.rpc_url, args.vault_contract, args.weth_contract)
 
@@ -256,16 +265,21 @@ async def main():
         if args.broadcast:
             client = httpx.AsyncClient()
             for opp in opportunities:
-                resp = await client.post(args.liquidation_server_url, json=opp)
+                try:
+                    resp = await client.post(args.liquidation_server_url, json=opp)
+                except Exception as e:
+                    logger.error(f"Failed to post to liquidation server: {e}")
+                    await asyncio.sleep(1)
+                    continue
                 if resp.status_code == 200:
-                    logging.info("Successfully broadcasted the opportunity")
+                    logger.info("Successfully broadcasted the opportunity")
                 else:
-                    logging.error(
+                    logger.error(
                         f"Failed to post to liquidation server, status code: {resp.status_code}, response: {resp.text}"
                     )
 
         else:
-            logging.info(
+            logger.info(
                 f"List of liquidatable accounts:\n{json.dumps(opportunities, indent=2)}"
             )
 

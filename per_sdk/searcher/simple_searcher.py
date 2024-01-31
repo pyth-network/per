@@ -5,7 +5,6 @@ from typing import TypedDict
 
 import httpx
 from eth_account import Account
-from eth_account.signers.local import LocalAccount
 
 from per_sdk.searcher.searcher_utils import (
     UserLiquidationParams,
@@ -17,15 +16,17 @@ from per_sdk.utils.endpoints import (
 )
 from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
 
-BID = 10
+logger = logging.getLogger(__name__)
+
 VALID_UNTIL = 1_000_000_000_000
 
 
 def assess_liquidation_opportunity(
+    default_bid: int,
     opp: LiquidationOpportunity,
 ) -> UserLiquidationParams | None:
     user_liquidation_params: UserLiquidationParams = {
-        "bid": BID,
+        "bid": default_bid,
         "valid_until": VALID_UNTIL,
     }
     return user_liquidation_params
@@ -50,8 +51,7 @@ def create_liquidation_transaction(
         (opp["contract"], int(opp["amount"])) for opp in opp["receipt_tokens"]
     ]
 
-    account: LocalAccount = Account.from_key(sk_liquidator)
-    liquidator = account.address
+    liquidator = Account.from_key(sk_liquidator).address
     liq_calldata = bytes.fromhex(opp["calldata"].replace("0x", ""))
 
     signature_liquidator = construct_signature_liquidator(
@@ -80,6 +80,7 @@ def create_liquidation_transaction(
 
 async def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument(
         "--private-key",
         type=str,
@@ -92,21 +93,43 @@ async def main():
         required=True,
         help="Chain ID of the network to monitor for liquidation opportunities",
     )
+    parser.add_argument(
+        "--bid",
+        type=int,
+        default=10,
+        help="Default amount of bid for liquidation opportunities",
+    )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
-    logging.getLogger("httpx").propagate = False
+    logger.setLevel(logging.INFO if args.verbose == 0 else logging.DEBUG)
+    log_handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s:%(name)s:%(module)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    log_handler.setFormatter(formatter)
+    logger.addHandler(log_handler)
 
     params = {"chain_id": args.chain_id}
     sk_liquidator = args.private_key
+    liquidator = Account.from_key(sk_liquidator).address
+    logger.info("Liquidator address: %s", liquidator)
     client = httpx.AsyncClient()
     while True:
-        accounts_liquidatable = (
-            await client.get(LIQUIDATION_SERVER_ENDPOINT_GETOPPS, params=params)
-        ).json()
+        try:
+            accounts_liquidatable = (
+                await client.get(LIQUIDATION_SERVER_ENDPOINT_GETOPPS, params=params)
+            ).json()
+        except Exception as e:
+            logger.error(e)
+            await asyncio.sleep(5)
+            continue
 
+        logger.debug("Found %d liquidation opportunities", len(accounts_liquidatable))
         for liquidation_opp in accounts_liquidatable:
-            user_liquidation_params = assess_liquidation_opportunity(liquidation_opp)
+            user_liquidation_params = assess_liquidation_opportunity(
+                args.bid, liquidation_opp
+            )
 
             if user_liquidation_params is not None:
                 bid, valid_until = (
@@ -119,9 +142,14 @@ async def main():
                 )
 
                 resp = await client.post(LIQUIDATION_SERVER_ENDPOINT_BID, json=tx)
+                logger.info(
+                    "Submitted bid amount %s for opportunity %s, server response: %s",
+                    bid,
+                    liquidation_opp["opportunity_id"],
+                    resp.text,
+                )
 
-                print(resp.text)
-        await asyncio.sleep(5)
+        await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
