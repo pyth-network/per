@@ -4,17 +4,18 @@ import logging
 from typing import TypedDict
 
 import httpx
-from beacon.searcher.searcher_utils import (
+from eth_account import Account
+from eth_account.signers.local import LocalAccount
+
+from per_sdk.searcher.searcher_utils import (
     UserLiquidationParams,
     construct_signature_liquidator,
 )
-from beacon.utils.endpoints import (
-    BEACON_SERVER_ENDPOINT_BID,
-    BEACON_SERVER_ENDPOINT_GETOPPS,
+from per_sdk.utils.endpoints import (
+    LIQUIDATION_SERVER_ENDPOINT_BID,
+    LIQUIDATION_SERVER_ENDPOINT_GETOPPS,
 )
-from beacon.utils.types_liquidation_adapter import LiquidationOpportunity
-from eth_account import Account
-from eth_account.signers.local import LocalAccount
+from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
 
 BID = 10
 VALID_UNTIL = 1_000_000_000_000
@@ -101,7 +102,7 @@ async def main():
     client = httpx.AsyncClient()
     while True:
         accounts_liquidatable = (
-            await client.get(BEACON_SERVER_ENDPOINT_GETOPPS, params=params)
+            await client.get(LIQUIDATION_SERVER_ENDPOINT_GETOPPS, params=params)
         ).json()
 
         for liquidation_opp in accounts_liquidatable:
@@ -117,7 +118,7 @@ async def main():
                     liquidation_opp, sk_liquidator, valid_until, bid
                 )
 
-                resp = await client.post(BEACON_SERVER_ENDPOINT_BID, json=tx)
+                resp = await client.post(LIQUIDATION_SERVER_ENDPOINT_BID, json=tx)
 
                 print(resp.text)
         await asyncio.sleep(5)

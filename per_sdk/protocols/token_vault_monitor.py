@@ -7,9 +7,10 @@ from typing import TypedDict
 
 import httpx
 import web3
-from beacon.utils.pyth_prices import PriceFeed, PriceFeedClient
-from beacon.utils.types_liquidation_adapter import LiquidationOpportunity
 from eth_abi import encode
+
+from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient
+from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
 
 
 class ProtocolAccount(TypedDict):
@@ -234,13 +235,13 @@ async def main():
     group.add_argument(
         "--dry-run",
         action="store_false",
-        dest="send_beacon",
-        help="If provided, will not send liquidation opportunities to the beacon server",
+        dest="broadcast",
+        help="If provided, will not send liquidation opportunities to the server",
     )
     group.add_argument(
-        "--beacon-server-url",
+        "--liquidation-server-url",
         type=str,
-        help="Beacon server endpoint; if provided, will send liquidation opportunities to the beacon server",
+        help="Liquidation server endpoint; if provided, will send liquidation opportunities to this endpoint",
     )
     args = parser.parse_args()
 
@@ -252,15 +253,15 @@ async def main():
     while True:
         opportunities = await monitor.get_liquidation_opportunities()
 
-        if args.send_beacon:
+        if args.broadcast:
             client = httpx.AsyncClient()
             for opp in opportunities:
-                resp = await client.post(args.beacon_server_url, json=opp)
+                resp = await client.post(args.liquidation_server_url, json=opp)
                 if resp.status_code == 200:
-                    logging.info("Successfully posted to beacon")
+                    logging.info("Successfully broadcasted the opportunity")
                 else:
                     logging.error(
-                        f"Failed to post to beacon, status code: {resp.status_code}, response: {resp.text}"
+                        f"Failed to post to liquidation server, status code: {resp.status_code}, response: {resp.text}"
                     )
 
         else:
