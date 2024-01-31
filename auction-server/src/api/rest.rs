@@ -84,10 +84,10 @@ pub async fn handle_bid(store: Arc<Store>, bid: ParsedBid) -> Result<String, Res
                     .unwrap()
                     .multicall_revert_reason;
                 let first_result = multicall_results.first().cloned().unwrap().external_result;
-                return Err(RestError::BadParameters(format!(
-                    "Call Revert: {}, {}",
-                    first_result, first_reason
-                )));
+                return Err(RestError::SimulationError {
+                    result: first_result,
+                    reason: first_reason,
+                });
             }
         }
         Err(e) => {

@@ -78,7 +78,10 @@ pub struct EthereumConfig {
     pub geth_rpc_addr: String,
 
     /// Address of the PER contract to interact with.
-    pub contract_addr: Address,
+    pub per_contract: Address,
+
+    /// Address of the adapter contract to interact with.
+    pub adapter_contract: Address,
 
     /// Use the legacy transaction format (for networks without EIP 1559)
     #[serde(default)]

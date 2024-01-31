@@ -77,7 +77,7 @@ pub async fn simulate_bids(
     bids: Vec<U256>,
 ) -> Result<Vec<MulticallStatus>, ContractError<Provider<Http>>> {
     let client = Arc::new(provider);
-    let per_contract = PERContract::new(chain_config.contract_addr, client);
+    let per_contract = PERContract::new(chain_config.per_contract, client);
     let call = per_contract
         .multicall(permission, contracts, calldata, bids)
         .from(per_operator);
@@ -126,17 +126,28 @@ pub async fn submit_bids(
         transformer,
     ));
 
-    let per_contract = SignablePERContract::new(chain_config.contract_addr, client);
+    let per_contract = SignablePERContract::new(chain_config.per_contract, client);
     let call = per_contract.multicall(permission, contracts, calldata, bids);
-    let send_call = call.send().await.map_err(SubmissionError::ContractError)?;
-    send_call.await.map_err(SubmissionError::ProviderError)
+    let mut gas_estimate = call
+        .estimate_gas()
+        .await
+        .map_err(SubmissionError::ContractError)?;
+    let gas_multiplier = U256::from(2); //TODO: smarter gas estimation
+    gas_estimate = gas_estimate * gas_multiplier;
+    let call_with_gas = call.gas(gas_estimate);
+    let send_call = call_with_gas
+        .send()
+        .await
+        .map_err(SubmissionError::ContractError)?;
+    let res = send_call.await.map_err(SubmissionError::ProviderError);
+    res
 }
 
 pub async fn run_submission_loop(store: Arc<Store>) {
     tracing::info!("Starting transaction submitter...");
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         for (chain_id, chain_store) in &store.chains {
-            let permission_bids = chain_store.bids.read().await;
+            let permission_bids = chain_store.bids.read().await.clone(); // release lock asap
             tracing::info!(
                 "Chain: {chain_id} Auctions to process {auction_len}",
                 chain_id = chain_id,
@@ -147,7 +158,7 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                 let thread_store = store.clone();
                 let chain_id = chain_id.clone();
                 let permission_key = permission_key.clone();
-                tokio::spawn(async move {
+                {
                     cloned_bids.sort_by(|a, b| b.bid.cmp(&a.bid));
 
                     // TODO: simulate all bids together and keep the successful ones
@@ -196,7 +207,7 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                             tracing::error!("Chain not found: {}", chain_id);
                         }
                     }
-                });
+                }
             }
         }
         tokio::time::sleep(Duration::from_secs(10)).await; // this should be replaced by a subscription to the chain and trigger on new blocks

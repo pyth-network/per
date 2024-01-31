@@ -4,7 +4,10 @@ use {
             rest::handle_bid,
             RestError,
         },
-        liquidation_adapter::make_liquidator_calldata,
+        liquidation_adapter::{
+            make_liquidator_calldata,
+            parse_revert_error,
+        },
         state::Store,
     },
     axum::{
@@ -23,7 +26,10 @@ use {
         Deserialize,
         Serialize,
     },
-    std::sync::Arc,
+    std::{
+        str::FromStr,
+        sync::Arc,
+    },
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -62,6 +68,17 @@ pub struct LiquidationOpportunity {
     receipt_tokens: Vec<TokenQty>,
 }
 
+/// A submitted liquidation opportunity ready to be executed.
+/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter, by calling this contract with the given calldata and structures, they will receive the tokens specified in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
+pub struct LiquidationOpportunityWithId {
+    /// The opportunity unique id
+    opportunity_id: Uuid,
+    /// opportunity data
+    #[serde(flatten)]
+    opportunity:    LiquidationOpportunity,
+}
+
 impl From<(Address, U256)> for TokenQty {
     fn from(token: (Address, U256)) -> Self {
         TokenQty {
@@ -89,7 +106,7 @@ fn parse_tokens(tokens: Vec<TokenQty>) -> Result<Vec<(Address, U256)>, RestError
 ///
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database and will be available for bidding.
 #[utoipa::path(post, path = "/liquidation/submit_opportunity", request_body = LiquidationOpportunity, responses(
-    (status = 200, description = "Opportunity was stored succesfuly", body = String),
+    (status = 200, description = "Opportunity was stored succesfuly with the returned uuid", body = String),
     (status = 400, response=RestError)
 ),)]
 pub async fn submit_opportunity(
@@ -106,10 +123,11 @@ pub async fn submit_opportunity(
 
     //TODO: Verify if the call actually works
 
+    let id = Uuid::new_v4();
     store.liquidation_store.opportunities.write().await.insert(
         opportunity.permission_key.clone(),
         crate::state::VerifiedLiquidationOpportunity {
-            id: Uuid::new_v4(),
+            id,
             chain_id: opportunity.chain_id.clone(),
             permission_key: opportunity.permission_key,
             contract: opportunity.contract,
@@ -121,7 +139,7 @@ pub async fn submit_opportunity(
         },
     );
 
-    Ok("OK".to_string())
+    Ok(id.to_string())
 }
 
 /// Fetch all liquidation opportunities ready to be exectued.
@@ -131,30 +149,33 @@ pub async fn submit_opportunity(
 ),)]
 pub async fn fetch_opportunities(
     State(store): State<Arc<Store>>,
-) -> Result<axum::Json<Vec<LiquidationOpportunity>>, RestError> {
-    let opportunities: Vec<LiquidationOpportunity> = store
+) -> Result<axum::Json<Vec<LiquidationOpportunityWithId>>, RestError> {
+    let opportunities: Vec<LiquidationOpportunityWithId> = store
         .liquidation_store
         .opportunities
         .read()
         .await
         .values()
         .cloned()
-        .map(|opportunity| LiquidationOpportunity {
-            permission_key: opportunity.permission_key,
-            chain_id:       opportunity.chain_id,
-            contract:       opportunity.contract,
-            calldata:       opportunity.calldata,
-            value:          opportunity.value.to_string(),
-            repay_tokens:   opportunity
-                .repay_tokens
-                .into_iter()
-                .map(TokenQty::from)
-                .collect(),
-            receipt_tokens: opportunity
-                .receipt_tokens
-                .into_iter()
-                .map(TokenQty::from)
-                .collect(),
+        .map(|opportunity| LiquidationOpportunityWithId {
+            opportunity_id: opportunity.id,
+            opportunity:    LiquidationOpportunity {
+                permission_key: opportunity.permission_key,
+                chain_id:       opportunity.chain_id,
+                contract:       opportunity.contract,
+                calldata:       opportunity.calldata,
+                value:          opportunity.value.to_string(),
+                repay_tokens:   opportunity
+                    .repay_tokens
+                    .into_iter()
+                    .map(TokenQty::from)
+                    .collect(),
+                receipt_tokens: opportunity
+                    .receipt_tokens
+                    .into_iter()
+                    .map(TokenQty::from)
+                    .collect(),
+            },
         })
         .collect();
 
@@ -180,8 +201,8 @@ pub struct OpportunityBid {
     liquidator:     Address,
     #[schema(
         example = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12"
-    ,value_type=String)]
-    signature:      Signature,
+    )]
+    signature:      String,
 }
 
 #[derive(Clone, Copy)]
@@ -193,8 +214,13 @@ pub struct VerifiedOpportunityBid {
     pub signature:      Signature,
 }
 
+/// Bid on liquidation opportunity
+#[utoipa::path(post, path = "/liquidation/bid_opportunity", request_body=OpportunityBid, responses(
+    (status = 200, description = "Bid Result", body = String),
+    (status = 400, response=RestError)
+),)]
 pub async fn bid_opportunity(
-    store: Arc<Store>,
+    State(store): State<Arc<Store>>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<String, RestError> {
     let opportunities = store.liquidation_store.opportunities.read().await;
@@ -208,31 +234,59 @@ pub async fn bid_opportunity(
             "Invalid opportunity_id".to_string(),
         ));
     }
+
+    let chain_store = store
+        .chains
+        .get(&liquidation.chain_id)
+        .ok_or(RestError::InvalidChainId)?;
+
     let bid_amount = U256::from_dec_str(opportunity_bid.bid_amount.as_str())
         .map_err(|_| RestError::BadParameters("Invalid bid_amount".to_string()))?;
     let valid_until = U256::from_dec_str(opportunity_bid.valid_until.as_str())
         .map_err(|_| RestError::BadParameters("Invalid valid_until".to_string()))?;
-
+    let signature = Signature::from_str(opportunity_bid.signature.as_str())
+        .map_err(|_| RestError::BadParameters("Invalid signature".to_string()))?;
     let verified_liquidation_bid = VerifiedOpportunityBid {
         opportunity_id: opportunity_bid.opportunity_id,
         bid_amount,
         valid_until,
         liquidator: opportunity_bid.liquidator,
-        signature: opportunity_bid.signature,
+        signature,
     };
 
-    let per_calldata = make_liquidator_calldata(liquidation.clone(), verified_liquidation_bid)
-        .map_err(|e| RestError::BadParameters(e.to_string()))?;
-
-    handle_bid(
+    let per_calldata = make_liquidator_calldata(
+        liquidation.clone(),
+        verified_liquidation_bid,
+        chain_store.provider.clone(),
+        chain_store.config.adapter_contract,
+    )
+    .await
+    .map_err(|e| RestError::BadParameters(e.to_string()))?;
+    match handle_bid(
         store.clone(),
         crate::api::rest::ParsedBid {
             permission_key: liquidation.permission_key.clone(),
             chain_id:       liquidation.chain_id.clone(),
-            contract:       liquidation.contract,
+            contract:       chain_store.config.adapter_contract,
             calldata:       per_calldata,
             bid_amount:     verified_liquidation_bid.bid_amount,
         },
     )
     .await
+    {
+        Ok(_) => Ok("OK".to_string()),
+        Err(e) => match e {
+            RestError::SimulationError { result, reason } => {
+                let parsed = parse_revert_error(result.clone());
+                match parsed {
+                    Some(decoded) => Err(RestError::BadParameters(decoded)),
+                    None => {
+                        tracing::info!("Could not parse revert reason: {}", reason);
+                        Err(RestError::SimulationError { result, reason })
+                    }
+                }
+            }
+            _ => Err(e),
+        },
+    }
 }
