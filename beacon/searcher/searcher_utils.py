@@ -2,6 +2,7 @@ import web3
 from web3.auto import w3
 from eth_abi import encode
 from typing import TypedDict
+from eth_account.datastructures import SignedMessage
 
 
 class UserLiquidationParams(TypedDict):
@@ -17,7 +18,7 @@ def construct_signature_liquidator(
     bid: int,
     valid_until: int,
     secret_key: str
-) -> web3.types.ECDSASignature:
+) -> SignedMessage:
     """
     Constructs a signature for a liquidator's transaction to submit to the LiquidationAdapter contract.
 

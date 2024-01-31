@@ -127,13 +127,13 @@ def create_liquidation_opp(
         "repay_tokens": [
             {
                 "contract": account["token_address_debt"],
-                "amount": str(account["amount_debt"]),
+                "amount": hex(account["amount_debt"]).replace("0x", ""),
             }
         ],
         "receipt_tokens": [
             {
                 "contract": account["token_address_collateral"],
-                "amount": str(account["amount_collateral"]),
+                "amount": hex(account["amount_collateral"]).replace("0x", ""),
             }
         ]
     }
@@ -231,20 +231,22 @@ async def main():
             accounts, price_feed_client.prices_dict)
 
         if args.send_beacon:
-            resp = await client.post(
-                args.beacon_server_url,
-                json=accounts_liquidatable
-            )
-            if resp.status_code == 422:
-                logging.error(
-                    "Invalid request body format, should provide a list of LiquidationOpportunity")
-            elif resp.status_code == 404:
-                logging.error("Provided beacon server endpoint url not found")
-            elif resp.status_code == 405:
-                logging.error(
-                    "Provided beacon server endpoint url does not support POST requests")
-            else:
-                logging.info(f"Response, post to beacon: {resp.text}")
+            for account_liquidatable in accounts_liquidatable:
+                resp = await client.post(
+                    args.beacon_server_url,
+                    json=account_liquidatable
+                )
+                if resp.status_code == 422:
+                    logging.error(
+                        "Invalid request body format, should provide a list of LiquidationOpportunity")
+                elif resp.status_code == 404:
+                    logging.error(
+                        "Provided beacon server endpoint url not found")
+                elif resp.status_code == 405:
+                    logging.error(
+                        "Provided beacon server endpoint url does not support POST requests")
+                else:
+                    logging.info(f"Response, post to beacon: {resp.text}")
         else:
             logging.info(
                 f"List of liquidatable accounts:\n{accounts_liquidatable}")
