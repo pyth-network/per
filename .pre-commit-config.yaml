@@ -35,7 +35,19 @@ repos:
         files: vault-simulator
 
   # for python files
-  - repo: https://github.com/hhatto/autopep8
-    rev: "v2.0.4"
+  - repo: local
     hooks:
-      - id: autopep8
+      - id: isort
+        name: isort
+        entry: poetry -C per_sdk run isort --profile=black per_sdk
+        language: system
+      - id: black
+        name: black
+        entry: poetry -C per_sdk run black per_sdk
+        pass_filenames: false
+        language: system
+      - id: pyflakes
+        name: pyflakes
+        entry: poetry -C per_sdk run pyflakes per_sdk
+        pass_filenames: false
+        language: system

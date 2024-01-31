@@ -1,6 +1,7 @@
-import httpx
 import asyncio
 from typing import TypedDict
+
+import httpx
 
 HERMES_ENDPOINT_HTTPS = "https://hermes.pyth.network/api/"
 HERMES_ENDPOINT_WSS = "wss://hermes.pyth.network/ws"
@@ -49,21 +50,18 @@ class PriceFeedClient:
         """
         Extracts a PriceFeed object from the JSON response from Hermes.
         """
-        price = data['price']
-        price_ema = data['ema_price']
-        vaa = data['vaa']
+        price = data["price"]
+        price_ema = data["ema_price"]
+        vaa = data["vaa"]
         price_feed = {
-            "feed_id": data['id'],
+            "feed_id": data["id"],
             "price": price,
             "price_ema": price_ema,
-            "vaa": vaa
+            "vaa": vaa,
         }
         return price_feed
 
-    async def get_pyth_prices_latest(
-        self,
-        feedIds: list[str]
-    ) -> list[PriceFeed]:
+    async def get_pyth_prices_latest(self, feedIds: list[str]) -> list[PriceFeed]:
         """
         Queries the Hermes https endpoint for the latest price feeds for a list of Pyth feed IDs.
         """
@@ -79,15 +77,11 @@ class PriceFeedClient:
 
         return results
 
-    async def get_pyth_price_at_time(
-        self,
-        feed_id: str,
-        timestamp: int
-    ) -> PriceFeed:
+    async def get_pyth_price_at_time(self, feed_id: str, timestamp: int) -> PriceFeed:
         """
         Queries the Hermes https endpoint for the price feed for a Pyth feed ID at a given timestamp.
         """
-        url = HERMES_ENDPOINT_HTTPS + f"get_price_feed"
+        url = HERMES_ENDPOINT_HTTPS + "get_price_feed"
         params = {"id": feed_id, "publish_time": timestamp, "binary": "true"}
 
         data = (await self.client.get(url, params=params)).json()
@@ -105,8 +99,10 @@ class PriceFeedClient:
         pyth_prices_latest = []
         i = 0
         batch_size = 100
-        while len(self.feed_ids[i:i + batch_size]) > 0:
-            pyth_prices_latest += await self.get_pyth_prices_latest(self.feed_ids[i:i + batch_size])
+        while len(self.feed_ids[i : i + batch_size]) > 0:
+            pyth_prices_latest += await self.get_pyth_prices_latest(
+                self.feed_ids[i : i + batch_size]
+            )
             i += batch_size
 
         return dict(pyth_prices_latest)
@@ -116,6 +112,7 @@ class PriceFeedClient:
         Opens a websocket connection to Hermes for latest prices for all feed IDs in the class object.
         """
         import json
+
         import websockets
 
         async with websockets.connect(HERMES_ENDPOINT_WSS) as ws:
@@ -125,7 +122,7 @@ class PriceFeedClient:
                         "ids": self.pending_feed_ids,
                         "type": "subscribe",
                         "verbose": True,
-                        "binary": True
+                        "binary": True,
                     }
                     await ws.send(json.dumps(json_subscribe))
                     self.pending_feed_ids = []
@@ -159,6 +156,7 @@ async def main():
 
     while True:
         await asyncio.sleep(1)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

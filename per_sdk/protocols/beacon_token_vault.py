@@ -1,15 +1,15 @@
-import base64
-import web3
-from eth_abi import encode
-import json
-from typing import TypedDict
 import argparse
-import logging
 import asyncio
-import httpx
+import base64
+import json
+import logging
+from typing import TypedDict
 
-from beacon.utils.pyth_prices import PriceFeedClient, PriceFeed
+import httpx
+import web3
+from beacon.utils.pyth_prices import PriceFeed, PriceFeedClient
 from beacon.utils.types_liquidation_adapter import LiquidationOpportunity
+from eth_abi import encode
 
 
 class ProtocolAccount(TypedDict):
@@ -147,8 +147,7 @@ class VaultMonitor:
             "value": str(call_value),
             "repay_tokens": repay_tokens,
             "receipt_tokens": [
-                (account["token_address_collateral"],
-                 str(account["amount_collateral"]))
+                (account["token_address_collateral"], str(account["amount_collateral"]))
             ],
         }
 
@@ -160,7 +159,7 @@ class VaultMonitor:
 
         return opp
 
-    async def get_liquidation_opportunities(self) -> (list[LiquidationOpportunity]):
+    async def get_liquidation_opportunities(self) -> list[LiquidationOpportunity]:
         """
         Filters list of ProtocolAccount types to return a list of LiquidationOpportunity types.
 
@@ -195,19 +194,16 @@ class VaultMonitor:
                 )
 
             value_collateral = (
-                int(price_collateral["price"]["price"]) *
-                account["amount_collateral"]
+                int(price_collateral["price"]["price"]) * account["amount_collateral"]
             )
-            value_debt = int(price_debt["price"]
-                             ["price"]) * account["amount_debt"]
+            value_debt = int(price_debt["price"]["price"]) * account["amount_debt"]
             print(account["account_number"], value_collateral / value_debt)
             if (
                 value_debt * int(account["min_health_ratio"])
                 > value_collateral * 10**18
             ):
                 price_updates = [price_collateral, price_debt]
-                liquidatable.append(
-                    self.create_liquidation_opp(account, price_updates))
+                liquidatable.append(self.create_liquidation_opp(account, price_updates))
 
         return liquidatable
 
@@ -251,8 +247,7 @@ async def main():
     logging.basicConfig(level=logging.INFO)
     logging.getLogger("httpx").propagate = False
 
-    monitor = VaultMonitor(
-        args.rpc_url, args.vault_contract, args.weth_contract)
+    monitor = VaultMonitor(args.rpc_url, args.vault_contract, args.weth_contract)
 
     while True:
         opportunities = await monitor.get_liquidation_opportunities()

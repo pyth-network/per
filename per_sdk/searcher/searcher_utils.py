@@ -1,7 +1,8 @@
-import web3
-from web3.auto import w3
-from eth_abi import encode
 from typing import TypedDict
+
+import web3
+from eth_abi import encode
+from web3.auto import w3
 
 
 class UserLiquidationParams(TypedDict):
@@ -17,7 +18,7 @@ def construct_signature_liquidator(
     value: int,
     bid: int,
     valid_until: int,
-    secret_key: str
+    secret_key: str,
 ):
     """
     Constructs a signature for a liquidator's transaction to submit to the LiquidationAdapter contract.
@@ -36,13 +37,17 @@ def construct_signature_liquidator(
     """
 
     digest = encode(
-        ['(address,uint256)[]', '(address,uint256)[]',
-         'address', 'bytes', 'uint256', 'uint256'],
-        [repay_tokens, receipt_tokens, address, liq_calldata, value, bid]
+        [
+            "(address,uint256)[]",
+            "(address,uint256)[]",
+            "address",
+            "bytes",
+            "uint256",
+            "uint256",
+        ],
+        [repay_tokens, receipt_tokens, address, liq_calldata, value, bid],
     )
-    msg_data = web3.Web3.solidity_keccak(
-        ['bytes', 'uint256'], [digest, valid_until])
-    signature = w3.eth.account.signHash(
-        msg_data, private_key=secret_key)
+    msg_data = web3.Web3.solidity_keccak(["bytes", "uint256"], [digest, valid_until])
+    signature = w3.eth.account.signHash(msg_data, private_key=secret_key)
 
     return signature
