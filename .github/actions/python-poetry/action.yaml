@@ -9,7 +9,7 @@ inputs:
   poetry-version:
     required: false
     description: Poetry version
-    default: "1.2.2"
+    default: "1.6.1"
 
 runs:
   using: composite
