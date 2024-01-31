@@ -93,7 +93,7 @@ contract VaultScript is Script {
     The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
     @param pyth The address of the already deployed pyth contract to use
     */
-    function setUpTestnet(address pyth) public {
+    function setupTestnet(address pyth) public {
         (, uint256 skanvil) = getAnvil();
         vm.startBroadcast(skanvil);
         address weth = deployWeth();

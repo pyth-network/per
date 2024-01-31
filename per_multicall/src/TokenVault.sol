@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./Errors.sol";
+import "./TokenVaultErrors.sol";
 import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
 import "./Structs.sol";
@@ -44,7 +44,7 @@ contract TokenVault is PERFeeReceiver {
         uint8 targetDecimals
     ) private pure returns (uint256) {
         if (price.price < 0 || price.expo > 0 || price.expo < -255) {
-            revert();
+            revert InvalidPriceExponent();
         }
 
         uint8 priceDecimals = uint8(uint32(-1 * price.expo));

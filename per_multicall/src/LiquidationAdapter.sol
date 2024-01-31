@@ -125,6 +125,7 @@ contract LiquidationAdapter is SigVerify {
         }
         if (params.value > 0) {
             // unwrap weth to eth to use in call
+            // TODO: Wrap in try catch and throw a revert with a better error since WETH9 reverts do not return a reason
             WETH9(payable(weth)).withdraw(params.value);
         }
 

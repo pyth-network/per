@@ -12,6 +12,7 @@ contract SigVerify {
         return keccak256(abi.encodePacked(_message, _nonce));
     }
 
+    // TODO: This should not be here if only used on tests
     function getPERSignedMessageDigest(
         bytes32 _messageHash
     ) public pure returns (bytes32) {
@@ -29,6 +30,7 @@ contract SigVerify {
         bytes memory _data,
         uint _nonce
     ) public pure returns (bytes32) {
+        // TODO: fold nonce back to the rest of data, it does not need to be treated differently
         return keccak256(abi.encodePacked(_data, _nonce));
     }
 
