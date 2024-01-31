@@ -20,5 +20,5 @@ runs:
     - uses: abatilo/actions-poetry@v2.0.0
       with:
         poetry-version: ${{ inputs.poetry-version }}
-    - run: poetry install
+    - run: poetry -C per_sdk install
       shell: sh
