@@ -1,7 +1,8 @@
 use {
     crate::config::{
         DeployOptions,
-        RunOptions,
+        SearcherOptions,
+        SimulatorOptions,
     },
     anyhow::{
         anyhow,
@@ -36,7 +37,10 @@ use {
         seq::SliceRandom,
     },
     serde_json::Value,
-    std::sync::Arc,
+    std::{
+        sync::Arc,
+        time::Duration,
+    },
     url::Url,
 };
 
@@ -46,6 +50,7 @@ abigen!(
 );
 
 abigen!(ERC20, "../per_multicall/out/MyToken.sol/MyToken.json");
+abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
 abigen!(IPyth, "../per_multicall/out/IPyth.sol/IPyth.json");
 
 pub type SignableTokenVaultContract = TokenVault<SignerMiddleware<Provider<Http>, LocalWallet>>;
@@ -96,6 +101,31 @@ fn parse_update(update: Value) -> Result<PythUpdate> {
     })
 }
 
+async fn setup_client(
+    private_key: String,
+    rpc_address: Url,
+) -> Result<Arc<SignerMiddleware<Provider<Http>, LocalWallet>>> {
+    let wallet = private_key
+        .parse::<LocalWallet>()
+        .map_err(|e| anyhow!("Can not parse private key: {}", e))?;
+    tracing::info!("Using wallet address: {}", wallet.address().to_string());
+    let mut provider = Provider::<Http>::try_from(rpc_address.as_str()).map_err(|err| {
+        anyhow!(
+            "Failed to connect to {rpc_addr}: {:?}",
+            err,
+            rpc_addr = rpc_address.as_str()
+        )
+    })?;
+    provider.set_interval(Duration::from_secs(1));
+    let chain_id = provider.get_chainid().await?;
+    tracing::info!("Connected to chain: {}", chain_id);
+    let client = Arc::new(SignerMiddleware::new(
+        provider,
+        wallet.with_chain_id(chain_id.as_u64()),
+    ));
+    Ok(client)
+}
+
 async fn get_latest_updates(feed_ids: Vec<String>) -> Result<Vec<PythUpdate>> {
     let url = Url::parse_with_params(
         "https://hermes.pyth.network/api/latest_price_feeds?verbose=true&binary=true",
@@ -115,31 +145,12 @@ async fn get_latest_updates(feed_ids: Vec<String>) -> Result<Vec<PythUpdate>> {
         .collect()
 }
 
-pub async fn run_simulator(options: RunOptions) -> Result<()> {
-    let wallet = options
-        .private_key
-        .parse::<LocalWallet>()
-        .map_err(|e| anyhow!("Can not parse private key: {}", e))?;
-    tracing::info!("Using wallet address: {}", wallet.address().to_string());
-    let provider = Provider::<Http>::try_from(options.rpc_addr.as_str()).map_err(|err| {
-        anyhow!(
-            "Failed to connect to {rpc_addr}: {:?}",
-            err,
-            rpc_addr = options.rpc_addr
-        )
-    })?;
-    let chain_id = provider.get_chainid().await?;
-    tracing::info!("Connected to chain: {}", chain_id);
-
-    // check the balance of the wallet
-    let wallet_address = wallet.address();
-    let balance = provider.get_balance(wallet_address, None).await?;
+pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
+    let options = simulator_options.run_options;
+    let client = setup_client(options.private_key, options.rpc_addr).await?;
+    let wallet_address = client.signer().address();
+    let balance = client.get_balance(wallet_address, None).await?;
     tracing::info!("Wallet balance: {}", balance);
-
-    let client = Arc::new(SignerMiddleware::new(
-        provider,
-        wallet.with_chain_id(chain_id.as_u64()),
-    ));
 
     let sample: [&Address; 2] = options
         .tokens
@@ -172,16 +183,15 @@ pub async fn run_simulator(options: RunOptions) -> Result<()> {
     let collateral_update = updates[0].clone();
     let debt_update = updates[1].clone();
 
-    // usd value random between 100 and 1000 dollars
     let precision = U256::exp10(18);
+    // usd value random between 100 and 1000 dollars
     let collateral_value_usd: U256 = precision * U256::from(random::<u64>() % 900 + 100);
     tracing::info!("Collateral value usd: {}", collateral_value_usd);
-
     tracing::info!("Collateral price: {}", collateral_update.price);
     tracing::info!("Debt price: {}", collateral_update.price);
 
     let amount_collateral: U256 =
-        collateral_value_usd * precision * 111 / 100 / collateral_update.price; // 10% more safety margin
+        collateral_value_usd * precision * 1100001 / 1000000 / collateral_update.price; // Slightly more than 110% to make sure the vault is created
     let amount_debt = collateral_value_usd * precision / debt_update.price;
 
     let min_health_ratio = U256::exp10(18) * 110 / 100;
@@ -190,24 +200,25 @@ pub async fn run_simulator(options: RunOptions) -> Result<()> {
     let token_id_collateral: [u8; 32] = <[u8; 32]>::from_hex(collateral_info.price_id).unwrap();
     let token_id_debt: [u8; 32] = <[u8; 32]>::from_hex(debt_info.price_id).unwrap();
     let update_data = vec![collateral_update.vaa, debt_update.vaa];
-    // let update_data = vec![];
 
     collateral_info
         .contract
         .mint(wallet_address, amount_collateral)
         .send()
+        .await?
         .await?;
     collateral_info
         .contract
-        .approve(options.contract, amount_collateral)
+        .approve(simulator_options.vault_contract, amount_collateral)
         .send()
+        .await?
         .await?;
 
-    tracing::info!("Calling create_vault");
     tracing::info!("Amount collateral: {}", amount_collateral);
     tracing::info!("Amount debt: {}", amount_debt);
 
-    let contract = SignableTokenVaultContract::new(options.contract, client.clone());
+    let contract =
+        SignableTokenVaultContract::new(simulator_options.vault_contract, client.clone());
     let tx = contract
         .create_vault(
             collateral_info.address,
@@ -236,25 +247,7 @@ pub async fn run_simulator(options: RunOptions) -> Result<()> {
 }
 
 pub async fn deploy_contract(options: DeployOptions) -> Result<()> {
-    let wallet = options
-        .private_key
-        .parse::<LocalWallet>()
-        .map_err(|e| anyhow!("Can not parse private key: {}", e))?;
-    tracing::info!("Using wallet address: {}", wallet.address().to_string());
-    let provider = Provider::<Http>::try_from(options.rpc_addr.as_str()).map_err(|err| {
-        anyhow!(
-            "Failed to connect to {rpc_addr}: {:?}",
-            err,
-            rpc_addr = options.rpc_addr
-        )
-    })?;
-    let chain_id = provider.get_chainid().await?;
-    tracing::info!("Connected to chain id: {}", chain_id);
-
-    let client = Arc::new(SignerMiddleware::new(
-        provider,
-        wallet.with_chain_id(chain_id.as_u64()),
-    ));
+    let client = setup_client(options.private_key, options.rpc_addr).await?;
     let contract = SignableTokenVaultContract::deploy(
         client,
         (options.per_contract, options.oracle_contract),
@@ -262,5 +255,47 @@ pub async fn deploy_contract(options: DeployOptions) -> Result<()> {
     .send()
     .await?;
     tracing::info!("{}", contract.address().to_string());
+    Ok(())
+}
+
+pub async fn create_searcher(searcher_options: SearcherOptions) -> Result<()> {
+    let options = searcher_options.run_options;
+    let client = setup_client(options.private_key, options.rpc_addr).await?;
+    let wallet_address = client.signer().address();
+    for token in options.tokens.iter() {
+        let token_contract = ERC20::new(*token, client.clone());
+        token_contract
+            .approve(searcher_options.adapter_contract, U256::MAX)
+            .send()
+            .await?
+            .await?;
+        token_contract
+            .mint(wallet_address, U256::exp10(36))
+            .send()
+            .await?
+            .await?;
+        tracing::info!(
+            "Token {} minted and approved to use by liquidation adapter",
+            token.to_string()
+        );
+    }
+
+    let weth_contract = WETH9::new(options.weth, client.clone());
+    weth_contract
+        .deposit()
+        .value(U256::exp10(18))
+        .send()
+        .await?
+        .await?;
+    weth_contract
+        .approve(searcher_options.adapter_contract, U256::MAX)
+        .send()
+        .await?
+        .await?;
+    let balance = weth_contract.balance_of(wallet_address).await?;
+    tracing::info!(
+        "1 ETH deposited into WETH and approved to use by liquidation adapter, current balance: {}",
+        balance
+    );
     Ok(())
 }

@@ -35,6 +35,9 @@ async fn main() -> Result<()> {
         config::Options::Run(opts) => {
             simulator::run_simulator(opts).await?;
         }
+        config::Options::CreateSearcher(opts) => {
+            simulator::create_searcher(opts).await?;
+        }
         config::Options::Deploy(opts) => {
             simulator::deploy_contract(opts).await?;
         }

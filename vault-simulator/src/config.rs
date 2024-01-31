@@ -1,21 +1,13 @@
 use {
-    anyhow::Result,
     clap::{
         crate_authors,
         crate_description,
         crate_name,
         crate_version,
-        Arg,
-        ArgAction,
         Args,
         Parser,
     },
     ethers::abi::Address,
-    std::{
-        collections::HashMap,
-        fs,
-        net::SocketAddr,
-    },
     url::Url,
 };
 
@@ -28,7 +20,10 @@ use {
 #[allow(clippy::large_enum_variant)]
 pub enum Options {
     /// Run the simulator.
-    Run(RunOptions),
+    Run(SimulatorOptions),
+
+    /// Setup an already funded searcher account with ERC20 tokens and WETH.
+    CreateSearcher(SearcherOptions),
 
     /// Deploy the token vault contract.
     Deploy(DeployOptions),
@@ -46,15 +41,33 @@ pub struct RunOptions {
     #[arg(env = "PRIVATE_KEY")]
     pub private_key: String,
 
-    /// The address of the contract to interact with.
-    #[arg(long = "contract")]
-    pub contract: Address,
-
     #[arg(long = "token")]
     pub tokens: Vec<Address>,
 
     #[arg(long = "weth")]
     pub weth: Address,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct SimulatorOptions {
+    /// Server Options
+    #[command(flatten)]
+    pub run_options: RunOptions,
+
+    /// The address of the token vault contract to interact with
+    #[arg(long = "vault-contract")]
+    pub vault_contract: Address,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct SearcherOptions {
+    /// Server Options
+    #[command(flatten)]
+    pub run_options: RunOptions,
+
+    /// The address of the liquidation adapter contract to use for approvals
+    #[arg(long = "adapter-contract")]
+    pub adapter_contract: Address,
 }
 
 #[derive(Args, Clone, Debug)]
