@@ -62,6 +62,11 @@ pub struct SimulatorOptions {
     #[arg(long = "price-endpoint")]
     #[arg(default_value = "https://hermes.pyth.network")]
     pub price_endpoint: Url,
+
+    // Interval in seconds to create a new vault
+    #[arg(long = "interval")]
+    #[arg(default_value = "5")]
+    pub interval: u64,
 }
 
 #[derive(Args, Clone, Debug)]

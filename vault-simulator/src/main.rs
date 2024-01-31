@@ -1,7 +1,10 @@
 use {
     anyhow::Result,
     clap::Parser,
-    std::io::IsTerminal,
+    std::{
+        io::IsTerminal,
+        time::Duration,
+    },
     tracing_subscriber::filter::LevelFilter,
 };
 
@@ -32,9 +35,13 @@ async fn main() -> Result<()> {
     // Parse the command line arguments with StructOpt, will exit automatically on `--help` or
     // with invalid arguments.
     match config::Options::parse() {
-        config::Options::Run(opts) => {
-            simulator::run_simulator(opts).await?;
-        }
+        config::Options::Run(opts) => loop {
+            let single_run = simulator::run_simulator(opts.clone()).await;
+            if let Err(err) = single_run {
+                tracing::error!("Error running simulator: {:?}", err);
+            }
+            tokio::time::sleep(Duration::from_secs(opts.interval)).await;
+        },
         config::Options::CreateSearcher(opts) => {
             simulator::create_searcher(opts).await?;
         }
