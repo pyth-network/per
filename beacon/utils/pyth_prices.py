@@ -14,7 +14,7 @@ class Price(TypedDict):
 
 
 class PriceFeed(TypedDict):
-    id: str
+    feed_id: str
     price: Price
     ema_price: Price
     vaa: str

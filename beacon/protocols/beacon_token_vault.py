@@ -39,10 +39,12 @@ def get_vault_abi():
 
 
 class VaultMonitor:
-    def __init__(self, rpc_url: str, contract_address: str):
+    def __init__(self, rpc_url: str, contract_address: str, weth_address: str):
         self.rpc_url = rpc_url
         self.contract_address = contract_address
+        self.weth_address = weth_address
         self.w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(rpc_url))
+
         self.token_vault = self.w3.eth.contract(
             address=contract_address, abi=get_vault_abi()
         )
@@ -73,10 +75,7 @@ class VaultMonitor:
             vault = await self.token_vault.functions.getVault(account_number).call()
             vault_dict = dict(zip(vault_struct, vault))
 
-            if (
-                int(vault_dict["tokenCollateral"], 16) == 0
-                and int(vault_dict["tokenDebt"], 16) == 0
-            ):
+            if int(vault_dict["tokenCollateral"], 16) == 0:  # vault is not created yet
                 done = True
             else:
                 account: ProtocolAccount = {
@@ -111,10 +110,9 @@ class VaultMonitor:
         """
 
         price_updates = [base64.b64decode(update["vaa"]) for update in prices]
-        w3 = web3.Web3()
-        abi = get_vault_abi()
-        token_vault = w3.eth.contract(address=self.contract_address, abi=abi)
-        calldata = token_vault.encodeABI(
+        for update in prices:
+            print(update["feed_id"], update["price"]["publish_time"])
+        calldata = self.token_vault.encodeABI(
             fn_name="liquidateWithPriceUpdate",
             args=[account["account_number"], price_updates],
         )
@@ -125,6 +123,20 @@ class VaultMonitor:
                 ["address", "bytes"], [self.contract_address, permission_payload]
             ).hex()
         )
+        call_value = len(price_updates)
+
+        if call_value > 0 and account["token_address_collateral"] == self.weth_address:
+            repay_tokens = [
+                (
+                    account["token_address_debt"],
+                    str(account["amount_debt"] + call_value),
+                )
+            ]
+        else:
+            repay_tokens = [
+                (account["token_address_debt"], str(account["amount_debt"])),
+                (self.weth_address, str(call_value)),
+            ]
 
         opp: LiquidationOpportunity = {
             "chain_id": "development",
@@ -132,10 +144,8 @@ class VaultMonitor:
             "calldata": calldata,
             "permission_key": permission,
             "account": str(account["account_number"]),
-            "value": str(len(price_updates)),
-            "repay_tokens": [
-                (account["token_address_debt"], str(account["amount_debt"]))
-            ],
+            "value": str(call_value),
+            "repay_tokens": repay_tokens,
             "receipt_tokens": [
                 (account["token_address_collateral"],
                  str(account["amount_collateral"]))
@@ -164,6 +174,9 @@ class VaultMonitor:
         liquidatable = []
         accounts = await self.get_accounts()
         for account in accounts:
+            # vault is already liquidated
+            if account["amount_collateral"] == 0 and account["amount_debt"] == 0:
+                continue
             # TODO: optimize this to only query for the price feeds that are needed and only query once
             (
                 price_collateral,
@@ -187,6 +200,7 @@ class VaultMonitor:
             )
             value_debt = int(price_debt["price"]
                              ["price"]) * account["amount_debt"]
+            print(account["account_number"], value_collateral / value_debt)
             if (
                 value_debt * int(account["min_health_ratio"])
                 > value_collateral * 10**18
@@ -213,6 +227,13 @@ async def main():
         dest="vault_contract",
         help="Token vault contract address",
     )
+    parser.add_argument(
+        "--weth-contract",
+        type=str,
+        required=True,
+        dest="weth_contract",
+        help="WETH contract address",
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--dry-run",
@@ -230,7 +251,8 @@ async def main():
     logging.basicConfig(level=logging.INFO)
     logging.getLogger("httpx").propagate = False
 
-    monitor = VaultMonitor(args.rpc_url, args.vault_contract)
+    monitor = VaultMonitor(
+        args.rpc_url, args.vault_contract, args.weth_contract)
 
     while True:
         opportunities = await monitor.get_liquidation_opportunities()
