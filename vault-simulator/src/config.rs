@@ -57,6 +57,11 @@ pub struct SimulatorOptions {
     /// The address of the token vault contract to interact with
     #[arg(long = "vault-contract")]
     pub vault_contract: Address,
+
+    /// The endpoint to use for fetching pyth prices
+    #[arg(long = "price-endpoint")]
+    #[arg(default_value = "https://hermes.pyth.network")]
+    pub price_endpoint: Url,
 }
 
 #[derive(Args, Clone, Debug)]

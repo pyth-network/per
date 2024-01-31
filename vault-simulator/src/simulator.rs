@@ -6,7 +6,6 @@ use {
     },
     anyhow::{
         anyhow,
-        Context,
         Result,
     },
     base64::prelude::*,
@@ -126,9 +125,10 @@ async fn setup_client(
     Ok(client)
 }
 
-async fn get_latest_updates(feed_ids: Vec<String>) -> Result<Vec<PythUpdate>> {
+async fn get_latest_updates(price_endpoint: Url, feed_ids: Vec<String>) -> Result<Vec<PythUpdate>> {
+    let base_url = price_endpoint.join("/api/latest_price_feeds?verbose=true&binary=true")?;
     let url = Url::parse_with_params(
-        "https://hermes.pyth.network/api/latest_price_feeds?verbose=true&binary=true",
+        base_url.as_str(),
         feed_ids
             .iter()
             .map(|id| ("ids[]", id.to_string()))
@@ -139,7 +139,7 @@ async fn get_latest_updates(feed_ids: Vec<String>) -> Result<Vec<PythUpdate>> {
     let updates = response.json::<serde_json::Value>().await?;
     (updates)
         .as_array()
-        .context(format!("Invalid response: {:?}", updates))?
+        .ok_or(anyhow!("Invalid response: {:?}", updates))?
         .into_iter()
         .map(|update| parse_update(update.clone()))
         .collect()
@@ -175,10 +175,10 @@ pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
     );
 
     // get the latest pyth updates
-    let updates = get_latest_updates(vec![
-        collateral_info.price_id.clone(),
-        debt_info.price_id.clone(),
-    ])
+    let updates = get_latest_updates(
+        simulator_options.price_endpoint,
+        vec![collateral_info.price_id.clone(), debt_info.price_id.clone()],
+    )
     .await?;
     let collateral_update = updates[0].clone();
     let debt_update = updates[1].clone();
