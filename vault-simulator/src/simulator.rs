@@ -28,6 +28,7 @@ use {
         },
         types::{
             Bytes,
+            TransactionRequest,
             U256,
         },
     },
@@ -260,8 +261,15 @@ pub async fn deploy_contract(options: DeployOptions) -> Result<()> {
 
 pub async fn create_searcher(searcher_options: SearcherOptions) -> Result<()> {
     let options = searcher_options.run_options;
-    let client = setup_client(options.private_key, options.rpc_addr).await?;
+    let funder_client = setup_client(options.private_key, options.rpc_addr.clone()).await?;
+    let client = setup_client(searcher_options.searcher_private_key, options.rpc_addr).await?;
     let wallet_address = client.signer().address();
+    let tx = TransactionRequest::new()
+        .to(wallet_address)
+        .value(U256::exp10(19))
+        .from(funder_client.signer().address());
+    funder_client.send_transaction(tx, None).await?.await?;
+    tracing::info!("10 ETH sent to searcher wallet");
     for token in options.tokens.iter() {
         let token_contract = ERC20::new(*token, client.clone());
         token_contract

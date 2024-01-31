@@ -22,7 +22,7 @@ pub enum Options {
     /// Run the simulator.
     Run(SimulatorOptions),
 
-    /// Setup an already funded searcher account with ERC20 tokens and WETH.
+    /// Setup a new searcher account with ERC20 tokens and WETH using an existing account.
     CreateSearcher(SearcherOptions),
 
     /// Deploy the token vault contract.
@@ -73,6 +73,10 @@ pub struct SearcherOptions {
     /// The address of the liquidation adapter contract to use for approvals
     #[arg(long = "adapter-contract")]
     pub adapter_contract: Address,
+
+    /// Private key of the searcher, used for minting and approving tokens
+    #[arg(long = "searcher-private-key")]
+    pub searcher_private_key: String,
 }
 
 #[derive(Args, Clone, Debug)]
