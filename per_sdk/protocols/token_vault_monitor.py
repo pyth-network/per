@@ -42,10 +42,13 @@ def get_vault_abi():
 
 
 class VaultMonitor:
-    def __init__(self, rpc_url: str, contract_address: str, weth_address: str):
+    def __init__(
+        self, rpc_url: str, contract_address: str, weth_address: str, chain_id: str
+    ):
         self.rpc_url = rpc_url
         self.contract_address = contract_address
         self.weth_address = weth_address
+        self.chain_id = chain_id
         self.w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(rpc_url))
 
         self.token_vault = self.w3.eth.contract(
@@ -141,7 +144,7 @@ class VaultMonitor:
             ]
 
         opp: LiquidationOpportunity = {
-            "chain_id": "development",
+            "chain_id": self.chain_id,
             "contract": self.contract_address,
             "calldata": calldata,
             "permission_key": permission,
@@ -215,6 +218,12 @@ async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument(
+        "--chain-id",
+        type=str,
+        required=True,
+        help="Chain ID of the network to monitor for liquidation opportunities",
+    )
+    parser.add_argument(
         "--rpc-url",
         type=str,
         required=True,
@@ -257,7 +266,9 @@ async def main():
     log_handler.setFormatter(formatter)
     logger.addHandler(log_handler)
 
-    monitor = VaultMonitor(args.rpc_url, args.vault_contract, args.weth_contract)
+    monitor = VaultMonitor(
+        args.rpc_url, args.vault_contract, args.weth_contract, args.chain_id
+    )
 
     while True:
         opportunities = await monitor.get_liquidation_opportunities()

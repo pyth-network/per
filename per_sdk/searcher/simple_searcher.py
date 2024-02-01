@@ -66,7 +66,6 @@ def create_liquidation_transaction(
     )
 
     json_body = {
-        "chain_id": opp["chain_id"],
         "opportunity_id": opp["opportunity_id"],
         "permission_key": opp["permission_key"],
         "bid_amount": str(bid),
