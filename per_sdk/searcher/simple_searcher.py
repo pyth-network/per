@@ -6,10 +6,7 @@ from typing import TypedDict
 import httpx
 from eth_account import Account
 
-from per_sdk.searcher.searcher_utils import (
-    UserLiquidationParams,
-    construct_signature_liquidator,
-)
+from per_sdk.searcher.searcher_utils import BidInfo, construct_signature_liquidator
 from per_sdk.utils.endpoints import (
     LIQUIDATION_SERVER_ENDPOINT_BID,
     LIQUIDATION_SERVER_ENDPOINT_GETOPPS,
@@ -24,8 +21,21 @@ VALID_UNTIL = 1_000_000_000_000
 def assess_liquidation_opportunity(
     default_bid: int,
     opp: LiquidationOpportunity,
-) -> UserLiquidationParams | None:
-    user_liquidation_params: UserLiquidationParams = {
+) -> BidInfo | None:
+    """
+    Assesses whether a liquidation opportunity is worth liquidating; if so, returns the bid and valid_until timestamp. Otherwise returns None.
+    This function determines whether the given opportunity deals with the specified repay and receipt tokens that the searcher wishes to transact in and whether it is profitable to execute the liquidation.
+    There are many ways to evaluate this, but the most common way is to check that the value of the amount the searcher will receive from the liquidation exceeds the value of the amount repaid.
+    Individual searchers will have their own methods to determine market impact and the profitability of conducting a liquidation. This function can be expanded to include external prices to perform this evaluation.
+    If the opporutnity is deemed worthwhile, this function can return a bid amount representing the amount of native token to bid on this opportunity, and a timestamp representing the time at which the transaction will expire.
+    Otherwise, this function can return None.
+    Args:
+        default_bid: The default amount of bid for liquidation opportunities.
+        opp: A LiquidationOpportunity object, representing a single liquidation opportunity.
+    Returns:
+        If the opportunity is deemed worthwhile, this function can return a BidInfo object, representing the user's bid and the timestamp at which the user's bid should expire. If the LiquidationOpportunity is not deemed worthwhile, this function can return None.
+    """
+    user_liquidation_params = {
         "bid": default_bid,
         "valid_until": VALID_UNTIL,
     }
@@ -42,8 +52,17 @@ class OpportunityBid(TypedDict):
 
 
 def create_liquidation_transaction(
-    opp: LiquidationOpportunity, sk_liquidator: str, valid_until: int, bid: int
+    opp: LiquidationOpportunity, sk_liquidator: str, bid_info: BidInfo
 ) -> OpportunityBid:
+    """
+    Creates a bid for a liquidation opportunity.
+    Args:
+        opp: A LiquidationOpportunity object, representing a single liquidation opportunity.
+        sk_liquidator: A 0x-prefixed hex string representing the liquidator's private key.
+        bid_info: necessary information for the liquidation bid
+    Returns:
+        An OpportunityBid object which can be sent to the liquidation server
+    """
     repay_tokens = [
         (opp["contract"], int(opp["amount"])) for opp in opp["repay_tokens"]
     ]
@@ -60,21 +79,20 @@ def create_liquidation_transaction(
         opp["contract"],
         liq_calldata,
         int(opp["value"]),
-        bid,
-        valid_until,
+        bid_info,
         sk_liquidator,
     )
 
-    json_body = {
+    opportunity_bid = {
         "opportunity_id": opp["opportunity_id"],
         "permission_key": opp["permission_key"],
-        "bid_amount": str(bid),
-        "valid_until": str(valid_until),
+        "bid_amount": str(bid_info["bid"]),
+        "valid_until": str(bid_info["valid_until"]),
         "liquidator": liquidator,
         "signature": bytes(signature_liquidator.signature).hex(),
     }
 
-    return json_body
+    return opportunity_bid
 
 
 async def main():
@@ -109,7 +127,6 @@ async def main():
     log_handler.setFormatter(formatter)
     logger.addHandler(log_handler)
 
-    params = {"chain_id": args.chain_id}
     sk_liquidator = args.private_key
     liquidator = Account.from_key(sk_liquidator).address
     logger.info("Liquidator address: %s", liquidator)
@@ -117,7 +134,10 @@ async def main():
     while True:
         try:
             accounts_liquidatable = (
-                await client.get(LIQUIDATION_SERVER_ENDPOINT_GETOPPS, params=params)
+                await client.get(
+                    LIQUIDATION_SERVER_ENDPOINT_GETOPPS,
+                    params={"chain_id": args.chain_id},
+                )
             ).json()
         except Exception as e:
             logger.error(e)
@@ -126,24 +146,18 @@ async def main():
 
         logger.debug("Found %d liquidation opportunities", len(accounts_liquidatable))
         for liquidation_opp in accounts_liquidatable:
-            user_liquidation_params = assess_liquidation_opportunity(
-                args.bid, liquidation_opp
-            )
+            bid_info = assess_liquidation_opportunity(args.bid, liquidation_opp)
 
-            if user_liquidation_params is not None:
-                bid, valid_until = (
-                    user_liquidation_params["bid"],
-                    user_liquidation_params["valid_until"],
-                )
+            if bid_info is not None:
 
                 tx = create_liquidation_transaction(
-                    liquidation_opp, sk_liquidator, valid_until, bid
+                    liquidation_opp, sk_liquidator, bid_info
                 )
 
                 resp = await client.post(LIQUIDATION_SERVER_ENDPOINT_BID, json=tx)
                 logger.info(
                     "Submitted bid amount %s for opportunity %s, server response: %s",
-                    bid,
+                    bid_info["bid"],
                     liquidation_opp["opportunity_id"],
                     resp.text,
                 )
