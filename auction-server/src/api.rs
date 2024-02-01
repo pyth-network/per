@@ -93,7 +93,11 @@ pub enum RestError {
     /// The chain id is not supported
     InvalidChainId,
     /// The simulation failed
-    SimulationError { result: Bytes, reason: String },
+    SimulationError {
+        #[schema(value_type=String)]
+        result: Bytes,
+        reason: String,
+    },
     /// The order was not found
     OpportunityNotFound,
     /// The server cannot currently communicate with the blockchain, so is not able to verify
