@@ -266,10 +266,10 @@ pub async fn create_searcher(searcher_options: SearcherOptions) -> Result<()> {
     let wallet_address = client.signer().address();
     let tx = TransactionRequest::new()
         .to(wallet_address)
-        .value(U256::exp10(19))
+        .value(U256::exp10(16))
         .from(funder_client.signer().address());
     funder_client.send_transaction(tx, None).await?.await?;
-    tracing::info!("10 ETH sent to searcher wallet");
+    tracing::info!("0.01 ETH sent to searcher wallet");
     for token in options.tokens.iter() {
         let token_contract = ERC20::new(*token, client.clone());
         token_contract
@@ -291,7 +291,7 @@ pub async fn create_searcher(searcher_options: SearcherOptions) -> Result<()> {
     let weth_contract = WETH9::new(options.weth, client.clone());
     weth_contract
         .deposit()
-        .value(U256::exp10(18))
+        .value(U256::exp10(14))
         .send()
         .await?
         .await?;
@@ -302,7 +302,7 @@ pub async fn create_searcher(searcher_options: SearcherOptions) -> Result<()> {
         .await?;
     let balance = weth_contract.balance_of(wallet_address).await?;
     tracing::info!(
-        "1 ETH deposited into WETH and approved to use by liquidation adapter, current balance: {}",
+        ".0001 ETH deposited into WETH and approved to use by liquidation adapter, current balance: {} wei",
         balance
     );
     Ok(())
