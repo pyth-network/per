@@ -27,7 +27,7 @@ import "../src/Errors.sol";
 contract VaultScript is Script {
     string public latestEnvironmentPath = "latestEnvironment.json";
 
-    function getAnvil() public view returns (address, uint256) {
+    function getDeployer() public view returns (address, uint256) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployerAddress = vm.addr(deployerPrivateKey);
         return (deployerAddress, deployerPrivateKey);
@@ -45,7 +45,7 @@ contract VaultScript is Script {
         );
         console.log("pk per operator", perOperatorAddress);
         console.log("sk per operator", perOperatorSk);
-        payable(perOperatorAddress).transfer(10 ether);
+        payable(perOperatorAddress).transfer(0.01 ether);
         PERMulticall multicall = new PERMulticall(perOperatorAddress, 0);
         console.log("deployed PER contract at", address(multicall));
         LiquidationAdapter liquidationAdapter = new LiquidationAdapter(
@@ -77,8 +77,8 @@ contract VaultScript is Script {
         public
         returns (address, address, address, address, address)
     {
-        (, uint256 skanvil) = getAnvil();
-        vm.startBroadcast(skanvil);
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
         address weth = deployWeth();
         (address per, address liquidationAdapter) = deployPER(weth);
         address mockPyth = deployMockPyth();
@@ -93,10 +93,11 @@ contract VaultScript is Script {
     The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
     @param pyth The address of the already deployed pyth contract to use
     */
-    function setupTestnet(address pyth) public {
-        (, uint256 skanvil) = getAnvil();
-        vm.startBroadcast(skanvil);
-        address weth = deployWeth();
+    function setupTestnet(address pyth, address weth) public {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
+        if (pyth == address(0)) pyth = deployMockPyth();
+        if (weth == address(0)) weth = deployWeth();
         (address per, address liquidationAdapter) = deployPER(weth);
         address vault = deployVault(per, pyth);
         address[] memory tokens = new address[](5);
@@ -179,19 +180,19 @@ contract VaultScript is Script {
         );
 
         // TODO: these are mnemonic wallets. figure out how to transfer ETH from them outside of explicitly hardcoding them here.
-        (address pkanvil, uint256 skanvil) = getAnvil();
+        (address pkDeployer, uint256 skDeployer) = getDeployer();
 
         // transfer ETH to relevant wallets
-        vm.startBroadcast(skanvil);
-        console.log("balance of pk anvil", pkanvil.balance);
+        vm.startBroadcast(skDeployer);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[3]).transfer(10 ether);
-        console.log("balance of pk anvil", pkanvil.balance);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[0]).transfer(10 ether);
-        console.log("balance of pk anvil", pkanvil.balance);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[1]).transfer(10 ether);
-        console.log("balance of pk anvil", pkanvil.balance);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[2]).transfer(10 ether);
-        console.log("balance of pk anvil", pkanvil.balance);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[4]).transfer(10 ether);
         vm.stopBroadcast();
 
@@ -224,8 +225,8 @@ contract VaultScript is Script {
         console.log("contract of searcher B is", address(searcherB));
 
         // fund the searcher contracts
-        vm.startBroadcast(skanvil);
-        console.log("balance of pkanvil", pkanvil.balance);
+        vm.startBroadcast(skDeployer);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(address(searcherA)).transfer(1 ether);
         payable(address(searcherB)).transfer(1 ether);
         vm.stopBroadcast();
