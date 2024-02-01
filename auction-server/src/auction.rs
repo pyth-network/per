@@ -191,8 +191,14 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                             match submission {
                                 Ok(receipt) => match receipt {
                                     Some(receipt) => {
-                                        tracing::info!("Submitted transaction: {:?}", receipt);
+                                        tracing::debug!("Submitted transaction: {:?}", receipt);
                                         chain_store.bids.write().await.remove(&permission_key);
+                                        store
+                                            .liquidation_store
+                                            .opportunities
+                                            .write()
+                                            .await
+                                            .remove(&permission_key); //TODO: this should be done via opportunity verifier and only when the opportunity is not valid anymore
                                     }
                                     None => {
                                         tracing::error!("Failed to receive transaction receipt");
@@ -210,7 +216,7 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                 }
             }
         }
-        tokio::time::sleep(Duration::from_secs(10)).await; // this should be replaced by a subscription to the chain and trigger on new blocks
+        tokio::time::sleep(Duration::from_secs(5)).await; // this should be replaced by a subscription to the chain and trigger on new blocks
     }
     tracing::info!("Shutting down transaction submitter...");
 }
