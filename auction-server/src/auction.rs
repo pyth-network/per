@@ -6,7 +6,6 @@ use {
     },
     anyhow::anyhow,
     ethers::{
-        abi::AbiDecode,
         contract::{
             abigen,
             ContractError,

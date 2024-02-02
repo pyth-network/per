@@ -146,6 +146,7 @@ pub async fn submit_opportunity(
             .map_err(|_| RestError::BadParameters("Invalid value".to_string()))?,
         repay_tokens,
         receipt_tokens,
+        bidders: Default::default(),
     };
 
     verify_opportunity(
@@ -247,15 +248,25 @@ pub async fn bid_opportunity(
     State(store): State<Arc<Store>>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<String, RestError> {
-    let opportunities = store.liquidation_store.opportunities.read().await;
-
-    let liquidation = opportunities
+    let liquidation = store
+        .liquidation_store
+        .opportunities
+        .read()
+        .await
         .get(&opportunity_bid.permission_key)
-        .ok_or(RestError::OpportunityNotFound)?;
+        .ok_or(RestError::OpportunityNotFound)?
+        .clone();
+
 
     if liquidation.id != opportunity_bid.opportunity_id {
         return Err(RestError::BadParameters(
             "Invalid opportunity_id".to_string(),
+        ));
+    }
+
+    if liquidation.bidders.contains(&opportunity_bid.liquidator) {
+        return Err(RestError::BadParameters(
+            "Liquidator already bid on this opportunity".to_string(),
         ));
     }
 
@@ -298,7 +309,14 @@ pub async fn bid_opportunity(
     )
     .await
     {
-        Ok(_) => Ok("OK".to_string()),
+        Ok(_) => {
+            let mut write_guard = store.liquidation_store.opportunities.write().await;
+            let liquidation = write_guard.get_mut(&opportunity_bid.permission_key);
+            if let Some(liquidation) = liquidation {
+                liquidation.bidders.insert(opportunity_bid.liquidator);
+            }
+            Ok("OK".to_string())
+        }
         Err(e) => match e {
             RestError::SimulationError { result, reason } => {
                 let parsed = parse_revert_error(result.clone());

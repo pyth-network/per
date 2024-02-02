@@ -451,13 +451,13 @@ pub async fn run_verification_loop(store: Arc<Store>) {
             match should_remove {
                 Ok(_) => {}
                 Err(e) => {
-                    tracing::error!("Remove Opportunity with failed verification: {}", e);
                     store
                         .liquidation_store
                         .opportunities
                         .write()
                         .await
                         .remove(permission_key);
+                    tracing::info!("Removed Opportunity with failed verification: {}", e);
                 }
             }
         }

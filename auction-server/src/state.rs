@@ -15,7 +15,10 @@ use {
             U256,
         },
     },
-    std::collections::HashMap,
+    std::collections::{
+        HashMap,
+        HashSet,
+    },
     tokio::sync::RwLock,
     uuid::Uuid,
 };
@@ -42,6 +45,7 @@ pub struct VerifiedLiquidationOpportunity {
     pub value:          U256,
     pub repay_tokens:   Vec<(Address, U256)>,
     pub receipt_tokens: Vec<(Address, U256)>,
+    pub bidders:        HashSet<Address>,
 }
 
 #[derive(Clone)]
