@@ -6,9 +6,11 @@ use {
     },
     anyhow::anyhow,
     ethers::{
+        abi::AbiDecode,
         contract::{
             abigen,
             ContractError,
+            FunctionCall,
         },
         middleware::{
             transformer::{
@@ -55,6 +57,7 @@ pub type SignableProvider =
 pub type SignablePERContract = PER<SignableProvider>;
 
 impl TryFrom<EthereumConfig> for Provider<Http> {
+    type Error = anyhow::Error;
     fn try_from(config: EthereumConfig) -> Result<Self, Self::Error> {
         Provider::<Http>::try_from(config.geth_rpc_addr.clone()).map_err(|err| {
             anyhow!(
@@ -64,7 +67,23 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
             )
         })
     }
-    type Error = anyhow::Error;
+}
+
+pub fn get_simulation_call(
+    per_operator: Address,
+    provider: Provider<Http>,
+    chain_config: EthereumConfig,
+    permission: Bytes,
+    contracts: Vec<Address>,
+    calldata: Vec<Bytes>,
+    bids: Vec<U256>,
+) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<per::MulticallStatus>> {
+    let client = Arc::new(provider);
+    let per_contract = PERContract::new(chain_config.per_contract, client);
+    let call = per_contract
+        .multicall(permission, contracts, calldata, bids)
+        .from(per_operator);
+    call
 }
 
 pub async fn simulate_bids(
@@ -76,11 +95,15 @@ pub async fn simulate_bids(
     calldata: Vec<Bytes>,
     bids: Vec<U256>,
 ) -> Result<Vec<MulticallStatus>, ContractError<Provider<Http>>> {
-    let client = Arc::new(provider);
-    let per_contract = PERContract::new(chain_config.per_contract, client);
-    let call = per_contract
-        .multicall(permission, contracts, calldata, bids)
-        .from(per_operator);
+    let call = get_simulation_call(
+        per_operator,
+        provider,
+        chain_config,
+        permission,
+        contracts,
+        calldata,
+        bids,
+    );
     call.call().await
 }
 
@@ -147,7 +170,8 @@ pub async fn run_submission_loop(store: Arc<Store>) {
     tracing::info!("Starting transaction submitter...");
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         for (chain_id, chain_store) in &store.chains {
-            let permission_bids = chain_store.bids.read().await.clone(); // release lock asap
+            let permission_bids = chain_store.bids.read().await.clone();
+            // release lock asap
             tracing::info!(
                 "Chain: {chain_id} Auctions to process {auction_len}",
                 chain_id = chain_id,
@@ -193,12 +217,6 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                                     Some(receipt) => {
                                         tracing::debug!("Submitted transaction: {:?}", receipt);
                                         chain_store.bids.write().await.remove(&permission_key);
-                                        store
-                                            .liquidation_store
-                                            .opportunities
-                                            .write()
-                                            .await
-                                            .remove(&permission_key); //TODO: this should be done via opportunity verifier and only when the opportunity is not valid anymore
                                     }
                                     None => {
                                         tracing::error!("Failed to receive transaction receipt");

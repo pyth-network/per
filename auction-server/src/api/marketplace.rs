@@ -7,8 +7,13 @@ use {
         liquidation_adapter::{
             make_liquidator_calldata,
             parse_revert_error,
+            verify_opportunity,
         },
-        state::Store,
+        state::{
+            Store,
+            UnixTimestamp,
+            VerifiedLiquidationOpportunity,
+        },
     },
     axum::{
         extract::State,
@@ -17,6 +22,7 @@ use {
     ethers::{
         abi::Address,
         core::types::Signature,
+        signers::Signer,
         types::{
             Bytes,
             U256,
@@ -29,6 +35,10 @@ use {
     std::{
         str::FromStr,
         sync::Arc,
+        time::{
+            SystemTime,
+            UNIX_EPOCH,
+        },
     },
     utoipa::ToSchema,
     uuid::Uuid,
@@ -113,7 +123,7 @@ pub async fn submit_opportunity(
     State(store): State<Arc<Store>>,
     Json(opportunity): Json<LiquidationOpportunity>,
 ) -> Result<String, RestError> {
-    store
+    let chain_store = store
         .chains
         .get(&opportunity.chain_id)
         .ok_or(RestError::InvalidChainId)?;
@@ -121,23 +131,37 @@ pub async fn submit_opportunity(
     let repay_tokens = parse_tokens(opportunity.repay_tokens)?;
     let receipt_tokens = parse_tokens(opportunity.receipt_tokens)?;
 
-    //TODO: Verify if the call actually works
-
     let id = Uuid::new_v4();
-    store.liquidation_store.opportunities.write().await.insert(
-        opportunity.permission_key.clone(),
-        crate::state::VerifiedLiquidationOpportunity {
-            id,
-            chain_id: opportunity.chain_id.clone(),
-            permission_key: opportunity.permission_key,
-            contract: opportunity.contract,
-            calldata: opportunity.calldata,
-            value: U256::from_dec_str(opportunity.value.as_str())
-                .map_err(|_| RestError::BadParameters("Invalid value".to_string()))?,
-            repay_tokens,
-            receipt_tokens,
-        },
-    );
+    let verified_opportunity = VerifiedLiquidationOpportunity {
+        id,
+        creation_time: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| RestError::BadParameters("Invalid system time".to_string()))?
+            .as_secs() as UnixTimestamp,
+        chain_id: opportunity.chain_id.clone(),
+        permission_key: opportunity.permission_key.clone(),
+        contract: opportunity.contract,
+        calldata: opportunity.calldata,
+        value: U256::from_dec_str(opportunity.value.as_str())
+            .map_err(|_| RestError::BadParameters("Invalid value".to_string()))?,
+        repay_tokens,
+        receipt_tokens,
+    };
+
+    verify_opportunity(
+        verified_opportunity.clone(),
+        chain_store,
+        store.per_operator.address(),
+    )
+    .await
+    .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
+
+    store
+        .liquidation_store
+        .opportunities
+        .write()
+        .await
+        .insert(opportunity.permission_key.clone(), verified_opportunity);
 
     Ok(id.to_string())
 }
