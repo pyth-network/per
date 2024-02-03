@@ -32,6 +32,10 @@ use {
     utoipa::ToSchema,
 };
 
+#[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
+#[schema(value_type=String)]
+pub struct BidAmount(#[serde(with = "crate::serde::u256")] U256);
+
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct Bid {
     /// The permission key to bid on.
@@ -47,8 +51,7 @@ pub struct Bid {
     #[schema(example = "0xdeadbeef", value_type=String)]
     calldata:       Bytes,
     /// Amount of bid in wei.
-    #[schema(example = "1000000000000000000")]
-    bid:            String,
+    bid:            BidAmount,
 }
 
 pub struct ParsedBid {
@@ -117,21 +120,23 @@ pub async fn bid(
     State(store): State<Arc<Store>>,
     Json(bid): Json<Bid>,
 ) -> Result<String, RestError> {
+    let bid = bid.clone();
+    tracing::info!("Received bid: {:?}", bid.bid);
     store
         .chains
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let bid_amount = U256::from_dec_str(bid.bid.as_str())
-        .map_err(|_| RestError::BadParameters("Invalid bid amount".to_string()))?;
+    // let bid_amount = U256::from_dec_str(bid.bid.as_str())
+    //     .map_err(|_| RestError::BadParameters("Invalid bid amount".to_string()))?;
     handle_bid(
         store,
         ParsedBid {
             permission_key: bid.permission_key,
-            chain_id: bid.chain_id,
-            contract: bid.contract,
-            calldata: bid.calldata,
-            bid_amount,
+            chain_id:       bid.chain_id,
+            contract:       bid.contract,
+            calldata:       bid.calldata,
+            bid_amount:     bid.bid.0,
         },
     )
     .await

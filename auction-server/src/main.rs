@@ -10,6 +10,7 @@ mod api;
 mod auction;
 mod config;
 mod liquidation_adapter;
+mod serde;
 mod state;
 
 #[tokio::main]
