@@ -79,14 +79,18 @@ pub fn verify_signature(params: liquidation_adapter::LiquidationCallParams) -> R
     })
 }
 
-pub fn parse_revert_error(revert: Bytes) -> Option<String> {
-    let apdapter_decoded =
-        liquidation_adapter::LiquidationAdapterErrors::decode_with_selector(&revert)
-            .map(|err| format!("Liquidation Adapter Contract Revert Error: {:#?}", err));
-    let erc20_decoded = erc20::ERC20Errors::decode_with_selector(&revert).map(|err| {
-        tracing::info!("ERC20 Contract Revert Error: {:#?}", err);
-        format!("ERC20 Contract Revert Error: {:#?}", err)
+pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
+    let apdapter_decoded = liquidation_adapter::LiquidationAdapterErrors::decode_with_selector(
+        revert,
+    )
+    .map(|decoded_error| {
+        format!(
+            "Liquidation Adapter Contract Revert Error: {:#?}",
+            decoded_error
+        )
     });
+    let erc20_decoded = erc20::ERC20Errors::decode_with_selector(revert)
+        .map(|decoded_error| format!("ERC20 Contract Revert Error: {:#?}", decoded_error));
     apdapter_decoded.or(erc20_decoded)
 }
 

@@ -1,10 +1,7 @@
 use {
     crate::{
         api::RestError,
-        auction::{
-            per::MulticallStatus,
-            simulate_bids,
-        },
+        auction::simulate_bids,
         state::{
             SimulatedBid,
             Store,
@@ -75,20 +72,16 @@ pub async fn handle_bid(store: Arc<Store>, bid: ParsedBid) -> Result<String, Res
     );
 
     match call.await {
-        Ok(result) => {
-            let multicall_results: Vec<MulticallStatus> = result;
-            if !multicall_results.iter().all(|x| x.external_success) {
-                let first_reason = multicall_results
-                    .first()
-                    .cloned()
-                    .unwrap()
-                    .multicall_revert_reason;
-                let first_result = multicall_results.first().cloned().unwrap().external_result;
-                return Err(RestError::SimulationError {
-                    result: first_result,
-                    reason: first_reason,
+        Ok(results) => {
+            results
+                .iter()
+                .find(|x| !x.external_success)
+                .map(|call_status| {
+                    return Err(RestError::SimulationError {
+                        result: call_status.external_result,
+                        reason: call_status.multicall_revert_reason.clone(),
+                    });
                 });
-            }
         }
         Err(e) => {
             return match e {

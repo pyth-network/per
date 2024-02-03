@@ -45,7 +45,9 @@ pub struct TokenQty {
 }
 
 /// A liquidation opportunity ready to be executed.
-/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter, by calling this contract with the given calldata and structures, they will receive the tokens specified in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
+/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter,
+/// by calling this contract with the given calldata and structures, they will receive the tokens specified
+/// in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct LiquidationOpportunity {
     /// The permission key required for succesful execution of the liquidation.
@@ -68,8 +70,7 @@ pub struct LiquidationOpportunity {
     receipt_tokens: Vec<TokenQty>,
 }
 
-/// A submitted liquidation opportunity ready to be executed.
-/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter, by calling this contract with the given calldata and structures, they will receive the tokens specified in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
+/// Similar to LiquidationOpportunity, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct LiquidationOpportunityWithId {
     /// The opportunity unique id
@@ -104,7 +105,8 @@ fn parse_tokens(tokens: Vec<TokenQty>) -> Result<Vec<(Address, U256)>, RestError
 
 /// Submit a liquidation opportunity ready to be executed.
 ///
-/// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database and will be available for bidding.
+/// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
+/// and will be available for bidding.
 #[utoipa::path(post, path = "/liquidation/submit_opportunity", request_body = LiquidationOpportunity, responses(
     (status = 200, description = "Opportunity was stored succesfuly with the returned uuid", body = String),
     (status = 400, response=RestError)
@@ -277,7 +279,7 @@ pub async fn bid_opportunity(
         Ok(_) => Ok("OK".to_string()),
         Err(e) => match e {
             RestError::SimulationError { result, reason } => {
-                let parsed = parse_revert_error(result.clone());
+                let parsed = parse_revert_error(&result);
                 match parsed {
                     Some(decoded) => Err(RestError::BadParameters(decoded)),
                     None => {
