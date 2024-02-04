@@ -55,6 +55,7 @@ pub type SignableProvider =
 pub type SignablePERContract = PER<SignableProvider>;
 
 impl TryFrom<EthereumConfig> for Provider<Http> {
+    type Error = anyhow::Error;
     fn try_from(config: EthereumConfig) -> Result<Self, Self::Error> {
         Provider::<Http>::try_from(config.geth_rpc_addr.clone()).map_err(|err| {
             anyhow!(
@@ -64,9 +65,13 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
             )
         })
     }
-    type Error = anyhow::Error;
 }
 
+
+pub enum SimulationError {
+    LogicalError { result: Bytes, reason: String },
+    ContractError(ContractError<Provider<Http>>),
+}
 pub async fn simulate_bids(
     per_operator: Address,
     provider: Provider<Http>,
@@ -75,13 +80,27 @@ pub async fn simulate_bids(
     contracts: Vec<Address>,
     calldata: Vec<Bytes>,
     bids: Vec<U256>,
-) -> Result<Vec<MulticallStatus>, ContractError<Provider<Http>>> {
+) -> Result<(), SimulationError> {
     let client = Arc::new(provider);
     let per_contract = PERContract::new(chain_config.per_contract, client);
     let call = per_contract
         .multicall(permission, contracts, calldata, bids)
         .from(per_operator);
-    call.call().await
+    match call.await {
+        Ok(results) => {
+            let failed_result = results.iter().find(|x| !x.external_success);
+            if let Some(call_status) = failed_result {
+                return Err(SimulationError::LogicalError {
+                    result: call_status.external_result.clone(),
+                    reason: call_status.multicall_revert_reason.clone(),
+                });
+            }
+        }
+        Err(e) => {
+            return Err(SimulationError::ContractError(e));
+        }
+    };
+    Ok(())
 }
 
 #[derive(Debug)]

@@ -1,7 +1,10 @@
 use {
     crate::{
         api::RestError,
-        auction::simulate_bids,
+        auction::{
+            simulate_bids,
+            SimulationError,
+        },
         state::{
             SimulatedBid,
             Store,
@@ -71,20 +74,12 @@ pub async fn handle_bid(store: Arc<Store>, bid: ParsedBid) -> Result<String, Res
         vec![bid.bid_amount],
     );
 
-    match call.await {
-        Ok(results) => {
-            results
-                .iter()
-                .find(|x| !x.external_success)
-                .map(|call_status| {
-                    return Err(RestError::SimulationError {
-                        result: call_status.external_result,
-                        reason: call_status.multicall_revert_reason.clone(),
-                    });
-                });
-        }
-        Err(e) => {
-            return match e {
+    if let Err(e) = call.await {
+        return match e {
+            SimulationError::LogicalError { result, reason } => {
+                Err(RestError::SimulationError { result, reason })
+            }
+            SimulationError::ContractError(e) => match e {
                 ContractError::Revert(reason) => Err(RestError::BadParameters(format!(
                     "Contract Revert Error: {}",
                     String::decode_with_selector(&reason)
@@ -93,8 +88,8 @@ pub async fn handle_bid(store: Arc<Store>, bid: ParsedBid) -> Result<String, Res
                 ContractError::MiddlewareError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 _ => Err(RestError::BadParameters(format!("Error: {}", e))),
-            }
-        }
+            },
+        };
     };
 
     chain_store
