@@ -47,6 +47,7 @@ use {
             LocalWallet,
             Signer,
         },
+        types::Bytes,
     },
     futures::future::join_all,
     std::{
@@ -58,6 +59,7 @@ use {
             },
             Arc,
         },
+        time::Duration,
     },
     tower_http::cors::CorsLayer,
     utoipa::{
@@ -90,6 +92,12 @@ pub enum RestError {
     BadParameters(String),
     /// The chain id is not supported
     InvalidChainId,
+    /// The simulation failed
+    SimulationError {
+        #[schema(value_type=String)]
+        result: Bytes,
+        reason: String,
+    },
     /// The order was not found
     OpportunityNotFound,
     /// The server cannot currently communicate with the blockchain, so is not able to verify
@@ -108,6 +116,11 @@ impl IntoResponse for RestError {
             RestError::InvalidChainId => {
                 (StatusCode::BAD_REQUEST, "The chain id is not supported").into_response()
             }
+            RestError::SimulationError { result, reason } => (
+                StatusCode::BAD_REQUEST,
+                format!("Simulation failed: {} ({})", result, reason),
+            )
+                .into_response(),
             RestError::OpportunityNotFound => (
                 StatusCode::NOT_FOUND,
                 "Order with the specified id was not found",
@@ -141,6 +154,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     paths(
     rest::bid,
     marketplace::submit_opportunity,
+    marketplace::bid_opportunity,
     marketplace::fetch_opportunities,
     ),
     components(
@@ -165,8 +179,8 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     let chain_store: Result<HashMap<ChainId, ChainStore>> = join_all(config.chains.iter().map(
         |(chain_id, chain_config)| async move {
-            let provider =
-                Provider::<Http>::try_from(chain_config.geth_rpc_addr.clone()).map_err(|err| {
+            let mut provider = Provider::<Http>::try_from(chain_config.geth_rpc_addr.clone())
+                .map_err(|err| {
                     anyhow!(
                         "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
                         err,
@@ -174,6 +188,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                         rpc_addr = chain_config.geth_rpc_addr
                     )
                 })?;
+            provider.set_interval(Duration::from_secs(chain_config.poll_interval));
             let id = provider.get_chainid().await?.as_u64();
             Ok((
                 chain_id.clone(),
@@ -211,6 +226,10 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         .route(
             "/liquidation/fetch_opportunities",
             get(marketplace::fetch_opportunities),
+        )
+        .route(
+            "/liquidation/bid_opportunity",
+            post(marketplace::bid_opportunity),
         )
         .layer(CorsLayer::permissive())
         .with_state(server_store);

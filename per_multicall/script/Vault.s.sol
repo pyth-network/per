@@ -27,20 +27,15 @@ import "../src/Errors.sol";
 contract VaultScript is Script {
     string public latestEnvironmentPath = "latestEnvironment.json";
 
-    function getAnvil() public view returns (address, uint256) {
-        // TODO: these are mnemonic wallets. figure out how to transfer ETH from them outside of explicitly hardcoding them here.
-        return (
-            address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266),
-            0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-        );
+    function getDeployer() public view returns (address, uint256) {
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployerAddress = vm.addr(deployerPrivateKey);
+        return (deployerAddress, deployerPrivateKey);
     }
 
     function deployWeth() public returns (address) {
-        (, uint256 skanvil) = getAnvil();
-        vm.startBroadcast(skanvil);
         WETH9 weth = new WETH9();
         console.log("deployed weth contract at", address(weth));
-        vm.stopBroadcast();
         return address(weth);
     }
 
@@ -50,17 +45,13 @@ contract VaultScript is Script {
         );
         console.log("pk per operator", perOperatorAddress);
         console.log("sk per operator", perOperatorSk);
-        (, uint256 skanvil) = getAnvil();
-
-        vm.startBroadcast(skanvil);
-        payable(perOperatorAddress).transfer(10 ether);
+        payable(perOperatorAddress).transfer(0.01 ether);
         PERMulticall multicall = new PERMulticall(perOperatorAddress, 0);
         console.log("deployed PER contract at", address(multicall));
         LiquidationAdapter liquidationAdapter = new LiquidationAdapter(
             address(multicall),
             wethAddress
         );
-        vm.stopBroadcast();
         return (address(multicall), address(liquidationAdapter));
     }
 
@@ -71,19 +62,14 @@ contract VaultScript is Script {
         // make token vault deployer wallet
         (, uint256 tokenVaultDeployerSk) = makeAddrAndKey("tokenVaultDeployer");
         console.log("sk token vault deployer", tokenVaultDeployerSk);
-        vm.startBroadcast(tokenVaultDeployerSk);
         TokenVault vault = new TokenVault(multicall, oracle);
         console.log("deployed vault contract at", address(vault));
-        vm.stopBroadcast();
         return address(vault);
     }
 
     function deployMockPyth() public returns (address) {
-        (, uint256 skanvil) = getAnvil();
-        vm.startBroadcast(skanvil);
         MockPyth mockPyth = new MockPyth(1_000_000, 0);
         console.log("deployed mock pyth contract at", address(mockPyth));
-        vm.stopBroadcast();
         return address(mockPyth);
     }
 
@@ -91,15 +77,77 @@ contract VaultScript is Script {
         public
         returns (address, address, address, address, address)
     {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
         address weth = deployWeth();
         (address per, address liquidationAdapter) = deployPER(weth);
         address mockPyth = deployMockPyth();
         address vault = deployVault(per, mockPyth);
+        vm.stopBroadcast();
         return (per, liquidationAdapter, mockPyth, vault, weth);
     }
 
+    /**
+    @notice Sets up the testnet environment
+    deploys WETH, PER, LiquidationAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
+    The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
+    @param pyth The address of the already deployed pyth contract to use
+    */
+    function setupTestnet(address pyth, address weth) public {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
+        if (pyth == address(0)) pyth = deployMockPyth();
+        if (weth == address(0)) weth = deployWeth();
+        (address per, address liquidationAdapter) = deployPER(weth);
+        address vault = deployVault(per, pyth);
+        address[] memory tokens = new address[](5);
+        uint256 lots_of_money = 10 ** 36;
+        // Vault simulator assumes the token name is pyth pricefeed id in mainnet
+        tokens[0] = address(
+            new MyToken(
+                "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+                "BTC"
+            )
+        );
+        tokens[1] = address(
+            new MyToken(
+                "eaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a",
+                "USDC"
+            )
+        );
+        tokens[2] = address(
+            new MyToken(
+                "dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c",
+                "DOGE"
+            )
+        );
+        tokens[3] = address(
+            new MyToken(
+                "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+                "SOL"
+            )
+        );
+        tokens[4] = address(
+            new MyToken(
+                "0bbf28e9a841a1cc788f6a361b17ca072d0ea3098a1e5df1c3922d06719579ff",
+                "PYTH"
+            )
+        );
+        for (uint i = 0; i < 5; i++) {
+            MyToken(tokens[i]).mint(vault, lots_of_money);
+        }
+        vm.stopBroadcast();
+        string memory obj = "";
+        vm.serializeAddress(obj, "tokens", tokens);
+        vm.serializeAddress(obj, "per", per);
+        vm.serializeAddress(obj, "liquidationAdapter", liquidationAdapter);
+        vm.serializeAddress(obj, "oracle", pyth);
+        vm.serializeAddress(obj, "tokenVault", vault);
+        string memory finalJSON = vm.serializeAddress(obj, "weth", weth);
+        vm.writeJson(finalJSON, latestEnvironmentPath);
+    }
+
     function setUpContracts() public {
-        console.log("balance of this contract", address(this).balance);
         SearcherVault searcherA;
         SearcherVault searcherB;
 
@@ -133,19 +181,19 @@ contract VaultScript is Script {
         );
 
         // TODO: these are mnemonic wallets. figure out how to transfer ETH from them outside of explicitly hardcoding them here.
-        (address pkanvil, uint256 skanvil) = getAnvil();
+        (address pkDeployer, uint256 skDeployer) = getDeployer();
 
         // transfer ETH to relevant wallets
-        vm.startBroadcast(skanvil);
-        console.log("balance of pk anvil", pkanvil.balance);
+        vm.startBroadcast(skDeployer);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[3]).transfer(10 ether);
-        console.log("balance of pk anvil", pkanvil.balance);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[0]).transfer(10 ether);
-        console.log("balance of pk anvil", pkanvil.balance);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[1]).transfer(10 ether);
-        console.log("balance of pk anvil", pkanvil.balance);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[2]).transfer(10 ether);
-        console.log("balance of pk anvil", pkanvil.balance);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(addressesScript[4]).transfer(10 ether);
         vm.stopBroadcast();
 
@@ -178,8 +226,8 @@ contract VaultScript is Script {
         console.log("contract of searcher B is", address(searcherB));
 
         // fund the searcher contracts
-        vm.startBroadcast(skanvil);
-        console.log("balance of pkanvil", pkanvil.balance);
+        vm.startBroadcast(skDeployer);
+        console.log("balance of deployer", pkDeployer.balance);
         payable(address(searcherA)).transfer(1 ether);
         payable(address(searcherB)).transfer(1 ether);
         vm.stopBroadcast();
@@ -285,7 +333,6 @@ contract VaultScript is Script {
         vm.serializeAddress(obj, "tokenVaultDeployer", addressesScript[4]);
         vm.serializeUint(obj, "tokenVaultDeployerSk", sksScript[4]);
         string memory finalJSON = vm.serializeUint(obj, "numVaults", 0);
-
         vm.writeJson(finalJSON, latestEnvironmentPath);
     }
 
@@ -364,7 +411,8 @@ contract VaultScript is Script {
                 110 * (10 ** 16),
                 1 * (10 ** 16),
                 idToken1Latest,
-                idToken2Latest
+                idToken2Latest,
+                new bytes[](0)
             );
             vm.stopBroadcast();
         } else {
@@ -378,7 +426,8 @@ contract VaultScript is Script {
                 110 * (10 ** 16),
                 1 * (10 ** 16),
                 idToken1Latest,
-                idToken2Latest
+                idToken2Latest,
+                new bytes[](0)
             );
             vm.stopBroadcast();
         }

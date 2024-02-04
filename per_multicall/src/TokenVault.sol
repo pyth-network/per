@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./Errors.sol";
+import "./TokenVaultErrors.sol";
 import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
 import "./Structs.sol";
@@ -15,7 +15,7 @@ import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {MyToken} from "./MyToken.sol";
 
 import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
-import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
+import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
 
 contract TokenVault is PERFeeReceiver {
     using SafeERC20 for IERC20;
@@ -39,17 +39,35 @@ contract TokenVault is PERFeeReceiver {
         _oracle = oracleAddress;
     }
 
+    function convertToUint(
+        PythStructs.Price memory price,
+        uint8 targetDecimals
+    ) private pure returns (uint256) {
+        if (price.price < 0 || price.expo > 0 || price.expo < -255) {
+            revert InvalidPriceExponent();
+        }
+
+        uint8 priceDecimals = uint8(uint32(-1 * price.expo));
+
+        if (targetDecimals >= priceDecimals) {
+            return
+                uint(uint64(price.price)) *
+                10 ** uint32(targetDecimals - priceDecimals);
+        } else {
+            return
+                uint(uint64(price.price)) /
+                10 ** uint32(priceDecimals - targetDecimals);
+        }
+    }
+
     /**
      * @notice getPrice function - retrieves price of a given token from the oracle
      *
      * @param id: price feed ID of the token
      */
-    function _getPrice(
-        bytes32 id
-    ) internal view returns (PythStructs.Price memory) {
-        MockPyth oracle = MockPyth(payable(_oracle));
-        PythStructs.PriceFeed memory priceFeed = oracle.queryPriceFeed(id);
-        return priceFeed.price;
+    function _getPrice(bytes32 id) internal view returns (uint256) {
+        IPyth oracle = IPyth(payable(_oracle));
+        return convertToUint(oracle.getPrice(id), 18);
     }
 
     function getOracle() public view returns (address) {
@@ -74,15 +92,14 @@ contract TokenVault is PERFeeReceiver {
     function _getVaultHealth(
         Vault memory vault
     ) internal view returns (uint256) {
-        int64 priceCollateral = _getPrice(vault.tokenIDCollateral).price;
-        int64 priceDebt = _getPrice(vault.tokenIDDebt).price;
+        uint256 priceCollateral = _getPrice(vault.tokenIDCollateral);
+        uint256 priceDebt = _getPrice(vault.tokenIDDebt);
 
         require(priceCollateral >= 0, "collateral price is negative");
         require(priceDebt >= 0, "debt price is negative");
 
-        uint256 valueCollateral = uint256(uint64(priceCollateral)) *
-            vault.amountCollateral;
-        uint256 valueDebt = uint256(uint64(priceDebt)) * vault.amountDebt;
+        uint256 valueCollateral = priceCollateral * vault.amountCollateral;
+        uint256 valueDebt = priceDebt * vault.amountDebt;
 
         return (valueCollateral * 1_000_000_000_000_000_000) / valueDebt;
     }
@@ -98,6 +115,7 @@ contract TokenVault is PERFeeReceiver {
      * @param minPermissionLessHealthRatio: minimum health ratio of the vault before permissionless liquidations are allowed. This should be less than minHealthRatio
      * @param tokenIDCollateral: price feed ID of the collateral token
      * @param tokenIDDebt: price feed ID of the debt token
+     * @param updateData: data to update price feeds with
      */
     function createVault(
         address tokenCollateral,
@@ -107,8 +125,10 @@ contract TokenVault is PERFeeReceiver {
         uint256 minHealthRatio,
         uint256 minPermissionLessHealthRatio,
         bytes32 tokenIDCollateral,
-        bytes32 tokenIDDebt
-    ) public returns (uint256) {
+        bytes32 tokenIDDebt,
+        bytes[] calldata updateData
+    ) public payable returns (uint256) {
+        _updatePriceFeeds(updateData);
         Vault memory vault = Vault(
             tokenCollateral,
             tokenDebt,
@@ -224,7 +244,10 @@ contract TokenVault is PERFeeReceiver {
      * @param updateData: data to update price feeds with
      */
     function _updatePriceFeeds(bytes[] calldata updateData) internal {
-        MockPyth oracle = MockPyth(payable(_oracle));
+        if (updateData.length == 0) {
+            return;
+        }
+        IPyth oracle = IPyth(payable(_oracle));
         oracle.updatePriceFeeds{value: msg.value}(updateData);
     }
 

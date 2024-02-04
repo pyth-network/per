@@ -25,7 +25,7 @@ mod server;
 #[command(version = crate_version!())]
 #[allow(clippy::large_enum_variant)]
 pub enum Options {
-    /// Run the benchmarks streaming service.
+    /// Run the auction server service.
     Run(RunOptions),
 }
 
@@ -77,8 +77,14 @@ pub struct EthereumConfig {
     /// URL of a Geth RPC endpoint to use for interacting with the blockchain.
     pub geth_rpc_addr: String,
 
+    /// Polling interval for event filters and pending transactions in seconds.
+    pub poll_interval: u64,
+
     /// Address of the PER contract to interact with.
-    pub contract_addr: Address,
+    pub per_contract: Address,
+
+    /// Address of the adapter contract to interact with.
+    pub adapter_contract: Address,
 
     /// Use the legacy transaction format (for networks without EIP 1559)
     #[serde(default)]

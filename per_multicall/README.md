@@ -26,7 +26,7 @@ $ forge test -vvv --via-ir
 
 You can also run a local validator via `anvil --gas-limit 500000000000000000 --block-time 2`, changing the values for the gas limit and block time as desired. Note that if you omit the `--block-time` flag, the local network will create a new block for each transaction (similar to how Optimism created L2 blocks pre-Bedrock). Running `auction_offchain.py` will spit out the final call to `forge script` you should run to send the transaction to the localnet.
 
-To run the script runs in `Vault.s.sol`, you should startup the local validator. Then, run the necessary setup commands:
+To run the script runs in `Vault.s.sol`, you should startup the local validator and create a `.env` file with the `PRIVATE_KEY` env variable which is used for submitting the transactions. Then, run the necessary setup commands:
 
 1. Set up contracts and save to an environment JSON.
 
@@ -37,7 +37,7 @@ $ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --se
 2. Set oracle prices to allow for vault creation.
 
 ```shell
-$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 110 190 --broadcast
+$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 110 190 --broadcast
 ```
 
 3. Vault creation.

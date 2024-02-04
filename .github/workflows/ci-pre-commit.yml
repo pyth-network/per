@@ -13,7 +13,7 @@ jobs:
         with:
           # Need to grab the history of the PR
           fetch-depth: 0
-      - uses: actions/setup-python@v2
+      - uses: ./.github/actions/python-poetry
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal

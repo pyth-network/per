@@ -35,6 +35,7 @@ struct LiquidationCallParams {
     address liquidator;
     address contractAddress;
     bytes data;
+    uint256 value;
     uint256 validUntil;
     uint256 bid;
     bytes signatureLiquidator;

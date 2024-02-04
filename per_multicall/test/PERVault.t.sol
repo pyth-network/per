@@ -222,7 +222,8 @@ contract PERVaultTest is Test, Signatures {
             110 * healthPrecision,
             100 * healthPrecision,
             _idToken1,
-            _idToken2
+            _idToken2,
+            new bytes[](0)
         );
         _q1Depositor -= _q1Vault0;
         _q2Depositor += _q2Vault0;
@@ -241,7 +242,8 @@ contract PERVaultTest is Test, Signatures {
             110 * healthPrecision,
             100 * healthPrecision,
             _idToken1,
-            _idToken2
+            _idToken2,
+            new bytes[](0)
         );
         _q1Depositor -= _q1Vault0;
         _q2Depositor += _q2Vault0;

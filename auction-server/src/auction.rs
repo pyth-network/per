@@ -55,6 +55,7 @@ pub type SignableProvider =
 pub type SignablePERContract = PER<SignableProvider>;
 
 impl TryFrom<EthereumConfig> for Provider<Http> {
+    type Error = anyhow::Error;
     fn try_from(config: EthereumConfig) -> Result<Self, Self::Error> {
         Provider::<Http>::try_from(config.geth_rpc_addr.clone()).map_err(|err| {
             anyhow!(
@@ -64,9 +65,13 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
             )
         })
     }
-    type Error = anyhow::Error;
 }
 
+
+pub enum SimulationError {
+    LogicalError { result: Bytes, reason: String },
+    ContractError(ContractError<Provider<Http>>),
+}
 pub async fn simulate_bids(
     per_operator: Address,
     provider: Provider<Http>,
@@ -75,13 +80,27 @@ pub async fn simulate_bids(
     contracts: Vec<Address>,
     calldata: Vec<Bytes>,
     bids: Vec<U256>,
-) -> Result<Vec<MulticallStatus>, ContractError<Provider<Http>>> {
+) -> Result<(), SimulationError> {
     let client = Arc::new(provider);
-    let per_contract = PERContract::new(chain_config.contract_addr, client);
+    let per_contract = PERContract::new(chain_config.per_contract, client);
     let call = per_contract
         .multicall(permission, contracts, calldata, bids)
         .from(per_operator);
-    call.call().await
+    match call.await {
+        Ok(results) => {
+            let failed_result = results.iter().find(|x| !x.external_success);
+            if let Some(call_status) = failed_result {
+                return Err(SimulationError::LogicalError {
+                    result: call_status.external_result.clone(),
+                    reason: call_status.multicall_revert_reason.clone(),
+                });
+            }
+        }
+        Err(e) => {
+            return Err(SimulationError::ContractError(e));
+        }
+    };
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -126,17 +145,28 @@ pub async fn submit_bids(
         transformer,
     ));
 
-    let per_contract = SignablePERContract::new(chain_config.contract_addr, client);
+    let per_contract = SignablePERContract::new(chain_config.per_contract, client);
     let call = per_contract.multicall(permission, contracts, calldata, bids);
-    let send_call = call.send().await.map_err(SubmissionError::ContractError)?;
-    send_call.await.map_err(SubmissionError::ProviderError)
+    let mut gas_estimate = call
+        .estimate_gas()
+        .await
+        .map_err(SubmissionError::ContractError)?;
+    let gas_multiplier = U256::from(2); //TODO: smarter gas estimation
+    gas_estimate = gas_estimate * gas_multiplier;
+    let call_with_gas = call.gas(gas_estimate);
+    let send_call = call_with_gas
+        .send()
+        .await
+        .map_err(SubmissionError::ContractError)?;
+    let res = send_call.await.map_err(SubmissionError::ProviderError);
+    res
 }
 
 pub async fn run_submission_loop(store: Arc<Store>) {
     tracing::info!("Starting transaction submitter...");
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         for (chain_id, chain_store) in &store.chains {
-            let permission_bids = chain_store.bids.read().await;
+            let permission_bids = chain_store.bids.read().await.clone(); // release lock asap
             tracing::info!(
                 "Chain: {chain_id} Auctions to process {auction_len}",
                 chain_id = chain_id,
@@ -147,7 +177,7 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                 let thread_store = store.clone();
                 let chain_id = chain_id.clone();
                 let permission_key = permission_key.clone();
-                tokio::spawn(async move {
+                {
                     cloned_bids.sort_by(|a, b| b.bid.cmp(&a.bid));
 
                     // TODO: simulate all bids together and keep the successful ones
@@ -180,8 +210,14 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                             match submission {
                                 Ok(receipt) => match receipt {
                                     Some(receipt) => {
-                                        tracing::info!("Submitted transaction: {:?}", receipt);
+                                        tracing::debug!("Submitted transaction: {:?}", receipt);
                                         chain_store.bids.write().await.remove(&permission_key);
+                                        store
+                                            .liquidation_store
+                                            .opportunities
+                                            .write()
+                                            .await
+                                            .remove(&permission_key); //TODO: this should be done via opportunity verifier and only when the opportunity is not valid anymore
                                     }
                                     None => {
                                         tracing::error!("Failed to receive transaction receipt");
@@ -196,10 +232,10 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                             tracing::error!("Chain not found: {}", chain_id);
                         }
                     }
-                });
+                }
             }
         }
-        tokio::time::sleep(Duration::from_secs(10)).await; // this should be replaced by a subscription to the chain and trigger on new blocks
+        tokio::time::sleep(Duration::from_secs(5)).await; // this should be replaced by a subscription to the chain and trigger on new blocks
     }
     tracing::info!("Shutting down transaction submitter...");
 }

@@ -1,17 +1,15 @@
 use {
-    crate::api::start_server,
     anyhow::Result,
     clap::Parser,
-    std::io::IsTerminal,
+    std::{
+        io::IsTerminal,
+        time::Duration,
+    },
     tracing_subscriber::filter::LevelFilter,
 };
 
-mod api;
-mod auction;
 mod config;
-mod liquidation_adapter;
-mod serde;
-mod state;
+mod simulator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -37,6 +35,19 @@ async fn main() -> Result<()> {
     // Parse the command line arguments with StructOpt, will exit automatically on `--help` or
     // with invalid arguments.
     match config::Options::parse() {
-        config::Options::Run(opts) => start_server(opts).await,
-    }
+        config::Options::Run(opts) => loop {
+            let single_run = simulator::run_simulator(opts.clone()).await;
+            if let Err(err) = single_run {
+                tracing::error!("Error running simulator: {:?}", err);
+            }
+            tokio::time::sleep(Duration::from_secs(opts.interval)).await;
+        },
+        config::Options::CreateSearcher(opts) => {
+            simulator::create_searcher(opts).await?;
+        }
+        config::Options::Deploy(opts) => {
+            simulator::deploy_contract(opts).await?;
+        }
+    };
+    Ok(())
 }

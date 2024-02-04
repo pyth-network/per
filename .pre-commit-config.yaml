@@ -24,9 +24,31 @@ repos:
         entry: cargo +nightly-2023-07-23 fmt --manifest-path ./auction-server/Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
         files: auction-server
+  - repo: local
+    hooks:
+      # Hooks for vault-simulator
+      - id: cargo-fmt-vault-simulator
+        name: Cargo format for vault simulator
+        language: "rust"
+        entry: cargo +nightly-2023-07-23 fmt --manifest-path ./vault-simulator/Cargo.toml --all -- --config-path rustfmt.toml
+        pass_filenames: false
+        files: vault-simulator
 
   # for python files
-  - repo: https://github.com/hhatto/autopep8
-    rev: "v2.0.4"
+  - repo: local
     hooks:
-      - id: autopep8
+      - id: isort
+        name: isort
+        entry: poetry -C per_sdk run isort --profile=black per_sdk
+        pass_filenames: false
+        language: system
+      - id: black
+        name: black
+        entry: poetry -C per_sdk run black per_sdk
+        pass_filenames: false
+        language: system
+      - id: pyflakes
+        name: pyflakes
+        entry: poetry -C per_sdk run pyflakes per_sdk
+        pass_filenames: false
+        language: system
