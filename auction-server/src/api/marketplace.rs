@@ -4,6 +4,7 @@ use {
             rest::handle_bid,
             RestError,
         },
+        config::ChainId,
         liquidation_adapter::{
             make_liquidator_calldata,
             parse_revert_error,
@@ -33,7 +34,6 @@ use {
         Serialize,
     },
     std::{
-        str::FromStr,
         sync::Arc,
         time::{
             SystemTime,
@@ -50,12 +50,15 @@ pub struct TokenQty {
     #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",value_type=String)]
     contract: Address,
     /// Token amount
-    #[schema(example = "1000")]
-    amount:   String,
+    #[schema(example = "1000", value_type=String)]
+    #[serde(with = "crate::serde::u256")]
+    amount:   U256,
 }
 
 /// A liquidation opportunity ready to be executed.
-/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter, by calling this contract with the given calldata and structures, they will receive the tokens specified in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
+/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter,
+/// by calling this contract with the given calldata and structures, they will receive the tokens specified
+/// in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct LiquidationOpportunity {
     /// The permission key required for succesful execution of the liquidation.
@@ -63,7 +66,7 @@ pub struct LiquidationOpportunity {
     permission_key: Bytes,
     /// The chain id where the liquidation will be executed.
     #[schema(example = "sepolia")]
-    chain_id:       String,
+    chain_id:       ChainId,
     /// The contract address to call for execution of the liquidation.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type=String)]
     contract:       Address,
@@ -71,15 +74,15 @@ pub struct LiquidationOpportunity {
     #[schema(example = "0xdeadbeef", value_type=String)]
     calldata:       Bytes,
     /// The value to send with the contract call.
-    #[schema(example = "1")]
-    value:          String,
+    #[schema(example = "1", value_type=String)]
+    #[serde(with = "crate::serde::u256")]
+    value:          U256,
 
     repay_tokens:   Vec<TokenQty>,
     receipt_tokens: Vec<TokenQty>,
 }
 
-/// A submitted liquidation opportunity ready to be executed.
-/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter, by calling this contract with the given calldata and structures, they will receive the tokens specified in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
+/// Similar to LiquidationOpportunity, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct LiquidationOpportunityWithId {
     /// The opportunity unique id
@@ -93,28 +96,25 @@ impl From<(Address, U256)> for TokenQty {
     fn from(token: (Address, U256)) -> Self {
         TokenQty {
             contract: token.0,
-            amount:   token.1.to_string(),
+            amount:   token.1,
         }
     }
 }
 
-impl TryFrom<TokenQty> for (Address, U256) {
-    type Error = RestError;
-
-    fn try_from(token: TokenQty) -> Result<Self, Self::Error> {
-        let amount = U256::from_dec_str(token.amount.as_str())
-            .map_err(|_| RestError::BadParameters("Invalid token amount".to_string()))?;
-        Ok((token.contract, amount))
+impl From<TokenQty> for (Address, U256) {
+    fn from(token: TokenQty) -> Self {
+        (token.contract, token.amount)
     }
 }
 
-fn parse_tokens(tokens: Vec<TokenQty>) -> Result<Vec<(Address, U256)>, RestError> {
-    tokens.into_iter().map(|token| token.try_into()).collect()
+fn parse_tokens(tokens: Vec<TokenQty>) -> Vec<(Address, U256)> {
+    tokens.into_iter().map(|token| token.into()).collect()
 }
 
 /// Submit a liquidation opportunity ready to be executed.
 ///
-/// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database and will be available for bidding.
+/// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
+/// and will be available for bidding.
 #[utoipa::path(post, path = "/liquidation/submit_opportunity", request_body = LiquidationOpportunity, responses(
     (status = 200, description = "Opportunity was stored succesfuly with the returned uuid", body = String),
     (status = 400, response=RestError)
@@ -128,8 +128,8 @@ pub async fn submit_opportunity(
         .get(&opportunity.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let repay_tokens = parse_tokens(opportunity.repay_tokens)?;
-    let receipt_tokens = parse_tokens(opportunity.receipt_tokens)?;
+    let repay_tokens = parse_tokens(opportunity.repay_tokens);
+    let receipt_tokens = parse_tokens(opportunity.receipt_tokens);
 
     let id = Uuid::new_v4();
     let verified_opportunity = VerifiedLiquidationOpportunity {
@@ -142,8 +142,7 @@ pub async fn submit_opportunity(
         permission_key: opportunity.permission_key.clone(),
         contract: opportunity.contract,
         calldata: opportunity.calldata,
-        value: U256::from_dec_str(opportunity.value.as_str())
-            .map_err(|_| RestError::BadParameters("Invalid value".to_string()))?,
+        value: opportunity.value,
         repay_tokens,
         receipt_tokens,
         bidders: Default::default(),
@@ -189,7 +188,7 @@ pub async fn fetch_opportunities(
                 chain_id:       opportunity.chain_id,
                 contract:       opportunity.contract,
                 calldata:       opportunity.calldata,
-                value:          opportunity.value.to_string(),
+                value:          opportunity.value,
                 repay_tokens:   opportunity
                     .repay_tokens
                     .into_iter()
@@ -211,31 +210,26 @@ pub async fn fetch_opportunities(
 pub struct OpportunityBid {
     /// The opportunity id to bid on.
     #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479",value_type=String)]
-    opportunity_id: Uuid,
+    pub opportunity_id: Uuid,
     /// The opportunity permission key
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
-    permission_key: Bytes,
+    pub permission_key: Bytes,
     /// The bid amount in wei.
-    #[schema(example = "1000000000000000000")]
-    bid_amount:     String,
+    #[schema(example = "1000000000000000000", value_type=String)]
+    #[serde(with = "crate::serde::u256")]
+    pub amount:         U256,
     /// How long the bid will be valid for.
-    #[schema(example = "1000000000000000000")]
-    valid_until:    String,
+    #[schema(example = "1000000000000000000", value_type=String)]
+    #[serde(with = "crate::serde::u256")]
+    pub valid_until:    U256,
     /// Liquidator address
     #[schema(example = "0x5FbDB2315678afecb367f032d93F642f64180aa2", value_type=String)]
-    liquidator:     Address,
-    #[schema(
-        example = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12"
-    )]
-    signature:      String,
-}
-
-#[derive(Clone, Copy)]
-pub struct VerifiedOpportunityBid {
-    pub opportunity_id: Uuid,
-    pub bid_amount:     U256,
-    pub valid_until:    U256,
     pub liquidator:     Address,
+    #[schema(
+        example = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+        value_type=String
+    )]
+    #[serde(with = "crate::serde::signature")]
     pub signature:      Signature,
 }
 
@@ -275,23 +269,9 @@ pub async fn bid_opportunity(
         .get(&liquidation.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let bid_amount = U256::from_dec_str(opportunity_bid.bid_amount.as_str())
-        .map_err(|_| RestError::BadParameters("Invalid bid_amount".to_string()))?;
-    let valid_until = U256::from_dec_str(opportunity_bid.valid_until.as_str())
-        .map_err(|_| RestError::BadParameters("Invalid valid_until".to_string()))?;
-    let signature = Signature::from_str(opportunity_bid.signature.as_str())
-        .map_err(|_| RestError::BadParameters("Invalid signature".to_string()))?;
-    let verified_liquidation_bid = VerifiedOpportunityBid {
-        opportunity_id: opportunity_bid.opportunity_id,
-        bid_amount,
-        valid_until,
-        liquidator: opportunity_bid.liquidator,
-        signature,
-    };
-
     let per_calldata = make_liquidator_calldata(
         liquidation.clone(),
-        verified_liquidation_bid,
+        opportunity_bid.clone(),
         chain_store.provider.clone(),
         chain_store.config.adapter_contract,
     )
@@ -299,12 +279,12 @@ pub async fn bid_opportunity(
     .map_err(|e| RestError::BadParameters(e.to_string()))?;
     match handle_bid(
         store.clone(),
-        crate::api::rest::ParsedBid {
+        crate::api::rest::Bid {
             permission_key: liquidation.permission_key.clone(),
             chain_id:       liquidation.chain_id.clone(),
             contract:       chain_store.config.adapter_contract,
             calldata:       per_calldata,
-            bid_amount:     verified_liquidation_bid.bid_amount,
+            amount:         opportunity_bid.amount,
         },
     )
     .await
@@ -319,7 +299,7 @@ pub async fn bid_opportunity(
         }
         Err(e) => match e {
             RestError::SimulationError { result, reason } => {
-                let parsed = parse_revert_error(result.clone());
+                let parsed = parse_revert_error(&result);
                 match parsed {
                     Some(decoded) => Err(RestError::BadParameters(decoded)),
                     None => {

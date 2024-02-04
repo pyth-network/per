@@ -2,8 +2,8 @@ use {
     crate::{
         api::RestError,
         auction::{
-            per::MulticallStatus,
             simulate_bids,
+            SimulationError,
         },
         state::{
             SimulatedBid,
@@ -36,30 +36,23 @@ use {
 pub struct Bid {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type=String)]
-    permission_key: Bytes,
+    pub permission_key: Bytes,
     /// The chain id to bid on.
     #[schema(example = "sepolia")]
-    chain_id:       String,
+    pub chain_id:       String,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11",value_type = String)]
-    contract:       Address,
+    pub contract:       Address,
     /// Calldata for the contract call.
     #[schema(example = "0xdeadbeef", value_type=String)]
-    calldata:       Bytes,
-    /// Amount of bid in wei.
-    #[schema(example = "1000000000000000000")]
-    bid:            String,
-}
-
-pub struct ParsedBid {
-    pub permission_key: Bytes,
-    pub chain_id:       String,
-    pub contract:       Address,
     pub calldata:       Bytes,
-    pub bid_amount:     U256,
+    /// Amount of bid in wei.
+    #[schema(example = "10", value_type=String)]
+    #[serde(with = "crate::serde::u256")]
+    pub amount:         U256,
 }
 
-pub async fn handle_bid(store: Arc<Store>, bid: ParsedBid) -> Result<String, RestError> {
+pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> Result<String, RestError> {
     let chain_store = store
         .chains
         .get(&bid.chain_id)
@@ -71,27 +64,15 @@ pub async fn handle_bid(store: Arc<Store>, bid: ParsedBid) -> Result<String, Res
         bid.permission_key.clone(),
         vec![bid.contract],
         vec![bid.calldata.clone()],
-        vec![bid.bid_amount],
+        vec![bid.amount],
     );
 
-    match call.await {
-        Ok(result) => {
-            let multicall_results: Vec<MulticallStatus> = result;
-            if !multicall_results.iter().all(|x| x.external_success) {
-                let first_reason = multicall_results
-                    .first()
-                    .cloned()
-                    .unwrap()
-                    .multicall_revert_reason;
-                let first_result = multicall_results.first().cloned().unwrap().external_result;
-                return Err(RestError::SimulationError {
-                    result: first_result,
-                    reason: first_reason,
-                });
+    if let Err(e) = call.await {
+        return match e {
+            SimulationError::LogicalError { result, reason } => {
+                Err(RestError::SimulationError { result, reason })
             }
-        }
-        Err(e) => {
-            return match e {
+            SimulationError::ContractError(e) => match e {
                 ContractError::Revert(reason) => Err(RestError::BadParameters(format!(
                     "Contract Revert Error: {}",
                     String::decode_with_selector(&reason)
@@ -100,8 +81,8 @@ pub async fn handle_bid(store: Arc<Store>, bid: ParsedBid) -> Result<String, Res
                 ContractError::MiddlewareError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 _ => Err(RestError::BadParameters(format!("Error: {}", e))),
-            }
-        }
+            },
+        };
     };
 
     chain_store
@@ -113,7 +94,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: ParsedBid) -> Result<String, Res
         .push(SimulatedBid {
             contract: bid.contract,
             calldata: bid.calldata.clone(),
-            bid:      bid.bid_amount,
+            bid:      bid.amount,
         });
     Ok("OK".to_string())
 }
@@ -129,22 +110,11 @@ pub async fn bid(
     State(store): State<Arc<Store>>,
     Json(bid): Json<Bid>,
 ) -> Result<String, RestError> {
+    let bid = bid.clone();
     store
         .chains
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let bid_amount = U256::from_dec_str(bid.bid.as_str())
-        .map_err(|_| RestError::BadParameters("Invalid bid amount".to_string()))?;
-    handle_bid(
-        store,
-        ParsedBid {
-            permission_key: bid.permission_key,
-            chain_id: bid.chain_id,
-            contract: bid.contract,
-            calldata: bid.calldata,
-            bid_amount,
-        },
-    )
-    .await
+    handle_bid(store, bid).await
 }

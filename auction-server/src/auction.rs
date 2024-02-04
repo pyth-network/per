@@ -85,6 +85,11 @@ pub fn get_simulation_call(
     call
 }
 
+
+pub enum SimulationError {
+    LogicalError { result: Bytes, reason: String },
+    ContractError(ContractError<Provider<Http>>),
+}
 pub async fn simulate_bids(
     per_operator: Address,
     provider: Provider<Http>,
@@ -93,17 +98,27 @@ pub async fn simulate_bids(
     contracts: Vec<Address>,
     calldata: Vec<Bytes>,
     bids: Vec<U256>,
-) -> Result<Vec<MulticallStatus>, ContractError<Provider<Http>>> {
-    let call = get_simulation_call(
-        per_operator,
-        provider,
-        chain_config,
-        permission,
-        contracts,
-        calldata,
-        bids,
-    );
-    call.call().await
+) -> Result<(), SimulationError> {
+    let client = Arc::new(provider);
+    let per_contract = PERContract::new(chain_config.per_contract, client);
+    let call = per_contract
+        .multicall(permission, contracts, calldata, bids)
+        .from(per_operator);
+    match call.await {
+        Ok(results) => {
+            let failed_result = results.iter().find(|x| !x.external_success);
+            if let Some(call_status) = failed_result {
+                return Err(SimulationError::LogicalError {
+                    result: call_status.external_result.clone(),
+                    reason: call_status.multicall_revert_reason.clone(),
+                });
+            }
+        }
+        Err(e) => {
+            return Err(SimulationError::ContractError(e));
+        }
+    };
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -216,6 +231,12 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                                     Some(receipt) => {
                                         tracing::debug!("Submitted transaction: {:?}", receipt);
                                         chain_store.bids.write().await.remove(&permission_key);
+                                        store
+                                            .liquidation_store
+                                            .opportunities
+                                            .write()
+                                            .await
+                                            .remove(&permission_key); //TODO: this should be done via opportunity verifier and only when the opportunity is not valid anymore
                                     }
                                     None => {
                                         tracing::error!("Failed to receive transaction receipt");

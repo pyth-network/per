@@ -102,6 +102,7 @@ contract VaultScript is Script {
         address vault = deployVault(per, pyth);
         address[] memory tokens = new address[](5);
         uint256 lots_of_money = 10 ** 36;
+        // Vault simulator assumes the token name is pyth pricefeed id in mainnet
         tokens[0] = address(
             new MyToken(
                 "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",

@@ -1,7 +1,7 @@
 use {
     crate::{
         api::{
-            marketplace::VerifiedOpportunityBid,
+            marketplace::OpportunityBid,
             SHOULD_EXIT,
         },
         auction::{
@@ -223,11 +223,12 @@ pub async fn verify_opportunity(
 ) -> Result<()> {
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
-    let mut fake_bid = VerifiedOpportunityBid {
+    let mut fake_bid = OpportunityBid {
         opportunity_id: opportunity.id,
         liquidator:     fake_wallet.address(),
         valid_until:    U256::max_value(),
-        bid_amount:     U256::zero(),
+        permission_key: opportunity.permission_key.clone(),
+        amount:         U256::zero(),
         signature:      Signature {
             v: 0,
             r: U256::zero(),
@@ -256,7 +257,7 @@ pub async fn verify_opportunity(
         opportunity.permission_key,
         vec![chain_store.config.adapter_contract],
         vec![per_calldata],
-        vec![fake_bid.bid_amount],
+        vec![fake_bid.amount],
     )
     .tx;
     let mut state = spoof::State::default();
@@ -354,20 +355,24 @@ pub fn verify_signature(params: liquidation_adapter::LiquidationCallParams) -> R
     })
 }
 
-pub fn parse_revert_error(revert: Bytes) -> Option<String> {
-    let apdapter_decoded =
-        liquidation_adapter::LiquidationAdapterErrors::decode_with_selector(&revert)
-            .map(|err| format!("Liquidation Adapter Contract Revert Error: {:#?}", err));
-    let erc20_decoded = erc20::ERC20Errors::decode_with_selector(&revert).map(|err| {
-        tracing::info!("ERC20 Contract Revert Error: {:#?}", err);
-        format!("ERC20 Contract Revert Error: {:#?}", err)
+pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
+    let apdapter_decoded = liquidation_adapter::LiquidationAdapterErrors::decode_with_selector(
+        revert,
+    )
+    .map(|decoded_error| {
+        format!(
+            "Liquidation Adapter Contract Revert Error: {:#?}",
+            decoded_error
+        )
     });
+    let erc20_decoded = erc20::ERC20Errors::decode_with_selector(revert)
+        .map(|decoded_error| format!("ERC20 Contract Revert Error: {:#?}", decoded_error));
     apdapter_decoded.or(erc20_decoded)
 }
 
 pub fn make_liquidator_params(
     opportunity: VerifiedLiquidationOpportunity,
-    bid: VerifiedOpportunityBid,
+    bid: OpportunityBid,
 ) -> liquidation_adapter::LiquidationCallParams {
     liquidation_adapter::LiquidationCallParams {
         repay_tokens:            opportunity
@@ -385,14 +390,14 @@ pub fn make_liquidator_params(
         data:                    opportunity.calldata,
         value:                   opportunity.value,
         valid_until:             bid.valid_until,
-        bid:                     bid.bid_amount,
+        bid:                     bid.amount,
         signature_liquidator:    bid.signature.to_vec().into(),
     }
 }
 
 pub async fn make_liquidator_calldata(
     opportunity: VerifiedLiquidationOpportunity,
-    bid: VerifiedOpportunityBid,
+    bid: OpportunityBid,
     provider: Provider<Http>,
     adapter_contract: Address,
 ) -> Result<Bytes> {
