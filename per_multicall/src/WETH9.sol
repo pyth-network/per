@@ -20,6 +20,7 @@
 pragma solidity ^0.8.0;
 
 contract WETH9 {
+    // Vault simulator assumes the token name is pyth pricefeed id in mainnet
     string public name =
         "c96458d393fe9deb7a7d63a0ac41e2898a67a7750dbd166673279e06c868df0a"; // ETH/USD pricefeed id
     string public symbol = "WETH";
