@@ -45,7 +45,7 @@ def assess_liquidation_opportunity(
 class OpportunityBid(TypedDict):
     opportunity_id: str
     permission_key: str
-    bid_amount: str
+    amount: str
     valid_until: str
     liquidator: str
     signature: str
@@ -86,7 +86,7 @@ def create_liquidation_transaction(
     opportunity_bid = {
         "opportunity_id": opp["opportunity_id"],
         "permission_key": opp["permission_key"],
-        "bid_amount": str(bid_info["bid"]),
+        "amount": str(bid_info["bid"]),
         "valid_until": str(bid_info["valid_until"]),
         "liquidator": liquidator,
         "signature": bytes(signature_liquidator.signature).hex(),

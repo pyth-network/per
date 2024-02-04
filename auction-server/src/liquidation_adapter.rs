@@ -1,6 +1,6 @@
 use {
     crate::{
-        api::marketplace::VerifiedOpportunityBid,
+        api::marketplace::OpportunityBid,
         state::VerifiedLiquidationOpportunity,
     },
     anyhow::{
@@ -96,7 +96,7 @@ pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
 
 pub async fn make_liquidator_calldata(
     opportunity: VerifiedLiquidationOpportunity,
-    bid: VerifiedOpportunityBid,
+    bid: OpportunityBid,
     provider: Provider<Http>,
     adapter_contract: Address,
 ) -> Result<Bytes> {
@@ -116,7 +116,7 @@ pub async fn make_liquidator_calldata(
         data:                    opportunity.calldata,
         value:                   opportunity.value,
         valid_until:             bid.valid_until,
-        bid:                     bid.bid_amount,
+        bid:                     bid.amount,
         signature_liquidator:    bid.signature.to_vec().into(),
     };
     let client = Arc::new(provider);
