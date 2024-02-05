@@ -65,7 +65,7 @@ pub struct LiquidationOpportunity {
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
     permission_key: Bytes,
     /// The chain id where the liquidation will be executed.
-    #[schema(example = "sepolia")]
+    #[schema(example = "sepolia", value_type=String)]
     chain_id:       ChainId,
     /// The contract address to call for execution of the liquidation.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type=String)]
