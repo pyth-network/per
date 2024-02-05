@@ -12,6 +12,7 @@ on:
 permissions:
   contents: read
   id-token: write
+  packages: write
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
