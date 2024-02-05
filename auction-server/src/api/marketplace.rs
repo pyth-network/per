@@ -258,6 +258,7 @@ pub async fn bid_opportunity(
         ));
     }
 
+    // TODO: move this logic to searcher side
     if liquidation.bidders.contains(&opportunity_bid.liquidator) {
         return Err(RestError::BadParameters(
             "Liquidator already bid on this opportunity".to_string(),

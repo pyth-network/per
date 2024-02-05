@@ -5,6 +5,8 @@
 /// The spoofing is done by finding the storage slot of the balance and allowance of an address
 /// This approach is just a heuristic and will not work for all tokens, specially if the token
 /// has a custom storage layout or logic to calculate the balance or allowance
+/// Finding the storage slot is done by brute forcing the storage slots (only the first 32 slots)
+/// and checking if the output of the balance or allowance is the expected value
 use ethers::addressbook::Address;
 use {
     crate::{
@@ -69,6 +71,8 @@ pub fn calculate_allowance_storage_key(
 }
 
 
+const MAX_SLOT_FOR_BRUTEFORCE: i32 = 32;
+
 /// Find the balance slot of an ERC20 token that can be used to spoof the balance of an address
 /// Returns an error if no slot is found or if the network calls fail
 ///
@@ -82,7 +86,7 @@ async fn find_spoof_balance_slot(
 ) -> anyhow::Result<U256> {
     let contract = ERC20::new(token, client.clone());
     let fake_owner = LocalWallet::new(&mut rand::thread_rng());
-    for balance_slot in 0..32 {
+    for balance_slot in 0..MAX_SLOT_FOR_BRUTEFORCE {
         let tx = contract.balance_of(fake_owner.address()).tx;
         let mut state = spoof::State::default();
         let balance_storage_key =
@@ -115,7 +119,7 @@ async fn find_spoof_allowance_slot(
     let fake_owner = LocalWallet::new(&mut rand::thread_rng());
     let fake_spender = LocalWallet::new(&mut rand::thread_rng());
 
-    for allowance_slot in 0..32 {
+    for allowance_slot in 0..MAX_SLOT_FOR_BRUTEFORCE {
         let tx = contract
             .allowance(fake_owner.address(), fake_spender.address())
             .tx;

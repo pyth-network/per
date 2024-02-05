@@ -84,14 +84,20 @@ impl From<(Address, U256)> for TokenQty {
     }
 }
 
+pub enum VerificationResult {
+    Success,
+    UnableToSpoof,
+}
+
 /// Verify an opportunity by simulating the liquidation call and checking the result
 /// Simulation is done by spoofing the balances and allowances of a random liquidator
-/// Returns Ok(()) if the simulation is successful or if the tokens cannot be spoofed
+/// Returns Ok(VerificationResult) if the simulation is successful or if the tokens cannot be spoofed
+/// Returns Err if the simulation fails despite spoofing or if any other error occurs
 pub async fn verify_opportunity(
     opportunity: VerifiedLiquidationOpportunity,
     chain_store: &ChainStore,
     per_operator: Address,
-) -> Result<()> {
+) -> Result<VerificationResult> {
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
     let mut fake_bid = OpportunityBid {
@@ -153,7 +159,7 @@ pub async fn verify_opportunity(
             }
         };
         match spoof_info {
-            SpoofInfo::UnableToSpoof => return Ok(()), // unable to spoof, so we can't verify
+            SpoofInfo::UnableToSpoof => return Ok(VerificationResult::UnableToSpoof),
             SpoofInfo::Spoofed {
                 balance_slot,
                 allowance_slot,
@@ -188,7 +194,7 @@ pub async fn verify_opportunity(
         }
         Err(e) => return Err(anyhow!(format!("Error decoding multicall result: {:?}", e))),
     }
-    Ok(())
+    Ok(VerificationResult::Success)
 }
 
 fn get_liquidation_digest(params: liquidation_adapter::LiquidationCallParams) -> Result<H256> {
@@ -299,18 +305,24 @@ async fn verify_with_store(
     opportunity: VerifiedLiquidationOpportunity,
     store: &Store,
 ) -> Result<()> {
-    let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as UnixTimestamp;
-
-    if current_time - opportunity.creation_time > MAX_STALE_OPPORTUNITY_SECS {
-        return Err(anyhow!("Opportunity is stale"));
-    }
-
     let chain_store = store
         .chains
         .get(&opportunity.chain_id)
         .ok_or(anyhow!("Chain not found: {}", opportunity.chain_id))?;
     let per_operator = store.per_operator.address();
-    verify_opportunity(opportunity.clone(), chain_store, per_operator).await
+    match verify_opportunity(opportunity.clone(), chain_store, per_operator).await {
+        Ok(VerificationResult::Success) => Ok(()),
+        Ok(VerificationResult::UnableToSpoof) => {
+            let current_time =
+                SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as UnixTimestamp;
+            if current_time - opportunity.creation_time > MAX_STALE_OPPORTUNITY_SECS {
+                Err(anyhow!("Opportunity is stale and unverifiable"))
+            } else {
+                Ok(())
+            }
+        }
+        Err(e) => Err(e),
+    }
 }
 
 /// Run an infinite loop to verify opportunities in the store and remove invalid ones
@@ -323,8 +335,7 @@ pub async fn run_verification_loop(store: Arc<Store>) {
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         let all_opportunities = store.liquidation_store.opportunities.read().await.clone();
         for (permission_key, opportunity) in all_opportunities.iter() {
-            let should_remove = verify_with_store(opportunity.clone(), &store).await;
-            match should_remove {
+            match verify_with_store(opportunity.clone(), &store).await {
                 Ok(_) => {}
                 Err(e) => {
                     store
