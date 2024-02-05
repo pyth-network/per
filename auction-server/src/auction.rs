@@ -231,12 +231,6 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                                     Some(receipt) => {
                                         tracing::debug!("Submitted transaction: {:?}", receipt);
                                         chain_store.bids.write().await.remove(&permission_key);
-                                        store
-                                            .liquidation_store
-                                            .opportunities
-                                            .write()
-                                            .await
-                                            .remove(&permission_key); //TODO: this should be done via opportunity verifier and only when the opportunity is not valid anymore
                                     }
                                     None => {
                                         tracing::error!("Failed to receive transaction receipt");
