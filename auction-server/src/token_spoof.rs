@@ -120,7 +120,7 @@ async fn find_spoof_allowance_slot(
             .allowance(fake_owner.address(), fake_spender.address())
             .tx;
         let mut state = spoof::State::default();
-        let balance_storage_key = calculate_allowance_storage_key(
+        let allowance_storage_key = calculate_allowance_storage_key(
             fake_owner.address(),
             fake_spender.address(),
             allowance_slot.into(),
@@ -128,7 +128,7 @@ async fn find_spoof_allowance_slot(
         let value: [u8; 32] = rand::random();
         state
             .account(token)
-            .store(balance_storage_key, value.into());
+            .store(allowance_storage_key, value.into());
         let result = client.call_raw(&tx).state(&state).await?;
         if result == Bytes::from(value) {
             return Ok(allowance_slot.into());

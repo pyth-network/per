@@ -99,11 +99,15 @@ pub async fn simulate_bids(
     calldata: Vec<Bytes>,
     bids: Vec<U256>,
 ) -> Result<(), SimulationError> {
-    let client = Arc::new(provider);
-    let per_contract = PERContract::new(chain_config.per_contract, client);
-    let call = per_contract
-        .multicall(permission, contracts, calldata, bids)
-        .from(per_operator);
+    let call = get_simulation_call(
+        per_operator,
+        provider,
+        chain_config,
+        permission,
+        contracts,
+        calldata,
+        bids,
+    );
     match call.await {
         Ok(results) => {
             let failed_result = results.iter().find(|x| !x.external_success);
