@@ -110,12 +110,12 @@ fn parse_tokens(tokens: Vec<TokenQty>) -> Vec<(Address, U256)> {
 ///
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
 /// and will be available for bidding.
-#[utoipa::path(post, path = "/v1/liquidation/submit_opportunity", request_body = LiquidationOpportunity, responses(
+#[utoipa::path(post, path = "/v1/liquidation/opportunity", request_body = LiquidationOpportunity, responses(
     (status = 200, description = "Opportunity was stored succesfuly with the returned uuid", body = String),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
-pub async fn submit_opportunity(
+pub async fn post_opportunity(
     State(store): State<Arc<Store>>,
     Json(opportunity): Json<LiquidationOpportunity>,
 ) -> Result<String, RestError> {
@@ -155,13 +155,13 @@ pub struct ChainIdQueryParams {
 }
 
 /// Fetch all liquidation opportunities ready to be exectued.
-#[utoipa::path(get, path = "/v1/liquidation/fetch_opportunities", responses(
+#[utoipa::path(get, path = "/v1/liquidation/opportunities", responses(
     (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<LiquidationOpportunity>),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),
 params(ChainIdQueryParams))]
-pub async fn fetch_opportunities(
+pub async fn get_opportunities(
     State(store): State<Arc<Store>>,
     params: Query<ChainIdQueryParams>,
 ) -> Result<axum::Json<Vec<LiquidationOpportunityWithId>>, RestError> {
@@ -232,12 +232,12 @@ pub struct OpportunityBid {
 }
 
 /// Bid on liquidation opportunity
-#[utoipa::path(post, path = "/v1/liquidation/bid_opportunity", request_body=OpportunityBid, responses(
+#[utoipa::path(post, path = "/v1/liquidation/bid", request_body=OpportunityBid, responses(
     (status = 200, description = "Bid Result", body = String),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
-pub async fn bid_opportunity(
+pub async fn post_bid(
     State(store): State<Arc<Store>>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<String, RestError> {

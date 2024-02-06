@@ -152,9 +152,9 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     #[openapi(
     paths(
     bid::bid,
-    liquidation::submit_opportunity,
-    liquidation::bid_opportunity,
-    liquidation::fetch_opportunities,
+    liquidation::post_opportunity,
+    liquidation::post_bid,
+    liquidation::get_opportunities,
     ),
     components(
     schemas(Bid),
@@ -224,17 +224,14 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         .route("/", get(root))
         .route("/v1/bid", post(bid::bid))
         .route(
-            "/v1/liquidation/submit_opportunity",
-            post(liquidation::submit_opportunity),
+            "/v1/liquidation/opportunity",
+            post(liquidation::post_opportunity),
         )
         .route(
-            "/v1/liquidation/fetch_opportunities",
-            get(liquidation::fetch_opportunities),
+            "/v1/liquidation/opportunities",
+            get(liquidation::get_opportunities),
         )
-        .route(
-            "/v1/liquidation/bid_opportunity",
-            post(liquidation::bid_opportunity),
-        )
+        .route("/v1/liquidation/bid", post(liquidation::post_bid))
         .layer(CorsLayer::permissive())
         .with_state(server_store);
 
