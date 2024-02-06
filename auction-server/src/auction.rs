@@ -9,6 +9,7 @@ use {
         contract::{
             abigen,
             ContractError,
+            FunctionCall,
         },
         middleware::{
             transformer::{
@@ -67,10 +68,41 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
     }
 }
 
+pub fn get_simulation_call(
+    per_operator: Address,
+    provider: Provider<Http>,
+    chain_config: EthereumConfig,
+    permission: Bytes,
+    contracts: Vec<Address>,
+    calldata: Vec<Bytes>,
+    bids: Vec<U256>,
+) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<per::MulticallStatus>> {
+    let client = Arc::new(provider);
+    let per_contract = PERContract::new(chain_config.per_contract, client);
+    let call = per_contract
+        .multicall(permission, contracts, calldata, bids)
+        .from(per_operator);
+    call
+}
+
 
 pub enum SimulationError {
     LogicalError { result: Bytes, reason: String },
     ContractError(ContractError<Provider<Http>>),
+}
+
+
+pub fn evaluate_simulation_results(
+    results: Vec<per::MulticallStatus>,
+) -> Result<(), SimulationError> {
+    let failed_result = results.iter().find(|x| !x.external_success);
+    if let Some(call_status) = failed_result {
+        return Err(SimulationError::LogicalError {
+            result: call_status.external_result.clone(),
+            reason: call_status.multicall_revert_reason.clone(),
+        });
+    }
+    Ok(())
 }
 pub async fn simulate_bids(
     per_operator: Address,
@@ -81,20 +113,18 @@ pub async fn simulate_bids(
     calldata: Vec<Bytes>,
     bids: Vec<U256>,
 ) -> Result<(), SimulationError> {
-    let client = Arc::new(provider);
-    let per_contract = PERContract::new(chain_config.per_contract, client);
-    let call = per_contract
-        .multicall(permission, contracts, calldata, bids)
-        .from(per_operator);
+    let call = get_simulation_call(
+        per_operator,
+        provider,
+        chain_config,
+        permission,
+        contracts,
+        calldata,
+        bids,
+    );
     match call.await {
         Ok(results) => {
-            let failed_result = results.iter().find(|x| !x.external_success);
-            if let Some(call_status) = failed_result {
-                return Err(SimulationError::LogicalError {
-                    result: call_status.external_result.clone(),
-                    reason: call_status.multicall_revert_reason.clone(),
-                });
-            }
+            evaluate_simulation_results(results)?;
         }
         Err(e) => {
             return Err(SimulationError::ContractError(e));
@@ -166,7 +196,8 @@ pub async fn run_submission_loop(store: Arc<Store>) {
     tracing::info!("Starting transaction submitter...");
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         for (chain_id, chain_store) in &store.chains {
-            let permission_bids = chain_store.bids.read().await.clone(); // release lock asap
+            let permission_bids = chain_store.bids.read().await.clone();
+            // release lock asap
             tracing::info!(
                 "Chain: {chain_id} Auctions to process {auction_len}",
                 chain_id = chain_id,
@@ -212,12 +243,6 @@ pub async fn run_submission_loop(store: Arc<Store>) {
                                     Some(receipt) => {
                                         tracing::debug!("Submitted transaction: {:?}", receipt);
                                         chain_store.bids.write().await.remove(&permission_key);
-                                        store
-                                            .liquidation_store
-                                            .opportunities
-                                            .write()
-                                            .await
-                                            .remove(&permission_key); //TODO: this should be done via opportunity verifier and only when the opportunity is not valid anymore
                                     }
                                     None => {
                                         tracing::error!("Failed to receive transaction receipt");

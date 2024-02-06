@@ -12,6 +12,7 @@ mod config;
 mod liquidation_adapter;
 mod serde;
 mod state;
+mod token_spoof;
 
 #[tokio::main]
 async fn main() -> Result<()> {

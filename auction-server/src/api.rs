@@ -15,6 +15,7 @@ use {
             Config,
             RunOptions,
         },
+        liquidation_adapter::run_verification_loop,
         state::{
             ChainStore,
             LiquidationStore,
@@ -91,6 +92,8 @@ pub(crate) mod liquidation;
 pub enum RestError {
     /// The request contained invalid parameters
     BadParameters(String),
+    /// The submitted opportunity was not valid
+    InvalidOpportunity(String),
     /// The chain id is not supported
     InvalidChainId,
     /// The simulation failed
@@ -116,6 +119,10 @@ impl IntoResponse for RestError {
             RestError::BadParameters(msg) => {
                 (StatusCode::BAD_REQUEST, format!("Bad parameters: {}", msg))
             }
+            RestError::InvalidOpportunity(msg) => (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid opportunity: {}", msg),
+            ),
             RestError::InvalidChainId => (
                 StatusCode::NOT_FOUND,
                 "The chain id is not found".to_string(),
@@ -202,6 +209,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                     provider,
                     network_id: id,
                     bids: Default::default(),
+                    token_spoof_info: Default::default(),
                     config: chain_config.clone(),
                 },
             ))
@@ -220,6 +228,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let server_store = store.clone();
 
     tokio::spawn(run_submission_loop(store.clone()));
+    tokio::spawn(run_verification_loop(store.clone()));
 
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
