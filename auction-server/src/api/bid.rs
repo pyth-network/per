@@ -101,8 +101,9 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> Result<String, RestError
 
 /// Bid on a specific permission key for a specific chain.
 ///
-/// Your bid will be simulated and verified by the server. Depending on the outcome of the auction, a transaction containing the contract call will be sent to the blockchain expecting the bid amount to be paid after the call.
-#[utoipa::path(post, path = "/bid", request_body = Bid, responses(
+/// Your bid will be simulated and verified by the server. Depending on the outcome of the auction, a transaction
+/// containing the contract call will be sent to the blockchain expecting the bid amount to be paid after the call.
+#[utoipa::path(post, path = "/v1/bid", request_body = Bid, responses(
     (status = 200, description = "Bid was placed succesfully", body = String),
     (status = 400, response=RestError)
 ),)]

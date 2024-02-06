@@ -218,17 +218,17 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
-        .route("/bid", post(bid::bid))
+        .route("/v1/bid", post(bid::bid))
         .route(
-            "/liquidation/submit_opportunity",
+            "/v1/liquidation/submit_opportunity",
             post(liquidation::submit_opportunity),
         )
         .route(
-            "/liquidation/fetch_opportunities",
+            "/v1/liquidation/fetch_opportunities",
             get(liquidation::fetch_opportunities),
         )
         .route(
-            "/liquidation/bid_opportunity",
+            "/v1/liquidation/bid_opportunity",
             post(liquidation::bid_opportunity),
         )
         .layer(CorsLayer::permissive())

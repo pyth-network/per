@@ -103,7 +103,7 @@ fn parse_tokens(tokens: Vec<TokenQty>) -> Vec<(Address, U256)> {
 ///
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
 /// and will be available for bidding.
-#[utoipa::path(post, path = "/liquidation/submit_opportunity", request_body = LiquidationOpportunity, responses(
+#[utoipa::path(post, path = "/v1/liquidation/submit_opportunity", request_body = LiquidationOpportunity, responses(
     (status = 200, description = "Opportunity was stored succesfuly with the returned uuid", body = String),
     (status = 400, response=RestError)
 ),)]
@@ -140,7 +140,7 @@ pub async fn submit_opportunity(
 }
 
 /// Fetch all liquidation opportunities ready to be exectued.
-#[utoipa::path(get, path = "/liquidation/fetch_opportunities", responses(
+#[utoipa::path(get, path = "/v1/liquidation/fetch_opportunities", responses(
     (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<LiquidationOpportunity>),
     (status = 400, response=RestError)
 ),)]
@@ -207,7 +207,7 @@ pub struct OpportunityBid {
 }
 
 /// Bid on liquidation opportunity
-#[utoipa::path(post, path = "/liquidation/bid_opportunity", request_body=OpportunityBid, responses(
+#[utoipa::path(post, path = "/v1/liquidation/bid_opportunity", request_body=OpportunityBid, responses(
     (status = 200, description = "Bid Result", body = String),
     (status = 400, response=RestError)
 ),)]
