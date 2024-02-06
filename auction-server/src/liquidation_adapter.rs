@@ -5,9 +5,9 @@ use {
             SHOULD_EXIT,
         },
         auction::{
+            evaluate_simulation_results,
             get_simulation_call,
             MulticallReturn,
-            MulticallStatus,
         },
         state::{
             ChainStore,
@@ -187,10 +187,8 @@ pub async fn verify_opportunity(
 
     match MulticallReturn::decode(&result) {
         Ok(result) => {
-            let multicall_results: Vec<MulticallStatus> = result.multicall_statuses;
-            if !multicall_results.iter().all(|x| x.external_success) {
-                return Err(anyhow!("PER Simulation failed"));
-            }
+            evaluate_simulation_results(result.multicall_statuses)
+                .map_err(|_| anyhow!("PER Simulation failed"))?;
         }
         Err(e) => return Err(anyhow!(format!("Error decoding multicall result: {:?}", e))),
     }

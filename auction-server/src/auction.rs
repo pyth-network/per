@@ -90,6 +90,20 @@ pub enum SimulationError {
     LogicalError { result: Bytes, reason: String },
     ContractError(ContractError<Provider<Http>>),
 }
+
+
+pub fn evaluate_simulation_results(
+    results: Vec<per::MulticallStatus>,
+) -> Result<(), SimulationError> {
+    let failed_result = results.iter().find(|x| !x.external_success);
+    if let Some(call_status) = failed_result {
+        return Err(SimulationError::LogicalError {
+            result: call_status.external_result.clone(),
+            reason: call_status.multicall_revert_reason.clone(),
+        });
+    }
+    Ok(())
+}
 pub async fn simulate_bids(
     per_operator: Address,
     provider: Provider<Http>,
@@ -110,13 +124,7 @@ pub async fn simulate_bids(
     );
     match call.await {
         Ok(results) => {
-            let failed_result = results.iter().find(|x| !x.external_success);
-            if let Some(call_status) = failed_result {
-                return Err(SimulationError::LogicalError {
-                    result: call_status.external_result.clone(),
-                    reason: call_status.multicall_revert_reason.clone(),
-                });
-            }
+            evaluate_simulation_results(results)?;
         }
         Err(e) => {
             return Err(SimulationError::ContractError(e));
