@@ -8,8 +8,13 @@ use {
         liquidation_adapter::{
             make_liquidator_calldata,
             parse_revert_error,
+            verify_opportunity,
         },
-        state::Store,
+        state::{
+            Store,
+            UnixTimestamp,
+            VerifiedLiquidationOpportunity,
+        },
     },
     axum::{
         extract::State,
@@ -18,6 +23,7 @@ use {
     ethers::{
         abi::Address,
         core::types::Signature,
+        signers::Signer,
         types::{
             Bytes,
             U256,
@@ -27,7 +33,13 @@ use {
         Deserialize,
         Serialize,
     },
-    std::sync::Arc,
+    std::{
+        sync::Arc,
+        time::{
+            SystemTime,
+            UNIX_EPOCH,
+        },
+    },
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -53,7 +65,7 @@ pub struct LiquidationOpportunity {
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
     permission_key: Bytes,
     /// The chain id where the liquidation will be executed.
-    #[schema(example = "sepolia")]
+    #[schema(example = "sepolia", value_type=String)]
     chain_id:       ChainId,
     /// The contract address to call for execution of the liquidation.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type=String)]
@@ -111,7 +123,7 @@ pub async fn submit_opportunity(
     State(store): State<Arc<Store>>,
     Json(opportunity): Json<LiquidationOpportunity>,
 ) -> Result<String, RestError> {
-    store
+    let chain_store = store
         .chains
         .get(&opportunity.chain_id)
         .ok_or(RestError::InvalidChainId)?;
@@ -119,22 +131,37 @@ pub async fn submit_opportunity(
     let repay_tokens = parse_tokens(opportunity.repay_tokens);
     let receipt_tokens = parse_tokens(opportunity.receipt_tokens);
 
-    //TODO: Verify if the call actually works
-
     let id = Uuid::new_v4();
-    store.liquidation_store.opportunities.write().await.insert(
-        opportunity.permission_key.clone(),
-        crate::state::VerifiedLiquidationOpportunity {
-            id,
-            chain_id: opportunity.chain_id.clone(),
-            permission_key: opportunity.permission_key,
-            contract: opportunity.contract,
-            calldata: opportunity.calldata,
-            value: opportunity.value,
-            repay_tokens,
-            receipt_tokens,
-        },
-    );
+    let verified_opportunity = VerifiedLiquidationOpportunity {
+        id,
+        creation_time: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| RestError::BadParameters("Invalid system time".to_string()))?
+            .as_secs() as UnixTimestamp,
+        chain_id: opportunity.chain_id.clone(),
+        permission_key: opportunity.permission_key.clone(),
+        contract: opportunity.contract,
+        calldata: opportunity.calldata,
+        value: opportunity.value,
+        repay_tokens,
+        receipt_tokens,
+        bidders: Default::default(),
+    };
+
+    verify_opportunity(
+        verified_opportunity.clone(),
+        chain_store,
+        store.per_operator.address(),
+    )
+    .await
+    .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
+
+    store
+        .liquidation_store
+        .opportunities
+        .write()
+        .await
+        .insert(opportunity.permission_key.clone(), verified_opportunity);
 
     Ok(id.to_string())
 }
@@ -215,15 +242,26 @@ pub async fn bid_opportunity(
     State(store): State<Arc<Store>>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<String, RestError> {
-    let opportunities = store.liquidation_store.opportunities.read().await;
-
-    let liquidation = opportunities
+    let liquidation = store
+        .liquidation_store
+        .opportunities
+        .read()
+        .await
         .get(&opportunity_bid.permission_key)
-        .ok_or(RestError::OpportunityNotFound)?;
+        .ok_or(RestError::OpportunityNotFound)?
+        .clone();
+
 
     if liquidation.id != opportunity_bid.opportunity_id {
         return Err(RestError::BadParameters(
             "Invalid opportunity_id".to_string(),
+        ));
+    }
+
+    // TODO: move this logic to searcher side
+    if liquidation.bidders.contains(&opportunity_bid.liquidator) {
+        return Err(RestError::BadParameters(
+            "Liquidator already bid on this opportunity".to_string(),
         ));
     }
 
@@ -232,10 +270,9 @@ pub async fn bid_opportunity(
         .get(&liquidation.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let bid_amount = opportunity_bid.amount;
     let per_calldata = make_liquidator_calldata(
         liquidation.clone(),
-        opportunity_bid,
+        opportunity_bid.clone(),
         chain_store.provider.clone(),
         chain_store.config.adapter_contract,
     )
@@ -248,12 +285,19 @@ pub async fn bid_opportunity(
             chain_id:       liquidation.chain_id.clone(),
             contract:       chain_store.config.adapter_contract,
             calldata:       per_calldata,
-            amount:         bid_amount,
+            amount:         opportunity_bid.amount,
         },
     )
     .await
     {
-        Ok(_) => Ok("OK".to_string()),
+        Ok(_) => {
+            let mut write_guard = store.liquidation_store.opportunities.write().await;
+            let liquidation = write_guard.get_mut(&opportunity_bid.permission_key);
+            if let Some(liquidation) = liquidation {
+                liquidation.bidders.insert(opportunity_bid.liquidator);
+            }
+            Ok("OK".to_string())
+        }
         Err(e) => match e {
             RestError::SimulationError { result, reason } => {
                 let parsed = parse_revert_error(&result);
