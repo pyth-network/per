@@ -305,24 +305,21 @@ const MAX_STALE_OPPORTUNITY_SECS: i64 = 60;
 ///
 /// * `opportunity`: opportunity to verify
 /// * `store`: server store
-async fn verify_with_store(
-    verified_opportunity: LiquidationOpportunity,
-    store: &Store,
-) -> Result<()> {
-    let opportunity = match verified_opportunity.params {
+async fn verify_with_store(opportunity: LiquidationOpportunity, store: &Store) -> Result<()> {
+    let params = match opportunity.params {
         OpportunityParams::V1(opportunity) => opportunity,
     };
     let chain_store = store
         .chains
-        .get(&opportunity.chain_id)
-        .ok_or(anyhow!("Chain not found: {}", opportunity.chain_id))?;
+        .get(&params.chain_id)
+        .ok_or(anyhow!("Chain not found: {}", params.chain_id))?;
     let per_operator = store.per_operator.address();
-    match verify_opportunity(opportunity.clone(), chain_store, per_operator).await {
+    match verify_opportunity(params.clone(), chain_store, per_operator).await {
         Ok(VerificationResult::Success) => Ok(()),
         Ok(VerificationResult::UnableToSpoof) => {
             let current_time =
                 SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as UnixTimestamp;
-            if current_time - verified_opportunity.creation_time > MAX_STALE_OPPORTUNITY_SECS {
+            if current_time - opportunity.creation_time > MAX_STALE_OPPORTUNITY_SECS {
                 Err(anyhow!("Opportunity is stale and unverifiable"))
             } else {
                 Ok(())
