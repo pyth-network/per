@@ -1,6 +1,9 @@
 use {
     crate::{
-        api::RestError,
+        api::{
+            ErrorBodyResponse,
+            RestError,
+        },
         auction::{
             simulate_bids,
             SimulationError,
@@ -105,7 +108,8 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> Result<String, RestError
 /// containing the contract call will be sent to the blockchain expecting the bid amount to be paid after the call.
 #[utoipa::path(post, path = "/v1/bid", request_body = Bid, responses(
     (status = 200, description = "Bid was placed succesfully", body = String),
-    (status = 400, response=RestError)
+    (status = 400, response = ErrorBodyResponse),
+    (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn bid(
     State(store): State<Arc<Store>>,

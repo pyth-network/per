@@ -2,6 +2,7 @@ use {
     crate::{
         api::{
             bid::handle_bid,
+            ErrorBodyResponse,
             RestError,
         },
         config::ChainId,
@@ -105,7 +106,8 @@ fn parse_tokens(tokens: Vec<TokenQty>) -> Vec<(Address, U256)> {
 /// and will be available for bidding.
 #[utoipa::path(post, path = "/v1/liquidation/submit_opportunity", request_body = LiquidationOpportunity, responses(
     (status = 200, description = "Opportunity was stored succesfuly with the returned uuid", body = String),
-    (status = 400, response=RestError)
+    (status = 400, response = ErrorBodyResponse),
+    (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn submit_opportunity(
     State(store): State<Arc<Store>>,
@@ -142,7 +144,8 @@ pub async fn submit_opportunity(
 /// Fetch all liquidation opportunities ready to be exectued.
 #[utoipa::path(get, path = "/v1/liquidation/fetch_opportunities", responses(
     (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<LiquidationOpportunity>),
-    (status = 400, response=RestError)
+    (status = 400, response = ErrorBodyResponse),
+    (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn fetch_opportunities(
     State(store): State<Arc<Store>>,
@@ -209,7 +212,8 @@ pub struct OpportunityBid {
 /// Bid on liquidation opportunity
 #[utoipa::path(post, path = "/v1/liquidation/bid_opportunity", request_body=OpportunityBid, responses(
     (status = 200, description = "Bid Result", body = String),
-    (status = 400, response=RestError)
+    (status = 400, response = ErrorBodyResponse),
+    (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn bid_opportunity(
     State(store): State<Arc<Store>>,
