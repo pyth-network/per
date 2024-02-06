@@ -13,7 +13,10 @@ use {
         state::Store,
     },
     axum::{
-        extract::State,
+        extract::{
+            Query,
+            State,
+        },
         Json,
     },
     ethers::{
@@ -29,7 +32,10 @@ use {
         Serialize,
     },
     std::sync::Arc,
-    utoipa::ToSchema,
+    utoipa::{
+        IntoParams,
+        ToSchema,
+    },
     uuid::Uuid,
 };
 
@@ -54,7 +60,7 @@ pub struct LiquidationOpportunity {
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
     permission_key: Bytes,
     /// The chain id where the liquidation will be executed.
-    #[schema(example = "sepolia")]
+    #[schema(example = "sepolia", value_type=String)]
     chain_id:       ChainId,
     /// The contract address to call for execution of the liquidation.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type=String)]
@@ -141,14 +147,23 @@ pub async fn submit_opportunity(
     Ok(id.to_string())
 }
 
+
+#[derive(Serialize, Deserialize, IntoParams)]
+pub struct ChainIdQueryParams {
+    #[param(example = "sepolia", value_type=Option<String>)]
+    chain_id: Option<ChainId>,
+}
+
 /// Fetch all liquidation opportunities ready to be exectued.
 #[utoipa::path(get, path = "/v1/liquidation/fetch_opportunities", responses(
     (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<LiquidationOpportunity>),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
-),)]
+),
+params(ChainIdQueryParams))]
 pub async fn fetch_opportunities(
     State(store): State<Arc<Store>>,
+    params: Query<ChainIdQueryParams>,
 ) -> Result<axum::Json<Vec<LiquidationOpportunityWithId>>, RestError> {
     let opportunities: Vec<LiquidationOpportunityWithId> = store
         .liquidation_store
@@ -176,6 +191,13 @@ pub async fn fetch_opportunities(
                     .map(TokenQty::from)
                     .collect(),
             },
+        })
+        .filter(|opportunity| {
+            if let Some(chain_id) = &params.chain_id {
+                opportunity.opportunity.chain_id == *chain_id
+            } else {
+                true
+            }
         })
         .collect();
 
