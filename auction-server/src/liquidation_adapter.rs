@@ -1,6 +1,6 @@
 use {
     crate::{
-        api::marketplace::OpportunityBid,
+        api::liquidation::OpportunityBid,
         state::VerifiedLiquidationOpportunity,
     },
     anyhow::{

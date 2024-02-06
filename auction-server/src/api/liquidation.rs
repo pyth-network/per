@@ -1,7 +1,7 @@
 use {
     crate::{
         api::{
-            rest::handle_bid,
+            bid::handle_bid,
             RestError,
         },
         config::ChainId,
@@ -243,7 +243,7 @@ pub async fn bid_opportunity(
     .map_err(|e| RestError::BadParameters(e.to_string()))?;
     match handle_bid(
         store.clone(),
-        crate::api::rest::Bid {
+        crate::api::bid::Bid {
             permission_key: liquidation.permission_key.clone(),
             chain_id:       liquidation.chain_id.clone(),
             contract:       chain_store.config.adapter_contract,

@@ -1,12 +1,12 @@
 use {
     crate::{
         api::{
-            marketplace::{
+            bid::Bid,
+            liquidation::{
                 LiquidationOpportunity,
                 OpportunityBid,
                 TokenQty,
             },
-            rest::Bid,
         },
         auction::run_submission_loop,
         config::{
@@ -82,8 +82,8 @@ async fn root() -> String {
     format!("PER Auction Server API {}", crate_version!())
 }
 
-pub(crate) mod marketplace;
-mod rest;
+mod bid;
+pub(crate) mod liquidation;
 
 #[derive(ToResponse, ToSchema)]
 #[response(description = "An error occurred processing the request")]
@@ -218,18 +218,18 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
-        .route("/bid", post(rest::bid))
+        .route("/bid", post(bid::bid))
         .route(
             "/liquidation/submit_opportunity",
-            post(marketplace::submit_opportunity),
+            post(liquidation::submit_opportunity),
         )
         .route(
             "/liquidation/fetch_opportunities",
-            get(marketplace::fetch_opportunities),
+            get(liquidation::fetch_opportunities),
         )
         .route(
             "/liquidation/bid_opportunity",
-            post(marketplace::bid_opportunity),
+            post(liquidation::bid_opportunity),
         )
         .layer(CorsLayer::permissive())
         .with_state(server_store);
