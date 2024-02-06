@@ -146,6 +146,13 @@ async def main():
 
         logger.debug("Found %d liquidation opportunities", len(accounts_liquidatable))
         for liquidation_opp in accounts_liquidatable:
+            if liquidation_opp["version"] != "v1":
+                logger.warning(
+                    "Opportunity %s has unsupported version %s",
+                    liquidation_opp["opportunity_id"],
+                    liquidation_opp["version"],
+                )
+                continue
             bid_info = assess_liquidation_opportunity(args.bid, liquidation_opp)
 
             if bid_info is not None:

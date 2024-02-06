@@ -11,10 +11,12 @@ use {
         },
         state::{
             ChainStore,
+            LiquidationOpportunity,
+            OpportunityParams,
+            OpportunityParamsV1,
             SpoofInfo,
             Store,
             UnixTimestamp,
-            VerifiedLiquidationOpportunity,
         },
         token_spoof,
     },
@@ -75,14 +77,6 @@ abigen!(
 abigen!(ERC20, "../per_multicall/out/ERC20.sol/ERC20.json");
 abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
 
-impl From<(Address, U256)> for TokenQty {
-    fn from(token: (Address, U256)) -> Self {
-        TokenQty {
-            token:  token.0,
-            amount: token.1,
-        }
-    }
-}
 
 pub enum VerificationResult {
     Success,
@@ -94,14 +88,14 @@ pub enum VerificationResult {
 /// Returns Ok(VerificationResult) if the simulation is successful or if the tokens cannot be spoofed
 /// Returns Err if the simulation fails despite spoofing or if any other error occurs
 pub async fn verify_opportunity(
-    opportunity: VerifiedLiquidationOpportunity,
+    opportunity: OpportunityParamsV1,
     chain_store: &ChainStore,
     per_operator: Address,
 ) -> Result<VerificationResult> {
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
     let mut fake_bid = OpportunityBid {
-        opportunity_id: opportunity.id,
+        opportunity_id: Default::default(),
         liquidator:     fake_wallet.address(),
         valid_until:    U256::max_value(),
         permission_key: opportunity.permission_key.clone(),
@@ -139,7 +133,11 @@ pub async fn verify_opportunity(
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();
-    for (token, amount) in opportunity.repay_tokens.into_iter() {
+    for crate::state::TokenQty {
+        contract: token,
+        amount,
+    } in opportunity.repay_tokens.into_iter()
+    {
         let spoof_info = match token_spoof_info.get(&token) {
             Some(info) => info.clone(),
             None => {
@@ -245,8 +243,16 @@ pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
     apdapter_decoded.or(erc20_decoded)
 }
 
+impl From<crate::state::TokenQty> for TokenQty {
+    fn from(token: crate::state::TokenQty) -> Self {
+        TokenQty {
+            token:  token.contract,
+            amount: token.amount,
+        }
+    }
+}
 pub fn make_liquidator_params(
-    opportunity: VerifiedLiquidationOpportunity,
+    opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
 ) -> liquidation_adapter::LiquidationCallParams {
     liquidation_adapter::LiquidationCallParams {
@@ -271,7 +277,7 @@ pub fn make_liquidator_params(
 }
 
 pub async fn make_liquidator_calldata(
-    opportunity: VerifiedLiquidationOpportunity,
+    opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
     provider: Provider<Http>,
     adapter_contract: Address,
@@ -300,9 +306,12 @@ const MAX_STALE_OPPORTUNITY_SECS: i64 = 60;
 /// * `opportunity`: opportunity to verify
 /// * `store`: server store
 async fn verify_with_store(
-    opportunity: VerifiedLiquidationOpportunity,
+    verified_opportunity: LiquidationOpportunity,
     store: &Store,
 ) -> Result<()> {
+    let opportunity = match verified_opportunity.params {
+        OpportunityParams::V1(opportunity) => opportunity,
+    };
     let chain_store = store
         .chains
         .get(&opportunity.chain_id)
@@ -313,7 +322,7 @@ async fn verify_with_store(
         Ok(VerificationResult::UnableToSpoof) => {
             let current_time =
                 SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as UnixTimestamp;
-            if current_time - opportunity.creation_time > MAX_STALE_OPPORTUNITY_SECS {
+            if current_time - verified_opportunity.creation_time > MAX_STALE_OPPORTUNITY_SECS {
                 Err(anyhow!("Opportunity is stale and unverifiable"))
             } else {
                 Ok(())

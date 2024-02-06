@@ -15,11 +15,16 @@ use {
             U256,
         },
     },
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     std::collections::{
         HashMap,
         HashSet,
     },
     tokio::sync::RwLock,
+    utoipa::ToSchema,
     uuid::Uuid,
 };
 
@@ -34,18 +39,58 @@ pub struct SimulatedBid {
 }
 
 pub type UnixTimestamp = i64;
-#[derive(Clone)]
-pub struct VerifiedLiquidationOpportunity {
-    pub id:             Uuid,
-    pub creation_time:  UnixTimestamp,
+
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
+pub struct TokenQty {
+    /// Token contract address
+    #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",value_type=String)]
+    pub contract: ethers::abi::Address,
+    /// Token amount
+    #[schema(example = "1000", value_type=String)]
+    #[serde(with = "crate::serde::u256")]
+    pub amount:   U256,
+}
+
+/// Opportunity parameters needed for on-chain execution
+/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter,
+/// by calling this contract with the given calldata and structures, they will receive the tokens specified
+/// in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
+pub struct OpportunityParamsV1 {
+    /// The permission key required for succesful execution of the liquidation.
+    #[schema(example = "0xdeadbeefcafe", value_type=String)]
+    pub permission_key: Bytes,
+    /// The chain id where the liquidation will be executed.
+    #[schema(example = "sepolia", value_type=String)]
     pub chain_id:       ChainId,
-    pub permission_key: PermissionKey,
-    pub contract:       Address,
+    /// The contract address to call for execution of the liquidation.
+    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type=String)]
+    pub contract:       ethers::abi::Address,
+    /// Calldata for the contract call.
+    #[schema(example = "0xdeadbeef", value_type=String)]
     pub calldata:       Bytes,
+    /// The value to send with the contract call.
+    #[schema(example = "1", value_type=String)]
+    #[serde(with = "crate::serde::u256")]
     pub value:          U256,
-    pub repay_tokens:   Vec<(Address, U256)>,
-    pub receipt_tokens: Vec<(Address, U256)>,
-    pub bidders:        HashSet<Address>,
+
+    pub repay_tokens:   Vec<TokenQty>,
+    pub receipt_tokens: Vec<TokenQty>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[serde(tag = "version")]
+pub enum OpportunityParams {
+    #[serde(rename = "v1")]
+    V1(OpportunityParamsV1),
+}
+
+#[derive(Clone)]
+pub struct LiquidationOpportunity {
+    pub id:            Uuid,
+    pub creation_time: UnixTimestamp,
+    pub params:        OpportunityParams,
+    pub bidders:       HashSet<Address>,
 }
 
 #[derive(Clone)]
@@ -67,7 +112,7 @@ pub struct ChainStore {
 
 #[derive(Default)]
 pub struct LiquidationStore {
-    pub opportunities: RwLock<HashMap<PermissionKey, VerifiedLiquidationOpportunity>>,
+    pub opportunities: RwLock<HashMap<PermissionKey, LiquidationOpportunity>>,
 }
 
 pub struct Store {

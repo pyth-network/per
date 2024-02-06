@@ -12,9 +12,10 @@ use {
             verify_opportunity,
         },
         state::{
+            LiquidationOpportunity,
+            OpportunityParams,
             Store,
             UnixTimestamp,
-            VerifiedLiquidationOpportunity,
         },
     },
     axum::{
@@ -51,136 +52,62 @@ use {
     uuid::Uuid,
 };
 
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct TokenQty {
-    /// Token contract address
-    #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",value_type=String)]
-    contract: Address,
-    /// Token amount
-    #[schema(example = "1000", value_type=String)]
-    #[serde(with = "crate::serde::u256")]
-    amount:   U256,
-}
 
-/// A liquidation opportunity ready to be executed.
-/// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter,
-/// by calling this contract with the given calldata and structures, they will receive the tokens specified
-/// in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
+/// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct LiquidationOpportunity {
-    /// The permission key required for succesful execution of the liquidation.
-    #[schema(example = "0xdeadbeefcafe", value_type=String)]
-    permission_key: Bytes,
-    /// The chain id where the liquidation will be executed.
-    #[schema(example = "sepolia", value_type=String)]
-    chain_id:       ChainId,
-    /// The contract address to call for execution of the liquidation.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type=String)]
-    contract:       Address,
-    /// Calldata for the contract call.
-    #[schema(example = "0xdeadbeef", value_type=String)]
-    calldata:       Bytes,
-    /// The value to send with the contract call.
-    #[schema(example = "1", value_type=String)]
-    #[serde(with = "crate::serde::u256")]
-    value:          U256,
-
-    repay_tokens:   Vec<TokenQty>,
-    receipt_tokens: Vec<TokenQty>,
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
-#[serde(tag = "version")]
-pub enum VersionedLiquidationOpportunity {
-    #[serde(rename = "v1")]
-    V1(LiquidationOpportunity),
-}
-
-/// Similar to LiquidationOpportunity, but with the opportunity id included.
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct LiquidationOpportunityWithId {
+pub struct OpportunityParamsWithId {
     /// The opportunity unique id
+    #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479", value_type=String)]
     opportunity_id: Uuid,
     /// opportunity data
     #[serde(flatten)]
-    opportunity:    LiquidationOpportunity,
-}
-
-impl From<(Address, U256)> for TokenQty {
-    fn from(token: (Address, U256)) -> Self {
-        TokenQty {
-            contract: token.0,
-            amount:   token.1,
-        }
-    }
-}
-
-impl From<TokenQty> for (Address, U256) {
-    fn from(token: TokenQty) -> Self {
-        (token.contract, token.amount)
-    }
-}
-
-fn parse_tokens(tokens: Vec<TokenQty>) -> Vec<(Address, U256)> {
-    tokens.into_iter().map(|token| token.into()).collect()
+    params:         OpportunityParams,
 }
 
 /// Submit a liquidation opportunity ready to be executed.
 ///
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
 /// and will be available for bidding.
-#[utoipa::path(post, path = "/v1/liquidation/opportunity", request_body = VersionedLiquidationOpportunity, responses(
+#[utoipa::path(post, path = "/v1/liquidation/opportunity", request_body = OpportunityParams, responses(
     (status = 200, description = "Opportunity was stored succesfuly with the returned uuid", body = String),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn post_opportunity(
     State(store): State<Arc<Store>>,
-    Json(opportunity): Json<VersionedLiquidationOpportunity>,
+    Json(versioned_params): Json<OpportunityParams>,
 ) -> Result<String, RestError> {
-    let opportunity = match opportunity {
-        VersionedLiquidationOpportunity::V1(opportunity) => opportunity,
+    let params = match versioned_params.clone() {
+        OpportunityParams::V1(params) => params,
     };
     let chain_store = store
         .chains
-        .get(&opportunity.chain_id)
+        .get(&params.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let repay_tokens = parse_tokens(opportunity.repay_tokens);
-    let receipt_tokens = parse_tokens(opportunity.receipt_tokens);
-
     let id = Uuid::new_v4();
-    let verified_opportunity = VerifiedLiquidationOpportunity {
+    let opportunity = LiquidationOpportunity {
         id,
         creation_time: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| RestError::BadParameters("Invalid system time".to_string()))?
             .as_secs() as UnixTimestamp,
-        chain_id: opportunity.chain_id.clone(),
-        permission_key: opportunity.permission_key.clone(),
-        contract: opportunity.contract,
-        calldata: opportunity.calldata,
-        value: opportunity.value,
-        repay_tokens,
-        receipt_tokens,
+        params: versioned_params,
         bidders: Default::default(),
     };
 
-    verify_opportunity(
-        verified_opportunity.clone(),
-        chain_store,
-        store.per_operator.address(),
-    )
-    .await
-    .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
+    verify_opportunity(params.clone(), chain_store, store.per_operator.address())
+        .await
+        .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 
     store
         .liquidation_store
         .opportunities
         .write()
         .await
-        .insert(opportunity.permission_key.clone(), verified_opportunity);
+        .insert(params.permission_key.clone(), opportunity);
 
+    //TODO: return json
     Ok(id.to_string())
 }
 
@@ -193,45 +120,32 @@ pub struct ChainIdQueryParams {
 
 /// Fetch all liquidation opportunities ready to be exectued.
 #[utoipa::path(get, path = "/v1/liquidation/opportunities", responses(
-    (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<LiquidationOpportunity>),
+    (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<OpportunityParamsWithId>),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),
 params(ChainIdQueryParams))]
 pub async fn get_opportunities(
     State(store): State<Arc<Store>>,
-    params: Query<ChainIdQueryParams>,
-) -> Result<axum::Json<Vec<LiquidationOpportunityWithId>>, RestError> {
-    let opportunities: Vec<LiquidationOpportunityWithId> = store
+    query_params: Query<ChainIdQueryParams>,
+) -> Result<axum::Json<Vec<OpportunityParamsWithId>>, RestError> {
+    let opportunities: Vec<OpportunityParamsWithId> = store
         .liquidation_store
         .opportunities
         .read()
         .await
         .values()
         .cloned()
-        .map(|opportunity| LiquidationOpportunityWithId {
+        .map(|opportunity| OpportunityParamsWithId {
             opportunity_id: opportunity.id,
-            opportunity:    LiquidationOpportunity {
-                permission_key: opportunity.permission_key,
-                chain_id:       opportunity.chain_id,
-                contract:       opportunity.contract,
-                calldata:       opportunity.calldata,
-                value:          opportunity.value,
-                repay_tokens:   opportunity
-                    .repay_tokens
-                    .into_iter()
-                    .map(TokenQty::from)
-                    .collect(),
-                receipt_tokens: opportunity
-                    .receipt_tokens
-                    .into_iter()
-                    .map(TokenQty::from)
-                    .collect(),
-            },
+            params:         opportunity.params,
         })
-        .filter(|opportunity| {
-            if let Some(chain_id) = &params.chain_id {
-                opportunity.opportunity.chain_id == *chain_id
+        .filter(|params_with_id| {
+            let params = match &params_with_id.params {
+                OpportunityParams::V1(params) => params,
+            };
+            if let Some(chain_id) = &query_params.chain_id {
+                params.chain_id == *chain_id
             } else {
                 true
             }
@@ -278,7 +192,7 @@ pub async fn post_bid(
     State(store): State<Arc<Store>>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<String, RestError> {
-    let liquidation = store
+    let opportunity = store
         .liquidation_store
         .opportunities
         .read()
@@ -288,26 +202,30 @@ pub async fn post_bid(
         .clone();
 
 
-    if liquidation.id != opportunity_bid.opportunity_id {
+    if opportunity.id != opportunity_bid.opportunity_id {
         return Err(RestError::BadParameters(
             "Invalid opportunity_id".to_string(),
         ));
     }
 
     // TODO: move this logic to searcher side
-    if liquidation.bidders.contains(&opportunity_bid.liquidator) {
+    if opportunity.bidders.contains(&opportunity_bid.liquidator) {
         return Err(RestError::BadParameters(
             "Liquidator already bid on this opportunity".to_string(),
         ));
     }
 
+    let params = match &opportunity.params {
+        OpportunityParams::V1(params) => params,
+    };
+
     let chain_store = store
         .chains
-        .get(&liquidation.chain_id)
+        .get(&params.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
     let per_calldata = make_liquidator_calldata(
-        liquidation.clone(),
+        params.clone(),
         opportunity_bid.clone(),
         chain_store.provider.clone(),
         chain_store.config.adapter_contract,
@@ -317,8 +235,8 @@ pub async fn post_bid(
     match handle_bid(
         store.clone(),
         crate::api::bid::Bid {
-            permission_key: liquidation.permission_key.clone(),
-            chain_id:       liquidation.chain_id.clone(),
+            permission_key: params.permission_key.clone(),
+            chain_id:       params.chain_id.clone(),
             contract:       chain_store.config.adapter_contract,
             calldata:       per_calldata,
             amount:         opportunity_bid.amount,

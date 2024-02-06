@@ -3,10 +3,8 @@ use {
         api::{
             bid::Bid,
             liquidation::{
-                LiquidationOpportunity,
                 OpportunityBid,
-                TokenQty,
-                VersionedLiquidationOpportunity,
+                OpportunityParamsWithId,
             },
         },
         auction::run_submission_loop,
@@ -19,7 +17,10 @@ use {
         state::{
             ChainStore,
             LiquidationStore,
+            OpportunityParams,
+            OpportunityParamsV1,
             Store,
+            TokenQty,
         },
     },
     anyhow::{
@@ -166,9 +167,10 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     ),
     components(
     schemas(Bid),
-    schemas(LiquidationOpportunity),
+    schemas(OpportunityParamsV1),
     schemas(OpportunityBid),
-    schemas(VersionedLiquidationOpportunity),
+    schemas(OpportunityParams),
+    schemas(OpportunityParamsWithId),
     schemas(TokenQty),
     schemas(ErrorBodyResponse),
     responses(ErrorBodyResponse)

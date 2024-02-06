@@ -3,6 +3,7 @@ import asyncio
 import base64
 import json
 import logging
+import urllib.parse
 from typing import TypedDict
 
 import httpx
@@ -154,6 +155,7 @@ class VaultMonitor:
             "receipt_tokens": [
                 (account["token_address_collateral"], str(account["amount_collateral"]))
             ],
+            "version": "v1",
         }
 
         # TODO: figure out best interface to show partial liquidation possibility? Is this even important?
@@ -277,7 +279,12 @@ async def main():
             client = httpx.AsyncClient()
             for opp in opportunities:
                 try:
-                    resp = await client.post(args.liquidation_server_url, json=opp)
+                    resp = await client.post(
+                        urllib.parse.urljoin(
+                            args.liquidation_server_url, "/v1/liquidation/opportunity"
+                        ),
+                        json=opp,
+                    )
                 except Exception as e:
                     logger.error(f"Failed to post to liquidation server: {e}")
                     await asyncio.sleep(1)
