@@ -6,6 +6,7 @@ use {
                 LiquidationOpportunity,
                 OpportunityBid,
                 TokenQty,
+                VersionedLiquidationOpportunity,
             },
         },
         auction::run_submission_loop,
@@ -160,6 +161,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     schemas(Bid),
     schemas(LiquidationOpportunity),
     schemas(OpportunityBid),
+    schemas(VersionedLiquidationOpportunity),
     schemas(TokenQty),
     schemas(ErrorBodyResponse),
     responses(ErrorBodyResponse)

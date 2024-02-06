@@ -77,6 +77,13 @@ pub struct LiquidationOpportunity {
     receipt_tokens: Vec<TokenQty>,
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[serde(tag = "version")]
+pub enum VersionedLiquidationOpportunity {
+    #[serde(rename = "v1")]
+    V1(LiquidationOpportunity),
+}
+
 /// Similar to LiquidationOpportunity, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct LiquidationOpportunityWithId {
@@ -110,15 +117,18 @@ fn parse_tokens(tokens: Vec<TokenQty>) -> Vec<(Address, U256)> {
 ///
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
 /// and will be available for bidding.
-#[utoipa::path(post, path = "/v1/liquidation/opportunity", request_body = LiquidationOpportunity, responses(
+#[utoipa::path(post, path = "/v1/liquidation/opportunity", request_body = VersionedLiquidationOpportunity, responses(
     (status = 200, description = "Opportunity was stored succesfuly with the returned uuid", body = String),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn post_opportunity(
     State(store): State<Arc<Store>>,
-    Json(opportunity): Json<LiquidationOpportunity>,
+    Json(opportunity): Json<VersionedLiquidationOpportunity>,
 ) -> Result<String, RestError> {
+    let opportunity = match opportunity {
+        VersionedLiquidationOpportunity::V1(opportunity) => opportunity,
+    };
     store
         .chains
         .get(&opportunity.chain_id)
