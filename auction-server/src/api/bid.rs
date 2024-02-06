@@ -32,7 +32,10 @@ use {
         Serialize,
     },
     std::sync::Arc,
-    utoipa::ToSchema,
+    utoipa::{
+        ToResponse,
+        ToSchema,
+    },
 };
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
@@ -55,7 +58,7 @@ pub struct Bid {
     pub amount:         U256,
 }
 
-pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> Result<String, RestError> {
+pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> Result<(), RestError> {
     let chain_store = store
         .chains
         .get(&bid.chain_id)
@@ -99,7 +102,12 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> Result<String, RestError
             calldata: bid.calldata.clone(),
             bid:      bid.amount,
         });
-    Ok("OK".to_string())
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
+pub struct BidResult {
+    pub status: String,
 }
 
 /// Bid on a specific permission key for a specific chain.
@@ -107,19 +115,25 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> Result<String, RestError
 /// Your bid will be simulated and verified by the server. Depending on the outcome of the auction, a transaction
 /// containing the contract call will be sent to the blockchain expecting the bid amount to be paid after the call.
 #[utoipa::path(post, path = "/v1/bid", request_body = Bid, responses(
-    (status = 200, description = "Bid was placed succesfully", body = String),
+    (status = 200, description = "Bid was placed succesfully", body = BidResult, example = json!({"status": "OK"})),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn bid(
     State(store): State<Arc<Store>>,
     Json(bid): Json<Bid>,
-) -> Result<String, RestError> {
+) -> Result<Json<BidResult>, RestError> {
     let bid = bid.clone();
     store
         .chains
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    handle_bid(store, bid).await
+    match handle_bid(store, bid).await {
+        Ok(_) => Ok(BidResult {
+            status: "OK".to_string(),
+        }
+        .into()),
+        Err(e) => Err(e),
+    }
 }

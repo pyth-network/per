@@ -1,7 +1,10 @@
 use {
     crate::{
         api::{
-            bid::Bid,
+            bid::{
+                Bid,
+                BidResult,
+            },
             liquidation::{
                 OpportunityBid,
                 OpportunityParamsWithId,
@@ -172,8 +175,11 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     schemas(OpportunityParams),
     schemas(OpportunityParamsWithId),
     schemas(TokenQty),
+    schemas(BidResult),
     schemas(ErrorBodyResponse),
-    responses(ErrorBodyResponse)
+    responses(ErrorBodyResponse),
+    responses(OpportunityParamsWithId),
+    responses(BidResult)
     ),
     tags(
     (name = "PER Auction", description = "Pyth Express Relay Auction Server")

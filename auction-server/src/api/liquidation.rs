@@ -1,7 +1,10 @@
 use {
     crate::{
         api::{
-            bid::handle_bid,
+            bid::{
+                handle_bid,
+                BidResult,
+            },
             ErrorBodyResponse,
             RestError,
         },
@@ -47,6 +50,7 @@ use {
     },
     utoipa::{
         IntoParams,
+        ToResponse,
         ToSchema,
     },
     uuid::Uuid,
@@ -54,7 +58,7 @@ use {
 
 
 /// Similar to OpportunityParams, but with the opportunity id included.
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct OpportunityParamsWithId {
     /// The opportunity unique id
     #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479", value_type=String)]
@@ -69,14 +73,14 @@ pub struct OpportunityParamsWithId {
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
 /// and will be available for bidding.
 #[utoipa::path(post, path = "/v1/liquidation/opportunity", request_body = OpportunityParams, responses(
-    (status = 200, description = "Opportunity was stored succesfuly with the returned uuid", body = String),
+    (status = 200, description = "The created opportunity", body = OpportunityParamsWithId),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn post_opportunity(
     State(store): State<Arc<Store>>,
     Json(versioned_params): Json<OpportunityParams>,
-) -> Result<String, RestError> {
+) -> Result<Json<OpportunityParamsWithId>, RestError> {
     let params = match versioned_params.clone() {
         OpportunityParams::V1(params) => params,
     };
@@ -92,7 +96,7 @@ pub async fn post_opportunity(
             .duration_since(UNIX_EPOCH)
             .map_err(|_| RestError::BadParameters("Invalid system time".to_string()))?
             .as_secs() as UnixTimestamp,
-        params: versioned_params,
+        params: versioned_params.clone(),
         bidders: Default::default(),
     };
 
@@ -107,8 +111,11 @@ pub async fn post_opportunity(
         .await
         .insert(params.permission_key.clone(), opportunity);
 
-    //TODO: return json
-    Ok(id.to_string())
+    Ok(OpportunityParamsWithId {
+        opportunity_id: id,
+        params:         versioned_params,
+    }
+    .into())
 }
 
 
@@ -184,14 +191,14 @@ pub struct OpportunityBid {
 
 /// Bid on liquidation opportunity
 #[utoipa::path(post, path = "/v1/liquidation/bid", request_body=OpportunityBid, responses(
-    (status = 200, description = "Bid Result", body = String),
+    (status = 200, description = "Bid Result", body = BidResult, example = json!({"status": "OK"})),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn post_bid(
     State(store): State<Arc<Store>>,
     Json(opportunity_bid): Json<OpportunityBid>,
-) -> Result<String, RestError> {
+) -> Result<Json<BidResult>, RestError> {
     let opportunity = store
         .liquidation_store
         .opportunities
@@ -250,7 +257,10 @@ pub async fn post_bid(
             if let Some(liquidation) = liquidation {
                 liquidation.bidders.insert(opportunity_bid.liquidator);
             }
-            Ok("OK".to_string())
+            Ok(BidResult {
+                status: "OK".to_string(),
+            }
+            .into())
         }
         Err(e) => match e {
             RestError::SimulationError { result, reason } => {
