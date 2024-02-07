@@ -152,6 +152,10 @@ impl IntoResponse for RestError {
     }
 }
 
+pub async fn live() -> Response {
+    (StatusCode::OK, "OK").into_response()
+}
+
 pub async fn start_server(run_options: RunOptions) -> Result<()> {
     tokio::spawn(async move {
         tracing::info!("Registered shutdown signal handler...");
@@ -254,6 +258,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             "/v1/liquidation/opportunities/:opportunity_id/bids",
             post(liquidation::post_bid),
         )
+        .route("/live", get(live))
         .layer(CorsLayer::permissive())
         .with_state(server_store);
 
