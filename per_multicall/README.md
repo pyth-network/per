@@ -5,7 +5,7 @@
 Run the following commands to install necessary libraries:
 
 ```shell
-$ npm install @pythnetwork/pyth-sdk-solidity
+$ npm install
 $ forge install foundry-rs/forge-std --no-git --no-commit
 $ forge install OpenZeppelin/openzeppelin-contracts --no-git --no-commit
 ```

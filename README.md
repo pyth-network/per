@@ -23,3 +23,7 @@ The updated enviornment variables can then be seen via `env`. We can then run th
 pre-commit is a tool that checks and fixes simple issues (formatting, ...) before each commit. You can install it by following [their website](https://pre-commit.com/). In order to enable checks for this repo run `pre-commit install` from command-line in the root of this repo.
 
 The checks are also performed in the CI to ensure the code follows consistent formatting.
+
+### Development with Tilt
+
+Run `tilt up --namespace dev-<YOUR_NAMESPACE>` to start tilt.
