@@ -4,6 +4,9 @@ pragma solidity ^0.8.13;
 // Signature: 0x82b42900
 error Unauthorized();
 
+// Signature: 0x868a64de
+error InvalidPermission();
+
 // Signature: 0xf136a5b7
 error InvalidSearcherSignature();
 
@@ -30,3 +33,15 @@ error NotRegistered();
 
 // Signature: 0xd3c8346c
 error LiquidationCallFailed(string reason);
+
+// Signature: 0x4af147aa
+error InsufficientTokenReceived();
+
+// Signature: 0x61ca76d2
+error NegativePrice();
+
+// Signature: 0x4a7a3163
+error InvalidHealthRatios();
+
+// Signature: 0x4be6321b
+error InvalidSignatureLength();

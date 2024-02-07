@@ -95,8 +95,12 @@ contract TokenVault is PERFeeReceiver {
         uint256 priceCollateral = _getPrice(vault.tokenIDCollateral);
         uint256 priceDebt = _getPrice(vault.tokenIDDebt);
 
-        require(priceCollateral >= 0, "collateral price is negative");
-        require(priceDebt >= 0, "debt price is negative");
+        if (priceCollateral < 0) {
+            revert NegativePrice();
+        }
+        if (priceDebt < 0) {
+            revert NegativePrice();
+        }
 
         uint256 valueCollateral = priceCollateral * vault.amountCollateral;
         uint256 valueDebt = priceDebt * vault.amountDebt;
@@ -139,10 +143,9 @@ contract TokenVault is PERFeeReceiver {
             tokenIDCollateral,
             tokenIDDebt
         );
-        require(
-            minPermissionLessHealthRatio <= minHealthRatio,
-            "minPermissionLessHealthRatio must be less than or equal to minHealthRatio"
-        );
+        if (minPermissionLessHealthRatio > minHealthRatio) {
+            revert InvalidHealthRatios();
+        }
         if (_getVaultHealth(vault) < vault.minHealthRatio) {
             revert UncollateralizedVaultCreation();
         }
