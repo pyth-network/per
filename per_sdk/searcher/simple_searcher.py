@@ -145,6 +145,7 @@ async def main():
             continue
 
         logger.debug("Found %d liquidation opportunities", len(accounts_liquidatable))
+
         for liquidation_opp in accounts_liquidatable:
             bid_info = assess_liquidation_opportunity(args.bid, liquidation_opp)
 
@@ -153,6 +154,9 @@ async def main():
                 tx = create_liquidation_transaction(
                     liquidation_opp, sk_liquidator, bid_info
                 )
+                import pdb
+
+                pdb.set_trace()
 
                 resp = await client.post(LIQUIDATION_SERVER_ENDPOINT_BID, json=tx)
                 logger.info(

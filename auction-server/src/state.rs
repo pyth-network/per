@@ -67,7 +67,7 @@ pub struct ChainStore {
 
 #[derive(Default)]
 pub struct LiquidationStore {
-    pub opportunities: RwLock<HashMap<PermissionKey, VerifiedLiquidationOpportunity>>,
+    pub opportunities: RwLock<HashMap<PermissionKey, Vec<VerifiedLiquidationOpportunity>>>,
 }
 
 pub struct Store {

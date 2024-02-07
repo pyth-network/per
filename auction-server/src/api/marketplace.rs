@@ -147,7 +147,7 @@ pub async fn submit_opportunity(
         receipt_tokens,
         bidders: Default::default(),
     };
-
+    
     verify_opportunity(
         verified_opportunity.clone(),
         chain_store,
@@ -156,12 +156,40 @@ pub async fn submit_opportunity(
     .await
     .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 
+    let mut opportunities_existing = Vec::new();
+
+    if store
+        .liquidation_store
+        .opportunities
+        .read()
+        .await
+        .contains_key(&opportunity.permission_key)
+    {
+        opportunities_existing =
+            store.liquidation_store.opportunities.read().await[&opportunity.permission_key].clone();
+        let opportunity_top = opportunities_existing[0].clone();
+        // check if exact same opportunity exists already
+        if opportunity_top.chain_id == opportunity.chain_id
+            && opportunity_top.contract == opportunity.contract
+            && opportunity_top.calldata == opportunity.calldata
+            && opportunity_top.value == opportunity.value
+            && opportunity_top.repay_tokens == repay_tokens
+            && opportunity_top.receipt_tokens == receipt_tokens
+        {
+            return Err(RestError::BadParameters(
+                "Duplicate opportunity submission".to_string(),
+            ));
+        }
+    }
+
+    opportunities_existing.push(verified_opportunity.clone());
+
     store
         .liquidation_store
         .opportunities
         .write()
         .await
-        .insert(opportunity.permission_key.clone(), verified_opportunity);
+        .insert(opportunity.permission_key.clone(), opportunities_existing);
 
     Ok(id.to_string())
 }
@@ -181,20 +209,20 @@ pub async fn fetch_opportunities(
         .await
         .values()
         .cloned()
-        .map(|opportunity| LiquidationOpportunityWithId {
-            opportunity_id: opportunity.id,
+        .map(|opportunities| LiquidationOpportunityWithId {
+            opportunity_id: opportunities[0].id,
             opportunity:    LiquidationOpportunity {
-                permission_key: opportunity.permission_key,
-                chain_id:       opportunity.chain_id,
-                contract:       opportunity.contract,
-                calldata:       opportunity.calldata,
-                value:          opportunity.value,
-                repay_tokens:   opportunity
+                permission_key: opportunities[0].permission_key,
+                chain_id:       opportunities[0].chain_id,
+                contract:       opportunities[0].contract,
+                calldata:       opportunities[0].calldata,
+                value:          opportunities[0].value,
+                repay_tokens:   opportunities[0]
                     .repay_tokens
                     .into_iter()
                     .map(TokenQty::from)
                     .collect(),
-                receipt_tokens: opportunity
+                receipt_tokens: opportunities[0]
                     .receipt_tokens
                     .into_iter()
                     .map(TokenQty::from)
@@ -252,6 +280,11 @@ pub async fn bid_opportunity(
         .clone();
 
 
+    // TODO: delete these prints
+    tracing::info!("Opportunity: {:?}", liquidation.id);
+    tracing::info!("Opp bid: {:?}", opportunity_bid.opportunity_id);
+
+    // this check fails whenever opportunity ID is updated by the protocol monitor, which it can be often
     if liquidation.id != opportunity_bid.opportunity_id {
         return Err(RestError::BadParameters(
             "Invalid opportunity_id".to_string(),
