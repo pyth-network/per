@@ -333,7 +333,9 @@ pub async fn run_verification_loop(store: Arc<Store>) {
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         let all_opportunities = store.liquidation_store.opportunities.read().await.clone();
         for (permission_key, opportunity) in all_opportunities.iter() {
-            match verify_with_store(opportunity.clone(), &store).await {
+            // just need to check the most recent opportunity, if that fails the rest should also be removed
+            // TODO: this is true for subsequent opportunities that only have updated price updates, but may not be true generally; we should think about how best to do this (one option is to just check every single saved opportunity and remove from the store one by one)
+            match verify_with_store(opportunity[0].clone(), &store).await {
                 Ok(_) => {}
                 Err(e) => {
                     store

@@ -43,12 +43,18 @@ def get_vault_abi():
 
 class VaultMonitor:
     def __init__(
-        self, rpc_url: str, contract_address: str, weth_address: str, chain_id: str
+        self,
+        rpc_url: str,
+        contract_address: str,
+        weth_address: str,
+        chain_id: str,
+        mock_pyth: bool,
     ):
         self.rpc_url = rpc_url
         self.contract_address = contract_address
         self.weth_address = weth_address
         self.chain_id = chain_id
+        self.mock_pyth = mock_pyth
         self.w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(rpc_url))
 
         self.token_vault = self.w3.eth.contract(
@@ -115,7 +121,11 @@ class VaultMonitor:
             A LiquidationOpportunity object corresponding to the specified account.
         """
 
-        price_updates = [base64.b64decode(update["vaa"]) for update in prices]
+        if self.mock_pyth:
+            # TODO: do we want to update with mock pyth prices from the vaas?
+            price_updates = []
+        else:
+            price_updates = [base64.b64decode(update["vaa"]) for update in prices]
 
         calldata = self.token_vault.encodeABI(
             fn_name="liquidateWithPriceUpdate",
@@ -243,6 +253,13 @@ async def main():
         dest="weth_contract",
         help="WETH contract address",
     )
+    parser.add_argument(
+        "--mock-pyth",
+        action="store_true",
+        dest="mock_pyth",
+        default=False,
+        help="If provided, will not include price update VAAs in the on-chain submission because MockPyth is being used",
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--dry-run",
@@ -267,7 +284,11 @@ async def main():
     logger.addHandler(log_handler)
 
     monitor = VaultMonitor(
-        args.rpc_url, args.vault_contract, args.weth_contract, args.chain_id
+        args.rpc_url,
+        args.vault_contract,
+        args.weth_contract,
+        args.chain_id,
+        args.mock_pyth,
     )
 
     while True:

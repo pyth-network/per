@@ -140,14 +140,14 @@ pub async fn submit_opportunity(
             .as_secs() as UnixTimestamp,
         chain_id: opportunity.chain_id.clone(),
         permission_key: opportunity.permission_key.clone(),
-        contract: opportunity.contract,
-        calldata: opportunity.calldata,
-        value: opportunity.value,
-        repay_tokens,
-        receipt_tokens,
+        contract: opportunity.contract.clone(),
+        calldata: opportunity.calldata.clone(),
+        value: opportunity.value.clone(),
+        repay_tokens: repay_tokens.clone(),
+        receipt_tokens: receipt_tokens.clone(),
         bidders: Default::default(),
     };
-    
+
     verify_opportunity(
         verified_opportunity.clone(),
         chain_store,
@@ -191,6 +191,14 @@ pub async fn submit_opportunity(
         .await
         .insert(opportunity.permission_key.clone(), opportunities_existing);
 
+    tracing::info!(
+        "number of permission keys: {}",
+        store.liquidation_store.opportunities.read().await.len()
+    );
+    tracing::info!(
+        "number of opportunities for key: {}",
+        store.liquidation_store.opportunities.read().await[&opportunity.permission_key].len()
+    );
     Ok(id.to_string())
 }
 
@@ -202,7 +210,7 @@ pub async fn submit_opportunity(
 pub async fn fetch_opportunities(
     State(store): State<Arc<Store>>,
 ) -> Result<axum::Json<Vec<LiquidationOpportunityWithId>>, RestError> {
-    let opportunities: Vec<LiquidationOpportunityWithId> = store
+    let opportunity: Vec<LiquidationOpportunityWithId> = store
         .liquidation_store
         .opportunities
         .read()
@@ -210,20 +218,23 @@ pub async fn fetch_opportunities(
         .values()
         .cloned()
         .map(|opportunities| LiquidationOpportunityWithId {
+            // only expose the most recent opportunity
             opportunity_id: opportunities[0].id,
             opportunity:    LiquidationOpportunity {
-                permission_key: opportunities[0].permission_key,
-                chain_id:       opportunities[0].chain_id,
+                permission_key: opportunities[0].permission_key.clone(),
+                chain_id:       opportunities[0].chain_id.clone(),
                 contract:       opportunities[0].contract,
-                calldata:       opportunities[0].calldata,
+                calldata:       opportunities[0].calldata.clone(),
                 value:          opportunities[0].value,
                 repay_tokens:   opportunities[0]
                     .repay_tokens
+                    .clone()
                     .into_iter()
                     .map(TokenQty::from)
                     .collect(),
                 receipt_tokens: opportunities[0]
                     .receipt_tokens
+                    .clone()
                     .into_iter()
                     .map(TokenQty::from)
                     .collect(),
@@ -231,7 +242,7 @@ pub async fn fetch_opportunities(
         })
         .collect();
 
-    Ok(opportunities.into())
+    Ok(opportunity.into())
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
@@ -270,7 +281,7 @@ pub async fn bid_opportunity(
     State(store): State<Arc<Store>>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<String, RestError> {
-    let liquidation = store
+    let opportunities_liquidation = store
         .liquidation_store
         .opportunities
         .read()
@@ -279,70 +290,71 @@ pub async fn bid_opportunity(
         .ok_or(RestError::OpportunityNotFound)?
         .clone();
 
+    let position_id = opportunities_liquidation
+        .iter()
+        .position(|o| o.id == opportunity_bid.opportunity_id);
 
-    // TODO: delete these prints
-    tracing::info!("Opportunity: {:?}", liquidation.id);
-    tracing::info!("Opp bid: {:?}", opportunity_bid.opportunity_id);
+    match position_id {
+        Some(index) => {
+            let liquidation = opportunities_liquidation[index].clone();
 
-    // this check fails whenever opportunity ID is updated by the protocol monitor, which it can be often
-    if liquidation.id != opportunity_bid.opportunity_id {
-        return Err(RestError::BadParameters(
-            "Invalid opportunity_id".to_string(),
-        ));
-    }
-
-    // TODO: move this logic to searcher side
-    if liquidation.bidders.contains(&opportunity_bid.liquidator) {
-        return Err(RestError::BadParameters(
-            "Liquidator already bid on this opportunity".to_string(),
-        ));
-    }
-
-    let chain_store = store
-        .chains
-        .get(&liquidation.chain_id)
-        .ok_or(RestError::InvalidChainId)?;
-
-    let per_calldata = make_liquidator_calldata(
-        liquidation.clone(),
-        opportunity_bid.clone(),
-        chain_store.provider.clone(),
-        chain_store.config.adapter_contract,
-    )
-    .await
-    .map_err(|e| RestError::BadParameters(e.to_string()))?;
-    match handle_bid(
-        store.clone(),
-        crate::api::rest::Bid {
-            permission_key: liquidation.permission_key.clone(),
-            chain_id:       liquidation.chain_id.clone(),
-            contract:       chain_store.config.adapter_contract,
-            calldata:       per_calldata,
-            amount:         opportunity_bid.amount,
-        },
-    )
-    .await
-    {
-        Ok(_) => {
-            let mut write_guard = store.liquidation_store.opportunities.write().await;
-            let liquidation = write_guard.get_mut(&opportunity_bid.permission_key);
-            if let Some(liquidation) = liquidation {
-                liquidation.bidders.insert(opportunity_bid.liquidator);
+            // TODO: move this logic to searcher side
+            if liquidation.bidders.contains(&opportunity_bid.liquidator) {
+                return Err(RestError::BadParameters(
+                    "Liquidator already bid on this opportunity".to_string(),
+                ));
             }
-            Ok("OK".to_string())
-        }
-        Err(e) => match e {
-            RestError::SimulationError { result, reason } => {
-                let parsed = parse_revert_error(&result);
-                match parsed {
-                    Some(decoded) => Err(RestError::BadParameters(decoded)),
-                    None => {
-                        tracing::info!("Could not parse revert reason: {}", reason);
-                        Err(RestError::SimulationError { result, reason })
+
+            let chain_store = store
+                .chains
+                .get(&liquidation.chain_id)
+                .ok_or(RestError::InvalidChainId)?;
+
+            let per_calldata = make_liquidator_calldata(
+                liquidation.clone(),
+                opportunity_bid.clone(),
+                chain_store.provider.clone(),
+                chain_store.config.adapter_contract,
+            )
+            .await
+            .map_err(|e| RestError::BadParameters(e.to_string()))?;
+            match handle_bid(
+                store.clone(),
+                crate::api::rest::Bid {
+                    permission_key: liquidation.permission_key.clone(),
+                    chain_id:       liquidation.chain_id.clone(),
+                    contract:       chain_store.config.adapter_contract,
+                    calldata:       per_calldata,
+                    amount:         opportunity_bid.amount,
+                },
+            )
+            .await
+            {
+                Ok(_) => {
+                    let mut write_guard = store.liquidation_store.opportunities.write().await;
+                    let liquidation = write_guard.get_mut(&opportunity_bid.permission_key);
+                    if let Some(liquidation) = liquidation {
+                        liquidation[index]
+                            .bidders
+                            .insert(opportunity_bid.liquidator);
                     }
+                    Ok("OK".to_string())
                 }
+                Err(e) => match e {
+                    RestError::SimulationError { result, reason } => {
+                        let parsed = parse_revert_error(&result);
+                        match parsed {
+                            Some(decoded) => Err(RestError::BadParameters(decoded)),
+                            None => {
+                                tracing::info!("Could not parse revert reason: {}", reason);
+                                Err(RestError::SimulationError { result, reason })
+                            }
+                        }
+                    }
+                    _ => Err(e),
+                },
             }
-            _ => Err(e),
-        },
+        }
+        None => Err(RestError::OpportunityNotFound),
     }
 }
