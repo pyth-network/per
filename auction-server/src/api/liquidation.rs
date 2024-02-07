@@ -23,6 +23,7 @@ use {
     },
     axum::{
         extract::{
+            Path,
             Query,
             State,
         },
@@ -72,7 +73,7 @@ pub struct OpportunityParamsWithId {
 ///
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
 /// and will be available for bidding.
-#[utoipa::path(post, path = "/v1/liquidation/opportunity", request_body = OpportunityParams, responses(
+#[utoipa::path(post, path = "/v1/liquidation/opportunities", request_body = OpportunityParams, responses(
     (status = 200, description = "The created opportunity", body = OpportunityParamsWithId),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
@@ -164,9 +165,6 @@ pub async fn get_opportunities(
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct OpportunityBid {
-    /// The opportunity id to bid on.
-    #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479",value_type=String)]
-    pub opportunity_id: Uuid,
     /// The opportunity permission key
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
     pub permission_key: Bytes,
@@ -190,13 +188,15 @@ pub struct OpportunityBid {
 }
 
 /// Bid on liquidation opportunity
-#[utoipa::path(post, path = "/v1/liquidation/bid", request_body=OpportunityBid, responses(
+#[utoipa::path(post, path = "/v1/liquidation/opportunities/{opportunity_id}/bids", request_body=OpportunityBid,
+    params(("opportunity_id", description = "Opportunity id to bid on")), responses(
     (status = 200, description = "Bid Result", body = BidResult, example = json!({"status": "OK"})),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn post_bid(
     State(store): State<Arc<Store>>,
+    Path(opportunity_id): Path<Uuid>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
     let opportunity = store
@@ -209,7 +209,7 @@ pub async fn post_bid(
         .clone();
 
 
-    if opportunity.id != opportunity_bid.opportunity_id {
+    if opportunity.id != opportunity_id {
         return Err(RestError::BadParameters(
             "Invalid opportunity_id".to_string(),
         ));

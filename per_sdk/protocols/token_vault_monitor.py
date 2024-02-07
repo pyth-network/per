@@ -281,7 +281,7 @@ async def main():
                 try:
                     resp = await client.post(
                         urllib.parse.urljoin(
-                            args.liquidation_server_url, "/v1/liquidation/opportunity"
+                            args.liquidation_server_url, "/v1/liquidation/opportunities"
                         ),
                         json=opp,
                     )

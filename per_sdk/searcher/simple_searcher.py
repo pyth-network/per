@@ -1,16 +1,13 @@
 import argparse
 import asyncio
 import logging
+import urllib.parse
 from typing import TypedDict
 
 import httpx
 from eth_account import Account
 
 from per_sdk.searcher.searcher_utils import BidInfo, construct_signature_liquidator
-from per_sdk.utils.endpoints import (
-    LIQUIDATION_SERVER_ENDPOINT_BID,
-    LIQUIDATION_SERVER_ENDPOINT_GETOPPS,
-)
 from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
 
 logger = logging.getLogger(__name__)
@@ -116,6 +113,12 @@ async def main():
         default=10,
         help="Default amount of bid for liquidation opportunities",
     )
+    parser.add_argument(
+        "--liquidation-server-url",
+        type=str,
+        required=True,
+        help="Liquidation server endpoint to use for fetching opportunities and submitting bids",
+    )
     args = parser.parse_args()
 
     logger.setLevel(logging.INFO if args.verbose == 0 else logging.DEBUG)
@@ -135,7 +138,9 @@ async def main():
         try:
             accounts_liquidatable = (
                 await client.get(
-                    LIQUIDATION_SERVER_ENDPOINT_GETOPPS,
+                    urllib.parse.urljoin(
+                        args.liquidation_server_url, "/v1/liquidation/opportunities"
+                    ),
                     params={"chain_id": args.chain_id},
                 )
             ).json()
@@ -146,26 +151,32 @@ async def main():
 
         logger.debug("Found %d liquidation opportunities", len(accounts_liquidatable))
         for liquidation_opp in accounts_liquidatable:
+            opp_id = liquidation_opp["opportunity_id"]
             if liquidation_opp["version"] != "v1":
                 logger.warning(
                     "Opportunity %s has unsupported version %s",
-                    liquidation_opp["opportunity_id"],
+                    opp_id,
                     liquidation_opp["version"],
                 )
                 continue
             bid_info = assess_liquidation_opportunity(args.bid, liquidation_opp)
 
             if bid_info is not None:
-
                 tx = create_liquidation_transaction(
                     liquidation_opp, sk_liquidator, bid_info
                 )
 
-                resp = await client.post(LIQUIDATION_SERVER_ENDPOINT_BID, json=tx)
+                resp = await client.post(
+                    urllib.parse.urljoin(
+                        args.liquidation_server_url,
+                        f"/v1/liquidation/opportunities/{opp_id}/bids",
+                    ),
+                    json=tx,
+                )
                 logger.info(
                     "Submitted bid amount %s for opportunity %s, server response: %s",
                     bid_info["bid"],
-                    liquidation_opp["opportunity_id"],
+                    opp_id,
                     resp.text,
                 )
 

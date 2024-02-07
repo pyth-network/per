@@ -137,7 +137,7 @@ impl IntoResponse for RestError {
             ),
             RestError::OpportunityNotFound => (
                 StatusCode::NOT_FOUND,
-                "Order with the specified id was not found".to_string(),
+                "Opportunity with the specified id was not found".to_string(),
             ),
             RestError::TemporarilyUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -241,16 +241,19 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
-        .route("/v1/bid", post(bid::bid))
+        .route("/v1/bids", post(bid::bid))
         .route(
-            "/v1/liquidation/opportunity",
+            "/v1/liquidation/opportunities",
             post(liquidation::post_opportunity),
         )
         .route(
             "/v1/liquidation/opportunities",
             get(liquidation::get_opportunities),
         )
-        .route("/v1/liquidation/bid", post(liquidation::post_bid))
+        .route(
+            "/v1/liquidation/opportunities/:opportunity_id/bids",
+            post(liquidation::post_bid),
+        )
         .layer(CorsLayer::permissive())
         .with_state(server_store);
 

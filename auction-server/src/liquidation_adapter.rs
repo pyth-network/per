@@ -95,7 +95,6 @@ pub async fn verify_opportunity(
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
     let mut fake_bid = OpportunityBid {
-        opportunity_id: Default::default(),
         liquidator:     fake_wallet.address(),
         valid_until:    U256::max_value(),
         permission_key: opportunity.permission_key.clone(),
