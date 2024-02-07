@@ -48,12 +48,14 @@ class VaultMonitor:
         contract_address: str,
         weth_address: str,
         chain_id: str,
+        include_price_updates: bool,
         mock_pyth: bool,
     ):
         self.rpc_url = rpc_url
         self.contract_address = contract_address
         self.weth_address = weth_address
         self.chain_id = chain_id
+        self.include_price_updates = include_price_updates
         self.mock_pyth = mock_pyth
         self.w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(rpc_url))
 
@@ -120,12 +122,29 @@ class VaultMonitor:
         Returns:
             A LiquidationOpportunity object corresponding to the specified account.
         """
+        price_updates = []
 
-        if self.mock_pyth:
-            # TODO: do we want to update with mock pyth prices from the vaas?
-            price_updates = []
-        else:
-            price_updates = [base64.b64decode(update["vaa"]) for update in prices]
+        if self.include_price_updates:
+            if self.mock_pyth:
+                price_updates = []
+
+                for update in prices:
+                    feed_id = bytes.fromhex(update["feed_id"])
+                    price = tuple([int(x) for x in update["price"].values()])
+                    price_ema = tuple([int(x) for x in update["price_ema"].values()])
+                    price_updates.append(
+                        encode(
+                            [
+                                "bytes32",
+                                "(int64,uint64,int32,uint64)",
+                                "(int64,uint64,int32,uint64)",
+                                "uint64",
+                            ],
+                            [feed_id, price, price_ema, 0],
+                        )
+                    )
+            else:
+                price_updates = [base64.b64decode(update["vaa"]) for update in prices]
 
         calldata = self.token_vault.encodeABI(
             fn_name="liquidateWithPriceUpdate",
@@ -254,11 +273,18 @@ async def main():
         help="WETH contract address",
     )
     parser.add_argument(
+        "--exclude-price-updates",
+        action="store_false",
+        dest="include_price_updates",
+        default=True,
+        help="If provided, will exclude Pyth price updates from the liquidation call. Should only be used in testing.",
+    )
+    parser.add_argument(
         "--mock-pyth",
         action="store_true",
         dest="mock_pyth",
         default=False,
-        help="If provided, will not include price update VAAs in the on-chain submission because MockPyth is being used",
+        help="If provided, will construct price updates in MockPyth format rather than VAAs",
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
@@ -288,6 +314,7 @@ async def main():
         args.vault_contract,
         args.weth_contract,
         args.chain_id,
+        args.include_price_updates,
         args.mock_pyth,
     )
 
