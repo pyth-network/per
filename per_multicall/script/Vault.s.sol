@@ -68,7 +68,7 @@ contract VaultScript is Script {
     }
 
     function deployMockPyth() public returns (address) {
-        MockPyth mockPyth = new MockPyth(1_000_000, 0);
+        MockPyth mockPyth = new MockPyth(1_000_000_000_000, 0);
         console.log("deployed mock pyth contract at", address(mockPyth));
         return address(mockPyth);
     }
@@ -235,8 +235,21 @@ contract VaultScript is Script {
         // instantiate ERC-20 tokens
         vm.startBroadcast(sksScript[3]);
         console.log("balance of pk perOperator", addressesScript[3].balance);
-        token1 = new MyToken("token1", "T1");
-        token2 = new MyToken("token2", "T2");
+
+        // create token price feed IDs--see https://pyth.network/developers/price-feed-ids
+        // TODO: automate converting bytes32 to string
+        idToken1 = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace; // ETH/USD
+        idToken2 = 0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43; // BTC/USD
+        string
+            memory idToken1Str = "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace";
+        string
+            memory idToken2Str = "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43";
+        console.log("ids of tokens");
+        console.logBytes32(idToken1);
+        console.logBytes32(idToken2);
+
+        token1 = new MyToken(idToken1Str, "T1");
+        token2 = new MyToken(idToken2Str, "T2");
 
         console.log("token 1 address", address(token1));
         console.log("token 2 address", address(token2));
@@ -265,13 +278,6 @@ contract VaultScript is Script {
 
         // mint token 2 to the vault contract (to allow creation of initial vault with outstanding debt position)
         token2.mint(tokenVaultAddress, qtys[7]);
-
-        // create token price feed IDs--see https://pyth.network/developers/price-feed-ids
-        idToken1 = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace; // ETH/USD
-        idToken2 = 0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43; // BTC/USD
-        console.log("ids of tokens");
-        console.logBytes32(idToken1);
-        console.logBytes32(idToken2);
 
         // mint token to searchers A and B EOAs
         token1.mint(address(addressesScript[0]), 20_000_000);
@@ -346,6 +352,13 @@ contract VaultScript is Script {
         bytes32 idToken1Latest = vm.parseJsonBytes32(json, ".idToken1");
         bytes32 idToken2Latest = vm.parseJsonBytes32(json, ".idToken2");
 
+        console.log("oracle address:");
+        console.log(oracleLatest);
+        console.log("token 1 id:");
+        console.logBytes32(idToken1Latest);
+        console.log("token 2 id:");
+        console.logBytes32(idToken2Latest);
+
         MockPyth oracle = MockPyth(payable(oracleLatest));
 
         // set initial oracle prices
@@ -399,6 +412,11 @@ contract VaultScript is Script {
             IERC20(token1Latest).balanceOf(depositorLatest),
             IERC20(token2Latest).balanceOf(depositorLatest)
         );
+
+        address oracleLatest = vm.parseJsonAddress(json, ".oracle");
+        MockPyth oracle = MockPyth(payable(oracleLatest));
+        console.log(oracleLatest);
+        console.logInt(oracle.queryPriceFeed(idToken1Latest).price.price);
 
         if (collatT1) {
             vm.startBroadcast(depositorSkLatest);
