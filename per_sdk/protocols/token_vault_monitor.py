@@ -238,7 +238,7 @@ class VaultMonitor:
             logger.debug(f"Account {account['account_number']} health: {health}")
             if (
                 value_debt * int(account["min_health_ratio"])
-                > value_collateral * 10 ** 18
+                > value_collateral * 10**18
             ):
                 price_updates = [price_collateral, price_debt]
                 liquidatable.append(self.create_liquidation_opp(account, price_updates))
