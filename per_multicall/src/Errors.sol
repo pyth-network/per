@@ -37,11 +37,5 @@ error LiquidationCallFailed(string reason);
 // Signature: 0x4af147aa
 error InsufficientTokenReceived();
 
-// Signature: 0x61ca76d2
-error NegativePrice();
-
-// Signature: 0x4a7a3163
-error InvalidHealthRatios();
-
 // Signature: 0x4be6321b
 error InvalidSignatureLength();

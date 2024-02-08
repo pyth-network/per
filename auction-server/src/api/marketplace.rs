@@ -92,6 +92,73 @@ pub struct LiquidationOpportunityWithId {
     opportunity:    LiquidationOpportunity,
 }
 
+impl PartialEq<LiquidationOpportunity> for VerifiedLiquidationOpportunity {
+    fn eq(&self, other: &LiquidationOpportunity) -> bool {
+        self.chain_id == other.chain_id
+            && self.contract == other.contract
+            && self.calldata == other.calldata
+            && self.value == other.value
+            && self.repay_tokens == parse_tokens(other.repay_tokens.clone())
+            && self.receipt_tokens == parse_tokens(other.receipt_tokens.clone())
+    }
+}
+
+impl PartialEq<VerifiedLiquidationOpportunity> for LiquidationOpportunity {
+    fn eq(&self, other: &VerifiedLiquidationOpportunity) -> bool {
+        self.chain_id == other.chain_id
+            && self.contract == other.contract
+            && self.calldata == other.calldata
+            && self.value == other.value
+            && parse_tokens(self.repay_tokens.clone()) == other.repay_tokens
+            && parse_tokens(self.receipt_tokens.clone()) == other.receipt_tokens
+    }
+}
+
+impl Into<LiquidationOpportunityWithId> for VerifiedLiquidationOpportunity {
+    fn into(self) -> LiquidationOpportunityWithId {
+        LiquidationOpportunityWithId {
+            opportunity_id: self.id,
+            opportunity:    LiquidationOpportunity {
+                permission_key: self.permission_key,
+                chain_id:       self.chain_id,
+                contract:       self.contract,
+                calldata:       self.calldata,
+                value:          self.value,
+                repay_tokens:   self.repay_tokens.into_iter().map(TokenQty::from).collect(),
+                receipt_tokens: self
+                    .receipt_tokens
+                    .into_iter()
+                    .map(TokenQty::from)
+                    .collect(),
+            },
+        }
+    }
+}
+
+impl Into<VerifiedLiquidationOpportunity> for LiquidationOpportunity {
+    fn into(self) -> VerifiedLiquidationOpportunity {
+        let id = Uuid::new_v4();
+        let creation_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| RestError::BadParameters("Invalid system time".to_string()))
+            // TODO: this may not be the best way to handle this
+            .unwrap_or_default()
+            .as_secs() as UnixTimestamp;
+        VerifiedLiquidationOpportunity {
+            id,
+            creation_time,
+            chain_id: self.chain_id,
+            permission_key: self.permission_key,
+            contract: self.contract,
+            calldata: self.calldata,
+            value: self.value,
+            repay_tokens: parse_tokens(self.repay_tokens),
+            receipt_tokens: parse_tokens(self.receipt_tokens),
+            bidders: Default::default(),
+        }
+    }
+}
+
 impl From<(Address, U256)> for TokenQty {
     fn from(token: (Address, U256)) -> Self {
         TokenQty {
@@ -128,25 +195,7 @@ pub async fn submit_opportunity(
         .get(&opportunity.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let repay_tokens = parse_tokens(opportunity.repay_tokens);
-    let receipt_tokens = parse_tokens(opportunity.receipt_tokens);
-
-    let id = Uuid::new_v4();
-    let verified_opportunity = VerifiedLiquidationOpportunity {
-        id,
-        creation_time: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| RestError::BadParameters("Invalid system time".to_string()))?
-            .as_secs() as UnixTimestamp,
-        chain_id: opportunity.chain_id.clone(),
-        permission_key: opportunity.permission_key.clone(),
-        contract: opportunity.contract.clone(),
-        calldata: opportunity.calldata.clone(),
-        value: opportunity.value.clone(),
-        repay_tokens: repay_tokens.clone(),
-        receipt_tokens: receipt_tokens.clone(),
-        bidders: Default::default(),
-    };
+    let verified_opportunity: VerifiedLiquidationOpportunity = opportunity.clone().into();
 
     verify_opportunity(
         verified_opportunity.clone(),
@@ -156,50 +205,33 @@ pub async fn submit_opportunity(
     .await
     .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 
-    let mut opportunities_existing = Vec::new();
+    let mut write_lock = store.liquidation_store.opportunities.write().await;
 
-    if store
-        .liquidation_store
-        .opportunities
-        .read()
-        .await
-        .contains_key(&opportunity.permission_key)
-    {
-        opportunities_existing =
-            store.liquidation_store.opportunities.read().await[&opportunity.permission_key].clone();
-        let opportunity_top = opportunities_existing[0].clone();
+    if write_lock.contains_key(&opportunity.permission_key) {
+        let opportunities_existing = write_lock[&opportunity.permission_key].clone();
+        let opportunity_top = opportunities_existing[opportunities_existing.len() - 1].clone();
         // check if exact same opportunity exists already
-        if opportunity_top.chain_id == opportunity.chain_id
-            && opportunity_top.contract == opportunity.contract
-            && opportunity_top.calldata == opportunity.calldata
-            && opportunity_top.value == opportunity.value
-            && opportunity_top.repay_tokens == repay_tokens
-            && opportunity_top.receipt_tokens == receipt_tokens
-        {
+        if opportunity_top == opportunity {
             return Err(RestError::BadParameters(
                 "Duplicate opportunity submission".to_string(),
             ));
         }
     }
 
-    opportunities_existing.push(verified_opportunity.clone());
+    if let Some(x) = write_lock.get_mut(&opportunity.permission_key) {
+        x.push(verified_opportunity.clone());
+    } else {
+        let mut opportunities = Vec::new();
+        opportunities.push(verified_opportunity.clone());
+        write_lock.insert(verified_opportunity.permission_key.clone(), opportunities);
+    }
 
-    store
-        .liquidation_store
-        .opportunities
-        .write()
-        .await
-        .insert(opportunity.permission_key.clone(), opportunities_existing);
-
-    tracing::info!(
-        "number of permission keys: {}",
-        store.liquidation_store.opportunities.read().await.len()
-    );
-    tracing::info!(
+    tracing::debug!("number of permission keys: {}", write_lock.len());
+    tracing::debug!(
         "number of opportunities for key: {}",
-        store.liquidation_store.opportunities.read().await[&opportunity.permission_key].len()
+        write_lock[&opportunity.permission_key].len()
     );
-    Ok(id.to_string())
+    Ok(verified_opportunity.id.to_string())
 }
 
 /// Fetch all liquidation opportunities ready to be exectued.
@@ -210,39 +242,21 @@ pub async fn submit_opportunity(
 pub async fn fetch_opportunities(
     State(store): State<Arc<Store>>,
 ) -> Result<axum::Json<Vec<LiquidationOpportunityWithId>>, RestError> {
-    let opportunity: Vec<LiquidationOpportunityWithId> = store
+    let opportunities: Vec<LiquidationOpportunityWithId> = store
         .liquidation_store
         .opportunities
         .read()
         .await
         .values()
         .cloned()
-        .map(|opportunities| LiquidationOpportunityWithId {
-            // only expose the most recent opportunity
-            opportunity_id: opportunities[0].id,
-            opportunity:    LiquidationOpportunity {
-                permission_key: opportunities[0].permission_key.clone(),
-                chain_id:       opportunities[0].chain_id.clone(),
-                contract:       opportunities[0].contract,
-                calldata:       opportunities[0].calldata.clone(),
-                value:          opportunities[0].value,
-                repay_tokens:   opportunities[0]
-                    .repay_tokens
-                    .clone()
-                    .into_iter()
-                    .map(TokenQty::from)
-                    .collect(),
-                receipt_tokens: opportunities[0]
-                    .receipt_tokens
-                    .clone()
-                    .into_iter()
-                    .map(TokenQty::from)
-                    .collect(),
-            },
+        .map(|opportunities_key| {
+            opportunities_key[opportunities_key.len() - 1]
+                .clone()
+                .into()
         })
         .collect();
 
-    Ok(opportunity.into())
+    Ok(opportunities.into())
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
@@ -292,69 +306,65 @@ pub async fn bid_opportunity(
 
     let position_id = opportunities_liquidation
         .iter()
-        .position(|o| o.id == opportunity_bid.opportunity_id);
+        .position(|o| o.id == opportunity_bid.opportunity_id)
+        .ok_or(RestError::OpportunityNotFound)?;
 
-    match position_id {
-        Some(index) => {
-            let liquidation = opportunities_liquidation[index].clone();
+    let liquidation = opportunities_liquidation[position_id].clone();
 
-            // TODO: move this logic to searcher side
-            if liquidation.bidders.contains(&opportunity_bid.liquidator) {
-                return Err(RestError::BadParameters(
-                    "Liquidator already bid on this opportunity".to_string(),
-                ));
+    // TODO: move this logic to searcher side
+    if liquidation.bidders.contains(&opportunity_bid.liquidator) {
+        return Err(RestError::BadParameters(
+            "Liquidator already bid on this opportunity".to_string(),
+        ));
+    }
+
+    let chain_store = store
+        .chains
+        .get(&liquidation.chain_id)
+        .ok_or(RestError::InvalidChainId)?;
+
+    let per_calldata = make_liquidator_calldata(
+        liquidation.clone(),
+        opportunity_bid.clone(),
+        chain_store.provider.clone(),
+        chain_store.config.adapter_contract,
+    )
+    .await
+    .map_err(|e| RestError::BadParameters(e.to_string()))?;
+    match handle_bid(
+        store.clone(),
+        crate::api::rest::Bid {
+            permission_key: liquidation.permission_key.clone(),
+            chain_id:       liquidation.chain_id.clone(),
+            contract:       chain_store.config.adapter_contract,
+            calldata:       per_calldata,
+            amount:         opportunity_bid.amount,
+        },
+    )
+    .await
+    {
+        Ok(_) => {
+            let mut write_guard = store.liquidation_store.opportunities.write().await;
+            let liquidation = write_guard.get_mut(&opportunity_bid.permission_key);
+            if let Some(liquidation) = liquidation {
+                liquidation[position_id]
+                    .bidders
+                    .insert(opportunity_bid.liquidator);
             }
-
-            let chain_store = store
-                .chains
-                .get(&liquidation.chain_id)
-                .ok_or(RestError::InvalidChainId)?;
-
-            let per_calldata = make_liquidator_calldata(
-                liquidation.clone(),
-                opportunity_bid.clone(),
-                chain_store.provider.clone(),
-                chain_store.config.adapter_contract,
-            )
-            .await
-            .map_err(|e| RestError::BadParameters(e.to_string()))?;
-            match handle_bid(
-                store.clone(),
-                crate::api::rest::Bid {
-                    permission_key: liquidation.permission_key.clone(),
-                    chain_id:       liquidation.chain_id.clone(),
-                    contract:       chain_store.config.adapter_contract,
-                    calldata:       per_calldata,
-                    amount:         opportunity_bid.amount,
-                },
-            )
-            .await
-            {
-                Ok(_) => {
-                    let mut write_guard = store.liquidation_store.opportunities.write().await;
-                    let liquidation = write_guard.get_mut(&opportunity_bid.permission_key);
-                    if let Some(liquidation) = liquidation {
-                        liquidation[index]
-                            .bidders
-                            .insert(opportunity_bid.liquidator);
-                    }
-                    Ok("OK".to_string())
-                }
-                Err(e) => match e {
-                    RestError::SimulationError { result, reason } => {
-                        let parsed = parse_revert_error(&result);
-                        match parsed {
-                            Some(decoded) => Err(RestError::BadParameters(decoded)),
-                            None => {
-                                tracing::info!("Could not parse revert reason: {}", reason);
-                                Err(RestError::SimulationError { result, reason })
-                            }
-                        }
-                    }
-                    _ => Err(e),
-                },
-            }
+            Ok("OK".to_string())
         }
-        None => Err(RestError::OpportunityNotFound),
+        Err(e) => match e {
+            RestError::SimulationError { result, reason } => {
+                let parsed = parse_revert_error(&result);
+                match parsed {
+                    Some(decoded) => Err(RestError::BadParameters(decoded)),
+                    None => {
+                        tracing::info!("Could not parse revert reason: {}", reason);
+                        Err(RestError::SimulationError { result, reason })
+                    }
+                }
+            }
+            _ => Err(e),
+        },
     }
 }

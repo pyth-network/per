@@ -328,27 +328,45 @@ async fn verify_with_store(
 /// # Arguments
 ///
 /// * `store`: server store
-pub async fn run_verification_loop(store: Arc<Store>) {
+pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
     tracing::info!("Starting opportunity verifier...");
     while !SHOULD_EXIT.load(Ordering::Acquire) {
-        let all_opportunities = store.liquidation_store.opportunities.read().await.clone();
-        for (permission_key, opportunity) in all_opportunities.iter() {
-            // just need to check the most recent opportunity, if that fails the rest should also be removed
-            // TODO: this is true for subsequent opportunities that only have updated price updates, but may not be true generally; we should think about how best to do this (one option is to just check every single saved opportunity and remove from the store one by one)
-            match verify_with_store(opportunity[0].clone(), &store).await {
-                Ok(_) => {}
-                Err(e) => {
-                    store
-                        .liquidation_store
-                        .opportunities
-                        .write()
-                        .await
-                        .remove(permission_key);
-                    tracing::info!("Removed Opportunity with failed verification: {}", e);
+        // set write lock early to prevent keys from being removed while we are iterating over them
+        // TODO: is this the best place to initiate the lock?
+        let mut write_lock = store.liquidation_store.opportunities.write().await;
+        let all_opportunities = write_lock.clone();
+        for (permission_key, opportunities) in all_opportunities.iter() {
+            // check each of the opportunities for this permission key for validity
+            let mut inds_to_remove = vec![];
+            let mut ind = 0;
+            while ind < opportunities.len() {
+                match verify_with_store(opportunities[ind].clone(), &store).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        inds_to_remove.push(ind);
+                        tracing::info!("Removing Opportunity with failed verification: {}", e);
+                    }
                 }
+                ind += 1
+            }
+
+            for ind in inds_to_remove.iter().rev() {
+                write_lock
+                    .get_mut(permission_key)
+                    .ok_or(anyhow!("Permission key not found"))?
+                    .remove(*ind);
+            }
+
+            if write_lock
+                .get(permission_key)
+                .ok_or(anyhow!("Permission key not found"))?
+                .is_empty()
+            {
+                write_lock.remove(permission_key);
             }
         }
         tokio::time::sleep(Duration::from_secs(5)).await; // this should be replaced by a subscription to the chain and trigger on new blocks
     }
     tracing::info!("Shutting down opportunity verifier...");
+    Ok(())
 }

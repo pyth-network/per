@@ -154,11 +154,10 @@ async def main():
                 tx = create_liquidation_transaction(
                     liquidation_opp, sk_liquidator, bid_info
                 )
-                import pdb
 
-                pdb.set_trace()
-
-                resp = await client.post(LIQUIDATION_SERVER_ENDPOINT_BID, json=tx)
+                resp = await client.post(
+                    LIQUIDATION_SERVER_ENDPOINT_BID, json=tx, timeout=20
+                )
                 logger.info(
                     "Submitted bid amount %s for opportunity %s, server response: %s",
                     bid_info["bid"],

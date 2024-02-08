@@ -248,8 +248,8 @@ contract VaultScript is Script {
         console.logBytes32(idToken1);
         console.logBytes32(idToken2);
 
-        token1 = new MyToken(idToken1Str, "T1");
-        token2 = new MyToken(idToken2Str, "T2");
+        token1 = new MyToken(idToken1Str, "T_ETH");
+        token2 = new MyToken(idToken2Str, "T_BTC");
 
         console.log("token 1 address", address(token1));
         console.log("token 2 address", address(token2));
@@ -412,11 +412,6 @@ contract VaultScript is Script {
             IERC20(token1Latest).balanceOf(depositorLatest),
             IERC20(token2Latest).balanceOf(depositorLatest)
         );
-
-        address oracleLatest = vm.parseJsonAddress(json, ".oracle");
-        MockPyth oracle = MockPyth(payable(oracleLatest));
-        console.log(oracleLatest);
-        console.logInt(oracle.queryPriceFeed(idToken1Latest).price.price);
 
         if (collatT1) {
             vm.startBroadcast(depositorSkLatest);

@@ -34,7 +34,7 @@ pub struct SimulatedBid {
 }
 
 pub type UnixTimestamp = i64;
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct VerifiedLiquidationOpportunity {
     pub id:             Uuid,
     pub creation_time:  UnixTimestamp,

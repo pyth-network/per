@@ -9,7 +9,7 @@ import httpx
 import web3
 from eth_abi import encode
 
-from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient
+from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient, price_to_tuple
 from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
 
 logger = logging.getLogger(__name__)
@@ -130,8 +130,9 @@ class VaultMonitor:
 
                 for update in prices:
                     feed_id = bytes.fromhex(update["feed_id"])
-                    price = tuple([int(x) for x in update["price"].values()])
-                    price_ema = tuple([int(x) for x in update["price_ema"].values()])
+                    price = price_to_tuple(update["price"])
+                    price_ema = price_to_tuple(update["price_ema"])
+                    prev_publish_time = 0
                     price_updates.append(
                         encode(
                             [
@@ -140,7 +141,7 @@ class VaultMonitor:
                                 "(int64,uint64,int32,uint64)",
                                 "uint64",
                             ],
-                            [feed_id, price, price_ema, 0],
+                            [feed_id, price, price_ema, prev_publish_time],
                         )
                     )
             else:
