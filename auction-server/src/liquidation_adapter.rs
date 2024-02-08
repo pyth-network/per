@@ -1,7 +1,7 @@
 use {
     crate::{
         api::{
-            marketplace::OpportunityBid,
+            liquidation::OpportunityBid,
             SHOULD_EXIT,
         },
         auction::{
@@ -11,10 +11,12 @@ use {
         },
         state::{
             ChainStore,
+            LiquidationOpportunity,
+            OpportunityParams,
+            OpportunityParamsV1,
             SpoofInfo,
             Store,
             UnixTimestamp,
-            VerifiedLiquidationOpportunity,
         },
         token_spoof,
     },
@@ -75,14 +77,6 @@ abigen!(
 abigen!(ERC20, "../per_multicall/out/ERC20.sol/ERC20.json");
 abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
 
-impl From<(Address, U256)> for TokenQty {
-    fn from(token: (Address, U256)) -> Self {
-        TokenQty {
-            token:  token.0,
-            amount: token.1,
-        }
-    }
-}
 
 pub enum VerificationResult {
     Success,
@@ -94,14 +88,13 @@ pub enum VerificationResult {
 /// Returns Ok(VerificationResult) if the simulation is successful or if the tokens cannot be spoofed
 /// Returns Err if the simulation fails despite spoofing or if any other error occurs
 pub async fn verify_opportunity(
-    opportunity: VerifiedLiquidationOpportunity,
+    opportunity: OpportunityParamsV1,
     chain_store: &ChainStore,
     per_operator: Address,
 ) -> Result<VerificationResult> {
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
     let mut fake_bid = OpportunityBid {
-        opportunity_id: opportunity.id,
         liquidator:     fake_wallet.address(),
         valid_until:    U256::max_value(),
         permission_key: opportunity.permission_key.clone(),
@@ -139,7 +132,11 @@ pub async fn verify_opportunity(
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();
-    for (token, amount) in opportunity.repay_tokens.into_iter() {
+    for crate::state::TokenQty {
+        contract: token,
+        amount,
+    } in opportunity.repay_tokens.into_iter()
+    {
         let spoof_info = match token_spoof_info.get(&token) {
             Some(info) => info.clone(),
             None => {
@@ -245,8 +242,16 @@ pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
     apdapter_decoded.or(erc20_decoded)
 }
 
+impl From<crate::state::TokenQty> for TokenQty {
+    fn from(token: crate::state::TokenQty) -> Self {
+        TokenQty {
+            token:  token.contract,
+            amount: token.amount,
+        }
+    }
+}
 pub fn make_liquidator_params(
-    opportunity: VerifiedLiquidationOpportunity,
+    opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
 ) -> liquidation_adapter::LiquidationCallParams {
     liquidation_adapter::LiquidationCallParams {
@@ -271,7 +276,7 @@ pub fn make_liquidator_params(
 }
 
 pub async fn make_liquidator_calldata(
-    opportunity: VerifiedLiquidationOpportunity,
+    opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
     provider: Provider<Http>,
     adapter_contract: Address,
@@ -299,16 +304,16 @@ const MAX_STALE_OPPORTUNITY_SECS: i64 = 60;
 ///
 /// * `opportunity`: opportunity to verify
 /// * `store`: server store
-async fn verify_with_store(
-    opportunity: VerifiedLiquidationOpportunity,
-    store: &Store,
-) -> Result<()> {
+async fn verify_with_store(opportunity: LiquidationOpportunity, store: &Store) -> Result<()> {
+    let params = match opportunity.params {
+        OpportunityParams::V1(opportunity) => opportunity,
+    };
     let chain_store = store
         .chains
-        .get(&opportunity.chain_id)
-        .ok_or(anyhow!("Chain not found: {}", opportunity.chain_id))?;
+        .get(&params.chain_id)
+        .ok_or(anyhow!("Chain not found: {}", params.chain_id))?;
     let per_operator = store.per_operator.address();
-    match verify_opportunity(opportunity.clone(), chain_store, per_operator).await {
+    match verify_opportunity(params.clone(), chain_store, per_operator).await {
         Ok(VerificationResult::Success) => Ok(()),
         Ok(VerificationResult::UnableToSpoof) => {
             let current_time =

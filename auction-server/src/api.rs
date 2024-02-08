@@ -1,12 +1,14 @@
 use {
     crate::{
         api::{
-            marketplace::{
-                LiquidationOpportunity,
-                OpportunityBid,
-                TokenQty,
+            bid::{
+                Bid,
+                BidResult,
             },
-            rest::Bid,
+            liquidation::{
+                OpportunityBid,
+                OpportunityParamsWithId,
+            },
         },
         auction::run_submission_loop,
         config::{
@@ -18,7 +20,10 @@ use {
         state::{
             ChainStore,
             LiquidationStore,
+            OpportunityParams,
+            OpportunityParamsV1,
             Store,
+            TokenQty,
         },
     },
     anyhow::{
@@ -35,6 +40,7 @@ use {
             get,
             post,
         },
+        Json,
         Router,
     },
     clap::crate_version,
@@ -51,6 +57,7 @@ use {
         types::Bytes,
     },
     futures::future::join_all,
+    serde::Serialize,
     std::{
         collections::HashMap,
         sync::{
@@ -83,11 +90,9 @@ async fn root() -> String {
     format!("PER Auction Server API {}", crate_version!())
 }
 
-pub(crate) mod marketplace;
-mod rest;
+mod bid;
+pub(crate) mod liquidation;
 
-#[derive(ToResponse, ToSchema)]
-#[response(description = "An error occurred processing the request")]
 pub enum RestError {
     /// The request contained invalid parameters
     BadParameters(String),
@@ -96,11 +101,7 @@ pub enum RestError {
     /// The chain id is not supported
     InvalidChainId,
     /// The simulation failed
-    SimulationError {
-        #[schema(value_type=String)]
-        result: Bytes,
-        reason: String,
-    },
+    SimulationError { result: Bytes, reason: String },
     /// The order was not found
     OpportunityNotFound,
     /// The server cannot currently communicate with the blockchain, so is not able to verify
@@ -110,42 +111,44 @@ pub enum RestError {
     Unknown,
 }
 
+#[derive(ToResponse, ToSchema, Serialize)]
+#[response(description = "An error occurred processing the request")]
+struct ErrorBodyResponse {
+    error: String,
+}
+
 impl IntoResponse for RestError {
     fn into_response(self) -> Response {
-        match self {
+        let (status, msg) = match self {
             RestError::BadParameters(msg) => {
-                (StatusCode::BAD_REQUEST, format!("Bad parameters: {}", msg)).into_response()
+                (StatusCode::BAD_REQUEST, format!("Bad parameters: {}", msg))
             }
             RestError::InvalidOpportunity(msg) => (
                 StatusCode::BAD_REQUEST,
                 format!("Invalid opportunity: {}", msg),
-            )
-                .into_response(),
-            RestError::InvalidChainId => {
-                (StatusCode::BAD_REQUEST, "The chain id is not supported").into_response()
-            }
+            ),
+            RestError::InvalidChainId => (
+                StatusCode::NOT_FOUND,
+                "The chain id is not found".to_string(),
+            ),
             RestError::SimulationError { result, reason } => (
                 StatusCode::BAD_REQUEST,
                 format!("Simulation failed: {} ({})", result, reason),
-            )
-                .into_response(),
+            ),
             RestError::OpportunityNotFound => (
                 StatusCode::NOT_FOUND,
-                "Order with the specified id was not found",
-            )
-                .into_response(),
-
+                "Opportunity with the specified id was not found".to_string(),
+            ),
             RestError::TemporarilyUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
-                "This service is temporarily unavailable",
-            )
-                .into_response(),
+                "This service is temporarily unavailable".to_string(),
+            ),
             RestError::Unknown => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "An unknown error occurred processing the request",
-            )
-                .into_response(),
-        }
+                "An unknown error occurred processing the request".to_string(),
+            ),
+        };
+        (status, Json(ErrorBodyResponse { error: msg })).into_response()
     }
 }
 
@@ -160,13 +163,23 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     #[derive(OpenApi)]
     #[openapi(
     paths(
-    rest::bid,
-    marketplace::submit_opportunity,
-    marketplace::bid_opportunity,
-    marketplace::fetch_opportunities,
+    bid::bid,
+    liquidation::post_opportunity,
+    liquidation::post_bid,
+    liquidation::get_opportunities,
     ),
     components(
-        schemas(Bid),schemas(LiquidationOpportunity),schemas(OpportunityBid), schemas(TokenQty),responses(RestError)
+    schemas(Bid),
+    schemas(OpportunityParamsV1),
+    schemas(OpportunityBid),
+    schemas(OpportunityParams),
+    schemas(OpportunityParamsWithId),
+    schemas(TokenQty),
+    schemas(BidResult),
+    schemas(ErrorBodyResponse),
+    responses(ErrorBodyResponse),
+    responses(OpportunityParamsWithId),
+    responses(BidResult)
     ),
     tags(
     (name = "PER Auction", description = "Pyth Express Relay Auction Server")
@@ -228,18 +241,18 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
-        .route("/bid", post(rest::bid))
+        .route("/v1/bids", post(bid::bid))
         .route(
-            "/liquidation/submit_opportunity",
-            post(marketplace::submit_opportunity),
+            "/v1/liquidation/opportunities",
+            post(liquidation::post_opportunity),
         )
         .route(
-            "/liquidation/fetch_opportunities",
-            get(marketplace::fetch_opportunities),
+            "/v1/liquidation/opportunities",
+            get(liquidation::get_opportunities),
         )
         .route(
-            "/liquidation/bid_opportunity",
-            post(marketplace::bid_opportunity),
+            "/v1/liquidation/opportunities/:opportunity_id/bids",
+            post(liquidation::post_bid),
         )
         .layer(CorsLayer::permissive())
         .with_state(server_store);
