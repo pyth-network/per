@@ -336,30 +336,32 @@ async fn verify_with_store(opportunity: LiquidationOpportunity, store: &Store) -
 pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
     tracing::info!("Starting opportunity verifier...");
     while !SHOULD_EXIT.load(Ordering::Acquire) {
-        // set write lock early to prevent keys from being removed while we are iterating over them
-        // TODO: is this the best place to initiate the lock?
-        let mut write_lock = store.liquidation_store.opportunities.write().await;
-        let all_opportunities = write_lock.clone();
+        let all_opportunities = store.liquidation_store.opportunities.read().await.clone();
         for (permission_key, opportunities) in all_opportunities.iter() {
             // check each of the opportunities for this permission key for validity
-            let mut inds_to_remove = vec![];
-            let mut ind = 0;
-            while ind < opportunities.len() {
-                match verify_with_store(opportunities[ind].clone(), &store).await {
+            let mut opps_to_remove = vec![];
+            for opportunity in opportunities.iter() {
+                match verify_with_store(opportunity.clone(), &store).await {
                     Ok(_) => {}
                     Err(e) => {
-                        inds_to_remove.push(ind);
-                        tracing::info!("Removing Opportunity with failed verification: {}", e);
+                        opps_to_remove.push(opportunity.id);
+                        tracing::info!(
+                            "Removing Opportunity {} with failed verification: {}",
+                            opportunity.id,
+                            e
+                        );
                     }
                 }
-                ind += 1
             }
 
-            for ind in inds_to_remove.iter().rev() {
+            // set write lock to remove all these opportunities
+            let mut write_lock = store.liquidation_store.opportunities.write().await;
+
+            for id_opp in opps_to_remove {
                 write_lock
                     .get_mut(permission_key)
                     .ok_or(anyhow!("Permission key not found"))?
-                    .remove(*ind);
+                    .retain(|x| x.id != id_opp);
             }
 
             if write_lock
@@ -369,6 +371,9 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
             {
                 write_lock.remove(permission_key);
             }
+
+            // release the write lock
+            drop(write_lock);
         }
         tokio::time::sleep(Duration::from_secs(5)).await; // this should be replaced by a subscription to the chain and trigger on new blocks
     }

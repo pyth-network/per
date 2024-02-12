@@ -118,22 +118,21 @@ pub async fn post_opportunity(
     let mut write_lock = store.liquidation_store.opportunities.write().await;
 
     if write_lock.contains_key(&params.permission_key) {
-        let opportunities_existing = write_lock[&params.permission_key].clone();
-        let opportunity_top = opportunities_existing[opportunities_existing.len() - 1].clone();
-        // check if exact same opportunity exists already
-        if opportunity_top == opportunity {
-            return Err(RestError::BadParameters(
-                "Duplicate opportunity submission".to_string(),
-            ));
+        let opportunities_existing = &write_lock[&params.permission_key];
+        // check if same opportunity exists in the vector
+        for opportunity_existing in opportunities_existing {
+            if *opportunity_existing == opportunity {
+                return Err(RestError::BadParameters(
+                    "Duplicate opportunity submission".to_string(),
+                ));
+            }
         }
     }
 
     if let Some(x) = write_lock.get_mut(&params.permission_key) {
         x.push(opportunity.clone());
     } else {
-        let mut opportunities = Vec::new();
-        opportunities.push(opportunity.clone());
-        write_lock.insert(params.permission_key.clone(), opportunities);
+        write_lock.insert(params.permission_key.clone(), vec![opportunity]);
     }
 
     tracing::debug!("number of permission keys: {}", write_lock.len());
@@ -175,7 +174,9 @@ pub async fn get_opportunities(
         .values()
         .cloned()
         .map(|opportunities_key| {
-            opportunities_key[opportunities_key.len() - 1]
+            opportunities_key
+                .last()
+                .expect("A permission key vector should have at least one opportunity")
                 .clone()
                 .into()
         })
@@ -230,7 +231,7 @@ pub async fn post_bid(
     Path(opportunity_id): Path<Uuid>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
-    let opportunities_key = store
+    let opportunities = store
         .liquidation_store
         .opportunities
         .read()
@@ -239,12 +240,10 @@ pub async fn post_bid(
         .ok_or(RestError::OpportunityNotFound)?
         .clone();
 
-    let position_id = opportunities_key
+    let liquidation = opportunities
         .iter()
-        .position(|o| o.id == opportunity_id)
+        .find(|o| o.id == opportunity_id)
         .ok_or(RestError::OpportunityNotFound)?;
-
-    let liquidation = opportunities_key[position_id].clone();
 
     // TODO: move this logic to searcher side
     if liquidation.bidders.contains(&opportunity_bid.liquidator) {
@@ -284,11 +283,13 @@ pub async fn post_bid(
     {
         Ok(_) => {
             let mut write_guard = store.liquidation_store.opportunities.write().await;
-            let liquidation = write_guard.get_mut(&opportunity_bid.permission_key);
-            if let Some(liquidation) = liquidation {
-                liquidation[position_id]
-                    .bidders
-                    .insert(opportunity_bid.liquidator);
+            let opportunities = write_guard.get_mut(&opportunity_bid.permission_key);
+            if let Some(opportunities) = opportunities {
+                let liquidation = opportunities
+                    .iter_mut()
+                    .find(|o| o.id == opportunity_id)
+                    .ok_or(RestError::OpportunityNotFound)?;
+                liquidation.bidders.insert(opportunity_bid.liquidator);
             }
             Ok(BidResult {
                 status: "OK".to_string(),
