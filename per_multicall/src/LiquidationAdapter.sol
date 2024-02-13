@@ -70,9 +70,9 @@ contract LiquidationAdapter is SigVerify {
                 params.contractAddress,
                 params.data,
                 params.value,
-                params.bid
+                params.bid,
+                params.validUntil
             ),
-            params.validUntil,
             params.signatureLiquidator
         );
         if (!validSignature) {

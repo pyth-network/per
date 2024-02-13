@@ -201,13 +201,9 @@ fn get_liquidation_digest(params: liquidation_adapter::LiquidationCallParams) ->
         params.data.into_token(),
         params.value.into_token(),
         params.bid.into_token(),
+        params.valid_until.into_token(),
     ]));
-    // encode packed does not work correctly for U256 so we need to convert it to bytes first
-    let nonce_bytes = Bytes::from(<[u8; 32]>::from(params.valid_until));
-    let digest = H256(keccak256(abi::encode_packed(&[
-        data.into_token(),
-        nonce_bytes.into_token(),
-    ])?));
+    let digest = H256(keccak256(data));
     Ok(digest)
 }
 

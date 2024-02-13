@@ -44,12 +44,19 @@ def construct_signature_liquidator(
             "bytes",
             "uint256",
             "uint256",
+            "uint256",
         ],
-        [repay_tokens, receipt_tokens, address, liq_calldata, value, bid_info["bid"]],
+        [
+            repay_tokens,
+            receipt_tokens,
+            address,
+            liq_calldata,
+            value,
+            bid_info["bid"],
+            bid_info["valid_until"],
+        ],
     )
-    msg_data = web3.Web3.solidity_keccak(
-        ["bytes", "uint256"], [digest, bid_info["valid_until"]]
-    )
+    msg_data = web3.Web3.solidity_keccak(["bytes"], [digest])
     signature = w3.eth.account.signHash(msg_data, private_key=secret_key)
 
     return signature

@@ -65,8 +65,7 @@ contract SearcherVault is SigVerify {
         if (msg.sender == perMulticall) {
             bool validSignatureSearcher = verifyCalldata(
                 owner,
-                abi.encodePacked(vaultID, bid),
-                validUntil,
+                abi.encode(vaultID, bid, validUntil),
                 signatureSearcher
             );
             if (!validSignatureSearcher) {
