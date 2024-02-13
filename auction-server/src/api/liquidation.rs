@@ -69,6 +69,15 @@ pub struct OpportunityParamsWithId {
     params:         OpportunityParams,
 }
 
+impl Into<OpportunityParamsWithId> for LiquidationOpportunity {
+    fn into(self) -> OpportunityParamsWithId {
+        OpportunityParamsWithId {
+            opportunity_id: self.id,
+            params:         self.params,
+        }
+    }
+}
+
 /// Submit a liquidation opportunity ready to be executed.
 ///
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
@@ -105,12 +114,29 @@ pub async fn post_opportunity(
         .await
         .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 
-    store
-        .liquidation_store
-        .opportunities
-        .write()
-        .await
-        .insert(params.permission_key.clone(), opportunity);
+
+    let mut write_lock = store.liquidation_store.opportunities.write().await;
+
+    if let Some(opportunities_existing) = write_lock.get_mut(&params.permission_key) {
+        // check if same opportunity exists in the vector
+        for opportunity_existing in opportunities_existing.clone() {
+            if opportunity_existing == opportunity {
+                return Err(RestError::BadParameters(
+                    "Duplicate opportunity submission".to_string(),
+                ));
+            }
+        }
+
+        opportunities_existing.push(opportunity);
+    } else {
+        write_lock.insert(params.permission_key.clone(), vec![opportunity]);
+    }
+
+    tracing::debug!("number of permission keys: {}", write_lock.len());
+    tracing::debug!(
+        "number of opportunities for key: {}",
+        write_lock[&params.permission_key].len()
+    );
 
     Ok(OpportunityParamsWithId {
         opportunity_id: id,
@@ -144,11 +170,14 @@ pub async fn get_opportunities(
         .await
         .values()
         .cloned()
-        .map(|opportunity| OpportunityParamsWithId {
-            opportunity_id: opportunity.id,
-            params:         opportunity.params,
+        .map(|opportunities_key| {
+            opportunities_key
+                .last()
+                .expect("A permission key vector should have at least one opportunity")
+                .clone()
+                .into()
         })
-        .filter(|params_with_id| {
+        .filter(|params_with_id: &OpportunityParamsWithId| {
             let params = match &params_with_id.params {
                 OpportunityParams::V1(params) => params,
             };
@@ -199,7 +228,7 @@ pub async fn post_bid(
     Path(opportunity_id): Path<Uuid>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
-    let opportunity = store
+    let opportunities = store
         .liquidation_store
         .opportunities
         .read()
@@ -208,12 +237,10 @@ pub async fn post_bid(
         .ok_or(RestError::OpportunityNotFound)?
         .clone();
 
-
-    if opportunity.id != opportunity_id {
-        return Err(RestError::BadParameters(
-            "Invalid opportunity_id".to_string(),
-        ));
-    }
+    let opportunity = opportunities
+        .iter()
+        .find(|o| o.id == opportunity_id)
+        .ok_or(RestError::OpportunityNotFound)?;
 
     // TODO: move this logic to searcher side
     if opportunity.bidders.contains(&opportunity_bid.liquidator) {
@@ -253,9 +280,13 @@ pub async fn post_bid(
     {
         Ok(_) => {
             let mut write_guard = store.liquidation_store.opportunities.write().await;
-            let liquidation = write_guard.get_mut(&opportunity_bid.permission_key);
-            if let Some(liquidation) = liquidation {
-                liquidation.bidders.insert(opportunity_bid.liquidator);
+            let opportunities = write_guard.get_mut(&opportunity_bid.permission_key);
+            if let Some(opportunities) = opportunities {
+                let opportunity = opportunities
+                    .iter_mut()
+                    .find(|o| o.id == opportunity_id)
+                    .ok_or(RestError::OpportunityNotFound)?;
+                opportunity.bidders.insert(opportunity_bid.liquidator);
             }
             Ok(BidResult {
                 status: "OK".to_string(),

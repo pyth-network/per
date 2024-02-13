@@ -333,25 +333,42 @@ async fn verify_with_store(opportunity: LiquidationOpportunity, store: &Store) -
 /// # Arguments
 ///
 /// * `store`: server store
-pub async fn run_verification_loop(store: Arc<Store>) {
+pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
     tracing::info!("Starting opportunity verifier...");
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         let all_opportunities = store.liquidation_store.opportunities.read().await.clone();
-        for (permission_key, opportunity) in all_opportunities.iter() {
-            match verify_with_store(opportunity.clone(), &store).await {
-                Ok(_) => {}
-                Err(e) => {
-                    store
-                        .liquidation_store
-                        .opportunities
-                        .write()
-                        .await
-                        .remove(permission_key);
-                    tracing::info!("Removed Opportunity with failed verification: {}", e);
+        for (permission_key, opportunities) in all_opportunities.iter() {
+            // check each of the opportunities for this permission key for validity
+            let mut opps_to_remove = vec![];
+            for opportunity in opportunities.iter() {
+                match verify_with_store(opportunity.clone(), &store).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        opps_to_remove.push(opportunity.id);
+                        tracing::info!(
+                            "Removing Opportunity {} with failed verification: {}",
+                            opportunity.id,
+                            e
+                        );
+                    }
                 }
             }
+
+            // set write lock to remove all these opportunities
+            let mut write_lock = store.liquidation_store.opportunities.write().await;
+
+            if let Some(opportunities) = write_lock.get_mut(permission_key) {
+                opportunities.retain(|x| !opps_to_remove.contains(&x.id));
+                if opportunities.is_empty() {
+                    write_lock.remove(permission_key);
+                }
+            }
+
+            // release the write lock
+            drop(write_lock);
         }
         tokio::time::sleep(Duration::from_secs(5)).await; // this should be replaced by a subscription to the chain and trigger on new blocks
     }
     tracing::info!("Shutting down opportunity verifier...");
+    Ok(())
 }

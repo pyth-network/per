@@ -40,7 +40,7 @@ pub struct SimulatedBid {
 
 pub type UnixTimestamp = i64;
 
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 pub struct TokenQty {
     /// Token contract address
     #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",value_type=String)]
@@ -55,7 +55,7 @@ pub struct TokenQty {
 /// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter,
 /// by calling this contract with the given calldata and structures, they will receive the tokens specified
 /// in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 pub struct OpportunityParamsV1 {
     /// The permission key required for succesful execution of the liquidation.
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
@@ -78,14 +78,14 @@ pub struct OpportunityParamsV1 {
     pub receipt_tokens: Vec<TokenQty>,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 #[serde(tag = "version")]
 pub enum OpportunityParams {
     #[serde(rename = "v1")]
     V1(OpportunityParamsV1),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct LiquidationOpportunity {
     pub id:            Uuid,
     pub creation_time: UnixTimestamp,
@@ -112,7 +112,7 @@ pub struct ChainStore {
 
 #[derive(Default)]
 pub struct LiquidationStore {
-    pub opportunities: RwLock<HashMap<PermissionKey, LiquidationOpportunity>>,
+    pub opportunities: RwLock<HashMap<PermissionKey, Vec<LiquidationOpportunity>>>,
 }
 
 pub struct Store {

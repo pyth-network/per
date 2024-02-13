@@ -26,33 +26,35 @@ $ forge test -vvv --via-ir
 
 You can also run a local validator via `anvil --gas-limit 500000000000000000 --block-time 2`, changing the values for the gas limit and block time as desired. Note that if you omit the `--block-time` flag, the local network will create a new block for each transaction (similar to how Optimism created L2 blocks pre-Bedrock). Running `auction_offchain.py` will spit out the final call to `forge script` you should run to send the transaction to the localnet.
 
-To run the script runs in `Vault.s.sol`, you should startup the local validator and create a `.env` file with the `PRIVATE_KEY` env variable which is used for submitting the transactions. Then, run the necessary setup commands:
+To run the script runs in `Vault.s.sol`, you should startup the local validator and create a `.env` file with the `PRIVATE_KEY` env variable which is used for submitting the transactions. For localnet, the private key saved should correspond to an address that has a bunch of ETH seeded by Forge, essentially one of the mnemonic wallets when you start up anvil. Then, run the necessary setup commands:
 
 1. Set up contracts and save to an environment JSON.
 
 ```shell
-$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 -vvv --sig 'setUpContracts()' --broadcast
+$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setUpContracts()' --broadcast
 ```
 
 2. Set oracle prices to allow for vault creation.
 
 ```shell
-$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 110 190 --broadcast
+$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 110 190 --broadcast
 ```
 
 3. Vault creation.
 
 ```shell
-$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 -vvv --sig 'setUpVault(uint256,uint256,bool)' 100 80 true --broadcast
+$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setUpVault(uint256,uint256,bool)' 100 80 true --broadcast
 ```
 
 4. Undercollateralize the vault by moving prices.
 
 ```shell
-$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --sender 0xd6e417287b875a3932c1ff5dcb26d4d2c8b90b40 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 200 200 --broadcast
+$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setOraclePrice(int64,int64,uint64)' 110 200 200 --broadcast
 ```
 
 5. Submit the PER bundle. Run the command spit out by the auction script. Because of the call to `vm.roll`, this essentially does a simulate and can be run repeatedly from this state.
+
+Note that the `--private-key` flag is necessary in order to run some of the commands above; this is because Forge requires specification of a default sender wallet from which the transactions are sent.
 
 In order to enable forge to write to the filesystem (which is needed in order to save some of the variables in the steps above), please navigate to `foundry.toml` and add the following line if it does not already exist:
 

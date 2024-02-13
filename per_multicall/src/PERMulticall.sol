@@ -49,10 +49,9 @@ contract PERMulticall {
      * @param feeSplit: amount of fee to be split with the protocol. 10**18 is 100%
      */
     function setFee(address feeRecipient, uint256 feeSplit) public {
-        require(
-            msg.sender == _perOperator,
-            "only PER operator can set the fees"
-        );
+        if (msg.sender != _perOperator) {
+            revert Unauthorized();
+        }
         _feeConfig[feeRecipient] = feeSplit;
     }
 
@@ -84,14 +83,13 @@ contract PERMulticall {
         bytes[] calldata data,
         uint256[] calldata bids
     ) public payable returns (MulticallStatus[] memory multicallStatuses) {
-        require(
-            msg.sender == _perOperator,
-            "only PER operator can call this function"
-        );
-        require(
-            permission.length >= 20,
-            "permission size should be at least 20 bytes"
-        );
+        if (msg.sender != _perOperator) {
+            revert Unauthorized();
+        }
+        if (permission.length < 20) {
+            revert InvalidPermission();
+        }
+
         _permissions[keccak256(permission)] = true;
         multicallStatuses = new MulticallStatus[](data.length);
 
@@ -152,11 +150,12 @@ contract PERMulticall {
             uint256 balanceFinalEth = address(this).balance;
 
             // ensure that PER operator was paid at least bid ETH
-            require(
-                !(balanceFinalEth - balanceInitEth < bid) &&
-                    !(balanceFinalEth < balanceInitEth),
-                "invalid bid"
-            );
+            if (
+                (balanceFinalEth - balanceInitEth < bid) ||
+                (balanceFinalEth < balanceInitEth)
+            ) {
+                revert InvalidBid();
+            }
         }
 
         return (success, result);

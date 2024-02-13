@@ -150,6 +150,7 @@ async def main():
             continue
 
         logger.debug("Found %d liquidation opportunities", len(accounts_liquidatable))
+
         for liquidation_opp in accounts_liquidatable:
             opp_id = liquidation_opp["opportunity_id"]
             if liquidation_opp["version"] != "v1":
@@ -172,6 +173,7 @@ async def main():
                         f"/v1/liquidation/opportunities/{opp_id}/bids",
                     ),
                     json=tx,
+                    timeout=20,
                 )
                 logger.info(
                     "Submitted bid amount %s for opportunity %s, server response: %s",

@@ -21,6 +21,15 @@ class PriceFeed(TypedDict):
     vaa: str
 
 
+def price_to_tuple(price: Price):
+    return (
+        int(price["price"]),
+        int(price["conf"]),
+        int(price["expo"]),
+        int(price["publish_time"]),
+    )
+
+
 async def get_price_feed_ids() -> list[str]:
     """
     Queries the Hermes https endpoint for a list of the IDs of all Pyth price feeds.

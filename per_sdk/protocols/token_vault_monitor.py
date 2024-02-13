@@ -10,7 +10,7 @@ import httpx
 import web3
 from eth_abi import encode
 
-from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient
+from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient, price_to_tuple
 from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
 
 logger = logging.getLogger(__name__)
@@ -44,12 +44,20 @@ def get_vault_abi():
 
 class VaultMonitor:
     def __init__(
-        self, rpc_url: str, contract_address: str, weth_address: str, chain_id: str
+        self,
+        rpc_url: str,
+        contract_address: str,
+        weth_address: str,
+        chain_id: str,
+        include_price_updates: bool,
+        mock_pyth: bool,
     ):
         self.rpc_url = rpc_url
         self.contract_address = contract_address
         self.weth_address = weth_address
         self.chain_id = chain_id
+        self.include_price_updates = include_price_updates
+        self.mock_pyth = mock_pyth
         self.w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(rpc_url))
 
         self.token_vault = self.w3.eth.contract(
@@ -115,8 +123,30 @@ class VaultMonitor:
         Returns:
             A LiquidationOpportunity object corresponding to the specified account.
         """
+        price_updates = []
 
-        price_updates = [base64.b64decode(update["vaa"]) for update in prices]
+        if self.include_price_updates:
+            if self.mock_pyth:
+                price_updates = []
+
+                for update in prices:
+                    feed_id = bytes.fromhex(update["feed_id"])
+                    price = price_to_tuple(update["price"])
+                    price_ema = price_to_tuple(update["price_ema"])
+                    prev_publish_time = 0
+                    price_updates.append(
+                        encode(
+                            [
+                                "bytes32",
+                                "(int64,uint64,int32,uint64)",
+                                "(int64,uint64,int32,uint64)",
+                                "uint64",
+                            ],
+                            [feed_id, price, price_ema, prev_publish_time],
+                        )
+                    )
+            else:
+                price_updates = [base64.b64decode(update["vaa"]) for update in prices]
 
         calldata = self.token_vault.encodeABI(
             fn_name="liquidateWithPriceUpdate",
@@ -245,6 +275,20 @@ async def main():
         dest="weth_contract",
         help="WETH contract address",
     )
+    parser.add_argument(
+        "--exclude-price-updates",
+        action="store_false",
+        dest="include_price_updates",
+        default=True,
+        help="If provided, will exclude Pyth price updates from the liquidation call. Should only be used in testing.",
+    )
+    parser.add_argument(
+        "--mock-pyth",
+        action="store_true",
+        dest="mock_pyth",
+        default=False,
+        help="If provided, will construct price updates in MockPyth format rather than VAAs",
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--dry-run",
@@ -269,7 +313,12 @@ async def main():
     logger.addHandler(log_handler)
 
     monitor = VaultMonitor(
-        args.rpc_url, args.vault_contract, args.weth_contract, args.chain_id
+        args.rpc_url,
+        args.vault_contract,
+        args.weth_contract,
+        args.chain_id,
+        args.include_price_updates,
+        args.mock_pyth,
     )
 
     while True:

@@ -144,10 +144,9 @@ contract LiquidationAdapter is SigVerify {
             uint256 amount = params.expectedReceiptTokens[i].amount;
 
             uint256 balanceFinal = token.balanceOf(address(this));
-            require(
-                balanceFinal >= balancesExpectedReceipt[i],
-                "insufficient token received"
-            );
+            if (balanceFinal < balancesExpectedReceipt[i]) {
+                revert InsufficientTokenReceived();
+            }
 
             // transfer receipt tokens to liquidator
             token.transfer(params.liquidator, amount);
