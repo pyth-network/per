@@ -25,9 +25,6 @@ error InvalidPERSignature();
 // Signature: 0xb7d09497
 error InvalidTimestamp();
 
-// Signature: 0xc6388ef7
-error InvalidBid();
-
 // Signature: 0xaba47339
 error NotRegistered();
 

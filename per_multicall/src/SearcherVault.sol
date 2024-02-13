@@ -102,6 +102,13 @@ contract SearcherVault is SigVerify {
         _signatureUsed[signatureSearcher] = true;
     }
 
+    function withdrawEth(uint256 amount) public {
+        if (msg.sender != owner) {
+            revert Unauthorized();
+        }
+        payable(owner).transfer(amount);
+    }
+
     receive() external payable {
         emit ReceivedETH(msg.sender, msg.value);
     }

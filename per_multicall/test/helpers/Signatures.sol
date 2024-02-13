@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import "../../src/Structs.sol";
 import "../../src/SigVerify.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -41,5 +42,33 @@ contract Signatures is Test, SigVerify {
             signedMessageDigestPer
         );
         return abi.encodePacked(signaturePerVersionNumber, rPer, sPer, vPer);
+    }
+
+    function createLiquidationSignature(
+        TokenQty[] memory repayTokens,
+        TokenQty[] memory expectedReceiptTokens,
+        address contractAddress,
+        bytes memory data,
+        uint256 value,
+        uint256 bid,
+        uint256 validUntil,
+        uint256 liquidatorSk
+    ) public pure returns (bytes memory) {
+        bytes32 calldataDigestLiquidator = getCalldataDigest(
+            abi.encode(
+                repayTokens,
+                expectedReceiptTokens,
+                contractAddress,
+                data,
+                value,
+                bid
+            ),
+            validUntil
+        );
+        (uint8 vLiquidator, bytes32 rLiquidator, bytes32 sLiquidator) = vm.sign(
+            liquidatorSk,
+            calldataDigestLiquidator
+        );
+        return abi.encodePacked(rLiquidator, sLiquidator, vLiquidator);
     }
 }
