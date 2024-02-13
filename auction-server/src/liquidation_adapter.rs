@@ -357,19 +357,11 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
             // set write lock to remove all these opportunities
             let mut write_lock = store.liquidation_store.opportunities.write().await;
 
-            for id_opp in opps_to_remove {
-                write_lock
-                    .get_mut(permission_key)
-                    .ok_or(anyhow!("Permission key not found"))?
-                    .retain(|x| x.id != id_opp);
-            }
-
-            if write_lock
-                .get(permission_key)
-                .ok_or(anyhow!("Permission key not found"))?
-                .is_empty()
-            {
-                write_lock.remove(permission_key);
+            if let Some(opportunities) = write_lock.get_mut(permission_key) {
+                opportunities.retain(|x| !opps_to_remove.contains(&x.id));
+                if opportunities.is_empty() {
+                    write_lock.remove(permission_key);
+                }
             }
 
             // release the write lock

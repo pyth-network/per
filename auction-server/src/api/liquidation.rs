@@ -117,20 +117,17 @@ pub async fn post_opportunity(
 
     let mut write_lock = store.liquidation_store.opportunities.write().await;
 
-    if write_lock.contains_key(&params.permission_key) {
-        let opportunities_existing = &write_lock[&params.permission_key];
+    if let Some(opportunities_existing) = write_lock.get_mut(&params.permission_key) {
         // check if same opportunity exists in the vector
-        for opportunity_existing in opportunities_existing {
-            if *opportunity_existing == opportunity {
+        for opportunity_existing in opportunities_existing.clone() {
+            if opportunity_existing == opportunity {
                 return Err(RestError::BadParameters(
                     "Duplicate opportunity submission".to_string(),
                 ));
             }
         }
-    }
 
-    if let Some(x) = write_lock.get_mut(&params.permission_key) {
-        x.push(opportunity.clone());
+        opportunities_existing.push(opportunity);
     } else {
         write_lock.insert(params.permission_key.clone(), vec![opportunity]);
     }
@@ -240,19 +237,19 @@ pub async fn post_bid(
         .ok_or(RestError::OpportunityNotFound)?
         .clone();
 
-    let liquidation = opportunities
+    let opportunity = opportunities
         .iter()
         .find(|o| o.id == opportunity_id)
         .ok_or(RestError::OpportunityNotFound)?;
 
     // TODO: move this logic to searcher side
-    if liquidation.bidders.contains(&opportunity_bid.liquidator) {
+    if opportunity.bidders.contains(&opportunity_bid.liquidator) {
         return Err(RestError::BadParameters(
             "Liquidator already bid on this opportunity".to_string(),
         ));
     }
 
-    let params = match &liquidation.params {
+    let params = match &opportunity.params {
         OpportunityParams::V1(params) => params,
     };
 
@@ -285,11 +282,11 @@ pub async fn post_bid(
             let mut write_guard = store.liquidation_store.opportunities.write().await;
             let opportunities = write_guard.get_mut(&opportunity_bid.permission_key);
             if let Some(opportunities) = opportunities {
-                let liquidation = opportunities
+                let opportunity = opportunities
                     .iter_mut()
                     .find(|o| o.id == opportunity_id)
                     .ok_or(RestError::OpportunityNotFound)?;
-                liquidation.bidders.insert(opportunity_bid.liquidator);
+                opportunity.bidders.insert(opportunity_bid.liquidator);
             }
             Ok(BidResult {
                 status: "OK".to_string(),
