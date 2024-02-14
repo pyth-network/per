@@ -527,4 +527,11 @@ contract VaultScript is Script {
         );
         return LiquidationAdapter(payable(liquidationAdapter)).getWeth();
     }
+
+    function setUpHappyPath() public {
+        setUpContracts();
+        setOraclePrice(110, 110, 190);
+        setUpVault(100, 80, true);
+        setOraclePrice(110, 200, 200);
+    }
 }
