@@ -7,7 +7,7 @@ use {
             },
             liquidation::{
                 OpportunityBid,
-                OpportunityParamsWithId,
+                OpportunityParamsWithMetadata,
             },
         },
         auction::run_submission_loop,
@@ -44,6 +44,7 @@ use {
         Router,
     },
     clap::crate_version,
+    dashmap::DashMap,
     ethers::{
         providers::{
             Http,
@@ -63,6 +64,7 @@ use {
         sync::{
             atomic::{
                 AtomicBool,
+                AtomicUsize,
                 Ordering,
             },
             Arc,
@@ -92,6 +94,7 @@ async fn root() -> String {
 
 mod bid;
 pub(crate) mod liquidation;
+pub(crate) mod ws;
 
 pub enum RestError {
     /// The request contained invalid parameters
@@ -177,12 +180,12 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     schemas(OpportunityParamsV1),
     schemas(OpportunityBid),
     schemas(OpportunityParams),
-    schemas(OpportunityParamsWithId),
+    schemas(OpportunityParamsWithMetadata),
     schemas(TokenQty),
     schemas(BidResult),
     schemas(ErrorBodyResponse),
     responses(ErrorBodyResponse),
-    responses(OpportunityParamsWithId),
+    responses(OpportunityParamsWithMetadata),
     responses(BidResult)
     ),
     tags(
@@ -235,6 +238,10 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         chains:            chain_store?,
         liquidation_store: LiquidationStore::default(),
         per_operator:      wallet,
+        ws:                ws::WsState {
+            subscriber_counter: AtomicUsize::new(0),
+            subscribers:        DashMap::new(),
+        },
     });
 
     let server_store = store.clone();
@@ -258,6 +265,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             "/v1/liquidation/opportunities/:opportunity_id/bids",
             post(liquidation::post_bid),
         )
+        .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
         .with_state(server_store);
