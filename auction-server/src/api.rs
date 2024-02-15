@@ -9,6 +9,7 @@ use {
                 OpportunityBid,
                 OpportunityParamsWithMetadata,
             },
+            ws::run_subscription_loop,
         },
         auction::run_submission_loop,
         config::{
@@ -87,6 +88,7 @@ use {
 // shutdown signal to all running tasks. However, this is a bit more complicated to implement and
 // we don't rely on global state for anything else.
 pub(crate) static SHOULD_EXIT: AtomicBool = AtomicBool::new(false);
+pub const EXIT_CHECK_INTERVAL: Duration = Duration::from_secs(1);
 
 async fn root() -> String {
     format!("PER Auction Server API {}", crate_version!())
@@ -107,8 +109,7 @@ pub enum RestError {
     SimulationError { result: Bytes, reason: String },
     /// The order was not found
     OpportunityNotFound,
-    /// The server cannot currently communicate with the blockchain, so is not able to verify
-    /// which random values have been requested.
+    /// Internal error occurred during processing the request
     TemporarilyUnavailable,
     /// A catch-all error for all other types of errors that could occur during processing.
     Unknown,
@@ -159,14 +160,8 @@ pub async fn live() -> Response {
     (StatusCode::OK, "OK").into_response()
 }
 
-pub async fn start_server(run_options: RunOptions) -> Result<()> {
-    tokio::spawn(async move {
-        tracing::info!("Registered shutdown signal handler...");
-        tokio::signal::ctrl_c().await.unwrap();
-        tracing::info!("Shut down signal received, waiting for tasks...");
-        SHOULD_EXIT.store(true, Ordering::Release);
-    });
 
+pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
     #[derive(OpenApi)]
     #[openapi(
     paths(
@@ -193,6 +188,48 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     )
     )]
     struct ApiDoc;
+
+    let app: Router<()> = Router::new()
+        .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
+        .route("/", get(root))
+        .route("/v1/bids", post(bid::bid))
+        .route(
+            "/v1/liquidation/opportunities",
+            post(liquidation::post_opportunity),
+        )
+        .route(
+            "/v1/liquidation/opportunities",
+            get(liquidation::get_opportunities),
+        )
+        .route(
+            "/v1/liquidation/opportunities/:opportunity_id/bids",
+            post(liquidation::post_bid),
+        )
+        .route("/v1/ws", get(ws::ws_route_handler))
+        .route("/live", get(live))
+        .layer(CorsLayer::permissive())
+        .with_state(store);
+
+    axum::Server::bind(&run_options.server.listen_addr)
+        .serve(app.into_make_service())
+        .with_graceful_shutdown(async {
+            while !SHOULD_EXIT.load(Ordering::Acquire) {
+                tokio::time::sleep(EXIT_CHECK_INTERVAL).await;
+            }
+            tracing::info!("Shutting down RPC server...");
+        })
+        .await?;
+    Ok(())
+}
+
+pub async fn start_server(run_options: RunOptions) -> Result<()> {
+    tokio::spawn(async move {
+        tracing::info!("Registered shutdown signal handler...");
+        tokio::signal::ctrl_c().await.unwrap();
+        tracing::info!("Shut down signal received, waiting for tasks...");
+        SHOULD_EXIT.store(true, Ordering::Release);
+    });
+
 
     let config = Config::load(&run_options.config.config).map_err(|err| {
         anyhow!(
@@ -234,51 +271,29 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     .into_iter()
     .collect();
 
+    let (update_tx, update_rx) = tokio::sync::mpsc::channel(1000);
     let store = Arc::new(Store {
         chains:            chain_store?,
         liquidation_store: LiquidationStore::default(),
         per_operator:      wallet,
         ws:                ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
-            subscribers:        DashMap::new(),
+            subscribers: DashMap::new(),
+            update_tx,
         },
     });
 
-    let server_store = store.clone();
 
-    tokio::spawn(run_submission_loop(store.clone()));
-    tokio::spawn(run_verification_loop(store.clone()));
-
-    let app: Router<()> = Router::new()
-        .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
-        .route("/", get(root))
-        .route("/v1/bids", post(bid::bid))
-        .route(
-            "/v1/liquidation/opportunities",
-            post(liquidation::post_opportunity),
-        )
-        .route(
-            "/v1/liquidation/opportunities",
-            get(liquidation::get_opportunities),
-        )
-        .route(
-            "/v1/liquidation/opportunities/:opportunity_id/bids",
-            post(liquidation::post_bid),
-        )
-        .route("/v1/ws", get(ws::ws_route_handler))
-        .route("/live", get(live))
-        .layer(CorsLayer::permissive())
-        .with_state(server_store);
-
-    axum::Server::bind(&run_options.server.listen_addr)
-        .serve(app.into_make_service())
-        .with_graceful_shutdown(async {
-            while !SHOULD_EXIT.load(Ordering::Acquire) {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
-            tracing::info!("Shutting down RPC server...");
-        })
-        .await?;
-
+    let submission_loop = tokio::spawn(run_submission_loop(store.clone()));
+    let verification_loop = tokio::spawn(run_verification_loop(store.clone()));
+    let subscription_loop = tokio::spawn(run_subscription_loop(store.clone(), update_rx));
+    let server_loop = tokio::spawn(start_api(run_options, store.clone()));
+    join_all(vec![
+        submission_loop,
+        verification_loop,
+        subscription_loop,
+        server_loop,
+    ])
+    .await;
     Ok(())
 }

@@ -5,10 +5,7 @@ use {
                 handle_bid,
                 BidResult,
             },
-            ws::{
-                notify_updates,
-                UpdateEvent::NewOpportunity,
-            },
+            ws::UpdateEvent::NewOpportunity,
             ErrorBodyResponse,
             RestError,
         },
@@ -60,7 +57,6 @@ use {
     },
     uuid::Uuid,
 };
-
 
 /// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
@@ -148,7 +144,15 @@ pub async fn post_opportunity(
         write_lock.insert(params.permission_key.clone(), vec![opportunity.clone()]);
     }
 
-    notify_updates(&store.ws, NewOpportunity(opportunity.clone().into())).await;
+    store
+        .ws
+        .update_tx
+        .send(NewOpportunity(opportunity.clone().into()))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to send update: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
 
     tracing::debug!("number of permission keys: {}", write_lock.len());
     tracing::debug!(

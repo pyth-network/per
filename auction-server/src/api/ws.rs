@@ -2,13 +2,11 @@ use {
     crate::{
         api::{
             liquidation::OpportunityParamsWithMetadata,
+            EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
         config::ChainId,
-        state::{
-            LiquidationOpportunity,
-            Store,
-        },
+        state::Store,
     },
     anyhow::{
         anyhow,
@@ -23,11 +21,9 @@ use {
             State,
             WebSocketUpgrade,
         },
-        http::HeaderMap,
         response::IntoResponse,
     },
     dashmap::DashMap,
-    ethers::types::Chain,
     futures::{
         future::join_all,
         stream::{
@@ -58,6 +54,7 @@ use {
 pub struct WsState {
     pub subscriber_counter: AtomicUsize,
     pub subscribers:        DashMap<SubscriberId, mpsc::Sender<UpdateEvent>>,
+    pub update_tx:          mpsc::Sender<UpdateEvent>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -328,4 +325,36 @@ pub async fn notify_updates(ws_state: &WsState, event: UpdateEvent) {
             ws_state.subscribers.remove(&id);
         }
     });
+}
+
+
+pub async fn run_subscription_loop(
+    store: Arc<Store>,
+    mut receiver: mpsc::Receiver<UpdateEvent>,
+) -> Result<()> {
+    let mut interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+
+    while !SHOULD_EXIT.load(Ordering::Acquire) {
+        tokio::select! {
+            update = receiver.recv() => {
+                match update {
+                    None => {
+                        // When the received message is None it means the channel has been closed. This
+                        // should never happen as the channel is never closed. As we can't recover from
+                        // this we shut down the application.
+                        tracing::error!("Failed to receive update from store.");
+                        SHOULD_EXIT.store(true, Ordering::Release);
+                        break;
+                    }
+                    Some(event) => {
+                        notify_updates(&store.ws, event).await;
+                    },
+                }
+            },
+            _ = interval.tick() => {}
+        }
+    }
+
+    tracing::info!("Shutting down Websocket notifier...");
+    Ok(())
 }
