@@ -31,7 +31,7 @@ To run the script runs in `Vault.s.sol`, you should startup the local validator 
 1. Set up contracts and save to an environment JSON.
 
 ```shell
-$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setUpContracts()' --broadcast
+$ forge script script/Vault.s.sol --via-ir --fork-url http://localhost:8545 --private-key 0xf46ea803192f16ef1c4f1d5fb0d6060535dbd571ea1afc7db6816f28961ba78a -vvv --sig 'setUpLocalnet()' --broadcast
 ```
 
 2. Set oracle prices to allow for vault creation.
