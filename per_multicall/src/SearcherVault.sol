@@ -35,13 +35,6 @@ contract SearcherVault is SigVerify {
         tokenVault = protocolAddress;
     }
 
-    function _updatePriceFeed(bytes calldata updateData) internal {
-        bytes[] memory updateDatas = new bytes[](1);
-        updateDatas[0] = updateData;
-        address oracle = TokenVault(payable(tokenVault)).getOracle();
-        MockPyth(oracle).updatePriceFeeds(updateDatas);
-    }
-
     /**
      * @notice doLiquidatePER function - liquidates a vault through PER
      *
@@ -79,10 +72,6 @@ contract SearcherVault is SigVerify {
             }
         }
 
-        if (updateData.length > 0) {
-            _updatePriceFeed(updateData);
-        }
-
         address payable vaultContract = payable(tokenVault);
 
         Vault memory vault = TokenVault(vaultContract).getVault(vaultID);
@@ -91,8 +80,12 @@ contract SearcherVault is SigVerify {
         uint256 tokenAmount = vault.amountDebt;
 
         IERC20(tokenDebt).approve(vaultContract, tokenAmount);
-
-        TokenVault(vaultContract).liquidate(vaultID);
+        bytes[] memory updateDatas = new bytes[](1);
+        updateDatas[0] = updateData;
+        TokenVault(vaultContract).liquidateWithPriceUpdate(
+            vaultID,
+            updateDatas
+        );
         if (bid > 0) {
             payable(perMulticall).transfer(bid);
         }

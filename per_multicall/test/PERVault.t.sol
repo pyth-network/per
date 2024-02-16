@@ -259,8 +259,8 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             _qCollateralB = _q1B;
             _qDebtB = _q2B;
         } else if (
-            (tokensCollateral[1] == address(token2)) &&
-            (tokensDebt[1] == address(token1))
+            (tokensCollateral[0] == address(token2)) &&
+            (tokensDebt[0] == address(token1))
         ) {
             _qCollateralA = _q2A;
             _qDebtA = _q1A;
@@ -411,16 +411,8 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
 
     function getMulticallInfoSearcherContracts(
         uint256 vaultNumber,
-        uint256[] memory bids,
-        uint256[] memory validUntils,
-        uint256[] memory searcherSks
+        BidInfo[] memory bidInfos
     ) public returns (bytes memory permission, bytes[] memory data) {
-        require(
-            (bids.length == validUntils.length) &&
-                (bids.length == searcherSks.length),
-            "all input arrays must have the same length"
-        );
-
         vm.roll(2);
 
         // get permission key
@@ -437,22 +429,21 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             _tokenExpo
         );
 
-        data = new bytes[](bids.length);
+        data = new bytes[](bidInfos.length);
 
-        for (uint i = 0; i < bids.length; i++) {
+        for (uint i = 0; i < bidInfos.length; i++) {
             // create searcher signature
             bytes memory signatureSearcher = createSearcherSignature(
                 vaultNumber,
-                bids[i],
-                validUntils[i],
-                searcherSks[i]
+                bidInfos[i].bid,
+                bidInfos[i].validUntil,
+                bidInfos[i].liquidatorSk
             );
-
-            data[i] = abi.encodeWithSignature(
-                "doLiquidate(uint256,uint256,uint256,bytes,bytes)",
+            data[i] = abi.encodeWithSelector(
+                searcherA.doLiquidate.selector,
                 vaultNumber,
-                bids[i],
-                validUntils[i],
+                bidInfos[i].bid,
+                bidInfos[i].validUntil,
                 tokenDebtUpdateData,
                 signatureSearcher
             );
@@ -461,18 +452,8 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
 
     function getMulticallInfoLiquidationAdapter(
         uint256 vaultNumber,
-        uint256[] memory bids,
-        uint256[] memory validUntils,
-        address[] memory liquidators,
-        uint256[] memory liquidatorSks
+        BidInfo[] memory bidInfos
     ) public returns (bytes memory permission, bytes[] memory data) {
-        require(
-            (bids.length == validUntils.length) &&
-                (bids.length == liquidators.length) &&
-                (bids.length == liquidatorSks.length),
-            "all input arrays must have the same length"
-        );
-
         vm.roll(2);
 
         // get permission key
@@ -491,15 +472,18 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         );
 
         TokenQty[] memory repayTokens = new TokenQty[](1);
-        repayTokens[0] = TokenQty(tokensDebt[0], amountsDebt[0]);
+        repayTokens[0] = TokenQty(
+            tokensDebt[vaultNumber],
+            amountsDebt[vaultNumber]
+        );
         TokenQty[] memory expectedReceiptTokens = new TokenQty[](1);
         expectedReceiptTokens[0] = TokenQty(
-            tokensCollateral[0],
-            amountsCollateral[0]
+            tokensCollateral[vaultNumber],
+            amountsCollateral[vaultNumber]
         );
 
-        bytes memory calldataVault = abi.encodeWithSignature(
-            "liquidateWithPriceUpdate(uint256,bytes[])",
+        bytes memory calldataVault = abi.encodeWithSelector(
+            tokenVault.liquidateWithPriceUpdate.selector,
             vaultNumber,
             updateDatas
         );
@@ -507,9 +491,9 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 value = 0;
         address contractAddress = address(tokenVault);
 
-        data = new bytes[](bids.length);
+        data = new bytes[](bidInfos.length);
 
-        for (uint i = 0; i < bids.length; i++) {
+        for (uint i = 0; i < bidInfos.length; i++) {
             // create liquidation call params struct
             bytes memory signatureLiquidator = createLiquidationSignature(
                 repayTokens,
@@ -517,20 +501,20 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
                 contractAddress,
                 calldataVault,
                 value,
-                bids[i],
-                validUntils[i],
-                liquidatorSks[i]
+                bidInfos[i].bid,
+                bidInfos[i].validUntil,
+                bidInfos[i].liquidatorSk
             );
             LiquidationCallParams
                 memory liquidationCallParams = LiquidationCallParams(
                     repayTokens,
                     expectedReceiptTokens,
-                    liquidators[i],
+                    bidInfos[i].liquidator,
                     contractAddress,
                     calldataVault,
                     value,
-                    validUntils[i],
-                    bids[i],
+                    bidInfos[i].validUntil,
+                    bidInfos[i].bid,
                     signatureLiquidator
                 );
 
@@ -542,11 +526,12 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
     }
 
     function testLiquidateNoPER() public {
+        uint vaultNumber = 0;
         // test permissionless liquidation (success)
         // raise price of debt token to make vault 0 undercollateralized
         bytes memory tokenDebtUpdateData = createPriceFeedUpdateSimple(
             mockPyth,
-            idsDebt[0],
+            idsDebt[vaultNumber],
             _tokenDebtPriceLiqPermissionlessVault0,
             _tokenExpo
         );
@@ -564,22 +549,28 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             signatureSearcher
         );
 
+        AccountBalance memory balancesAPost = getBalances(
+            address(searcherA),
+            vaultNumber
+        );
+
         assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(address(searcherA)),
-            _qCollateralA + amountsCollateral[0]
+            balancesAPost.collateral,
+            _qCollateralA + amountsCollateral[vaultNumber]
         );
         assertEq(
-            MyToken(tokensDebt[0]).balanceOf(address(searcherA)),
-            _qDebtA - amountsDebt[0]
+            MyToken(tokensDebt[vaultNumber]).balanceOf(address(searcherA)),
+            _qDebtA - amountsDebt[vaultNumber]
         );
     }
 
     function testLiquidateNoPERFail() public {
+        uint vaultNumber = 0;
         // test permissionless liquidation (failure)
         // raise price of debt token to make vault 0 undercollateralized
         bytes memory tokenDebtUpdateData = createPriceFeedUpdateSimple(
             mockPyth,
-            idsDebt[0],
+            idsDebt[vaultNumber],
             _tokenDebtPriceLiqPERVault0,
             _tokenExpo
         );
@@ -604,24 +595,15 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
-        uint256[] memory bids = new uint256[](1);
-        uint256[] memory validUntils = new uint256[](1);
-        uint256[] memory searcherSks = new uint256[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(searcherA);
-        bids[0] = 15;
-        validUntils[0] = 1_000_000_000_000;
-        searcherSks[0] = _searcherAOwnerSk;
+        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
 
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(
-                vaultNumber,
-                bids,
-                validUntils,
-                searcherSks
-            );
+        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
@@ -630,25 +612,28 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             permission,
             contracts,
             data,
-            bids
+            extractBidAmounts(bidInfos)
         );
 
         uint256 balanceProtocolPost = address(tokenVault).balance;
 
         assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(address(searcherA)),
-            _qCollateralA + amountsCollateral[0]
+            MyToken(tokensCollateral[vaultNumber]).balanceOf(
+                address(searcherA)
+            ),
+            _qCollateralA + amountsCollateral[vaultNumber]
         );
         assertEq(
-            MyToken(tokensDebt[0]).balanceOf(address(searcherA)),
-            _qDebtA - amountsDebt[0]
+            MyToken(tokensDebt[vaultNumber]).balanceOf(address(searcherA)),
+            _qDebtA - amountsDebt[vaultNumber]
         );
 
         assertEq(multicallStatuses[0].externalSuccess, true);
 
         assertEq(
             balanceProtocolPost - balanceProtocolPre,
-            (bids[0] * _feeSplitTokenVault) / _feeSplitPrecisionTokenVault
+            (bidInfos[0].bid * _feeSplitTokenVault) /
+                _feeSplitPrecisionTokenVault
         );
     }
 
@@ -661,29 +646,18 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](2);
-        uint256[] memory bids = new uint256[](2);
-        uint256[] memory validUntils = new uint256[](2);
-        uint256[] memory searcherSks = new uint256[](2);
+        BidInfo[] memory bidInfos = new BidInfo[](2);
 
         contracts[0] = address(searcherA);
-        bids[0] = 15;
-        validUntils[0] = 1_000_000_000_000;
-        searcherSks[0] = _searcherAOwnerSk;
+        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
 
         contracts[1] = address(searcherB);
-        bids[1] = 10;
-        validUntils[1] = 1_000_000_000_000;
-        searcherSks[1] = _searcherBOwnerSk;
+        bidInfos[1] = makeBidInfo(10, _searcherAOwnerSk);
 
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(
-                vaultNumber,
-                bids,
-                validUntils,
-                searcherSks
-            );
+        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
@@ -692,41 +666,51 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             permission,
             contracts,
             data,
-            bids
+            extractBidAmounts(bidInfos)
         );
 
         uint256 balanceProtocolPost = address(tokenVault).balance;
-
-        assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(address(searcherA)),
-            _qCollateralA + amountsCollateral[0]
-        );
-        assertEq(
-            MyToken(tokensDebt[0]).balanceOf(address(searcherA)),
-            _qDebtA - amountsDebt[0]
+        AccountBalance memory balancesAPost = getBalances(
+            address(searcherA),
+            vaultNumber
         );
 
-        assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(address(searcherB)),
-            _qCollateralB
+        AccountBalance memory balancesBPost = getBalances(
+            address(searcherB),
+            vaultNumber
         );
-        assertEq(MyToken(tokensDebt[0]).balanceOf(address(searcherB)), _qDebtB);
 
-        console.log("Success");
-        console.log(multicallStatuses[0].externalSuccess);
-        console.log(multicallStatuses[1].externalSuccess);
-        console.log("Result");
-        console.logBytes(multicallStatuses[0].externalResult);
-        console.logBytes(multicallStatuses[1].externalResult);
-        console.log("Revert reason");
-        console.log(multicallStatuses[0].multicallRevertReason);
-        console.log(multicallStatuses[1].multicallRevertReason);
+        assertEq(
+            balancesAPost.collateral,
+            _qCollateralA + amountsCollateral[vaultNumber]
+        );
+        assertEq(balancesAPost.debt, _qDebtA - amountsDebt[vaultNumber]);
+
+        assertEq(balancesBPost.collateral, _qCollateralB);
+        assertEq(balancesBPost.debt, _qDebtB);
+
+        logMulticallStatuses(multicallStatuses);
 
         // only the first bid should be paid
         assertEq(
             balanceProtocolPost - balanceProtocolPre,
-            (bids[0] * _feeSplitTokenVault) / _feeSplitPrecisionTokenVault
+            (bidInfos[0].bid * _feeSplitTokenVault) /
+                _feeSplitPrecisionTokenVault
         );
+    }
+
+    function logMulticallStatuses(
+        MulticallStatus[] memory multicallStatuses
+    ) internal view {
+        for (uint256 i = 0; i < multicallStatuses.length; i++) {
+            console.log("External Success:");
+            console.log(multicallStatuses[i].externalSuccess);
+            console.log("External Result:");
+            console.logBytes(multicallStatuses[i].externalResult);
+            console.log("Multicall Revert reason:");
+            console.log(multicallStatuses[i].multicallRevertReason);
+            console.log("----------------------------");
+        }
     }
 
     /**
@@ -738,29 +722,17 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](2);
-        uint256[] memory bids = new uint256[](2);
-        uint256[] memory validUntils = new uint256[](2);
-        uint256[] memory searcherSks = new uint256[](2);
+        BidInfo[] memory bidInfos = new BidInfo[](2);
 
         contracts[0] = address(searcherA);
-        bids[0] = 15;
-        validUntils[0] = 1_000_000_000_000;
-        searcherSks[0] = _searcherAOwnerSk;
-
+        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
         contracts[1] = address(searcherB);
-        bids[1] = 10;
-        validUntils[1] = 1_000_000_000_000;
-        searcherSks[1] = _searcherBOwnerSk;
+        bidInfos[1] = makeBidInfo(10, _searcherBOwnerSk);
 
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(
-                vaultNumber,
-                bids,
-                validUntils,
-                searcherSks
-            );
+        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
@@ -773,40 +745,36 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             permission,
             contracts,
             data,
-            bids
+            extractBidAmounts(bidInfos)
         );
 
         uint256 balanceProtocolPost = address(tokenVault).balance;
 
-        assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(address(searcherA)),
-            _qCollateralA
+        AccountBalance memory balancesAPost = getBalances(
+            address(searcherA),
+            vaultNumber
         );
-        assertEq(MyToken(tokensDebt[0]).balanceOf(address(searcherA)), _qDebtA);
-
-        assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(address(searcherB)),
-            _qCollateralB + amountsCollateral[0]
-        );
-        assertEq(
-            MyToken(tokensDebt[0]).balanceOf(address(searcherB)),
-            _qDebtB - amountsDebt[0]
+        AccountBalance memory balancesBPost = getBalances(
+            address(searcherB),
+            vaultNumber
         );
 
-        console.log("Success");
-        console.log(multicallStatuses[0].externalSuccess);
-        console.log(multicallStatuses[1].externalSuccess);
-        console.log("Result");
-        console.logBytes(multicallStatuses[0].externalResult);
-        console.logBytes(multicallStatuses[1].externalResult);
-        console.log("Revert reason");
-        console.log(multicallStatuses[0].multicallRevertReason);
-        console.log(multicallStatuses[1].multicallRevertReason);
+        assertEq(balancesAPost.collateral, _qCollateralA);
+        assertEq(balancesAPost.debt, _qDebtA);
+
+        assertEq(
+            balancesBPost.collateral,
+            _qCollateralB + amountsCollateral[vaultNumber]
+        );
+        assertEq(balancesBPost.debt, _qDebtB - amountsDebt[vaultNumber]);
+
+        logMulticallStatuses(multicallStatuses);
 
         // only the second bid should be paid
         assertEq(
             balanceProtocolPost - balanceProtocolPre,
-            (bids[1] * _feeSplitTokenVault) / _feeSplitPrecisionTokenVault
+            (bidInfos[1].bid * _feeSplitTokenVault) /
+                _feeSplitPrecisionTokenVault
         );
     }
 
@@ -814,24 +782,15 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
-        uint256[] memory bids = new uint256[](1);
-        uint256[] memory validUntils = new uint256[](1);
-        uint256[] memory searcherSks = new uint256[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(searcherA);
-        bids[0] = 15;
-        validUntils[0] = 1_000_000_000_000;
-        searcherSks[0] = _searcherAOwnerSk;
+        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
 
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(
-                vaultNumber,
-                bids,
-                validUntils,
-                searcherSks
-            );
+        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
         // wrong permisison key
         permission = abi.encode(address(0));
@@ -841,96 +800,115 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             permission,
             contracts,
             data,
-            bids
+            extractBidAmounts(bidInfos)
         );
 
         assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(address(searcherA)),
+            MyToken(tokensCollateral[vaultNumber]).balanceOf(
+                address(searcherA)
+            ),
             _qCollateralA
         );
-        assertEq(MyToken(tokensDebt[0]).balanceOf(address(searcherA)), _qDebtA);
-
-        assertEq(multicallStatuses[0].externalSuccess, false);
         assertEq(
-            multicallStatuses[0].externalResult,
-            keccakHash("InvalidLiquidation()")
+            MyToken(tokensDebt[vaultNumber]).balanceOf(address(searcherA)),
+            _qDebtA
         );
+
+        assertFailedExternal(multicallStatuses[0], "InvalidLiquidation()");
     }
 
     function testLiquidateMismatchedBid() public {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
-        uint256[] memory bids = new uint256[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
         uint256[] memory validUntils = new uint256[](1);
         uint256[] memory searcherSks = new uint256[](1);
 
         contracts[0] = address(searcherA);
-        bids[0] = 15;
-        validUntils[0] = 1_000_000_000_000;
-        searcherSks[0] = _searcherAOwnerSk;
+        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
 
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(
-                vaultNumber,
-                bids,
-                validUntils,
-                searcherSks
-            );
+        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
         // mismatched bid--multicall expects higher bid than what is paid out by the searcher
-        bids[0] = bids[0] + 1;
+        bidInfos[0].bid = bidInfos[0].bid + 1;
 
         vm.prank(_perOperatorAddress, _perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
             data,
-            bids
+            extractBidAmounts(bidInfos)
         );
 
         assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(address(searcherA)),
+            MyToken(tokensCollateral[vaultNumber]).balanceOf(
+                address(searcherA)
+            ),
             _qCollateralA
         );
-        assertEq(MyToken(tokensDebt[0]).balanceOf(address(searcherA)), _qDebtA);
+        assertEq(
+            MyToken(tokensDebt[vaultNumber]).balanceOf(address(searcherA)),
+            _qDebtA
+        );
 
         assertEq(multicallStatuses[0].externalSuccess, false);
         assertEq(multicallStatuses[0].multicallRevertReason, "invalid bid");
+    }
+
+    function extractBidAmounts(
+        BidInfo[] memory bids
+    ) public pure returns (uint256[] memory bidAmounts) {
+        bidAmounts = new uint256[](bids.length);
+        for (uint i = 0; i < bids.length; i++) {
+            bidAmounts[i] = bids[i].bid;
+        }
+    }
+
+    struct AccountBalance {
+        uint256 collateral;
+        uint256 debt;
+    }
+
+    function assertEqBalances(
+        AccountBalance memory a,
+        AccountBalance memory b
+    ) internal {
+        assertEq(a.collateral, b.collateral);
+        assertEq(a.debt, b.debt);
+    }
+
+    function getBalances(
+        address account,
+        uint vaultNumber
+    ) public view returns (AccountBalance memory) {
+        return
+            AccountBalance(
+                MyToken(tokensCollateral[vaultNumber]).balanceOf(account),
+                MyToken(tokensDebt[vaultNumber]).balanceOf(account)
+            );
     }
 
     function testLiquidateLiquidationAdapter() public {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
-        uint256[] memory bids = new uint256[](1);
-        uint256[] memory validUntils = new uint256[](1);
-        address[] memory liquidators = new address[](1);
-        uint256[] memory liquidatorSks = new uint256[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(liquidationAdapter);
-        bids[0] = 15;
-        validUntils[0] = 1_000_000_000_000;
-        liquidators[0] = _searcherAOwnerAddress;
-        liquidatorSks[0] = _searcherAOwnerSk;
+        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
 
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoLiquidationAdapter(
-                vaultNumber,
-                bids,
-                validUntils,
-                liquidators,
-                liquidatorSks
-            );
+        ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
-        uint256 tokenCollateralBalanceAPre = MyToken(tokensCollateral[0])
-            .balanceOf(_searcherAOwnerAddress);
-        uint256 tokenDebtBalanceAPre = MyToken(tokensDebt[0]).balanceOf(
-            _searcherAOwnerAddress
+        AccountBalance memory balancesPre = getBalances(
+            _searcherAOwnerAddress,
+            vaultNumber
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
@@ -939,25 +917,31 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             permission,
             contracts,
             data,
-            bids
+            extractBidAmounts(bidInfos)
         );
 
         uint256 balanceProtocolPost = address(tokenVault).balance;
 
+        AccountBalance memory balancesPost = getBalances(
+            _searcherAOwnerAddress,
+            vaultNumber
+        );
+
         assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(_searcherAOwnerAddress),
-            tokenCollateralBalanceAPre + amountsCollateral[0]
+            balancesPost.collateral,
+            balancesPre.collateral + amountsCollateral[vaultNumber]
         );
         assertEq(
-            MyToken(tokensDebt[0]).balanceOf(_searcherAOwnerAddress),
-            tokenDebtBalanceAPre - amountsDebt[0]
+            balancesPost.debt,
+            balancesPre.debt - amountsDebt[vaultNumber]
         );
 
         assertEq(multicallStatuses[0].externalSuccess, true);
 
         assertEq(
             balanceProtocolPost - balanceProtocolPre,
-            (bids[0] * _feeSplitTokenVault) / _feeSplitPrecisionTokenVault
+            (bidInfos[0].bid * _feeSplitTokenVault) /
+                _feeSplitPrecisionTokenVault
         );
     }
 
@@ -965,32 +949,20 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
-        uint256[] memory bids = new uint256[](1);
-        uint256[] memory validUntils = new uint256[](1);
-        address[] memory liquidators = new address[](1);
-        uint256[] memory liquidatorSks = new uint256[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(liquidationAdapter);
-        bids[0] = 15;
-        validUntils[0] = 1_000_000_000_000;
-        liquidators[0] = _searcherAOwnerAddress;
-        liquidatorSks[0] = _searcherBOwnerSk; // incorrect signer --> invalid signature
+        bidInfos[0] = makeBidInfo(15, _searcherBOwnerSk);
+        bidInfos[0].liquidator = _searcherAOwnerAddress;
 
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoLiquidationAdapter(
-                vaultNumber,
-                bids,
-                validUntils,
-                liquidators,
-                liquidatorSks
-            );
+        ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
-        uint256 tokenCollateralBalanceAPre = MyToken(tokensCollateral[0])
-            .balanceOf(_searcherAOwnerAddress);
-        uint256 tokenDebtBalanceAPre = MyToken(tokensDebt[0]).balanceOf(
-            _searcherAOwnerAddress
+        AccountBalance memory balancesPre = getBalances(
+            _searcherAOwnerAddress,
+            vaultNumber
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
@@ -999,23 +971,33 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             permission,
             contracts,
             data,
-            bids
+            extractBidAmounts(bidInfos)
         );
 
-        assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(_searcherAOwnerAddress),
-            tokenCollateralBalanceAPre
+        AccountBalance memory balancesPost = getBalances(
+            _searcherAOwnerAddress,
+            vaultNumber
         );
-        assertEq(
-            MyToken(tokensDebt[0]).balanceOf(_searcherAOwnerAddress),
-            tokenDebtBalanceAPre
-        );
-        assertEq(balanceProtocolPre, address(tokenVault).balance);
+        uint256 balanceProtocolPost = address(tokenVault).balance;
 
-        assertEq(multicallStatuses[0].externalSuccess, false);
+        assertEqBalances(balancesPost, balancesPre);
+        assertEq(balanceProtocolPre, balanceProtocolPost);
+
+        assertFailedExternal(
+            multicallStatuses[0],
+            "InvalidSearcherSignature()"
+        );
+    }
+
+    function assertFailedExternal(
+        MulticallStatus memory status,
+        string memory reason
+    ) internal {
+        assertEq(status.externalSuccess, false);
+        // assert the first four bytes of the result matches the keccak hash of the error message
         assertEq(
-            multicallStatuses[0].externalResult,
-            keccakHash("InvalidSearcherSignature()")
+            abi.encodePacked(bytes4(status.externalResult)),
+            keccakHash(reason)
         );
     }
 
@@ -1023,32 +1005,20 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
-        uint256[] memory bids = new uint256[](1);
-        uint256[] memory validUntils = new uint256[](1);
-        address[] memory liquidators = new address[](1);
-        uint256[] memory liquidatorSks = new uint256[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(liquidationAdapter);
-        bids[0] = 15;
-        validUntils[0] = block.number - 1; // use old block number for the validUntil field
-        liquidators[0] = _searcherAOwnerAddress;
-        liquidatorSks[0] = _searcherAOwnerSk;
+        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
+        bidInfos[0].validUntil = block.number - 1; // use old block number for the validUntil field
 
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoLiquidationAdapter(
-                vaultNumber,
-                bids,
-                validUntils,
-                liquidators,
-                liquidatorSks
-            );
+        ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
-        uint256 tokenCollateralBalanceAPre = MyToken(tokensCollateral[0])
-            .balanceOf(_searcherAOwnerAddress);
-        uint256 tokenDebtBalanceAPre = MyToken(tokensDebt[0]).balanceOf(
-            _searcherAOwnerAddress
+        AccountBalance memory balancesPre = getBalances(
+            _searcherAOwnerAddress,
+            vaultNumber
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
@@ -1057,24 +1027,38 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             permission,
             contracts,
             data,
-            bids
+            extractBidAmounts(bidInfos)
         );
 
-        assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(_searcherAOwnerAddress),
-            tokenCollateralBalanceAPre
+        AccountBalance memory balancesPost = getBalances(
+            _searcherAOwnerAddress,
+            vaultNumber
         );
-        assertEq(
-            MyToken(tokensDebt[0]).balanceOf(_searcherAOwnerAddress),
-            tokenDebtBalanceAPre
-        );
-        assertEq(balanceProtocolPre, address(tokenVault).balance);
+        uint256 balanceProtocolPost = address(tokenVault).balance;
 
-        assertEq(multicallStatuses[0].externalSuccess, false);
-        assertEq(
-            multicallStatuses[0].externalResult,
-            keccakHash("ExpiredSignature()")
-        );
+        assertEqBalances(balancesPost, balancesPre);
+        assertEq(balanceProtocolPre, balanceProtocolPost);
+        assertFailedExternal(multicallStatuses[0], "ExpiredSignature()");
+    }
+
+    struct BidInfo {
+        uint256 bid;
+        uint256 validUntil;
+        address liquidator;
+        uint256 liquidatorSk;
+    }
+
+    function makeBidInfo(
+        uint256 bid,
+        uint256 liquidatorSk
+    ) internal pure returns (BidInfo memory) {
+        return
+            BidInfo(
+                bid,
+                1_000_000_000_000,
+                vm.addr(liquidatorSk),
+                liquidatorSk
+            );
     }
 
     /**
@@ -1086,43 +1070,25 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](2);
-        uint256[] memory bids = new uint256[](2);
-        uint256[] memory validUntils = new uint256[](2);
-        address[] memory liquidators = new address[](2);
-        uint256[] memory liquidatorSks = new uint256[](2);
+        BidInfo[] memory bidInfos = new BidInfo[](2);
 
         contracts[0] = address(liquidationAdapter);
-        bids[0] = 15;
-        validUntils[0] = 1_000_000_000_000;
-        liquidators[0] = _searcherAOwnerAddress;
-        liquidatorSks[0] = _searcherAOwnerSk;
-
         contracts[1] = address(liquidationAdapter);
-        bids[1] = 10;
-        validUntils[1] = 1_000_000_000_000;
-        liquidators[1] = _searcherBOwnerAddress;
-        liquidatorSks[1] = _searcherBOwnerSk;
+        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
+        bidInfos[1] = makeBidInfo(10, _searcherBOwnerSk);
 
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoLiquidationAdapter(
-                vaultNumber,
-                bids,
-                validUntils,
-                liquidators,
-                liquidatorSks
-            );
+        ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
-        uint256 tokenCollateralBalanceAPre = MyToken(tokensCollateral[0])
-            .balanceOf(_searcherAOwnerAddress);
-        uint256 tokenDebtBalanceAPre = MyToken(tokensDebt[0]).balanceOf(
-            _searcherAOwnerAddress
+        AccountBalance memory balancesAPre = getBalances(
+            _searcherAOwnerAddress,
+            vaultNumber
         );
-        uint256 tokenCollateralBalanceBPre = MyToken(tokensCollateral[0])
-            .balanceOf(_searcherBOwnerAddress);
-        uint256 tokenDebtBalanceBPre = MyToken(tokensDebt[0]).balanceOf(
-            _searcherBOwnerAddress
+        AccountBalance memory balancesBPre = getBalances(
+            _searcherBOwnerAddress,
+            vaultNumber
         );
 
         vm.prank(_perOperatorAddress, _perOperatorAddress);
@@ -1130,32 +1096,32 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             permission,
             contracts,
             data,
-            bids
+            extractBidAmounts(bidInfos)
+        );
+
+        AccountBalance memory balancesAPost = getBalances(
+            _searcherAOwnerAddress,
+            vaultNumber
+        );
+        AccountBalance memory balancesBPost = getBalances(
+            _searcherBOwnerAddress,
+            vaultNumber
         );
 
         assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(_searcherAOwnerAddress),
-            tokenCollateralBalanceAPre + amountsCollateral[0]
+            balancesAPost.collateral,
+            balancesAPre.collateral + amountsCollateral[vaultNumber]
         );
         assertEq(
-            MyToken(tokensDebt[0]).balanceOf(_searcherAOwnerAddress),
-            tokenDebtBalanceAPre - amountsDebt[0]
+            balancesAPost.debt,
+            balancesAPre.debt - amountsDebt[vaultNumber]
         );
-        assertEq(
-            MyToken(tokensCollateral[0]).balanceOf(_searcherBOwnerAddress),
-            tokenCollateralBalanceBPre
-        );
-        assertEq(
-            MyToken(tokensDebt[0]).balanceOf(_searcherBOwnerAddress),
-            tokenDebtBalanceBPre
-        );
+        assertEqBalances(balancesBPost, balancesBPre);
 
         assertEq(multicallStatuses[0].externalSuccess, true);
-        assertEq(multicallStatuses[1].externalSuccess, false);
-        // assert the first four bytes of the result matches the keccak hash of the error message
-        assertEq(
-            abi.encodePacked(bytes4(multicallStatuses[1].externalResult)),
-            keccakHash("LiquidationCallFailed(string)")
+        assertFailedExternal(
+            multicallStatuses[1],
+            "LiquidationCallFailed(string)"
         );
     }
 }
