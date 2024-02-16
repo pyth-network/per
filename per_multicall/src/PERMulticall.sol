@@ -66,7 +66,8 @@ contract PERMulticall {
     function _bytesToAddress(
         bytes memory bys
     ) private pure returns (address addr) {
-        (addr, ) = abi.decode(bys, (address, bytes));
+        // this does not assume the struct fields of the permission key
+        addr = address(uint160(uint256(bytes32(bys))));
     }
 
     /**
@@ -105,6 +106,7 @@ contract PERMulticall {
             } catch Error(string memory reason) {
                 multicallStatuses[i].multicallRevertReason = reason;
             }
+
             // only count bid if call was successful (and bid was paid out)
             if (multicallStatuses[i].externalSuccess) {
                 totalBid += bids[i];
