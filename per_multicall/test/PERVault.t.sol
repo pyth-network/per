@@ -23,13 +23,11 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-import "../src/Errors.sol";
-
-import "./helpers/ErrorChecks.sol";
 import "./helpers/Signatures.sol";
 import "./helpers/PriceHelpers.sol";
+import "./helpers/TestParsingHelpers.sol";
 
-contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
+contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
     TokenVault public tokenVault;
     SearcherVault public searcherA;
     SearcherVault public searcherB;
@@ -41,37 +39,31 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
     MyToken public token1;
     MyToken public token2;
 
-    bytes32 _idToken1;
-    bytes32 _idToken2;
+    bytes32 idToken1;
+    bytes32 idToken2;
 
-    int32 _tokenExpo = 0;
+    int32 tokenExpo = 0;
 
-    address _perOperatorAddress;
-    uint256 _perOperatorSk; // address public immutable _perOperatorAddress = address(88);
-    address _searcherAOwnerAddress;
-    uint256 _searcherAOwnerSk;
-    address _searcherBOwnerAddress;
-    uint256 _searcherBOwnerSk;
-    address _tokenVaultDeployer;
-    uint256 _tokenVaultDeployerSk;
+    address perOperatorAddress;
+    uint256 perOperatorSk; // address public immutable perOperatorAddress = address(88);
+    address searcherAOwnerAddress;
+    uint256 searcherAOwnerSk;
+    address searcherBOwnerAddress;
+    uint256 searcherBOwnerSk;
+    address tokenVaultDeployer;
+    uint256 tokenVaultDeployerSk;
 
     uint256 public healthPrecision = 10 ** 16;
 
-    address _depositor = address(44);
+    address depositor = address(44);
 
-    uint256 _q1Depositor; // quantity of token 1 initially owned by the vault depositor
-    uint256 _q2Depositor; // quantity of token 2 initially owned by the vault depositor
-    uint256 _q1A; // quantity of token 1 initially owned by searcher A contract
-    uint256 _q2A; // quantity of token 2 initially owned by searcher A contract
-    uint256 _q1B; // quantity of token 1 initially owned by searcher B contract
-    uint256 _q2B; // quantity of token 2 initially owned by searcher B contract
-    uint256 _q2TokenVault; // quantity of token 2 initially owned by the token vault contract (necessary to allow depositor to borrow token 2)
-
-    // these are used for assert checks in the tests
-    uint256 _qCollateralA; // quantity of collateral initially owned by searcher A
-    uint256 _qDebtA; // quantity of debt initially owned by searcher A
-    uint256 _qCollateralB; // quantity of collateral initially owned by searcher B
-    uint256 _qDebtB; // quantity of debt initially owned by searcher B
+    uint256 amountToken1Depositor; // amount of token 1 initially owned by the vault depositor
+    uint256 amountToken2Depositor; // amount of token 2 initially owned by the vault depositor
+    uint256 amountToken1A; // amount of token 1 initially owned by searcher A contract
+    uint256 amountToken2A; // amount of token 2 initially owned by searcher A contract
+    uint256 amountToken1B; // amount of token 1 initially owned by searcher B contract
+    uint256 amountToken2B; // amount of token 2 initially owned by searcher B contract
+    uint256 amountToken2TokenVault; // amount of token 2 initially owned by the token vault contract (necessary to allow depositor to borrow token 2)
 
     address[] tokensCollateral; // addresses of collateral, index corresponds to vault number
     address[] tokensDebt; // addresses of debt, index corresponds to vault number
@@ -80,167 +72,166 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
     bytes32[] idsCollateral; // pyth price feed ids of collateral, index corresponds to vault number
     bytes32[] idsDebt; // pyth price feed ids of debt, index corresponds to vault number
 
-    int64 _tokenDebtPriceLiqPermissionlessVault0;
-    int64 _tokenDebtPriceLiqPERVault0;
-    int64 _tokenDebtPriceLiqPermissionlessVault1;
-    int64 _tokenDebtPriceLiqPERVault1;
-    int64[] _tokenDebtPricesLiqPER;
-    int64[] _tokenDebtPricesLiqPermissionless;
+    // initial token oracle info
+    int64 token1PriceInitial = 100;
+    uint64 token1ConfInitial = 1;
+    int64 token2PriceInitial = 100;
+    uint64 token2ConfInitial = 1;
+    uint64 publishTimeInitial = 1_000_000;
+    uint64 prevPublishTimeInitial = 0;
 
-    uint256 _defaultFeeSplitProtocol;
+    int64 tokenDebtPriceLiqPermissionlessVault0;
+    int64 tokenDebtPriceLiqPERVault0;
+    int64 tokenDebtPriceLiqPermissionlessVault1;
+    int64 tokenDebtPriceLiqPERVault1;
+    int64[] tokenDebtPricesLiqPER;
+    int64[] tokenDebtPricesLiqPermissionless;
 
-    uint256 _feeSplitTokenVault;
-    uint256 _feeSplitPrecisionTokenVault = 10 ** 18;
+    uint256 defaultFeeSplitProtocol = 50 * 10 ** 16;
 
-    uint256 _signaturePerVersionNumber = 0;
+    uint256 feeSplitTokenVault;
+    uint256 feeSplitPrecisionTokenVault = 10 ** 18;
 
     function setUp() public {
+        setUpWallets(); // create wallets
+        setUpContracts(); // instantiate contracts
+        setUpTokens(); // mint tokens and set initial oracle prices
+        setUpVaults(); // create vaults and store relevant info
+        fundSearcherWallets(); // fund searchers' wallets so they can directly liquidate via the liquidation adapter
+    }
+
+    function setUpWallets() public {
         // make PER operator wallet
-        (_perOperatorAddress, _perOperatorSk) = makeAddrAndKey("perOperator");
-        console.log("pk per operator", _perOperatorSk);
+        (perOperatorAddress, perOperatorSk) = makeAddrAndKey("perOperator");
 
-        _defaultFeeSplitProtocol = 50 * 10 ** 16;
+        // make searcherA and searcherB wallets
+        (searcherAOwnerAddress, searcherAOwnerSk) = makeAddrAndKey("searcherA");
+        (searcherBOwnerAddress, searcherBOwnerSk) = makeAddrAndKey("searcherB");
 
+        // make token vault deployer wallet
+        (tokenVaultDeployer, tokenVaultDeployerSk) = makeAddrAndKey(
+            "tokenVaultDeployer"
+        );
+    }
+
+    function setUpContracts() public {
         // instantiate multicall contract with PER operator as sender/origin
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         multicall = new PERMulticall(
-            _perOperatorAddress,
-            _defaultFeeSplitProtocol
+            perOperatorAddress,
+            defaultFeeSplitProtocol
         );
 
         // instantiate weth contract
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         weth = new WETH9();
 
         // instantiate liquidation adapter contract
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         liquidationAdapter = new LiquidationAdapter(
             address(multicall),
             address(weth)
         );
 
-        // make searcherA and searcherB wallets
-        (_searcherAOwnerAddress, _searcherAOwnerSk) = makeAddrAndKey(
-            "searcherA"
-        );
-        (_searcherBOwnerAddress, _searcherBOwnerSk) = makeAddrAndKey(
-            "searcherB"
-        );
-        console.log("pk searcherA", _searcherAOwnerSk);
-        console.log("pk searcherB", _searcherBOwnerSk);
-
-        (_tokenVaultDeployer, _tokenVaultDeployerSk) = makeAddrAndKey(
-            "tokenVaultDeployer"
-        );
-        console.log("pk token vault deployer", _tokenVaultDeployerSk);
-
         // instantiate mock pyth contract
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         mockPyth = new MockPyth(1_000_000, 0);
 
         // instantiate token vault contract
-        vm.prank(_tokenVaultDeployer, _tokenVaultDeployer); // we prank here to standardize the value of the token contract address across different runs
+        vm.prank(tokenVaultDeployer, tokenVaultDeployer); // we prank here to standardize the value of the token contract address across different runs
         tokenVault = new TokenVault(address(multicall), address(mockPyth));
         console.log("contract of token vault is", address(tokenVault));
-        _feeSplitTokenVault = _defaultFeeSplitProtocol;
+        feeSplitTokenVault = defaultFeeSplitProtocol;
 
         // instantiate searcher A's contract with searcher A as sender/origin
-        vm.prank(_searcherAOwnerAddress, _searcherAOwnerAddress);
+        vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
         searcherA = new SearcherVault(address(multicall), address(tokenVault));
         console.log("contract of searcher A is", address(searcherA));
 
         // instantiate searcher B's contract with searcher B as sender/origin
-        vm.prank(_searcherBOwnerAddress, _searcherBOwnerAddress);
+        vm.prank(searcherBOwnerAddress, searcherBOwnerAddress);
         searcherB = new SearcherVault(address(multicall), address(tokenVault));
         console.log("contract of searcher B is", address(searcherB));
 
         // instantiate ERC-20 tokens
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         token1 = new MyToken("token1", "T1");
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         token2 = new MyToken("token2", "T2");
         console.log("contract of token1 is", address(token1));
         console.log("contract of token2 is", address(token2));
+    }
 
-        _q1Depositor = 1_000_000;
-        _q2Depositor = 1_000_000;
-        _q1A = 2_000_000;
-        _q2A = 2_000_000;
-        _q1B = 3_000_000;
-        _q2B = 3_000_000;
-        _q2TokenVault = 500_000;
+    function setUpTokens() public {
+        amountToken1Depositor = 1_000_000;
+        amountToken2Depositor = 1_000_000;
+        amountToken1A = 2_000_000;
+        amountToken2A = 2_000_000;
+        amountToken1B = 3_000_000;
+        amountToken2B = 3_000_000;
+        amountToken2TokenVault = 500_000;
 
-        // mint tokens to the _depositor address
-        token1.mint(_depositor, _q1Depositor);
-        token2.mint(_depositor, _q2Depositor);
+        // mint tokens to the depositor address
+        token1.mint(depositor, amountToken1Depositor);
+        token2.mint(depositor, amountToken2Depositor);
 
         // mint tokens to searcher A contract
-        token1.mint(address(searcherA), _q1A);
-        token2.mint(address(searcherA), _q2A);
+        token1.mint(address(searcherA), amountToken1A);
+        token2.mint(address(searcherA), amountToken2A);
 
         // mint tokens to searcher B contract
-        token1.mint(address(searcherB), _q1B);
-        token2.mint(address(searcherB), _q2B);
+        token1.mint(address(searcherB), amountToken1B);
+        token2.mint(address(searcherB), amountToken2B);
 
         // mint token 2 to the vault contract (to allow creation of initial vault with outstanding debt position)
-        token2.mint(address(tokenVault), _q2TokenVault);
+        token2.mint(address(tokenVault), amountToken2TokenVault);
 
         // create token price feed IDs
-        _idToken1 = bytes32(uint256(uint160(address(token1))));
-        _idToken2 = bytes32(uint256(uint160(address(token2))));
+        idToken1 = bytes32(uint256(uint160(address(token1))));
+        idToken2 = bytes32(uint256(uint160(address(token2))));
 
         // set initial oracle prices
-        int64 token1Price = 100;
-        uint64 token1Conf = 1;
-
-        int64 token2Price = 100;
-        uint64 token2Conf = 1;
-
-        uint64 publishTime = 1_000_000;
-        uint64 prevPublishTime = 0;
-
-        vm.warp(publishTime);
-        bytes memory token1UpdateData = mockPyth.createPriceFeedUpdateData(
-            _idToken1,
-            token1Price,
-            token1Conf,
-            _tokenExpo,
-            token1Price,
-            token1Conf,
-            publishTime,
-            prevPublishTime
-        );
-        bytes memory token2UpdateData = mockPyth.createPriceFeedUpdateData(
-            _idToken2,
-            token2Price,
-            token2Conf,
-            _tokenExpo,
-            token2Price,
-            token2Conf,
-            publishTime,
-            prevPublishTime
-        );
-
+        vm.warp(publishTimeInitial);
         bytes[] memory updateData = new bytes[](2);
-
-        updateData[0] = token1UpdateData;
-        updateData[1] = token2UpdateData;
+        updateData[0] = mockPyth.createPriceFeedUpdateData(
+            idToken1,
+            token1PriceInitial,
+            token1ConfInitial,
+            tokenExpo,
+            token1PriceInitial,
+            token1ConfInitial,
+            publishTimeInitial,
+            prevPublishTimeInitial
+        );
+        updateData[1] = mockPyth.createPriceFeedUpdateData(
+            idToken2,
+            token2PriceInitial,
+            token2ConfInitial,
+            tokenExpo,
+            token2PriceInitial,
+            token2ConfInitial,
+            publishTimeInitial,
+            prevPublishTimeInitial
+        );
 
         mockPyth.updatePriceFeeds(updateData);
+    }
 
+    function setUpVaults() public {
+        // set which tokens are collateral and which are debt for each vault
         tokensCollateral = new address[](2);
         idsCollateral = new bytes32[](2);
         tokensCollateral[0] = address(token1);
-        idsCollateral[0] = _idToken1;
+        idsCollateral[0] = idToken1;
         tokensCollateral[1] = address(token1);
-        idsCollateral[1] = _idToken1;
+        idsCollateral[1] = idToken1;
 
         tokensDebt = new address[](2);
         idsDebt = new bytes32[](2);
         tokensDebt[0] = address(token2);
-        idsDebt[0] = _idToken2;
+        idsDebt[0] = idToken2;
         tokensDebt[1] = address(token2);
-        idsDebt[1] = _idToken2;
+        idsDebt[1] = idToken2;
 
         amountsCollateral = new uint256[](2);
         amountsCollateral[0] = 100;
@@ -250,33 +241,15 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         amountsDebt[0] = 80;
         amountsDebt[1] = 150;
 
-        if (
-            (tokensCollateral[0] == address(token1)) &&
-            (tokensDebt[0] == address(token2))
-        ) {
-            _qCollateralA = _q1A;
-            _qDebtA = _q2A;
-            _qCollateralB = _q1B;
-            _qDebtB = _q2B;
-        } else if (
-            (tokensCollateral[0] == address(token2)) &&
-            (tokensDebt[0] == address(token1))
-        ) {
-            _qCollateralA = _q2A;
-            _qDebtA = _q1A;
-            _qCollateralB = _q2B;
-            _qDebtB = _q1B;
-        }
-
         // create vault 0
         uint256 minCollatPERVault0 = 110 * healthPrecision;
         uint256 minCollatPermissionlessVault0 = 100 * healthPrecision;
-        vm.prank(_depositor, _depositor);
+        vm.prank(depositor, depositor);
         MyToken(tokensCollateral[0]).approve(
             address(tokenVault),
             amountsCollateral[0]
         );
-        vm.prank(_depositor, _depositor);
+        vm.prank(depositor, depositor);
         tokenVault.createVault(
             tokensCollateral[0],
             tokensDebt[0],
@@ -288,18 +261,18 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             idsDebt[0],
             new bytes[](0)
         );
-        _q1Depositor -= amountsCollateral[0];
-        _q2Depositor += amountsDebt[0];
+        amountToken1Depositor -= amountsCollateral[0];
+        amountToken2Depositor += amountsDebt[0];
 
         // create vault 1
         uint256 minCollatPERVault1 = 110 * healthPrecision;
         uint256 minCollatPermissionlessVault1 = 100 * healthPrecision;
-        vm.prank(_depositor, _depositor);
+        vm.prank(depositor, depositor);
         MyToken(tokensCollateral[1]).approve(
             address(tokenVault),
             amountsCollateral[1]
         );
-        vm.prank(_depositor, _depositor);
+        vm.prank(depositor, depositor);
         tokenVault.createVault(
             tokensCollateral[1],
             tokensDebt[1],
@@ -311,89 +284,103 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             idsDebt[1],
             new bytes[](0)
         );
-        _q1Depositor -= amountsCollateral[0];
-        _q2Depositor += amountsDebt[0];
+        amountToken1Depositor -= amountsCollateral[0];
+        amountToken2Depositor += amountsDebt[0];
 
-        int64 priceCollateral0;
-        int64 priceCollateral1;
+        int64 priceCollateralVault0;
+        int64 priceCollateralVault1;
 
         if (tokensCollateral[0] == address(token1)) {
-            priceCollateral0 = token1Price;
+            priceCollateralVault0 = token1PriceInitial;
         } else {
-            priceCollateral0 = token2Price;
+            priceCollateralVault0 = token2PriceInitial;
         }
 
-        _tokenDebtPriceLiqPermissionlessVault0 = getDebtLiquidationPrice(
+        tokenDebtPriceLiqPermissionlessVault0 = getDebtLiquidationPrice(
             amountsCollateral[0],
             amountsDebt[0],
             minCollatPermissionlessVault0,
             healthPrecision,
-            priceCollateral0
+            priceCollateralVault0
         );
 
-        _tokenDebtPriceLiqPERVault0 = getDebtLiquidationPrice(
+        tokenDebtPriceLiqPERVault0 = getDebtLiquidationPrice(
             amountsCollateral[0],
             amountsDebt[0],
             minCollatPERVault0,
             healthPrecision,
-            priceCollateral0
+            priceCollateralVault0
         );
 
         if (tokensCollateral[1] == address(token1)) {
-            priceCollateral1 = token1Price;
+            priceCollateralVault1 = token1PriceInitial;
         } else {
-            priceCollateral1 = token2Price;
+            priceCollateralVault1 = token2PriceInitial;
         }
 
-        _tokenDebtPriceLiqPermissionlessVault1 = getDebtLiquidationPrice(
+        tokenDebtPriceLiqPermissionlessVault1 = getDebtLiquidationPrice(
             amountsCollateral[1],
             amountsDebt[1],
             minCollatPermissionlessVault1,
             healthPrecision,
-            priceCollateral1
+            priceCollateralVault1
         );
 
-        _tokenDebtPriceLiqPERVault1 = getDebtLiquidationPrice(
+        tokenDebtPriceLiqPERVault1 = getDebtLiquidationPrice(
             amountsCollateral[1],
             amountsDebt[1],
             minCollatPERVault1,
             healthPrecision,
-            priceCollateral1
+            priceCollateralVault1
         );
 
-        _tokenDebtPricesLiqPER = new int64[](2);
-        _tokenDebtPricesLiqPER[0] = _tokenDebtPriceLiqPERVault0;
-        _tokenDebtPricesLiqPER[1] = _tokenDebtPriceLiqPERVault1;
+        tokenDebtPricesLiqPER = new int64[](2);
+        tokenDebtPricesLiqPER[0] = tokenDebtPriceLiqPERVault0;
+        tokenDebtPricesLiqPER[1] = tokenDebtPriceLiqPERVault1;
 
-        _tokenDebtPricesLiqPermissionless = new int64[](2);
-        _tokenDebtPricesLiqPermissionless[
+        tokenDebtPricesLiqPermissionless = new int64[](2);
+        tokenDebtPricesLiqPermissionless[
             0
-        ] = _tokenDebtPriceLiqPermissionlessVault0;
-        _tokenDebtPricesLiqPermissionless[
+        ] = tokenDebtPriceLiqPermissionlessVault0;
+        tokenDebtPricesLiqPermissionless[
             1
-        ] = _tokenDebtPriceLiqPermissionlessVault1;
+        ] = tokenDebtPriceLiqPermissionlessVault1;
+    }
 
+    function fundSearcherWallets() public {
         // fund searcher A and searcher B
         vm.deal(address(searcherA), 1 ether);
         vm.deal(address(searcherB), 1 ether);
 
         address[] memory searchers = new address[](2);
-        searchers[0] = address(_searcherAOwnerAddress);
-        searchers[1] = address(_searcherBOwnerAddress);
+        searchers[0] = address(searcherAOwnerAddress);
+        searchers[1] = address(searcherBOwnerAddress);
 
         for (uint256 i = 0; i < searchers.length; i++) {
             address searcher = searchers[i];
 
-            // mint tokens to searcher wallet so it can liquidate vault 0
+            // mint tokens to searcher wallet so it can liquidate vaults
             MyToken(tokensDebt[0]).mint(address(searcher), amountsDebt[0]);
+            MyToken(tokensDebt[1]).mint(address(searcher), amountsDebt[1]);
 
             vm.startPrank(searcher, searcher);
 
-            // create allowance for liquidation adapter (token 2)
-            MyToken(tokensDebt[0]).approve(
-                address(liquidationAdapter),
-                amountsDebt[0]
-            );
+            // create allowance for liquidation adapter
+            if (tokensDebt[0] == tokensDebt[1]) {
+                MyToken(tokensDebt[0]).approve(
+                    address(liquidationAdapter),
+                    amountsDebt[0] + amountsDebt[1]
+                );
+            } else {
+                MyToken(tokensDebt[0]).approve(
+                    address(liquidationAdapter),
+                    amountsDebt[0]
+                );
+                MyToken(tokensDebt[1]).approve(
+                    address(liquidationAdapter),
+                    amountsDebt[1]
+                );
+            }
 
             // deposit eth into the weth contract
             vm.deal(searcher, (i + 1) * 100 ether);
@@ -406,7 +393,7 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         }
 
         // fast forward to enable price updates in the below tests
-        vm.warp(publishTime + 100);
+        vm.warp(publishTimeInitial + 100);
     }
 
     function getMulticallInfoSearcherContracts(
@@ -425,8 +412,8 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         bytes memory tokenDebtUpdateData = createPriceFeedUpdateSimple(
             mockPyth,
             idsDebt[vaultNumber],
-            _tokenDebtPricesLiqPER[vaultNumber],
-            _tokenExpo
+            tokenDebtPricesLiqPER[vaultNumber],
+            tokenExpo
         );
 
         data = new bytes[](bidInfos.length);
@@ -467,8 +454,8 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         updateDatas[0] = createPriceFeedUpdateSimple(
             mockPyth,
             idsDebt[vaultNumber],
-            _tokenDebtPricesLiqPER[vaultNumber],
-            _tokenExpo
+            tokenDebtPricesLiqPER[vaultNumber],
+            tokenExpo
         );
 
         TokenQty[] memory repayTokens = new TokenQty[](1);
@@ -518,11 +505,42 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
                     signatureLiquidator
                 );
 
-            data[i] = abi.encodeWithSignature(
-                "callLiquidation(((address,uint256)[],(address,uint256)[],address,address,bytes,uint256,uint256,uint256,bytes))",
+            data[i] = abi.encodeWithSelector(
+                liquidationAdapter.callLiquidation.selector,
                 liquidationCallParams
             );
         }
+    }
+
+    function assertExpectedBidPayment(
+        uint256 balancePre,
+        uint256 balancePost,
+        BidInfo[] memory bidInfos,
+        MulticallStatus[] memory multicallStatuses
+    ) public {
+        require(
+            bidInfos.length == multicallStatuses.length,
+            "bidInfos and multicallStatuses must have the same length"
+        );
+
+        uint256 totalBid = 0;
+        string memory emptyRevertReasonString = "";
+
+        for (uint i = 0; i < bidInfos.length; i++) {
+            bool externalSuccess = multicallStatuses[i].externalSuccess;
+            bool emptyRevertReason = compareStrings(
+                multicallStatuses[i].multicallRevertReason,
+                emptyRevertReasonString
+            );
+
+            if (externalSuccess && emptyRevertReason) {
+                totalBid +=
+                    (bidInfos[i].bid * feeSplitTokenVault) /
+                    feeSplitPrecisionTokenVault;
+            }
+        }
+
+        assertEq(balancePost, balancePre + totalBid);
     }
 
     function testLiquidateNoPER() public {
@@ -532,15 +550,21 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         bytes memory tokenDebtUpdateData = createPriceFeedUpdateSimple(
             mockPyth,
             idsDebt[vaultNumber],
-            _tokenDebtPriceLiqPermissionlessVault0,
-            _tokenExpo
+            tokenDebtPriceLiqPermissionlessVault0,
+            tokenExpo
         );
 
         bytes memory signatureSearcher;
 
         uint256 validUntil = 1_000_000_000_000;
 
-        vm.prank(_searcherAOwnerAddress, _searcherAOwnerAddress);
+        AccountBalance memory balancesAPre = getBalances(
+            address(searcherA),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
+        );
+
+        vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
         searcherA.doLiquidate(
             0,
             0,
@@ -551,16 +575,17 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
 
         AccountBalance memory balancesAPost = getBalances(
             address(searcherA),
-            vaultNumber
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
 
         assertEq(
             balancesAPost.collateral,
-            _qCollateralA + amountsCollateral[vaultNumber]
+            balancesAPre.collateral + amountsCollateral[vaultNumber]
         );
         assertEq(
-            MyToken(tokensDebt[vaultNumber]).balanceOf(address(searcherA)),
-            _qDebtA - amountsDebt[vaultNumber]
+            balancesAPost.debt,
+            balancesAPre.debt - amountsDebt[vaultNumber]
         );
     }
 
@@ -571,8 +596,8 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         bytes memory tokenDebtUpdateData = createPriceFeedUpdateSimple(
             mockPyth,
             idsDebt[vaultNumber],
-            _tokenDebtPriceLiqPERVault0,
-            _tokenExpo
+            tokenDebtPriceLiqPERVault0,
+            tokenExpo
         );
 
         bytes memory signatureSearcher;
@@ -580,7 +605,7 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 validUntil = 1_000_000_000_000;
 
         vm.expectRevert(abi.encodeWithSelector(InvalidLiquidation.selector));
-        vm.prank(_searcherAOwnerAddress, _searcherAOwnerAddress);
+        vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
         searcherA.doLiquidate(
             0,
             0,
@@ -598,7 +623,7 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -606,8 +631,13 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
+        AccountBalance memory balancesAPre = getBalances(
+            address(searcherA),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
+        );
 
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
@@ -616,24 +646,28 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         );
 
         uint256 balanceProtocolPost = address(tokenVault).balance;
+        AccountBalance memory balancesAPost = getBalances(
+            address(searcherA),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
+        );
 
         assertEq(
-            MyToken(tokensCollateral[vaultNumber]).balanceOf(
-                address(searcherA)
-            ),
-            _qCollateralA + amountsCollateral[vaultNumber]
+            balancesAPost.collateral,
+            balancesAPre.collateral + amountsCollateral[vaultNumber]
         );
         assertEq(
-            MyToken(tokensDebt[vaultNumber]).balanceOf(address(searcherA)),
-            _qDebtA - amountsDebt[vaultNumber]
+            balancesAPost.debt,
+            balancesAPre.debt - amountsDebt[vaultNumber]
         );
 
         assertEq(multicallStatuses[0].externalSuccess, true);
 
-        assertEq(
-            balanceProtocolPost - balanceProtocolPre,
-            (bidInfos[0].bid * _feeSplitTokenVault) /
-                _feeSplitPrecisionTokenVault
+        assertExpectedBidPayment(
+            balanceProtocolPre,
+            balanceProtocolPost,
+            bidInfos,
+            multicallStatuses
         );
     }
 
@@ -649,10 +683,10 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         BidInfo[] memory bidInfos = new BidInfo[](2);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
 
         contracts[1] = address(searcherB);
-        bidInfos[1] = makeBidInfo(10, _searcherAOwnerSk);
+        bidInfos[1] = makeBidInfo(10, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -660,57 +694,58 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
+        AccountBalance memory balancesAPre = getBalances(
+            address(searcherA),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
+        );
+        AccountBalance memory balancesBPre = getBalances(
+            address(searcherB),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
+        );
 
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
             data,
             extractBidAmounts(bidInfos)
         );
-
         uint256 balanceProtocolPost = address(tokenVault).balance;
         AccountBalance memory balancesAPost = getBalances(
             address(searcherA),
-            vaultNumber
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
 
         AccountBalance memory balancesBPost = getBalances(
             address(searcherB),
-            vaultNumber
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
 
         assertEq(
             balancesAPost.collateral,
-            _qCollateralA + amountsCollateral[vaultNumber]
+            balancesAPre.collateral + amountsCollateral[vaultNumber]
         );
-        assertEq(balancesAPost.debt, _qDebtA - amountsDebt[vaultNumber]);
+        assertEq(
+            balancesAPost.debt,
+            balancesAPre.debt - amountsDebt[vaultNumber]
+        );
 
-        assertEq(balancesBPost.collateral, _qCollateralB);
-        assertEq(balancesBPost.debt, _qDebtB);
+        assertEq(balancesBPost.collateral, balancesBPre.collateral);
+        assertEq(balancesBPost.debt, balancesBPre.debt);
 
         logMulticallStatuses(multicallStatuses);
 
         // only the first bid should be paid
-        assertEq(
-            balanceProtocolPost - balanceProtocolPre,
-            (bidInfos[0].bid * _feeSplitTokenVault) /
-                _feeSplitPrecisionTokenVault
+        assertExpectedBidPayment(
+            balanceProtocolPre,
+            balanceProtocolPost,
+            bidInfos,
+            multicallStatuses
         );
-    }
-
-    function logMulticallStatuses(
-        MulticallStatus[] memory multicallStatuses
-    ) internal view {
-        for (uint256 i = 0; i < multicallStatuses.length; i++) {
-            console.log("External Success:");
-            console.log(multicallStatuses[i].externalSuccess);
-            console.log("External Result:");
-            console.logBytes(multicallStatuses[i].externalResult);
-            console.log("Multicall Revert reason:");
-            console.log(multicallStatuses[i].multicallRevertReason);
-            console.log("----------------------------");
-        }
     }
 
     /**
@@ -725,9 +760,9 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         BidInfo[] memory bidInfos = new BidInfo[](2);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
         contracts[1] = address(searcherB);
-        bidInfos[1] = makeBidInfo(10, _searcherBOwnerSk);
+        bidInfos[1] = makeBidInfo(10, searcherBOwnerSk);
 
         (
             bytes memory permission,
@@ -735,12 +770,22 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
+        AccountBalance memory balancesAPre = getBalances(
+            address(searcherA),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
+        );
+        AccountBalance memory balancesBPre = getBalances(
+            address(searcherB),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
+        );
 
         // drain searcherA contract of Eth, so that the first liquidation fails
-        vm.prank(_searcherAOwnerAddress, _searcherAOwnerAddress);
+        vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
         searcherA.withdrawEth(address(searcherA).balance);
 
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
@@ -752,29 +797,35 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
 
         AccountBalance memory balancesAPost = getBalances(
             address(searcherA),
-            vaultNumber
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
         AccountBalance memory balancesBPost = getBalances(
             address(searcherB),
-            vaultNumber
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
 
-        assertEq(balancesAPost.collateral, _qCollateralA);
-        assertEq(balancesAPost.debt, _qDebtA);
+        assertEq(balancesAPost.collateral, balancesAPre.collateral);
+        assertEq(balancesAPost.debt, balancesAPre.debt);
 
         assertEq(
             balancesBPost.collateral,
-            _qCollateralB + amountsCollateral[vaultNumber]
+            balancesBPre.collateral + amountsCollateral[vaultNumber]
         );
-        assertEq(balancesBPost.debt, _qDebtB - amountsDebt[vaultNumber]);
+        assertEq(
+            balancesBPost.debt,
+            balancesBPre.debt - amountsDebt[vaultNumber]
+        );
 
         logMulticallStatuses(multicallStatuses);
 
         // only the second bid should be paid
-        assertEq(
-            balanceProtocolPost - balanceProtocolPre,
-            (bidInfos[1].bid * _feeSplitTokenVault) /
-                _feeSplitPrecisionTokenVault
+        assertExpectedBidPayment(
+            balanceProtocolPre,
+            balanceProtocolPost,
+            bidInfos,
+            multicallStatuses
         );
     }
 
@@ -785,7 +836,7 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -795,7 +846,13 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         // wrong permisison key
         permission = abi.encode(address(0));
 
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        AccountBalance memory balancesAPre = getBalances(
+            address(searcherA),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
+        );
+
+        vm.prank(perOperatorAddress, perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
@@ -803,16 +860,14 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             extractBidAmounts(bidInfos)
         );
 
-        assertEq(
-            MyToken(tokensCollateral[vaultNumber]).balanceOf(
-                address(searcherA)
-            ),
-            _qCollateralA
+        AccountBalance memory balancesAPost = getBalances(
+            address(searcherA),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
-        assertEq(
-            MyToken(tokensDebt[vaultNumber]).balanceOf(address(searcherA)),
-            _qDebtA
-        );
+
+        assertEq(balancesAPost.collateral, balancesAPre.collateral);
+        assertEq(balancesAPost.debt, balancesAPre.debt);
 
         assertFailedExternal(multicallStatuses[0], "InvalidLiquidation()");
     }
@@ -822,11 +877,9 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
 
         address[] memory contracts = new address[](1);
         BidInfo[] memory bidInfos = new BidInfo[](1);
-        uint256[] memory validUntils = new uint256[](1);
-        uint256[] memory searcherSks = new uint256[](1);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -836,7 +889,13 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         // mismatched bid--multicall expects higher bid than what is paid out by the searcher
         bidInfos[0].bid = bidInfos[0].bid + 1;
 
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        AccountBalance memory balancesAPre = getBalances(
+            address(searcherA),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
+        );
+
+        vm.prank(perOperatorAddress, perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
@@ -844,52 +903,16 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
             extractBidAmounts(bidInfos)
         );
 
-        assertEq(
-            MyToken(tokensCollateral[vaultNumber]).balanceOf(
-                address(searcherA)
-            ),
-            _qCollateralA
-        );
-        assertEq(
-            MyToken(tokensDebt[vaultNumber]).balanceOf(address(searcherA)),
-            _qDebtA
+        AccountBalance memory balancesAPost = getBalances(
+            address(searcherA),
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
 
-        assertEq(multicallStatuses[0].externalSuccess, false);
-        assertEq(multicallStatuses[0].multicallRevertReason, "invalid bid");
-    }
+        assertEq(balancesAPost.collateral, balancesAPre.collateral);
+        assertEq(balancesAPost.debt, balancesAPre.debt);
 
-    function extractBidAmounts(
-        BidInfo[] memory bids
-    ) public pure returns (uint256[] memory bidAmounts) {
-        bidAmounts = new uint256[](bids.length);
-        for (uint i = 0; i < bids.length; i++) {
-            bidAmounts[i] = bids[i].bid;
-        }
-    }
-
-    struct AccountBalance {
-        uint256 collateral;
-        uint256 debt;
-    }
-
-    function assertEqBalances(
-        AccountBalance memory a,
-        AccountBalance memory b
-    ) internal {
-        assertEq(a.collateral, b.collateral);
-        assertEq(a.debt, b.debt);
-    }
-
-    function getBalances(
-        address account,
-        uint vaultNumber
-    ) public view returns (AccountBalance memory) {
-        return
-            AccountBalance(
-                MyToken(tokensCollateral[vaultNumber]).balanceOf(account),
-                MyToken(tokensDebt[vaultNumber]).balanceOf(account)
-            );
+        assertFailedMulticall(multicallStatuses[0], "invalid bid");
     }
 
     function testLiquidateLiquidationAdapter() public {
@@ -899,7 +922,7 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(liquidationAdapter);
-        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -907,12 +930,13 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
         AccountBalance memory balancesPre = getBalances(
-            _searcherAOwnerAddress,
-            vaultNumber
+            searcherAOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
@@ -923,8 +947,9 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         uint256 balanceProtocolPost = address(tokenVault).balance;
 
         AccountBalance memory balancesPost = getBalances(
-            _searcherAOwnerAddress,
-            vaultNumber
+            searcherAOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
 
         assertEq(
@@ -938,10 +963,11 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
 
         assertEq(multicallStatuses[0].externalSuccess, true);
 
-        assertEq(
-            balanceProtocolPost - balanceProtocolPre,
-            (bidInfos[0].bid * _feeSplitTokenVault) /
-                _feeSplitPrecisionTokenVault
+        assertExpectedBidPayment(
+            balanceProtocolPre,
+            balanceProtocolPost,
+            bidInfos,
+            multicallStatuses
         );
     }
 
@@ -952,8 +978,8 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(liquidationAdapter);
-        bidInfos[0] = makeBidInfo(15, _searcherBOwnerSk);
-        bidInfos[0].liquidator = _searcherAOwnerAddress;
+        bidInfos[0] = makeBidInfo(15, searcherBOwnerSk);
+        bidInfos[0].liquidator = searcherAOwnerAddress; // use wrong liquidator address to induce invalid signature
 
         (
             bytes memory permission,
@@ -961,12 +987,13 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
         AccountBalance memory balancesPre = getBalances(
-            _searcherAOwnerAddress,
-            vaultNumber
+            searcherAOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
@@ -975,8 +1002,9 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         );
 
         AccountBalance memory balancesPost = getBalances(
-            _searcherAOwnerAddress,
-            vaultNumber
+            searcherAOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
         uint256 balanceProtocolPost = address(tokenVault).balance;
 
@@ -989,18 +1017,6 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         );
     }
 
-    function assertFailedExternal(
-        MulticallStatus memory status,
-        string memory reason
-    ) internal {
-        assertEq(status.externalSuccess, false);
-        // assert the first four bytes of the result matches the keccak hash of the error message
-        assertEq(
-            abi.encodePacked(bytes4(status.externalResult)),
-            keccakHash(reason)
-        );
-    }
-
     function testLiquidateLiquidationAdapterFailExpiredSignature() public {
         uint256 vaultNumber = 0;
 
@@ -1008,8 +1024,8 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(liquidationAdapter);
-        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
-        bidInfos[0].validUntil = block.number - 1; // use old block number for the validUntil field
+        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
+        bidInfos[0].validUntil = block.number - 1; // use old block number for the validUntil field to create expired signature
 
         (
             bytes memory permission,
@@ -1017,12 +1033,13 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
         AccountBalance memory balancesPre = getBalances(
-            _searcherAOwnerAddress,
-            vaultNumber
+            searcherAOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
@@ -1031,34 +1048,15 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         );
 
         AccountBalance memory balancesPost = getBalances(
-            _searcherAOwnerAddress,
-            vaultNumber
+            searcherAOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
         uint256 balanceProtocolPost = address(tokenVault).balance;
 
         assertEqBalances(balancesPost, balancesPre);
         assertEq(balanceProtocolPre, balanceProtocolPost);
         assertFailedExternal(multicallStatuses[0], "ExpiredSignature()");
-    }
-
-    struct BidInfo {
-        uint256 bid;
-        uint256 validUntil;
-        address liquidator;
-        uint256 liquidatorSk;
-    }
-
-    function makeBidInfo(
-        uint256 bid,
-        uint256 liquidatorSk
-    ) internal pure returns (BidInfo memory) {
-        return
-            BidInfo(
-                bid,
-                1_000_000_000_000,
-                vm.addr(liquidatorSk),
-                liquidatorSk
-            );
     }
 
     /**
@@ -1074,8 +1072,8 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
 
         contracts[0] = address(liquidationAdapter);
         contracts[1] = address(liquidationAdapter);
-        bidInfos[0] = makeBidInfo(15, _searcherAOwnerSk);
-        bidInfos[1] = makeBidInfo(10, _searcherBOwnerSk);
+        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
+        bidInfos[1] = makeBidInfo(10, searcherBOwnerSk);
 
         (
             bytes memory permission,
@@ -1083,15 +1081,17 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
         AccountBalance memory balancesAPre = getBalances(
-            _searcherAOwnerAddress,
-            vaultNumber
+            searcherAOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
         AccountBalance memory balancesBPre = getBalances(
-            _searcherBOwnerAddress,
-            vaultNumber
+            searcherBOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
 
-        vm.prank(_perOperatorAddress, _perOperatorAddress);
+        vm.prank(perOperatorAddress, perOperatorAddress);
         MulticallStatus[] memory multicallStatuses = multicall.multicall(
             permission,
             contracts,
@@ -1100,12 +1100,14 @@ contract PERVaultTest is Test, Signatures, ErrorChecks, PriceHelpers {
         );
 
         AccountBalance memory balancesAPost = getBalances(
-            _searcherAOwnerAddress,
-            vaultNumber
+            searcherAOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
         AccountBalance memory balancesBPost = getBalances(
-            _searcherBOwnerAddress,
-            vaultNumber
+            searcherBOwnerAddress,
+            tokensCollateral[vaultNumber],
+            tokensDebt[vaultNumber]
         );
 
         assertEq(
