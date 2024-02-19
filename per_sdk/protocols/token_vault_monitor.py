@@ -51,6 +51,7 @@ class VaultMonitor:
         chain_id: str,
         include_price_updates: bool,
         mock_pyth: bool,
+        feed_ids_ws: list[str] = [],
     ):
         self.rpc_url = rpc_url
         self.contract_address = contract_address
@@ -63,7 +64,10 @@ class VaultMonitor:
         self.token_vault = self.w3.eth.contract(
             address=contract_address, abi=get_vault_abi()
         )
-        self.price_feed_client = PriceFeedClient([])
+
+        self.price_feed_client = PriceFeedClient(feed_ids_ws)
+        ws_call = self.price_feed_client.ws_pyth_prices()
+        asyncio.create_task(ws_call)
 
     async def get_accounts(self) -> list[ProtocolAccount]:
         """
@@ -210,16 +214,42 @@ class VaultMonitor:
         liquidatable = []
         accounts = await self.get_accounts()
         for account in accounts:
-            # vault is already liquidated
+            # vault is already liquidated--can skip
             if account["amount_collateral"] == 0 and account["amount_debt"] == 0:
                 continue
-            # TODO: optimize this to only query for the price feeds that are needed and only query once
-            (
-                price_collateral,
-                price_debt,
-            ) = await self.price_feed_client.get_pyth_prices_latest(
-                [account["token_id_collateral"], account["token_id_debt"]]
+
+            token_id_collateral = account["token_id_collateral"]
+            token_id_debt = account["token_id_debt"]
+
+            if token_id_collateral not in (
+                self.price_feed_client.feed_ids
+                + self.price_feed_client.pending_feed_ids
+            ):
+                self.price_feed_client.add_feed_ids([token_id_collateral])
+            if token_id_debt not in (
+                self.price_feed_client.feed_ids
+                + self.price_feed_client.pending_feed_ids
+            ):
+                self.price_feed_client.add_feed_ids([token_id_debt])
+
+            price_collateral_feed = self.price_feed_client.prices_dict.get(
+                token_id_collateral
             )
+            # get price of collateral asset from http request if doesn't return from ws
+            if price_collateral_feed is None:
+                (price_collateral_feed,) = (
+                    await self.price_feed_client.get_pyth_prices_latest([token_id_debt])
+                )
+            price_collateral = price_collateral_feed.get("price")
+
+            price_debt_feed = self.price_feed_client.prices_dict.get(token_id_debt)
+            # get price of debt asset from http request if doesn't return from ws
+            if price_debt_feed is None:
+                (price_debt_feed,) = (
+                    await self.price_feed_client.get_pyth_prices_latest([token_id_debt])
+                )
+            price_debt = price_debt_feed.get("price")
+
             if price_collateral is None:
                 raise Exception(
                     f"Price for collateral token {account['token_id_collateral']} not found"
@@ -231,16 +261,21 @@ class VaultMonitor:
                 )
 
             value_collateral = (
-                int(price_collateral["price"]["price"]) * account["amount_collateral"]
+                int(price_collateral["price"]) * account["amount_collateral"]
             )
-            value_debt = int(price_debt["price"]["price"]) * account["amount_debt"]
-            health = value_collateral / value_debt
-            logger.debug(f"Account {account['account_number']} health: {health}")
+            value_debt = int(price_debt["price"]) * account["amount_debt"]
+            logger.debug(
+                f"Account {account['account_number']} health: {value_collateral / value_debt}"
+            )
             if (
                 value_debt * int(account["min_health_ratio"])
                 > value_collateral * 10**18
             ):
-                price_updates = [price_collateral, price_debt]
+                price_updates = [
+                    self.price_feed_client.extract_price_feed(price_collateral_feed),
+                    self.price_feed_client.extract_price_feed(price_debt_feed),
+                ]
+                self.price_feed_client.extract_price_feed(price_collateral_feed)
                 liquidatable.append(self.create_liquidation_opp(account, price_updates))
 
         return liquidatable
@@ -312,6 +347,8 @@ async def main():
     log_handler.setFormatter(formatter)
     logger.addHandler(log_handler)
 
+    feed_ids_ws = []
+
     monitor = VaultMonitor(
         args.rpc_url,
         args.vault_contract,
@@ -319,6 +356,7 @@ async def main():
         args.chain_id,
         args.include_price_updates,
         args.mock_pyth,
+        feed_ids_ws,
     )
 
     while True:

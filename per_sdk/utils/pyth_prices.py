@@ -126,6 +126,7 @@ class PriceFeedClient:
 
         async with websockets.connect(HERMES_ENDPOINT_WSS) as ws:
             while True:
+                # add new price feed ids to the ws subscription
                 if len(self.pending_feed_ids) > 0:
                     json_subscribe = {
                         "ids": self.pending_feed_ids,
@@ -137,8 +138,8 @@ class PriceFeedClient:
                     self.pending_feed_ids = []
 
                 msg = json.loads(await ws.recv())
-                if msg["type"] == "response":
-                    if msg["status"] != "success":
+                if msg.get("type") == "response":
+                    if msg.get("status") != "success":
                         raise Exception("Error in subscribing to websocket")
                 try:
                     if msg["type"] != "price_update":
@@ -155,9 +156,7 @@ class PriceFeedClient:
 
 async def main():
     feed_ids = await get_price_feed_ids()
-    # TODO: remove this line, once rate limits are figured out
-    feed_ids = feed_ids[:1]
-    price_feed_client = PriceFeedClient(feed_ids)
+    price_feed_client = PriceFeedClient(feed_ids[:50])
 
     print("Starting web socket...")
     ws_call = price_feed_client.ws_pyth_prices()
