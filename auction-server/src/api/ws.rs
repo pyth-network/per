@@ -1,11 +1,11 @@
 use {
     crate::{
-        api::{
-            liquidation::OpportunityParamsWithMetadata,
+        api::liquidation::OpportunityParamsWithMetadata,
+        config::ChainId,
+        server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        config::ChainId,
         state::Store,
     },
     anyhow::{

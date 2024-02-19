@@ -131,8 +131,8 @@ pub async fn post_opportunity(
 
     if let Some(opportunities_existing) = write_lock.get_mut(&params.permission_key) {
         // check if same opportunity exists in the vector
-        for opportunity_existing in opportunities_existing.clone() {
-            if opportunity_existing == opportunity {
+        for opportunity_existing in opportunities_existing.iter() {
+            if opportunity_existing == &opportunity {
                 return Err(RestError::BadParameters(
                     "Duplicate opportunity submission".to_string(),
                 ));

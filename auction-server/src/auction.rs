@@ -1,10 +1,10 @@
 use {
     crate::{
-        api::{
+        config::EthereumConfig,
+        server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        config::EthereumConfig,
         state::Store,
     },
     anyhow::{

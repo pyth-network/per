@@ -1,14 +1,14 @@
 use {
     crate::{
-        api::{
-            liquidation::OpportunityBid,
-            EXIT_CHECK_INTERVAL,
-            SHOULD_EXIT,
-        },
+        api::liquidation::OpportunityBid,
         auction::{
             evaluate_simulation_results,
             get_simulation_call,
             MulticallReturn,
+        },
+        server::{
+            EXIT_CHECK_INTERVAL,
+            SHOULD_EXIT,
         },
         state::{
             ChainStore,
