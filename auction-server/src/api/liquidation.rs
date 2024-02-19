@@ -5,6 +5,7 @@ use {
                 handle_bid,
                 BidResult,
             },
+            ws::UpdateEvent::NewOpportunity,
             ErrorBodyResponse,
             RestError,
         },
@@ -57,22 +58,33 @@ use {
     uuid::Uuid,
 };
 
-
 /// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
-pub struct OpportunityParamsWithId {
+pub struct OpportunityParamsWithMetadata {
     /// The opportunity unique id
     #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479", value_type=String)]
     opportunity_id: Uuid,
+    /// Creation time of the opportunity
+    #[schema(example = "1700000000")]
+    creation_time:  UnixTimestamp,
     /// opportunity data
     #[serde(flatten)]
     params:         OpportunityParams,
 }
 
-impl Into<OpportunityParamsWithId> for LiquidationOpportunity {
-    fn into(self) -> OpportunityParamsWithId {
-        OpportunityParamsWithId {
+impl OpportunityParamsWithMetadata {
+    pub fn get_chain_id(&self) -> &ChainId {
+        match &self.params {
+            OpportunityParams::V1(params) => &params.chain_id,
+        }
+    }
+}
+
+impl Into<OpportunityParamsWithMetadata> for LiquidationOpportunity {
+    fn into(self) -> OpportunityParamsWithMetadata {
+        OpportunityParamsWithMetadata {
             opportunity_id: self.id,
+            creation_time:  self.creation_time,
             params:         self.params,
         }
     }
@@ -90,7 +102,7 @@ impl Into<OpportunityParamsWithId> for LiquidationOpportunity {
 pub async fn post_opportunity(
     State(store): State<Arc<Store>>,
     Json(versioned_params): Json<OpportunityParams>,
-) -> Result<Json<OpportunityParamsWithId>, RestError> {
+) -> Result<Json<OpportunityParamsWithMetadata>, RestError> {
     let params = match versioned_params.clone() {
         OpportunityParams::V1(params) => params,
     };
@@ -119,18 +131,27 @@ pub async fn post_opportunity(
 
     if let Some(opportunities_existing) = write_lock.get_mut(&params.permission_key) {
         // check if same opportunity exists in the vector
-        for opportunity_existing in opportunities_existing.clone() {
-            if opportunity_existing == opportunity {
+        for opportunity_existing in opportunities_existing.iter() {
+            if opportunity_existing == &opportunity {
                 return Err(RestError::BadParameters(
                     "Duplicate opportunity submission".to_string(),
                 ));
             }
         }
 
-        opportunities_existing.push(opportunity);
+        opportunities_existing.push(opportunity.clone());
     } else {
-        write_lock.insert(params.permission_key.clone(), vec![opportunity]);
+        write_lock.insert(params.permission_key.clone(), vec![opportunity.clone()]);
     }
+
+    store
+        .ws
+        .broadcast_sender
+        .send(NewOpportunity(opportunity.clone().into()))
+        .map_err(|e| {
+            tracing::error!("Failed to send update: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
 
     tracing::debug!("number of permission keys: {}", write_lock.len());
     tracing::debug!(
@@ -138,11 +159,9 @@ pub async fn post_opportunity(
         write_lock[&params.permission_key].len()
     );
 
-    Ok(OpportunityParamsWithId {
-        opportunity_id: id,
-        params:         versioned_params,
-    }
-    .into())
+    let opportunity_with_metadata: OpportunityParamsWithMetadata = opportunity.into();
+
+    Ok(opportunity_with_metadata.into())
 }
 
 
@@ -162,8 +181,8 @@ params(ChainIdQueryParams))]
 pub async fn get_opportunities(
     State(store): State<Arc<Store>>,
     query_params: Query<ChainIdQueryParams>,
-) -> Result<axum::Json<Vec<OpportunityParamsWithId>>, RestError> {
-    let opportunities: Vec<OpportunityParamsWithId> = store
+) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
+    let opportunities: Vec<OpportunityParamsWithMetadata> = store
         .liquidation_store
         .opportunities
         .read()
@@ -177,7 +196,7 @@ pub async fn get_opportunities(
                 .clone()
                 .into()
         })
-        .filter(|params_with_id: &OpportunityParamsWithId| {
+        .filter(|params_with_id: &OpportunityParamsWithMetadata| {
             let params = match &params_with_id.params {
                 OpportunityParams::V1(params) => params,
             };

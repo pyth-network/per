@@ -7,29 +7,29 @@ use {
             },
             liquidation::{
                 OpportunityBid,
-                OpportunityParamsWithId,
+                OpportunityParamsWithMetadata,
+            },
+            ws::{
+                ClientMessage,
+                ClientRequest,
+                ServerResultMessage,
+                ServerResultResponse,
+                ServerUpdateResponse,
             },
         },
-        auction::run_submission_loop,
-        config::{
-            ChainId,
-            Config,
-            RunOptions,
+        config::RunOptions,
+        server::{
+            EXIT_CHECK_INTERVAL,
+            SHOULD_EXIT,
         },
-        liquidation_adapter::run_verification_loop,
         state::{
-            ChainStore,
-            LiquidationStore,
             OpportunityParams,
             OpportunityParamsV1,
             Store,
             TokenQty,
         },
     },
-    anyhow::{
-        anyhow,
-        Result,
-    },
+    anyhow::Result,
     axum::{
         http::StatusCode,
         response::{
@@ -44,30 +44,11 @@ use {
         Router,
     },
     clap::crate_version,
-    ethers::{
-        providers::{
-            Http,
-            Middleware,
-            Provider,
-        },
-        signers::{
-            LocalWallet,
-            Signer,
-        },
-        types::Bytes,
-    },
-    futures::future::join_all,
+    ethers::types::Bytes,
     serde::Serialize,
-    std::{
-        collections::HashMap,
-        sync::{
-            atomic::{
-                AtomicBool,
-                Ordering,
-            },
-            Arc,
-        },
-        time::Duration,
+    std::sync::{
+        atomic::Ordering,
+        Arc,
     },
     tower_http::cors::CorsLayer,
     utoipa::{
@@ -78,20 +59,13 @@ use {
     utoipa_swagger_ui::SwaggerUi,
 };
 
-// A static exit flag to indicate to running threads that we're shutting down. This is used to
-// gracefully shutdown the application.
-//
-// NOTE: A more idiomatic approach would be to use a tokio::sync::broadcast channel, and to send a
-// shutdown signal to all running tasks. However, this is a bit more complicated to implement and
-// we don't rely on global state for anything else.
-pub(crate) static SHOULD_EXIT: AtomicBool = AtomicBool::new(false);
-
 async fn root() -> String {
     format!("PER Auction Server API {}", crate_version!())
 }
 
 mod bid;
 pub(crate) mod liquidation;
+pub(crate) mod ws;
 
 pub enum RestError {
     /// The request contained invalid parameters
@@ -104,8 +78,7 @@ pub enum RestError {
     SimulationError { result: Bytes, reason: String },
     /// The order was not found
     OpportunityNotFound,
-    /// The server cannot currently communicate with the blockchain, so is not able to verify
-    /// which random values have been requested.
+    /// Internal error occurred during processing the request
     TemporarilyUnavailable,
     /// A catch-all error for all other types of errors that could occur during processing.
     Unknown,
@@ -156,14 +129,8 @@ pub async fn live() -> Response {
     (StatusCode::OK, "OK").into_response()
 }
 
-pub async fn start_server(run_options: RunOptions) -> Result<()> {
-    tokio::spawn(async move {
-        tracing::info!("Registered shutdown signal handler...");
-        tokio::signal::ctrl_c().await.unwrap();
-        tracing::info!("Shut down signal received, waiting for tasks...");
-        SHOULD_EXIT.store(true, Ordering::Release);
-    });
 
+pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
     #[derive(OpenApi)]
     #[openapi(
     paths(
@@ -177,12 +144,17 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     schemas(OpportunityParamsV1),
     schemas(OpportunityBid),
     schemas(OpportunityParams),
-    schemas(OpportunityParamsWithId),
+    schemas(OpportunityParamsWithMetadata),
     schemas(TokenQty),
     schemas(BidResult),
     schemas(ErrorBodyResponse),
+    schemas(ClientRequest),
+    schemas(ClientMessage),
+    schemas(ServerResultMessage),
+    schemas(ServerUpdateResponse),
+    schemas(ServerResultResponse),
     responses(ErrorBodyResponse),
-    responses(OpportunityParamsWithId),
+    responses(OpportunityParamsWithMetadata),
     responses(BidResult)
     ),
     tags(
@@ -190,57 +162,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     )
     )]
     struct ApiDoc;
-
-    let config = Config::load(&run_options.config.config).map_err(|err| {
-        anyhow!(
-            "Failed to load config from file({path}): {:?}",
-            err,
-            path = run_options.config.config
-        )
-    })?;
-
-    let wallet = run_options.per_private_key.parse::<LocalWallet>()?;
-    tracing::info!("Using wallet address: {}", wallet.address().to_string());
-
-    let chain_store: Result<HashMap<ChainId, ChainStore>> = join_all(config.chains.iter().map(
-        |(chain_id, chain_config)| async move {
-            let mut provider = Provider::<Http>::try_from(chain_config.geth_rpc_addr.clone())
-                .map_err(|err| {
-                    anyhow!(
-                        "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
-                        err,
-                        chain_id = chain_id,
-                        rpc_addr = chain_config.geth_rpc_addr
-                    )
-                })?;
-            provider.set_interval(Duration::from_secs(chain_config.poll_interval));
-            let id = provider.get_chainid().await?.as_u64();
-            Ok((
-                chain_id.clone(),
-                ChainStore {
-                    provider,
-                    network_id: id,
-                    bids: Default::default(),
-                    token_spoof_info: Default::default(),
-                    config: chain_config.clone(),
-                },
-            ))
-        },
-    ))
-    .await
-    .into_iter()
-    .collect();
-
-    let store = Arc::new(Store {
-        chains:            chain_store?,
-        liquidation_store: LiquidationStore::default(),
-        per_operator:      wallet,
-    });
-
-    let server_store = store.clone();
-
-    tokio::spawn(run_submission_loop(store.clone()));
-    tokio::spawn(run_verification_loop(store.clone()));
 
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
@@ -258,19 +179,19 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             "/v1/liquidation/opportunities/:opportunity_id/bids",
             post(liquidation::post_bid),
         )
+        .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
-        .with_state(server_store);
+        .with_state(store);
 
     axum::Server::bind(&run_options.server.listen_addr)
         .serve(app.into_make_service())
         .with_graceful_shutdown(async {
             while !SHOULD_EXIT.load(Ordering::Acquire) {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                tokio::time::sleep(EXIT_CHECK_INTERVAL).await;
             }
             tracing::info!("Shutting down RPC server...");
         })
         .await?;
-
     Ok(())
 }

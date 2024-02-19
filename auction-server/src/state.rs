@@ -1,7 +1,10 @@
 use {
-    crate::config::{
-        ChainId,
-        EthereumConfig,
+    crate::{
+        api::ws::WsState,
+        config::{
+            ChainId,
+            EthereumConfig,
+        },
     },
     ethers::{
         providers::{
@@ -119,4 +122,5 @@ pub struct Store {
     pub chains:            HashMap<ChainId, ChainStore>,
     pub liquidation_store: LiquidationStore,
     pub per_operator:      LocalWallet,
+    pub ws:                WsState,
 }

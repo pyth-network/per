@@ -1,10 +1,16 @@
 use {
     crate::{
-        api::SHOULD_EXIT,
         config::EthereumConfig,
+        server::{
+            EXIT_CHECK_INTERVAL,
+            SHOULD_EXIT,
+        },
         state::Store,
     },
-    anyhow::anyhow,
+    anyhow::{
+        anyhow,
+        Result,
+    },
     ethers::{
         contract::{
             abigen,
@@ -192,75 +198,84 @@ pub async fn submit_bids(
     res
 }
 
-pub async fn run_submission_loop(store: Arc<Store>) {
+pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
     tracing::info!("Starting transaction submitter...");
+    let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+
+    // this should be replaced by a subscription to the chain and trigger on new blocks
+    let mut submission_interval = tokio::time::interval(Duration::from_secs(5));
     while !SHOULD_EXIT.load(Ordering::Acquire) {
-        for (chain_id, chain_store) in &store.chains {
-            let permission_bids = chain_store.bids.read().await.clone();
-            // release lock asap
-            tracing::info!(
-                "Chain: {chain_id} Auctions to process {auction_len}",
-                chain_id = chain_id,
-                auction_len = permission_bids.len()
-            );
-            for (permission_key, bids) in permission_bids.iter() {
-                let mut cloned_bids = bids.clone();
-                let thread_store = store.clone();
-                let chain_id = chain_id.clone();
-                let permission_key = permission_key.clone();
-                {
-                    cloned_bids.sort_by(|a, b| b.bid.cmp(&a.bid));
+        tokio::select! {
+            _ = submission_interval.tick() => {
+                for (chain_id, chain_store) in &store.chains {
+                    let permission_bids = chain_store.bids.read().await.clone();
+                    // release lock asap
+                    tracing::info!(
+                        "Chain: {chain_id} Auctions to process {auction_len}",
+                        chain_id = chain_id,
+                        auction_len = permission_bids.len()
+                    );
+                    for (permission_key, bids) in permission_bids.iter() {
+                        let mut cloned_bids = bids.clone();
+                        let thread_store = store.clone();
+                        let chain_id = chain_id.clone();
+                        let permission_key = permission_key.clone();
+                        {
+                            cloned_bids.sort_by(|a, b| b.bid.cmp(&a.bid));
 
-                    // TODO: simulate all bids together and keep the successful ones
-                    // let call = simulate_bids(
-                    //     store.per_operator.address(),
-                    //     chain_store.contract_addr,
-                    //     chain_store.provider.clone(),
-                    //     permission_key.clone(),
-                    //     cloned_bids.iter().map(|b| b.contract).collect(),
-                    //     cloned_bids.iter().map(|b| b.calldata.clone()).collect(),
-                    //     cloned_bids.iter().map(|b| b.bid.into()).collect(),
-                    // );
+                            // TODO: simulate all bids together and keep the successful ones
+                            // let call = simulate_bids(
+                            //     store.per_operator.address(),
+                            //     chain_store.contract_addr,
+                            //     chain_store.provider.clone(),
+                            //     permission_key.clone(),
+                            //     cloned_bids.iter().map(|b| b.contract).collect(),
+                            //     cloned_bids.iter().map(|b| b.calldata.clone()).collect(),
+                            //     cloned_bids.iter().map(|b| b.bid.into()).collect(),
+                            // );
 
-                    // keep the highest bid for now
-                    cloned_bids.truncate(1);
+                            // keep the highest bid for now
+                            cloned_bids.truncate(1);
 
-                    match thread_store.chains.get(&chain_id) {
-                        Some(chain_store) => {
-                            let submission = submit_bids(
-                                thread_store.per_operator.clone(),
-                                chain_store.provider.clone(),
-                                chain_store.config.clone(),
-                                chain_store.network_id,
-                                permission_key.clone(),
-                                cloned_bids.iter().map(|b| b.contract).collect(),
-                                cloned_bids.iter().map(|b| b.calldata.clone()).collect(),
-                                cloned_bids.iter().map(|b| b.bid).collect(),
-                            )
-                            .await;
-                            match submission {
-                                Ok(receipt) => match receipt {
-                                    Some(receipt) => {
-                                        tracing::debug!("Submitted transaction: {:?}", receipt);
-                                        chain_store.bids.write().await.remove(&permission_key);
+                            match thread_store.chains.get(&chain_id) {
+                                Some(chain_store) => {
+                                    let submission = submit_bids(
+                                        thread_store.per_operator.clone(),
+                                        chain_store.provider.clone(),
+                                        chain_store.config.clone(),
+                                        chain_store.network_id,
+                                        permission_key.clone(),
+                                        cloned_bids.iter().map(|b| b.contract).collect(),
+                                        cloned_bids.iter().map(|b| b.calldata.clone()).collect(),
+                                        cloned_bids.iter().map(|b| b.bid).collect(),
+                                    )
+                                    .await;
+                                    match submission {
+                                        Ok(receipt) => match receipt {
+                                            Some(receipt) => {
+                                                tracing::debug!("Submitted transaction: {:?}", receipt);
+                                                chain_store.bids.write().await.remove(&permission_key);
+                                            }
+                                            None => {
+                                                tracing::error!("Failed to receive transaction receipt");
+                                            }
+                                        },
+                                        Err(err) => {
+                                            tracing::error!("Transaction failed to submit: {:?}", err);
+                                        }
                                     }
-                                    None => {
-                                        tracing::error!("Failed to receive transaction receipt");
-                                    }
-                                },
-                                Err(err) => {
-                                    tracing::error!("Transaction failed to submit: {:?}", err);
+                                }
+                                None => {
+                                    tracing::error!("Chain not found: {}", chain_id);
                                 }
                             }
-                        }
-                        None => {
-                            tracing::error!("Chain not found: {}", chain_id);
                         }
                     }
                 }
             }
+            _ = exit_check_interval.tick() => {}
         }
-        tokio::time::sleep(Duration::from_secs(5)).await; // this should be replaced by a subscription to the chain and trigger on new blocks
     }
     tracing::info!("Shutting down transaction submitter...");
+    Ok(())
 }

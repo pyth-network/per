@@ -1,7 +1,7 @@
 use {
-    crate::api::start_server,
     anyhow::Result,
     clap::Parser,
+    server::start_server,
     std::io::IsTerminal,
     tracing_subscriber::filter::LevelFilter,
 };
@@ -11,6 +11,7 @@ mod auction;
 mod config;
 mod liquidation_adapter;
 mod serde;
+mod server;
 mod state;
 mod token_spoof;
 
