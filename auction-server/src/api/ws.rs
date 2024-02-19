@@ -47,6 +47,7 @@ use {
         time::Duration,
     },
     tokio::sync::broadcast,
+    utoipa::ToSchema,
 };
 
 pub struct WsState {
@@ -55,35 +56,35 @@ pub struct WsState {
     pub broadcast_receiver: broadcast::Receiver<UpdateEvent>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, ToSchema)]
 #[serde(tag = "method", content = "params")]
-enum ClientMessage {
+pub enum ClientMessage {
     #[serde(rename = "subscribe")]
     Subscribe { chain_ids: Vec<ChainId> },
     #[serde(rename = "unsubscribe")]
     Unsubscribe { chain_ids: Vec<ChainId> },
 }
 
-#[derive(Deserialize, Debug, Clone)]
-struct ClientRequest {
+#[derive(Deserialize, Debug, Clone, ToSchema)]
+pub struct ClientRequest {
     id:  String,
     #[serde(flatten)]
     msg: ClientMessage,
 }
 
 /// This enum is used to send an update to the client for any subscriptions made
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, ToSchema)]
 #[serde(tag = "type")]
-enum ServerUpdateResponse {
+pub enum ServerUpdateResponse {
     #[serde(rename = "new_opportunity")]
     NewOpportunity {
         opportunity: OpportunityParamsWithMetadata,
     },
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, ToSchema)]
 #[serde(tag = "status", content = "result")]
-enum ServerResultMessage {
+pub enum ServerResultMessage {
     #[serde(rename = "success")]
     Success,
     #[serde(rename = "error")]
@@ -92,8 +93,8 @@ enum ServerResultMessage {
 
 /// This enum is used to send the result for a specific client request with the same id
 /// id is only None when the client message is invalid
-#[derive(Serialize, Debug, Clone)]
-struct ServerResultResponse {
+#[derive(Serialize, Debug, Clone, ToSchema)]
+pub struct ServerResultResponse {
     id:     Option<String>,
     #[serde(flatten)]
     result: ServerResultMessage,

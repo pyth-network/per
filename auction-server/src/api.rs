@@ -9,6 +9,13 @@ use {
                 OpportunityBid,
                 OpportunityParamsWithMetadata,
             },
+            ws::{
+                ClientMessage,
+                ClientRequest,
+                ServerResultMessage,
+                ServerResultResponse,
+                ServerUpdateResponse,
+            },
         },
         config::RunOptions,
         server::{
@@ -141,6 +148,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     schemas(TokenQty),
     schemas(BidResult),
     schemas(ErrorBodyResponse),
+    schemas(ClientRequest),
+    schemas(ClientMessage),
+    schemas(ServerResultMessage),
+    schemas(ServerUpdateResponse),
+    schemas(ServerResultResponse),
     responses(ErrorBodyResponse),
     responses(OpportunityParamsWithMetadata),
     responses(BidResult)
