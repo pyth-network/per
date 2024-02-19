@@ -146,9 +146,8 @@ pub async fn post_opportunity(
 
     store
         .ws
-        .update_tx
+        .broadcast_sender
         .send(NewOpportunity(opportunity.clone().into()))
-        .await
         .map_err(|e| {
             tracing::error!("Failed to send update: {}", e);
             RestError::TemporarilyUnavailable

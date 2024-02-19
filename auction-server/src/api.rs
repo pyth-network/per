@@ -9,7 +9,6 @@ use {
                 OpportunityBid,
                 OpportunityParamsWithMetadata,
             },
-            ws::run_subscription_loop,
         },
         auction::run_submission_loop,
         config::{
@@ -45,7 +44,6 @@ use {
         Router,
     },
     clap::crate_version,
-    dashmap::DashMap,
     ethers::{
         providers::{
             Http,
@@ -89,7 +87,7 @@ use {
 // we don't rely on global state for anything else.
 pub(crate) static SHOULD_EXIT: AtomicBool = AtomicBool::new(false);
 pub const EXIT_CHECK_INTERVAL: Duration = Duration::from_secs(1);
-
+const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 async fn root() -> String {
     format!("PER Auction Server API {}", crate_version!())
 }
@@ -271,29 +269,22 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     .into_iter()
     .collect();
 
-    let (update_tx, update_rx) = tokio::sync::mpsc::channel(1000);
+    let (update_tx, update_rx) = tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
     let store = Arc::new(Store {
         chains:            chain_store?,
         liquidation_store: LiquidationStore::default(),
         per_operator:      wallet,
         ws:                ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
-            subscribers: DashMap::new(),
-            update_tx,
+            broadcast_sender:   update_tx,
+            broadcast_receiver: update_rx,
         },
     });
 
 
     let submission_loop = tokio::spawn(run_submission_loop(store.clone()));
     let verification_loop = tokio::spawn(run_verification_loop(store.clone()));
-    let subscription_loop = tokio::spawn(run_subscription_loop(store.clone(), update_rx));
     let server_loop = tokio::spawn(start_api(run_options, store.clone()));
-    join_all(vec![
-        submission_loop,
-        verification_loop,
-        subscription_loop,
-        server_loop,
-    ])
-    .await;
+    join_all(vec![submission_loop, verification_loop, server_loop]).await;
     Ok(())
 }

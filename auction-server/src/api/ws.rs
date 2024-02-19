@@ -23,9 +23,7 @@ use {
         },
         response::IntoResponse,
     },
-    dashmap::DashMap,
     futures::{
-        future::join_all,
         stream::{
             SplitSink,
             SplitStream,
@@ -48,13 +46,13 @@ use {
         },
         time::Duration,
     },
-    tokio::sync::mpsc,
+    tokio::sync::broadcast,
 };
 
 pub struct WsState {
     pub subscriber_counter: AtomicUsize,
-    pub subscribers:        DashMap<SubscriberId, mpsc::Sender<UpdateEvent>>,
-    pub update_tx:          mpsc::Sender<UpdateEvent>,
+    pub broadcast_sender:   broadcast::Sender<UpdateEvent>,
+    pub broadcast_receiver: broadcast::Receiver<UpdateEvent>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -111,10 +109,9 @@ pub async fn ws_route_handler(
 async fn websocket_handler(stream: WebSocket, state: Arc<Store>) {
     let ws_state = &state.ws;
     let id = ws_state.subscriber_counter.fetch_add(1, Ordering::SeqCst);
-    let (notify_sender, notify_receiver) = mpsc::channel(NOTIFICATIONS_CHAN_LEN);
     let (sender, receiver) = stream.split();
-    ws_state.subscribers.insert(id, notify_sender);
-    let mut subscriber = Subscriber::new(id, state, notify_receiver, receiver, sender);
+    let new_receiver = ws_state.broadcast_receiver.resubscribe();
+    let mut subscriber = Subscriber::new(id, state, new_receiver, receiver, sender);
     subscriber.run().await;
 }
 
@@ -131,7 +128,7 @@ pub struct Subscriber {
     id:                  SubscriberId,
     closed:              bool,
     store:               Arc<Store>,
-    notify_receiver:     mpsc::Receiver<UpdateEvent>,
+    notify_receiver:     broadcast::Receiver<UpdateEvent>,
     receiver:            SplitStream<WebSocket>,
     sender:              SplitSink<WebSocket, Message>,
     chain_ids:           HashSet<ChainId>,
@@ -141,13 +138,12 @@ pub struct Subscriber {
 }
 
 const PING_INTERVAL_DURATION: Duration = Duration::from_secs(30);
-const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 
 impl Subscriber {
     pub fn new(
         id: SubscriberId,
         store: Arc<Store>,
-        notify_receiver: mpsc::Receiver<UpdateEvent>,
+        notify_receiver: broadcast::Receiver<UpdateEvent>,
         receiver: SplitStream<WebSocket>,
         sender: SplitSink<WebSocket, Message>,
     ) -> Self {
@@ -178,8 +174,9 @@ impl Subscriber {
         tokio::select! {
             maybe_update_event = self.notify_receiver.recv() => {
                 match maybe_update_event {
-                    Some(event) => self.handle_update(event).await,
-                    None => Err(anyhow!("Update channel closed. This should never happen. Closing connection."))
+
+                    Ok(event) => self.handle_update(event).await,
+                    Err(e) => Err(anyhow!("Error receiving update event: {:?}", e)),
                 }
             },
             maybe_message_or_err = self.receiver.next() => {
@@ -313,64 +310,4 @@ impl Subscriber {
 
         Ok(())
     }
-}
-
-
-pub async fn notify_updates(ws_state: &WsState, event: UpdateEvent) {
-    let closed_subscribers: Vec<Option<SubscriberId>> =
-        join_all(ws_state.subscribers.iter_mut().map(|subscriber| {
-            let event = event.clone();
-            async move {
-                match subscriber.send(event).await {
-                    Ok(_) => None,
-                    Err(_) => {
-                        // An error here indicates the channel is closed (which may happen either when the
-                        // client has sent Message::Close or some other abrupt disconnection). We remove
-                        // subscribers only when send fails so we can handle closure only once when we are
-                        // able to see send() fail.
-                        Some(*subscriber.key())
-                    }
-                }
-            }
-        }))
-        .await;
-
-    // Remove closed_subscribers from ws_state
-    closed_subscribers.into_iter().for_each(|id| {
-        if let Some(id) = id {
-            ws_state.subscribers.remove(&id);
-        }
-    });
-}
-
-
-pub async fn run_subscription_loop(
-    store: Arc<Store>,
-    mut receiver: mpsc::Receiver<UpdateEvent>,
-) -> Result<()> {
-    let mut interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
-
-    while !SHOULD_EXIT.load(Ordering::Acquire) {
-        tokio::select! {
-            update = receiver.recv() => {
-                match update {
-                    None => {
-                        // When the received message is None it means the channel has been closed. This
-                        // should never happen as the channel is never closed. As we can't recover from
-                        // this we shut down the application.
-                        tracing::error!("Failed to receive update from store.");
-                        SHOULD_EXIT.store(true, Ordering::Release);
-                        break;
-                    }
-                    Some(event) => {
-                        notify_updates(&store.ws, event).await;
-                    },
-                }
-            },
-            _ = interval.tick() => {}
-        }
-    }
-
-    tracing::info!("Shutting down Websocket notifier...");
-    Ok(())
 }
