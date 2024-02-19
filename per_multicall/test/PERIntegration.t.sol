@@ -26,8 +26,24 @@ import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "./helpers/Signatures.sol";
 import "./helpers/PriceHelpers.sol";
 import "./helpers/TestParsingHelpers.sol";
+import "./helpers/MulticallHelpers.sol";
 
-contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
+/**
+ * @title PERIntegrationTest
+ *
+ * PERIntegrationTest is a contract that tests the integration of the various contracts in the PER stack.
+ * This includes the PERMulticall entrypoint contract for all PER interactions, the TokenVault dummy lending protocol contract, individual searcher contracts programmed to perform liquidations, the LiquidationAdapter contract used to facilitate liquidations directly from searcher EOAs, and the relevant token contracts.
+ * We test the integration of these contracts by creating vaults in the TokenVault protocol, simulating undercollateralization of these vaults to trigger liquidations, constructing the necessary liquidation data, and then calling liquidation through LiquidationAdapter or the searcher contracts.
+ *
+ * The focus in these tests is ensuring that liquidation succeeds (or fails as expected) through the PERMulticall contrct routing to the searcher contracts or the LiquidationAdapter contract.
+ */
+contract PERIntegrationTest is
+    Test,
+    TestParsingHelpers,
+    Signatures,
+    PriceHelpers,
+    MulticallHelpers
+{
     TokenVault public tokenVault;
     SearcherVault public searcherA;
     SearcherVault public searcherB;
@@ -42,10 +58,10 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
     bytes32 idToken1;
     bytes32 idToken2;
 
-    int32 tokenExpo = 0;
+    int32 constant tokenExpo = 0;
 
     address perOperatorAddress;
-    uint256 perOperatorSk; // address public immutable perOperatorAddress = address(88);
+    uint256 perOperatorSk;
     address searcherAOwnerAddress;
     uint256 searcherAOwnerSk;
     address searcherBOwnerAddress;
@@ -53,17 +69,17 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
     address tokenVaultDeployer;
     uint256 tokenVaultDeployerSk;
 
-    uint256 public healthPrecision = 10 ** 16;
+    uint256 constant healthPrecision = 10 ** 16;
 
-    address depositor = address(44);
+    address depositor; // address of the initial depositor into the token vault
 
-    uint256 amountToken1Depositor; // amount of token 1 initially owned by the vault depositor
-    uint256 amountToken2Depositor; // amount of token 2 initially owned by the vault depositor
-    uint256 amountToken1A; // amount of token 1 initially owned by searcher A contract
-    uint256 amountToken2A; // amount of token 2 initially owned by searcher A contract
-    uint256 amountToken1B; // amount of token 1 initially owned by searcher B contract
-    uint256 amountToken2B; // amount of token 2 initially owned by searcher B contract
-    uint256 amountToken2TokenVault; // amount of token 2 initially owned by the token vault contract (necessary to allow depositor to borrow token 2)
+    uint256 constant amountToken1DepositorInit = 1_000_000; // amount of token 1 initially owned by the vault depositor
+    uint256 constant amountToken2DepositorInit = 1_000_000; // amount of token 2 initially owned by the vault depositor
+    uint256 constant amountToken1AInit = 2_000_000; // amount of token 1 initially owned by searcher A contract
+    uint256 constant amountToken2AInit = 2_000_000; // amount of token 2 initially owned by searcher A contract
+    uint256 constant amountToken1BInit = 3_000_000; // amount of token 1 initially owned by searcher B contract
+    uint256 constant amountToken2BInit = 3_000_000; // amount of token 2 initially owned by searcher B contract
+    uint256 constant amountToken2TokenVaultInit = 500_000; // amount of token 2 initially owned by the token vault contract (necessary to allow depositor to borrow token 2)
 
     address[] tokensCollateral; // addresses of collateral, index corresponds to vault number
     address[] tokensDebt; // addresses of debt, index corresponds to vault number
@@ -73,87 +89,96 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
     bytes32[] idsDebt; // pyth price feed ids of debt, index corresponds to vault number
 
     // initial token oracle info
-    int64 token1PriceInitial = 100;
-    uint64 token1ConfInitial = 1;
-    int64 token2PriceInitial = 100;
-    uint64 token2ConfInitial = 1;
-    uint64 publishTimeInitial = 1_000_000;
-    uint64 prevPublishTimeInitial = 0;
+    int64 constant token1PriceInitial = 100;
+    uint64 constant token1ConfInitial = 1;
+    int64 constant token2PriceInitial = 100;
+    uint64 constant token2ConfInitial = 1;
+    uint64 constant publishTimeInitial = 1_000_000;
+    uint64 constant prevPublishTimeInitial = 0;
 
-    int64 tokenDebtPriceLiqPermissionlessVault0;
-    int64 tokenDebtPriceLiqPERVault0;
-    int64 tokenDebtPriceLiqPermissionlessVault1;
-    int64 tokenDebtPriceLiqPERVault1;
     int64[] tokenDebtPricesLiqPER;
     int64[] tokenDebtPricesLiqPermissionless;
 
-    uint256 defaultFeeSplitProtocol = 50 * 10 ** 16;
+    uint256 constant defaultFeeSplitProtocol = 50 * 10 ** 16;
 
     uint256 feeSplitTokenVault;
-    uint256 feeSplitPrecisionTokenVault = 10 ** 18;
+    uint256 constant feeSplitPrecisionTokenVault = 10 ** 18;
 
+    /**
+     * @notice setUp function - sets up the contracts, wallets, tokens, oracle feeds, and vaults for the test
+     *
+     * This function creates the entire environment for the start of each test. It is called before each test.
+     * This function creates the PERMulticall, WETH9, LiquidationAdapter, MockPyth, TokenVault, SearcherVault, and two ERC-20 token contracts. The two ERC-20 tokens are used as collateral and debt tokens for the vaults that will be created.
+     * It also sets up the initial token amounts for the depositor, searcher A, searcher B, and the token vault. Additionally, it sets the initial oracle prices for the tokens.
+     * The function then sets up two vaults in the TokenVault contract. Each vault's collateral and debt tokens are set, as well as the amounts of each token in the vault. Based on the amounts in the vault and the initial token prices, we back out the liquidation threshold prices--these are used later in the tests to set prices that trigger liquidation.
+     * Finally, the function funds the searcher wallets with Eth and tokens. It also creates the allowances from the searchers' wallets to the liquidation adapter to use the searcher wallets' tokens and weth to liquidate vaults.
+     */
     function setUp() public {
-        setUpWallets(); // create wallets
-        setUpContracts(); // instantiate contracts
-        setUpTokens(); // mint tokens and set initial oracle prices
-        setUpVaults(); // create vaults and store relevant info
-        fundSearcherWallets(); // fund searchers' wallets so they can directly liquidate via the liquidation adapter
+        setUpWallets();
+        setUpContracts();
+        setUpTokensAndOracle();
+        setUpVaults();
+        fundSearcherWallets();
     }
 
+    /**
+     * @notice setUpWallets function - sets up the wallets for the test
+     *
+     * Sets up per operator, searcher, initial token vault deployer, and initial vault depositor wallets
+     */
     function setUpWallets() public {
-        // make PER operator wallet
         (perOperatorAddress, perOperatorSk) = makeAddrAndKey("perOperator");
 
-        // make searcherA and searcherB wallets
         (searcherAOwnerAddress, searcherAOwnerSk) = makeAddrAndKey("searcherA");
         (searcherBOwnerAddress, searcherBOwnerSk) = makeAddrAndKey("searcherB");
 
-        // make token vault deployer wallet
         (tokenVaultDeployer, tokenVaultDeployerSk) = makeAddrAndKey(
             "tokenVaultDeployer"
         );
+
+        (depositor, ) = makeAddrAndKey("depositor");
     }
 
+    /**
+     * @notice setUpContracts function - sets up the contracts for the test
+     *
+     * Sets up the PERMulticall, WETH9, LiquidationAdapter, MockPyth, TokenVault, SearcherVault, and ERC-20 token contracts
+     */
     function setUpContracts() public {
-        // instantiate multicall contract with PER operator as sender/origin
+        // instantiate multicall contract with PER operator as the deployer
         vm.prank(perOperatorAddress, perOperatorAddress);
         multicall = new PERMulticall(
             perOperatorAddress,
             defaultFeeSplitProtocol
         );
 
-        // instantiate weth contract
         vm.prank(perOperatorAddress, perOperatorAddress);
         weth = new WETH9();
 
-        // instantiate liquidation adapter contract
         vm.prank(perOperatorAddress, perOperatorAddress);
         liquidationAdapter = new LiquidationAdapter(
             address(multicall),
             address(weth)
         );
 
-        // instantiate mock pyth contract
         vm.prank(perOperatorAddress, perOperatorAddress);
         mockPyth = new MockPyth(1_000_000, 0);
 
-        // instantiate token vault contract
         vm.prank(tokenVaultDeployer, tokenVaultDeployer); // we prank here to standardize the value of the token contract address across different runs
         tokenVault = new TokenVault(address(multicall), address(mockPyth));
         console.log("contract of token vault is", address(tokenVault));
         feeSplitTokenVault = defaultFeeSplitProtocol;
 
-        // instantiate searcher A's contract with searcher A as sender/origin
+        // instantiate searcher A's contract with searcher A's wallet as the deployer
         vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
         searcherA = new SearcherVault(address(multicall), address(tokenVault));
         console.log("contract of searcher A is", address(searcherA));
 
-        // instantiate searcher B's contract with searcher B as sender/origin
+        // instantiate searcher B's contract with searcher B's wallet as the deployer
         vm.prank(searcherBOwnerAddress, searcherBOwnerAddress);
         searcherB = new SearcherVault(address(multicall), address(tokenVault));
         console.log("contract of searcher B is", address(searcherB));
 
-        // instantiate ERC-20 tokens
         vm.prank(perOperatorAddress, perOperatorAddress);
         token1 = new MyToken("token1", "T1");
         vm.prank(perOperatorAddress, perOperatorAddress);
@@ -162,35 +187,32 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
         console.log("contract of token2 is", address(token2));
     }
 
-    function setUpTokens() public {
-        amountToken1Depositor = 1_000_000;
-        amountToken2Depositor = 1_000_000;
-        amountToken1A = 2_000_000;
-        amountToken2A = 2_000_000;
-        amountToken1B = 3_000_000;
-        amountToken2B = 3_000_000;
-        amountToken2TokenVault = 500_000;
-
+    /**
+     * @notice setUpTokensAndOracle function - sets up the tokens for the test and their initial oracle feeds
+     *
+     * Sets up the initial token amounts for the depositor, searcher A, searcher B, and the token vault
+     * Also sets the initial oracle prices for the tokens
+     */
+    function setUpTokensAndOracle() public {
         // mint tokens to the depositor address
-        token1.mint(depositor, amountToken1Depositor);
-        token2.mint(depositor, amountToken2Depositor);
+        token1.mint(depositor, amountToken1DepositorInit);
+        token2.mint(depositor, amountToken2DepositorInit);
 
         // mint tokens to searcher A contract
-        token1.mint(address(searcherA), amountToken1A);
-        token2.mint(address(searcherA), amountToken2A);
+        token1.mint(address(searcherA), amountToken1AInit);
+        token2.mint(address(searcherA), amountToken2AInit);
 
         // mint tokens to searcher B contract
-        token1.mint(address(searcherB), amountToken1B);
-        token2.mint(address(searcherB), amountToken2B);
+        token1.mint(address(searcherB), amountToken1BInit);
+        token2.mint(address(searcherB), amountToken2BInit);
 
         // mint token 2 to the vault contract (to allow creation of initial vault with outstanding debt position)
-        token2.mint(address(tokenVault), amountToken2TokenVault);
+        token2.mint(address(tokenVault), amountToken2TokenVaultInit);
 
         // create token price feed IDs
         idToken1 = bytes32(uint256(uint160(address(token1))));
         idToken2 = bytes32(uint256(uint160(address(token2))));
 
-        // set initial oracle prices
         vm.warp(publishTimeInitial);
         bytes[] memory updateData = new bytes[](2);
         updateData[0] = mockPyth.createPriceFeedUpdateData(
@@ -217,6 +239,9 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
         mockPyth.updatePriceFeeds(updateData);
     }
 
+    /**
+     * @notice setUpVaults function - sets up the vaults for the test and stores relevant info per vault
+     */
     function setUpVaults() public {
         // set which tokens are collateral and which are debt for each vault
         tokensCollateral = new address[](2);
@@ -261,8 +286,6 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
             idsDebt[0],
             new bytes[](0)
         );
-        amountToken1Depositor -= amountsCollateral[0];
-        amountToken2Depositor += amountsDebt[0];
 
         // create vault 1
         uint256 minCollatPERVault1 = 110 * healthPrecision;
@@ -284,8 +307,6 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
             idsDebt[1],
             new bytes[](0)
         );
-        amountToken1Depositor -= amountsCollateral[0];
-        amountToken2Depositor += amountsDebt[0];
 
         int64 priceCollateralVault0;
         int64 priceCollateralVault1;
@@ -295,6 +316,11 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
         } else {
             priceCollateralVault0 = token2PriceInitial;
         }
+
+        int64 tokenDebtPriceLiqPermissionlessVault0;
+        int64 tokenDebtPriceLiqPERVault0;
+        int64 tokenDebtPriceLiqPermissionlessVault1;
+        int64 tokenDebtPriceLiqPERVault1;
 
         tokenDebtPriceLiqPermissionlessVault0 = getDebtLiquidationPrice(
             amountsCollateral[0],
@@ -347,6 +373,11 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
         ] = tokenDebtPriceLiqPermissionlessVault1;
     }
 
+    /**
+     * @notice fundSearcherWallets function - funds the searcher wallets with Eth, tokens, and allowances
+     *
+     * Funding enables searchers' wallets to directly liquidate via the liquidation adapter
+     */
     function fundSearcherWallets() public {
         // fund searcher A and searcher B
         vm.deal(address(searcherA), 1 ether);
@@ -396,6 +427,9 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
         vm.warp(publishTimeInitial + 100);
     }
 
+    /**
+     * @notice getMulticallInfoSearcherContracts function - creates necessary permission and data for multicall to searcher contracts
+     */
     function getMulticallInfoSearcherContracts(
         uint256 vaultNumber,
         BidInfo[] memory bidInfos
@@ -437,6 +471,9 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
         }
     }
 
+    /**
+     * @notice getMulticallInfoLiquidationAdapter function - creates necessary permission and data for multicall to liquidation adapter contract
+     */
     function getMulticallInfoLiquidationAdapter(
         uint256 vaultNumber,
         BidInfo[] memory bidInfos
@@ -512,6 +549,9 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
         }
     }
 
+    /**
+     * @notice assertExpectedBidPayment function - checks that the expected bid payment is equal to the actual bid payment
+     */
     function assertExpectedBidPayment(
         uint256 balancePre,
         uint256 balancePost,
@@ -550,7 +590,7 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
         bytes memory tokenDebtUpdateData = createPriceFeedUpdateSimple(
             mockPyth,
             idsDebt[vaultNumber],
-            tokenDebtPriceLiqPermissionlessVault0,
+            tokenDebtPricesLiqPermissionless[vaultNumber],
             tokenExpo
         );
 
@@ -596,7 +636,7 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
         bytes memory tokenDebtUpdateData = createPriceFeedUpdateSimple(
             mockPyth,
             idsDebt[vaultNumber],
-            tokenDebtPriceLiqPERVault0,
+            tokenDebtPricesLiqPER[vaultNumber],
             tokenExpo
         );
 
@@ -929,7 +969,7 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
             bytes[] memory data
         ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
-        AccountBalance memory balancesPre = getBalances(
+        AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
             tokensCollateral[vaultNumber],
             tokensDebt[vaultNumber]
@@ -946,19 +986,19 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
 
         uint256 balanceProtocolPost = address(tokenVault).balance;
 
-        AccountBalance memory balancesPost = getBalances(
+        AccountBalance memory balancesAPost = getBalances(
             searcherAOwnerAddress,
             tokensCollateral[vaultNumber],
             tokensDebt[vaultNumber]
         );
 
         assertEq(
-            balancesPost.collateral,
-            balancesPre.collateral + amountsCollateral[vaultNumber]
+            balancesAPost.collateral,
+            balancesAPre.collateral + amountsCollateral[vaultNumber]
         );
         assertEq(
-            balancesPost.debt,
-            balancesPre.debt - amountsDebt[vaultNumber]
+            balancesAPost.debt,
+            balancesAPre.debt - amountsDebt[vaultNumber]
         );
 
         assertEq(multicallStatuses[0].externalSuccess, true);
@@ -986,7 +1026,7 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
             bytes[] memory data
         ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
-        AccountBalance memory balancesPre = getBalances(
+        AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
             tokensCollateral[vaultNumber],
             tokensDebt[vaultNumber]
@@ -1001,14 +1041,14 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
             extractBidAmounts(bidInfos)
         );
 
-        AccountBalance memory balancesPost = getBalances(
+        AccountBalance memory balancesAPost = getBalances(
             searcherAOwnerAddress,
             tokensCollateral[vaultNumber],
             tokensDebt[vaultNumber]
         );
         uint256 balanceProtocolPost = address(tokenVault).balance;
 
-        assertEqBalances(balancesPost, balancesPre);
+        assertEqBalances(balancesAPost, balancesAPre);
         assertEq(balanceProtocolPre, balanceProtocolPost);
 
         assertFailedExternal(
@@ -1032,7 +1072,7 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
             bytes[] memory data
         ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
 
-        AccountBalance memory balancesPre = getBalances(
+        AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
             tokensCollateral[vaultNumber],
             tokensDebt[vaultNumber]
@@ -1047,14 +1087,14 @@ contract PERVaultTest is Test, Signatures, PriceHelpers, TestParsingHelpers {
             extractBidAmounts(bidInfos)
         );
 
-        AccountBalance memory balancesPost = getBalances(
+        AccountBalance memory balancesAPost = getBalances(
             searcherAOwnerAddress,
             tokensCollateral[vaultNumber],
             tokensDebt[vaultNumber]
         );
         uint256 balanceProtocolPost = address(tokenVault).balance;
 
-        assertEqBalances(balancesPost, balancesPre);
+        assertEqBalances(balancesAPost, balancesAPre);
         assertEq(balanceProtocolPre, balanceProtocolPost);
         assertFailedExternal(multicallStatuses[0], "ExpiredSignature()");
     }
