@@ -66,7 +66,8 @@ contract PERMulticall {
     function _bytesToAddress(
         bytes memory bys
     ) private pure returns (address addr) {
-        (addr, ) = abi.decode(bys, (address, bytes));
+        // this does not assume the struct fields of the permission key
+        addr = address(uint160(uint256(bytes32(bys))));
     }
 
     /**
@@ -105,7 +106,11 @@ contract PERMulticall {
             } catch Error(string memory reason) {
                 multicallStatuses[i].multicallRevertReason = reason;
             }
-            totalBid += bids[i];
+
+            // only count bid if call was successful (and bid was paid out)
+            if (multicallStatuses[i].externalSuccess) {
+                totalBid += bids[i];
+            }
         }
 
         // use the first 20 bytes of permission as fee receiver
@@ -150,12 +155,11 @@ contract PERMulticall {
             uint256 balanceFinalEth = address(this).balance;
 
             // ensure that PER operator was paid at least bid ETH
-            if (
-                (balanceFinalEth - balanceInitEth < bid) ||
-                (balanceFinalEth < balanceInitEth)
-            ) {
-                revert InvalidBid();
-            }
+            require(
+                (balanceFinalEth - balanceInitEth >= bid) &&
+                    (balanceFinalEth >= balanceInitEth),
+                "invalid bid"
+            );
         }
 
         return (success, result);

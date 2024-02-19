@@ -5,42 +5,12 @@ import "./Errors.sol";
 import "forge-std/console.sol";
 
 contract SigVerify {
-    function getMessageDigest(
-        string memory _message,
-        uint _nonce
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_message, _nonce));
-    }
-
-    // TODO: This should not be here if only used on tests
-    function getPERSignedMessageDigest(
-        bytes32 _messageHash
-    ) public pure returns (bytes32) {
-        /*
-        Signature is produced by signing a keccak256 hash with the following format:
-        "\x19PER Signed Message\n" + msg
-        */
-        return
-            keccak256(
-                abi.encodePacked("\x19PER Signed Message:\n66", _messageHash)
-            );
-    }
-
-    function getCalldataDigest(
-        bytes memory _data,
-        uint _nonce
-    ) public pure returns (bytes32) {
-        // TODO: fold nonce back to the rest of data, it does not need to be treated differently
-        return keccak256(abi.encodePacked(_data, _nonce));
-    }
-
     function verifyCalldata(
         address _signer,
         bytes memory _data,
-        uint _nonce,
         bytes memory signature
     ) public pure returns (bool) {
-        bytes32 calldataHash = getCalldataDigest(_data, _nonce);
+        bytes32 calldataHash = keccak256(_data);
 
         return recoverSigner(calldataHash, signature) == _signer;
     }

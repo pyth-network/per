@@ -147,7 +147,12 @@ contract VaultScript is Script {
         vm.writeJson(finalJSON, latestEnvironmentPath);
     }
 
-    function setUpContracts() public {
+    /**
+    @notice Sets up the localnet environment for testing purposes
+    deploys WETH, PER, LiquidationAdapter, MockPyth, TokenVault and 2 ERC-20 tokens to use as collateral and debt tokens
+    Also creates and funds searcher wallets and contracts
+    */
+    function setUpLocalnet() public {
         SearcherVault searcherA;
         SearcherVault searcherB;
 
@@ -526,5 +531,12 @@ contract VaultScript is Script {
             ".liquidationAdapter"
         );
         return LiquidationAdapter(payable(liquidationAdapter)).getWeth();
+    }
+
+    function setUpHappyPath() public {
+        setUpLocalnet();
+        setOraclePrice(110, 110, 190);
+        setUpVault(100, 80, true);
+        setOraclePrice(110, 200, 200);
     }
 }
