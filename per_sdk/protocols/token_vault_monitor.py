@@ -356,6 +356,7 @@ async def main():
         "--use-ws",
         action="store_true",
         dest="use_ws",
+        default=False,
         help="If provided, will use the websocket to get price updates",
     )
     args = parser.parse_args()
