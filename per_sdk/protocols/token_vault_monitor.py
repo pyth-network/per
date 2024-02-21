@@ -9,11 +9,21 @@ from typing import TypedDict
 import httpx
 import web3
 from eth_abi import encode
+from pythclient.hermes import HermesClient, PriceFeed
+from pythclient.price_feeds import Price
 
-from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient, price_to_tuple
 from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
 
 logger = logging.getLogger(__name__)
+
+
+def price_to_tuple(price: Price):
+    return (
+        int(price.price),
+        int(price.conf),
+        int(price.expo),
+        int(price.publish_time),
+    )
 
 
 class ProtocolAccount(TypedDict):
@@ -51,7 +61,6 @@ class VaultMonitor:
         chain_id: str,
         include_price_updates: bool,
         mock_pyth: bool,
-        feed_ids_ws: list[str] = [],
     ):
         self.rpc_url = rpc_url
         self.contract_address = contract_address
@@ -65,7 +74,7 @@ class VaultMonitor:
             address=contract_address, abi=get_vault_abi()
         )
 
-        self.price_feed_client = PriceFeedClient(feed_ids_ws)
+        self.price_feed_client = HermesClient([])
         ws_call = self.price_feed_client.ws_pyth_prices()
         asyncio.create_task(ws_call)
 
@@ -136,7 +145,7 @@ class VaultMonitor:
                 for update in prices:
                     feed_id = bytes.fromhex(update["feed_id"])
                     price = price_to_tuple(update["price"])
-                    price_ema = price_to_tuple(update["price_ema"])
+                    price_ema = price_to_tuple(update["ema_price"])
                     prev_publish_time = 0
                     price_updates.append(
                         encode(
@@ -200,13 +209,14 @@ class VaultMonitor:
 
         return opp
 
-    async def get_liquidation_opportunities(self) -> list[LiquidationOpportunity]:
+    async def get_liquidation_opportunities(
+        self, use_ws: bool = False
+    ) -> list[LiquidationOpportunity]:
         """
         Filters list of ProtocolAccount types to return a list of LiquidationOpportunity types.
 
         Args:
-            accounts: A list of ProtocolAccount objects, representing all the open accounts in the protocol.
-            prices: A dictionary of Pyth price feeds, where the keys are Pyth feed IDs and the values are PriceFeed objects.
+            ws: A boolean indicating whether to use the websocket to get price updates.
         Returns:
             A list of LiquidationOpportunity objects, one per account that is eligible for liquidation.
         """
@@ -221,29 +231,36 @@ class VaultMonitor:
             token_id_collateral = account["token_id_collateral"]
             token_id_debt = account["token_id_debt"]
 
-            if token_id_collateral not in (
-                self.price_feed_client.feed_ids
-                + self.price_feed_client.pending_feed_ids
-            ):
-                self.price_feed_client.add_feed_ids([token_id_collateral])
-            if token_id_debt not in (
-                self.price_feed_client.feed_ids
-                + self.price_feed_client.pending_feed_ids
-            ):
-                self.price_feed_client.add_feed_ids([token_id_debt])
+            price_collateral_feed = None
+            price_debt_feed = None
 
-            price_collateral_feed = self.price_feed_client.prices_dict.get(
-                token_id_collateral
-            )
-            # get price of collateral asset from http request if doesn't return from ws
+            if use_ws:
+                if token_id_collateral not in (
+                    self.price_feed_client.feed_ids
+                    + self.price_feed_client.pending_feed_ids
+                ):
+                    self.price_feed_client.add_feed_ids([token_id_collateral])
+                if token_id_debt not in (
+                    self.price_feed_client.feed_ids
+                    + self.price_feed_client.pending_feed_ids
+                ):
+                    self.price_feed_client.add_feed_ids([token_id_debt])
+
+                price_collateral_feed = self.price_feed_client.prices_dict.get(
+                    token_id_collateral
+                )
+                price_debt_feed = self.price_feed_client.prices_dict.get(token_id_debt)
+
+            # get price of collateral asset from http request if doesn't return from ws or ws is not used
             if price_collateral_feed is None:
                 (price_collateral_feed,) = (
-                    await self.price_feed_client.get_pyth_prices_latest([token_id_debt])
+                    await self.price_feed_client.get_pyth_prices_latest(
+                        [token_id_collateral]
+                    )
                 )
             price_collateral = price_collateral_feed.get("price")
 
-            price_debt_feed = self.price_feed_client.prices_dict.get(token_id_debt)
-            # get price of debt asset from http request if doesn't return from ws
+            # get price of debt asset from http request if doesn't return from ws or ws is not used
             if price_debt_feed is None:
                 (price_debt_feed,) = (
                     await self.price_feed_client.get_pyth_prices_latest([token_id_debt])
@@ -261,9 +278,9 @@ class VaultMonitor:
                 )
 
             value_collateral = (
-                int(price_collateral["price"]) * account["amount_collateral"]
+                int(price_collateral.price) * account["amount_collateral"]
             )
-            value_debt = int(price_debt["price"]) * account["amount_debt"]
+            value_debt = int(price_debt.price) * account["amount_debt"]
             logger.debug(
                 f"Account {account['account_number']} health: {value_collateral / value_debt}"
             )
@@ -272,10 +289,9 @@ class VaultMonitor:
                 > value_collateral * 10**18
             ):
                 price_updates = [
-                    self.price_feed_client.extract_price_feed(price_collateral_feed),
-                    self.price_feed_client.extract_price_feed(price_debt_feed),
+                    price_collateral_feed,
+                    price_debt_feed,
                 ]
-                self.price_feed_client.extract_price_feed(price_collateral_feed)
                 liquidatable.append(self.create_liquidation_opp(account, price_updates))
 
         return liquidatable
@@ -336,6 +352,12 @@ async def main():
         type=str,
         help="Liquidation server endpoint; if provided, will send liquidation opportunities to this endpoint",
     )
+    parser.add_argument(
+        "--use-ws",
+        action="store_true",
+        dest="use_ws",
+        help="If provided, will use the websocket to get price updates",
+    )
     args = parser.parse_args()
 
     logger.setLevel(logging.INFO if args.verbose == 0 else logging.DEBUG)
@@ -347,8 +369,6 @@ async def main():
     log_handler.setFormatter(formatter)
     logger.addHandler(log_handler)
 
-    feed_ids_ws = []
-
     monitor = VaultMonitor(
         args.rpc_url,
         args.vault_contract,
@@ -356,11 +376,10 @@ async def main():
         args.chain_id,
         args.include_price_updates,
         args.mock_pyth,
-        feed_ids_ws,
     )
 
     while True:
-        opportunities = await monitor.get_liquidation_opportunities()
+        opportunities = await monitor.get_liquidation_opportunities(use_ws=args.use_ws)
 
         if args.broadcast:
             client = httpx.AsyncClient()
