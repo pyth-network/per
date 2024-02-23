@@ -95,7 +95,7 @@ impl Into<OpportunityParamsWithMetadata> for LiquidationOpportunity {
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
 /// and will be available for bidding.
 #[utoipa::path(post, path = "/v1/liquidation/opportunities", request_body = OpportunityParams, responses(
-    (status = 200, description = "The created opportunity", body = OpportunityParamsWithId),
+    (status = 200, description = "The created opportunity", body = OpportunityParamsWithMetadata),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
@@ -173,7 +173,7 @@ pub struct ChainIdQueryParams {
 
 /// Fetch all liquidation opportunities ready to be exectued.
 #[utoipa::path(get, path = "/v1/liquidation/opportunities", responses(
-    (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<OpportunityParamsWithId>),
+    (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<OpportunityParamsWithMetadata>),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),
