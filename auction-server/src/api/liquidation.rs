@@ -65,10 +65,11 @@ pub struct OpportunityParamsWithMetadata {
     #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479", value_type=String)]
     opportunity_id: Uuid,
     /// Creation time of the opportunity
-    #[schema(example = "1700000000", value_type=i64)]
+    #[schema(example = 1700000000, value_type=i64)]
     creation_time:  UnixTimestamp,
     /// opportunity data
     #[serde(flatten)]
+    #[schema(inline)]
     params:         OpportunityParams,
 }
 
