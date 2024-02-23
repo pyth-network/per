@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// Copyright (C) 2024 Lavra Holdings Limited - All Rights Reserved
 pragma solidity ^0.8.13;
 
 // Signature: 0x82b42900
