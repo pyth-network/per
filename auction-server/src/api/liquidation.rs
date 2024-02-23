@@ -237,7 +237,7 @@ pub struct OpportunityBid {
 
 /// Bid on liquidation opportunity
 #[utoipa::path(post, path = "/v1/liquidation/opportunities/{opportunity_id}/bids", request_body=OpportunityBid,
-    params(("opportunity_id", description = "Opportunity id to bid on")), responses(
+    params(("opportunity_id"=String, description = "Opportunity id to bid on")), responses(
     (status = 200, description = "Bid Result", body = BidResult, example = json!({"status": "OK"})),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
