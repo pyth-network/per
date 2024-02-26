@@ -5,7 +5,10 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        state::Store,
+        state::{
+            BidStatus,
+            Store,
+        },
     },
     anyhow::{
         anyhow,
@@ -50,6 +53,7 @@ use {
         },
         time::Duration,
     },
+    uuid::Uuid,
 };
 
 abigen!(
@@ -217,59 +221,46 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                     );
                     for (permission_key, bids) in permission_bids.iter() {
                         let mut cloned_bids = bids.clone();
-                        let thread_store = store.clone();
-                        let chain_id = chain_id.clone();
                         let permission_key = permission_key.clone();
-                        {
-                            cloned_bids.sort_by(|a, b| b.bid.cmp(&a.bid));
+                         cloned_bids.sort_by(|a, b| b.bid.cmp(&a.bid));
 
-                            // TODO: simulate all bids together and keep the successful ones
-                            // let call = simulate_bids(
-                            //     store.per_operator.address(),
-                            //     chain_store.contract_addr,
-                            //     chain_store.provider.clone(),
-                            //     permission_key.clone(),
-                            //     cloned_bids.iter().map(|b| b.contract).collect(),
-                            //     cloned_bids.iter().map(|b| b.calldata.clone()).collect(),
-                            //     cloned_bids.iter().map(|b| b.bid.into()).collect(),
-                            // );
-
-                            // keep the highest bid for now
-                            cloned_bids.truncate(1);
-
-                            match thread_store.chains.get(&chain_id) {
-                                Some(chain_store) => {
-                                    let submission = submit_bids(
-                                        thread_store.per_operator.clone(),
-                                        chain_store.provider.clone(),
-                                        chain_store.config.clone(),
-                                        chain_store.network_id,
-                                        permission_key.clone(),
-                                        cloned_bids.iter().map(|b| b.contract).collect(),
-                                        cloned_bids.iter().map(|b| b.calldata.clone()).collect(),
-                                        cloned_bids.iter().map(|b| b.bid).collect(),
-                                    )
-                                    .await;
-                                    match submission {
-                                        Ok(receipt) => match receipt {
-                                            Some(receipt) => {
-                                                tracing::debug!("Submitted transaction: {:?}", receipt);
-                                                chain_store.bids.write().await.remove(&permission_key);
-                                            }
-                                            None => {
-                                                tracing::error!("Failed to receive transaction receipt");
-                                            }
-                                        },
-                                        Err(err) => {
-                                            tracing::error!("Transaction failed to submit: {:?}", err);
-                                        }
+                        // TODO: simulate all bids together and keep the successful ones
+                        // keep the highest bid for now
+                        let winner_bids = &cloned_bids[..1].to_vec();
+                        let submission = submit_bids(
+                            store.per_operator.clone(),
+                            chain_store.provider.clone(),
+                            chain_store.config.clone(),
+                            chain_store.network_id,
+                            permission_key.clone(),
+                            winner_bids.iter().map(|b| b.contract).collect(),
+                            winner_bids.iter().map(|b| b.calldata.clone()).collect(),
+                            winner_bids.iter().map(|b| b.bid).collect(),
+                        )
+                        .await;
+                        match submission {
+                            Ok(receipt) => match receipt {
+                                Some(receipt) => {
+                                    tracing::debug!("Submitted transaction: {:?}", receipt);
+                                    let winner_ids:Vec<Uuid> = winner_bids.iter().map(|b| b.id).collect();
+                                    for bid in cloned_bids {
+                                        let status = match winner_ids.contains(&bid.id){
+                                            true =>BidStatus::Submitted(receipt.transaction_hash),
+                                            false =>BidStatus::Lost
+                                        };
+                                        store.bid_status_store.set_status(bid.id, status).await;
                                     }
+                                    chain_store.bids.write().await.remove(&permission_key);
                                 }
                                 None => {
-                                    tracing::error!("Chain not found: {}", chain_id);
+                                    tracing::error!("Failed to receive transaction receipt");
                                 }
+                            },
+                            Err(err) => {
+                                tracing::error!("Transaction failed to submit: {:?}", err);
                             }
                         }
+
                     }
                 }
             }

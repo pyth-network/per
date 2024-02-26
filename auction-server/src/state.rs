@@ -15,6 +15,7 @@ use {
         types::{
             Address,
             Bytes,
+            H256,
             U256,
         },
     },
@@ -38,6 +39,7 @@ pub struct SimulatedBid {
     pub contract: Address,
     pub calldata: Bytes,
     pub bid:      U256,
+    pub id:       Uuid,
     // simulation_time:
 }
 
@@ -118,8 +120,36 @@ pub struct LiquidationStore {
     pub opportunities: RwLock<HashMap<PermissionKey, Vec<LiquidationOpportunity>>>,
 }
 
+pub type BidId = Uuid;
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+pub enum BidStatus {
+    /// The auction for this bid is pending
+    Pending,
+    /// The bid won the auction
+    Submitted(H256),
+    /// The bid lost the auction
+    Lost,
+}
+
+#[derive(Default)]
+pub struct BidStatusStore {
+    pub bids_status: RwLock<HashMap<BidId, BidStatus>>,
+}
+
+impl BidStatusStore {
+    pub async fn get_status(&self, id: &BidId) -> Option<BidStatus> {
+        self.bids_status.read().await.get(&id).cloned()
+    }
+
+    pub async fn set_status(&self, id: BidId, status: BidStatus) {
+        self.bids_status.write().await.insert(id, status);
+    }
+}
+
 pub struct Store {
     pub chains:            HashMap<ChainId, ChainStore>,
+    pub bid_status_store:  BidStatusStore,
     pub liquidation_store: LiquidationStore,
     pub per_operator:      LocalWallet,
     pub ws:                WsState,

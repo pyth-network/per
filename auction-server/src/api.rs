@@ -78,6 +78,8 @@ pub enum RestError {
     SimulationError { result: Bytes, reason: String },
     /// The order was not found
     OpportunityNotFound,
+    /// The bid was not found
+    BidNotFound,
     /// Internal error occurred during processing the request
     TemporarilyUnavailable,
     /// A catch-all error for all other types of errors that could occur during processing.
@@ -111,6 +113,10 @@ impl IntoResponse for RestError {
             RestError::OpportunityNotFound => (
                 StatusCode::NOT_FOUND,
                 "Opportunity with the specified id was not found".to_string(),
+            ),
+            RestError::BidNotFound => (
+                StatusCode::NOT_FOUND,
+                "Bid with the specified id was not found".to_string(),
             ),
             RestError::TemporarilyUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -167,6 +173,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
         .route("/v1/bids", post(bid::bid))
+        .route("/v1/bids/:bid_id", get(bid::bid_status))
         .route(
             "/v1/liquidation/opportunities",
             post(liquidation::post_opportunity),

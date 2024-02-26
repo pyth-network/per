@@ -299,7 +299,7 @@ pub async fn post_bid(
     )
     .await
     {
-        Ok(_) => {
+        Ok(id) => {
             let mut write_guard = store.liquidation_store.opportunities.write().await;
             let opportunities = write_guard.get_mut(&opportunity_bid.permission_key);
             if let Some(opportunities) = opportunities {
@@ -311,6 +311,7 @@ pub async fn post_bid(
             }
             Ok(BidResult {
                 status: "OK".to_string(),
+                id,
             }
             .into())
         }
