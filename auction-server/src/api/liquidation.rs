@@ -69,6 +69,7 @@ pub struct OpportunityParamsWithMetadata {
     creation_time:  UnixTimestamp,
     /// opportunity data
     #[serde(flatten)]
+    // expands params into component fields in the generated client schemas
     #[schema(inline)]
     params:         OpportunityParams,
 }
