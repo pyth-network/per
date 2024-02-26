@@ -65,10 +65,12 @@ pub struct OpportunityParamsWithMetadata {
     #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479", value_type=String)]
     opportunity_id: Uuid,
     /// Creation time of the opportunity
-    #[schema(example = "1700000000")]
+    #[schema(example = 1700000000, value_type=i64)]
     creation_time:  UnixTimestamp,
     /// opportunity data
     #[serde(flatten)]
+    // expands params into component fields in the generated client schemas
+    #[schema(inline)]
     params:         OpportunityParams,
 }
 
@@ -237,7 +239,7 @@ pub struct OpportunityBid {
 
 /// Bid on liquidation opportunity
 #[utoipa::path(post, path = "/v1/liquidation/opportunities/{opportunity_id}/bids", request_body=OpportunityBid,
-    params(("opportunity_id", description = "Opportunity id to bid on")), responses(
+    params(("opportunity_id"=String, description = "Opportunity id to bid on")), responses(
     (status = 200, description = "Bid Result", body = BidResult, example = json!({"status": "OK"})),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),

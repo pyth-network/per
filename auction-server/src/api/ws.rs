@@ -60,9 +60,15 @@ pub struct WsState {
 #[serde(tag = "method", content = "params")]
 pub enum ClientMessage {
     #[serde(rename = "subscribe")]
-    Subscribe { chain_ids: Vec<ChainId> },
+    Subscribe {
+        #[schema(value_type = Vec<String>)]
+        chain_ids: Vec<ChainId>,
+    },
     #[serde(rename = "unsubscribe")]
-    Unsubscribe { chain_ids: Vec<ChainId> },
+    Unsubscribe {
+        #[schema(value_type = Vec<String>)]
+        chain_ids: Vec<ChainId>,
+    },
 }
 
 #[derive(Deserialize, Debug, Clone, ToSchema)]
