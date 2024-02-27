@@ -1,6 +1,12 @@
 use {
     crate::{
-        api::ws::WsState,
+        api::{
+            ws::{
+                UpdateEvent,
+                WsState,
+            },
+            RestError,
+        },
         config::{
             ChainId,
             EthereumConfig,
@@ -27,7 +33,10 @@ use {
         HashMap,
         HashSet,
     },
-    tokio::sync::RwLock,
+    tokio::sync::{
+        broadcast,
+        RwLock,
+    },
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -36,10 +45,10 @@ pub type PermissionKey = Bytes;
 
 #[derive(Clone)]
 pub struct SimulatedBid {
+    pub id:       BidId,
     pub contract: Address,
     pub calldata: Bytes,
     pub bid:      U256,
-    pub id:       Uuid,
     // simulation_time:
 }
 
@@ -126,7 +135,7 @@ pub type BidId = Uuid;
 pub enum BidStatus {
     /// The auction for this bid is pending
     Pending,
-    /// The bid won the auction
+    /// The bid won the auction and was submitted to the chain in a transaction with the given hash
     Submitted(H256),
     /// The bid lost the auction
     Lost,
@@ -142,8 +151,17 @@ impl BidStatusStore {
         self.bids_status.read().await.get(&id).cloned()
     }
 
-    pub async fn set_status(&self, id: BidId, status: BidStatus) {
-        self.bids_status.write().await.insert(id, status);
+    pub async fn set_status(
+        &self,
+        id: BidId,
+        status: BidStatus,
+        event_sender: broadcast::Sender<UpdateEvent>,
+    ) {
+        self.bids_status.write().await.insert(id, status.clone());
+        match event_sender.send(UpdateEvent::BidStatusUpdate { id, status }) {
+            Ok(_) => (),
+            Err(e) => tracing::error!("Failed to send bid status update: {}", e),
+        };
     }
 }
 

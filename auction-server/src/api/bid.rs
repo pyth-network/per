@@ -43,7 +43,7 @@ use {
     uuid::Uuid,
 };
 
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct Bid {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type=String)]
@@ -111,7 +111,11 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> Result<Uuid, RestError> 
         });
     store
         .bid_status_store
-        .set_status(bid_id, BidStatus::Pending)
+        .set_status(
+            bid_id,
+            BidStatus::Pending,
+            store.ws.broadcast_sender.clone(),
+        )
         .await;
     Ok(bid_id)
 }
@@ -143,7 +147,6 @@ pub async fn bid(
     State(store): State<Arc<Store>>,
     Json(bid): Json<Bid>,
 ) -> Result<Json<BidResult>, RestError> {
-    let bid = bid.clone();
     store
         .chains
         .get(&bid.chain_id)

@@ -1,12 +1,24 @@
 use {
     crate::{
-        api::liquidation::OpportunityParamsWithMetadata,
+        api::{
+            bid::{
+                handle_bid,
+                Bid,
+                BidResult,
+            },
+            liquidation::OpportunityParamsWithMetadata,
+            RestError,
+        },
         config::ChainId,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        state::Store,
+        state::{
+            BidId,
+            BidStatus,
+            Store,
+        },
     },
     anyhow::{
         anyhow,
@@ -48,6 +60,7 @@ use {
     },
     tokio::sync::broadcast,
     utoipa::ToSchema,
+    uuid::Uuid,
 };
 
 pub struct WsState {
@@ -69,6 +82,8 @@ pub enum ClientMessage {
         #[schema(value_type = Vec<String>)]
         chain_ids: Vec<ChainId>,
     },
+    #[serde(rename = "submit_bid")]
+    SubmitBid { bid: Bid },
 }
 
 #[derive(Deserialize, Debug, Clone, ToSchema)]
@@ -86,6 +101,8 @@ pub enum ServerUpdateResponse {
     NewOpportunity {
         opportunity: OpportunityParamsWithMetadata,
     },
+    #[serde(rename = "bid_status_update")]
+    BidStatusUpdate { id: BidId, status: BidStatus },
 }
 
 #[derive(Serialize, Debug, Clone, ToSchema)]
@@ -125,6 +142,7 @@ async fn websocket_handler(stream: WebSocket, state: Arc<Store>) {
 #[derive(Clone)]
 pub enum UpdateEvent {
     NewOpportunity(OpportunityParamsWithMetadata),
+    BidStatusUpdate { id: BidId, status: BidStatus },
 }
 
 pub type SubscriberId = usize;
@@ -139,6 +157,7 @@ pub struct Subscriber {
     receiver:            SplitStream<WebSocket>,
     sender:              SplitSink<WebSocket, Message>,
     chain_ids:           HashSet<ChainId>,
+    bid_ids:             HashSet<BidId>,
     ping_interval:       tokio::time::Interval,
     exit_check_interval: tokio::time::Interval,
     responded_to_ping:   bool,
@@ -162,6 +181,7 @@ impl Subscriber {
             receiver,
             sender,
             chain_ids: HashSet::new(),
+            bid_ids: HashSet::new(),
             ping_interval: tokio::time::interval(PING_INTERVAL_DURATION),
             exit_check_interval: tokio::time::interval(EXIT_CHECK_INTERVAL),
             responded_to_ping: true, // We start with true so we don't close the connection immediately
@@ -221,6 +241,15 @@ impl Subscriber {
                     serde_json::to_string(&ServerUpdateResponse::NewOpportunity { opportunity })?;
                 self.sender.send(message.into()).await?;
             }
+            UpdateEvent::BidStatusUpdate { id, status } => {
+                if !self.bid_ids.contains(&id) {
+                    // Irrelevant update
+                    return Ok(());
+                }
+                let message =
+                    serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { id, status })?;
+                self.sender.send(message.into()).await?;
+            }
         }
 
         Ok(())
@@ -252,21 +281,17 @@ impl Subscriber {
             }
         };
 
-        let request_id = match maybe_client_message {
-            Err(e) => {
-                self.sender
-                    .send(
-                        serde_json::to_string(&ServerResultResponse {
-                            id:     None,
-                            result: ServerResultMessage::Err(e.to_string()),
-                        })?
-                        .into(),
-                    )
-                    .await?;
-                return Ok(());
-            }
+        let response = match maybe_client_message {
+            Err(e) => ServerResultResponse {
+                id:     None,
+                result: ServerResultMessage::Err(e.to_string()),
+            },
 
             Ok(ClientRequest { msg, id }) => {
+                let ok_response = ServerResultResponse {
+                    id:     Some(id.clone()),
+                    result: ServerResultMessage::Success,
+                };
                 match msg {
                     ClientMessage::Subscribe { chain_ids } => {
                         let available_chain_ids: Vec<&ChainId> = self.store.chains.keys().collect();
@@ -279,42 +304,41 @@ impl Subscriber {
                         // If there is a single chain id that is not found, we don't subscribe to any of the
                         // asked correct chain ids and return an error to be more explicit and clear.
                         if !not_found_chain_ids.is_empty() {
-                            self.sender
-                                .send(
-                                    serde_json::to_string(&ServerResultResponse {
-                                        id:     Some(id),
-                                        result: ServerResultMessage::Err(format!(
-                                            "Chain id(s) with id(s) {:?} not found",
-                                            not_found_chain_ids
-                                        )),
-                                    })?
-                                    .into(),
-                                )
-                                .await?;
-                            return Ok(());
+                            ServerResultResponse {
+                                id:     Some(id),
+                                result: ServerResultMessage::Err(format!(
+                                    "Chain id(s) with id(s) {:?} not found",
+                                    not_found_chain_ids
+                                )),
+                            }
                         } else {
                             self.chain_ids.extend(chain_ids.into_iter());
+                            ok_response
                         }
                     }
                     ClientMessage::Unsubscribe { chain_ids } => {
                         self.chain_ids
                             .retain(|chain_id| !chain_ids.contains(chain_id));
+                        ok_response
+                    }
+                    ClientMessage::SubmitBid { bid } => {
+                        match handle_bid(self.store.clone(), bid).await {
+                            Ok(bid_id) => {
+                                self.bid_ids.insert(bid_id);
+                                ok_response
+                            }
+                            Err(e) => ServerResultResponse {
+                                id:     Some(id),
+                                result: ServerResultMessage::Err(e.to_status_and_message().1),
+                            },
+                        }
                     }
                 }
-                id
             }
         };
         self.sender
-            .send(
-                serde_json::to_string(&ServerResultResponse {
-                    id:     Some(request_id),
-                    result: ServerResultMessage::Success,
-                })?
-                .into(),
-            )
+            .send(serde_json::to_string(&response)?.into())
             .await?;
-
-
         Ok(())
     }
 }

@@ -86,15 +86,9 @@ pub enum RestError {
     Unknown,
 }
 
-#[derive(ToResponse, ToSchema, Serialize)]
-#[response(description = "An error occurred processing the request")]
-struct ErrorBodyResponse {
-    error: String,
-}
-
-impl IntoResponse for RestError {
-    fn into_response(self) -> Response {
-        let (status, msg) = match self {
+impl RestError {
+    pub fn to_status_and_message(self) -> (StatusCode, String) {
+        match self {
             RestError::BadParameters(msg) => {
                 (StatusCode::BAD_REQUEST, format!("Bad parameters: {}", msg))
             }
@@ -126,7 +120,19 @@ impl IntoResponse for RestError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "An unknown error occurred processing the request".to_string(),
             ),
-        };
+        }
+    }
+}
+
+#[derive(ToResponse, ToSchema, Serialize)]
+#[response(description = "An error occurred processing the request")]
+struct ErrorBodyResponse {
+    error: String,
+}
+
+impl IntoResponse for RestError {
+    fn into_response(self) -> Response {
+        let (status, msg) = self.to_status_and_message();
         (status, Json(ErrorBodyResponse { error: msg })).into_response()
     }
 }
