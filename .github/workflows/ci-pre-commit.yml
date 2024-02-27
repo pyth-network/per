@@ -24,6 +24,19 @@ jobs:
           profile: minimal
           toolchain: nightly-2023-07-23
           components: rustfmt, clippy
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1.1.1
+        with:
+          version: nightly
+      - name: Install npm dependencies
+        working-directory: per_multicall
+        run: npm install
+      - name: Install forge dependencies 1
+        working-directory: per_multicall
+        run: forge install foundry-rs/forge-std --no-git --no-commit
+      - name: Install forge dependencies 2
+        working-directory: per_multicall
+        run: forge install OpenZeppelin/openzeppelin-contracts --no-git --no-commit
       - uses: pre-commit/action@v3.0.0
         if: ${{ github.event_name == 'pull_request' }}
         with:
