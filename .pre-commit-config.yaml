@@ -24,8 +24,12 @@ repos:
         entry: cargo +nightly-2023-07-23 fmt --manifest-path ./auction-server/Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
         files: auction-server
-  - repo: local
-    hooks:
+      - id: cargo-clippy-auction-server
+        name: Cargo clippy for auction server
+        language: "rust"
+        entry: cargo +nightly-2023-07-23 clippy --manifest-path ./auction-server/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        pass_filenames: false
+        files: auction-server
       # Hooks for vault-simulator
       - id: cargo-fmt-vault-simulator
         name: Cargo format for vault simulator
@@ -33,10 +37,13 @@ repos:
         entry: cargo +nightly-2023-07-23 fmt --manifest-path ./vault-simulator/Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
         files: vault-simulator
-
-  # for python files
-  - repo: local
-    hooks:
+      - id: cargo-clippy-vault-simulator
+        name: Cargo clippy for vault simulator
+        language: "rust"
+        entry: cargo +nightly-2023-07-23 clippy --manifest-path ./vault-simulator/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        pass_filenames: false
+        files: vault-simulator
+      # For python files
       - id: isort
         name: isort
         entry: poetry -C per_sdk run isort --profile=black per_sdk
