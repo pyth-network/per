@@ -4,10 +4,8 @@ use {
             bid::{
                 handle_bid,
                 Bid,
-                BidResult,
             },
             liquidation::OpportunityParamsWithMetadata,
-            RestError,
         },
         config::ChainId,
         server::{
@@ -60,7 +58,6 @@ use {
     },
     tokio::sync::broadcast,
     utoipa::ToSchema,
-    uuid::Uuid,
 };
 
 pub struct WsState {
@@ -312,7 +309,7 @@ impl Subscriber {
                                 )),
                             }
                         } else {
-                            self.chain_ids.extend(chain_ids.into_iter());
+                            self.chain_ids.extend(chain_ids);
                             ok_response
                         }
                     }

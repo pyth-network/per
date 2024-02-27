@@ -302,9 +302,7 @@ const MAX_STALE_OPPORTUNITY_SECS: i64 = 60;
 /// * `opportunity`: opportunity to verify
 /// * `store`: server store
 async fn verify_with_store(opportunity: LiquidationOpportunity, store: &Store) -> Result<()> {
-    let params = match opportunity.params {
-        OpportunityParams::V1(opportunity) => opportunity,
-    };
+    let OpportunityParams::V1(params) = opportunity.params;
     let chain_store = store
         .chains
         .get(&params.chain_id)

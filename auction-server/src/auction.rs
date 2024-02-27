@@ -89,10 +89,10 @@ pub fn get_simulation_call(
 ) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<per::MulticallStatus>> {
     let client = Arc::new(provider);
     let per_contract = PERContract::new(chain_config.per_contract, client);
-    let call = per_contract
+
+    per_contract
         .multicall(permission, contracts, calldata, bids)
-        .from(per_operator);
-    call
+        .from(per_operator)
 }
 
 
@@ -192,14 +192,14 @@ pub async fn submit_bids(
         .await
         .map_err(SubmissionError::ContractError)?;
     let gas_multiplier = U256::from(2); //TODO: smarter gas estimation
-    gas_estimate = gas_estimate * gas_multiplier;
+    gas_estimate *= gas_multiplier;
     let call_with_gas = call.gas(gas_estimate);
     let send_call = call_with_gas
         .send()
         .await
         .map_err(SubmissionError::ContractError)?;
-    let res = send_call.await.map_err(SubmissionError::ProviderError);
-    res
+
+    send_call.await.map_err(SubmissionError::ProviderError)
 }
 
 pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {

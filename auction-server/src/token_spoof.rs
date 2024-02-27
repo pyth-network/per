@@ -40,7 +40,7 @@ use {
 /// * `balance_slot`: The slot where the balance mapping is located inside the contract storage
 pub fn calculate_balance_storage_key(owner: Address, balance_slot: U256) -> H256 {
     let mut buffer: [u8; 64] = [0; 64];
-    buffer[12..32].copy_from_slice(&owner.as_bytes());
+    buffer[12..32].copy_from_slice(owner.as_bytes());
     balance_slot.to_big_endian(buffer[32..64].as_mut());
     keccak256(Bytes::from(buffer)).into()
 }
@@ -60,12 +60,12 @@ pub fn calculate_allowance_storage_key(
     allowance_slot: U256,
 ) -> H256 {
     let mut buffer_spender: [u8; 64] = [0; 64];
-    buffer_spender[12..32].copy_from_slice(&owner.as_bytes());
+    buffer_spender[12..32].copy_from_slice(owner.as_bytes());
     allowance_slot.to_big_endian(buffer_spender[32..64].as_mut());
     let spender_slot = keccak256(Bytes::from(buffer_spender));
 
     let mut buffer_allowance: [u8; 64] = [0; 64];
-    buffer_allowance[12..32].copy_from_slice(&spender.as_bytes());
+    buffer_allowance[12..32].copy_from_slice(spender.as_bytes());
     buffer_allowance[32..64].copy_from_slice(&spender_slot);
     keccak256(Bytes::from(buffer_allowance)).into()
 }

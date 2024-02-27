@@ -1,11 +1,8 @@
 use {
     crate::{
-        api::{
-            ws::{
-                UpdateEvent,
-                WsState,
-            },
-            RestError,
+        api::ws::{
+            UpdateEvent,
+            WsState,
         },
         config::{
             ChainId,
@@ -148,7 +145,7 @@ pub struct BidStatusStore {
 
 impl BidStatusStore {
     pub async fn get_status(&self, id: &BidId) -> Option<BidStatus> {
-        self.bids_status.read().await.get(&id).cloned()
+        self.bids_status.read().await.get(id).cloned()
     }
 
     pub async fn set_status(

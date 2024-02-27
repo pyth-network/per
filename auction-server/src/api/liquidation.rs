@@ -82,12 +82,12 @@ impl OpportunityParamsWithMetadata {
     }
 }
 
-impl Into<OpportunityParamsWithMetadata> for LiquidationOpportunity {
-    fn into(self) -> OpportunityParamsWithMetadata {
+impl From<LiquidationOpportunity> for OpportunityParamsWithMetadata {
+    fn from(val: LiquidationOpportunity) -> Self {
         OpportunityParamsWithMetadata {
-            opportunity_id: self.id,
-            creation_time:  self.creation_time,
-            params:         self.params,
+            opportunity_id: val.id,
+            creation_time:  val.creation_time,
+            params:         val.params,
         }
     }
 }
@@ -105,9 +105,7 @@ pub async fn post_opportunity(
     State(store): State<Arc<Store>>,
     Json(versioned_params): Json<OpportunityParams>,
 ) -> Result<Json<OpportunityParamsWithMetadata>, RestError> {
-    let params = match versioned_params.clone() {
-        OpportunityParams::V1(params) => params,
-    };
+    let OpportunityParams::V1(params) = versioned_params.clone();
     let chain_store = store
         .chains
         .get(&params.chain_id)
@@ -199,9 +197,7 @@ pub async fn get_opportunities(
                 .into()
         })
         .filter(|params_with_id: &OpportunityParamsWithMetadata| {
-            let params = match &params_with_id.params {
-                OpportunityParams::V1(params) => params,
-            };
+            let OpportunityParams::V1(params) = &params_with_id.params;
             if let Some(chain_id) = &query_params.chain_id {
                 params.chain_id == *chain_id
             } else {
@@ -270,9 +266,7 @@ pub async fn post_bid(
         ));
     }
 
-    let params = match &opportunity.params {
-        OpportunityParams::V1(params) => params,
-    };
+    let OpportunityParams::V1(params) = &opportunity.params;
 
     let chain_store = store
         .chains
