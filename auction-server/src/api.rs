@@ -23,6 +23,7 @@ use {
             SHOULD_EXIT,
         },
         state::{
+            BidStatus,
             OpportunityParams,
             OpportunityParamsV1,
             Store,
@@ -147,27 +148,34 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     #[openapi(
     paths(
     bid::bid,
+    bid::bid_status,
     liquidation::post_opportunity,
     liquidation::bid,
     liquidation::get_opportunities,
     ),
     components(
-    schemas(Bid),
-    schemas(OpportunityParamsV1),
-    schemas(OpportunityBid),
-    schemas(OpportunityParams),
-    schemas(OpportunityParamsWithMetadata),
-    schemas(TokenQty),
-    schemas(BidResult),
-    schemas(ErrorBodyResponse),
-    schemas(ClientRequest),
-    schemas(ClientMessage),
-    schemas(ServerResultMessage),
-    schemas(ServerUpdateResponse),
-    schemas(ServerResultResponse),
-    responses(ErrorBodyResponse),
-    responses(OpportunityParamsWithMetadata),
-    responses(BidResult)
+    schemas(
+    Bid,
+    BidStatus,
+    BidResult,
+    OpportunityParamsV1,
+    OpportunityBid,
+    OpportunityParams,
+    OpportunityParamsWithMetadata,
+    TokenQty,
+    BidResult,
+    ErrorBodyResponse,
+    ClientRequest,
+    ClientMessage,
+    ServerResultMessage,
+    ServerUpdateResponse,
+    ServerResultResponse
+    ),
+    responses(
+    ErrorBodyResponse,
+    OpportunityParamsWithMetadata,
+    BidResult,
+    ),
     ),
     tags(
     (name = "PER Auction", description = "Pyth Express Relay Auction Server")

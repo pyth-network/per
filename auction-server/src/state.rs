@@ -130,10 +130,12 @@ pub struct LiquidationStore {
 pub type BidId = Uuid;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+#[serde(tag = "status", content = "result", rename_all = "snake_case")]
 pub enum BidStatus {
     /// The auction for this bid is pending
     Pending,
     /// The bid won the auction and was submitted to the chain in a transaction with the given hash
+    #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type=String)]
     Submitted(H256),
     /// The bid lost the auction
     Lost,

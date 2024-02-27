@@ -128,10 +128,6 @@ pub struct BidResult {
     pub id:     Uuid,
 }
 
-#[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
-pub struct BidStatusResult {
-    pub status: BidStatus,
-}
 
 /// Bid on a specific permission key for a specific chain.
 ///
@@ -167,17 +163,17 @@ pub async fn bid(
 #[utoipa::path(get, path = "/v1/bids/{bid_id}",
     params(("bid_id"=String, description = "Bid id to query for")),
     responses(
-    (status = 200, description = "Latest status of the bid", body = BidStatusResult),
+    (status = 200, description = "Latest status of the bid", body = BidStatus),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Bid was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn bid_status(
     State(store): State<Arc<Store>>,
     Path(bid_id): Path<Uuid>,
-) -> Result<Json<BidStatusResult>, RestError> {
+) -> Result<Json<BidStatus>, RestError> {
     let status = store.bid_status_store.get_status(&bid_id).await;
     match status {
-        Some(status) => Ok(BidStatusResult { status }.into()),
+        Some(status) => Ok(status.into()),
         None => Err(RestError::BidNotFound),
     }
 }
