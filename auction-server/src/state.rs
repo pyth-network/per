@@ -96,9 +96,10 @@ pub enum OpportunityParams {
     V1(OpportunityParamsV1),
 }
 
+pub type OpportunityId = Uuid;
 #[derive(Clone, PartialEq)]
 pub struct LiquidationOpportunity {
-    pub id:            Uuid,
+    pub id:            OpportunityId,
     pub creation_time: UnixTimestamp,
     pub params:        OpportunityParams,
     pub bidders:       HashSet<Address>,

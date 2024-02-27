@@ -148,7 +148,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     paths(
     bid::bid,
     liquidation::post_opportunity,
-    liquidation::post_bid,
+    liquidation::bid,
     liquidation::get_opportunities,
     ),
     components(
@@ -190,7 +190,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         )
         .route(
             "/v1/liquidation/opportunities/:opportunity_id/bids",
-            post(liquidation::post_bid),
+            post(liquidation::bid),
         )
         .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))

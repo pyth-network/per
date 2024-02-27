@@ -17,6 +17,7 @@ use {
         },
         state::{
             LiquidationOpportunity,
+            OpportunityId,
             OpportunityParams,
             Store,
             UnixTimestamp,
@@ -58,12 +59,13 @@ use {
     uuid::Uuid,
 };
 
+
 /// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct OpportunityParamsWithMetadata {
     /// The opportunity unique id
     #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479", value_type=String)]
-    opportunity_id: Uuid,
+    opportunity_id: OpportunityId,
     /// Creation time of the opportunity
     #[schema(example = 1700000000, value_type=i64)]
     creation_time:  UnixTimestamp,
@@ -240,11 +242,26 @@ pub struct OpportunityBid {
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
-pub async fn post_bid(
+pub async fn bid(
     State(store): State<Arc<Store>>,
-    Path(opportunity_id): Path<Uuid>,
+    Path(opportunity_id): Path<OpportunityId>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
+    match handle_liquidation_bid(store, opportunity_id, &opportunity_bid).await {
+        Ok(id) => Ok(BidResult {
+            status: "OK".to_string(),
+            id,
+        }
+        .into()),
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn handle_liquidation_bid(
+    store: Arc<Store>,
+    opportunity_id: OpportunityId,
+    opportunity_bid: &OpportunityBid,
+) -> Result<Uuid, RestError> {
     let opportunities = store
         .liquidation_store
         .opportunities
@@ -303,11 +320,7 @@ pub async fn post_bid(
                     .ok_or(RestError::OpportunityNotFound)?;
                 opportunity.bidders.insert(opportunity_bid.liquidator);
             }
-            Ok(BidResult {
-                status: "OK".to_string(),
-                id,
-            }
-            .into())
+            Ok(id)
         }
         Err(e) => match e {
             RestError::SimulationError { result, reason } => {

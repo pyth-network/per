@@ -5,7 +5,11 @@ use {
                 handle_bid,
                 Bid,
             },
-            liquidation::OpportunityParamsWithMetadata,
+            liquidation::{
+                handle_liquidation_bid,
+                OpportunityBid,
+                OpportunityParamsWithMetadata,
+            },
         },
         config::ChainId,
         server::{
@@ -15,6 +19,7 @@ use {
         state::{
             BidId,
             BidStatus,
+            OpportunityId,
             Store,
         },
     },
@@ -66,7 +71,7 @@ pub struct WsState {
     pub broadcast_receiver: broadcast::Receiver<UpdateEvent>,
 }
 
-#[derive(Deserialize, Debug, Clone, ToSchema)]
+#[derive(Deserialize, Clone, ToSchema)]
 #[serde(tag = "method", content = "params")]
 pub enum ClientMessage {
     #[serde(rename = "subscribe")]
@@ -79,11 +84,18 @@ pub enum ClientMessage {
         #[schema(value_type = Vec<String>)]
         chain_ids: Vec<ChainId>,
     },
-    #[serde(rename = "submit_bid")]
-    SubmitBid { bid: Bid },
+    #[serde(rename = "post_bid")]
+    PostBid { bid: Bid },
+
+    #[serde(rename = "post_liquidation_bid")]
+    PostLiquidationBid {
+        #[schema(value_type = String)]
+        opportunity_id:  OpportunityId,
+        opportunity_bid: OpportunityBid,
+    },
 }
 
-#[derive(Deserialize, Debug, Clone, ToSchema)]
+#[derive(Deserialize, Clone, ToSchema)]
 pub struct ClientRequest {
     id:  String,
     #[serde(flatten)]
@@ -318,8 +330,29 @@ impl Subscriber {
                             .retain(|chain_id| !chain_ids.contains(chain_id));
                         ok_response
                     }
-                    ClientMessage::SubmitBid { bid } => {
+                    ClientMessage::PostBid { bid } => {
                         match handle_bid(self.store.clone(), bid).await {
+                            Ok(bid_id) => {
+                                self.bid_ids.insert(bid_id);
+                                ok_response
+                            }
+                            Err(e) => ServerResultResponse {
+                                id:     Some(id),
+                                result: ServerResultMessage::Err(e.to_status_and_message().1),
+                            },
+                        }
+                    }
+                    ClientMessage::PostLiquidationBid {
+                        opportunity_bid,
+                        opportunity_id,
+                    } => {
+                        match handle_liquidation_bid(
+                            self.store.clone(),
+                            opportunity_id,
+                            &opportunity_bid,
+                        )
+                        .await
+                        {
                             Ok(bid_id) => {
                                 self.bid_ids.insert(bid_id);
                                 ok_response
