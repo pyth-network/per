@@ -1,14 +1,8 @@
 use {
     crate::{
         api::{
-            bid::{
-                Bid,
-                BidResult,
-            },
-            liquidation::{
-                OpportunityBid,
-                OpportunityParamsWithMetadata,
-            },
+            bid::BidResult,
+            liquidation::OpportunityParamsWithMetadata,
             ws::{
                 ClientMessage,
                 ClientRequest,
@@ -17,7 +11,9 @@ use {
                 ServerUpdateResponse,
             },
         },
+        auction::Bid,
         config::RunOptions,
+        liquidation_adapter::OpportunityBid,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -83,8 +79,6 @@ pub enum RestError {
     BidNotFound,
     /// Internal error occurred during processing the request
     TemporarilyUnavailable,
-    /// A catch-all error for all other types of errors that could occur during processing.
-    Unknown,
 }
 
 impl RestError {
@@ -116,10 +110,6 @@ impl RestError {
             RestError::TemporarilyUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "This service is temporarily unavailable".to_string(),
-            ),
-            RestError::Unknown => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "An unknown error occurred processing the request".to_string(),
             ),
         }
     }

@@ -1,17 +1,15 @@
 use {
     crate::{
-        api::{
-            bid::{
-                handle_bid,
-                Bid,
-            },
-            liquidation::{
-                handle_liquidation_bid,
-                OpportunityBid,
-                OpportunityParamsWithMetadata,
-            },
+        api::liquidation::OpportunityParamsWithMetadata,
+        auction::{
+            handle_bid,
+            Bid,
         },
         config::ChainId,
+        liquidation_adapter::{
+            handle_liquidation_bid,
+            OpportunityBid,
+        },
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,

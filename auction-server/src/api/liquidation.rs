@@ -1,19 +1,16 @@
 use {
     crate::{
         api::{
-            bid::{
-                handle_bid,
-                BidResult,
-            },
+            bid::BidResult,
             ws::UpdateEvent::NewOpportunity,
             ErrorBodyResponse,
             RestError,
         },
         config::ChainId,
         liquidation_adapter::{
-            make_liquidator_calldata,
-            parse_revert_error,
+            handle_liquidation_bid,
             verify_opportunity,
+            OpportunityBid,
         },
         state::{
             LiquidationOpportunity,
@@ -31,15 +28,7 @@ use {
         },
         Json,
     },
-    ethers::{
-        abi::Address,
-        core::types::Signature,
-        signers::Signer,
-        types::{
-            Bytes,
-            U256,
-        },
-    },
+    ethers::signers::Signer,
     serde::{
         Deserialize,
         Serialize,
@@ -58,7 +47,6 @@ use {
     },
     uuid::Uuid,
 };
-
 
 /// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
@@ -210,30 +198,6 @@ pub async fn get_opportunities(
     Ok(opportunities.into())
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct OpportunityBid {
-    /// The opportunity permission key
-    #[schema(example = "0xdeadbeefcafe", value_type=String)]
-    pub permission_key: Bytes,
-    /// The bid amount in wei.
-    #[schema(example = "1000000000000000000", value_type=String)]
-    #[serde(with = "crate::serde::u256")]
-    pub amount:         U256,
-    /// How long the bid will be valid for.
-    #[schema(example = "1000000000000000000", value_type=String)]
-    #[serde(with = "crate::serde::u256")]
-    pub valid_until:    U256,
-    /// Liquidator address
-    #[schema(example = "0x5FbDB2315678afecb367f032d93F642f64180aa2", value_type=String)]
-    pub liquidator:     Address,
-    #[schema(
-        example = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
-        value_type=String
-    )]
-    #[serde(with = "crate::serde::signature")]
-    pub signature:      Signature,
-}
-
 /// Bid on liquidation opportunity
 #[utoipa::path(post, path = "/v1/liquidation/opportunities/{opportunity_id}/bids", request_body=OpportunityBid,
     params(("opportunity_id"=String, description = "Opportunity id to bid on")), responses(
@@ -253,86 +217,5 @@ pub async fn bid(
         }
         .into()),
         Err(e) => Err(e),
-    }
-}
-
-pub async fn handle_liquidation_bid(
-    store: Arc<Store>,
-    opportunity_id: OpportunityId,
-    opportunity_bid: &OpportunityBid,
-) -> Result<Uuid, RestError> {
-    let opportunities = store
-        .liquidation_store
-        .opportunities
-        .get(&opportunity_bid.permission_key)
-        .ok_or(RestError::OpportunityNotFound)?
-        .clone();
-
-    let opportunity = opportunities
-        .iter()
-        .find(|o| o.id == opportunity_id)
-        .ok_or(RestError::OpportunityNotFound)?;
-
-    // TODO: move this logic to searcher side
-    if opportunity.bidders.contains(&opportunity_bid.liquidator) {
-        return Err(RestError::BadParameters(
-            "Liquidator already bid on this opportunity".to_string(),
-        ));
-    }
-
-    let OpportunityParams::V1(params) = &opportunity.params;
-
-    let chain_store = store
-        .chains
-        .get(&params.chain_id)
-        .ok_or(RestError::InvalidChainId)?;
-
-    let per_calldata = make_liquidator_calldata(
-        params.clone(),
-        opportunity_bid.clone(),
-        chain_store.provider.clone(),
-        chain_store.config.adapter_contract,
-    )
-    .await
-    .map_err(|e| RestError::BadParameters(e.to_string()))?;
-    match handle_bid(
-        store.clone(),
-        crate::api::bid::Bid {
-            permission_key: params.permission_key.clone(),
-            chain_id:       params.chain_id.clone(),
-            contract:       chain_store.config.adapter_contract,
-            calldata:       per_calldata,
-            amount:         opportunity_bid.amount,
-        },
-    )
-    .await
-    {
-        Ok(id) => {
-            let opportunities = store
-                .liquidation_store
-                .opportunities
-                .get_mut(&opportunity_bid.permission_key);
-            if let Some(mut opportunities) = opportunities {
-                let opportunity = opportunities
-                    .iter_mut()
-                    .find(|o| o.id == opportunity_id)
-                    .ok_or(RestError::OpportunityNotFound)?;
-                opportunity.bidders.insert(opportunity_bid.liquidator);
-            }
-            Ok(id)
-        }
-        Err(e) => match e {
-            RestError::SimulationError { result, reason } => {
-                let parsed = parse_revert_error(&result);
-                match parsed {
-                    Some(decoded) => Err(RestError::BadParameters(decoded)),
-                    None => {
-                        tracing::info!("Could not parse revert reason: {}", reason);
-                        Err(RestError::SimulationError { result, reason })
-                    }
-                }
-            }
-            _ => Err(e),
-        },
     }
 }
