@@ -9,6 +9,7 @@ use {
             EthereumConfig,
         },
     },
+    dashmap::DashMap,
     ethers::{
         providers::{
             Http,
@@ -124,7 +125,7 @@ pub struct ChainStore {
 
 #[derive(Default)]
 pub struct LiquidationStore {
-    pub opportunities: RwLock<HashMap<PermissionKey, Vec<LiquidationOpportunity>>>,
+    pub opportunities: DashMap<PermissionKey, Vec<LiquidationOpportunity>>,
 }
 
 pub type BidId = Uuid;
@@ -141,9 +142,9 @@ pub enum BidStatus {
     Lost,
 }
 
-#[derive(Default)]
 pub struct BidStatusStore {
-    pub bids_status: RwLock<HashMap<BidId, BidStatus>>,
+    pub bids_status:  RwLock<HashMap<BidId, BidStatus>>,
+    pub event_sender: broadcast::Sender<UpdateEvent>,
 }
 
 impl BidStatusStore {
@@ -151,14 +152,12 @@ impl BidStatusStore {
         self.bids_status.read().await.get(id).cloned()
     }
 
-    pub async fn set_status(
-        &self,
-        id: BidId,
-        status: BidStatus,
-        event_sender: broadcast::Sender<UpdateEvent>,
-    ) {
+    pub async fn set_and_broadcast(&self, id: BidId, status: BidStatus) {
         self.bids_status.write().await.insert(id, status.clone());
-        match event_sender.send(UpdateEvent::BidStatusUpdate { id, status }) {
+        match self
+            .event_sender
+            .send(UpdateEvent::BidStatusUpdate { id, status })
+        {
             Ok(_) => (),
             Err(e) => tracing::error!("Failed to send bid status update: {}", e),
         };

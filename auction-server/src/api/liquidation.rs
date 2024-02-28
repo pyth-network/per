@@ -129,9 +129,8 @@ pub async fn post_opportunity(
         .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 
 
-    let mut write_lock = store.liquidation_store.opportunities.write().await;
-
-    if let Some(opportunities_existing) = write_lock.get_mut(&params.permission_key) {
+    let opportunities_map = &store.liquidation_store.opportunities;
+    if let Some(mut opportunities_existing) = opportunities_map.get_mut(&params.permission_key) {
         // check if same opportunity exists in the vector
         for opportunity_existing in opportunities_existing.iter() {
             if opportunity_existing == &opportunity {
@@ -143,7 +142,7 @@ pub async fn post_opportunity(
 
         opportunities_existing.push(opportunity.clone());
     } else {
-        write_lock.insert(params.permission_key.clone(), vec![opportunity.clone()]);
+        opportunities_map.insert(params.permission_key.clone(), vec![opportunity.clone()]);
     }
 
     store
@@ -155,10 +154,13 @@ pub async fn post_opportunity(
             RestError::TemporarilyUnavailable
         })?;
 
-    tracing::debug!("number of permission keys: {}", write_lock.len());
+    tracing::debug!("number of permission keys: {}", opportunities_map.len());
     tracing::debug!(
         "number of opportunities for key: {}",
-        write_lock[&params.permission_key].len()
+        opportunities_map
+            .get(&params.permission_key)
+            .map(|opps| opps.len())
+            .unwrap_or(0)
     );
 
     let opportunity_with_metadata: OpportunityParamsWithMetadata = opportunity.into();
@@ -187,10 +189,7 @@ pub async fn get_opportunities(
     let opportunities: Vec<OpportunityParamsWithMetadata> = store
         .liquidation_store
         .opportunities
-        .read()
-        .await
-        .values()
-        .cloned()
+        .iter()
         .map(|opportunities_key| {
             opportunities_key
                 .last()
@@ -265,8 +264,6 @@ pub async fn handle_liquidation_bid(
     let opportunities = store
         .liquidation_store
         .opportunities
-        .read()
-        .await
         .get(&opportunity_bid.permission_key)
         .ok_or(RestError::OpportunityNotFound)?
         .clone();
@@ -311,9 +308,11 @@ pub async fn handle_liquidation_bid(
     .await
     {
         Ok(id) => {
-            let mut write_guard = store.liquidation_store.opportunities.write().await;
-            let opportunities = write_guard.get_mut(&opportunity_bid.permission_key);
-            if let Some(opportunities) = opportunities {
+            let opportunities = store
+                .liquidation_store
+                .opportunities
+                .get_mut(&opportunity_bid.permission_key);
+            if let Some(mut opportunities) = opportunities {
                 let opportunity = opportunities
                     .iter_mut()
                     .find(|o| o.id == opportunity_id)

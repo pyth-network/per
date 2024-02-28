@@ -100,7 +100,10 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let store = Arc::new(Store {
         chains:            chain_store?,
         liquidation_store: LiquidationStore::default(),
-        bid_status_store:  BidStatusStore::default(),
+        bid_status_store:  BidStatusStore {
+            bids_status:  Default::default(),
+            event_sender: update_tx.clone(),
+        },
         per_operator:      wallet,
         ws:                ws::WsState {
             subscriber_counter: AtomicUsize::new(0),

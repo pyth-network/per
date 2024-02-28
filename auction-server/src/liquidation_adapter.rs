@@ -337,11 +337,11 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             _ = submission_interval.tick() => {
-                let all_opportunities = store.liquidation_store.opportunities.read().await.clone();
-                for (permission_key, opportunities) in all_opportunities.iter() {
+                let all_opportunities = store.liquidation_store.opportunities.clone();
+                for item in all_opportunities.iter() {
                     // check each of the opportunities for this permission key for validity
                     let mut opps_to_remove = vec![];
-                    for opportunity in opportunities.iter() {
+                    for opportunity in item.value().iter() {
                         match verify_with_store(opportunity.clone(), &store).await {
                             Ok(_) => {}
                             Err(e) => {
@@ -354,19 +354,15 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
                             }
                         }
                     }
-
-                    // set write lock to remove all these opportunities
-                    let mut write_lock = store.liquidation_store.opportunities.write().await;
-
-                    if let Some(opportunities) = write_lock.get_mut(permission_key) {
+                    let permission_key = item.key();
+                    let opportunities_map = &store.liquidation_store.opportunities;
+                    if let Some(mut opportunities) = opportunities_map.get_mut(permission_key) {
                         opportunities.retain(|x| !opps_to_remove.contains(&x.id));
                         if opportunities.is_empty() {
-                            write_lock.remove(permission_key);
+                            drop(opportunities);
+                            opportunities_map.remove(permission_key);
                         }
                     }
-
-                    // release the write lock
-                    drop(write_lock);
                 }
             }
             _ = exit_check_interval.tick() => {

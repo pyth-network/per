@@ -111,11 +111,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> Result<Uuid, RestError> 
         });
     store
         .bid_status_store
-        .set_status(
-            bid_id,
-            BidStatus::Pending,
-            store.ws.broadcast_sender.clone(),
-        )
+        .set_and_broadcast(bid_id, BidStatus::Pending)
         .await;
     Ok(bid_id)
 }

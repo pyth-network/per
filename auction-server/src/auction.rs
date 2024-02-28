@@ -244,11 +244,11 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                     tracing::debug!("Submitted transaction: {:?}", receipt);
                                     let winner_ids:Vec<Uuid> = winner_bids.iter().map(|b| b.id).collect();
                                     for bid in cloned_bids {
-                                        let status = match winner_ids.contains(&bid.id){
-                                            true =>BidStatus::Submitted(receipt.transaction_hash),
-                                            false =>BidStatus::Lost
+                                        let status = match winner_ids.contains(&bid.id) {
+                                            true => BidStatus::Submitted(receipt.transaction_hash),
+                                            false => BidStatus::Lost
                                         };
-                                        store.bid_status_store.set_status(bid.id, status, store.ws.broadcast_sender.clone()).await;
+                                        store.bid_status_store.set_and_broadcast(bid.id, status).await;
                                     }
                                     chain_store.bids.write().await.remove(&permission_key);
                                 }
