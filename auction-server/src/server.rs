@@ -96,19 +96,20 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     .into_iter()
     .collect();
 
-    let (update_tx, update_rx) = tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
+    let (broadcast_sender, broadcast_receiver) =
+        tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
     let store = Arc::new(Store {
         chains:            chain_store?,
         liquidation_store: LiquidationStore::default(),
         bid_status_store:  BidStatusStore {
             bids_status:  Default::default(),
-            event_sender: update_tx.clone(),
+            event_sender: broadcast_sender.clone(),
         },
         per_operator:      wallet,
         ws:                ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
-            broadcast_sender:   update_tx,
-            broadcast_receiver: update_rx,
+            broadcast_sender,
+            broadcast_receiver,
         },
     });
 

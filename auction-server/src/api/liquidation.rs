@@ -52,7 +52,7 @@ use {
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct OpportunityParamsWithMetadata {
     /// The opportunity unique id
-    #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479", value_type=String)]
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type=String)]
     opportunity_id: OpportunityId,
     /// Creation time of the opportunity
     #[schema(example = 1700000000, value_type=i64)]

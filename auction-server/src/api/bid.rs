@@ -9,6 +9,7 @@ use {
             Bid,
         },
         state::{
+            BidId,
             BidStatus,
             Store,
         },
@@ -29,15 +30,14 @@ use {
         ToResponse,
         ToSchema,
     },
-    uuid::Uuid,
 };
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
 pub struct BidResult {
     pub status: String,
     /// The unique id created to identify the bid. This id can be used to query the status of the bid.
-    #[schema(example = "f47ac10b-58cc-4372-a567-0e02b2c3d479", value_type=String)]
-    pub id:     Uuid,
+    #[schema(example = "beedbeed-58cc-4372-a567-0e02b2c3d479", value_type=String)]
+    pub id:     BidId,
 }
 
 
@@ -47,7 +47,7 @@ pub struct BidResult {
 /// containing the contract call will be sent to the blockchain expecting the bid amount to be paid after the call.
 #[utoipa::path(post, path = "/v1/bids", request_body = Bid, responses(
     (status = 200, description = "Bid was placed successfully", body = BidResult,
-    example = json!({"status": "OK", "id": "115c5c03-b346-4fa1-8fab-2541a9e1872d"})),
+    example = json!({"status": "OK", "id": "beedbeed-b346-4fa1-8fab-2541a9e1872d"})),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
@@ -80,7 +80,7 @@ pub async fn process_bid(store: Arc<Store>, bid: Bid) -> Result<Json<BidResult>,
 ),)]
 pub async fn bid_status(
     State(store): State<Arc<Store>>,
-    Path(bid_id): Path<Uuid>,
+    Path(bid_id): Path<BidId>,
 ) -> Result<Json<BidStatus>, RestError> {
     let status = store.bid_status_store.get_status(&bid_id).await;
     match status {
