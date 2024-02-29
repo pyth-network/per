@@ -248,6 +248,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             Ok(receipt) => match receipt {
                                 Some(receipt) => {
                                     tracing::debug!("Submitted transaction: {:?}", receipt);
+                                    //TODO: inspect the receipt and see which bids were successful on chain
                                     let winner_ids:Vec<Uuid> = winner_bids.iter().map(|b| b.id).collect();
                                     for bid in &cloned_bids {
                                         let status = match winner_ids.contains(&bid.id) {
