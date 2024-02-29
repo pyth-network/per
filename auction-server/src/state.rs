@@ -31,17 +31,14 @@ use {
         HashMap,
         HashSet,
     },
-    tokio::sync::{
-        broadcast,
-        RwLock,
-    },
+    tokio::sync::broadcast,
     utoipa::ToSchema,
     uuid::Uuid,
 };
 
 pub type PermissionKey = Bytes;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct SimulatedBid {
     pub id:       BidId,
     pub contract: Address,
@@ -120,7 +117,7 @@ pub struct ChainStore {
     pub network_id:       u64,
     pub config:           EthereumConfig,
     pub token_spoof_info: DashMap<Address, SpoofInfo>,
-    pub bids:             RwLock<HashMap<PermissionKey, Vec<SimulatedBid>>>,
+    pub bids:             DashMap<PermissionKey, Vec<SimulatedBid>>,
 }
 
 #[derive(Default)]

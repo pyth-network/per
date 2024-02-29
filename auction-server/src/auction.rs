@@ -222,16 +222,12 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
         tokio::select! {
             _ = submission_interval.tick() => {
                 for (chain_id, chain_store) in &store.chains {
-                    let permission_bids = chain_store.bids.read().await.clone();
-                    // release lock asap
                     tracing::info!(
                         "Chain: {chain_id} Auctions to process {auction_len}",
                         chain_id = chain_id,
-                        auction_len = permission_bids.len()
+                        auction_len = chain_store.bids.len()
                     );
-                    for (permission_key, bids) in permission_bids.iter() {
-                        let mut cloned_bids = bids.clone();
-                        let permission_key = permission_key.clone();
+                    for (permission_key, mut cloned_bids) in chain_store.bids.clone().into_iter() {
                          cloned_bids.sort_by(|a, b| b.bid.cmp(&a.bid));
 
                         // TODO: simulate all bids together and keep the successful ones
@@ -253,20 +249,24 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                 Some(receipt) => {
                                     tracing::debug!("Submitted transaction: {:?}", receipt);
                                     let winner_ids:Vec<Uuid> = winner_bids.iter().map(|b| b.id).collect();
-                                    for bid in cloned_bids {
+                                    for bid in &cloned_bids {
                                         let status = match winner_ids.contains(&bid.id) {
                                             true => BidStatus::Submitted(receipt.transaction_hash),
                                             false => BidStatus::Lost
                                         };
                                         store.bid_status_store.set_and_broadcast(bid.id, status).await;
                                     }
-                                    chain_store.bids.write().await.remove(&permission_key);
+                                    chain_store.bids.remove_if_mut(&permission_key, |_, bids| {
+                                        bids.retain(|b| !&cloned_bids.contains(b));
+                                        bids.is_empty()
+                                    });
                                 }
                                 None => {
                                     tracing::error!("Failed to receive transaction receipt");
                                 }
                             },
                             Err(err) => {
+                                //TODO: handle error, remove invalid bids, set bid status, etc
                                 tracing::error!("Transaction failed to submit: {:?}", err);
                             }
                         }
@@ -337,8 +337,6 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
     let bid_id = Uuid::new_v4();
     chain_store
         .bids
-        .write()
-        .await
         .entry(bid.permission_key.clone())
         .or_default()
         .push(SimulatedBid {
