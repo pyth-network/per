@@ -143,17 +143,17 @@ pub enum BidStatus {
 }
 
 pub struct BidStatusStore {
-    pub bids_status:  RwLock<HashMap<BidId, BidStatus>>,
+    pub bids_status:  DashMap<BidId, BidStatus>,
     pub event_sender: broadcast::Sender<UpdateEvent>,
 }
 
 impl BidStatusStore {
     pub async fn get_status(&self, id: &BidId) -> Option<BidStatus> {
-        self.bids_status.read().await.get(id).cloned()
+        self.bids_status.get(id).map(|entry| entry.clone())
     }
 
     pub async fn set_and_broadcast(&self, id: BidId, status: BidStatus) {
-        self.bids_status.write().await.insert(id, status.clone());
+        self.bids_status.insert(id, status.clone());
         match self
             .event_sender
             .send(UpdateEvent::BidStatusUpdate { id, status })
