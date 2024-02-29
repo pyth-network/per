@@ -20,7 +20,6 @@ use {
         },
         Json,
     },
-    ethers::signers::Signer,
     serde::{
         Deserialize,
         Serialize,
@@ -56,11 +55,10 @@ pub async fn bid(
     State(store): State<Arc<Store>>,
     Json(bid): Json<Bid>,
 ) -> Result<Json<BidResult>, RestError> {
-    store
-        .chains
-        .get(&bid.chain_id)
-        .ok_or(RestError::InvalidChainId)?;
+    process_bid(store, bid).await
+}
 
+pub async fn process_bid(store: Arc<Store>, bid: Bid) -> Result<Json<BidResult>, RestError> {
     match handle_bid(store, bid).await {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),

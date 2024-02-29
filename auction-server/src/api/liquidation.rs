@@ -205,12 +205,20 @@ pub async fn get_opportunities(
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
-pub async fn bid(
+pub async fn liquidation_bid(
     State(store): State<Arc<Store>>,
     Path(opportunity_id): Path<OpportunityId>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
-    match handle_liquidation_bid(store, opportunity_id, &opportunity_bid).await {
+    process_liquidation_bid(store, opportunity_id, &opportunity_bid).await
+}
+
+pub async fn process_liquidation_bid(
+    store: Arc<Store>,
+    opportunity_id: OpportunityId,
+    opportunity_bid: &OpportunityBid,
+) -> Result<Json<BidResult>, RestError> {
+    match handle_liquidation_bid(store, opportunity_id, opportunity_bid).await {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),
             id,

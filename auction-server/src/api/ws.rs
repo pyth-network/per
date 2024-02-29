@@ -1,15 +1,18 @@
 use {
     crate::{
-        api::liquidation::OpportunityParamsWithMetadata,
-        auction::{
-            handle_bid,
-            Bid,
+        api::{
+            bid::{
+                process_bid,
+                BidResult,
+            },
+            liquidation::{
+                process_liquidation_bid,
+                OpportunityParamsWithMetadata,
+            },
         },
+        auction::Bid,
         config::ChainId,
-        liquidation_adapter::{
-            handle_liquidation_bid,
-            OpportunityBid,
-        },
+        liquidation_adapter::OpportunityBid,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -112,18 +115,23 @@ pub enum ServerUpdateResponse {
     BidStatusUpdate { id: BidId, status: BidStatus },
 }
 
-#[derive(Serialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Clone, ToSchema)]
+#[serde(untagged)]
+pub enum APIResposne {
+    BidResult(BidResult),
+}
+#[derive(Serialize, Clone, ToSchema)]
 #[serde(tag = "status", content = "result")]
 pub enum ServerResultMessage {
     #[serde(rename = "success")]
-    Success,
+    Success(Option<APIResposne>),
     #[serde(rename = "error")]
     Err(String),
 }
 
 /// This enum is used to send the result for a specific client request with the same id
 /// id is only None when the client message is invalid
-#[derive(Serialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Clone, ToSchema)]
 pub struct ServerResultResponse {
     id:     Option<String>,
     #[serde(flatten)]
@@ -297,7 +305,7 @@ impl Subscriber {
             Ok(ClientRequest { msg, id }) => {
                 let ok_response = ServerResultResponse {
                     id:     Some(id.clone()),
-                    result: ServerResultMessage::Success,
+                    result: ServerResultMessage::Success(None),
                 };
                 match msg {
                     ClientMessage::Subscribe { chain_ids } => {
@@ -329,10 +337,15 @@ impl Subscriber {
                         ok_response
                     }
                     ClientMessage::PostBid { bid } => {
-                        match handle_bid(self.store.clone(), bid).await {
-                            Ok(bid_id) => {
-                                self.bid_ids.insert(bid_id);
-                                ok_response
+                        match process_bid(self.store.clone(), bid).await {
+                            Ok(bid_result) => {
+                                self.bid_ids.insert(bid_result.id);
+                                ServerResultResponse {
+                                    id:     Some(id.clone()),
+                                    result: ServerResultMessage::Success(Some(
+                                        APIResposne::BidResult(bid_result.0),
+                                    )),
+                                }
                             }
                             Err(e) => ServerResultResponse {
                                 id:     Some(id),
@@ -344,16 +357,21 @@ impl Subscriber {
                         opportunity_bid,
                         opportunity_id,
                     } => {
-                        match handle_liquidation_bid(
+                        match process_liquidation_bid(
                             self.store.clone(),
                             opportunity_id,
                             &opportunity_bid,
                         )
                         .await
                         {
-                            Ok(bid_id) => {
-                                self.bid_ids.insert(bid_id);
-                                ok_response
+                            Ok(bid_result) => {
+                                self.bid_ids.insert(bid_result.id);
+                                ServerResultResponse {
+                                    id:     Some(id.clone()),
+                                    result: ServerResultMessage::Success(Some(
+                                        APIResposne::BidResult(bid_result.0),
+                                    )),
+                                }
                             }
                             Err(e) => ServerResultResponse {
                                 id:     Some(id),

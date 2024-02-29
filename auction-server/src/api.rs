@@ -4,6 +4,7 @@ use {
             bid::BidResult,
             liquidation::OpportunityParamsWithMetadata,
             ws::{
+                APIResposne,
                 ClientMessage,
                 ClientRequest,
                 ServerResultMessage,
@@ -82,7 +83,7 @@ pub enum RestError {
 }
 
 impl RestError {
-    pub fn to_status_and_message(self) -> (StatusCode, String) {
+    pub fn to_status_and_message(&self) -> (StatusCode, String) {
         match self {
             RestError::BadParameters(msg) => {
                 (StatusCode::BAD_REQUEST, format!("Bad parameters: {}", msg))
@@ -134,17 +135,19 @@ pub async fn live() -> Response {
 
 
 pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
+    // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
     #[openapi(
     paths(
     bid::bid,
     bid::bid_status,
     liquidation::post_opportunity,
-    liquidation::bid,
+    liquidation::liquidation_bid,
     liquidation::get_opportunities,
     ),
     components(
     schemas(
+    APIResposne,
     Bid,
     BidStatus,
     BidResult,
@@ -188,7 +191,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         )
         .route(
             "/v1/liquidation/opportunities/:opportunity_id/bids",
-            post(liquidation::bid),
+            post(liquidation::liquidation_bid),
         )
         .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))
