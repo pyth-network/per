@@ -119,7 +119,7 @@ pub struct ChainStore {
     pub provider:         Provider<Http>,
     pub network_id:       u64,
     pub config:           EthereumConfig,
-    pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
+    pub token_spoof_info: DashMap<Address, SpoofInfo>,
     pub bids:             RwLock<HashMap<PermissionKey, Vec<SimulatedBid>>>,
 }
 

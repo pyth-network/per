@@ -142,13 +142,12 @@ pub async fn verify_opportunity(
     )
     .tx;
     let mut state = spoof::State::default();
-    let token_spoof_info = chain_store.token_spoof_info.read().await.clone();
     for crate::state::TokenQty {
         contract: token,
         amount,
     } in opportunity.repay_tokens.into_iter()
     {
-        let spoof_info = match token_spoof_info.get(&token) {
+        let spoof_info = match chain_store.token_spoof_info.get(&token) {
             Some(info) => info.clone(),
             None => {
                 let result = token_spoof::find_spoof_info(token, client.clone())
@@ -158,11 +157,7 @@ pub async fn verify_opportunity(
                         SpoofInfo::UnableToSpoof
                     });
 
-                chain_store
-                    .token_spoof_info
-                    .write()
-                    .await
-                    .insert(token, result.clone());
+                chain_store.token_spoof_info.insert(token, result.clone());
                 result
             }
         };
