@@ -1,11 +1,15 @@
 use {
     crate::{
-        api::ws::WsState,
+        api::ws::{
+            UpdateEvent,
+            WsState,
+        },
         config::{
             ChainId,
             EthereumConfig,
         },
     },
+    dashmap::DashMap,
     ethers::{
         providers::{
             Http,
@@ -15,6 +19,7 @@ use {
         types::{
             Address,
             Bytes,
+            H256,
             U256,
         },
     },
@@ -26,7 +31,10 @@ use {
         HashMap,
         HashSet,
     },
-    tokio::sync::RwLock,
+    tokio::sync::{
+        broadcast,
+        RwLock,
+    },
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -35,6 +43,7 @@ pub type PermissionKey = Bytes;
 
 #[derive(Clone)]
 pub struct SimulatedBid {
+    pub id:       BidId,
     pub contract: Address,
     pub calldata: Bytes,
     pub bid:      U256,
@@ -88,9 +97,10 @@ pub enum OpportunityParams {
     V1(OpportunityParamsV1),
 }
 
+pub type OpportunityId = Uuid;
 #[derive(Clone, PartialEq)]
 pub struct LiquidationOpportunity {
-    pub id:            Uuid,
+    pub id:            OpportunityId,
     pub creation_time: UnixTimestamp,
     pub params:        OpportunityParams,
     pub bidders:       HashSet<Address>,
@@ -115,11 +125,48 @@ pub struct ChainStore {
 
 #[derive(Default)]
 pub struct LiquidationStore {
-    pub opportunities: RwLock<HashMap<PermissionKey, Vec<LiquidationOpportunity>>>,
+    pub opportunities: DashMap<PermissionKey, Vec<LiquidationOpportunity>>,
+}
+
+pub type BidId = Uuid;
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+#[serde(tag = "status", content = "result", rename_all = "snake_case")]
+pub enum BidStatus {
+    /// The auction for this bid is pending
+    Pending,
+    /// The bid won the auction and was submitted to the chain in a transaction with the given hash
+    #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type=String)]
+    Submitted(H256),
+    /// The bid lost the auction
+    Lost,
+}
+
+pub struct BidStatusStore {
+    pub bids_status:  RwLock<HashMap<BidId, BidStatus>>,
+    pub event_sender: broadcast::Sender<UpdateEvent>,
+}
+
+impl BidStatusStore {
+    pub async fn get_status(&self, id: &BidId) -> Option<BidStatus> {
+        self.bids_status.read().await.get(id).cloned()
+    }
+
+    pub async fn set_and_broadcast(&self, id: BidId, status: BidStatus) {
+        self.bids_status.write().await.insert(id, status.clone());
+        match self
+            .event_sender
+            .send(UpdateEvent::BidStatusUpdate { id, status })
+        {
+            Ok(_) => (),
+            Err(e) => tracing::error!("Failed to send bid status update: {}", e),
+        };
+    }
 }
 
 pub struct Store {
     pub chains:            HashMap<ChainId, ChainStore>,
+    pub bid_status_store:  BidStatusStore,
     pub liquidation_store: LiquidationStore,
     pub per_operator:      LocalWallet,
     pub ws:                WsState,

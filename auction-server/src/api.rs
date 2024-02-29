@@ -1,15 +1,10 @@
 use {
     crate::{
         api::{
-            bid::{
-                Bid,
-                BidResult,
-            },
-            liquidation::{
-                OpportunityBid,
-                OpportunityParamsWithMetadata,
-            },
+            bid::BidResult,
+            liquidation::OpportunityParamsWithMetadata,
             ws::{
+                APIResposne,
                 ClientMessage,
                 ClientRequest,
                 ServerResultMessage,
@@ -17,12 +12,15 @@ use {
                 ServerUpdateResponse,
             },
         },
+        auction::Bid,
         config::RunOptions,
+        liquidation_adapter::OpportunityBid,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
         state::{
+            BidStatus,
             OpportunityParams,
             OpportunityParamsV1,
             Store,
@@ -78,21 +76,15 @@ pub enum RestError {
     SimulationError { result: Bytes, reason: String },
     /// The order was not found
     OpportunityNotFound,
+    /// The bid was not found
+    BidNotFound,
     /// Internal error occurred during processing the request
     TemporarilyUnavailable,
-    /// A catch-all error for all other types of errors that could occur during processing.
-    Unknown,
 }
 
-#[derive(ToResponse, ToSchema, Serialize)]
-#[response(description = "An error occurred processing the request")]
-struct ErrorBodyResponse {
-    error: String,
-}
-
-impl IntoResponse for RestError {
-    fn into_response(self) -> Response {
-        let (status, msg) = match self {
+impl RestError {
+    pub fn to_status_and_message(&self) -> (StatusCode, String) {
+        match self {
             RestError::BadParameters(msg) => {
                 (StatusCode::BAD_REQUEST, format!("Bad parameters: {}", msg))
             }
@@ -112,15 +104,27 @@ impl IntoResponse for RestError {
                 StatusCode::NOT_FOUND,
                 "Opportunity with the specified id was not found".to_string(),
             ),
+            RestError::BidNotFound => (
+                StatusCode::NOT_FOUND,
+                "Bid with the specified id was not found".to_string(),
+            ),
             RestError::TemporarilyUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "This service is temporarily unavailable".to_string(),
             ),
-            RestError::Unknown => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "An unknown error occurred processing the request".to_string(),
-            ),
-        };
+        }
+    }
+}
+
+#[derive(ToResponse, ToSchema, Serialize)]
+#[response(description = "An error occurred processing the request")]
+struct ErrorBodyResponse {
+    error: String,
+}
+
+impl IntoResponse for RestError {
+    fn into_response(self) -> Response {
+        let (status, msg) = self.to_status_and_message();
         (status, Json(ErrorBodyResponse { error: msg })).into_response()
     }
 }
@@ -131,31 +135,40 @@ pub async fn live() -> Response {
 
 
 pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
+    // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
     #[openapi(
     paths(
     bid::bid,
+    bid::bid_status,
     liquidation::post_opportunity,
-    liquidation::post_bid,
+    liquidation::liquidation_bid,
     liquidation::get_opportunities,
     ),
     components(
-    schemas(Bid),
-    schemas(OpportunityParamsV1),
-    schemas(OpportunityBid),
-    schemas(OpportunityParams),
-    schemas(OpportunityParamsWithMetadata),
-    schemas(TokenQty),
-    schemas(BidResult),
-    schemas(ErrorBodyResponse),
-    schemas(ClientRequest),
-    schemas(ClientMessage),
-    schemas(ServerResultMessage),
-    schemas(ServerUpdateResponse),
-    schemas(ServerResultResponse),
-    responses(ErrorBodyResponse),
-    responses(OpportunityParamsWithMetadata),
-    responses(BidResult)
+    schemas(
+    APIResposne,
+    Bid,
+    BidStatus,
+    BidResult,
+    OpportunityParamsV1,
+    OpportunityBid,
+    OpportunityParams,
+    OpportunityParamsWithMetadata,
+    TokenQty,
+    BidResult,
+    ErrorBodyResponse,
+    ClientRequest,
+    ClientMessage,
+    ServerResultMessage,
+    ServerUpdateResponse,
+    ServerResultResponse
+    ),
+    responses(
+    ErrorBodyResponse,
+    OpportunityParamsWithMetadata,
+    BidResult,
+    ),
     ),
     tags(
     (name = "PER Auction", description = "Pyth Express Relay Auction Server")
@@ -167,6 +180,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
         .route("/v1/bids", post(bid::bid))
+        .route("/v1/bids/:bid_id", get(bid::bid_status))
         .route(
             "/v1/liquidation/opportunities",
             post(liquidation::post_opportunity),
@@ -177,7 +191,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         )
         .route(
             "/v1/liquidation/opportunities/:opportunity_id/bids",
-            post(liquidation::post_bid),
+            post(liquidation::liquidation_bid),
         )
         .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))

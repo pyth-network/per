@@ -141,7 +141,7 @@ async fn get_latest_updates(price_endpoint: Url, feed_ids: Vec<String>) -> Resul
     (updates)
         .as_array()
         .ok_or(anyhow!("Invalid response: {:?}", updates))?
-        .into_iter()
+        .iter()
         .map(|update| parse_update(update.clone()))
         .collect()
 }
