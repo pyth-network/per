@@ -112,7 +112,11 @@ pub enum ServerUpdateResponse {
         opportunity: OpportunityParamsWithMetadata,
     },
     #[serde(rename = "bid_status_update")]
-    BidStatusUpdate { id: BidId, status: BidStatus },
+    BidStatusUpdate {
+        #[schema(value_type = String)]
+        id:     BidId,
+        status: BidStatus,
+    },
 }
 
 #[derive(Serialize, Clone, ToSchema)]
