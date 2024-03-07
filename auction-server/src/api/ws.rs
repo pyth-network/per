@@ -19,7 +19,7 @@ use {
         },
         state::{
             BidId,
-            BidStatus,
+            BidStatusWithId,
             OpportunityId,
             Store,
         },
@@ -112,11 +112,7 @@ pub enum ServerUpdateResponse {
         opportunity: OpportunityParamsWithMetadata,
     },
     #[serde(rename = "bid_status_update")]
-    BidStatusUpdate {
-        #[schema(value_type = String)]
-        id:     BidId,
-        status: BidStatus,
-    },
+    BidStatusUpdate { update: BidStatusWithId },
 }
 
 #[derive(Serialize, Clone, ToSchema)]
@@ -161,7 +157,7 @@ async fn websocket_handler(stream: WebSocket, state: Arc<Store>) {
 #[derive(Clone)]
 pub enum UpdateEvent {
     NewOpportunity(OpportunityParamsWithMetadata),
-    BidStatusUpdate { id: BidId, status: BidStatus },
+    BidStatusUpdate(BidStatusWithId),
 }
 
 pub type SubscriberId = usize;
@@ -260,13 +256,13 @@ impl Subscriber {
                     serde_json::to_string(&ServerUpdateResponse::NewOpportunity { opportunity })?;
                 self.sender.send(message.into()).await?;
             }
-            UpdateEvent::BidStatusUpdate { id, status } => {
-                if !self.bid_ids.contains(&id) {
+            UpdateEvent::BidStatusUpdate(update) => {
+                if !self.bid_ids.contains(&update.id) {
                     // Irrelevant update
                     return Ok(());
                 }
                 let message =
-                    serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { id, status })?;
+                    serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { update })?;
                 self.sender.send(message.into()).await?;
             }
         }

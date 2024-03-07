@@ -8,6 +8,7 @@ use {
         },
         state::{
             BidStatus,
+            BidStatusWithId,
             SimulatedBid,
             Store,
         },
@@ -258,7 +259,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                             true => BidStatus::Submitted(receipt.transaction_hash),
                                             false => BidStatus::Lost
                                         };
-                                        store.bid_status_store.set_and_broadcast(bid.id, status).await;
+                                        store.bid_status_store.set_and_broadcast(BidStatusWithId { id: bid.id, status }).await;
                                     }
                                     chain_store.bids.write().await.remove(&permission_key);
                                 }
@@ -349,7 +350,10 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         });
     store
         .bid_status_store
-        .set_and_broadcast(bid_id, BidStatus::Pending)
+        .set_and_broadcast(BidStatusWithId {
+            id:     bid_id,
+            status: BidStatus::Pending,
+        })
         .await;
     Ok(bid_id)
 }
