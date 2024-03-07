@@ -121,14 +121,14 @@ pub enum ServerUpdateResponse {
 
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(untagged)]
-pub enum APIResposne {
+pub enum APIResponse {
     BidResult(BidResult),
 }
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(tag = "status", content = "result")]
 pub enum ServerResultMessage {
     #[serde(rename = "success")]
-    Success(Option<APIResposne>),
+    Success(Option<APIResponse>),
     #[serde(rename = "error")]
     Err(String),
 }
@@ -347,7 +347,7 @@ impl Subscriber {
                                 ServerResultResponse {
                                     id:     Some(id.clone()),
                                     result: ServerResultMessage::Success(Some(
-                                        APIResposne::BidResult(bid_result.0),
+                                        APIResponse::BidResult(bid_result.0),
                                     )),
                                 }
                             }
@@ -373,7 +373,7 @@ impl Subscriber {
                                 ServerResultResponse {
                                     id:     Some(id.clone()),
                                     result: ServerResultMessage::Success(Some(
-                                        APIResposne::BidResult(bid_result.0),
+                                        APIResponse::BidResult(bid_result.0),
                                     )),
                                 }
                             }

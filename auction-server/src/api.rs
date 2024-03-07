@@ -4,7 +4,7 @@ use {
             bid::BidResult,
             liquidation::OpportunityParamsWithMetadata,
             ws::{
-                APIResposne,
+                APIResponse,
                 ClientMessage,
                 ClientRequest,
                 ServerResultMessage,
@@ -147,7 +147,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ),
     components(
     schemas(
-    APIResposne,
+    APIResponse,
     Bid,
     BidStatus,
     BidResult,
