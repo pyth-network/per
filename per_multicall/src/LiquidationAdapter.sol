@@ -78,7 +78,7 @@ contract LiquidationAdapter is SigVerify {
         if (!validSignature) {
             revert InvalidSearcherSignature();
         }
-        if (block.number > params.validUntil) {
+        if (block.timestamp > params.validUntil) {
             revert ExpiredSignature();
         }
         if (_signatureUsed[params.signatureLiquidator]) {
