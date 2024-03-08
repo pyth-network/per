@@ -112,7 +112,7 @@ pub enum ServerUpdateResponse {
         opportunity: OpportunityParamsWithMetadata,
     },
     #[serde(rename = "bid_status_update")]
-    BidStatusUpdate { update: BidStatusWithId },
+    BidStatusUpdate { status: BidStatusWithId },
 }
 
 #[derive(Serialize, Clone, ToSchema)]
@@ -256,13 +256,13 @@ impl Subscriber {
                     serde_json::to_string(&ServerUpdateResponse::NewOpportunity { opportunity })?;
                 self.sender.send(message.into()).await?;
             }
-            UpdateEvent::BidStatusUpdate(update) => {
-                if !self.bid_ids.contains(&update.id) {
+            UpdateEvent::BidStatusUpdate(status) => {
+                if !self.bid_ids.contains(&status.id) {
                     // Irrelevant update
                     return Ok(());
                 }
                 let message =
-                    serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { update })?;
+                    serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { status })?;
                 self.sender.send(message.into()).await?;
             }
         }

@@ -148,10 +148,8 @@ pub enum BidStatus {
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct BidStatusWithId {
     #[schema(value_type = String)]
-    pub id:     BidId,
-    #[serde(flatten)]
-    #[schema(inline)]
-    pub status: BidStatus,
+    pub id:         BidId,
+    pub bid_status: BidStatus,
 }
 
 pub struct BidStatusStore {
@@ -168,7 +166,7 @@ impl BidStatusStore {
         self.bids_status
             .write()
             .await
-            .insert(update.id, update.status.clone());
+            .insert(update.id, update.bid_status.clone());
         match self.event_sender.send(UpdateEvent::BidStatusUpdate(update)) {
             Ok(_) => (),
             Err(e) => tracing::error!("Failed to send bid status update: {}", e),
