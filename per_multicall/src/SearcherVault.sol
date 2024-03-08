@@ -40,7 +40,7 @@ contract SearcherVault is SigVerify {
      *
      * @param vaultID: ID of the vault to be liquidated
      * @param bid: size of the bid to pay to PER operator
-     * @param validUntil: timestamp until which signatureSearcher is valid
+     * @param validUntil: timestamp at which signatureSearcher is no longer valid
      * @param updateData: data to update price feed with
      * @param signatureSearcher: signature of the vaultID and bid, signed by the searcher's EOA, to be verified if msg.sender is PER Multicall
      */
