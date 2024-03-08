@@ -38,10 +38,10 @@ pub struct RunOptions {
     #[command(flatten)]
     pub config: ConfigOptions,
 
-    /// A 20-byte (40 char) hex encoded Ethereum private key which is the PER operator.
-    #[arg(long = "per-private-key")]
-    #[arg(env = "PER_PRIVATE_KEY")]
-    pub per_private_key: String,
+    /// A 20-byte (40 char) hex encoded Ethereum private key which is the express relay operator.
+    #[arg(long = "relay-private-key")]
+    #[arg(env = "RELAY_PRIVATE_KEY")]
+    pub relay_private_key: String,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -80,8 +80,8 @@ pub struct EthereumConfig {
     /// Polling interval for event filters and pending transactions in seconds.
     pub poll_interval: u64,
 
-    /// Address of the PER contract to interact with.
-    pub per_contract: Address,
+    /// Address of the express relay contract to interact with.
+    pub relay_contract: Address,
 
     /// Address of the adapter contract to interact with.
     pub adapter_contract: Address,

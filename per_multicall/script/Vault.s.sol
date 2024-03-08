@@ -9,7 +9,7 @@ import "forge-std/StdMath.sol";
 
 import {TokenVault} from "../src/TokenVault.sol";
 import {SearcherVault} from "../src/SearcherVault.sol";
-import {PERMulticall} from "../src/PERMulticall.sol";
+import {ExpressRelay} from "../src/ExpressRelay.sol";
 import {LiquidationAdapter} from "../src/LiquidationAdapter.sol";
 import {MyToken} from "../src/MyToken.sol";
 import "../src/Structs.sol";
@@ -39,15 +39,17 @@ contract VaultScript is Script {
         return address(weth);
     }
 
-    function deployPER(address wethAddress) public returns (address, address) {
-        (address perOperatorAddress, uint256 perOperatorSk) = makeAddrAndKey(
+    function deployExpressRelay(
+        address wethAddress
+    ) public returns (address, address) {
+        (address operatorAddress, uint256 operatorSk) = makeAddrAndKey(
             "perOperator"
         );
-        console.log("pk per operator", perOperatorAddress);
-        console.log("sk per operator", perOperatorSk);
-        payable(perOperatorAddress).transfer(0.01 ether);
-        PERMulticall multicall = new PERMulticall(perOperatorAddress, 0);
-        console.log("deployed PER contract at", address(multicall));
+        console.log("pk per operator", operatorAddress);
+        console.log("sk per operator", operatorSk);
+        payable(operatorAddress).transfer(0.01 ether);
+        ExpressRelay multicall = new ExpressRelay(operatorAddress, 0);
+        console.log("deployed ExpressRelay contract at", address(multicall));
         LiquidationAdapter liquidationAdapter = new LiquidationAdapter(
             address(multicall),
             wethAddress
@@ -80,16 +82,18 @@ contract VaultScript is Script {
         (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
         address weth = deployWeth();
-        (address per, address liquidationAdapter) = deployPER(weth);
+        (address expressRelay, address liquidationAdapter) = deployExpressRelay(
+            weth
+        );
         address mockPyth = deployMockPyth();
-        address vault = deployVault(per, mockPyth);
+        address vault = deployVault(expressRelay, mockPyth);
         vm.stopBroadcast();
-        return (per, liquidationAdapter, mockPyth, vault, weth);
+        return (expressRelay, liquidationAdapter, mockPyth, vault, weth);
     }
 
     /**
     @notice Sets up the testnet environment
-    deploys WETH, PER, LiquidationAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
+    deploys WETH, ExpressRelay, LiquidationAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
     The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
     @param pyth The address of the already deployed pyth contract to use
     */
@@ -98,8 +102,10 @@ contract VaultScript is Script {
         vm.startBroadcast(skDeployer);
         if (pyth == address(0)) pyth = deployMockPyth();
         if (weth == address(0)) weth = deployWeth();
-        (address per, address liquidationAdapter) = deployPER(weth);
-        address vault = deployVault(per, pyth);
+        (address expressRelay, address liquidationAdapter) = deployExpressRelay(
+            weth
+        );
+        address vault = deployVault(expressRelay, pyth);
         address[] memory tokens = new address[](5);
         uint256 lots_of_money = 10 ** 36;
         // Vault simulator assumes the token name is pyth pricefeed id in mainnet
@@ -139,7 +145,7 @@ contract VaultScript is Script {
         vm.stopBroadcast();
         string memory obj = "";
         vm.serializeAddress(obj, "tokens", tokens);
-        vm.serializeAddress(obj, "per", per);
+        vm.serializeAddress(obj, "per", expressRelay);
         vm.serializeAddress(obj, "liquidationAdapter", liquidationAdapter);
         vm.serializeAddress(obj, "oracle", pyth);
         vm.serializeAddress(obj, "tokenVault", vault);

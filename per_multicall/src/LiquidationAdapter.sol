@@ -3,9 +3,9 @@ pragma solidity ^0.8.13;
 
 import "./Errors.sol";
 import "./Structs.sol";
-import "./PERFeeReceiver.sol";
+import "./ExpressRelayFeeReceiver.sol";
 import "./SigVerify.sol";
-import "./PERMulticall.sol";
+import "./ExpressRelay.sol";
 import "./WETH9.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
@@ -13,30 +13,30 @@ import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 contract LiquidationAdapter is SigVerify {
-    address _perMulticall;
+    address _expressRelay;
     address _weth;
     mapping(bytes => bool) _signatureUsed;
 
     /**
      * @notice LiquidationAdapter constructor - Initializes a new liquidation adapter contract with given parameters
      *
-     * @param perMulticall: address of PER multicall
+     * @param expressRelay: address of express relay
      * @param weth: address of WETH contract
      */
-    constructor(address perMulticall, address weth) {
-        _perMulticall = perMulticall;
+    constructor(address expressRelay, address weth) {
+        _expressRelay = expressRelay;
         _weth = weth;
     }
 
     /**
-     * @notice getPERMulticall function - returns the address of the PER multicall
+     * @notice getExpressRelay function - returns the address of the express relay authenticated for calling this contract
      */
-    function getPERMulticall() public view returns (address) {
-        return _perMulticall;
+    function getExpressRelay() public view returns (address) {
+        return _expressRelay;
     }
 
     /**
-     * @notice getWeth function - returns the address of the WETH contract used by multicall
+     * @notice getWeth function - returns the address of the WETH contract used for wrapping and unwrapping ETH
      */
     function getWeth() public view returns (address) {
         return _weth;
@@ -58,22 +58,22 @@ contract LiquidationAdapter is SigVerify {
     function callLiquidation(
         LiquidationCallParams memory params
     ) public payable {
-        if (msg.sender != _perMulticall) {
+        if (msg.sender != _expressRelay) {
             revert Unauthorized();
         }
 
         bool validSignature = verifyCalldata(
             params.liquidator,
             abi.encode(
-                params.repayTokens,
-                params.expectedReceiptTokens,
+                params.sellTokens,
+                params.buyTokens,
                 params.contractAddress,
                 params.data,
                 params.value,
-                params.bid,
+                params.bidAmount,
                 params.validUntil
             ),
-            params.signatureLiquidator
+            params.signature
         );
         if (!validSignature) {
             revert InvalidSearcherSignature();
@@ -81,28 +81,28 @@ contract LiquidationAdapter is SigVerify {
         if (block.number > params.validUntil) {
             revert ExpiredSignature();
         }
-        if (_signatureUsed[params.signatureLiquidator]) {
+        if (_signatureUsed[params.signature]) {
             revert SignatureAlreadyUsed();
         }
 
         uint256[] memory balancesExpectedReceipt = new uint256[](
-            params.expectedReceiptTokens.length
+            params.buyTokens.length
         );
 
         address weth = getWeth();
         // transfer repay tokens to this contract
-        for (uint i = 0; i < params.repayTokens.length; i++) {
-            IERC20 token = IERC20(params.repayTokens[i].token);
+        for (uint i = 0; i < params.sellTokens.length; i++) {
+            IERC20 token = IERC20(params.sellTokens[i].token);
 
             token.transferFrom(
                 params.liquidator,
                 address(this),
-                params.repayTokens[i].amount
+                params.sellTokens[i].amount
             );
 
             // approve contract to spend repay tokens
-            uint256 approveAmount = params.repayTokens[i].amount;
-            if (params.repayTokens[i].token == weth) {
+            uint256 approveAmount = params.sellTokens[i].amount;
+            if (params.sellTokens[i].token == weth) {
                 if (approveAmount >= params.value) {
                     // we need `parmas.value` of to be sent to the contract directly
                     // so this amount should be subtracted from the approveAmount
@@ -115,9 +115,9 @@ contract LiquidationAdapter is SigVerify {
         }
 
         // get balances of receipt tokens before call
-        for (uint i = 0; i < params.expectedReceiptTokens.length; i++) {
-            IERC20 token = IERC20(params.expectedReceiptTokens[i].token);
-            uint256 amount = params.expectedReceiptTokens[i].amount;
+        for (uint i = 0; i < params.buyTokens.length; i++) {
+            IERC20 token = IERC20(params.buyTokens[i].token);
+            uint256 amount = params.buyTokens[i].amount;
 
             balancesExpectedReceipt[i] =
                 token.balanceOf(address(this)) +
@@ -139,9 +139,9 @@ contract LiquidationAdapter is SigVerify {
         }
 
         // check balances of receipt tokens after call and transfer to liquidator
-        for (uint i = 0; i < params.expectedReceiptTokens.length; i++) {
-            IERC20 token = IERC20(params.expectedReceiptTokens[i].token);
-            uint256 amount = params.expectedReceiptTokens[i].amount;
+        for (uint i = 0; i < params.buyTokens.length; i++) {
+            IERC20 token = IERC20(params.buyTokens[i].token);
+            uint256 amount = params.buyTokens[i].amount;
 
             uint256 balanceFinal = token.balanceOf(address(this));
             if (balanceFinal < balancesExpectedReceipt[i]) {
@@ -152,19 +152,18 @@ contract LiquidationAdapter is SigVerify {
             token.transfer(params.liquidator, amount);
         }
 
-        // transfer bid to PER adapter in the form of weth
+        // transfer bid to liquidation adapter in the form of weth
         WETH9(payable(weth)).transferFrom(
             params.liquidator,
             address(this),
-            params.bid
+            params.bidAmount
         );
         // unwrap weth to eth
-        WETH9(payable(weth)).withdraw(params.bid);
-        // transfer eth to PER multicall
-        payable(getPERMulticall()).transfer(params.bid);
+        WETH9(payable(weth)).withdraw(params.bidAmount);
+        payable(getExpressRelay()).transfer(params.bidAmount);
 
         // mark signature as used
-        _signatureUsed[params.signatureLiquidator] = true;
+        _signatureUsed[params.signature] = true;
     }
 
     receive() external payable {} // TODO: can we get rid of this? seems not but unsure why

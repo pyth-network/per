@@ -1,4 +1,4 @@
-# PER
+# Express Relay
 
 ## [Off-chain server](auction-server/README.md)
 

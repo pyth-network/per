@@ -18,7 +18,7 @@ struct Bid {
 contract AuctionManager {
     mapping(bytes32 => Bid) _bids;
     mapping(address => uint256) _feeConfig;
-    address _perOperator;
+    address _admin;
 
     function bid(bytes32 permissionKeyHash) public payable {
         Bid memory currentBid = _bids[permissionKeyHash];
@@ -35,12 +35,12 @@ contract AuctionManager {
     mapping(bytes32 => bool) _permissions;
 
     /**
-     * @notice constructor - Initializes a new auction manager with an operator used for setting the fees
+     * @notice constructor - Initializes a new auction manager with an admin used for setting the fees
      *
-     * @param perOperatorAddress: address of PER operator
+     * @param admin: admin of the auction manager
      */
-    constructor(address perOperatorAddress) {
-        _perOperator = perOperatorAddress;
+    constructor(address admin) {
+        _admin = admin;
     }
 
     function isPermissioned(
@@ -57,10 +57,7 @@ contract AuctionManager {
      * @param feeSplit: amount of fee to be split with the protocol. 10**18 is 100%
      */
     function setFee(address feeRecipient, uint256 feeSplit) public {
-        require(
-            msg.sender == _perOperator,
-            "only PER operator can set the fees"
-        );
+        require(msg.sender == _admin, "only the admin can set the fees");
         _feeConfig[feeRecipient] = feeSplit;
     }
 

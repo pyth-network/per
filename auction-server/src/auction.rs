@@ -67,13 +67,13 @@ use {
 };
 
 abigen!(
-    PER,
-    "../per_multicall/out/PERMulticall.sol/PERMulticall.json"
+    ExpressRelay,
+    "../per_multicall/out/ExpressRelay.sol/ExpressRelay.json"
 );
-pub type PERContract = PER<Provider<Http>>;
+pub type ExpressRelayContract = ExpressRelay<Provider<Http>>;
 pub type SignableProvider =
     TransformerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>, LegacyTxTransformer>;
-pub type SignablePERContract = PER<SignableProvider>;
+pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
 
 impl TryFrom<EthereumConfig> for Provider<Http> {
     type Error = anyhow::Error;
@@ -96,9 +96,9 @@ pub fn get_simulation_call(
     contracts: Vec<Address>,
     calldata: Vec<Bytes>,
     bids: Vec<U256>,
-) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<per::MulticallStatus>> {
+) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
-    let per_contract = PERContract::new(chain_config.per_contract, client);
+    let per_contract = ExpressRelayContract::new(chain_config.relay_contract, client);
 
     per_contract
         .multicall(permission, contracts, calldata, bids)
@@ -112,9 +112,7 @@ pub enum SimulationError {
 }
 
 
-pub fn evaluate_simulation_results(
-    results: Vec<per::MulticallStatus>,
-) -> Result<(), SimulationError> {
+pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), SimulationError> {
     let failed_result = results.iter().find(|x| !x.external_success);
     if let Some(call_status) = failed_result {
         return Err(SimulationError::LogicalError {
@@ -195,7 +193,7 @@ pub async fn submit_bids(
         transformer,
     ));
 
-    let per_contract = SignablePERContract::new(chain_config.per_contract, client);
+    let per_contract = SignableExpressRelayContract::new(chain_config.relay_contract, client);
     let call = per_contract.multicall(permission, contracts, calldata, bids);
     let mut gas_estimate = call
         .estimate_gas()

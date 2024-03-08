@@ -143,11 +143,7 @@ pub async fn verify_opportunity(
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();
-    for crate::state::TokenQty {
-        contract: token,
-        amount,
-    } in opportunity.repay_tokens.into_iter()
-    {
+    for crate::state::TokenAmount { token, amount } in opportunity.sell_tokens.into_iter() {
         let spoof_info = match token_spoof_info.get(&token) {
             Some(info) => info.clone(),
             None => {
@@ -196,7 +192,7 @@ pub async fn verify_opportunity(
     match MulticallReturn::decode(&result) {
         Ok(result) => {
             evaluate_simulation_results(result.multicall_statuses)
-                .map_err(|_| anyhow!("PER Simulation failed"))?;
+                .map_err(|_| anyhow!("Express Relay Simulation failed"))?;
         }
         Err(e) => return Err(anyhow!(format!("Error decoding multicall result: {:?}", e))),
     }
@@ -206,12 +202,12 @@ pub async fn verify_opportunity(
 fn get_liquidation_digest(params: liquidation_adapter::LiquidationCallParams) -> Result<H256> {
     // this should reflect the verifyCalldata function in the LiquidationAdapter contract
     let data = Bytes::from(abi::encode(&[
-        params.repay_tokens.into_token(),
-        params.expected_receipt_tokens.into_token(),
+        params.sell_tokens.into_token(),
+        params.buy_tokens.into_token(),
         params.contract_address.into_token(),
         params.data.into_token(),
         params.value.into_token(),
-        params.bid.into_token(),
+        params.bid_amount.into_token(),
         params.valid_until.into_token(),
     ]));
     let digest = H256(keccak256(data));
@@ -220,7 +216,7 @@ fn get_liquidation_digest(params: liquidation_adapter::LiquidationCallParams) ->
 
 pub fn verify_signature(params: liquidation_adapter::LiquidationCallParams) -> Result<()> {
     let digest = get_liquidation_digest(params.clone())?;
-    let signature = Signature::try_from(params.signature_liquidator.to_vec().as_slice())
+    let signature = Signature::try_from(params.signature.to_vec().as_slice())
         .map_err(|_x| anyhow!("Error reading signature"))?;
     let signer = signature
         .recover(RecoveryMessage::Hash(digest))
@@ -249,10 +245,10 @@ pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
     apdapter_decoded.or(erc20_decoded)
 }
 
-impl From<crate::state::TokenQty> for TokenQty {
-    fn from(token: crate::state::TokenQty) -> Self {
-        TokenQty {
-            token:  token.contract,
+impl From<crate::state::TokenAmount> for TokenAmount {
+    fn from(token: crate::state::TokenAmount) -> Self {
+        TokenAmount {
+            token:  token.token,
             amount: token.amount,
         }
     }
@@ -262,23 +258,23 @@ pub fn make_liquidator_params(
     bid: OpportunityBid,
 ) -> liquidation_adapter::LiquidationCallParams {
     liquidation_adapter::LiquidationCallParams {
-        repay_tokens:            opportunity
-            .repay_tokens
+        sell_tokens:      opportunity
+            .sell_tokens
             .into_iter()
-            .map(TokenQty::from)
+            .map(TokenAmount::from)
             .collect(),
-        expected_receipt_tokens: opportunity
-            .receipt_tokens
+        buy_tokens:       opportunity
+            .buy_tokens
             .into_iter()
-            .map(TokenQty::from)
+            .map(TokenAmount::from)
             .collect(),
-        liquidator:              bid.liquidator,
-        contract_address:        opportunity.contract,
-        data:                    opportunity.calldata,
-        value:                   opportunity.value,
-        valid_until:             bid.valid_until,
-        bid:                     bid.amount,
-        signature_liquidator:    bid.signature.to_vec().into(),
+        liquidator:       bid.liquidator,
+        contract_address: opportunity.contract,
+        data:             opportunity.calldata,
+        value:            opportunity.value,
+        valid_until:      bid.valid_until,
+        bid_amount:       bid.amount,
+        signature:        bid.signature.to_vec().into(),
     }
 }
 

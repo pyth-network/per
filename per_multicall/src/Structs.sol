@@ -17,8 +17,7 @@ struct Vault {
     bytes32 tokenIDDebt;
 }
 
-// TODO: rename
-struct TokenQty {
+struct TokenAmount {
     address token;
     uint256 amount;
 }
@@ -30,13 +29,13 @@ struct MulticallStatus {
 }
 
 struct LiquidationCallParams {
-    TokenQty[] repayTokens;
-    TokenQty[] expectedReceiptTokens;
+    TokenAmount[] sellTokens;
+    TokenAmount[] buyTokens;
     address liquidator;
     address contractAddress;
     bytes data;
     uint256 value;
     uint256 validUntil;
-    uint256 bid;
-    bytes signatureLiquidator;
+    uint256 bidAmount;
+    bytes signature;
 }

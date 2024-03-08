@@ -24,7 +24,7 @@ use {
             OpportunityParams,
             OpportunityParamsV1,
             Store,
-            TokenQty,
+            TokenAmount,
         },
     },
     anyhow::Result,
@@ -58,7 +58,7 @@ use {
 };
 
 async fn root() -> String {
-    format!("PER Auction Server API {}", crate_version!())
+    format!("Express Relay Auction Server API {}", crate_version!())
 }
 
 mod bid;
@@ -155,7 +155,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     OpportunityBid,
     OpportunityParams,
     OpportunityParamsWithMetadata,
-    TokenQty,
+    TokenAmount,
     BidResult,
     ErrorBodyResponse,
     ClientRequest,
@@ -171,7 +171,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ),
     ),
     tags(
-    (name = "PER Auction", description = "Pyth Express Relay Auction Server")
+    (name = "Express Relay Auction Server", description = "Auction Server handles all the necessary communications\
+    between searchers and protocols. It conducts the auctions and submits the winning bids on chain.")
     )
     )]
     struct ApiDoc;

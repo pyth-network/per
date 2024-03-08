@@ -53,14 +53,14 @@ pub struct SimulatedBid {
 pub type UnixTimestamp = i64;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
-pub struct TokenQty {
+pub struct TokenAmount {
     /// Token contract address
     #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",value_type=String)]
-    pub contract: ethers::abi::Address,
+    pub token:  ethers::abi::Address,
     /// Token amount
     #[schema(example = "1000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
-    pub amount:   U256,
+    pub amount: U256,
 }
 
 /// Opportunity parameters needed for on-chain execution
@@ -86,8 +86,8 @@ pub struct OpportunityParamsV1 {
     #[serde(with = "crate::serde::u256")]
     pub value:          U256,
 
-    pub repay_tokens:   Vec<TokenQty>,
-    pub receipt_tokens: Vec<TokenQty>,
+    pub sell_tokens: Vec<TokenAmount>,
+    pub buy_tokens:  Vec<TokenAmount>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]

@@ -25,8 +25,8 @@ contract Signatures is Test, SigVerify {
     }
 
     function createLiquidationSignature(
-        TokenQty[] memory repayTokens,
-        TokenQty[] memory expectedReceiptTokens,
+        TokenAmount[] memory repayTokens,
+        TokenAmount[] memory expectedReceiptTokens,
         address contractAddress,
         bytes memory data,
         uint256 value,
