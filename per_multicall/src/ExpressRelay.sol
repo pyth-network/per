@@ -79,13 +79,13 @@ contract ExpressRelay {
      * @notice multicall function - performs a number of calls to external contracts in order
      *
      * @param permissionKey: permission to allow for this call
-     * @param contracts: ordered list of contracts to call into
+     * @param targetContracts: ordered list of contracts to call into
      * @param data: ordered list of calldata to call with
      * @param bidAmounts: ordered list of bids; call i will fail if it does not send this contract at least bid i
      */
     function multicall(
         bytes calldata permissionKey,
-        address[] calldata contracts,
+        address[] calldata targetContracts,
         bytes[] calldata data,
         uint256[] calldata bidAmounts
     ) public payable returns (MulticallStatus[] memory multicallStatuses) {
@@ -102,10 +102,9 @@ contract ExpressRelay {
         uint256 totalBid = 0;
         for (uint256 i = 0; i < data.length; i++) {
             // try/catch will revert if call to searcher fails or if bid conditions not met
-            try this.callWithBid(contracts[i], data[i], bidAmounts[i]) returns (
-                bool success,
-                bytes memory result
-            ) {
+            try
+                this.callWithBid(targetContracts[i], data[i], bidAmounts[i])
+            returns (bool success, bytes memory result) {
                 multicallStatuses[i].externalSuccess = success;
                 multicallStatuses[i].externalResult = result;
             } catch Error(string memory reason) {
@@ -143,18 +142,18 @@ contract ExpressRelay {
     /**
      * @notice callWithBid function - contained call to function with check for bid invariant
      *
-     * @param contractAddress: contract address to call into
+     * @param targetContract: contract address to call into
      * @param data: calldata to call with
      * @param bid: bid to be paid; call will fail if it does not send this contract at least bid,
      */
     function callWithBid(
-        address contractAddress,
+        address targetContract,
         bytes calldata data,
         uint256 bid
     ) public payable returns (bool, bytes memory) {
         uint256 balanceInitEth = address(this).balance;
 
-        (bool success, bytes memory result) = contractAddress.call(data);
+        (bool success, bytes memory result) = targetContract.call(data);
 
         if (success) {
             uint256 balanceFinalEth = address(this).balance;

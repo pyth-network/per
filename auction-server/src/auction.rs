@@ -93,7 +93,7 @@ pub fn get_simulation_call(
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission: Bytes,
-    contracts: Vec<Address>,
+    target_contracts: Vec<Address>,
     calldata: Vec<Bytes>,
     bids: Vec<U256>,
 ) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
@@ -101,7 +101,7 @@ pub fn get_simulation_call(
     let per_contract = ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
     per_contract
-        .multicall(permission, contracts, calldata, bids)
+        .multicall(permission, target_contracts, calldata, bids)
         .from(relayer)
 }
 
@@ -127,7 +127,7 @@ pub async fn simulate_bids(
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission: Bytes,
-    contracts: Vec<Address>,
+    target_contracts: Vec<Address>,
     calldata: Vec<Bytes>,
     bids: Vec<U256>,
 ) -> Result<(), SimulationError> {
@@ -136,7 +136,7 @@ pub async fn simulate_bids(
         provider,
         chain_config,
         permission,
-        contracts,
+        target_contracts,
         calldata,
         bids,
     );
