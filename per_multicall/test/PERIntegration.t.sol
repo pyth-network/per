@@ -535,21 +535,20 @@ contract PERIntegrationTest is
                 bidInfos[i].validUntil,
                 bidInfos[i].liquidatorSk
             );
-            LiquidationCallParams
-                memory liquidationCallParams = LiquidationCallParams(
-                    repayTokens,
-                    expectedReceiptTokens,
-                    bidInfos[i].liquidator,
-                    contractAddress,
-                    calldataVault,
-                    value,
-                    bidInfos[i].validUntil,
-                    bidInfos[i].bid,
-                    signatureLiquidator
-                );
+            ExecutionParams memory liquidationCallParams = ExecutionParams(
+                repayTokens,
+                expectedReceiptTokens,
+                bidInfos[i].liquidator,
+                contractAddress,
+                calldataVault,
+                value,
+                bidInfos[i].validUntil,
+                bidInfos[i].bid,
+                signatureLiquidator
+            );
 
             data[i] = abi.encodeWithSelector(
-                liquidationAdapter.callLiquidation.selector,
+                liquidationAdapter.executeOpportunity.selector,
                 liquidationCallParams
             );
         }

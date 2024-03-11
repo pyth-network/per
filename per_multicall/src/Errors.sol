@@ -29,7 +29,7 @@ error InvalidTimestamp();
 error NotRegistered();
 
 // Signature: 0xd3c8346c
-error LiquidationCallFailed(string reason);
+error FulfillFailed(string reason);
 
 // Signature: 0x4af147aa
 error InsufficientTokenReceived();

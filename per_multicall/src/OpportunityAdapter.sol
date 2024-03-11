@@ -18,7 +18,7 @@ contract OpportunityAdapter is SigVerify {
     mapping(bytes => bool) _signatureUsed;
 
     /**
-     * @notice OpportunityAdapter constructor - Initializes a new liquidation adapter contract with given parameters
+     * @notice OpportunityAdapter constructor - Initializes a new opportunity adapter contract with given parameters
      *
      * @param expressRelay: address of express relay
      * @param weth: address of WETH contract
@@ -55,19 +55,17 @@ contract OpportunityAdapter is SigVerify {
         return abi.decode(_returnData, (string)); // All that remains is the revert string
     }
 
-    function callLiquidation(
-        LiquidationCallParams memory params
-    ) public payable {
+    function executeOpportunity(ExecutionParams memory params) public payable {
         if (msg.sender != _expressRelay) {
             revert Unauthorized();
         }
 
         bool validSignature = verifyCalldata(
-            params.liquidator,
+            params.executor,
             abi.encode(
                 params.sellTokens,
                 params.buyTokens,
-                params.contractAddress,
+                params.target,
                 params.data,
                 params.value,
                 params.bidAmount,
@@ -95,7 +93,7 @@ contract OpportunityAdapter is SigVerify {
             IERC20 token = IERC20(params.sellTokens[i].token);
 
             token.transferFrom(
-                params.liquidator,
+                params.executor,
                 address(this),
                 params.sellTokens[i].amount
             );
@@ -111,7 +109,7 @@ contract OpportunityAdapter is SigVerify {
                     revert InsufficientWETHForMsgValue();
                 }
             }
-            token.approve(params.contractAddress, approveAmount);
+            token.approve(params.target, approveAmount);
         }
 
         // get balances of receipt tokens before call
@@ -129,16 +127,16 @@ contract OpportunityAdapter is SigVerify {
             WETH9(payable(weth)).withdraw(params.value);
         }
 
-        (bool success, bytes memory reason) = params.contractAddress.call{
+        (bool success, bytes memory reason) = params.target.call{
             value: params.value
         }(params.data);
 
         if (!success) {
             string memory revertData = _getRevertMsg(reason);
-            revert LiquidationCallFailed(revertData);
+            revert FulfillFailed(revertData);
         }
 
-        // check balances of receipt tokens after call and transfer to liquidator
+        // check balances of receipt tokens after call and transfer to opportunity adapter
         for (uint i = 0; i < params.buyTokens.length; i++) {
             IERC20 token = IERC20(params.buyTokens[i].token);
             uint256 amount = params.buyTokens[i].amount;
@@ -148,13 +146,13 @@ contract OpportunityAdapter is SigVerify {
                 revert InsufficientTokenReceived();
             }
 
-            // transfer receipt tokens to liquidator
-            token.transfer(params.liquidator, amount);
+            // transfer receipt tokens to the fulfiller
+            token.transfer(params.executor, amount);
         }
 
-        // transfer bid to liquidation adapter in the form of weth
+        // transfer bid to opportunity adapter in the form of weth
         WETH9(payable(weth)).transferFrom(
-            params.liquidator,
+            params.executor,
             address(this),
             params.bidAmount
         );

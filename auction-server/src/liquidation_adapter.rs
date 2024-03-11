@@ -83,7 +83,7 @@ use {
 };
 
 abigen!(
-    LiquidationAdapter,
+    OpportunityAdapter,
     "../per_multicall/out/OpportunityAdapter.sol/OpportunityAdapter.json"
 );
 abigen!(ERC20, "../per_multicall/out/ERC20.sol/ERC20.json");
@@ -118,21 +118,21 @@ pub async fn verify_opportunity(
         },
     };
 
-    let digest = get_liquidation_digest(make_liquidator_params(
+    let digest = get_params_digest(make_opportunity_execution_params(
         opportunity.clone(),
         fake_bid.clone(),
     ))?;
     let signature = fake_wallet.sign_hash(digest)?;
     fake_bid.signature = signature;
-    let params = make_liquidator_params(opportunity.clone(), fake_bid.clone());
-    let per_calldata = LiquidationAdapter::new(
+    let params = make_opportunity_execution_params(opportunity.clone(), fake_bid.clone());
+    let per_calldata = OpportunityAdapter::new(
         chain_store.config.opportunity_adapter_contract,
         client.clone(),
     )
-    .call_liquidation(params)
+    .execute_opportunity(params)
     .calldata()
     .ok_or(anyhow!(
-        "Failed to generate calldata for liquidation adapter"
+        "Failed to generate calldata for opportunity adapter"
     ))?;
 
     let call = get_simulation_call(
@@ -203,12 +203,12 @@ pub async fn verify_opportunity(
     Ok(VerificationResult::Success)
 }
 
-fn get_liquidation_digest(params: liquidation_adapter::LiquidationCallParams) -> Result<H256> {
+fn get_params_digest(params: ExecutionParams) -> Result<H256> {
     // this should reflect the verifyCalldata function in the LiquidationAdapter contract
     let data = Bytes::from(abi::encode(&[
         params.sell_tokens.into_token(),
         params.buy_tokens.into_token(),
-        params.contract_address.into_token(),
+        params.target.into_token(),
         params.data.into_token(),
         params.value.into_token(),
         params.bid_amount.into_token(),
@@ -218,32 +218,30 @@ fn get_liquidation_digest(params: liquidation_adapter::LiquidationCallParams) ->
     Ok(digest)
 }
 
-pub fn verify_signature(params: liquidation_adapter::LiquidationCallParams) -> Result<()> {
-    let digest = get_liquidation_digest(params.clone())?;
+pub fn verify_signature(params: ExecutionParams) -> Result<()> {
+    let digest = get_params_digest(params.clone())?;
     let signature = Signature::try_from(params.signature.to_vec().as_slice())
         .map_err(|_x| anyhow!("Error reading signature"))?;
     let signer = signature
         .recover(RecoveryMessage::Hash(digest))
         .map_err(|x| anyhow!(x.to_string()))?;
-    let is_matched = signer == params.liquidator;
+    let is_matched = signer == params.executor;
     is_matched.then_some(()).ok_or_else(|| {
         anyhow!(format!(
             "Invalid signature. Expected signer: {}, Got: {}",
-            params.liquidator, signer
+            params.executor, signer
         ))
     })
 }
 
 pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
-    let apdapter_decoded = liquidation_adapter::LiquidationAdapterErrors::decode_with_selector(
-        revert,
-    )
-    .map(|decoded_error| {
-        format!(
-            "Liquidation Adapter Contract Revert Error: {:#?}",
-            decoded_error
-        )
-    });
+    let apdapter_decoded =
+        OpportunityAdapterErrors::decode_with_selector(revert).map(|decoded_error| {
+            format!(
+                "Liquidation Adapter Contract Revert Error: {:#?}",
+                decoded_error
+            )
+        });
     let erc20_decoded = erc20::ERC20Errors::decode_with_selector(revert)
         .map(|decoded_error| format!("ERC20 Contract Revert Error: {:#?}", decoded_error));
     apdapter_decoded.or(erc20_decoded)
@@ -257,28 +255,28 @@ impl From<crate::state::TokenAmount> for TokenAmount {
         }
     }
 }
-pub fn make_liquidator_params(
+pub fn make_opportunity_execution_params(
     opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
-) -> liquidation_adapter::LiquidationCallParams {
-    liquidation_adapter::LiquidationCallParams {
-        sell_tokens:      opportunity
+) -> ExecutionParams {
+    ExecutionParams {
+        sell_tokens: opportunity
             .sell_tokens
             .into_iter()
             .map(TokenAmount::from)
             .collect(),
-        buy_tokens:       opportunity
+        buy_tokens:  opportunity
             .buy_tokens
             .into_iter()
             .map(TokenAmount::from)
             .collect(),
-        liquidator:       bid.liquidator,
-        contract_address: opportunity.contract,
-        data:             opportunity.calldata,
-        value:            opportunity.value,
-        valid_until:      bid.valid_until,
-        bid_amount:       bid.amount,
-        signature:        bid.signature.to_vec().into(),
+        executor:    bid.liquidator,
+        target:      opportunity.contract,
+        data:        opportunity.calldata,
+        value:       opportunity.value,
+        valid_until: bid.valid_until,
+        bid_amount:  bid.amount,
+        signature:   bid.signature.to_vec().into(),
     }
 }
 
@@ -288,12 +286,12 @@ pub async fn make_liquidator_calldata(
     provider: Provider<Http>,
     adapter_contract: Address,
 ) -> Result<Bytes> {
-    let params = make_liquidator_params(opportunity, bid);
+    let params = make_opportunity_execution_params(opportunity, bid);
     verify_signature(params.clone())?;
 
     let client = Arc::new(provider);
-    let calldata = LiquidationAdapter::new(adapter_contract, client.clone())
-        .call_liquidation(params)
+    let calldata = OpportunityAdapter::new(adapter_contract, client.clone())
+        .execute_opportunity(params)
         .calldata()
         .ok_or(anyhow!(
             "Failed to generate calldata for liquidation adapter"

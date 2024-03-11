@@ -28,11 +28,11 @@ struct MulticallStatus {
     string multicallRevertReason;
 }
 
-struct LiquidationCallParams {
+struct ExecutionParams {
     TokenAmount[] sellTokens;
     TokenAmount[] buyTokens;
-    address liquidator;
-    address contractAddress;
+    address executor;
+    address target;
     bytes data;
     uint256 value;
     uint256 validUntil;
