@@ -40,13 +40,14 @@ use {
 };
 
 pub type PermissionKey = Bytes;
+pub type BidAmount = U256;
 
 #[derive(Clone)]
 pub struct SimulatedBid {
-    pub id:       BidId,
-    pub contract: Address,
-    pub calldata: Bytes,
-    pub bid:      U256,
+    pub id:         BidId,
+    pub contract:   Address,
+    pub calldata:   Bytes,
+    pub bid_amount: BidAmount,
     // simulation_time:
 }
 

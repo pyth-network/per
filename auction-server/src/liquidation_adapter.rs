@@ -13,6 +13,7 @@ use {
             SHOULD_EXIT,
         },
         state::{
+            BidAmount,
             ChainStore,
             LiquidationOpportunity,
             OpportunityId,
@@ -390,7 +391,7 @@ pub struct OpportunityBid {
     /// The bid amount in wei.
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
-    pub amount:         U256,
+    pub amount:         BidAmount,
     /// How long the bid will be valid for.
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
