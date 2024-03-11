@@ -12,8 +12,8 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 contract ExpressRelay {
     event ReceivedETH(address sender, uint256 amount);
 
-    // TODO: separate the notion of relayer and admin.
-    // Relayer can submit transactions, admin can change relayer and set fees
+    // TODO: separate the notion operator into relayer and admin.
+    // TODO: Relayer can submit transactions, admin can change relayers and set fees
     address _operator;
     mapping(address => uint256) _feeConfig;
     mapping(bytes32 => bool) _permissions;
@@ -38,10 +38,13 @@ contract ExpressRelay {
     }
 
     function isPermissioned(
-        address protocol,
+        address protocolFeeReceiver,
         bytes calldata permissionId
     ) public view returns (bool permissioned) {
-        return _permissions[keccak256(abi.encode(protocol, permissionId))];
+        return
+            _permissions[
+                keccak256(abi.encode(protocolFeeReceiver, permissionId))
+            ];
     }
 
     /**

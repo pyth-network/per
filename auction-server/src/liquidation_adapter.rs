@@ -83,7 +83,7 @@ use {
 
 abigen!(
     LiquidationAdapter,
-    "../per_multicall/out/LiquidationAdapter.sol/LiquidationAdapter.json"
+    "../per_multicall/out/OpportunityAdapter.sol/OpportunityAdapter.json"
 );
 abigen!(ERC20, "../per_multicall/out/ERC20.sol/ERC20.json");
 abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
@@ -124,19 +124,22 @@ pub async fn verify_opportunity(
     let signature = fake_wallet.sign_hash(digest)?;
     fake_bid.signature = signature;
     let params = make_liquidator_params(opportunity.clone(), fake_bid.clone());
-    let per_calldata = LiquidationAdapter::new(chain_store.config.adapter_contract, client.clone())
-        .call_liquidation(params)
-        .calldata()
-        .ok_or(anyhow!(
-            "Failed to generate calldata for liquidation adapter"
-        ))?;
+    let per_calldata = LiquidationAdapter::new(
+        chain_store.config.opportunity_adapter_contract,
+        client.clone(),
+    )
+    .call_liquidation(params)
+    .calldata()
+    .ok_or(anyhow!(
+        "Failed to generate calldata for liquidation adapter"
+    ))?;
 
     let call = get_simulation_call(
         relayer,
         chain_store.provider.clone(),
         chain_store.config.clone(),
         opportunity.permission_key,
-        vec![chain_store.config.adapter_contract],
+        vec![chain_store.config.opportunity_adapter_contract],
         vec![per_calldata],
         vec![fake_bid.amount],
     )
@@ -177,7 +180,7 @@ pub async fn verify_opportunity(
 
                 let allowance_storage_key = token_spoof::calculate_allowance_storage_key(
                     fake_wallet.address(),
-                    chain_store.config.adapter_contract,
+                    chain_store.config.opportunity_adapter_contract,
                     allowance_slot,
                 );
                 let value: [u8; 32] = amount.into();
@@ -438,7 +441,7 @@ pub async fn handle_liquidation_bid(
         params.clone(),
         opportunity_bid.clone(),
         chain_store.provider.clone(),
-        chain_store.config.adapter_contract,
+        chain_store.config.opportunity_adapter_contract,
     )
     .await
     .map_err(|e| RestError::BadParameters(e.to_string()))?;
@@ -447,7 +450,7 @@ pub async fn handle_liquidation_bid(
         Bid {
             permission_key: params.permission_key.clone(),
             chain_id:       params.chain_id.clone(),
-            contract:       chain_store.config.adapter_contract,
+            contract:       chain_store.config.opportunity_adapter_contract,
             calldata:       per_calldata,
             amount:         opportunity_bid.amount,
         },

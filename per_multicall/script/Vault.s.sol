@@ -10,7 +10,7 @@ import "forge-std/StdMath.sol";
 import {TokenVault} from "../src/TokenVault.sol";
 import {SearcherVault} from "../src/SearcherVault.sol";
 import {ExpressRelay} from "../src/ExpressRelay.sol";
-import {LiquidationAdapter} from "../src/LiquidationAdapter.sol";
+import {OpportunityAdapter} from "../src/OpportunityAdapter.sol";
 import {MyToken} from "../src/MyToken.sol";
 import "../src/Structs.sol";
 import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
@@ -50,7 +50,7 @@ contract VaultScript is Script {
         payable(operatorAddress).transfer(0.01 ether);
         ExpressRelay multicall = new ExpressRelay(operatorAddress, 0);
         console.log("deployed ExpressRelay contract at", address(multicall));
-        LiquidationAdapter liquidationAdapter = new LiquidationAdapter(
+        OpportunityAdapter liquidationAdapter = new OpportunityAdapter(
             address(multicall),
             wethAddress
         );
@@ -93,7 +93,7 @@ contract VaultScript is Script {
 
     /**
     @notice Sets up the testnet environment
-    deploys WETH, ExpressRelay, LiquidationAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
+    deploys WETH, ExpressRelay, OpportunityAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
     The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
     @param pyth The address of the already deployed pyth contract to use
     */
@@ -155,7 +155,7 @@ contract VaultScript is Script {
 
     /**
     @notice Sets up the localnet environment for testing purposes
-    deploys WETH, PER, LiquidationAdapter, MockPyth, TokenVault and 2 ERC-20 tokens to use as collateral and debt tokens
+    deploys WETH, PER, OpportunityAdapter, MockPyth, TokenVault and 2 ERC-20 tokens to use as collateral and debt tokens
     Also creates and funds searcher wallets and contracts
     */
     function setUpLocalnet() public {
@@ -530,13 +530,13 @@ contract VaultScript is Script {
         );
     }
 
-    function tryLiquidationAdapterContract() public view returns (address) {
+    function tryOpportunityAdapterContract() public view returns (address) {
         string memory json = vm.readFile(latestEnvironmentPath);
         address liquidationAdapter = vm.parseJsonAddress(
             json,
             ".liquidationAdapter"
         );
-        return LiquidationAdapter(payable(liquidationAdapter)).getWeth();
+        return OpportunityAdapter(payable(liquidationAdapter)).getWeth();
     }
 
     function setUpHappyPath() public {

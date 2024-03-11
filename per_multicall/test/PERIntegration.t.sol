@@ -10,7 +10,7 @@ import {TokenVault} from "../src/TokenVault.sol";
 import {SearcherVault} from "../src/SearcherVault.sol";
 import {ExpressRelay} from "../src/ExpressRelay.sol";
 import {WETH9} from "../src/WETH9.sol";
-import {LiquidationAdapter} from "../src/LiquidationAdapter.sol";
+import {OpportunityAdapter} from "../src/OpportunityAdapter.sol";
 import {MyToken} from "../src/MyToken.sol";
 import "../src/Errors.sol";
 import "../src/TokenVaultErrors.sol";
@@ -32,10 +32,10 @@ import "./helpers/MulticallHelpers.sol";
  * @title ExpressRelayIntegrationTest
  *
  * ExpressRelayIntegrationTest is a contract that tests the integration of the various contracts in the ExpressRelay stack.
- * This includes the ExpressRelay entrypoint contract for all relay interactions, the TokenVault dummy lending protocol contract, individual searcher contracts programmed to perform liquidations, the LiquidationAdapter contract used to facilitate liquidations directly from searcher EOAs, and the relevant token contracts.
- * We test the integration of these contracts by creating vaults in the TokenVault protocol, simulating undercollateralization of these vaults to trigger liquidations, constructing the necessary liquidation data, and then calling liquidation through LiquidationAdapter or the searcher contracts.
+ * This includes the ExpressRelay entrypoint contract for all relay interactions, the TokenVault dummy lending protocol contract, individual searcher contracts programmed to perform liquidations, the OpportunityAdapter contract used to facilitate liquidations directly from searcher EOAs, and the relevant token contracts.
+ * We test the integration of these contracts by creating vaults in the TokenVault protocol, simulating undercollateralization of these vaults to trigger liquidations, constructing the necessary liquidation data, and then calling liquidation through OpportunityAdapter or the searcher contracts.
  *
- * The focus in these tests is ensuring that liquidation succeeds (or fails as expected) through the ExpressRelay contrct routing to the searcher contracts or the LiquidationAdapter contract.
+ * The focus in these tests is ensuring that liquidation succeeds (or fails as expected) through the ExpressRelay contrct routing to the searcher contracts or the OpportunityAdapter contract.
  */
 contract PERIntegrationTest is
     Test,
@@ -49,7 +49,7 @@ contract PERIntegrationTest is
     SearcherVault public searcherB;
     ExpressRelay public expressRelay;
     WETH9 public weth;
-    LiquidationAdapter public liquidationAdapter;
+    OpportunityAdapter public liquidationAdapter;
     MockPyth public mockPyth;
 
     MyToken public token1;
@@ -108,7 +108,7 @@ contract PERIntegrationTest is
      * @notice setUp function - sets up the contracts, wallets, tokens, oracle feeds, and vaults for the test
      *
      * This function creates the entire environment for the start of each test. It is called before each test.
-     * This function creates the ExpressRelay, WETH9, LiquidationAdapter, MockPyth, TokenVault, SearcherVault, and two ERC-20 token contracts. The two ERC-20 tokens are used as collateral and debt tokens for the vaults that will be created.
+     * This function creates the ExpressRelay, WETH9, OpportunityAdapter, MockPyth, TokenVault, SearcherVault, and two ERC-20 token contracts. The two ERC-20 tokens are used as collateral and debt tokens for the vaults that will be created.
      * It also sets up the initial token amounts for the depositor, searcher A, searcher B, and the token vault. Additionally, it sets the initial oracle prices for the tokens.
      * The function then sets up two vaults in the TokenVault contract. Each vault's collateral and debt tokens are set, as well as the amounts of each token in the vault. Based on the amounts in the vault and the initial token prices, we back out the liquidation threshold prices--these are used later in the tests to set prices that trigger liquidation.
      * Finally, the function funds the searcher wallets with Eth and tokens. It also creates the allowances from the searchers' wallets to the liquidation adapter to use the searcher wallets' tokens and weth to liquidate vaults.
@@ -142,7 +142,7 @@ contract PERIntegrationTest is
     /**
      * @notice setUpContracts function - sets up the contracts for the test
      *
-     * Sets up the ExpressRelay, WETH9, LiquidationAdapter, MockPyth, TokenVault, SearcherVault, and ERC-20 token contracts
+     * Sets up the ExpressRelay, WETH9, OpportunityAdapter, MockPyth, TokenVault, SearcherVault, and ERC-20 token contracts
      */
     function setUpContracts() public {
         // instantiate multicall contract with ExpressRelay operator as the deployer
@@ -156,7 +156,7 @@ contract PERIntegrationTest is
         weth = new WETH9();
 
         vm.prank(perOperatorAddress, perOperatorAddress);
-        liquidationAdapter = new LiquidationAdapter(
+        liquidationAdapter = new OpportunityAdapter(
             address(expressRelay),
             address(weth)
         );
@@ -478,9 +478,9 @@ contract PERIntegrationTest is
     }
 
     /**
-     * @notice getMulticallInfoLiquidationAdapter function - creates necessary permission and data for multicall to liquidation adapter contract
+     * @notice getMulticallInfoOpportunityAdapter function - creates necessary permission and data for multicall to liquidation adapter contract
      */
-    function getMulticallInfoLiquidationAdapter(
+    function getMulticallInfoOpportunityAdapter(
         uint256 vaultNumber,
         BidInfo[] memory bidInfos
     ) public returns (bytes memory permission, bytes[] memory data) {
@@ -961,7 +961,7 @@ contract PERIntegrationTest is
         assertFailedMulticall(multicallStatuses[0], "invalid bid");
     }
 
-    function testLiquidateLiquidationAdapter() public {
+    function testLiquidateOpportunityAdapter() public {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
@@ -973,7 +973,7 @@ contract PERIntegrationTest is
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
+        ) = getMulticallInfoOpportunityAdapter(vaultNumber, bidInfos);
 
         AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
@@ -1017,7 +1017,7 @@ contract PERIntegrationTest is
         );
     }
 
-    function testLiquidateLiquidationAdapterFailInvalidSignature() public {
+    function testLiquidateOpportunityAdapterFailInvalidSignature() public {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
@@ -1030,7 +1030,7 @@ contract PERIntegrationTest is
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
+        ) = getMulticallInfoOpportunityAdapter(vaultNumber, bidInfos);
 
         AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
@@ -1063,7 +1063,7 @@ contract PERIntegrationTest is
         );
     }
 
-    function testLiquidateLiquidationAdapterFailExpiredSignature() public {
+    function testLiquidateOpportunityAdapterFailExpiredSignature() public {
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
@@ -1076,7 +1076,7 @@ contract PERIntegrationTest is
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
+        ) = getMulticallInfoOpportunityAdapter(vaultNumber, bidInfos);
 
         AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
@@ -1124,7 +1124,7 @@ contract PERIntegrationTest is
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoLiquidationAdapter(vaultNumber, bidInfos);
+        ) = getMulticallInfoOpportunityAdapter(vaultNumber, bidInfos);
 
         AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,

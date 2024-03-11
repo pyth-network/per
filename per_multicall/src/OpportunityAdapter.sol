@@ -12,13 +12,13 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-contract LiquidationAdapter is SigVerify {
+contract OpportunityAdapter is SigVerify {
     address _expressRelay;
     address _weth;
     mapping(bytes => bool) _signatureUsed;
 
     /**
-     * @notice LiquidationAdapter constructor - Initializes a new liquidation adapter contract with given parameters
+     * @notice OpportunityAdapter constructor - Initializes a new liquidation adapter contract with given parameters
      *
      * @param expressRelay: address of express relay
      * @param weth: address of WETH contract

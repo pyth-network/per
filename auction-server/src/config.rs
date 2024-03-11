@@ -83,8 +83,8 @@ pub struct EthereumConfig {
     /// Address of the express relay contract to interact with.
     pub express_relay_contract: Address,
 
-    /// Address of the adapter contract to interact with.
-    pub adapter_contract: Address,
+    /// Address of the opportunity adapter contract to interact with.
+    pub opportunity_adapter_contract: Address,
 
     /// Use the legacy transaction format (for networks without EIP 1559)
     #[serde(default)]
