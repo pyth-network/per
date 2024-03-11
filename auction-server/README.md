@@ -13,12 +13,12 @@ Simply run `cargo build` and `cargo test` to build and test the project.
 To start an instance of the webserver for local testing, you first need to perform a few setup steps:
 
 1. Edit `config.yaml` to point to the desired blockchains and Express Relay contracts. You can use `config.sample.yaml` as a template.
-2. Generate a secret key to be used for the Express Relay operator. The Express Relay contract should be deployed with this address as the operator.
+2. Generate a secret key to be used for relaying the bids. The Express Relay contract should be deployed with this address as the relayer.
 
 Once you've completed the setup, simply run the following command, using the secret from step (2).
 
 ```bash
-cargo run -- run --per-private-key <per-operator-private-key-in-hex-format>
+cargo run -- run --relayer-private-key <relayer-private-key-in-hex-format>
 ```
 
 This command will start the webservice on `localhost:9000`.

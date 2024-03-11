@@ -12,6 +12,8 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 contract ExpressRelay {
     event ReceivedETH(address sender, uint256 amount);
 
+    // TODO: separate the notion of relayer and admin.
+    // Relayer can submit transactions, admin can change relayer and set fees
     address _operator;
     mapping(address => uint256) _feeConfig;
     mapping(bytes32 => bool) _permissions;

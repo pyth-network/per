@@ -38,10 +38,10 @@ pub struct RunOptions {
     #[command(flatten)]
     pub config: ConfigOptions,
 
-    /// A 20-byte (40 char) hex encoded Ethereum private key which is the express relay operator.
-    #[arg(long = "relay-private-key")]
-    #[arg(env = "RELAY_PRIVATE_KEY")]
-    pub relay_private_key: String,
+    /// A 20-byte (40 char) hex encoded Ethereum private key which is used for relaying the bids.
+    #[arg(long = "relayer-private-key")]
+    #[arg(env = "RELAYER_PRIVATE_KEY")]
+    pub relayer_private_key: String,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -81,7 +81,7 @@ pub struct EthereumConfig {
     pub poll_interval: u64,
 
     /// Address of the express relay contract to interact with.
-    pub relay_contract: Address,
+    pub express_relay_contract: Address,
 
     /// Address of the adapter contract to interact with.
     pub adapter_contract: Address,

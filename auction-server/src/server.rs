@@ -61,7 +61,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         )
     })?;
 
-    let wallet = run_options.relay_private_key.parse::<LocalWallet>()?;
+    let wallet = run_options.relayer_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {}", wallet.address().to_string());
 
     let chain_store: anyhow::Result<HashMap<ChainId, ChainStore>> = join_all(
@@ -105,7 +105,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             bids_status:  Default::default(),
             event_sender: broadcast_sender.clone(),
         },
-        per_operator:      wallet,
+        relayer:           wallet,
         ws:                ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
             broadcast_sender,

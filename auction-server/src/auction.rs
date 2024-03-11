@@ -89,7 +89,7 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
 }
 
 pub fn get_simulation_call(
-    per_operator: Address,
+    relayer: Address,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission: Bytes,
@@ -98,11 +98,11 @@ pub fn get_simulation_call(
     bids: Vec<U256>,
 ) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
-    let per_contract = ExpressRelayContract::new(chain_config.relay_contract, client);
+    let per_contract = ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
     per_contract
         .multicall(permission, contracts, calldata, bids)
-        .from(per_operator)
+        .from(relayer)
 }
 
 
@@ -123,7 +123,7 @@ pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), 
     Ok(())
 }
 pub async fn simulate_bids(
-    per_operator: Address,
+    relayer: Address,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission: Bytes,
@@ -132,7 +132,7 @@ pub async fn simulate_bids(
     bids: Vec<U256>,
 ) -> Result<(), SimulationError> {
     let call = get_simulation_call(
-        per_operator,
+        relayer,
         provider,
         chain_config,
         permission,
@@ -193,7 +193,8 @@ pub async fn submit_bids(
         transformer,
     ));
 
-    let per_contract = SignableExpressRelayContract::new(chain_config.relay_contract, client);
+    let per_contract =
+        SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
     let call = per_contract.multicall(permission, contracts, calldata, bids);
     let mut gas_estimate = call
         .estimate_gas()
@@ -236,7 +237,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                         // keep the highest bid for now
                         let winner_bids = &cloned_bids[..1].to_vec();
                         let submission = submit_bids(
-                            store.per_operator.clone(),
+                            store.relayer.clone(),
                             chain_store.provider.clone(),
                             chain_store.config.clone(),
                             chain_store.network_id,
@@ -305,7 +306,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
     let call = simulate_bids(
-        store.per_operator.address(),
+        store.relayer.address(),
         chain_store.provider.clone(),
         chain_store.config.clone(),
         bid.permission_key.clone(),

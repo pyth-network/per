@@ -168,6 +168,6 @@ pub struct Store {
     pub chains:            HashMap<ChainId, ChainStore>,
     pub bid_status_store:  BidStatusStore,
     pub liquidation_store: LiquidationStore,
-    pub per_operator:      LocalWallet,
+    pub relayer:           LocalWallet,
     pub ws:                WsState,
 }
