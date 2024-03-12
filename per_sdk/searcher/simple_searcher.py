@@ -21,7 +21,7 @@ def assess_liquidation_opportunity(
 ) -> BidInfo | None:
     """
     Assesses whether a liquidation opportunity is worth liquidating; if so, returns the bid and valid_until timestamp. Otherwise returns None.
-    This function determines whether the given opportunity deals with the specified repay and receipt tokens that the searcher wishes to transact in and whether it is profitable to execute the liquidation.
+    This function determines whether the given opportunity deals with the specified sell and buy tokens that the searcher wishes to transact in and whether it is profitable to execute the liquidation.
     There are many ways to evaluate this, but the most common way is to check that the value of the amount the searcher will receive from the liquidation exceeds the value of the amount repaid.
     Individual searchers will have their own methods to determine market impact and the profitability of conducting a liquidation. This function can be expanded to include external prices to perform this evaluation.
     If the opporutnity is deemed worthwhile, this function can return a bid amount representing the amount of native token to bid on this opportunity, and a timestamp representing the time at which the transaction will expire.
@@ -60,19 +60,15 @@ def create_liquidation_transaction(
     Returns:
         An OpportunityBid object which can be sent to the liquidation server
     """
-    repay_tokens = [
-        (opp["contract"], int(opp["amount"])) for opp in opp["repay_tokens"]
-    ]
-    receipt_tokens = [
-        (opp["contract"], int(opp["amount"])) for opp in opp["receipt_tokens"]
-    ]
+    sell_tokens = [(opp["token"], int(opp["amount"])) for opp in opp["sell_tokens"]]
+    buy_tokens = [(opp["token"], int(opp["amount"])) for opp in opp["buy_tokens"]]
 
     liquidator = Account.from_key(sk_liquidator).address
     liq_calldata = bytes.fromhex(opp["calldata"].replace("0x", ""))
 
     signature_liquidator = construct_signature_liquidator(
-        repay_tokens,
-        receipt_tokens,
+        sell_tokens,
+        buy_tokens,
         opp["contract"],
         liq_calldata,
         int(opp["value"]),

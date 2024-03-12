@@ -162,14 +162,14 @@ class VaultMonitor:
         call_value = len(price_updates)
 
         if call_value > 0 and account["token_address_collateral"] == self.weth_address:
-            repay_tokens = [
+            sell_tokens = [
                 (
                     account["token_address_debt"],
                     str(account["amount_debt"] + call_value),
                 )
             ]
         else:
-            repay_tokens = [
+            sell_tokens = [
                 (account["token_address_debt"], str(account["amount_debt"])),
                 (self.weth_address, str(call_value)),
             ]
@@ -181,8 +181,8 @@ class VaultMonitor:
             "permission_key": permission,
             "account": str(account["account_number"]),
             "value": str(call_value),
-            "repay_tokens": repay_tokens,
-            "receipt_tokens": [
+            "sell_tokens": sell_tokens,
+            "buy_tokens": [
                 (account["token_address_collateral"], str(account["amount_collateral"]))
             ],
             "version": "v1",
