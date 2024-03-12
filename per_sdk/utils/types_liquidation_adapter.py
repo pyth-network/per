@@ -6,7 +6,7 @@ class TokenAmount(TypedDict):
     amount: str
 
 
-class LiquidationOpportunity(TypedDict):
+class Opportunity(TypedDict):
     # The unique id of the opportunity
     opportunity_id: str
     # The id of the chain where the opportunity was found
@@ -27,7 +27,7 @@ class LiquidationOpportunity(TypedDict):
     version: str
 
 
-class LiquidationAdapterCalldata(TypedDict):
+class OpportunityAdapterCalldata(TypedDict):
     sell_tokens: list[(str, int)]
     buy_tokens: list[(str, int)]
     liquidator: str
@@ -38,7 +38,7 @@ class LiquidationAdapterCalldata(TypedDict):
     signature_liquidator: bytes
 
 
-class LiquidationAdapterTransaction(TypedDict):
+class OpportunityAdapterTransaction(TypedDict):
     bid: str
     calldata: str
     chain_id: str

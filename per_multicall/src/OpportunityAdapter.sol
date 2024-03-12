@@ -131,7 +131,7 @@ contract OpportunityAdapter is SigVerify {
 
         if (!success) {
             string memory revertData = _getRevertMsg(reason);
-            revert ExecutionFailed(revertData);
+            revert TargetCallFailed(revertData);
         }
 
         // check balances of buy tokens after call and transfer to opportunity adapter

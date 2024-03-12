@@ -8,11 +8,11 @@ use {
             Config,
             RunOptions,
         },
-        liquidation_adapter::run_verification_loop,
+        opportunity_adapter::run_verification_loop,
         state::{
             BidStatusStore,
             ChainStore,
-            LiquidationStore,
+            OpportunityStore,
             Store,
         },
     },
@@ -100,7 +100,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
     let store = Arc::new(Store {
         chains:            chain_store?,
-        liquidation_store: LiquidationStore::default(),
+        opportunity_store: OpportunityStore::default(),
         bid_status_store:  BidStatusStore {
             bids_status:  Default::default(),
             event_sender: broadcast_sender.clone(),

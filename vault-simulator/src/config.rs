@@ -75,7 +75,7 @@ pub struct SearcherOptions {
     #[command(flatten)]
     pub run_options: RunOptions,
 
-    /// The address of the liquidation adapter contract to use for approvals
+    /// The address of the opportunity adapter contract to use for approvals
     #[arg(long = "adapter-contract")]
     pub adapter_contract: Address,
 

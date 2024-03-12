@@ -7,13 +7,13 @@ use {
             RestError,
         },
         config::ChainId,
-        liquidation_adapter::{
-            handle_liquidation_bid,
+        opportunity_adapter::{
+            handle_opportunity_bid,
             verify_opportunity,
             OpportunityBid,
         },
         state::{
-            LiquidationOpportunity,
+            Opportunity,
             OpportunityId,
             OpportunityParams,
             Store,
@@ -72,8 +72,8 @@ impl OpportunityParamsWithMetadata {
     }
 }
 
-impl From<LiquidationOpportunity> for OpportunityParamsWithMetadata {
-    fn from(val: LiquidationOpportunity) -> Self {
+impl From<Opportunity> for OpportunityParamsWithMetadata {
+    fn from(val: Opportunity) -> Self {
         OpportunityParamsWithMetadata {
             opportunity_id: val.id,
             creation_time:  val.creation_time,
@@ -82,11 +82,11 @@ impl From<LiquidationOpportunity> for OpportunityParamsWithMetadata {
     }
 }
 
-/// Submit a liquidation opportunity ready to be executed.
+/// Submit an opportunity ready to be executed.
 ///
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
 /// and will be available for bidding.
-#[utoipa::path(post, path = "/v1/liquidation/opportunities", request_body = OpportunityParams, responses(
+#[utoipa::path(post, path = "/v1/opportunities", request_body = OpportunityParams, responses(
     (status = 200, description = "The created opportunity", body = OpportunityParamsWithMetadata),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
@@ -102,7 +102,7 @@ pub async fn post_opportunity(
         .ok_or(RestError::InvalidChainId)?;
 
     let id = Uuid::new_v4();
-    let opportunity = LiquidationOpportunity {
+    let opportunity = Opportunity {
         id,
         creation_time: SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -117,7 +117,7 @@ pub async fn post_opportunity(
         .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 
 
-    let opportunities_map = &store.liquidation_store.opportunities;
+    let opportunities_map = &store.opportunity_store.opportunities;
     if let Some(mut opportunities_existing) = opportunities_map.get_mut(&params.permission_key) {
         // check if same opportunity exists in the vector
         for opportunity_existing in opportunities_existing.iter() {
@@ -163,9 +163,9 @@ pub struct ChainIdQueryParams {
     chain_id: Option<ChainId>,
 }
 
-/// Fetch all liquidation opportunities ready to be exectued.
-#[utoipa::path(get, path = "/v1/liquidation/opportunities", responses(
-    (status = 200, description = "Array of liquidation opportunities ready for bidding", body = Vec<OpportunityParamsWithMetadata>),
+/// Fetch all opportunities ready to be exectued.
+#[utoipa::path(get, path = "/v1/opportunities", responses(
+    (status = 200, description = "Array of opportunities ready for bidding", body = Vec<OpportunityParamsWithMetadata>),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),
@@ -175,7 +175,7 @@ pub async fn get_opportunities(
     query_params: Query<ChainIdQueryParams>,
 ) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
     let opportunities: Vec<OpportunityParamsWithMetadata> = store
-        .liquidation_store
+        .opportunity_store
         .opportunities
         .iter()
         .map(|opportunities_key| {
@@ -198,27 +198,27 @@ pub async fn get_opportunities(
     Ok(opportunities.into())
 }
 
-/// Bid on liquidation opportunity
-#[utoipa::path(post, path = "/v1/liquidation/opportunities/{opportunity_id}/bids", request_body=OpportunityBid,
+/// Bid on opportunity
+#[utoipa::path(post, path = "/v1/opportunities/{opportunity_id}/bids", request_body=OpportunityBid,
     params(("opportunity_id"=String, description = "Opportunity id to bid on")), responses(
     (status = 200, description = "Bid Result", body = BidResult, example = json!({"status": "OK"})),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
-pub async fn liquidation_bid(
+pub async fn opportunity_bid(
     State(store): State<Arc<Store>>,
     Path(opportunity_id): Path<OpportunityId>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
-    process_liquidation_bid(store, opportunity_id, &opportunity_bid).await
+    process_opportunity_bid(store, opportunity_id, &opportunity_bid).await
 }
 
-pub async fn process_liquidation_bid(
+pub async fn process_opportunity_bid(
     store: Arc<Store>,
     opportunity_id: OpportunityId,
     opportunity_bid: &OpportunityBid,
 ) -> Result<Json<BidResult>, RestError> {
-    match handle_liquidation_bid(store, opportunity_id, opportunity_bid).await {
+    match handle_opportunity_bid(store, opportunity_id, opportunity_bid).await {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),
             id,

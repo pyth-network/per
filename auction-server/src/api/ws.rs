@@ -5,14 +5,14 @@ use {
                 process_bid,
                 BidResult,
             },
-            liquidation::{
-                process_liquidation_bid,
+            opportunity::{
+                process_opportunity_bid,
                 OpportunityParamsWithMetadata,
             },
         },
         auction::Bid,
         config::ChainId,
-        liquidation_adapter::OpportunityBid,
+        opportunity_adapter::OpportunityBid,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -88,8 +88,8 @@ pub enum ClientMessage {
     #[serde(rename = "post_bid")]
     PostBid { bid: Bid },
 
-    #[serde(rename = "post_liquidation_bid")]
-    PostLiquidationBid {
+    #[serde(rename = "post_opportunity_bid")]
+    PostOpportunityBid {
         #[schema(value_type = String)]
         opportunity_id:  OpportunityId,
         opportunity_bid: OpportunityBid,
@@ -353,11 +353,11 @@ impl Subscriber {
                             },
                         }
                     }
-                    ClientMessage::PostLiquidationBid {
+                    ClientMessage::PostOpportunityBid {
                         opportunity_bid,
                         opportunity_id,
                     } => {
-                        match process_liquidation_bid(
+                        match process_opportunity_bid(
                             self.store.clone(),
                             opportunity_id,
                             &opportunity_bid,

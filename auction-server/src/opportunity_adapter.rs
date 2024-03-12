@@ -15,7 +15,7 @@ use {
         state::{
             BidAmount,
             ChainStore,
-            LiquidationOpportunity,
+            Opportunity,
             OpportunityId,
             OpportunityParams,
             OpportunityParamsV1,
@@ -95,8 +95,8 @@ pub enum VerificationResult {
     UnableToSpoof,
 }
 
-/// Verify an opportunity by simulating the liquidation call and checking the result
-/// Simulation is done by spoofing the balances and allowances of a random liquidator
+/// Verify an opportunity by simulating the execution call and checking the result
+/// Simulation is done by spoofing the balances and allowances of a random executor
 /// Returns Ok(VerificationResult) if the simulation is successful or if the tokens cannot be spoofed
 /// Returns Err if the simulation fails despite spoofing or if any other error occurs
 pub async fn verify_opportunity(
@@ -107,7 +107,7 @@ pub async fn verify_opportunity(
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
     let mut fake_bid = OpportunityBid {
-        liquidator:     fake_wallet.address(),
+        executor:       fake_wallet.address(),
         valid_until:    U256::max_value(),
         permission_key: opportunity.permission_key.clone(),
         amount:         U256::zero(),
@@ -204,7 +204,7 @@ pub async fn verify_opportunity(
 }
 
 fn get_params_digest(params: ExecutionParams) -> Result<H256> {
-    // this should reflect the verifyCalldata function in the LiquidationAdapter contract
+    // this should reflect the verifyCalldata function in the OpportunityAdapter contract
     let data = Bytes::from(abi::encode(&[
         params.sell_tokens.into_token(),
         params.buy_tokens.into_token(),
@@ -238,7 +238,7 @@ pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
     let apdapter_decoded =
         OpportunityAdapterErrors::decode_with_selector(revert).map(|decoded_error| {
             format!(
-                "Liquidation Adapter Contract Revert Error: {:#?}",
+                "Opportunity Adapter Contract Revert Error: {:#?}",
                 decoded_error
             )
         });
@@ -270,7 +270,7 @@ pub fn make_opportunity_execution_params(
             .into_iter()
             .map(TokenAmount::from)
             .collect(),
-        executor:    bid.liquidator,
+        executor:    bid.executor,
         target:      opportunity.contract,
         data:        opportunity.calldata,
         value:       opportunity.value,
@@ -294,7 +294,7 @@ pub async fn make_adapter_calldata(
         .execute_opportunity(params)
         .calldata()
         .ok_or(anyhow!(
-            "Failed to generate calldata for liquidation adapter"
+            "Failed to generate calldata for opportunity adapter"
         ))?;
 
     Ok(calldata)
@@ -302,14 +302,14 @@ pub async fn make_adapter_calldata(
 
 const MAX_STALE_OPPORTUNITY_SECS: i64 = 60;
 
-/// Verify an opportunity is still valid by checking staleness and simulating the liquidation call and checking the result
+/// Verify an opportunity is still valid by checking staleness and simulating the execution call and checking the result
 /// Returns Ok(()) if the opportunity is still valid
 ///
 /// # Arguments
 ///
 /// * `opportunity`: opportunity to verify
 /// * `store`: server store
-async fn verify_with_store(opportunity: LiquidationOpportunity, store: &Store) -> Result<()> {
+async fn verify_with_store(opportunity: Opportunity, store: &Store) -> Result<()> {
     let OpportunityParams::V1(params) = opportunity.params;
     let chain_store = store
         .chains
@@ -345,7 +345,7 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             _ = submission_interval.tick() => {
-                let all_opportunities = store.liquidation_store.opportunities.clone();
+                let all_opportunities = store.opportunity_store.opportunities.clone();
                 for item in all_opportunities.iter() {
                     // check each of the opportunities for this permission key for validity
                     let mut opps_to_remove = vec![];
@@ -363,7 +363,7 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
                         }
                     }
                     let permission_key = item.key();
-                    let opportunities_map = &store.liquidation_store.opportunities;
+                    let opportunities_map = &store.opportunity_store.opportunities;
                     if let Some(mut opportunities) = opportunities_map.get_mut(permission_key) {
                         opportunities.retain(|x| !opps_to_remove.contains(&x.id));
                         if opportunities.is_empty() {
@@ -394,9 +394,9 @@ pub struct OpportunityBid {
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
     pub valid_until:    U256,
-    /// Liquidator address
+    /// Executor address
     #[schema(example = "0x5FbDB2315678afecb367f032d93F642f64180aa2", value_type=String)]
-    pub liquidator:     abi::Address,
+    pub executor:       abi::Address,
     #[schema(
         example = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
         value_type=String
@@ -405,13 +405,13 @@ pub struct OpportunityBid {
     pub signature:      Signature,
 }
 
-pub async fn handle_liquidation_bid(
+pub async fn handle_opportunity_bid(
     store: Arc<Store>,
     opportunity_id: OpportunityId,
     opportunity_bid: &OpportunityBid,
 ) -> result::Result<Uuid, RestError> {
     let opportunities = store
-        .liquidation_store
+        .opportunity_store
         .opportunities
         .get(&opportunity_bid.permission_key)
         .ok_or(RestError::OpportunityNotFound)?
@@ -423,9 +423,9 @@ pub async fn handle_liquidation_bid(
         .ok_or(RestError::OpportunityNotFound)?;
 
     // TODO: move this logic to searcher side
-    if opportunity.bidders.contains(&opportunity_bid.liquidator) {
+    if opportunity.bidders.contains(&opportunity_bid.executor) {
         return Err(RestError::BadParameters(
-            "Liquidator already bid on this opportunity".to_string(),
+            "Executor already bid on this opportunity".to_string(),
         ));
     }
 
@@ -458,7 +458,7 @@ pub async fn handle_liquidation_bid(
     {
         Ok(id) => {
             let opportunities = store
-                .liquidation_store
+                .opportunity_store
                 .opportunities
                 .get_mut(&opportunity_bid.permission_key);
             if let Some(mut opportunities) = opportunities {
@@ -466,7 +466,7 @@ pub async fn handle_liquidation_bid(
                     .iter_mut()
                     .find(|o| o.id == opportunity_id)
                     .ok_or(RestError::OpportunityNotFound)?;
-                opportunity.bidders.insert(opportunity_bid.liquidator);
+                opportunity.bidders.insert(opportunity_bid.executor);
             }
             Ok(id)
         }

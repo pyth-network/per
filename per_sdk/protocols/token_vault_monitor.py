@@ -11,7 +11,7 @@ import web3
 from eth_abi import encode
 
 from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient, price_to_tuple
-from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
+from per_sdk.utils.types_liquidation_adapter import Opportunity
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class VaultMonitor:
 
     def create_liquidation_opp(
         self, account: ProtocolAccount, prices: list[PriceFeed]
-    ) -> LiquidationOpportunity:
+    ) -> Opportunity:
         """
         Constructs a LiquidationOpportunity object from a ProtocolAccount object and a set of relevant Pyth PriceFeeds.
 
@@ -174,7 +174,7 @@ class VaultMonitor:
                 (self.weth_address, str(call_value)),
             ]
 
-        opp: LiquidationOpportunity = {
+        opp: Opportunity = {
             "chain_id": self.chain_id,
             "contract": self.contract_address,
             "calldata": calldata,
@@ -196,7 +196,7 @@ class VaultMonitor:
 
         return opp
 
-    async def get_liquidation_opportunities(self) -> list[LiquidationOpportunity]:
+    async def get_liquidation_opportunities(self) -> list[Opportunity]:
         """
         Filters list of ProtocolAccount types to return a list of LiquidationOpportunity types.
 

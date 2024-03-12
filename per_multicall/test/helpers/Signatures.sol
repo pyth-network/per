@@ -31,7 +31,7 @@ contract Signatures is Test, SigVerify {
         uint256 validUntil,
         uint256 executorSk
     ) public pure returns (bytes memory) {
-        bytes32 calldataDigestLiquidator = keccak256(
+        bytes32 calldataDigestExecutor = keccak256(
             abi.encode(
                 sellTokens,
                 buyTokens,
@@ -44,7 +44,7 @@ contract Signatures is Test, SigVerify {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(
             executorSk,
-            calldataDigestLiquidator
+            calldataDigestExecutor
         );
         return abi.encodePacked(r, s, v);
     }

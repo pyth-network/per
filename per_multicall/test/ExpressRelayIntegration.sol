@@ -49,7 +49,7 @@ contract ExpressRelayIntegrationTest is
     SearcherVault public searcherB;
     ExpressRelay public expressRelay;
     WETH9 public weth;
-    OpportunityAdapter public liquidationAdapter;
+    OpportunityAdapter public opportunityAdapter;
     MockPyth public mockPyth;
 
     MyToken public token1;
@@ -156,7 +156,7 @@ contract ExpressRelayIntegrationTest is
         weth = new WETH9();
 
         vm.prank(perOperatorAddress, perOperatorAddress);
-        liquidationAdapter = new OpportunityAdapter(
+        opportunityAdapter = new OpportunityAdapter(
             address(expressRelay),
             address(weth)
         );
@@ -402,19 +402,19 @@ contract ExpressRelayIntegrationTest is
 
             vm.startPrank(searcher, searcher);
 
-            // create allowance for liquidation adapter
+            // create allowance for opportunity adapter
             if (tokensDebt[0] == tokensDebt[1]) {
                 MyToken(tokensDebt[0]).approve(
-                    address(liquidationAdapter),
+                    address(opportunityAdapter),
                     amountsDebt[0] + amountsDebt[1]
                 );
             } else {
                 MyToken(tokensDebt[0]).approve(
-                    address(liquidationAdapter),
+                    address(opportunityAdapter),
                     amountsDebt[0]
                 );
                 MyToken(tokensDebt[1]).approve(
-                    address(liquidationAdapter),
+                    address(opportunityAdapter),
                     amountsDebt[1]
                 );
             }
@@ -423,8 +423,8 @@ contract ExpressRelayIntegrationTest is
             vm.deal(searcher, (i + 1) * 100 ether);
             weth.deposit{value: (i + 1) * 100 ether}();
 
-            // create allowance for liquidation adapter (weth)
-            weth.approve(address(liquidationAdapter), (i + 1) * 100 ether);
+            // create allowance for opportunity adapter (weth)
+            weth.approve(address(opportunityAdapter), (i + 1) * 100 ether);
 
             vm.stopPrank();
         }
@@ -464,7 +464,7 @@ contract ExpressRelayIntegrationTest is
                 vaultNumber,
                 bidInfos[i].bid,
                 bidInfos[i].validUntil,
-                bidInfos[i].liquidatorSk
+                bidInfos[i].executorSk
             );
             data[i] = abi.encodeWithSelector(
                 searcherA.doLiquidate.selector,
@@ -534,12 +534,12 @@ contract ExpressRelayIntegrationTest is
                     value,
                     bidInfos[i].bid,
                     bidInfos[i].validUntil,
-                    bidInfos[i].liquidatorSk
+                    bidInfos[i].executorSk
                 );
             ExecutionParams memory executionParams = ExecutionParams(
                 sellTokens,
                 buyTokens,
-                bidInfos[i].liquidator,
+                bidInfos[i].executor,
                 contractAddress,
                 calldataVault,
                 value,
@@ -549,7 +549,7 @@ contract ExpressRelayIntegrationTest is
             );
 
             data[i] = abi.encodeWithSelector(
-                liquidationAdapter.executeOpportunity.selector,
+                opportunityAdapter.executeOpportunity.selector,
                 executionParams
             );
         }
@@ -967,7 +967,7 @@ contract ExpressRelayIntegrationTest is
         address[] memory contracts = new address[](1);
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
-        contracts[0] = address(liquidationAdapter);
+        contracts[0] = address(opportunityAdapter);
         bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
 
         (
@@ -1023,9 +1023,9 @@ contract ExpressRelayIntegrationTest is
         address[] memory contracts = new address[](1);
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
-        contracts[0] = address(liquidationAdapter);
+        contracts[0] = address(opportunityAdapter);
         bidInfos[0] = makeBidInfo(15, searcherBOwnerSk);
-        bidInfos[0].liquidator = searcherAOwnerAddress; // use wrong liquidator address to induce invalid signature
+        bidInfos[0].executor = searcherAOwnerAddress; // use wrong liquidator address to induce invalid signature
 
         (
             bytes memory permission,
@@ -1069,7 +1069,7 @@ contract ExpressRelayIntegrationTest is
         address[] memory contracts = new address[](1);
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
-        contracts[0] = address(liquidationAdapter);
+        contracts[0] = address(opportunityAdapter);
         bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
         bidInfos[0].validUntil = block.timestamp - 1; // use old timestamp for the validUntil field to create expired signature
 
@@ -1116,8 +1116,8 @@ contract ExpressRelayIntegrationTest is
         address[] memory contracts = new address[](2);
         BidInfo[] memory bidInfos = new BidInfo[](2);
 
-        contracts[0] = address(liquidationAdapter);
-        contracts[1] = address(liquidationAdapter);
+        contracts[0] = address(opportunityAdapter);
+        contracts[1] = address(opportunityAdapter);
         bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
         bidInfos[1] = makeBidInfo(10, searcherBOwnerSk);
 

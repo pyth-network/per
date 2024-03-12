@@ -22,8 +22,8 @@ contract TestParsingHelpers is Test {
     struct BidInfo {
         uint256 bid;
         uint256 validUntil;
-        address liquidator;
-        uint256 liquidatorSk;
+        address executor;
+        uint256 executorSk;
     }
 
     function extractBidAmounts(
@@ -37,15 +37,9 @@ contract TestParsingHelpers is Test {
 
     function makeBidInfo(
         uint256 bid,
-        uint256 liquidatorSk
+        uint256 executorSk
     ) internal pure returns (BidInfo memory) {
-        return
-            BidInfo(
-                bid,
-                1_000_000_000_000,
-                vm.addr(liquidatorSk),
-                liquidatorSk
-            );
+        return BidInfo(bid, 1_000_000_000_000, vm.addr(executorSk), executorSk);
     }
 
     function assertEqBalances(

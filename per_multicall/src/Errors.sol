@@ -28,8 +28,8 @@ error InvalidTimestamp();
 // Signature: 0xaba47339
 error NotRegistered();
 
-// Signature: 0xf00364b1
-error ExecutionFailed(string reason);
+// Signature: 0x714ed4ea
+error TargetCallFailed(string reason);
 
 // Signature: 0x4af147aa
 error InsufficientTokenReceived();

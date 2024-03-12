@@ -7,8 +7,8 @@ from typing import TypedDict
 import httpx
 from eth_account import Account
 
-from per_sdk.searcher.searcher_utils import BidInfo, construct_signature_liquidator
-from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
+from per_sdk.searcher.searcher_utils import BidInfo, construct_signature_executor
+from per_sdk.utils.types_liquidation_adapter import Opportunity
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ VALID_UNTIL = 1_000_000_000_000
 
 def assess_liquidation_opportunity(
     default_bid: int,
-    opp: LiquidationOpportunity,
+    opp: Opportunity,
 ) -> BidInfo | None:
     """
     Assesses whether a liquidation opportunity is worth liquidating; if so, returns the bid and valid_until timestamp. Otherwise returns None.
@@ -32,11 +32,11 @@ def assess_liquidation_opportunity(
     Returns:
         If the opportunity is deemed worthwhile, this function can return a BidInfo object, representing the user's bid and the timestamp at which the user's bid should expire. If the LiquidationOpportunity is not deemed worthwhile, this function can return None.
     """
-    user_liquidation_params = {
+    user_execution_params = {
         "bid": default_bid,
         "valid_until": VALID_UNTIL,
     }
-    return user_liquidation_params
+    return user_execution_params
 
 
 class OpportunityBid(TypedDict):
@@ -44,12 +44,12 @@ class OpportunityBid(TypedDict):
     permission_key: str
     amount: str
     valid_until: str
-    liquidator: str
+    executor: str
     signature: str
 
 
 def create_liquidation_transaction(
-    opp: LiquidationOpportunity, sk_liquidator: str, bid_info: BidInfo
+    opp: Opportunity, sk_liquidator: str, bid_info: BidInfo
 ) -> OpportunityBid:
     """
     Creates a bid for a liquidation opportunity.
@@ -66,7 +66,7 @@ def create_liquidation_transaction(
     liquidator = Account.from_key(sk_liquidator).address
     liq_calldata = bytes.fromhex(opp["calldata"].replace("0x", ""))
 
-    signature_liquidator = construct_signature_liquidator(
+    signature_liquidator = construct_signature_executor(
         sell_tokens,
         buy_tokens,
         opp["contract"],
