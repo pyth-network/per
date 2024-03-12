@@ -208,8 +208,8 @@ fn get_params_digest(params: ExecutionParams) -> Result<H256> {
     let data = Bytes::from(abi::encode(&[
         params.sell_tokens.into_token(),
         params.buy_tokens.into_token(),
-        params.target.into_token(),
-        params.data.into_token(),
+        params.target_contract.into_token(),
+        params.target_calldata.into_token(),
         params.value.into_token(),
         params.bid_amount.into_token(),
         params.valid_until.into_token(),
@@ -260,23 +260,23 @@ pub fn make_opportunity_execution_params(
     bid: OpportunityBid,
 ) -> ExecutionParams {
     ExecutionParams {
-        sell_tokens: opportunity
+        sell_tokens:     opportunity
             .sell_tokens
             .into_iter()
             .map(TokenAmount::from)
             .collect(),
-        buy_tokens:  opportunity
+        buy_tokens:      opportunity
             .buy_tokens
             .into_iter()
             .map(TokenAmount::from)
             .collect(),
-        executor:    bid.executor,
-        target:      opportunity.contract,
-        data:        opportunity.calldata,
-        value:       opportunity.value,
-        valid_until: bid.valid_until,
-        bid_amount:  bid.amount,
-        signature:   bid.signature.to_vec().into(),
+        executor:        bid.executor,
+        target_contract: opportunity.contract,
+        target_calldata: opportunity.calldata,
+        value:           opportunity.value,
+        valid_until:     bid.valid_until,
+        bid_amount:      bid.amount,
+        signature:       bid.signature.to_vec().into(),
     }
 }
 

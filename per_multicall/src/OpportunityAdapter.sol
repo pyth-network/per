@@ -65,8 +65,8 @@ contract OpportunityAdapter is SigVerify {
             abi.encode(
                 params.sellTokens,
                 params.buyTokens,
-                params.target,
-                params.data,
+                params.targetContract,
+                params.targetCalldata,
                 params.value,
                 params.bidAmount,
                 params.validUntil
@@ -109,7 +109,7 @@ contract OpportunityAdapter is SigVerify {
                     revert InsufficientWETHForMsgValue();
                 }
             }
-            token.approve(params.target, approveAmount);
+            token.approve(params.targetContract, approveAmount);
         }
 
         // get balances of buy tokens before call
@@ -125,9 +125,9 @@ contract OpportunityAdapter is SigVerify {
             WETH9(payable(weth)).withdraw(params.value);
         }
 
-        (bool success, bytes memory reason) = params.target.call{
+        (bool success, bytes memory reason) = params.targetContract.call{
             value: params.value
-        }(params.data);
+        }(params.targetCalldata);
 
         if (!success) {
             string memory revertData = _getRevertMsg(reason);

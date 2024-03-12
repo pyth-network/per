@@ -32,8 +32,8 @@ struct ExecutionParams {
     TokenAmount[] sellTokens;
     TokenAmount[] buyTokens;
     address executor;
-    address target;
-    bytes data;
+    address targetContract;
+    bytes targetCalldata;
     uint256 value;
     uint256 validUntil;
     uint256 bidAmount;
