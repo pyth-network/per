@@ -601,7 +601,7 @@ contract PERIntegrationTest is
 
         bytes memory signatureSearcher;
 
-        uint256 validUntil = 1_000_000_000_000;
+        uint256 validUntil = UINT256_MAX;
 
         AccountBalance memory balancesAPre = getBalances(
             address(searcherA),
@@ -647,7 +647,7 @@ contract PERIntegrationTest is
 
         bytes memory signatureSearcher;
 
-        uint256 validUntil = 1_000_000_000_000;
+        uint256 validUntil = UINT256_MAX;
 
         vm.expectRevert(abi.encodeWithSelector(InvalidLiquidation.selector));
         vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
@@ -1070,7 +1070,7 @@ contract PERIntegrationTest is
 
         contracts[0] = address(liquidationAdapter);
         bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
-        bidInfos[0].validUntil = block.number - 1; // use old block number for the validUntil field to create expired signature
+        bidInfos[0].validUntil = block.timestamp - 1; // use old timestamp for the validUntil field to create expired signature
 
         (
             bytes memory permission,

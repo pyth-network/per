@@ -35,7 +35,10 @@ use {
         broadcast,
         RwLock,
     },
-    utoipa::ToSchema,
+    utoipa::{
+        ToResponse,
+        ToSchema,
+    },
     uuid::Uuid,
 };
 
@@ -143,6 +146,13 @@ pub enum BidStatus {
     Lost,
 }
 
+#[derive(Serialize, Clone, ToSchema, ToResponse)]
+pub struct BidStatusWithId {
+    #[schema(value_type = String)]
+    pub id:         BidId,
+    pub bid_status: BidStatus,
+}
+
 pub struct BidStatusStore {
     pub bids_status:  RwLock<HashMap<BidId, BidStatus>>,
     pub event_sender: broadcast::Sender<UpdateEvent>,
@@ -153,12 +163,12 @@ impl BidStatusStore {
         self.bids_status.read().await.get(id).cloned()
     }
 
-    pub async fn set_and_broadcast(&self, id: BidId, status: BidStatus) {
-        self.bids_status.write().await.insert(id, status.clone());
-        match self
-            .event_sender
-            .send(UpdateEvent::BidStatusUpdate { id, status })
-        {
+    pub async fn set_and_broadcast(&self, update: BidStatusWithId) {
+        self.bids_status
+            .write()
+            .await
+            .insert(update.id, update.bid_status.clone());
+        match self.event_sender.send(UpdateEvent::BidStatusUpdate(update)) {
             Ok(_) => (),
             Err(e) => tracing::error!("Failed to send bid status update: {}", e),
         };

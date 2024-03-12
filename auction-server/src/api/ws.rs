@@ -19,7 +19,7 @@ use {
         },
         state::{
             BidId,
-            BidStatus,
+            BidStatusWithId,
             OpportunityId,
             Store,
         },
@@ -112,23 +112,19 @@ pub enum ServerUpdateResponse {
         opportunity: OpportunityParamsWithMetadata,
     },
     #[serde(rename = "bid_status_update")]
-    BidStatusUpdate {
-        #[schema(value_type = String)]
-        id:     BidId,
-        status: BidStatus,
-    },
+    BidStatusUpdate { status: BidStatusWithId },
 }
 
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(untagged)]
-pub enum APIResposne {
+pub enum APIResponse {
     BidResult(BidResult),
 }
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(tag = "status", content = "result")]
 pub enum ServerResultMessage {
     #[serde(rename = "success")]
-    Success(Option<APIResposne>),
+    Success(Option<APIResponse>),
     #[serde(rename = "error")]
     Err(String),
 }
@@ -161,7 +157,7 @@ async fn websocket_handler(stream: WebSocket, state: Arc<Store>) {
 #[derive(Clone)]
 pub enum UpdateEvent {
     NewOpportunity(OpportunityParamsWithMetadata),
-    BidStatusUpdate { id: BidId, status: BidStatus },
+    BidStatusUpdate(BidStatusWithId),
 }
 
 pub type SubscriberId = usize;
@@ -260,13 +256,13 @@ impl Subscriber {
                     serde_json::to_string(&ServerUpdateResponse::NewOpportunity { opportunity })?;
                 self.sender.send(message.into()).await?;
             }
-            UpdateEvent::BidStatusUpdate { id, status } => {
-                if !self.bid_ids.contains(&id) {
+            UpdateEvent::BidStatusUpdate(status) => {
+                if !self.bid_ids.contains(&status.id) {
                     // Irrelevant update
                     return Ok(());
                 }
                 let message =
-                    serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { id, status })?;
+                    serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { status })?;
                 self.sender.send(message.into()).await?;
             }
         }
@@ -347,7 +343,7 @@ impl Subscriber {
                                 ServerResultResponse {
                                     id:     Some(id.clone()),
                                     result: ServerResultMessage::Success(Some(
-                                        APIResposne::BidResult(bid_result.0),
+                                        APIResponse::BidResult(bid_result.0),
                                     )),
                                 }
                             }
@@ -373,7 +369,7 @@ impl Subscriber {
                                 ServerResultResponse {
                                     id:     Some(id.clone()),
                                     result: ServerResultMessage::Success(Some(
-                                        APIResposne::BidResult(bid_result.0),
+                                        APIResponse::BidResult(bid_result.0),
                                     )),
                                 }
                             }
