@@ -73,7 +73,7 @@ pub struct TokenAmount {
 /// in the buy_tokens field, and will send the tokens specified in the sell_tokens field.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 pub struct OpportunityParamsV1 {
-    /// The permission key required for succesful execution of the opportunity.
+    /// The permission key required for successful execution of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
     pub permission_key: Bytes,
     /// The chain id where the opportunity will be executed.
