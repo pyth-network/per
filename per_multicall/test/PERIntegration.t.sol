@@ -501,8 +501,8 @@ contract PERIntegrationTest is
             tokenExpo
         );
 
-        TokenAmount[] memory repayTokens = new TokenAmount[](1);
-        repayTokens[0] = TokenAmount(
+        TokenAmount[] memory sellTokens = new TokenAmount[](1);
+        sellTokens[0] = TokenAmount(
             tokensDebt[vaultNumber],
             amountsDebt[vaultNumber]
         );
@@ -526,7 +526,7 @@ contract PERIntegrationTest is
         for (uint i = 0; i < bidInfos.length; i++) {
             // create liquidation call params struct
             bytes memory signatureLiquidator = createLiquidationSignature(
-                repayTokens,
+                sellTokens,
                 expectedReceiptTokens,
                 contractAddress,
                 calldataVault,
@@ -536,7 +536,7 @@ contract PERIntegrationTest is
                 bidInfos[i].liquidatorSk
             );
             ExecutionParams memory liquidationCallParams = ExecutionParams(
-                repayTokens,
+                sellTokens,
                 expectedReceiptTokens,
                 bidInfos[i].liquidator,
                 contractAddress,

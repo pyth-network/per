@@ -88,7 +88,7 @@ contract OpportunityAdapter is SigVerify {
         );
 
         address weth = getWeth();
-        // transfer repay tokens to this contract
+        // transfer sell tokens to this contract
         for (uint i = 0; i < params.sellTokens.length; i++) {
             IERC20 token = IERC20(params.sellTokens[i].token);
 
@@ -98,7 +98,7 @@ contract OpportunityAdapter is SigVerify {
                 params.sellTokens[i].amount
             );
 
-            // approve contract to spend repay tokens
+            // approve contract to spend sell tokens
             uint256 approveAmount = params.sellTokens[i].amount;
             if (params.sellTokens[i].token == weth) {
                 if (approveAmount >= params.value) {
@@ -112,7 +112,7 @@ contract OpportunityAdapter is SigVerify {
             token.approve(params.target, approveAmount);
         }
 
-        // get balances of receipt tokens before call
+        // get balances of buy tokens before call
         for (uint i = 0; i < params.buyTokens.length; i++) {
             IERC20 token = IERC20(params.buyTokens[i].token);
             uint256 amount = params.buyTokens[i].amount;
@@ -136,7 +136,7 @@ contract OpportunityAdapter is SigVerify {
             revert FulfillFailed(revertData);
         }
 
-        // check balances of receipt tokens after call and transfer to opportunity adapter
+        // check balances of buy tokens after call and transfer to opportunity adapter
         for (uint i = 0; i < params.buyTokens.length; i++) {
             IERC20 token = IERC20(params.buyTokens[i].token);
             uint256 amount = params.buyTokens[i].amount;
@@ -146,7 +146,7 @@ contract OpportunityAdapter is SigVerify {
                 revert InsufficientTokenReceived();
             }
 
-            // transfer receipt tokens to the fulfiller
+            // transfer buy tokens to the fulfiller
             token.transfer(params.executor, amount);
         }
 

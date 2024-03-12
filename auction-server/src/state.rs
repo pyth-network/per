@@ -70,7 +70,7 @@ pub struct TokenAmount {
 /// Opportunity parameters needed for on-chain execution
 /// If a searcher signs the opportunity and have approved enough tokens to liquidation adapter,
 /// by calling this contract with the given calldata and structures, they will receive the tokens specified
-/// in the receipt_tokens field, and will send the tokens specified in the repay_tokens field.
+/// in the buy_tokens field, and will send the tokens specified in the sell_tokens field.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 pub struct OpportunityParamsV1 {
     /// The permission key required for succesful execution of the liquidation.

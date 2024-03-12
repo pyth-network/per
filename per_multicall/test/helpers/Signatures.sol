@@ -25,8 +25,8 @@ contract Signatures is Test, SigVerify {
     }
 
     function createLiquidationSignature(
-        TokenAmount[] memory repayTokens,
-        TokenAmount[] memory expectedReceiptTokens,
+        TokenAmount[] memory sellTokens,
+        TokenAmount[] memory buyTokens,
         address contractAddress,
         bytes memory data,
         uint256 value,
@@ -36,8 +36,8 @@ contract Signatures is Test, SigVerify {
     ) public pure returns (bytes memory) {
         bytes32 calldataDigestLiquidator = keccak256(
             abi.encode(
-                repayTokens,
-                expectedReceiptTokens,
+                sellTokens,
+                buyTokens,
                 contractAddress,
                 data,
                 value,

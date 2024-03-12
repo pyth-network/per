@@ -12,8 +12,8 @@ class BidInfo(TypedDict):
 
 
 def construct_signature_liquidator(
-    repay_tokens: list[(str, int)],
-    receipt_tokens: list[(str, int)],
+    sell_tokens: list[(str, int)],
+    buy_tokens: list[(str, int)],
     address: str,
     liq_calldata: bytes,
     value: int,
@@ -24,8 +24,8 @@ def construct_signature_liquidator(
     Constructs a signature for a liquidator's bid to submit to the liquidation server.
 
     Args:
-        repay_tokens: A list of tuples (token address, amount) representing the tokens to repay.
-        receipt_tokens: A list of tuples (token address, amount) representing the tokens to receive.
+        sell_tokens: A list of tuples (token address, amount) representing the tokens to repay.
+        buy_tokens: A list of tuples (token address, amount) representing the tokens to receive.
         address: The address of the protocol contract for the liquidation.
         liq_calldata: The calldata for the liquidation method call.
         value: The value for the liquidation method call.
@@ -47,8 +47,8 @@ def construct_signature_liquidator(
             "uint256",
         ],
         [
-            repay_tokens,
-            receipt_tokens,
+            sell_tokens,
+            buy_tokens,
             address,
             liq_calldata,
             value,
