@@ -28,7 +28,7 @@ error InvalidTimestamp();
 // Signature: 0xaba47339
 error NotRegistered();
 
-// Signature: 0xd3c8346c
+// Signature: 0xf00364b1
 error ExecutionFailed(string reason);
 
 // Signature: 0x4af147aa
