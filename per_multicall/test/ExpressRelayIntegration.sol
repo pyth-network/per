@@ -506,8 +506,8 @@ contract ExpressRelayIntegrationTest is
             tokensDebt[vaultNumber],
             amountsDebt[vaultNumber]
         );
-        TokenAmount[] memory expectedReceiptTokens = new TokenAmount[](1);
-        expectedReceiptTokens[0] = TokenAmount(
+        TokenAmount[] memory buyTokens = new TokenAmount[](1);
+        buyTokens[0] = TokenAmount(
             tokensCollateral[vaultNumber],
             amountsCollateral[vaultNumber]
         );
@@ -528,7 +528,7 @@ contract ExpressRelayIntegrationTest is
             bytes
                 memory signatureLiquidator = createOpportunityExecutionSignature(
                     sellTokens,
-                    expectedReceiptTokens,
+                    buyTokens,
                     contractAddress,
                     calldataVault,
                     value,
@@ -536,9 +536,9 @@ contract ExpressRelayIntegrationTest is
                     bidInfos[i].validUntil,
                     bidInfos[i].liquidatorSk
                 );
-            ExecutionParams memory liquidationCallParams = ExecutionParams(
+            ExecutionParams memory executionParams = ExecutionParams(
                 sellTokens,
-                expectedReceiptTokens,
+                buyTokens,
                 bidInfos[i].liquidator,
                 contractAddress,
                 calldataVault,
@@ -550,7 +550,7 @@ contract ExpressRelayIntegrationTest is
 
             data[i] = abi.encodeWithSelector(
                 liquidationAdapter.executeOpportunity.selector,
-                liquidationCallParams
+                executionParams
             );
         }
     }

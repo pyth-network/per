@@ -100,9 +100,10 @@ pub fn get_simulation_call(
     bid_amounts: Vec<BidAmount>,
 ) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
-    let per_contract = ExpressRelayContract::new(chain_config.express_relay_contract, client);
+    let express_relay_contract =
+        ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
-    per_contract
+    express_relay_contract
         .multicall(permission, target_contracts, calldata, bid_amounts)
         .from(relayer)
 }
@@ -195,9 +196,9 @@ pub async fn submit_bids(
         transformer,
     ));
 
-    let per_contract =
+    let express_relay_contract =
         SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
-    let call = per_contract.multicall(permission, contracts, calldata, bid_amounts);
+    let call = express_relay_contract.multicall(permission, contracts, calldata, bid_amounts);
     let mut gas_estimate = call
         .estimate_gas()
         .await

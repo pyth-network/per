@@ -125,7 +125,7 @@ pub async fn verify_opportunity(
     let signature = fake_wallet.sign_hash(digest)?;
     fake_bid.signature = signature;
     let params = make_opportunity_execution_params(opportunity.clone(), fake_bid.clone());
-    let per_calldata = OpportunityAdapter::new(
+    let adapter_calldata = OpportunityAdapter::new(
         chain_store.config.opportunity_adapter_contract,
         client.clone(),
     )
@@ -141,7 +141,7 @@ pub async fn verify_opportunity(
         chain_store.config.clone(),
         opportunity.permission_key,
         vec![chain_store.config.opportunity_adapter_contract],
-        vec![per_calldata],
+        vec![adapter_calldata],
         vec![fake_bid.amount],
     )
     .tx;
@@ -280,7 +280,7 @@ pub fn make_opportunity_execution_params(
     }
 }
 
-pub async fn make_liquidator_calldata(
+pub async fn make_adapter_calldata(
     opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
     provider: Provider<Http>,
@@ -436,7 +436,7 @@ pub async fn handle_liquidation_bid(
         .get(&params.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let per_calldata = make_liquidator_calldata(
+    let adapter_calldata = make_adapter_calldata(
         params.clone(),
         opportunity_bid.clone(),
         chain_store.provider.clone(),
@@ -450,7 +450,7 @@ pub async fn handle_liquidation_bid(
             permission_key: params.permission_key.clone(),
             chain_id:       params.chain_id.clone(),
             contract:       chain_store.config.opportunity_adapter_contract,
-            calldata:       per_calldata,
+            calldata:       adapter_calldata,
             amount:         opportunity_bid.amount,
         },
     )
