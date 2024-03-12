@@ -83,7 +83,7 @@ contract OpportunityAdapter is SigVerify {
             revert SignatureAlreadyUsed();
         }
 
-        uint256[] memory balancesExpectedReceipt = new uint256[](
+        uint256[] memory balancesBuyTokens = new uint256[](
             params.buyTokens.length
         );
 
@@ -117,9 +117,7 @@ contract OpportunityAdapter is SigVerify {
             IERC20 token = IERC20(params.buyTokens[i].token);
             uint256 amount = params.buyTokens[i].amount;
 
-            balancesExpectedReceipt[i] =
-                token.balanceOf(address(this)) +
-                amount;
+            balancesBuyTokens[i] = token.balanceOf(address(this)) + amount;
         }
         if (params.value > 0) {
             // unwrap weth to eth to use in call
@@ -133,7 +131,7 @@ contract OpportunityAdapter is SigVerify {
 
         if (!success) {
             string memory revertData = _getRevertMsg(reason);
-            revert FulfillFailed(revertData);
+            revert ExecutionFailed(revertData);
         }
 
         // check balances of buy tokens after call and transfer to opportunity adapter
@@ -142,11 +140,11 @@ contract OpportunityAdapter is SigVerify {
             uint256 amount = params.buyTokens[i].amount;
 
             uint256 balanceFinal = token.balanceOf(address(this));
-            if (balanceFinal < balancesExpectedReceipt[i]) {
+            if (balanceFinal < balancesBuyTokens[i]) {
                 revert InsufficientTokenReceived();
             }
 
-            // transfer buy tokens to the fulfiller
+            // transfer buy tokens to the executor
             token.transfer(params.executor, amount);
         }
 

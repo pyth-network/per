@@ -37,7 +37,7 @@ import "./helpers/MulticallHelpers.sol";
  *
  * The focus in these tests is ensuring that liquidation succeeds (or fails as expected) through the ExpressRelay contrct routing to the searcher contracts or the OpportunityAdapter contract.
  */
-contract PERIntegrationTest is
+contract ExpressRelayIntegrationTest is
     Test,
     TestParsingHelpers,
     Signatures,
@@ -525,16 +525,17 @@ contract PERIntegrationTest is
 
         for (uint i = 0; i < bidInfos.length; i++) {
             // create liquidation call params struct
-            bytes memory signatureLiquidator = createLiquidationSignature(
-                sellTokens,
-                expectedReceiptTokens,
-                contractAddress,
-                calldataVault,
-                value,
-                bidInfos[i].bid,
-                bidInfos[i].validUntil,
-                bidInfos[i].liquidatorSk
-            );
+            bytes
+                memory signatureLiquidator = createOpportunityExecutionSignature(
+                    sellTokens,
+                    expectedReceiptTokens,
+                    contractAddress,
+                    calldataVault,
+                    value,
+                    bidInfos[i].bid,
+                    bidInfos[i].validUntil,
+                    bidInfos[i].liquidatorSk
+                );
             ExecutionParams memory liquidationCallParams = ExecutionParams(
                 sellTokens,
                 expectedReceiptTokens,
@@ -1166,9 +1167,6 @@ contract PERIntegrationTest is
         assertEqBalances(balancesBPost, balancesBPre);
 
         assertEq(multicallStatuses[0].externalSuccess, true);
-        assertFailedExternal(
-            multicallStatuses[1],
-            "LiquidationCallFailed(string)"
-        );
+        assertFailedExternal(multicallStatuses[1], "ExecutionFailed(string)");
     }
 }

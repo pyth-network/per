@@ -17,38 +17,35 @@ contract Signatures is Test, SigVerify {
         bytes32 calldataHash = keccak256(
             abi.encode(dataNumber, bid, validUntil)
         );
-        (uint8 vSearcher, bytes32 rSearcher, bytes32 sSearcher) = vm.sign(
-            searcherSk,
-            calldataHash
-        );
-        return abi.encodePacked(rSearcher, sSearcher, vSearcher);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(searcherSk, calldataHash);
+        return abi.encodePacked(r, s, v);
     }
 
-    function createLiquidationSignature(
+    function createOpportunityExecutionSignature(
         TokenAmount[] memory sellTokens,
         TokenAmount[] memory buyTokens,
-        address contractAddress,
+        address target,
         bytes memory data,
         uint256 value,
         uint256 bid,
         uint256 validUntil,
-        uint256 liquidatorSk
+        uint256 executorSk
     ) public pure returns (bytes memory) {
         bytes32 calldataDigestLiquidator = keccak256(
             abi.encode(
                 sellTokens,
                 buyTokens,
-                contractAddress,
+                target,
                 data,
                 value,
                 bid,
                 validUntil
             )
         );
-        (uint8 vLiquidator, bytes32 rLiquidator, bytes32 sLiquidator) = vm.sign(
-            liquidatorSk,
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            executorSk,
             calldataDigestLiquidator
         );
-        return abi.encodePacked(rLiquidator, sLiquidator, vLiquidator);
+        return abi.encodePacked(r, s, v);
     }
 }
