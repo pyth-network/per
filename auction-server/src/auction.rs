@@ -94,9 +94,9 @@ pub fn get_simulation_call(
     relayer: Address,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
-    permission: Bytes,
+    permission_key: Bytes,
     target_contracts: Vec<Address>,
-    calldata: Vec<Bytes>,
+    target_calldata: Vec<Bytes>,
     bid_amounts: Vec<BidAmount>,
 ) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
@@ -104,7 +104,12 @@ pub fn get_simulation_call(
         ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
     express_relay_contract
-        .multicall(permission, target_contracts, calldata, bid_amounts)
+        .multicall(
+            permission_key,
+            target_contracts,
+            target_calldata,
+            bid_amounts,
+        )
         .from(relayer)
 }
 
@@ -131,7 +136,7 @@ pub async fn simulate_bids(
     chain_config: EthereumConfig,
     permission: Bytes,
     target_contracts: Vec<Address>,
-    calldata: Vec<Bytes>,
+    target_calldata: Vec<Bytes>,
     bid_amounts: Vec<BidAmount>,
 ) -> Result<(), SimulationError> {
     let call = get_simulation_call(
@@ -140,7 +145,7 @@ pub async fn simulate_bids(
         chain_config,
         permission,
         target_contracts,
-        calldata,
+        target_calldata,
         bid_amounts,
     );
     match call.await {
@@ -184,8 +189,8 @@ pub async fn submit_bids(
     chain_config: EthereumConfig,
     network_id: u64,
     permission: Bytes,
-    contracts: Vec<Address>,
-    calldata: Vec<Bytes>,
+    target_contracts: Vec<Address>,
+    target_calldata: Vec<Bytes>,
     bid_amounts: Vec<BidAmount>,
 ) -> Result<Option<TransactionReceipt>, SubmissionError> {
     let transformer = LegacyTxTransformer {
@@ -198,7 +203,12 @@ pub async fn submit_bids(
 
     let express_relay_contract =
         SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
-    let call = express_relay_contract.multicall(permission, contracts, calldata, bid_amounts);
+    let call = express_relay_contract.multicall(
+        permission,
+        target_contracts,
+        target_calldata,
+        bid_amounts,
+    );
     let mut gas_estimate = call
         .estimate_gas()
         .await

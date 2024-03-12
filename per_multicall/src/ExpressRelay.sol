@@ -80,13 +80,13 @@ contract ExpressRelay {
      *
      * @param permissionKey: permission to allow for this call
      * @param targetContracts: ordered list of contracts to call into
-     * @param data: ordered list of calldata to call with
+     * @param targetCalldata: ordered list of calldata to call the targets with
      * @param bidAmounts: ordered list of bids; call i will fail if it does not send this contract at least bid i
      */
     function multicall(
         bytes calldata permissionKey,
         address[] calldata targetContracts,
-        bytes[] calldata data,
+        bytes[] calldata targetCalldata,
         uint256[] calldata bidAmounts
     ) public payable returns (MulticallStatus[] memory multicallStatuses) {
         if (msg.sender != _operator) {
@@ -97,13 +97,17 @@ contract ExpressRelay {
         }
 
         _permissions[keccak256(permissionKey)] = true;
-        multicallStatuses = new MulticallStatus[](data.length);
+        multicallStatuses = new MulticallStatus[](targetCalldata.length);
 
         uint256 totalBid = 0;
-        for (uint256 i = 0; i < data.length; i++) {
+        for (uint256 i = 0; i < targetCalldata.length; i++) {
             // try/catch will revert if call to searcher fails or if bid conditions not met
             try
-                this.callWithBid(targetContracts[i], data[i], bidAmounts[i])
+                this.callWithBid(
+                    targetContracts[i],
+                    targetCalldata[i],
+                    bidAmounts[i]
+                )
             returns (bool success, bytes memory result) {
                 multicallStatuses[i].externalSuccess = success;
                 multicallStatuses[i].externalResult = result;
@@ -143,17 +147,19 @@ contract ExpressRelay {
      * @notice callWithBid function - contained call to function with check for bid invariant
      *
      * @param targetContract: contract address to call into
-     * @param data: calldata to call with
+     * @param targetCalldata: calldata to call the target with
      * @param bid: bid to be paid; call will fail if it does not send this contract at least bid,
      */
     function callWithBid(
         address targetContract,
-        bytes calldata data,
+        bytes calldata targetCalldata,
         uint256 bid
     ) public payable returns (bool, bytes memory) {
         uint256 balanceInitEth = address(this).balance;
 
-        (bool success, bytes memory result) = targetContract.call(data);
+        (bool success, bytes memory result) = targetContract.call(
+            targetCalldata
+        );
 
         if (success) {
             uint256 balanceFinalEth = address(this).balance;
