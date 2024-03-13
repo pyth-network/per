@@ -6,35 +6,37 @@
 
 ### pre-commit hooks
 
-pre-commit is a tool that checks and fixes simple issues (formatting, ...) before each commit. You can install it by following [their website](https://pre-commit.com/). In order to enable checks for this repo run `pre-commit install` from command-line in the root of this repo.
+pre-commit is a tool that checks and fixes simple issues (formatting, ...) before each commit.
+You can install it by following [their website](https://pre-commit.com/).
+In order to enable checks for this repo run `pre-commit install` from command-line in the root of this repo.
 
 The checks are also performed in the CI to ensure the code follows consistent formatting.
 
 ### Development with Tilt
 
-Run `tilt up --namespace dev-<YOUR_NAMESPACE>` to start tilt.
+Since express relay is a multi-service project, we use [Tilt](https://tilt.dev/) to manage the development environment.
+It is a great tool for local development and testing.
+Tilt requires `anvil`, `forge`, `poetry`, and rust to be installed on your machine.
 
-## Testing
+Here are the installation instructions for each:
 
-You can run forge tests from `per_multicall/` with the `--via-ir` flag. This only tests the smart contracts and can be used to evaluate whether any changes to the smart contracts preserve the desired behavior specified by the tests.
+- Rust: https://www.rust-lang.org/tools/install
+- Foundry (anvil,forge,cast, etc.): https://book.getfoundry.sh/getting-started/installation
+- Poetry: https://python-poetry.org/docs/#installation
+- Tilt: https://docs.tilt.dev/install.html
 
-To run a happy path test of the on-chain contracts plus the off-chain services, follow the following steps. You will need a valid EVM private key saved as SK_TX_SENDER to submit forge transactions from.
+Run `tilt up` in the root of the repo to start the development environment.
+You can access the ui at `http://localhost:10350/`.
 
-1. Run `anvil --gas-limit 500000000000000000 --block-time 2`. Retrieve the localhost url and save as ANVIL_RPC_URL.
-2. Run `forge script script/Vault.s.sol --via-ir --fork-url ${ANVIL_RPC_URL} --private-key ${SK_TX_SENDER} -vvv --sig 'setUpHappyPath()' --broadcast` from `per_multicall/`.
-3. Run `forge script script/Vault.s.sol --via-ir --fork-url ${ANVIL_RPC_URL} --private-key ${SK_TX_SENDER} -vvv --sig 'getVault(uint256)' 0 --broadcast` from `per_multicall/`. Confirm that the logged vault amounts are nonzero.
-4. Retrieve the following information from `per_multicall/latestEnvironment.json`:
-   a. Retrieve the address saved under "multicall" and save as MULTICALL.
-   b. Retrieve the address saved under "liquidationAdapter" and save as ADAPTER.
-   c. Retrieve the address saved under "tokenVault" and save as TOKEN_VAULT.
-   d. Retrieve the address saved under "weth" and save as WETH.
-   e. Retreive the number saved under "perOperatorSk", convert to a hex string, and save as OPERATOR_SK. You can perform this conversion in Python by calling hex() on the number.
-   f. Retrieve the number saved under "searcherAOwnerSk", convert to a hex string, and save as SEARCHER_SK. You can perform this conversion in Python by calling hex on the number.
-5. Create a file `auction-server/config.yaml`. Follow the format in the template `auction-server/config.sample.yaml`. Under the chain `development`, set
-   a. `geth_rpc_addr` to the value stored in ANVIL_RPC_URL
-   b. `express_relay_contract` to the value stored in MULTICALL
-   c. `opportunity_adapter_contract` to the value stored in ADAPTER
-6. Run `cargo run -- run --relayer-private-key ${OPERATOR_SK}` from `auction-server/`. This should start up the auction server.
-7. Run `python3 -m per_sdk.protocols.token_vault_monitor --chain-id development --rpc-url ${ANVIL_RPC_URL} --vault-contract ${TOKEN_VAULT} --weth-contract ${WETH} --liquidation-server-url http://localhost:9000/v1/liquidation/opportunities --mock-pyth`. This should start up the monitor script that exposes liquidatable vaults to the liquidation monitor server.
-8. Run `python3 -m per_sdk.searcher.simple_searcher --private-key ${SEARCHER_SK} --chain-id development --verbose --liquidation-server-url http://localhost:9000`.
-9. Run `forge script script/Vault.s.sol --via-ir --fork-url ${ANVIL_RPC_URL} --private-key ${SK_TX_SENDER} -vvv --sig 'getVault(uint256)' 0 --broadcast` from `per_multicall/`. Confirm that the logged vault amounts are now 0--this indicates that the vault was properly liquidated.
+Here is what tilt up does in order:
+
+1. Starts `anvil`: local EVM chain to test the contracts with
+2. Deploy express relay contracts
+3. Start the auction server
+4. Start the liquidation monitor
+5. Start the simple searcher
+
+There are some useful gadgets in Tilt ui for creating new vaults and checking the vault status.
+You can use them to test the system end to end.
+
+You can modify the services and restart the resources as necessary.

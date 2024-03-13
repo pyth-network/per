@@ -50,11 +50,11 @@ contract VaultScript is Script {
         payable(operatorAddress).transfer(0.01 ether);
         ExpressRelay multicall = new ExpressRelay(operatorAddress, 0);
         console.log("deployed ExpressRelay contract at", address(multicall));
-        OpportunityAdapter liquidationAdapter = new OpportunityAdapter(
+        OpportunityAdapter opportunityAdapter = new OpportunityAdapter(
             address(multicall),
             wethAddress
         );
-        return (address(multicall), address(liquidationAdapter));
+        return (address(multicall), address(opportunityAdapter));
     }
 
     function deployVault(
@@ -82,13 +82,13 @@ contract VaultScript is Script {
         (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
         address weth = deployWeth();
-        (address expressRelay, address liquidationAdapter) = deployExpressRelay(
+        (address expressRelay, address opportunityAdapter) = deployExpressRelay(
             weth
         );
         address mockPyth = deployMockPyth();
         address vault = deployVault(expressRelay, mockPyth);
         vm.stopBroadcast();
-        return (expressRelay, liquidationAdapter, mockPyth, vault, weth);
+        return (expressRelay, opportunityAdapter, mockPyth, vault, weth);
     }
 
     /**
@@ -102,7 +102,7 @@ contract VaultScript is Script {
         vm.startBroadcast(skDeployer);
         if (pyth == address(0)) pyth = deployMockPyth();
         if (weth == address(0)) weth = deployWeth();
-        (address expressRelay, address liquidationAdapter) = deployExpressRelay(
+        (address expressRelay, address opportunityAdapter) = deployExpressRelay(
             weth
         );
         address vault = deployVault(expressRelay, pyth);
@@ -146,7 +146,7 @@ contract VaultScript is Script {
         string memory obj = "";
         vm.serializeAddress(obj, "tokens", tokens);
         vm.serializeAddress(obj, "per", expressRelay);
-        vm.serializeAddress(obj, "liquidationAdapter", liquidationAdapter);
+        vm.serializeAddress(obj, "opportunityAdapter", opportunityAdapter);
         vm.serializeAddress(obj, "oracle", pyth);
         vm.serializeAddress(obj, "tokenVault", vault);
         string memory finalJSON = vm.serializeAddress(obj, "weth", weth);
@@ -208,15 +208,15 @@ contract VaultScript is Script {
         payable(addressesScript[4]).transfer(10 ether);
         vm.stopBroadcast();
 
-        // deploy weth, multicall, liquidationAdapter, oracle, tokenVault
-        address multicallAddress;
-        address liquidationAdapterAddress;
+        // deploy weth, multicall, opportunityAdapter, oracle, tokenVault
+        address expressRelay;
+        address opportunityAdapter;
         address oracleAddress;
         address tokenVaultAddress;
         address wethAddress;
         (
-            multicallAddress,
-            liquidationAdapterAddress,
+            expressRelay,
+            opportunityAdapter,
             oracleAddress,
             tokenVaultAddress,
             wethAddress
@@ -225,14 +225,14 @@ contract VaultScript is Script {
         // instantiate searcher A's contract with searcher A as sender/origin
         vm.startBroadcast(sksScript[0]);
         console.log("balance of pk searcherA", addressesScript[0].balance);
-        searcherA = new SearcherVault(multicallAddress, tokenVaultAddress);
+        searcherA = new SearcherVault(expressRelay, tokenVaultAddress);
         vm.stopBroadcast();
         console.log("contract of searcher A is", address(searcherA));
 
         // instantiate searcher B's contract with searcher B as sender/origin
         vm.startBroadcast(sksScript[1]);
         console.log("balance of pk searcherB", addressesScript[1].balance);
-        searcherB = new SearcherVault(multicallAddress, tokenVaultAddress);
+        searcherB = new SearcherVault(expressRelay, tokenVaultAddress);
         vm.stopBroadcast();
         console.log("contract of searcher B is", address(searcherB));
 
@@ -300,35 +300,25 @@ contract VaultScript is Script {
 
         // searchers A and B approve liquidation adapter to spend their tokens
         vm.startBroadcast(sksScript[0]);
-        IERC20(address(token1)).approve(liquidationAdapterAddress, 199_999_999);
-        IERC20(address(token2)).approve(liquidationAdapterAddress, 199_999_999);
+        IERC20(address(token1)).approve(opportunityAdapter, 199_999_999);
+        IERC20(address(token2)).approve(opportunityAdapter, 199_999_999);
         // deposit ETH to get WETH
         WETH9(payable(wethAddress)).deposit{value: 1 ether}();
-        WETH9(payable(wethAddress)).approve(
-            liquidationAdapterAddress,
-            399_999_999
-        );
+        WETH9(payable(wethAddress)).approve(opportunityAdapter, 399_999_999);
         vm.stopBroadcast();
         vm.startBroadcast(sksScript[1]);
-        IERC20(address(token1)).approve(liquidationAdapterAddress, 199_999_999);
-        IERC20(address(token2)).approve(liquidationAdapterAddress, 199_999_999);
+        IERC20(address(token1)).approve(opportunityAdapter, 199_999_999);
+        IERC20(address(token2)).approve(opportunityAdapter, 199_999_999);
         WETH9(payable(wethAddress)).deposit{value: 1 ether}();
-        WETH9(payable(wethAddress)).approve(
-            liquidationAdapterAddress,
-            399_999_999
-        );
+        WETH9(payable(wethAddress)).approve(opportunityAdapter, 399_999_999);
         vm.stopBroadcast();
 
         string memory obj = "latestEnvironment";
         vm.serializeAddress(obj, "tokenVault", tokenVaultAddress);
         vm.serializeAddress(obj, "searcherA", address(searcherA));
         vm.serializeAddress(obj, "searcherB", address(searcherB));
-        vm.serializeAddress(obj, "multicall", multicallAddress);
-        vm.serializeAddress(
-            obj,
-            "liquidationAdapter",
-            liquidationAdapterAddress
-        );
+        vm.serializeAddress(obj, "expressRelay", expressRelay);
+        vm.serializeAddress(obj, "opportunityAdapter", opportunityAdapter);
         vm.serializeAddress(obj, "oracle", oracleAddress);
 
         vm.serializeAddress(obj, "weth", wethAddress);
@@ -339,25 +329,30 @@ contract VaultScript is Script {
         vm.serializeBytes32(obj, "idToken1", idToken1);
         vm.serializeBytes32(obj, "idToken2", idToken2);
 
-        vm.serializeAddress(obj, "perOperatorAddress", addressesScript[3]);
-        vm.serializeUint(obj, "perOperatorSk", sksScript[3]);
+        vm.serializeBytes32(obj, "relayerPrivateKey", bytes32(sksScript[3]));
         vm.serializeAddress(obj, "searcherAOwnerAddress", addressesScript[0]);
-        vm.serializeUint(obj, "searcherAOwnerSk", sksScript[0]);
+        vm.serializeBytes32(obj, "searcherAOwnerSk", bytes32(sksScript[0]));
         vm.serializeAddress(obj, "searcherBOwnerAddress", addressesScript[1]);
-        vm.serializeUint(obj, "searcherBOwnerSk", sksScript[1]);
+        vm.serializeBytes32(obj, "searcherBOwnerSk", bytes32(sksScript[1]));
         vm.serializeAddress(obj, "depositor", addressesScript[2]);
-        vm.serializeUint(obj, "depositorSk", sksScript[2]);
+        vm.serializeBytes32(obj, "depositorSk", bytes32(sksScript[2]));
         vm.serializeAddress(obj, "tokenVaultDeployer", addressesScript[4]);
-        vm.serializeUint(obj, "tokenVaultDeployerSk", sksScript[4]);
+        vm.serializeBytes32(obj, "tokenVaultDeployerSk", bytes32(sksScript[4]));
         string memory finalJSON = vm.serializeUint(obj, "numVaults", 0);
         vm.writeJson(finalJSON, latestEnvironmentPath);
     }
 
-    function setOraclePrice(
-        int64 priceT1,
-        int64 priceT2,
-        uint64 publishTime
-    ) public {
+    function getNextPublishTime(bytes32 idToken) public view returns (uint64) {
+        string memory json = vm.readFile(latestEnvironmentPath);
+        address oracleLatest = vm.parseJsonAddress(json, ".oracle");
+        MockPyth oracle = MockPyth(payable(oracleLatest));
+        if (oracle.priceFeedExists(idToken) == false) {
+            return 1;
+        }
+        return uint64(oracle.getPriceUnsafe(idToken).publishTime + 1);
+    }
+
+    function setOraclePrice(int64 priceT1, int64 priceT2) public {
         string memory json = vm.readFile(latestEnvironmentPath);
         address oracleLatest = vm.parseJsonAddress(json, ".oracle");
         bytes32 idToken1Latest = vm.parseJsonBytes32(json, ".idToken1");
@@ -380,7 +375,7 @@ contract VaultScript is Script {
             0,
             priceT1,
             0,
-            publishTime,
+            getNextPublishTime(idToken1Latest),
             0
         );
         bytes memory token2UpdateData = oracle.createPriceFeedUpdateData(
@@ -390,7 +385,7 @@ contract VaultScript is Script {
             0,
             priceT2,
             0,
-            publishTime,
+            getNextPublishTime(idToken2Latest),
             0
         );
 
@@ -532,17 +527,16 @@ contract VaultScript is Script {
 
     function tryOpportunityAdapterContract() public view returns (address) {
         string memory json = vm.readFile(latestEnvironmentPath);
-        address liquidationAdapter = vm.parseJsonAddress(
+        address opportunityAdapter = vm.parseJsonAddress(
             json,
-            ".liquidationAdapter"
+            ".opportunityAdapter"
         );
-        return OpportunityAdapter(payable(liquidationAdapter)).getWeth();
+        return OpportunityAdapter(payable(opportunityAdapter)).getWeth();
     }
 
-    function setUpHappyPath() public {
-        setUpLocalnet();
-        setOraclePrice(110, 110, 190);
+    function createLiquidatableVault() public {
+        setOraclePrice(110, 110);
         setUpVault(100, 80, true);
-        setOraclePrice(110, 200, 200);
+        setOraclePrice(110, 200);
     }
 }

@@ -1,0 +1,41 @@
+"""
+This script is used to generate the environment variables to be used by python scripts
+and config.yaml file for the auction server.
+
+It accepts the geth rpc address as the first argument and generates the following:
+1. tilt-resources.env file which contains the environment variables to be used by the python scripts
+2. config.yaml file which contains the configuration for the auction server
+"""
+
+import json
+import sys
+
+field_mapping = {
+    'tokenVault': 'TOKEN_VAULT',
+    'weth': 'WETH',
+    'relayerPrivateKey': 'RELAYER_PRIVATE_KEY',
+    'searcherAOwnerSk': 'SEARCHER_SK',
+}
+
+
+def main():
+    latest_env = json.load(open('per_multicall/latestEnvironment.json'))
+    with open('tilt-resources.env', 'w') as f:
+        for k, v in field_mapping.items():
+            f.write(f'export {v}={latest_env[k]}\n')
+    # config_template
+    template = f'''
+chains:
+  development:
+    geth_rpc_addr: {sys.argv[1]}
+    express_relay_contract: {latest_env['expressRelay']}
+    opportunity_adapter_contract: {latest_env['opportunityAdapter']}
+    legacy_tx: false
+    poll_interval: 1
+'''
+    with open('auction-server/config.yaml', 'w') as f:
+        f.write(template)
+
+
+if __name__ == '__main__':
+    main()
