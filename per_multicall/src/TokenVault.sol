@@ -5,8 +5,8 @@ import "./TokenVaultErrors.sol";
 import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
 import "./Structs.sol";
-import "./PERMulticall.sol";
-import "./PERFeeReceiver.sol";
+import "./ExpressRelay.sol";
+import "./ExpressRelayFeeReceiver.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
@@ -17,25 +17,25 @@ import {MyToken} from "./MyToken.sol";
 import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
 
-contract TokenVault is PERFeeReceiver {
+contract TokenVault is ExpressRelayFeeReceiver {
     using SafeERC20 for IERC20;
 
     event VaultReceivedETH(address sender, uint256 amount, bytes permissionKey);
 
     uint256 _nVaults;
-    address public immutable perMulticall;
+    address public immutable expressRelay;
     mapping(uint256 => Vault) _vaults;
     address _oracle;
 
     /**
      * @notice TokenVault constructor - Initializes a new token vault contract with given parameters
      *
-     * @param perMulticallAddress: address of PER contract
+     * @param expressRelayAddress: address of the express relay
      * @param oracleAddress: address of the oracle contract
      */
-    constructor(address perMulticallAddress, address oracleAddress) {
+    constructor(address expressRelayAddress, address oracleAddress) {
         _nVaults = 0;
-        perMulticall = perMulticallAddress;
+        expressRelay = expressRelayAddress;
         _oracle = oracleAddress;
     }
 
@@ -268,7 +268,7 @@ contract TokenVault is PERFeeReceiver {
 
         if (
             vaultHealth >= vault.minPermissionLessHealthRatio &&
-            !PERMulticall(payable(perMulticall)).isPermissioned(
+            !ExpressRelay(payable(expressRelay)).isPermissioned(
                 address(this),
                 abi.encode(vaultID)
             )

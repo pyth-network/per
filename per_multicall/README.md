@@ -1,4 +1,4 @@
-# PER
+# Express Relay Contracts
 
 ## Setup
 
@@ -12,11 +12,15 @@ $ forge install OpenZeppelin/openzeppelin-contracts --no-git --no-commit
 
 ## Repo contracts
 
-**The contracts included in `src/` includes a protocol around which we test fast calls via the multicall contract.** The protocol is a sample token vault where anyone can permissionlessly create a vault with collateral and debt positions, somewhat like (though simpler than) a vanilla lending protocol. This protocol is found in `TokenVault.sol`, and its associated searcher contract can be found in `SearcherVault.sol`. This protocol uses the mock Pyth contract found in the Solidity SDK.
+**The contracts included in `src/` includes a protocol around which we test liquidation calls via the express relay contract.** The protocol is a sample token vault where anyone can permissionlessly create a vault with collateral and debt positions, somewhat like (though simpler than) a vanilla lending protocol. This protocol is found in `TokenVault.sol`, and its associated searcher contract can be found in `SearcherVault.sol`. This protocol uses the mock Pyth contract found in the Solidity SDK.
 
-The multicall contract is in `PERMulticall.sol`. It includes functionality to call into arbitrary contracts with arbitrary calldata via an external `call` (as opposed to `delegatecall`, since we need to alter the state of the end protocol that we call into). We also have the liquidation adapter contract in `LiquidationAdapter.sol`, which calls into arbitrary protocols' liquidation contracts along with checks that the tokens spent and received by the end user meet expectations. This allows users to participate in liquidations without needing to set up their own searcher contracts and do bespoke integration work.
+The Express Relay main contract is in `ExpressRelay.sol`.
+It includes functionality to call into arbitrary contracts with arbitrary calldata via an external `call` (as opposed to `delegatecall`,
+since we need to alter the state of the end protocol that we call into).
+We also have the opportunity adapter contract in `OpportunityAdapter.sol`, which calls into arbitrary protocols' liquidation contracts along with checks that the tokens spent and received by the end user meet expectations.
+This allows users to participate in liquidations without needing to set up their own searcher contracts and do bespoke integration work.
 
-Tests can be found in `test/`. These tests include checks that the protocol functions work, as well as checks around permissioning, bid conditions, and appropriate failing of components of the multicall bundle (without failing the whole bundle).
+Tests can be found in `test/`. These tests include checks that the protocol functions work, as well as checks around permissioning, bid conditions, and appropriate failing of components of the express relay bundle (without failing the whole bundle).
 
 To run tests with the appropriate stack depth and console logging, run
 

@@ -11,7 +11,7 @@ import web3
 from eth_abi import encode
 
 from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient, price_to_tuple
-from per_sdk.utils.types_liquidation_adapter import LiquidationOpportunity
+from per_sdk.utils.types_liquidation_adapter import Opportunity
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class VaultMonitor:
 
     def create_liquidation_opp(
         self, account: ProtocolAccount, prices: list[PriceFeed]
-    ) -> LiquidationOpportunity:
+    ) -> Opportunity:
         """
         Constructs a LiquidationOpportunity object from a ProtocolAccount object and a set of relevant Pyth PriceFeeds.
 
@@ -162,27 +162,27 @@ class VaultMonitor:
         call_value = len(price_updates)
 
         if call_value > 0 and account["token_address_collateral"] == self.weth_address:
-            repay_tokens = [
+            sell_tokens = [
                 (
                     account["token_address_debt"],
                     str(account["amount_debt"] + call_value),
                 )
             ]
         else:
-            repay_tokens = [
+            sell_tokens = [
                 (account["token_address_debt"], str(account["amount_debt"])),
                 (self.weth_address, str(call_value)),
             ]
 
-        opp: LiquidationOpportunity = {
+        opp: Opportunity = {
             "chain_id": self.chain_id,
-            "contract": self.contract_address,
-            "calldata": calldata,
+            "target_contract": self.contract_address,
+            "target_calldata": calldata,
             "permission_key": permission,
             "account": str(account["account_number"]),
             "value": str(call_value),
-            "repay_tokens": repay_tokens,
-            "receipt_tokens": [
+            "sell_tokens": sell_tokens,
+            "buy_tokens": [
                 (account["token_address_collateral"], str(account["amount_collateral"]))
             ],
             "version": "v1",
@@ -196,7 +196,7 @@ class VaultMonitor:
 
         return opp
 
-    async def get_liquidation_opportunities(self) -> list[LiquidationOpportunity]:
+    async def get_liquidation_opportunities(self) -> list[Opportunity]:
         """
         Filters list of ProtocolAccount types to return a list of LiquidationOpportunity types.
 
@@ -330,7 +330,7 @@ async def main():
                 try:
                     resp = await client.post(
                         urllib.parse.urljoin(
-                            args.liquidation_server_url, "/v1/liquidation/opportunities"
+                            args.liquidation_server_url, "/v1/opportunities"
                         ),
                         json=opp,
                     )

@@ -1,4 +1,4 @@
-# PER
+# Express Relay
 
 ## [Off-chain server](auction-server/README.md)
 
@@ -32,9 +32,9 @@ To run a happy path test of the on-chain contracts plus the off-chain services, 
    f. Retrieve the number saved under "searcherAOwnerSk", convert to a hex string, and save as SEARCHER_SK. You can perform this conversion in Python by calling hex on the number.
 5. Create a file `auction-server/config.yaml`. Follow the format in the template `auction-server/config.sample.yaml`. Under the chain `development`, set
    a. `geth_rpc_addr` to the value stored in ANVIL_RPC_URL
-   b. `per_contract` to the value stored in MULTICALL
-   c. `adapter_contract` to the value stored in ADAPTER
-6. Run `cargo run -- run --per-private-key ${OPERATOR_SK}` from `auction-server/`. This should start up the auction server.
+   b. `express_relay_contract` to the value stored in MULTICALL
+   c. `opportunity_adapter_contract` to the value stored in ADAPTER
+6. Run `cargo run -- run --relayer-private-key ${OPERATOR_SK}` from `auction-server/`. This should start up the auction server.
 7. Run `python3 -m per_sdk.protocols.token_vault_monitor --chain-id development --rpc-url ${ANVIL_RPC_URL} --vault-contract ${TOKEN_VAULT} --weth-contract ${WETH} --liquidation-server-url http://localhost:9000/v1/liquidation/opportunities --mock-pyth`. This should start up the monitor script that exposes liquidatable vaults to the liquidation monitor server.
 8. Run `python3 -m per_sdk.searcher.simple_searcher --private-key ${SEARCHER_SK} --chain-id development --verbose --liquidation-server-url http://localhost:9000`.
 9. Run `forge script script/Vault.s.sol --via-ir --fork-url ${ANVIL_RPC_URL} --private-key ${SK_TX_SENDER} -vvv --sig 'getVault(uint256)' 0 --broadcast` from `per_multicall/`. Confirm that the logged vault amounts are now 0--this indicates that the vault was properly liquidated.

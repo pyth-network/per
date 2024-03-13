@@ -7,6 +7,7 @@ use {
             SHOULD_EXIT,
         },
         state::{
+            BidAmount,
             BidStatus,
             BidStatusWithId,
             SimulatedBid,
@@ -68,13 +69,13 @@ use {
 };
 
 abigen!(
-    PER,
-    "../per_multicall/out/PERMulticall.sol/PERMulticall.json"
+    ExpressRelay,
+    "../per_multicall/out/ExpressRelay.sol/ExpressRelay.json"
 );
-pub type PERContract = PER<Provider<Http>>;
+pub type ExpressRelayContract = ExpressRelay<Provider<Http>>;
 pub type SignableProvider =
     TransformerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>, LegacyTxTransformer>;
-pub type SignablePERContract = PER<SignableProvider>;
+pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
 
 impl TryFrom<EthereumConfig> for Provider<Http> {
     type Error = anyhow::Error;
@@ -90,20 +91,26 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
 }
 
 pub fn get_simulation_call(
-    per_operator: Address,
+    relayer: Address,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
-    permission: Bytes,
-    contracts: Vec<Address>,
-    calldata: Vec<Bytes>,
-    bids: Vec<U256>,
-) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<per::MulticallStatus>> {
+    permission_key: Bytes,
+    target_contracts: Vec<Address>,
+    target_calldata: Vec<Bytes>,
+    bid_amounts: Vec<BidAmount>,
+) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
-    let per_contract = PERContract::new(chain_config.per_contract, client);
+    let express_relay_contract =
+        ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
-    per_contract
-        .multicall(permission, contracts, calldata, bids)
-        .from(per_operator)
+    express_relay_contract
+        .multicall(
+            permission_key,
+            target_contracts,
+            target_calldata,
+            bid_amounts,
+        )
+        .from(relayer)
 }
 
 
@@ -113,9 +120,7 @@ pub enum SimulationError {
 }
 
 
-pub fn evaluate_simulation_results(
-    results: Vec<per::MulticallStatus>,
-) -> Result<(), SimulationError> {
+pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), SimulationError> {
     let failed_result = results.iter().find(|x| !x.external_success);
     if let Some(call_status) = failed_result {
         return Err(SimulationError::LogicalError {
@@ -126,22 +131,22 @@ pub fn evaluate_simulation_results(
     Ok(())
 }
 pub async fn simulate_bids(
-    per_operator: Address,
+    relayer: Address,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission: Bytes,
-    contracts: Vec<Address>,
-    calldata: Vec<Bytes>,
-    bids: Vec<U256>,
+    target_contracts: Vec<Address>,
+    target_calldata: Vec<Bytes>,
+    bid_amounts: Vec<BidAmount>,
 ) -> Result<(), SimulationError> {
     let call = get_simulation_call(
-        per_operator,
+        relayer,
         provider,
         chain_config,
         permission,
-        contracts,
-        calldata,
-        bids,
+        target_contracts,
+        target_calldata,
+        bid_amounts,
     );
     match call.await {
         Ok(results) => {
@@ -184,9 +189,9 @@ pub async fn submit_bids(
     chain_config: EthereumConfig,
     network_id: u64,
     permission: Bytes,
-    contracts: Vec<Address>,
-    calldata: Vec<Bytes>,
-    bids: Vec<U256>,
+    target_contracts: Vec<Address>,
+    target_calldata: Vec<Bytes>,
+    bid_amounts: Vec<BidAmount>,
 ) -> Result<Option<TransactionReceipt>, SubmissionError> {
     let transformer = LegacyTxTransformer {
         use_legacy_tx: chain_config.legacy_tx,
@@ -196,8 +201,14 @@ pub async fn submit_bids(
         transformer,
     ));
 
-    let per_contract = SignablePERContract::new(chain_config.per_contract, client);
-    let call = per_contract.multicall(permission, contracts, calldata, bids);
+    let express_relay_contract =
+        SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
+    let call = express_relay_contract.multicall(
+        permission,
+        target_contracts,
+        target_calldata,
+        bid_amounts,
+    );
     let mut gas_estimate = call
         .estimate_gas()
         .await
@@ -233,20 +244,20 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                     for (permission_key, bids) in permission_bids.iter() {
                         let mut cloned_bids = bids.clone();
                         let permission_key = permission_key.clone();
-                         cloned_bids.sort_by(|a, b| b.bid.cmp(&a.bid));
+                         cloned_bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
 
                         // TODO: simulate all bids together and keep the successful ones
                         // keep the highest bid for now
                         let winner_bids = &cloned_bids[..1].to_vec();
                         let submission = submit_bids(
-                            store.per_operator.clone(),
+                            store.relayer.clone(),
                             chain_store.provider.clone(),
                             chain_store.config.clone(),
                             chain_store.network_id,
                             permission_key.clone(),
                             winner_bids.iter().map(|b| b.contract).collect(),
                             winner_bids.iter().map(|b| b.calldata.clone()).collect(),
-                            winner_bids.iter().map(|b| b.bid).collect(),
+                            winner_bids.iter().map(|b| b.bid_amount).collect(),
                         )
                         .await;
                         match submission {
@@ -299,7 +310,7 @@ pub struct Bid {
     /// Amount of bid in wei.
     #[schema(example = "10", value_type=String)]
     #[serde(with = "crate::serde::u256")]
-    pub amount:         U256,
+    pub amount:         BidAmount,
 }
 
 pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, RestError> {
@@ -308,7 +319,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
     let call = simulate_bids(
-        store.per_operator.address(),
+        store.relayer.address(),
         chain_store.provider.clone(),
         chain_store.config.clone(),
         bid.permission_key.clone(),
@@ -343,10 +354,10 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         .entry(bid.permission_key.clone())
         .or_default()
         .push(SimulatedBid {
-            contract: bid.contract,
-            calldata: bid.calldata.clone(),
-            bid:      bid.amount,
-            id:       bid_id,
+            contract:   bid.contract,
+            calldata:   bid.calldata.clone(),
+            bid_amount: bid.amount,
+            id:         bid_id,
         });
     store
         .bid_status_store

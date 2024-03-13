@@ -2,7 +2,7 @@ use {
     crate::{
         api::{
             bid::BidResult,
-            liquidation::OpportunityParamsWithMetadata,
+            opportunity::OpportunityParamsWithMetadata,
             ws::{
                 APIResponse,
                 ClientMessage,
@@ -14,7 +14,7 @@ use {
         },
         auction::Bid,
         config::RunOptions,
-        liquidation_adapter::OpportunityBid,
+        opportunity_adapter::OpportunityBid,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -25,7 +25,7 @@ use {
             OpportunityParams,
             OpportunityParamsV1,
             Store,
-            TokenQty,
+            TokenAmount,
         },
     },
     anyhow::Result,
@@ -59,11 +59,11 @@ use {
 };
 
 async fn root() -> String {
-    format!("PER Auction Server API {}", crate_version!())
+    format!("Express Relay Auction Server API {}", crate_version!())
 }
 
 mod bid;
-pub(crate) mod liquidation;
+pub(crate) mod opportunity;
 pub(crate) mod ws;
 
 pub enum RestError {
@@ -142,9 +142,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     paths(
     bid::bid,
     bid::bid_status,
-    liquidation::post_opportunity,
-    liquidation::liquidation_bid,
-    liquidation::get_opportunities,
+    opportunity::post_opportunity,
+    opportunity::opportunity_bid,
+    opportunity::get_opportunities,
     ),
     components(
     schemas(
@@ -157,7 +157,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     OpportunityBid,
     OpportunityParams,
     OpportunityParamsWithMetadata,
-    TokenQty,
+    TokenAmount,
     BidResult,
     ErrorBodyResponse,
     ClientRequest,
@@ -173,7 +173,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ),
     ),
     tags(
-    (name = "PER Auction", description = "Pyth Express Relay Auction Server")
+    (name = "Express Relay Auction Server", description = "Auction Server handles all the necessary communications\
+    between searchers and protocols. It conducts the auctions and submits the winning bids on chain.")
     )
     )]
     struct ApiDoc;
@@ -183,17 +184,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .route("/", get(root))
         .route("/v1/bids", post(bid::bid))
         .route("/v1/bids/:bid_id", get(bid::bid_status))
+        .route("/v1/opportunities", post(opportunity::post_opportunity))
+        .route("/v1/opportunities", get(opportunity::get_opportunities))
         .route(
-            "/v1/liquidation/opportunities",
-            post(liquidation::post_opportunity),
-        )
-        .route(
-            "/v1/liquidation/opportunities",
-            get(liquidation::get_opportunities),
-        )
-        .route(
-            "/v1/liquidation/opportunities/:opportunity_id/bids",
-            post(liquidation::liquidation_bid),
+            "/v1/opportunities/:opportunity_id/bids",
+            post(opportunity::opportunity_bid),
         )
         .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))

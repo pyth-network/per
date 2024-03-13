@@ -1,7 +1,7 @@
 chains:
   development:
     geth_rpc_addr: http://localhost:8545
-    per_contract: 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853
-    adapter_contract: 0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e
+    express_relay_contract: 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853
+    opportunity_adapter_contract: 0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e
     legacy_tx: false
     poll_interval: 1

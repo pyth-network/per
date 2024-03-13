@@ -1,7 +1,7 @@
 /// This module contains functions to spoof the balance and allowance of an address in an
 /// ERC20 token.
 /// This is used to alter the balance and allowance of an address in a token to verify
-/// the liquidation opportunities in a simulation environment.
+/// the opportunities in a simulation environment.
 /// The spoofing is done by finding the storage slot of the balance and allowance of an address
 /// This approach is just a heuristic and will not work for all tokens, specially if the token
 /// has a custom storage layout or logic to calculate the balance or allowance
@@ -10,7 +10,7 @@
 use ethers::addressbook::Address;
 use {
     crate::{
-        liquidation_adapter::ERC20,
+        opportunity_adapter::ERC20,
         state::SpoofInfo,
     },
     anyhow::anyhow,

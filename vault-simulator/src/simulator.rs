@@ -251,7 +251,7 @@ pub async fn deploy_contract(options: DeployOptions) -> Result<()> {
     let client = setup_client(options.private_key, options.rpc_addr).await?;
     let contract = SignableTokenVaultContract::deploy(
         client,
-        (options.per_contract, options.oracle_contract),
+        (options.relay_contract, options.oracle_contract),
     )?
     .send()
     .await?;

@@ -75,7 +75,7 @@ pub struct SearcherOptions {
     #[command(flatten)]
     pub run_options: RunOptions,
 
-    /// The address of the liquidation adapter contract to use for approvals
+    /// The address of the opportunity adapter contract to use for approvals
     #[arg(long = "adapter-contract")]
     pub adapter_contract: Address,
 
@@ -96,9 +96,9 @@ pub struct DeployOptions {
     #[arg(env = "PRIVATE_KEY")]
     pub private_key: String,
 
-    /// The per contract address
-    #[arg(long = "per-contract")]
-    pub per_contract: Address,
+    /// The express relay contract address
+    #[arg(long = "relay-contract")]
+    pub relay_contract: Address,
 
     /// The oracle contract address
     #[arg(long = "oracle-contract")]

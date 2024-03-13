@@ -11,23 +11,23 @@ class BidInfo(TypedDict):
     valid_until: int
 
 
-def construct_signature_liquidator(
-    repay_tokens: list[(str, int)],
-    receipt_tokens: list[(str, int)],
+def construct_signature_executor(
+    sell_tokens: list[(str, int)],
+    buy_tokens: list[(str, int)],
     address: str,
-    liq_calldata: bytes,
+    calldata: bytes,
     value: int,
     bid_info: BidInfo,
     secret_key: str,
 ) -> SignedMessage:
     """
-    Constructs a signature for a liquidator's bid to submit to the liquidation server.
+    Constructs a signature for an executors' bid to submit to the auction server.
 
     Args:
-        repay_tokens: A list of tuples (token address, amount) representing the tokens to repay.
-        receipt_tokens: A list of tuples (token address, amount) representing the tokens to receive.
+        sell_tokens: A list of tuples (token address, amount) representing the tokens to repay.
+        buy_tokens: A list of tuples (token address, amount) representing the tokens to receive.
         address: The address of the protocol contract for the liquidation.
-        liq_calldata: The calldata for the liquidation method call.
+        calldata: The calldata for the execution method call.
         value: The value for the liquidation method call.
         bid: The amount of native token to bid on this opportunity.
         valid_until: The timestamp at which the transaction will expire.
@@ -47,10 +47,10 @@ def construct_signature_liquidator(
             "uint256",
         ],
         [
-            repay_tokens,
-            receipt_tokens,
+            sell_tokens,
+            buy_tokens,
             address,
-            liq_calldata,
+            calldata,
             value,
             bid_info["bid"],
             bid_info["valid_until"],
