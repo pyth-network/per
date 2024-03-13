@@ -64,12 +64,12 @@ def create_liquidation_transaction(
     buy_tokens = [(opp["token"], int(opp["amount"])) for opp in opp["buy_tokens"]]
 
     liquidator = Account.from_key(sk_liquidator).address
-    liq_calldata = bytes.fromhex(opp["calldata"].replace("0x", ""))
+    liq_calldata = bytes.fromhex(opp["target_calldata"].replace("0x", ""))
 
     signature_liquidator = construct_signature_executor(
         sell_tokens,
         buy_tokens,
-        opp["contract"],
+        opp["target_contract"],
         liq_calldata,
         int(opp["value"]),
         bid_info,
@@ -81,7 +81,7 @@ def create_liquidation_transaction(
         "permission_key": opp["permission_key"],
         "amount": str(bid_info["bid"]),
         "valid_until": str(bid_info["valid_until"]),
-        "liquidator": liquidator,
+        "executor": liquidator,
         "signature": bytes(signature_liquidator.signature).hex(),
     }
 
@@ -101,7 +101,7 @@ async def main():
         "--chain-id",
         type=str,
         required=True,
-        help="Chain ID of the network to monitor for liquidation opportunities",
+        help="Chain ID of the network to monitor for opportunities",
     )
     parser.add_argument(
         "--bid",
@@ -135,7 +135,7 @@ async def main():
             accounts_liquidatable = (
                 await client.get(
                     urllib.parse.urljoin(
-                        args.liquidation_server_url, "/v1/liquidation/opportunities"
+                        args.liquidation_server_url, "/v1/opportunities"
                     ),
                     params={"chain_id": args.chain_id},
                 )
@@ -166,7 +166,7 @@ async def main():
                 resp = await client.post(
                     urllib.parse.urljoin(
                         args.liquidation_server_url,
-                        f"/v1/liquidation/opportunities/{opp_id}/bids",
+                        f"/v1/opportunities/{opp_id}/bids",
                     ),
                     json=tx,
                     timeout=20,

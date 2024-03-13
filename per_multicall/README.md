@@ -20,7 +20,7 @@ since we need to alter the state of the end protocol that we call into).
 We also have the opportunity adapter contract in `OpportunityAdapter.sol`, which calls into arbitrary protocols' liquidation contracts along with checks that the tokens spent and received by the end user meet expectations.
 This allows users to participate in liquidations without needing to set up their own searcher contracts and do bespoke integration work.
 
-Tests can be found in `test/`. These tests include checks that the protocol functions work, as well as checks around permissioning, bid conditions, and appropriate failing of components of the express relay bid bundle (without failing the whole bundle).
+Tests can be found in `test/`. These tests include checks that the protocol functions work, as well as checks around permissioning, bid conditions, and appropriate failing of components of the express relay bundle (without failing the whole bundle).
 
 To run tests with the appropriate stack depth and console logging, run
 

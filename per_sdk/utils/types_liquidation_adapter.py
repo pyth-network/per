@@ -12,9 +12,9 @@ class Opportunity(TypedDict):
     # The id of the chain where the opportunity was found
     chain_id: str
     # Address of the contract where the liquidation method is called
-    contract: str
+    target_contract: str
     # The calldata that needs to be passed in with the liquidation method call
-    calldata: str
+    target_calldata: str
     # The value that needs to be passed in with the liquidation method call
     value: str
     # The permission key necessary to call the liquidation method

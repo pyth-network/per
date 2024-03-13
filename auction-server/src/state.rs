@@ -69,26 +69,26 @@ pub struct TokenAmount {
 
 /// Opportunity parameters needed for on-chain execution
 /// If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
-/// by calling this contract with the given calldata and structures, they will receive the tokens specified
-/// in the buy_tokens field, and will send the tokens specified in the sell_tokens field.
+/// by calling this target contract with the given target calldata and structures, they will
+/// send the tokens specified in the sell_tokens field and receive the tokens specified in the buy_tokens field.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 pub struct OpportunityParamsV1 {
     /// The permission key required for successful execution of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
-    pub permission_key: Bytes,
+    pub permission_key:  Bytes,
     /// The chain id where the opportunity will be executed.
     #[schema(example = "sepolia", value_type=String)]
-    pub chain_id:       ChainId,
+    pub chain_id:        ChainId,
     /// The contract address to call for execution of the opportunity.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type=String)]
-    pub contract:       ethers::abi::Address,
-    /// Calldata for the contract call.
+    pub target_contract: ethers::abi::Address,
+    /// Calldata for the target contract call.
     #[schema(example = "0xdeadbeef", value_type=String)]
-    pub calldata:       Bytes,
+    pub target_calldata: Bytes,
     /// The value to send with the contract call.
     #[schema(example = "1", value_type=String)]
     #[serde(with = "crate::serde::u256")]
-    pub value:          U256,
+    pub value:           U256,
 
     pub sell_tokens: Vec<TokenAmount>,
     pub buy_tokens:  Vec<TokenAmount>,

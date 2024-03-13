@@ -271,8 +271,8 @@ pub fn make_opportunity_execution_params(
             .map(TokenAmount::from)
             .collect(),
         executor:        bid.executor,
-        target_contract: opportunity.contract,
-        target_calldata: opportunity.calldata,
+        target_contract: opportunity.target_contract,
+        target_calldata: opportunity.target_calldata,
         value:           opportunity.value,
         valid_until:     bid.valid_until,
         bid_amount:      bid.amount,

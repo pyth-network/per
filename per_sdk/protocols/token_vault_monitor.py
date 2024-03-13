@@ -176,8 +176,8 @@ class VaultMonitor:
 
         opp: Opportunity = {
             "chain_id": self.chain_id,
-            "contract": self.contract_address,
-            "calldata": calldata,
+            "target_contract": self.contract_address,
+            "target_calldata": calldata,
             "permission_key": permission,
             "account": str(account["account_number"]),
             "value": str(call_value),
@@ -330,7 +330,7 @@ async def main():
                 try:
                     resp = await client.post(
                         urllib.parse.urljoin(
-                            args.liquidation_server_url, "/v1/liquidation/opportunities"
+                            args.liquidation_server_url, "/v1/opportunities"
                         ),
                         json=opp,
                     )
