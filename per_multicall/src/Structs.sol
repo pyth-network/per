@@ -34,7 +34,7 @@ struct ExecutionParams {
     address executor;
     address targetContract;
     bytes targetCalldata;
-    uint256 value;
+    uint256 targetCallValue;
     uint256 validUntil;
     uint256 bidAmount;
     bytes signature;

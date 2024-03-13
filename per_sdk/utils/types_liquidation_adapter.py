@@ -16,7 +16,7 @@ class Opportunity(TypedDict):
     # The calldata that needs to be passed in with the liquidation method call
     target_calldata: str
     # The value that needs to be passed in with the liquidation method call
-    value: str
+    target_call_value: str
     # The permission key necessary to call the liquidation method
     permission_key: str
     # A list of tokens that can be used to repay this account's debt.

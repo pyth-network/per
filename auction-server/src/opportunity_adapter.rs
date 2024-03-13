@@ -210,7 +210,7 @@ fn get_params_digest(params: ExecutionParams) -> Result<H256> {
         params.buy_tokens.into_token(),
         params.target_contract.into_token(),
         params.target_calldata.into_token(),
-        params.value.into_token(),
+        params.target_call_value.into_token(),
         params.bid_amount.into_token(),
         params.valid_until.into_token(),
     ]));
@@ -260,23 +260,23 @@ pub fn make_opportunity_execution_params(
     bid: OpportunityBid,
 ) -> ExecutionParams {
     ExecutionParams {
-        sell_tokens:     opportunity
+        sell_tokens:       opportunity
             .sell_tokens
             .into_iter()
             .map(TokenAmount::from)
             .collect(),
-        buy_tokens:      opportunity
+        buy_tokens:        opportunity
             .buy_tokens
             .into_iter()
             .map(TokenAmount::from)
             .collect(),
-        executor:        bid.executor,
-        target_contract: opportunity.target_contract,
-        target_calldata: opportunity.target_calldata,
-        value:           opportunity.value,
-        valid_until:     bid.valid_until,
-        bid_amount:      bid.amount,
-        signature:       bid.signature.to_vec().into(),
+        executor:          bid.executor,
+        target_contract:   opportunity.target_contract,
+        target_calldata:   opportunity.target_calldata,
+        target_call_value: opportunity.target_call_value,
+        valid_until:       bid.valid_until,
+        bid_amount:        bid.amount,
+        signature:         bid.signature.to_vec().into(),
     }
 }
 
@@ -447,11 +447,11 @@ pub async fn handle_opportunity_bid(
     match handle_bid(
         store.clone(),
         Bid {
-            permission_key: params.permission_key.clone(),
-            chain_id:       params.chain_id.clone(),
-            contract:       chain_store.config.opportunity_adapter_contract,
-            calldata:       adapter_calldata,
-            amount:         opportunity_bid.amount,
+            permission_key:  params.permission_key.clone(),
+            chain_id:        params.chain_id.clone(),
+            target_contract: chain_store.config.opportunity_adapter_contract,
+            target_calldata: adapter_calldata,
+            amount:          opportunity_bid.amount,
         },
     )
     .await
