@@ -18,6 +18,13 @@ Since express relay is a multi-service project, we use [Tilt](https://tilt.dev/)
 It is a great tool for local development and testing.
 Tilt requires `anvil`, `forge`, `poetry`, and rust to be installed on your machine.
 
+Here are the installation instructions for each:
+
+- Rust: https://www.rust-lang.org/tools/install
+- Foundry (anvil,forge,cast, etc.): https://book.getfoundry.sh/getting-started/installation
+- Poetry: https://python-poetry.org/docs/#installation
+- Tilt: https://docs.tilt.dev/install.html
+
 Run `tilt up` in the root of the repo to start the development environment.
 You can access the ui at `http://localhost:10350/`.
 
