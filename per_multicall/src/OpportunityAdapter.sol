@@ -102,7 +102,7 @@ contract OpportunityAdapter is SigVerify {
             uint256 approveAmount = params.sellTokens[i].amount;
             if (params.sellTokens[i].token == weth) {
                 if (approveAmount >= params.targetCallValue) {
-                    // we need `parmas.value` of to be sent to the contract directly
+                    // we need `parmas.targetCallValue` of to be sent to the contract directly
                     // so this amount should be subtracted from the approveAmount
                     approveAmount = approveAmount - params.targetCallValue;
                 } else {
