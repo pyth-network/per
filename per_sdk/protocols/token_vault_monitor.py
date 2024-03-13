@@ -180,7 +180,7 @@ class VaultMonitor:
             "target_calldata": calldata,
             "permission_key": permission,
             "account": str(account["account_number"]),
-            "value": str(call_value),
+            "target_call_value": str(call_value),
             "sell_tokens": sell_tokens,
             "buy_tokens": [
                 (account["token_address_collateral"], str(account["amount_collateral"]))

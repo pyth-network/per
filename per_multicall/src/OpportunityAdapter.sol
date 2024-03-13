@@ -67,7 +67,7 @@ contract OpportunityAdapter is SigVerify {
                 params.buyTokens,
                 params.targetContract,
                 params.targetCalldata,
-                params.value,
+                params.targetCallValue,
                 params.bidAmount,
                 params.validUntil
             ),
@@ -101,10 +101,10 @@ contract OpportunityAdapter is SigVerify {
             // approve contract to spend sell tokens
             uint256 approveAmount = params.sellTokens[i].amount;
             if (params.sellTokens[i].token == weth) {
-                if (approveAmount >= params.value) {
-                    // we need `parmas.value` of to be sent to the contract directly
+                if (approveAmount >= params.targetCallValue) {
+                    // we need `parmas.targetCallValue` of to be sent to the contract directly
                     // so this amount should be subtracted from the approveAmount
-                    approveAmount = approveAmount - params.value;
+                    approveAmount = approveAmount - params.targetCallValue;
                 } else {
                     revert InsufficientWETHForMsgValue();
                 }
@@ -119,14 +119,14 @@ contract OpportunityAdapter is SigVerify {
 
             balancesBuyTokens[i] = token.balanceOf(address(this)) + amount;
         }
-        if (params.value > 0) {
+        if (params.targetCallValue > 0) {
             // unwrap weth to eth to use in call
             // TODO: Wrap in try catch and throw a revert with a better error since WETH9 reverts do not return a reason
-            WETH9(payable(weth)).withdraw(params.value);
+            WETH9(payable(weth)).withdraw(params.targetCallValue);
         }
 
         (bool success, bytes memory reason) = params.targetContract.call{
-            value: params.value
+            value: params.targetCallValue
         }(params.targetCalldata);
 
         if (!success) {

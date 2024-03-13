@@ -71,7 +71,7 @@ def create_liquidation_transaction(
         buy_tokens,
         opp["target_contract"],
         liq_calldata,
-        int(opp["value"]),
+        int(opp["target_call_value"]),
         bid_info,
         sk_liquidator,
     )

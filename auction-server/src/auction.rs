@@ -255,8 +255,8 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             chain_store.config.clone(),
                             chain_store.network_id,
                             permission_key.clone(),
-                            winner_bids.iter().map(|b| b.contract).collect(),
-                            winner_bids.iter().map(|b| b.calldata.clone()).collect(),
+                            winner_bids.iter().map(|b| b.target_contract).collect(),
+                            winner_bids.iter().map(|b| b.target_calldata.clone()).collect(),
                             winner_bids.iter().map(|b| b.bid_amount).collect(),
                         )
                         .await;
@@ -297,20 +297,20 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
 pub struct Bid {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type=String)]
-    pub permission_key: Bytes,
+    pub permission_key:  Bytes,
     /// The chain id to bid on.
     #[schema(example = "sepolia", value_type=String)]
-    pub chain_id:       String,
+    pub chain_id:        String,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11",value_type = String)]
-    pub contract:       abi::Address,
+    pub target_contract: abi::Address,
     /// Calldata for the contract call.
     #[schema(example = "0xdeadbeef", value_type=String)]
-    pub calldata:       Bytes,
+    pub target_calldata: Bytes,
     /// Amount of bid in wei.
     #[schema(example = "10", value_type=String)]
     #[serde(with = "crate::serde::u256")]
-    pub amount:         BidAmount,
+    pub amount:          BidAmount,
 }
 
 pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, RestError> {
@@ -323,8 +323,8 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         chain_store.provider.clone(),
         chain_store.config.clone(),
         bid.permission_key.clone(),
-        vec![bid.contract],
-        vec![bid.calldata.clone()],
+        vec![bid.target_contract],
+        vec![bid.target_calldata.clone()],
         vec![bid.amount],
     );
 
@@ -354,10 +354,10 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         .entry(bid.permission_key.clone())
         .or_default()
         .push(SimulatedBid {
-            contract:   bid.contract,
-            calldata:   bid.calldata.clone(),
-            bid_amount: bid.amount,
-            id:         bid_id,
+            target_contract: bid.target_contract,
+            target_calldata: bid.target_calldata.clone(),
+            bid_amount:      bid.amount,
+            id:              bid_id,
         });
     store
         .bid_status_store
