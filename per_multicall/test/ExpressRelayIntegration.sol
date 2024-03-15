@@ -20,6 +20,7 @@ import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
@@ -27,6 +28,7 @@ import "./helpers/Signatures.sol";
 import "./helpers/PriceHelpers.sol";
 import "./helpers/TestParsingHelpers.sol";
 import "./helpers/MulticallHelpers.sol";
+import "../src/OpportunityAdapterUpgradable.sol";
 
 /**
  * @title ExpressRelayIntegrationTest
@@ -49,7 +51,7 @@ contract ExpressRelayIntegrationTest is
     SearcherVault public searcherB;
     ExpressRelay public expressRelay;
     WETH9 public weth;
-    OpportunityAdapter public opportunityAdapter;
+    OpportunityAdapterUpgradable public opportunityAdapter;
     MockPyth public mockPyth;
 
     MyToken public token1;
@@ -156,7 +158,13 @@ contract ExpressRelayIntegrationTest is
         weth = new WETH9();
 
         vm.prank(perOperatorAddress, perOperatorAddress);
-        opportunityAdapter = new OpportunityAdapter(
+        OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
+        // deploy proxy contract and point it to implementation
+        ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
+        opportunityAdapter = OpportunityAdapterUpgradable(payable(proxy));
+        opportunityAdapter.initialize(
+            perOperatorAddress,
+            perOperatorAddress,
             address(expressRelay),
             address(weth)
         );
@@ -1059,7 +1067,7 @@ contract ExpressRelayIntegrationTest is
 
         assertFailedExternal(
             multicallStatuses[0],
-            "InvalidSearcherSignature()"
+            "InvalidExecutorSignature()"
         );
     }
 
@@ -1167,6 +1175,6 @@ contract ExpressRelayIntegrationTest is
         assertEqBalances(balancesBPost, balancesBPre);
 
         assertEq(multicallStatuses[0].externalSuccess, true);
-        assertFailedExternal(multicallStatuses[1], "ExecutionFailed(string)");
+        assertFailedExternal(multicallStatuses[1], "TargetCallFailed(string)");
     }
 }

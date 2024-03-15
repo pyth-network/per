@@ -1,7 +1,6 @@
 // Copyright (C) 2024 Lavra Holdings Limited - All Rights Reserved
 pragma solidity ^0.8.13;
 
-import "./Errors.sol";
 import "./Structs.sol";
 import "./ExpressRelayFeeReceiver.sol";
 import "./SigVerify.sol";
@@ -12,7 +11,8 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-contract OpportunityAdapter is SigVerify {
+abstract contract OpportunityAdapter is SigVerify {
+    address _admin;
     address _expressRelay;
     address _weth;
     mapping(bytes => bool) _signatureUsed;
@@ -23,7 +23,12 @@ contract OpportunityAdapter is SigVerify {
      * @param expressRelay: address of express relay
      * @param weth: address of WETH contract
      */
-    constructor(address expressRelay, address weth) {
+    function _initialize(
+        address admin,
+        address expressRelay,
+        address weth
+    ) internal {
+        _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
     }
@@ -74,7 +79,7 @@ contract OpportunityAdapter is SigVerify {
             params.signature
         );
         if (!validSignature) {
-            revert InvalidSearcherSignature();
+            revert InvalidExecutorSignature();
         }
         if (block.timestamp > params.validUntil) {
             revert ExpiredSignature();
