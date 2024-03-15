@@ -31,6 +31,9 @@ contract VaultScript is Script {
 
     function getDeployer() public view returns (address, uint256) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        if (deployerPrivateKey == 0) {
+            revert("PRIVATE_KEY env variable is empty");
+        }
         address deployerAddress = vm.addr(deployerPrivateKey);
         return (deployerAddress, deployerPrivateKey);
     }
@@ -41,9 +44,35 @@ contract VaultScript is Script {
         return address(weth);
     }
 
-    function deployExpressRelay(
+    function deployOpportunityAdapter(
+        address owner,
+        address admin,
+        address expressRelay,
         address wethAddress
-    ) public returns (address, address) {
+    ) public returns (address) {
+        OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
+        // deploy proxy contract and point it to implementation
+        ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
+        // wrap in ABI to support easier calls
+        OpportunityAdapterUpgradable opportunityAdapter = OpportunityAdapterUpgradable(
+                payable(proxy)
+            );
+        opportunityAdapter.initialize(owner, admin, expressRelay, wethAddress);
+        return address(opportunityAdapter);
+    }
+
+    function upgradeOpportunityAdapter(address currentImplementation) public {
+        (address deployer, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
+        OpportunityAdapterUpgradable _newImplementation = new OpportunityAdapterUpgradable();
+        OpportunityAdapterUpgradable proxy = OpportunityAdapterUpgradable(
+            payable(currentImplementation)
+        );
+        proxy.upgradeTo(address(_newImplementation));
+        vm.stopBroadcast();
+    }
+
+    function deployExpressRelay() public returns (address) {
         (address operatorAddress, uint256 operatorSk) = makeAddrAndKey(
             "perOperator"
         );
@@ -52,20 +81,7 @@ contract VaultScript is Script {
         payable(operatorAddress).transfer(0.01 ether);
         ExpressRelay multicall = new ExpressRelay(operatorAddress, 0);
         console.log("deployed ExpressRelay contract at", address(multicall));
-        OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
-        // deploy proxy contract and point it to implementation
-        ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
-        // wrap in ABI to support easier calls
-        OpportunityAdapterUpgradable opportunityAdapter = OpportunityAdapterUpgradable(
-                payable(proxy)
-            );
-        opportunityAdapter.initialize(
-            address(1),
-            address(1),
-            address(multicall),
-            wethAddress
-        );
-        return (address(multicall), address(opportunityAdapter));
+        return address(multicall);
     }
 
     function deployVault(
@@ -90,10 +106,14 @@ contract VaultScript is Script {
         public
         returns (address, address, address, address, address)
     {
-        (, uint256 skDeployer) = getDeployer();
+        (address deployer, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
         address weth = deployWeth();
-        (address expressRelay, address opportunityAdapter) = deployExpressRelay(
+        address expressRelay = deployExpressRelay();
+        address opportunityAdapter = deployOpportunityAdapter(
+            deployer,
+            deployer,
+            expressRelay,
             weth
         );
         address mockPyth = deployMockPyth();
@@ -109,11 +129,15 @@ contract VaultScript is Script {
     @param pyth The address of the already deployed pyth contract to use
     */
     function setupTestnet(address pyth, address weth) public {
-        (, uint256 skDeployer) = getDeployer();
+        (address deployer, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
         if (pyth == address(0)) pyth = deployMockPyth();
         if (weth == address(0)) weth = deployWeth();
-        (address expressRelay, address opportunityAdapter) = deployExpressRelay(
+        address expressRelay = deployExpressRelay();
+        address opportunityAdapter = deployOpportunityAdapter(
+            deployer,
+            deployer,
+            expressRelay,
             weth
         );
         address vault = deployVault(expressRelay, pyth);
