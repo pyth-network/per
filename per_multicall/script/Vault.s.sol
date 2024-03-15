@@ -17,12 +17,14 @@ import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {WETH9} from "../src/WETH9.sol";
 
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import "../src/Errors.sol";
+import {OpportunityAdapterUpgradable} from "../src/OpportunityAdapterUpgradable.sol";
 
 contract VaultScript is Script {
     string public latestEnvironmentPath = "latestEnvironment.json";
@@ -50,7 +52,16 @@ contract VaultScript is Script {
         payable(operatorAddress).transfer(0.01 ether);
         ExpressRelay multicall = new ExpressRelay(operatorAddress, 0);
         console.log("deployed ExpressRelay contract at", address(multicall));
-        OpportunityAdapter opportunityAdapter = new OpportunityAdapter(
+        OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
+        // deploy proxy contract and point it to implementation
+        ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
+        // wrap in ABI to support easier calls
+        OpportunityAdapterUpgradable opportunityAdapter = OpportunityAdapterUpgradable(
+                payable(proxy)
+            );
+        opportunityAdapter.initialize(
+            address(1),
+            address(1),
             address(multicall),
             wethAddress
         );

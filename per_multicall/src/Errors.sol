@@ -7,6 +7,9 @@ error Unauthorized();
 // Signature: 0x868a64de
 error InvalidPermission();
 
+// Signature: 0x8f4450b5
+error InvalidExecutorSignature();
+
 // Signature: 0xf136a5b7
 error InvalidSearcherSignature();
 
@@ -36,3 +39,6 @@ error InsufficientTokenReceived();
 
 // Signature: 0x4be6321b
 error InvalidSignatureLength();
+// The new contract does not have the same magic value as the old one.
+// Signature: 0x4ed848c1
+error InvalidMagicValue();
