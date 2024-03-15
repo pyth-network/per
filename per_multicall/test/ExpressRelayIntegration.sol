@@ -163,8 +163,8 @@ contract ExpressRelayIntegrationTest is
         ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
         opportunityAdapter = OpportunityAdapterUpgradable(payable(proxy));
         opportunityAdapter.initialize(
-            address(1),
-            address(1),
+            perOperatorAddress,
+            perOperatorAddress,
             address(expressRelay),
             address(weth)
         );
