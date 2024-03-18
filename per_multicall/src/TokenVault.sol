@@ -12,8 +12,6 @@ import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/Safe
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-import {MyToken} from "./MyToken.sol";
-
 import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
 
@@ -39,6 +37,20 @@ contract TokenVault is ExpressRelayFeeReceiver {
         _oracle = oracleAddress;
     }
 
+    /**
+     * @notice getLastVaultID function - getter function to get the id of the next vault to be created
+     * IDs are sequential and start from 0
+     */
+    function getLastVaultID() public view returns (uint256) {
+        return _nVaults;
+    }
+
+    /**
+     * @notice convertToUint function - converts a Pyth price struct to a uint256
+     *
+     * @param price: Pyth price struct to be converted
+     * @param targetDecimals: target number of decimals for the output
+     */
     function convertToUint(
         PythStructs.Price memory price,
         uint8 targetDecimals
@@ -256,19 +268,24 @@ contract TokenVault is ExpressRelayFeeReceiver {
 
     /**
      * @notice liquidate function - liquidates a vault
+     * This function calculates the health of the vault and based on the vault parameters one of the following actions is taken:
+     * 1. If health >= minHealthRatio, don't liquidate
+     * 2. If minHealthRatio > health >= minPermissionLessHealthRatio, only liquidate if the vault is permissioned via express relay
+     * 3. If minPermissionLessHealthRatio > health, liquidate no matter what
      *
      * @param vaultID: ID of the vault to be liquidated
      */
     function liquidate(uint256 vaultID) public {
         Vault memory vault = _vaults[vaultID];
         uint256 vaultHealth = _getVaultHealth(vault);
+
         if (vaultHealth >= vault.minHealthRatio) {
             revert InvalidLiquidation();
         }
 
         if (
             vaultHealth >= vault.minPermissionLessHealthRatio &&
-            !ExpressRelay(payable(expressRelay)).isPermissioned(
+            !IExpressRelay(expressRelay).isPermissioned(
                 address(this),
                 abi.encode(vaultID)
             )

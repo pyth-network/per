@@ -8,8 +8,9 @@ import "./ExpressRelayFeeReceiver.sol";
 import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IExpressRelay} from "./IExpressRelay.sol";
 
-contract ExpressRelay {
+contract ExpressRelay is IExpressRelay {
     event ReceivedETH(address sender, uint256 amount);
 
     // TODO: separate the notion operator into relayer and admin.

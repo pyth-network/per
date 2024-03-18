@@ -50,7 +50,7 @@ contract VaultScript is Script {
         address expressRelay,
         address wethAddress
     ) public returns (address) {
-        (address deployer, uint256 skDeployer) = getDeployer();
+        (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
         OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
         // deploy proxy contract and point it to implementation
@@ -65,7 +65,7 @@ contract VaultScript is Script {
     }
 
     function upgradeOpportunityAdapter(address currentImplementation) public {
-        (address deployer, uint256 skDeployer) = getDeployer();
+        (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
         OpportunityAdapterUpgradable _newImplementation = new OpportunityAdapterUpgradable();
         OpportunityAdapterUpgradable proxy = OpportunityAdapterUpgradable(
