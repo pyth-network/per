@@ -72,8 +72,9 @@ This permits the vm to access any file in the root directory via read-write oper
 # Verification
 
 For verifying contracts, you can use the `forge verify-contract` command.
-For example, to verify the ERC1967Proxy contract on the Optimism network, you can run the following command:
+For example, to verify the ERC1967Proxy contract on the Optimism network, you can run the following commands:
 
 ```
 forge verify-contract --via-ir <contract-address> ERC1967Proxy --verifier blockscout --verifier-url https://optimism-sepolia.blockscout.com/api/
+forge verify-contract --via-ir <contract-address> ERC1967Proxy --verifier-url https://api-sepolia-optimistic.etherscan.io/api
 ```
