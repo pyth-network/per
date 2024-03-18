@@ -50,6 +50,8 @@ contract VaultScript is Script {
         address expressRelay,
         address wethAddress
     ) public returns (address) {
+        (address deployer, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
         OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
         // deploy proxy contract and point it to implementation
         ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
@@ -58,6 +60,7 @@ contract VaultScript is Script {
                 payable(proxy)
             );
         opportunityAdapter.initialize(owner, admin, expressRelay, wethAddress);
+        vm.stopBroadcast();
         return address(opportunityAdapter);
     }
 
