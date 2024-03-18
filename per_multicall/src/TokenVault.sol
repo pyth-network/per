@@ -89,10 +89,10 @@ contract TokenVault is ExpressRelayFeeReceiver {
     /**
      * @notice getVaultHealth function - calculates vault collateral/debt ratio
      *
-     * @param vaultID: ID of the vault for which to calculate health
+     * @param vaultId: ID of the vault for which to calculate health
      */
-    function getVaultHealth(uint256 vaultID) public view returns (uint256) {
-        Vault memory vault = _vaults[vaultID];
+    function getVaultHealth(uint256 vaultId) public view returns (uint256) {
+        Vault memory vault = _vaults[vaultId];
         return _getVaultHealth(vault);
     }
 
@@ -178,16 +178,16 @@ contract TokenVault is ExpressRelayFeeReceiver {
     /**
      * @notice updateVault function - updates a vault's collateral and debt amounts
      *
-     * @param vaultID: ID of the vault to be updated
+     * @param vaultId: ID of the vault to be updated
      * @param deltaCollateral: delta change to collateral amount (+ means adding collateral tokens, - means removing collateral tokens)
      * @param deltaDebt: delta change to debt amount (+ means withdrawing debt tokens from protocol, - means resending debt tokens to protocol)
      */
     function updateVault(
-        uint256 vaultID,
+        uint256 vaultId,
         int256 deltaCollateral,
         int256 deltaDebt
     ) public {
-        Vault memory vault = _vaults[vaultID];
+        Vault memory vault = _vaults[vaultId];
 
         uint256 qCollateral = stdMath.abs(deltaCollateral);
         uint256 qDebt = stdMath.abs(deltaDebt);
@@ -221,18 +221,18 @@ contract TokenVault is ExpressRelayFeeReceiver {
                 address(this),
                 qCollateral
             );
-            _vaults[vaultID].amountCollateral += qCollateral;
+            _vaults[vaultId].amountCollateral += qCollateral;
         } else {
             // sender takes back collateral from their vault
             IERC20(vault.tokenCollateral).safeTransfer(msg.sender, qCollateral);
-            _vaults[vaultID].amountCollateral -= qCollateral;
+            _vaults[vaultId].amountCollateral -= qCollateral;
         }
 
         // update debt position
         if (deltaDebt >= 0) {
             // sender takes out more debt position
             IERC20(vault.tokenDebt).safeTransfer(msg.sender, qDebt);
-            _vaults[vaultID].amountDebt += qDebt;
+            _vaults[vaultId].amountDebt += qDebt;
         } else {
             // sender sends back debt tokens
             IERC20(vault.tokenDebt).safeTransferFrom(
@@ -240,17 +240,17 @@ contract TokenVault is ExpressRelayFeeReceiver {
                 address(this),
                 qDebt
             );
-            _vaults[vaultID].amountDebt -= qDebt;
+            _vaults[vaultId].amountDebt -= qDebt;
         }
     }
 
     /**
      * @notice getVault function - getter function to get a vault's parameters
      *
-     * @param vaultID: ID of the vault
+     * @param vaultId: ID of the vault
      */
-    function getVault(uint256 vaultID) public view returns (Vault memory) {
-        return _vaults[vaultID];
+    function getVault(uint256 vaultId) public view returns (Vault memory) {
+        return _vaults[vaultId];
     }
 
     /**
@@ -273,10 +273,10 @@ contract TokenVault is ExpressRelayFeeReceiver {
      * 2. If minHealthRatio > health >= minPermissionLessHealthRatio, only liquidate if the vault is permissioned via express relay
      * 3. If minPermissionLessHealthRatio > health, liquidate no matter what
      *
-     * @param vaultID: ID of the vault to be liquidated
+     * @param vaultId: ID of the vault to be liquidated
      */
-    function liquidate(uint256 vaultID) public {
-        Vault memory vault = _vaults[vaultID];
+    function liquidate(uint256 vaultId) public {
+        Vault memory vault = _vaults[vaultId];
         uint256 vaultHealth = _getVaultHealth(vault);
 
         if (vaultHealth >= vault.minHealthRatio) {
@@ -287,7 +287,7 @@ contract TokenVault is ExpressRelayFeeReceiver {
             vaultHealth >= vault.minPermissionLessHealthRatio &&
             !IExpressRelay(expressRelay).isPermissioned(
                 address(this),
-                abi.encode(vaultID)
+                abi.encode(vaultId)
             )
         ) {
             revert InvalidLiquidation();
@@ -303,22 +303,22 @@ contract TokenVault is ExpressRelayFeeReceiver {
             vault.amountCollateral
         );
 
-        _vaults[vaultID].amountCollateral = 0;
-        _vaults[vaultID].amountDebt = 0;
+        _vaults[vaultId].amountCollateral = 0;
+        _vaults[vaultId].amountDebt = 0;
     }
 
     /**
      * @notice liquidateWithPriceUpdate function - liquidates a vault after updating the specified price feeds with given data
      *
-     * @param vaultID: ID of the vault to be liquidated
+     * @param vaultId: ID of the vault to be liquidated
      * @param updateData: data to update price feeds with
      */
     function liquidateWithPriceUpdate(
-        uint256 vaultID,
+        uint256 vaultId,
         bytes[] calldata updateData
     ) external payable {
         _updatePriceFeeds(updateData);
-        liquidate(vaultID);
+        liquidate(vaultId);
     }
 
     function receiveAuctionProceedings(

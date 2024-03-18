@@ -38,14 +38,14 @@ contract SearcherVault is SigVerify {
     /**
      * @notice doLiquidate function - liquidates a vault through express relay
      *
-     * @param vaultID: ID of the vault to be liquidated
+     * @param vaultId: ID of the vault to be liquidated
      * @param bid: size of the bid to pay to express relay
      * @param validUntil: timestamp at which signatureSearcher is no longer valid
      * @param updateData: data to update price feed with
-     * @param signatureSearcher: signature of the vaultID and bid, signed by the searcher's EOA, to be verified if msg.sender is express relay
+     * @param signatureSearcher: signature of the vaultId and bid, signed by the searcher's EOA, to be verified if msg.sender is express relay
      */
     function doLiquidate(
-        uint256 vaultID,
+        uint256 vaultId,
         uint256 bid,
         uint256 validUntil,
         bytes calldata updateData,
@@ -58,7 +58,7 @@ contract SearcherVault is SigVerify {
         if (msg.sender == expressRelay) {
             bool validSignatureSearcher = verifyCalldata(
                 owner,
-                abi.encode(vaultID, bid, validUntil),
+                abi.encode(vaultId, bid, validUntil),
                 signatureSearcher
             );
             if (!validSignatureSearcher) {
@@ -74,7 +74,7 @@ contract SearcherVault is SigVerify {
 
         address payable vaultContract = payable(tokenVault);
 
-        Vault memory vault = TokenVault(vaultContract).getVault(vaultID);
+        Vault memory vault = TokenVault(vaultContract).getVault(vaultId);
 
         address tokenDebt = vault.tokenDebt;
         uint256 tokenAmount = vault.amountDebt;
@@ -83,7 +83,7 @@ contract SearcherVault is SigVerify {
         bytes[] memory updateDatas = new bytes[](1);
         updateDatas[0] = updateData;
         TokenVault(vaultContract).liquidateWithPriceUpdate(
-            vaultID,
+            vaultId,
             updateDatas
         );
         if (bid > 0) {

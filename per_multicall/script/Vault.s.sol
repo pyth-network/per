@@ -526,11 +526,11 @@ contract VaultScript is Script {
         return balance;
     }
 
-    function getVault(uint256 vaultID) public view returns (Vault memory) {
+    function getVault(uint256 vaultId) public view returns (Vault memory) {
         string memory json = vm.readFile(latestEnvironmentPath);
         address tokenVaultLatest = vm.parseJsonAddress(json, ".tokenVault");
         Vault memory vault = TokenVault(payable(tokenVaultLatest)).getVault(
-            vaultID
+            vaultId
         );
         console.log(
             "vault amounts are",
