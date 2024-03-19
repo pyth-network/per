@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import "./Errors.sol";
 import "./Structs.sol";
 
-import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";

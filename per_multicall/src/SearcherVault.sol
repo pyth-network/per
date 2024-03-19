@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
-import "forge-std/console.sol";
 
 import "./Errors.sol";
 import "./Structs.sol";

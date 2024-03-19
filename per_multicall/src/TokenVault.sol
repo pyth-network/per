@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "./TokenVaultErrors.sol";
-import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
 import "./Structs.sol";
 
@@ -38,10 +37,10 @@ contract TokenVault is IExpressRelayFeeReceiver {
     }
 
     /**
-     * @notice getLastVaultID function - getter function to get the id of the next vault to be created
+     * @notice getLastVaultId function - getter function to get the id of the next vault to be created
      * IDs are sequential and start from 0
      */
-    function getLastVaultID() public view returns (uint256) {
+    function getLastVaultId() public view returns (uint256) {
         return _nVaults;
     }
 
