@@ -50,6 +50,8 @@ contract VaultScript is Script {
         address expressRelay,
         address wethAddress
     ) public returns (address) {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
         OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
         // deploy proxy contract and point it to implementation
         ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
@@ -58,15 +60,18 @@ contract VaultScript is Script {
                 payable(proxy)
             );
         opportunityAdapter.initialize(owner, admin, expressRelay, wethAddress);
+        vm.stopBroadcast();
         return address(opportunityAdapter);
     }
 
-    function upgradeOpportunityAdapter(address currentImplementation) public {
-        (address deployer, uint256 skDeployer) = getDeployer();
+    function upgradeOpportunityAdapter(address proxyAddress) public {
+        (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
         OpportunityAdapterUpgradable _newImplementation = new OpportunityAdapterUpgradable();
+        // Proxy object is technically an OpportunityAdapterUpgradable because it points to an implementation
+        // of such contract. Therefore we can call the upgradeTo function on it.
         OpportunityAdapterUpgradable proxy = OpportunityAdapterUpgradable(
-            payable(currentImplementation)
+            payable(proxyAddress)
         );
         proxy.upgradeTo(address(_newImplementation));
         vm.stopBroadcast();
@@ -523,11 +528,11 @@ contract VaultScript is Script {
         return balance;
     }
 
-    function getVault(uint256 vaultID) public view returns (Vault memory) {
+    function getVault(uint256 vaultId) public view returns (Vault memory) {
         string memory json = vm.readFile(latestEnvironmentPath);
         address tokenVaultLatest = vm.parseJsonAddress(json, ".tokenVault");
         Vault memory vault = TokenVault(payable(tokenVaultLatest)).getVault(
-            vaultID
+            vaultId
         );
         console.log(
             "vault amounts are",
