@@ -4,3 +4,4 @@ forge-std/=lib/forge-std/src/
 openzeppelin-contracts/=lib/openzeppelin-contracts/
 openzeppelin-contracts-upgradable/=lib/openzeppelin-contracts-upgradable/
 @pythnetwork/pyth-sdk-solidity=node_modules/@pythnetwork/pyth-sdk-solidity/
+@pythnetwork/express-relay-sdk-solidity/=node_modules/@pythnetwork/express-relay-sdk-solidity

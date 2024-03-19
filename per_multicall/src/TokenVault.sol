@@ -5,8 +5,6 @@ import "./TokenVaultErrors.sol";
 import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
 import "./Structs.sol";
-import "./ExpressRelay.sol";
-import "./ExpressRelayFeeReceiver.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
@@ -14,8 +12,10 @@ import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
+import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
+import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
 
-contract TokenVault is ExpressRelayFeeReceiver {
+contract TokenVault is IExpressRelayFeeReceiver {
     using SafeERC20 for IERC20;
 
     event VaultReceivedETH(address sender, uint256 amount, bytes permissionKey);

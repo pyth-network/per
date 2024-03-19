@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "./Structs.sol";
-import "./ExpressRelayFeeReceiver.sol";
 import "./SigVerify.sol";
 import "./ExpressRelay.sol";
 import "./WETH9.sol";

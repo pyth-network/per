@@ -3,12 +3,12 @@ pragma solidity ^0.8.13;
 
 import "./Errors.sol";
 import "./Structs.sol";
-import "./ExpressRelayFeeReceiver.sol";
 
 import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {IExpressRelay} from "./IExpressRelay.sol";
+import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
+import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 
 contract ExpressRelay is IExpressRelay {
     event ReceivedETH(address sender, uint256 amount);
@@ -134,7 +134,7 @@ contract ExpressRelay is IExpressRelay {
             uint256 feeProtocol = feeProtocolNumerator /
                 1000_000_000_000_000_000;
             if (_isContract(feeReceiver)) {
-                ExpressRelayFeeReceiver(feeReceiver).receiveAuctionProceedings{
+                IExpressRelayFeeReceiver(feeReceiver).receiveAuctionProceedings{
                     value: feeProtocol
                 }(permissionKey);
             } else {
