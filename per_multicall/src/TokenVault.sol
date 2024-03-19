@@ -38,14 +38,14 @@ contract TokenVault is IExpressRelayFeeReceiver {
 
     /**
      * @notice getLastVaultId function - getter function to get the id of the next vault to be created
-     * IDs are sequential and start from 0
+     * Ids are sequential and start from 0
      */
     function getLastVaultId() public view returns (uint256) {
         return _nVaults;
     }
 
     /**
-     * @notice convertToUint function - converts a Pyth price struct to a uint256
+     * @notice convertToUint function - converts a Pyth price struct to a uint256 representing the price of an asset
      *
      * @param price: Pyth price struct to be converted
      * @param targetDecimals: target number of decimals for the output
@@ -74,7 +74,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
     /**
      * @notice getPrice function - retrieves price of a given token from the oracle
      *
-     * @param id: price feed ID of the token
+     * @param id: price feed Id of the token
      */
     function _getPrice(bytes32 id) internal view returns (uint256) {
         IPyth oracle = IPyth(payable(_oracle));
@@ -88,7 +88,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
     /**
      * @notice getVaultHealth function - calculates vault collateral/debt ratio
      *
-     * @param vaultId: ID of the vault for which to calculate health
+     * @param vaultId: Id of the vault for which to calculate health
      */
     function getVaultHealth(uint256 vaultId) public view returns (uint256) {
         Vault memory vault = _vaults[vaultId];
@@ -96,15 +96,16 @@ contract TokenVault is IExpressRelayFeeReceiver {
     }
 
     /**
-     * @notice _getVaultHealth function - calculates vault collateral/debt ratio
+     * @notice _getVaultHealth function - calculates vault collateral/debt ratio using the on-chain price feeds.
+     * In a real world scenario, caller should ensure that the price feeds are up to date before calling this function.
      *
      * @param vault: vault struct containing vault parameters
      */
     function _getVaultHealth(
         Vault memory vault
     ) internal view returns (uint256) {
-        uint256 priceCollateral = _getPrice(vault.tokenIDCollateral);
-        uint256 priceDebt = _getPrice(vault.tokenIDDebt);
+        uint256 priceCollateral = _getPrice(vault.tokenIdCollateral);
+        uint256 priceDebt = _getPrice(vault.tokenIdDebt);
 
         if (priceCollateral < 0) {
             revert NegativePrice();
@@ -128,8 +129,8 @@ contract TokenVault is IExpressRelayFeeReceiver {
      * @param amountDebt: amount of debt tokens in the vault
      * @param minHealthRatio: minimum health ratio of the vault, 10**18 is 100%
      * @param minPermissionLessHealthRatio: minimum health ratio of the vault before permissionless liquidations are allowed. This should be less than minHealthRatio
-     * @param tokenIDCollateral: price feed ID of the collateral token
-     * @param tokenIDDebt: price feed ID of the debt token
+     * @param tokenIdCollateral: price feed Id of the collateral token
+     * @param tokenIdDebt: price feed Id of the debt token
      * @param updateData: data to update price feeds with
      */
     function createVault(
@@ -139,8 +140,8 @@ contract TokenVault is IExpressRelayFeeReceiver {
         uint256 amountDebt,
         uint256 minHealthRatio,
         uint256 minPermissionLessHealthRatio,
-        bytes32 tokenIDCollateral,
-        bytes32 tokenIDDebt,
+        bytes32 tokenIdCollateral,
+        bytes32 tokenIdDebt,
         bytes[] calldata updateData
     ) public payable returns (uint256) {
         _updatePriceFeeds(updateData);
@@ -151,8 +152,8 @@ contract TokenVault is IExpressRelayFeeReceiver {
             amountDebt,
             minHealthRatio,
             minPermissionLessHealthRatio,
-            tokenIDCollateral,
-            tokenIDDebt
+            tokenIdCollateral,
+            tokenIdDebt
         );
         if (minPermissionLessHealthRatio > minHealthRatio) {
             revert InvalidHealthRatios();
@@ -177,7 +178,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
     /**
      * @notice updateVault function - updates a vault's collateral and debt amounts
      *
-     * @param vaultId: ID of the vault to be updated
+     * @param vaultId: Id of the vault to be updated
      * @param deltaCollateral: delta change to collateral amount (+ means adding collateral tokens, - means removing collateral tokens)
      * @param deltaDebt: delta change to debt amount (+ means withdrawing debt tokens from protocol, - means resending debt tokens to protocol)
      */
@@ -246,7 +247,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
     /**
      * @notice getVault function - getter function to get a vault's parameters
      *
-     * @param vaultId: ID of the vault
+     * @param vaultId: Id of the vault
      */
     function getVault(uint256 vaultId) public view returns (Vault memory) {
         return _vaults[vaultId];
@@ -272,7 +273,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
      * 2. If minHealthRatio > health >= minPermissionLessHealthRatio, only liquidate if the vault is permissioned via express relay
      * 3. If minPermissionLessHealthRatio > health, liquidate no matter what
      *
-     * @param vaultId: ID of the vault to be liquidated
+     * @param vaultId: Id of the vault to be liquidated
      */
     function liquidate(uint256 vaultId) public {
         Vault memory vault = _vaults[vaultId];
@@ -309,7 +310,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
     /**
      * @notice liquidateWithPriceUpdate function - liquidates a vault after updating the specified price feeds with given data
      *
-     * @param vaultId: ID of the vault to be liquidated
+     * @param vaultId: Id of the vault to be liquidated
      * @param updateData: data to update price feeds with
      */
     function liquidateWithPriceUpdate(

@@ -64,12 +64,14 @@ contract VaultScript is Script {
         return address(opportunityAdapter);
     }
 
-    function upgradeOpportunityAdapter(address currentImplementation) public {
+    function upgradeOpportunityAdapter(address proxyAddress) public {
         (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
         OpportunityAdapterUpgradable _newImplementation = new OpportunityAdapterUpgradable();
+        // Proxy object is technically an OpportunityAdapterUpgradable because it points to an implementation
+        // of such contract. Therefore we can call the upgradeTo function on it.
         OpportunityAdapterUpgradable proxy = OpportunityAdapterUpgradable(
-            payable(currentImplementation)
+            payable(proxyAddress)
         );
         proxy.upgradeTo(address(_newImplementation));
         vm.stopBroadcast();
