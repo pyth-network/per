@@ -191,12 +191,26 @@ pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
     tracing::info!("Collateral price: {}", collateral_update.price);
     tracing::info!("Debt price: {}", collateral_update.price);
 
-    let amount_collateral: U256 =
-        collateral_value_usd * precision * 1100001 / 1000000 / collateral_update.price; // Slightly more than 110% to make sure the vault is created
-    let amount_debt = collateral_value_usd * precision / debt_update.price;
+    let contract =
+        SignableTokenVaultContract::new(simulator_options.vault_contract, client.clone());
 
-    let min_health_ratio = U256::exp10(18) * 110 / 100;
-    let min_permission_less_health_ratio = U256::exp10(18) * 105 / 100;
+    let min_health_numerator: U256 = U256::from(1100000);
+    let min_health_permissionless_numerator: U256 = U256::from(1050000);
+    let min_health_denominator: U256 = U256::from(1000000);
+    let min_health_ratio = U256::exp10(18) * min_health_numerator / min_health_denominator;
+    let min_permissionless_health_ratio =
+        U256::exp10(18) * min_health_permissionless_numerator / min_health_denominator;
+
+    let collat_factor: U256;
+    let allow_undercollateralized: bool = contract.get_allow_undercollateralized().call().await?;
+    if allow_undercollateralized {
+        collat_factor = U256::from(1080000); // Less than 110% to create the vault undercollateralized
+    } else {
+        collat_factor = U256::from(1100001); // Slightly more than 110% to make sure the vault is created
+    }
+    let amount_collateral: U256 =
+        collateral_value_usd * precision * collat_factor / 1000000 / collateral_update.price;
+    let amount_debt = collateral_value_usd * precision / debt_update.price;
 
     let token_id_collateral: [u8; 32] = <[u8; 32]>::from_hex(collateral_info.price_id).unwrap();
     let token_id_debt: [u8; 32] = <[u8; 32]>::from_hex(debt_info.price_id).unwrap();
@@ -218,8 +232,6 @@ pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
     tracing::info!("Amount collateral: {}", amount_collateral);
     tracing::info!("Amount debt: {}", amount_debt);
 
-    let contract =
-        SignableTokenVaultContract::new(simulator_options.vault_contract, client.clone());
     let tx = contract
         .create_vault(
             collateral_info.address,
@@ -227,7 +239,7 @@ pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
             amount_collateral,
             amount_debt,
             min_health_ratio,
-            min_permission_less_health_ratio,
+            min_permissionless_health_ratio,
             token_id_collateral,
             token_id_debt,
             update_data.clone(),

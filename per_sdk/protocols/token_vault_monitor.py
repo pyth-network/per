@@ -103,7 +103,7 @@ class VaultMonitor:
                     "amount_debt": vault_dict["amountDebt"],
                     "min_health_ratio": vault_dict["minHealthRatio"],
                     "min_permissionless_health_ratio": vault_dict[
-                        "minPermissionLessHealthRatio"
+                        "minPermissionlessHealthRatio"
                     ],
                 }
                 accounts.append(account)

@@ -88,6 +88,10 @@ contract TokenVault is IExpressRelayFeeReceiver {
         return convertToUint(oracle.getPrice(id), 18);
     }
 
+    function getAllowUndercollateralized() public view returns (bool) {
+        return _allowUndercollateralized;
+    }
+
     function getOracle() public view returns (address) {
         return _oracle;
     }
@@ -135,7 +139,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
      * @param amountCollateral: amount of collateral tokens in the vault
      * @param amountDebt: amount of debt tokens in the vault
      * @param minHealthRatio: minimum health ratio of the vault, 10**18 is 100%
-     * @param minPermissionLessHealthRatio: minimum health ratio of the vault before permissionless liquidations are allowed. This should be less than minHealthRatio
+     * @param minPermissionlessHealthRatio: minimum health ratio of the vault before permissionless liquidations are allowed. This should be less than minHealthRatio
      * @param tokenIdCollateral: price feed Id of the collateral token
      * @param tokenIdDebt: price feed Id of the debt token
      * @param updateData: data to update price feeds with
@@ -146,7 +150,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
         uint256 amountCollateral,
         uint256 amountDebt,
         uint256 minHealthRatio,
-        uint256 minPermissionLessHealthRatio,
+        uint256 minPermissionlessHealthRatio,
         bytes32 tokenIdCollateral,
         bytes32 tokenIdDebt,
         bytes[] calldata updateData
@@ -158,17 +162,18 @@ contract TokenVault is IExpressRelayFeeReceiver {
             amountCollateral,
             amountDebt,
             minHealthRatio,
-            minPermissionLessHealthRatio,
+            minPermissionlessHealthRatio,
             tokenIdCollateral,
             tokenIdDebt
         );
-        if (!_allowUndercollateralized) {
-            if (minPermissionLessHealthRatio > minHealthRatio) {
-                revert InvalidHealthRatios();
-            }
-            if (_getVaultHealth(vault) < vault.minHealthRatio) {
-                revert UncollateralizedVaultCreation();
-            }
+        if (minPermissionlessHealthRatio > minHealthRatio) {
+            revert InvalidHealthRatios();
+        }
+        if (
+            _getVaultHealth(vault) < vault.minHealthRatio &&
+            !_allowUndercollateralized
+        ) {
+            revert UncollateralizedVaultCreation();
         }
 
         IERC20(vault.tokenCollateral).safeTransferFrom(
@@ -282,8 +287,8 @@ contract TokenVault is IExpressRelayFeeReceiver {
      * @notice liquidate function - liquidates a vault
      * This function calculates the health of the vault and based on the vault parameters one of the following actions is taken:
      * 1. If health >= minHealthRatio, don't liquidate
-     * 2. If minHealthRatio > health >= minPermissionLessHealthRatio, only liquidate if the vault is permissioned via express relay
-     * 3. If minPermissionLessHealthRatio > health, liquidate no matter what
+     * 2. If minHealthRatio > health >= minPermissionlessHealthRatio, only liquidate if the vault is permissioned via express relay
+     * 3. If minPermissionlessHealthRatio > health, liquidate no matter what
      *
      * @param vaultId: Id of the vault to be liquidated
      */
@@ -296,7 +301,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
         }
 
         if (
-            vaultHealth >= vault.minPermissionLessHealthRatio &&
+            vaultHealth >= vault.minPermissionlessHealthRatio &&
             !IExpressRelay(expressRelay).isPermissioned(
                 address(this),
                 abi.encode(vaultId)
