@@ -12,29 +12,87 @@ import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 contract ExpressRelay is IExpressRelay {
     event ReceivedETH(address sender, uint256 amount);
 
-    // TODO: separate the notion operator into relayer and admin.
     // TODO: Relayer can submit transactions, admin can change relayers and set fees
-    address _operator;
+    // TODO: move this stuff over to ExpressRelayState.sol
+    address _relayer;
+    address _admin;
     mapping(address => uint256) _feeConfig;
     mapping(bytes32 => bool) _permissions;
-    uint256 _defaultFee;
+    uint256 _defaultProtocolFeeSplit;
+    uint256 _relayerFeeSplit;
+    uint256 _relayerFees;
 
     /**
      * @notice ExpressRelay constructor - Initializes a new multicall contract with given parameters
      *
-     * @param operator: address of express relay operator EOA
-     * @param defaultFee: default fee split to be paid to the protocol whose permissioning is being used
+     * @param admin: address of admin of express relay
+     * @param relayer: address of relayer EOA
+     * @param defaultProtocolFeeSplit: default fee split to be paid to the protocol whose permissioning is being used
+     * @param relayerFeeSplit: split of the non-protocol fees to be paid to the relayer
      */
-    constructor(address operator, uint256 defaultFee) {
-        _operator = operator;
-        _defaultFee = defaultFee;
+    constructor(
+        address admin,
+        address relayer,
+        uint256 defaultProtocolFee,
+        uint256 relayerFee
+    ) {
+        _admin = admin;
+        // TODO: can I call setRelayer here?
+        _relayer = relayer;
+        _defaultProtocolFeeSplit = defaultProtocolFeeSplit;
+        _relayerFeeSplit = relayerFeeSplit;
+        _relayerFees = 0;
+    }
+
+    modifier onlyAdmin() {
+        if (msg.sender != _admin) {
+            revert Unauthorized();
+        }
+        _;
+    }
+
+    modifier onlyRelayer() {
+        if (msg.sender != _relayer) {
+            revert Unauthorized();
+        }
+        _;
     }
 
     /**
-     * @notice getOperator function - returns the address of the express relay operator
+     * @notice setRelayer function - sets the relayer
+     *
+     * @param relayer: address of the relayer to be set
      */
-    function getOperator() public view returns (address) {
-        return _operator;
+    function setRelayer(address relayer) public onlyAdmin {
+        _relayer = relayer;
+    }
+
+    /**
+     * @notice getRelayer function - returns the address of the relayer
+     */
+    function getRelayer() public view returns (address) {
+        return _relayer;
+    }
+
+    /**
+     * @notice setFee function - sets the fee for a given fee recipient
+     *
+     * @param feeRecipient: address of the fee recipient for the contract being registered
+     * @param feeSplit: amount of fee to be split with the protocol. 10**18 is 100%
+     */
+    function setFee(address feeRecipient, uint256 feeSplit) public onlyAdmin {
+        _feeConfig[feeRecipient] = feeSplit;
+    }
+
+    /**
+     * @notice withdrawRelayerFees function - withdraws the relayer fees from the contract
+     */
+    // TODO: add the onlyRelayer modifier
+    function withdrawRelayerFees() public onlyRelayer {
+        uint256 relayerFees = _relayerFees;
+        _relayerFees = 0;
+        // TODO: is the payable here necessary?
+        payable(_relayer).transfer(relayerFees);
     }
 
     function isPermissioned(
@@ -45,19 +103,6 @@ contract ExpressRelay is IExpressRelay {
             _permissions[
                 keccak256(abi.encode(protocolFeeReceiver, permissionId))
             ];
-    }
-
-    /**
-     * @notice setFee function - sets the fee for a given fee recipient
-     *
-     * @param feeRecipient: address of the fee recipient for the contract being registered
-     * @param feeSplit: amount of fee to be split with the protocol. 10**18 is 100%
-     */
-    function setFee(address feeRecipient, uint256 feeSplit) public {
-        if (msg.sender != _operator) {
-            revert Unauthorized();
-        }
-        _feeConfig[feeRecipient] = feeSplit;
     }
 
     function _isContract(address _addr) private view returns (bool) {
@@ -88,10 +133,12 @@ contract ExpressRelay is IExpressRelay {
         address[] calldata targetContracts,
         bytes[] calldata targetCalldata,
         uint256[] calldata bidAmounts
-    ) public payable returns (MulticallStatus[] memory multicallStatuses) {
-        if (msg.sender != _operator) {
-            revert Unauthorized();
-        }
+    )
+        public
+        payable
+        onlyRelayer
+        returns (MulticallStatus[] memory multicallStatuses)
+    {
         if (permissionKey.length < 20) {
             revert InvalidPermission();
         }
@@ -124,23 +171,30 @@ contract ExpressRelay is IExpressRelay {
         // use the first 20 bytes of permission as fee receiver
         address feeReceiver = _bytesToAddress(permissionKey);
         // transfer fee to the protocol
-        uint256 protocolFee = _feeConfig[feeReceiver];
-        if (protocolFee == 0) {
-            protocolFee = _defaultFee;
+        uint256 protocolFeeSplit = _feeConfig[feeReceiver];
+        if (protocolFeeSplit == 0) {
+            protocolFeeSplit = _defaultProtocolFeeSplit;
         }
-        uint256 feeProtocolNumerator = totalBid * protocolFee;
-        if (feeProtocolNumerator > 0) {
-            uint256 feeProtocol = feeProtocolNumerator /
-                1000_000_000_000_000_000;
+        uint256 protocolFee;
+        uint256 protocolFeeNumerator = totalBid * protocolFeeSplit;
+        if (protocolFeeNumerator > 0) {
+            protocolFee = protocolFeeNumerator / 1000_000_000_000_000_000;
             if (_isContract(feeReceiver)) {
                 IExpressRelayFeeReceiver(feeReceiver).receiveAuctionProceedings{
-                    value: feeProtocol
+                    value: protocolFee
                 }(permissionKey);
             } else {
-                payable(feeReceiver).transfer(feeProtocol);
+                payable(feeReceiver).transfer(protocolFee);
             }
         }
         _permissions[keccak256(permissionKey)] = false;
+
+        // increment the relayer fees for future withdrawal
+        uint256 relayerFeeNumerator = (totalBid - protocolFee) * _relayerFee;
+        if (relayerFeeNumerator > 0) {
+            uint256 relayerFee = relayerFeeNumerator / 1000_000_000_000_000_000;
+            _relayerFees += relayerFee;
+        }
     }
 
     /**
