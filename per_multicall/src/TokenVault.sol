@@ -23,17 +23,24 @@ contract TokenVault is IExpressRelayFeeReceiver {
     address public immutable expressRelay;
     mapping(uint256 => Vault) _vaults;
     address _oracle;
+    bool _allowUndercollateralized;
 
     /**
      * @notice TokenVault constructor - Initializes a new token vault contract with given parameters
      *
      * @param expressRelayAddress: address of the express relay
      * @param oracleAddress: address of the oracle contract
+     * @param allowUndercollateralized: boolean to allow undercollateralized vaults to be created and updated. Can be set to true for testing.
      */
-    constructor(address expressRelayAddress, address oracleAddress) {
+    constructor(
+        address expressRelayAddress,
+        address oracleAddress,
+        bool allowUndercollateralized
+    ) {
         _nVaults = 0;
         expressRelay = expressRelayAddress;
         _oracle = oracleAddress;
+        _allowUndercollateralized = allowUndercollateralized;
     }
 
     /**
@@ -155,11 +162,13 @@ contract TokenVault is IExpressRelayFeeReceiver {
             tokenIdCollateral,
             tokenIdDebt
         );
-        if (minPermissionLessHealthRatio > minHealthRatio) {
-            revert InvalidHealthRatios();
-        }
-        if (_getVaultHealth(vault) < vault.minHealthRatio) {
-            revert UncollateralizedVaultCreation();
+        if (!_allowUndercollateralized) {
+            if (minPermissionLessHealthRatio > minHealthRatio) {
+                revert InvalidHealthRatios();
+            }
+            if (_getVaultHealth(vault) < vault.minHealthRatio) {
+                revert UncollateralizedVaultCreation();
+            }
         }
 
         IERC20(vault.tokenCollateral).safeTransferFrom(
@@ -209,7 +218,10 @@ contract TokenVault is IExpressRelayFeeReceiver {
         vault.amountCollateral = futureCollateral;
         vault.amountDebt = futureDebt;
 
-        if (_getVaultHealth(vault) < vault.minHealthRatio) {
+        if (
+            _getVaultHealth(vault) < vault.minHealthRatio &&
+            !_allowUndercollateralized
+        ) {
             revert InvalidVaultUpdate();
         }
 

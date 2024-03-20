@@ -39,7 +39,10 @@ contract VaultScript is Script {
     }
 
     function deployWeth() public returns (address) {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
         WETH9 weth = new WETH9();
+        vm.stopBroadcast();
         console.log("deployed weth contract at", address(weth));
         return address(weth);
     }
@@ -78,31 +81,44 @@ contract VaultScript is Script {
     }
 
     function deployExpressRelay() public returns (address) {
+        (, uint256 skDeployer) = getDeployer();
         (address operatorAddress, uint256 operatorSk) = makeAddrAndKey(
             "perOperator"
         );
         console.log("pk per operator", operatorAddress);
         console.log("sk per operator", operatorSk);
+        vm.startBroadcast(skDeployer);
         payable(operatorAddress).transfer(0.01 ether);
         ExpressRelay multicall = new ExpressRelay(operatorAddress, 0);
+        vm.stopBroadcast();
         console.log("deployed ExpressRelay contract at", address(multicall));
         return address(multicall);
     }
 
     function deployVault(
         address multicall,
-        address oracle
+        address oracle,
+        bool allowUndercollateralized
     ) public returns (address) {
         // make token vault deployer wallet
         (, uint256 tokenVaultDeployerSk) = makeAddrAndKey("tokenVaultDeployer");
         console.log("sk token vault deployer", tokenVaultDeployerSk);
-        TokenVault vault = new TokenVault(multicall, oracle);
+        vm.startBroadcast(tokenVaultDeployerSk);
+        TokenVault vault = new TokenVault(
+            multicall,
+            oracle,
+            allowUndercollateralized
+        );
+        vm.stopBroadcast();
         console.log("deployed vault contract at", address(vault));
         return address(vault);
     }
 
     function deployMockPyth() public returns (address) {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
         MockPyth mockPyth = new MockPyth(1_000_000_000_000, 0);
+        vm.stopBroadcast();
         console.log("deployed mock pyth contract at", address(mockPyth));
         return address(mockPyth);
     }
@@ -111,8 +127,7 @@ contract VaultScript is Script {
         public
         returns (address, address, address, address, address)
     {
-        (address deployer, uint256 skDeployer) = getDeployer();
-        vm.startBroadcast(skDeployer);
+        (address deployer, ) = getDeployer();
         address weth = deployWeth();
         address expressRelay = deployExpressRelay();
         address opportunityAdapter = deployOpportunityAdapter(
@@ -122,8 +137,7 @@ contract VaultScript is Script {
             weth
         );
         address mockPyth = deployMockPyth();
-        address vault = deployVault(expressRelay, mockPyth);
-        vm.stopBroadcast();
+        address vault = deployVault(expressRelay, mockPyth, false);
         return (expressRelay, opportunityAdapter, mockPyth, vault, weth);
     }
 
@@ -133,7 +147,11 @@ contract VaultScript is Script {
     The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
     @param pyth The address of the already deployed pyth contract to use
     */
-    function setupTestnet(address pyth, address weth) public {
+    function setupTestnet(
+        address pyth,
+        address weth,
+        bool allowUndercollateralized
+    ) public {
         (address deployer, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
         if (pyth == address(0)) pyth = deployMockPyth();
@@ -145,7 +163,11 @@ contract VaultScript is Script {
             expressRelay,
             weth
         );
-        address vault = deployVault(expressRelay, pyth);
+        address vault = deployVault(
+            expressRelay,
+            pyth,
+            allowUndercollateralized
+        );
         address[] memory tokens = new address[](5);
         uint256 lots_of_money = 10 ** 36;
         // Vault simulator assumes the token name is pyth pricefeed id in mainnet
@@ -428,10 +450,12 @@ contract VaultScript is Script {
             getNextPublishTime(idToken2Latest),
             0
         );
+        console.log("222");
 
         bytes[] memory updateData = new bytes[](2);
         updateData[0] = token1UpdateData;
         updateData[1] = token2UpdateData;
+        console.log("333");
         vm.startBroadcast();
         oracle.updatePriceFeeds(updateData);
         vm.stopBroadcast();
