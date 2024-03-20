@@ -172,8 +172,13 @@ contract ExpressRelayIntegrationTest is
         vm.prank(perOperatorAddress, perOperatorAddress);
         mockPyth = new MockPyth(1_000_000, 0);
 
+        bool allowUndercollateralized = false;
         vm.prank(tokenVaultDeployer, tokenVaultDeployer); // we prank here to standardize the value of the token contract address across different runs
-        tokenVault = new TokenVault(address(expressRelay), address(mockPyth));
+        tokenVault = new TokenVault(
+            address(expressRelay),
+            address(mockPyth),
+            allowUndercollateralized
+        );
         console.log("contract of token vault is", address(tokenVault));
         feeSplitTokenVault = defaultFeeSplitProtocol;
 
