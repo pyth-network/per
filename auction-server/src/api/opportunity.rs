@@ -116,7 +116,6 @@ pub async fn post_opportunity(
         .await
         .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 
-
     let opportunities_map = &store.opportunity_store.opportunities;
     if let Some(mut opportunities_existing) = opportunities_map.get_mut(&params.permission_key) {
         // check if same opportunity exists in the vector
@@ -155,7 +154,6 @@ pub async fn post_opportunity(
 
     Ok(opportunity_with_metadata.into())
 }
-
 
 #[derive(Serialize, Deserialize, IntoParams)]
 pub struct ChainIdQueryParams {

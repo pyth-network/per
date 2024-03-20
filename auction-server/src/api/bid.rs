@@ -40,7 +40,6 @@ pub struct BidResult {
     pub id:     BidId,
 }
 
-
 /// Bid on a specific permission key for a specific chain.
 ///
 /// Your bid will be simulated and verified by the server. Depending on the outcome of the auction, a transaction
@@ -68,7 +67,6 @@ pub async fn process_bid(store: Arc<Store>, bid: Bid) -> Result<Json<BidResult>,
         Err(e) => Err(e),
     }
 }
-
 
 /// Query the status of a specific bid.
 #[utoipa::path(get, path = "/v1/bids/{bid_id}",

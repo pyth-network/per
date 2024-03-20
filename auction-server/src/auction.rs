@@ -113,12 +113,10 @@ pub fn get_simulation_call(
         .from(relayer)
 }
 
-
 pub enum SimulationError {
     LogicalError { result: Bytes, reason: String },
     ContractError(ContractError<Provider<Http>>),
 }
-
 
 pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), SimulationError> {
     let failed_result = results.iter().find(|x| !x.external_success);

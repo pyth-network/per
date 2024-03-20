@@ -134,7 +134,6 @@ pub async fn live() -> Response {
     (StatusCode::OK, "OK").into_response()
 }
 
-
 pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]

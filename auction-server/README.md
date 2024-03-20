@@ -24,3 +24,18 @@ cargo run -- run --relayer-private-key <relayer-private-key-in-hex-format>
 This command will start the webservice on `localhost:9000`.
 
 You can check the documentation of the webservice by visiting `localhost:9000/docs`.
+
+## Migrations
+
+Install sqlx-cli by running `cargo install sqlx-cli`. Then, run the following command to apply migrations:
+
+```bash
+export DATABASE_URL=postgres://postgres@localhost/postgres
+sqlx migrate run
+```
+
+We use revertible migrations to manage the database schema. You can create a new migration by running:
+
+```bash
+sqlx migrate add -r <migration-name>
+```

@@ -52,7 +52,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         SHOULD_EXIT.store(true, Ordering::Release);
     });
 
-
     let config = Config::load(&run_options.config.config).map_err(|err| {
         anyhow!(
             "Failed to load config from file({path}): {:?}",
@@ -112,7 +111,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             broadcast_receiver,
         },
     });
-
 
     let submission_loop = tokio::spawn(run_submission_loop(store.clone()));
     let verification_loop = tokio::spawn(run_verification_loop(store.clone()));

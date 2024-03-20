@@ -89,7 +89,6 @@ abigen!(
 abigen!(ERC20, "../per_multicall/out/ERC20.sol/ERC20.json");
 abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
 
-
 pub enum VerificationResult {
     Success,
     UnableToSpoof,
