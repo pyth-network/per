@@ -96,9 +96,9 @@ class VaultMonitor:
                 account: ProtocolAccount = {
                     "account_number": account_number,
                     "token_address_collateral": vault_dict["tokenCollateral"],
-                    "token_id_collateral": vault_dict["tokenIDCollateral"].hex(),
+                    "token_id_collateral": vault_dict["tokenIdCollateral"].hex(),
                     "token_address_debt": vault_dict["tokenDebt"],
-                    "token_id_debt": vault_dict["tokenIDDebt"].hex(),
+                    "token_id_debt": vault_dict["tokenIdDebt"].hex(),
                     "amount_collateral": vault_dict["amountCollateral"],
                     "amount_debt": vault_dict["amountDebt"],
                     "min_health_ratio": vault_dict["minHealthRatio"],
