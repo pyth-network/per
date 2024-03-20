@@ -141,13 +141,6 @@ contract VaultScript is Script {
         return (expressRelay, opportunityAdapter, mockPyth, vault, weth);
     }
 
-    function mintTokens(address token, address to, uint256 amount) public {
-        (, uint256 skDeployer) = getDeployer();
-        vm.startBroadcast(skDeployer);
-        MyToken(token).mint(to, amount);
-        vm.stopBroadcast();
-    }
-
     /**
     @notice Sets up the testnet environment
     deploys WETH, ExpressRelay, OpportunityAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
@@ -159,7 +152,7 @@ contract VaultScript is Script {
         address weth,
         bool allowUndercollateralized
     ) public {
-        (address deployer, ) = getDeployer();
+        (address deployer, uint256 skDeployer) = getDeployer();
         if (pyth == address(0)) pyth = deployMockPyth();
         if (weth == address(0)) weth = deployWeth();
         address expressRelay = deployExpressRelay();
@@ -207,9 +200,13 @@ contract VaultScript is Script {
                 "PYTH"
             )
         );
+
+        vm.startBroadcast(skDeployer);
         for (uint i = 0; i < 5; i++) {
-            mintTokens(tokens[i], vault, lots_of_money);
+            MyToken(tokens[i]).mint(vault, lots_of_money);
         }
+        vm.stopBroadcast();
+
         string memory obj = "";
         vm.serializeAddress(obj, "tokens", tokens);
         vm.serializeAddress(obj, "per", expressRelay);
@@ -455,12 +452,10 @@ contract VaultScript is Script {
             getNextPublishTime(idToken2Latest),
             0
         );
-        console.log("222");
 
         bytes[] memory updateData = new bytes[](2);
         updateData[0] = token1UpdateData;
         updateData[1] = token2UpdateData;
-        console.log("333");
         vm.startBroadcast();
         oracle.updatePriceFeeds(updateData);
         vm.stopBroadcast();

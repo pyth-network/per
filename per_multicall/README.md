@@ -23,14 +23,6 @@ This allows users to participate in liquidations without needing to set up their
 
 Tests can be found in `test/`. These tests include checks that the protocol functions work, as well as checks around permissioning, bid conditions, and appropriate failing of components of the express relay bundle (without failing the whole bundle).
 
-To install necessary requirements, you should first run
-
-```shell
-$ npm install
-$ forge install OpenZeppelin/openzeppelin-contracts --no-git --no-commit
-$ forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.1 --no-git --no-commit
-```
-
 To run tests with the appropriate stack depth and console logging, run
 
 ```shell
