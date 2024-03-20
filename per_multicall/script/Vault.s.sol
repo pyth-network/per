@@ -141,6 +141,13 @@ contract VaultScript is Script {
         return (expressRelay, opportunityAdapter, mockPyth, vault, weth);
     }
 
+    function mintTokens(address token, address to, uint256 amount) public {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
+        MyToken(token).mint(to, amount);
+        vm.stopBroadcast();
+    }
+
     /**
     @notice Sets up the testnet environment
     deploys WETH, ExpressRelay, OpportunityAdapter, TokenVault along with 5 ERC-20 tokens to use as collateral and debt tokens
@@ -152,8 +159,7 @@ contract VaultScript is Script {
         address weth,
         bool allowUndercollateralized
     ) public {
-        (address deployer, uint256 skDeployer) = getDeployer();
-        vm.startBroadcast(skDeployer);
+        (address deployer, ) = getDeployer();
         if (pyth == address(0)) pyth = deployMockPyth();
         if (weth == address(0)) weth = deployWeth();
         address expressRelay = deployExpressRelay();
@@ -202,9 +208,8 @@ contract VaultScript is Script {
             )
         );
         for (uint i = 0; i < 5; i++) {
-            MyToken(tokens[i]).mint(vault, lots_of_money);
+            mintTokens(tokens[i], vault, lots_of_money);
         }
-        vm.stopBroadcast();
         string memory obj = "";
         vm.serializeAddress(obj, "tokens", tokens);
         vm.serializeAddress(obj, "per", expressRelay);

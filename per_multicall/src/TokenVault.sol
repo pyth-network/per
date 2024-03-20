@@ -170,8 +170,8 @@ contract TokenVault is IExpressRelayFeeReceiver {
             revert InvalidHealthRatios();
         }
         if (
-            _getVaultHealth(vault) < vault.minHealthRatio &&
-            !_allowUndercollateralized
+            !_allowUndercollateralized &&
+            _getVaultHealth(vault) < vault.minHealthRatio
         ) {
             revert UncollateralizedVaultCreation();
         }

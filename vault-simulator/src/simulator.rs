@@ -189,7 +189,7 @@ pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
     let collateral_value_usd: U256 = precision * U256::from(random::<u64>() % 900 + 100);
     tracing::info!("Collateral value usd: {}", collateral_value_usd);
     tracing::info!("Collateral price: {}", collateral_update.price);
-    tracing::info!("Debt price: {}", collateral_update.price);
+    tracing::info!("Debt price: {}", debt_update.price);
 
     let contract =
         SignableTokenVaultContract::new(simulator_options.vault_contract, client.clone());
