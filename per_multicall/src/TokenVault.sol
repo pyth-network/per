@@ -224,8 +224,8 @@ contract TokenVault is IExpressRelayFeeReceiver {
         vault.amountDebt = futureDebt;
 
         if (
-            _getVaultHealth(vault) < vault.minHealthRatio &&
-            !_allowUndercollateralized
+            !_allowUndercollateralized &&
+            _getVaultHealth(vault) < vault.minHealthRatio
         ) {
             revert InvalidVaultUpdate();
         }
