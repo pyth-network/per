@@ -205,16 +205,15 @@ pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
     let allow_undercollateralized: bool = contract.get_allow_undercollateralized().call().await?;
     if allow_undercollateralized {
         // Less than min_health_ratio, greater than permissionless ratio, to create the vault undercollateralized
-        collat_ratio = (min_health_numerator + min_health_permissionless_numerator)
-            / 2
-            / min_health_denominator;
+        collat_ratio = (min_health_numerator + min_health_permissionless_numerator) / 2;
     } else {
         // Slightly more than min_health_ratio to create the vault overcollateralized
-        collat_ratio = min_health_numerator * 10_001 / 10_000 / min_health_denominator;
+        collat_ratio = min_health_numerator * 10_001 / 10_000;
     }
 
-    let amount_collateral: U256 =
-        collateral_value_usd * precision * collat_ratio / collateral_update.price;
+    let amount_collateral: U256 = collateral_value_usd * precision * collat_ratio
+        / min_health_denominator
+        / collateral_update.price;
     let amount_debt = collateral_value_usd * precision / debt_update.price;
 
     let token_id_collateral: [u8; 32] = <[u8; 32]>::from_hex(collateral_info.price_id).unwrap();
