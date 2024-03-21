@@ -43,6 +43,7 @@ contract ExpressRelay is IExpressRelay, ExpressRelayState {
         state.feeSplitRelayer = feeSplitRelayer;
     }
 
+    // TODO: move this to ExpressRelayState/Setters/Getters?
     /**
      * @notice setRelayer function - sets the relayer
      *
