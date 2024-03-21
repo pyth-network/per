@@ -18,9 +18,8 @@ contract ExpressRelay is IExpressRelay {
     mapping(address => uint256) _feeConfig;
     mapping(bytes32 => bool) _permissions;
     // TODO: standardize naming order here
-    uint256 _defaultProtocolFeeSplit;
-    uint256 _relayerFeeSplit;
-    uint256 _relayerFees;
+    uint256 _feeSplitProtocolDefault;
+    uint256 _feeSplitRelayer;
     uint256 _feeSplitPrecision = 10 ** 18;
 
     /**
@@ -28,28 +27,27 @@ contract ExpressRelay is IExpressRelay {
      *
      * @param admin: address of admin of express relay
      * @param relayer: address of relayer EOA
-     * @param defaultProtocolFeeSplit: default fee split to be paid to the protocol whose permissioning is being used
-     * @param relayerFeeSplit: split of the non-protocol fees to be paid to the relayer
+     * @param feeSplitProtocolDefault: default fee split to be paid to the protocol whose permissioning is being used
+     * @param feeSplitRelayer: split of the non-protocol fees to be paid to the relayer
      */
     constructor(
         address admin,
         address relayer,
-        uint256 defaultProtocolFeeSplit,
-        uint256 relayerFeeSplit
+        uint256 feeSplitProtocolDefault,
+        uint256 feeSplitRelayer
     ) {
         _admin = admin;
         _relayer = relayer;
 
-        if (defaultProtocolFeeSplit > _feeSplitPrecision) {
+        if (feeSplitProtocolDefault > _feeSplitPrecision) {
             revert InvalidFeeSplit();
         }
-        _defaultProtocolFeeSplit = defaultProtocolFeeSplit;
+        _feeSplitProtocolDefault = feeSplitProtocolDefault;
 
-        if (relayerFeeSplit > _feeSplitPrecision) {
+        if (feeSplitRelayer > _feeSplitPrecision) {
             revert InvalidFeeSplit();
         }
-        _relayerFeeSplit = relayerFeeSplit;
-        _relayerFees = 0;
+        _feeSplitRelayer = feeSplitRelayer;
     }
 
     modifier onlyAdmin() {
@@ -90,16 +88,6 @@ contract ExpressRelay is IExpressRelay {
      */
     function setFee(address feeRecipient, uint256 feeSplit) public onlyAdmin {
         _feeConfig[feeRecipient] = feeSplit;
-    }
-
-    /**
-     * @notice withdrawRelayerFees function - withdraws the relayer fees from the contract
-     */
-    function withdrawRelayerFees() public onlyRelayer {
-        uint256 relayerFees = _relayerFees;
-        _relayerFees = 0;
-        // TODO: is the payable here necessary?
-        payable(_relayer).transfer(relayerFees);
     }
 
     function isPermissioned(
@@ -178,30 +166,30 @@ contract ExpressRelay is IExpressRelay {
         // use the first 20 bytes of permission as fee receiver
         address feeReceiver = _bytesToAddress(permissionKey);
         // transfer fee to the protocol
-        uint256 protocolFeeSplit = _feeConfig[feeReceiver];
-        if (protocolFeeSplit == 0) {
-            protocolFeeSplit = _defaultProtocolFeeSplit;
+        uint256 feeSplitProtocol = _feeConfig[feeReceiver];
+        if (feeSplitProtocol == 0) {
+            feeSplitProtocol = _feeSplitProtocolDefault;
         }
-        uint256 protocolFee;
-        uint256 protocolFeeNumerator = totalBid * protocolFeeSplit;
-        if (protocolFeeNumerator > 0) {
-            protocolFee = protocolFeeNumerator / _feeSplitPrecision;
+        uint256 feeProtocol;
+        uint256 feeProtocolNumerator = totalBid * feeSplitProtocol;
+        if (feeProtocolNumerator > 0) {
+            feeProtocol = feeProtocolNumerator / _feeSplitPrecision;
             if (_isContract(feeReceiver)) {
                 IExpressRelayFeeReceiver(feeReceiver).receiveAuctionProceedings{
-                    value: protocolFee
+                    value: feeProtocol
                 }(permissionKey);
             } else {
-                payable(feeReceiver).transfer(protocolFee);
+                payable(feeReceiver).transfer(feeProtocol);
             }
         }
         _permissions[keccak256(permissionKey)] = false;
 
-        // increment the relayer fees for future withdrawal
-        uint256 relayerFeeNumerator = (totalBid - protocolFee) *
-            _relayerFeeSplit;
-        if (relayerFeeNumerator > 0) {
-            uint256 relayerFee = relayerFeeNumerator / _feeSplitPrecision;
-            _relayerFees += relayerFee;
+        // pay the relayer
+        uint256 feeRelayerNumerator = (totalBid - feeProtocol) *
+            _feeSplitRelayer;
+        if (feeRelayerNumerator > 0) {
+            uint256 feeRelayer = feeRelayerNumerator / _feeSplitPrecision;
+            payable(_relayer).transfer(feeRelayer);
         }
     }
 

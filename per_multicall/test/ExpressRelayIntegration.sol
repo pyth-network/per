@@ -101,8 +101,8 @@ contract ExpressRelayIntegrationTest is
     int64[] tokenDebtPricesLiqExpressRelay;
     int64[] tokenDebtPricesLiqPermissionless;
 
-    uint256 constant defaultProtocolFeeSplit = 50 * 10 ** 16;
-    uint256 constant relayerFeeSplit = 10 ** 17;
+    uint256 constant feeSplitProtocolDefault = 50 * 10 ** 16;
+    uint256 constant feeSplitRelayer = 10 ** 17;
 
     uint256 feeSplitTokenVault;
     uint256 constant feeSplitPrecisionTokenVault = 10 ** 18;
@@ -154,8 +154,8 @@ contract ExpressRelayIntegrationTest is
         expressRelay = new ExpressRelay(
             perOperatorAddress,
             perOperatorAddress,
-            defaultProtocolFeeSplit,
-            relayerFeeSplit
+            feeSplitProtocolDefault,
+            feeSplitRelayer
         );
 
         vm.prank(perOperatorAddress, perOperatorAddress);
@@ -184,7 +184,7 @@ contract ExpressRelayIntegrationTest is
             allowUndercollateralized
         );
         console.log("contract of token vault is", address(tokenVault));
-        feeSplitTokenVault = defaultProtocolFeeSplit;
+        feeSplitTokenVault = feeSplitProtocolDefault;
 
         // instantiate searcher A's contract with searcher A's wallet as the deployer
         vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
@@ -686,7 +686,7 @@ contract ExpressRelayIntegrationTest is
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(150, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -746,10 +746,10 @@ contract ExpressRelayIntegrationTest is
         BidInfo[] memory bidInfos = new BidInfo[](2);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(150, searcherAOwnerSk);
 
         contracts[1] = address(searcherB);
-        bidInfos[1] = makeBidInfo(10, searcherAOwnerSk);
+        bidInfos[1] = makeBidInfo(100, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -823,9 +823,9 @@ contract ExpressRelayIntegrationTest is
         BidInfo[] memory bidInfos = new BidInfo[](2);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(150, searcherAOwnerSk);
         contracts[1] = address(searcherB);
-        bidInfos[1] = makeBidInfo(10, searcherBOwnerSk);
+        bidInfos[1] = makeBidInfo(100, searcherBOwnerSk);
 
         (
             bytes memory permission,
@@ -899,7 +899,7 @@ contract ExpressRelayIntegrationTest is
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(150, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -942,7 +942,7 @@ contract ExpressRelayIntegrationTest is
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(searcherA);
-        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(150, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -985,7 +985,7 @@ contract ExpressRelayIntegrationTest is
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(opportunityAdapter);
-        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(150, searcherAOwnerSk);
 
         (
             bytes memory permission,
@@ -1041,7 +1041,7 @@ contract ExpressRelayIntegrationTest is
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(opportunityAdapter);
-        bidInfos[0] = makeBidInfo(15, searcherBOwnerSk);
+        bidInfos[0] = makeBidInfo(150, searcherBOwnerSk);
         bidInfos[0].executor = searcherAOwnerAddress; // use wrong liquidator address to induce invalid signature
 
         (
@@ -1087,7 +1087,7 @@ contract ExpressRelayIntegrationTest is
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         contracts[0] = address(opportunityAdapter);
-        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
+        bidInfos[0] = makeBidInfo(150, searcherAOwnerSk);
         bidInfos[0].validUntil = block.timestamp - 1; // use old timestamp for the validUntil field to create expired signature
 
         (
@@ -1135,8 +1135,8 @@ contract ExpressRelayIntegrationTest is
 
         contracts[0] = address(opportunityAdapter);
         contracts[1] = address(opportunityAdapter);
-        bidInfos[0] = makeBidInfo(15, searcherAOwnerSk);
-        bidInfos[1] = makeBidInfo(10, searcherBOwnerSk);
+        bidInfos[0] = makeBidInfo(150, searcherAOwnerSk);
+        bidInfos[1] = makeBidInfo(100, searcherBOwnerSk);
 
         (
             bytes memory permission,
