@@ -3,23 +3,14 @@ pragma solidity ^0.8.13;
 
 import "./Errors.sol";
 import "./Structs.sol";
+import "./ExpressRelayState.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 
-contract ExpressRelay is IExpressRelay {
+contract ExpressRelay is IExpressRelay, ExpressRelayState {
     event ReceivedETH(address sender, uint256 amount);
-
-    // TODO: Relayer can submit transactions, admin can change relayers and set fees
-    // TODO: move this stuff over to ExpressRelayState.sol
-    address _relayer;
-    address _admin;
-    mapping(address => uint256) _feeConfig;
-    mapping(bytes32 => bool) _permissions;
-    uint256 _feeSplitProtocolDefault;
-    uint256 _feeSplitRelayer;
-    uint256 _feeSplitPrecision = 10 ** 18;
 
     /**
      * @notice ExpressRelay constructor - Initializes a new multicall contract with given parameters
@@ -35,32 +26,21 @@ contract ExpressRelay is IExpressRelay {
         uint256 feeSplitProtocolDefault,
         uint256 feeSplitRelayer
     ) {
-        _admin = admin;
-        _relayer = relayer;
+        // TODO: move this to ExpressRelayState?
+        state.feeSplitPrecision = 10 ** 18;
 
-        if (feeSplitProtocolDefault > _feeSplitPrecision) {
+        state.admin = admin;
+        state.relayer = relayer;
+
+        if (feeSplitProtocolDefault > state.feeSplitPrecision) {
             revert InvalidFeeSplit();
         }
-        _feeSplitProtocolDefault = feeSplitProtocolDefault;
+        state.feeSplitProtocolDefault = feeSplitProtocolDefault;
 
-        if (feeSplitRelayer > _feeSplitPrecision) {
+        if (feeSplitRelayer > state.feeSplitPrecision) {
             revert InvalidFeeSplit();
         }
-        _feeSplitRelayer = feeSplitRelayer;
-    }
-
-    modifier onlyAdmin() {
-        if (msg.sender != _admin) {
-            revert Unauthorized();
-        }
-        _;
-    }
-
-    modifier onlyRelayer() {
-        if (msg.sender != _relayer) {
-            revert Unauthorized();
-        }
-        _;
+        state.feeSplitRelayer = feeSplitRelayer;
     }
 
     /**
@@ -69,14 +49,14 @@ contract ExpressRelay is IExpressRelay {
      * @param relayer: address of the relayer to be set
      */
     function setRelayer(address relayer) public onlyAdmin {
-        _relayer = relayer;
+        state.relayer = relayer;
     }
 
     /**
      * @notice getRelayer function - returns the address of the relayer
      */
     function getRelayer() public view returns (address) {
-        return _relayer;
+        return state.relayer;
     }
 
     /**
@@ -85,17 +65,17 @@ contract ExpressRelay is IExpressRelay {
      * @param feeSplit: split of fee to be sent to the protocol. 10**18 is 100%
      */
     function setFeeProtocolDefault(uint256 feeSplit) public onlyAdmin {
-        if (feeSplit > _feeSplitPrecision) {
+        if (feeSplit > state.feeSplitPrecision) {
             revert InvalidFeeSplit();
         }
-        _feeSplitProtocolDefault = feeSplit;
+        state.feeSplitProtocolDefault = feeSplit;
     }
 
     /**
      * @notice getFeeProtocolDefault function - returns the default fee split for the protocol
      */
     function getFeeProtocolDefault() public view returns (uint256) {
-        return _feeSplitProtocolDefault;
+        return state.feeSplitProtocolDefault;
     }
 
     /**
@@ -108,10 +88,10 @@ contract ExpressRelay is IExpressRelay {
         address feeRecipient,
         uint256 feeSplit
     ) public onlyAdmin {
-        if (feeSplit > _feeSplitPrecision) {
+        if (feeSplit > state.feeSplitPrecision) {
             revert InvalidFeeSplit();
         }
-        _feeConfig[feeRecipient] = feeSplit;
+        state.feeConfig[feeRecipient] = feeSplit;
     }
 
     /**
@@ -122,9 +102,9 @@ contract ExpressRelay is IExpressRelay {
     function getFeeProtocol(
         address feeRecipient
     ) public view returns (uint256) {
-        uint256 feeProtocol = _feeConfig[feeRecipient];
+        uint256 feeProtocol = state.feeConfig[feeRecipient];
         if (feeProtocol == 0) {
-            feeProtocol = _feeSplitProtocolDefault;
+            feeProtocol = state.feeSplitProtocolDefault;
         }
         return feeProtocol;
     }
@@ -135,17 +115,17 @@ contract ExpressRelay is IExpressRelay {
      * @param feeSplit: split of remaining fee (after subtracting protocol fee) to be sent to the relayer. 10**18 is 100%
      */
     function setFeeRelayer(uint256 feeSplit) public onlyAdmin {
-        if (feeSplit > _feeSplitPrecision) {
+        if (feeSplit > state.feeSplitPrecision) {
             revert InvalidFeeSplit();
         }
-        _feeSplitRelayer = feeSplit;
+        state.feeSplitRelayer = feeSplit;
     }
 
     /**
      * @notice getFeeRelayer function - returns the fee split for the relayer
      */
     function getFeeRelayer() public view returns (uint256) {
-        return _feeSplitRelayer;
+        return state.feeSplitRelayer;
     }
 
     function isPermissioned(
@@ -153,7 +133,7 @@ contract ExpressRelay is IExpressRelay {
         bytes calldata permissionId
     ) public view returns (bool permissioned) {
         return
-            _permissions[
+            state.permissions[
                 keccak256(abi.encode(protocolFeeReceiver, permissionId))
             ];
     }
@@ -196,7 +176,7 @@ contract ExpressRelay is IExpressRelay {
             revert InvalidPermission();
         }
 
-        _permissions[keccak256(permissionKey)] = true;
+        state.permissions[keccak256(permissionKey)] = true;
         multicallStatuses = new MulticallStatus[](targetCalldata.length);
 
         uint256 totalBid = 0;
@@ -224,14 +204,14 @@ contract ExpressRelay is IExpressRelay {
         // use the first 20 bytes of permission as fee receiver
         address feeReceiver = _bytesToAddress(permissionKey);
         // transfer fee to the protocol
-        uint256 feeSplitProtocol = _feeConfig[feeReceiver];
+        uint256 feeSplitProtocol = state.feeConfig[feeReceiver];
         if (feeSplitProtocol == 0) {
-            feeSplitProtocol = _feeSplitProtocolDefault;
+            feeSplitProtocol = state.feeSplitProtocolDefault;
         }
         uint256 feeProtocol;
         uint256 feeProtocolNumerator = totalBid * feeSplitProtocol;
         if (feeProtocolNumerator > 0) {
-            feeProtocol = feeProtocolNumerator / _feeSplitPrecision;
+            feeProtocol = feeProtocolNumerator / state.feeSplitPrecision;
             if (_isContract(feeReceiver)) {
                 IExpressRelayFeeReceiver(feeReceiver).receiveAuctionProceedings{
                     value: feeProtocol
@@ -240,14 +220,14 @@ contract ExpressRelay is IExpressRelay {
                 payable(feeReceiver).transfer(feeProtocol);
             }
         }
-        _permissions[keccak256(permissionKey)] = false;
+        state.permissions[keccak256(permissionKey)] = false;
 
         // pay the relayer
         uint256 feeRelayerNumerator = (totalBid - feeProtocol) *
-            _feeSplitRelayer;
+            state.feeSplitRelayer;
         if (feeRelayerNumerator > 0) {
-            uint256 feeRelayer = feeRelayerNumerator / _feeSplitPrecision;
-            payable(_relayer).transfer(feeRelayer);
+            uint256 feeRelayer = feeRelayerNumerator / state.feeSplitPrecision;
+            payable(state.relayer).transfer(feeRelayer);
         }
     }
 
