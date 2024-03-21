@@ -42,3 +42,6 @@ error InvalidSignatureLength();
 // The new contract does not have the same magic value as the old one.
 // Signature: 0x4ed848c1
 error InvalidMagicValue();
+
+// Signature: 0x0601f697
+error InvalidFeeSplit();

@@ -87,9 +87,17 @@ contract VaultScript is Script {
         );
         console.log("pk per operator", operatorAddress);
         console.log("sk per operator", operatorSk);
+        uint256 defaultProtocolFeeSplit = 50 * (10 ** 16);
+        uint256 relayerFeeSplit = 10 * (10 ** 16);
         vm.startBroadcast(skDeployer);
         payable(operatorAddress).transfer(0.01 ether);
-        ExpressRelay multicall = new ExpressRelay(operatorAddress, 0);
+        // TODO: set admin to xc-admin
+        ExpressRelay multicall = new ExpressRelay(
+            operatorAddress,
+            operatorAddress,
+            defaultProtocolFeeSplit,
+            relayerFeeSplit
+        );
         vm.stopBroadcast();
         console.log("deployed ExpressRelay contract at", address(multicall));
         return address(multicall);

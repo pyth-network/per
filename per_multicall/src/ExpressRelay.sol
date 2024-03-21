@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import "./Errors.sol";
 import "./Structs.sol";
 
-import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
@@ -18,9 +17,11 @@ contract ExpressRelay is IExpressRelay {
     address _admin;
     mapping(address => uint256) _feeConfig;
     mapping(bytes32 => bool) _permissions;
+    // TODO: standardize naming order here
     uint256 _defaultProtocolFeeSplit;
     uint256 _relayerFeeSplit;
     uint256 _relayerFees;
+    uint256 _feeSplitPrecision = 10 ** 18;
 
     /**
      * @notice ExpressRelay constructor - Initializes a new multicall contract with given parameters
@@ -33,13 +34,20 @@ contract ExpressRelay is IExpressRelay {
     constructor(
         address admin,
         address relayer,
-        uint256 defaultProtocolFee,
-        uint256 relayerFee
+        uint256 defaultProtocolFeeSplit,
+        uint256 relayerFeeSplit
     ) {
         _admin = admin;
-        // TODO: can I call setRelayer here?
         _relayer = relayer;
+
+        if (defaultProtocolFeeSplit > _feeSplitPrecision) {
+            revert InvalidFeeSplit();
+        }
         _defaultProtocolFeeSplit = defaultProtocolFeeSplit;
+
+        if (relayerFeeSplit > _feeSplitPrecision) {
+            revert InvalidFeeSplit();
+        }
         _relayerFeeSplit = relayerFeeSplit;
         _relayerFees = 0;
     }
@@ -87,7 +95,6 @@ contract ExpressRelay is IExpressRelay {
     /**
      * @notice withdrawRelayerFees function - withdraws the relayer fees from the contract
      */
-    // TODO: add the onlyRelayer modifier
     function withdrawRelayerFees() public onlyRelayer {
         uint256 relayerFees = _relayerFees;
         _relayerFees = 0;
@@ -178,7 +185,7 @@ contract ExpressRelay is IExpressRelay {
         uint256 protocolFee;
         uint256 protocolFeeNumerator = totalBid * protocolFeeSplit;
         if (protocolFeeNumerator > 0) {
-            protocolFee = protocolFeeNumerator / 1000_000_000_000_000_000;
+            protocolFee = protocolFeeNumerator / _feeSplitPrecision;
             if (_isContract(feeReceiver)) {
                 IExpressRelayFeeReceiver(feeReceiver).receiveAuctionProceedings{
                     value: protocolFee
@@ -190,9 +197,10 @@ contract ExpressRelay is IExpressRelay {
         _permissions[keccak256(permissionKey)] = false;
 
         // increment the relayer fees for future withdrawal
-        uint256 relayerFeeNumerator = (totalBid - protocolFee) * _relayerFee;
+        uint256 relayerFeeNumerator = (totalBid - protocolFee) *
+            _relayerFeeSplit;
         if (relayerFeeNumerator > 0) {
-            uint256 relayerFee = relayerFeeNumerator / 1000_000_000_000_000_000;
+            uint256 relayerFee = relayerFeeNumerator / _feeSplitPrecision;
             _relayerFees += relayerFee;
         }
     }

@@ -101,7 +101,8 @@ contract ExpressRelayIntegrationTest is
     int64[] tokenDebtPricesLiqExpressRelay;
     int64[] tokenDebtPricesLiqPermissionless;
 
-    uint256 constant defaultFeeSplitProtocol = 50 * 10 ** 16;
+    uint256 constant defaultProtocolFeeSplit = 50 * 10 ** 16;
+    uint256 constant relayerFeeSplit = 10 ** 17;
 
     uint256 feeSplitTokenVault;
     uint256 constant feeSplitPrecisionTokenVault = 10 ** 18;
@@ -148,10 +149,13 @@ contract ExpressRelayIntegrationTest is
      */
     function setUpContracts() public {
         // instantiate multicall contract with ExpressRelay operator as the deployer
+        // TODO: change admin to xc-admin
         vm.prank(perOperatorAddress, perOperatorAddress);
         expressRelay = new ExpressRelay(
             perOperatorAddress,
-            defaultFeeSplitProtocol
+            perOperatorAddress,
+            defaultProtocolFeeSplit,
+            relayerFeeSplit
         );
 
         vm.prank(perOperatorAddress, perOperatorAddress);
@@ -180,7 +184,7 @@ contract ExpressRelayIntegrationTest is
             allowUndercollateralized
         );
         console.log("contract of token vault is", address(tokenVault));
-        feeSplitTokenVault = defaultFeeSplitProtocol;
+        feeSplitTokenVault = defaultProtocolFeeSplit;
 
         // instantiate searcher A's contract with searcher A's wallet as the deployer
         vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
