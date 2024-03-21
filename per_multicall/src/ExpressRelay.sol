@@ -17,7 +17,6 @@ contract ExpressRelay is IExpressRelay {
     address _admin;
     mapping(address => uint256) _feeConfig;
     mapping(bytes32 => bool) _permissions;
-    // TODO: standardize naming order here
     uint256 _feeSplitProtocolDefault;
     uint256 _feeSplitRelayer;
     uint256 _feeSplitPrecision = 10 ** 18;
@@ -81,13 +80,72 @@ contract ExpressRelay is IExpressRelay {
     }
 
     /**
-     * @notice setFee function - sets the fee for a given fee recipient
+     * @notice setFeeProtocolDefault function - sets the default fee split for the protocol
      *
-     * @param feeRecipient: address of the fee recipient for the contract being registered
-     * @param feeSplit: amount of fee to be split with the protocol. 10**18 is 100%
+     * @param feeSplit: split of fee to be sent to the protocol. 10**18 is 100%
      */
-    function setFee(address feeRecipient, uint256 feeSplit) public onlyAdmin {
+    function setFeeProtocolDefault(uint256 feeSplit) public onlyAdmin {
+        if (feeSplit > _feeSplitPrecision) {
+            revert InvalidFeeSplit();
+        }
+        _feeSplitProtocolDefault = feeSplit;
+    }
+
+    /**
+     * @notice getFeeProtocolDefault function - returns the default fee split for the protocol
+     */
+    function getFeeProtocolDefault() public view returns (uint256) {
+        return _feeSplitProtocolDefault;
+    }
+
+    /**
+     * @notice setFeeProtocol function - sets the fee split for a given protocol fee recipient
+     *
+     * @param feeRecipient: address of the fee recipient for the protocol
+     * @param feeSplit: split of fee to be sent to the protocol. 10**18 is 100%
+     */
+    function setFeeProtocol(
+        address feeRecipient,
+        uint256 feeSplit
+    ) public onlyAdmin {
+        if (feeSplit > _feeSplitPrecision) {
+            revert InvalidFeeSplit();
+        }
         _feeConfig[feeRecipient] = feeSplit;
+    }
+
+    /**
+     * @notice getFeeProtocol function - returns the fee split for a given protocol fee recipient
+     *
+     * @param feeRecipient: address of the fee recipient for the protocol
+     */
+    function getFeeProtocol(
+        address feeRecipient
+    ) public view returns (uint256) {
+        uint256 feeProtocol = _feeConfig[feeRecipient];
+        if (feeProtocol == 0) {
+            feeProtocol = _feeSplitProtocolDefault;
+        }
+        return feeProtocol;
+    }
+
+    /**
+     * @notice setFeeRelayer function - sets the fee split for the relayer
+     *
+     * @param feeSplit: split of remaining fee (after subtracting protocol fee) to be sent to the relayer. 10**18 is 100%
+     */
+    function setFeeRelayer(uint256 feeSplit) public onlyAdmin {
+        if (feeSplit > _feeSplitPrecision) {
+            revert InvalidFeeSplit();
+        }
+        _feeSplitRelayer = feeSplit;
+    }
+
+    /**
+     * @notice getFeeRelayer function - returns the fee split for the relayer
+     */
+    function getFeeRelayer() public view returns (uint256) {
+        return _feeSplitRelayer;
     }
 
     function isPermissioned(
