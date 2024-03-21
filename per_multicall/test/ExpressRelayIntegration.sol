@@ -62,8 +62,8 @@ contract ExpressRelayIntegrationTest is
 
     int32 constant tokenExpo = 0;
 
-    address perOperatorAddress;
-    uint256 perOperatorSk;
+    address relayer;
+    address admin;
     address searcherAOwnerAddress;
     uint256 searcherAOwnerSk;
     address searcherBOwnerAddress;
@@ -130,7 +130,8 @@ contract ExpressRelayIntegrationTest is
      * Sets up express relay operator, searcher, initial token vault deployer, and initial vault depositor wallets
      */
     function setUpWallets() public {
-        (perOperatorAddress, perOperatorSk) = makeAddrAndKey("perOperator");
+        (relayer, ) = makeAddrAndKey("relayer");
+        admin = makeAddr("admin");
 
         (searcherAOwnerAddress, searcherAOwnerSk) = makeAddrAndKey("searcherA");
         (searcherBOwnerAddress, searcherBOwnerSk) = makeAddrAndKey("searcherB");
@@ -150,30 +151,31 @@ contract ExpressRelayIntegrationTest is
     function setUpContracts() public {
         // instantiate multicall contract with ExpressRelay operator as the deployer
         // TODO: change admin to xc-admin
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         expressRelay = new ExpressRelay(
-            perOperatorAddress,
-            perOperatorAddress,
+            admin,
+            relayer,
             feeSplitProtocolDefault,
             feeSplitRelayer
         );
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         weth = new WETH9();
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
         // deploy proxy contract and point it to implementation
         ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
         opportunityAdapter = OpportunityAdapterUpgradable(payable(proxy));
         opportunityAdapter.initialize(
-            perOperatorAddress,
-            perOperatorAddress,
+            // TODO: fix the owner and admin here
+            relayer,
+            relayer,
             address(expressRelay),
             address(weth)
         );
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         mockPyth = new MockPyth(1_000_000, 0);
 
         bool allowUndercollateralized = false;
@@ -202,9 +204,9 @@ contract ExpressRelayIntegrationTest is
         );
         console.log("contract of searcher B is", address(searcherB));
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         token1 = new MyToken("token1", "T1");
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         token2 = new MyToken("token2", "T2");
         console.log("contract of token1 is", address(token1));
         console.log("contract of token2 is", address(token2));
@@ -606,6 +608,22 @@ contract ExpressRelayIntegrationTest is
         assertEq(balancePost, balancePre + totalBid);
     }
 
+    function testSetRelayerByAdmin() public {
+        // test setting the relayer as the admin
+        address newRelayer = makeAddr("newRelayer");
+        vm.prank(admin, admin);
+        expressRelay.setRelayer(newRelayer);
+        assertEq(expressRelay.getRelayer(), newRelayer);
+    }
+
+    function testSetRelayerByNonAdminFail() public {
+        // test setting the relayer by a non-admin
+        address newRelayer = makeAddr("newRelayer");
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
+        vm.prank(relayer, relayer);
+        expressRelay.setRelayer(newRelayer);
+    }
+
     function testLiquidateNoPER() public {
         uint vaultNumber = 0;
         // test permissionless liquidation (success)
@@ -678,6 +696,18 @@ contract ExpressRelayIntegrationTest is
         );
     }
 
+    function testMulticallNonRelayerFail() public {
+        // test ExpressRelay with a non-relayer calling multicall, should fail
+        bytes memory permission;
+        address[] memory contracts;
+        bytes[] memory data;
+        uint256[] memory bidAmounts;
+
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
+        vm.prank(address(0xbad), address(0xbad));
+        expressRelay.multicall(permission, contracts, data, bidAmounts);
+    }
+
     function testLiquidateSingle() public {
         // test ExpressRelay path liquidation (via multicall, express relay operator calls) with searcher contract
         uint256 vaultNumber = 0;
@@ -700,7 +730,7 @@ contract ExpressRelayIntegrationTest is
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             contracts,
@@ -768,7 +798,7 @@ contract ExpressRelayIntegrationTest is
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             contracts,
@@ -848,7 +878,7 @@ contract ExpressRelayIntegrationTest is
         vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
         searcherA.withdrawEth(address(searcherA).balance);
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             contracts,
@@ -915,7 +945,7 @@ contract ExpressRelayIntegrationTest is
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             contracts,
@@ -958,7 +988,7 @@ contract ExpressRelayIntegrationTest is
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             contracts,
@@ -999,7 +1029,7 @@ contract ExpressRelayIntegrationTest is
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             contracts,
@@ -1056,7 +1086,7 @@ contract ExpressRelayIntegrationTest is
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             contracts,
@@ -1102,7 +1132,7 @@ contract ExpressRelayIntegrationTest is
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             contracts,
@@ -1154,7 +1184,7 @@ contract ExpressRelayIntegrationTest is
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(perOperatorAddress, perOperatorAddress);
+        vm.prank(relayer, relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             contracts,
