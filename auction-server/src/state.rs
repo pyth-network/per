@@ -181,4 +181,5 @@ pub struct Store {
     pub opportunity_store: OpportunityStore,
     pub relayer:           LocalWallet,
     pub ws:                WsState,
+    pub db:                sqlx::PgPool,
 }

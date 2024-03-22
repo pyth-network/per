@@ -1,3 +1,5 @@
+use sqlx::postgres::{PgQueryResult, PgRow};
+use sqlx::Row;
 use {
     crate::{
         api::{
@@ -47,6 +49,12 @@ use {
     },
     uuid::Uuid,
 };
+use sqlx::types::{BigDecimal,time::OffsetDateTime};
+use std::str::FromStr;
+use ethers::abi::AbiEncode;
+use sqlx::types::time::PrimitiveDateTime;
+use serde_json::Value::Array;
+use ethers::core::utils::hex::hex;
 
 /// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
@@ -102,12 +110,10 @@ pub async fn post_opportunity(
         .ok_or(RestError::InvalidChainId)?;
 
     let id = Uuid::new_v4();
+    let now_odt = OffsetDateTime::now_utc();
     let opportunity = Opportunity {
         id,
-        creation_time: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| RestError::BadParameters("Invalid system time".to_string()))?
-            .as_secs() as UnixTimestamp,
+        creation_time: now_odt.unix_timestamp() as UnixTimestamp,
         params: versioned_params.clone(),
         bidders: Default::default(),
     };
@@ -116,6 +122,32 @@ pub async fn post_opportunity(
         .await
         .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 
+    // params.target_contract.
+    // let row:PgQueryResult = sqlx::query!("INSERT INTO opportunity (id,
+    //                                                         creation_time,
+    //                                                         permission_key,
+    //                                                         chain_id,
+    //                                                         target_contract,
+    //                                                         target_call_value,
+    //                                                         target_calldata,
+    //                                                         sell_tokens,
+    //                                                         buy_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+    //     opportunity.id,
+    //     PrimitiveDateTime::new(now_odt.date(), now_odt.time()),
+    //     params.permission_key.to_vec(),
+    //     params.chain_id,
+    //     hex::encode(params.target_contract),
+    //     BigDecimal::from_str(&params.target_call_value.to_string()).unwrap(),
+    //     params.target_calldata.to_vec(),
+    //     serde_json::Value::Array(vec![]),
+    //     serde_json::Value::Array(vec![]))
+    //     .execute(&store.db)
+    //     .await
+    //     .map_err(|e| {
+    //         tracing::error!("Failed to insert opportunity: {}", e);
+    //         RestError::TemporarilyUnavailable
+    //     })?;
+    // println!("{:?}", row.rows_affected());
     let opportunities_map = &store.opportunity_store.opportunities;
     if let Some(mut opportunities_existing) = opportunities_map.get_mut(&params.permission_key) {
         // check if same opportunity exists in the vector
@@ -172,6 +204,17 @@ pub async fn get_opportunities(
     State(store): State<Arc<Store>>,
     query_params: Query<ChainIdQueryParams>,
 ) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
+
+    // let rows = sqlx::query!("SELECT * FROM opportunity")
+    //     .fetch_all(&store.db)
+    //     .await
+    //     .map_err(|e| {
+    //         tracing::error!("Failed to insert opportunity: {}", e);
+    //         RestError::TemporarilyUnavailable
+    //     })?;
+    // println!("{:?}", rows);
+
+
     let opportunities: Vec<OpportunityParamsWithMetadata> = store
         .opportunity_store
         .opportunities

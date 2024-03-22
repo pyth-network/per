@@ -25,4 +25,4 @@ serde_yaml = "0.9.25"
 ethers      = "2.0.10"
 axum-macros = "0.4.0"
 dashmap            = { version = "5.4.0" }
-sqlx = { version = "0.7", features = [ "runtime-tokio", "tls-native-tls", "postgres" ] }
+sqlx = { version = "0.7", features = [ "runtime-tokio", "tls-native-tls", "postgres", "time", "uuid","bigdecimal" ] }

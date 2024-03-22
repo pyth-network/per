@@ -29,6 +29,7 @@ use {
         signers::Signer,
     },
     futures::future::join_all,
+    sqlx::postgres::PgPoolOptions,
     std::{
         collections::HashMap,
         sync::{
@@ -42,6 +43,7 @@ use {
         time::Duration,
     },
 };
+
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
@@ -97,7 +99,15 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
+
+    // TODO: Make it configurable
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect("postgres://postgres@localhost/amin")
+        .await
+        .expect("Failed to connect to database");
     let store = Arc::new(Store {
+        db:                pool,
         chains:            chain_store?,
         opportunity_store: OpportunityStore::default(),
         bid_status_store:  BidStatusStore {
