@@ -128,6 +128,11 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
         bytes calldata targetCalldata,
         uint256 bid
     ) public payable returns (bool, bytes memory) {
+        // manual check for internal call (function is public for try/catch)
+        if (msg.sender != address(this)) {
+            revert Unauthorized();
+        }
+
         uint256 balanceInitEth = address(this).balance;
 
         (bool success, bytes memory result) = targetContract.call(

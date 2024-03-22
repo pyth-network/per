@@ -166,5 +166,5 @@ abstract contract OpportunityAdapter is SigVerify {
         _signatureUsed[params.signature] = true;
     }
 
-    receive() external payable {} // TODO: can we get rid of this? seems not but unsure why
+    receive() external payable {}
 }
