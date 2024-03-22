@@ -101,11 +101,12 @@ contract ExpressRelayIntegrationTest is
     int64[] tokenDebtPricesLiqExpressRelay;
     int64[] tokenDebtPricesLiqPermissionless;
 
+    // since feeSplitPrecision is set to 10 ** 18, this represents ~50% of the fees
     uint256 constant feeSplitProtocolDefault = 50 * 10 ** 16;
+    // ~5% (10% of the remaining 50%) of the fees go to the relayer
     uint256 constant feeSplitRelayer = 10 ** 17;
 
     uint256 feeSplitTokenVault;
-    uint256 constant feeSplitPrecisionTokenVault = 10 ** 18;
 
     /**
      * @notice setUp function - sets up the contracts, wallets, tokens, oracle feeds, and vaults for the test
@@ -601,7 +602,7 @@ contract ExpressRelayIntegrationTest is
             if (externalSuccess && emptyRevertReason) {
                 totalBid +=
                     (bidInfos[i].bid * feeSplitTokenVault) /
-                    feeSplitPrecisionTokenVault;
+                    expressRelay.getFeeSplitPrecision();
             }
         }
 
