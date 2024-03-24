@@ -87,7 +87,9 @@ contract VaultScript is Script {
         );
         console.log("pk per operator", operatorAddress);
         console.log("sk per operator", operatorSk);
+        // since feeSplitPrecision is set to 10 ** 18, this represents ~50% of the fees
         uint256 feeSplitProtocolDefault = 50 * (10 ** 16);
+        // ~5% (10% of the remaining 50%) of the fees go to the relayer
         uint256 feeSplitRelayer = 10 * (10 ** 16);
         vm.startBroadcast(skDeployer);
         payable(operatorAddress).transfer(0.01 ether);

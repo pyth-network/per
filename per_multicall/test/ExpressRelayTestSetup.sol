@@ -558,6 +558,28 @@ contract ExpressRelayTestSetup is
         }
     }
 
+    function getMulticallData(
+        address[] memory contracts,
+        bytes[] memory data,
+        BidInfo[] memory bidInfos
+    ) public pure returns (MulticallData[] memory multicallData) {
+        require(
+            (contracts.length == data.length) &&
+                (data.length == bidInfos.length),
+            "contracts, data, and bidAmounts must have the same length"
+        );
+        uint256[] memory bidAmounts = extractBidAmounts(bidInfos);
+
+        multicallData = new MulticallData[](contracts.length);
+        for (uint i = 0; i < contracts.length; i++) {
+            multicallData[i] = MulticallData(
+                contracts[i],
+                data[i],
+                bidAmounts[i]
+            );
+        }
+    }
+
     /**
      * @notice assertExpectedBidPayment function - checks that the expected bid payment is equal to the actual bid payment
      */

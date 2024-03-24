@@ -14,7 +14,7 @@ contract ExpressRelayStorage {
         address relayer;
         // stores custom fee splits for protocol fee receivers
         mapping(address => uint256) feeConfig;
-        // stores the flags for whether permission keys are active
+        // stores the flags for whether permission keys are currently allowed
         mapping(bytes32 => bool) permissions;
         // default fee split for protocol, used if custom fee split is not set
         uint256 feeSplitProtocolDefault;
@@ -146,10 +146,10 @@ contract ExpressRelayState is IExpressRelay {
     }
 
     /**
-     * @notice isPermissioned function - checks if a given permission key is currently flagged
+     * @notice isPermissioned function - checks if a given permission key is currently allowed
      *
      * @param protocolFeeReceiver: address of the protocol fee receiver, first part of permission key
-     * @param permissionId: arbitrary bytes representing the second part of the permission key
+     * @param permissionId: arbitrary bytes representing the action being gated, second part of the permission key
      */
     function isPermissioned(
         address protocolFeeReceiver,

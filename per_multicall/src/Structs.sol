@@ -22,6 +22,12 @@ struct TokenAmount {
     uint256 amount;
 }
 
+struct MulticallData {
+    address targetContract;
+    bytes targetCalldata;
+    uint256 bidAmount;
+}
+
 struct MulticallStatus {
     bool externalSuccess;
     bytes externalResult;

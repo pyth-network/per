@@ -13,7 +13,7 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
     event ReceivedETH(address sender, uint256 amount);
 
     /**
-     * @notice ExpressRelay constructor - Initializes a new multicall contract with given parameters
+     * @notice ExpressRelay constructor - Initializes a new ExpressRelay contract with given parameters
      *
      * @param admin: address of admin of express relay
      * @param relayer: address of relayer EOA
@@ -44,15 +44,11 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
      * @notice multicall function - performs a number of calls to external contracts in order
      *
      * @param permissionKey: permission to allow for this call
-     * @param targetContracts: ordered list of contracts to call into
-     * @param targetCalldata: ordered list of calldata to call the targets with
-     * @param bidAmounts: ordered list of bids; call i will fail if it does not send this contract at least bid i
+     * @param multicallData: ordered list of data for multicall, consisting of targetContract, targetCalldata, and bidAmount
      */
     function multicall(
         bytes calldata permissionKey,
-        address[] calldata targetContracts,
-        bytes[] calldata targetCalldata,
-        uint256[] calldata bidAmounts
+        MulticallData[] calldata multicallData
     )
         public
         payable
@@ -64,16 +60,16 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
         }
 
         state.permissions[keccak256(permissionKey)] = true;
-        multicallStatuses = new MulticallStatus[](targetCalldata.length);
+        multicallStatuses = new MulticallStatus[](multicallData.length);
 
         uint256 totalBid = 0;
-        for (uint256 i = 0; i < targetCalldata.length; i++) {
-            // try/catch will revert if call to searcher fails or if bid conditions not met
+        for (uint256 i = 0; i < multicallData.length; i++) {
             try
+                // callWithBid will revert if call to external contract fails or if bid conditions not met
                 this.callWithBid(
-                    targetContracts[i],
-                    targetCalldata[i],
-                    bidAmounts[i]
+                    multicallData[i].targetContract,
+                    multicallData[i].targetCalldata,
+                    multicallData[i].bidAmount
                 )
             returns (bool success, bytes memory result) {
                 multicallStatuses[i].externalSuccess = success;
@@ -84,7 +80,7 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
 
             // only count bid if call was successful (and bid was paid out)
             if (multicallStatuses[i].externalSuccess) {
-                totalBid += bidAmounts[i];
+                totalBid += multicallData[i].bidAmount;
             }
         }
 

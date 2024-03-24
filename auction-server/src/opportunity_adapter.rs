@@ -143,7 +143,7 @@ pub async fn verify_opportunity(
         vec![chain_store.config.opportunity_adapter_contract],
         vec![adapter_calldata],
         vec![fake_bid.amount],
-    )
+    )?
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();

@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import "../src/Errors.sol";
+import "../src/Structs.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 
@@ -101,22 +102,18 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
     function testMulticallByRelayerEmpty() public {
         bytes memory permission = abi.encode("random permission");
-        address[] memory contracts;
-        bytes[] memory data;
-        uint256[] memory bidAmounts;
+        MulticallData[] memory multicallData;
 
         vm.prank(relayer, relayer);
-        expressRelay.multicall(permission, contracts, data, bidAmounts);
+        expressRelay.multicall(permission, multicallData);
     }
 
     function testMulticallByNonRelayerFail() public {
         bytes memory permission = abi.encode("random permission");
-        address[] memory contracts;
-        bytes[] memory data;
-        uint256[] memory bidAmounts;
+        MulticallData[] memory multicallData;
 
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
         vm.prank(address(0xbad), address(0xbad));
-        expressRelay.multicall(permission, contracts, data, bidAmounts);
+        expressRelay.multicall(permission, multicallData);
     }
 }

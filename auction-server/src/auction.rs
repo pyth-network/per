@@ -90,6 +90,30 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
     }
 }
 
+pub fn get_multicall_data(
+    target_contracts: Vec<Address>,
+    target_calldata: Vec<Bytes>,
+    bid_amounts: Vec<BidAmount>,
+) -> Result<Vec<MulticallData>> {
+    if (target_contracts.len() != target_calldata.len())
+        || (target_contracts.len() != bid_amounts.len())
+    {
+        return Err(anyhow!(
+            "target_contracts, target_calldata, and bid_amounts must have the same length"
+        ));
+    }
+
+    let mut multicall_data = vec![];
+    for i in 0..target_contracts.len() {
+        multicall_data.push(MulticallData {
+            target_contract: target_contracts[i],
+            target_calldata: target_calldata[i].clone(),
+            bid_amount:      bid_amounts[i],
+        });
+    }
+    Ok(multicall_data)
+}
+
 pub fn get_simulation_call(
     relayer: Address,
     provider: Provider<Http>,
@@ -98,25 +122,26 @@ pub fn get_simulation_call(
     target_contracts: Vec<Address>,
     target_calldata: Vec<Bytes>,
     bid_amounts: Vec<BidAmount>,
-) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
+) -> Result<FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>>> {
     let client = Arc::new(provider);
     let express_relay_contract =
         ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
-    express_relay_contract
-        .multicall(
-            permission_key,
-            target_contracts,
-            target_calldata,
-            bid_amounts,
-        )
-        .from(relayer)
+    let multicall_data_result = get_multicall_data(target_contracts, target_calldata, bid_amounts);
+
+    match multicall_data_result {
+        Ok(multicall_data) => Ok(express_relay_contract
+            .multicall(permission_key, multicall_data)
+            .from(relayer)),
+        Err(e) => Err(e),
+    }
 }
 
 
 pub enum SimulationError {
     LogicalError { result: Bytes, reason: String },
     ContractError(ContractError<Provider<Http>>),
+    InputError { reason: String },
 }
 
 
@@ -139,7 +164,7 @@ pub async fn simulate_bids(
     target_calldata: Vec<Bytes>,
     bid_amounts: Vec<BidAmount>,
 ) -> Result<(), SimulationError> {
-    let call = get_simulation_call(
+    let call_result = get_simulation_call(
         relayer,
         provider,
         chain_config,
@@ -148,21 +173,29 @@ pub async fn simulate_bids(
         target_calldata,
         bid_amounts,
     );
-    match call.await {
-        Ok(results) => {
-            evaluate_simulation_results(results)?;
+    match call_result {
+        Ok(call) => {
+            match call.await {
+                Ok(results) => {
+                    evaluate_simulation_results(results)?;
+                }
+                Err(e) => {
+                    return Err(SimulationError::ContractError(e));
+                }
+            };
+            Ok(())
         }
-        Err(e) => {
-            return Err(SimulationError::ContractError(e));
-        }
-    };
-    Ok(())
+        Err(e) => Err(SimulationError::InputError {
+            reason: e.to_string(),
+        }),
+    }
 }
 
 #[derive(Debug)]
 pub enum SubmissionError {
     ProviderError(ProviderError),
     ContractError(ContractError<SignableProvider>),
+    InputError { reason: String },
 }
 
 /// Transformer that converts a transaction into a legacy transaction if use_legacy_tx is true.
@@ -203,12 +236,12 @@ pub async fn submit_bids(
 
     let express_relay_contract =
         SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
-    let call = express_relay_contract.multicall(
-        permission,
-        target_contracts,
-        target_calldata,
-        bid_amounts,
-    );
+
+    let multicall_data = get_multicall_data(target_contracts, target_calldata, bid_amounts)
+        .map_err(|e| SubmissionError::InputError {
+            reason: e.to_string(),
+        })?;
+    let call = express_relay_contract.multicall(permission, multicall_data);
     let mut gas_estimate = call
         .estimate_gas()
         .await
@@ -343,6 +376,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
                 ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 _ => Err(RestError::BadParameters(format!("Error: {}", e))),
             },
+            SimulationError::InputError { reason } => Err(RestError::BadParameters(reason)),
         };
     };
 
