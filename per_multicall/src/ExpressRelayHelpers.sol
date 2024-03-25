@@ -13,7 +13,7 @@ contract ExpressRelayHelpers {
     function bytesToAddress(
         bytes memory bys
     ) internal pure returns (address addr) {
-        // this does not assume the struct fields of the permission key
+        // extract the first 20 bytes and convert to an address
         addr = address(uint160(uint256(bytes32(bys))));
     }
 }

@@ -29,14 +29,10 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
         state.admin = admin;
         state.relayer = relayer;
 
-        if (feeSplitProtocolDefault > state.feeSplitPrecision) {
-            revert InvalidFeeSplit();
-        }
+        validateFeeSplit(feeSplitProtocolDefault);
         state.feeSplitProtocolDefault = feeSplitProtocolDefault;
 
-        if (feeSplitRelayer > state.feeSplitPrecision) {
-            revert InvalidFeeSplit();
-        }
+        validateFeeSplit(feeSplitRelayer);
         state.feeSplitRelayer = feeSplitRelayer;
     }
 
@@ -66,11 +62,7 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
         for (uint256 i = 0; i < multicallData.length; i++) {
             try
                 // callWithBid will revert if call to external contract fails or if bid conditions not met
-                this.callWithBid(
-                    multicallData[i].targetContract,
-                    multicallData[i].targetCalldata,
-                    multicallData[i].bidAmount
-                )
+                this.callWithBid(multicallData[i])
             returns (bool success, bytes memory result) {
                 multicallStatuses[i].externalSuccess = success;
                 multicallStatuses[i].externalResult = result;
@@ -115,14 +107,10 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
     /**
      * @notice callWithBid function - contained call to function with check for bid invariant
      *
-     * @param targetContract: contract address to call into
-     * @param targetCalldata: calldata to call the target with
-     * @param bid: bid to be paid; call will fail if it does not send this contract at least bid,
+     * @param multicallData: data for multicall, consisting of targetContract, targetCalldata, and bidAmount
      */
     function callWithBid(
-        address targetContract,
-        bytes calldata targetCalldata,
-        uint256 bid
+        MulticallData calldata multicallData
     ) public payable returns (bool, bytes memory) {
         // manual check for internal call (function is public for try/catch)
         if (msg.sender != address(this)) {
@@ -131,8 +119,8 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
 
         uint256 balanceInitEth = address(this).balance;
 
-        (bool success, bytes memory result) = targetContract.call(
-            targetCalldata
+        (bool success, bytes memory result) = multicallData.targetContract.call(
+            multicallData.targetCalldata
         );
 
         if (success) {
@@ -140,7 +128,7 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
 
             // ensure that this contract was paid at least bid ETH
             require(
-                (balanceFinalEth - balanceInitEth >= bid) &&
+                (balanceFinalEth - balanceInitEth >= multicallData.bidAmount) &&
                     (balanceFinalEth >= balanceInitEth),
                 "invalid bid"
             );

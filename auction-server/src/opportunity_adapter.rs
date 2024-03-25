@@ -6,6 +6,7 @@ use {
             get_simulation_call,
             handle_bid,
             Bid,
+            MulticallData,
             MulticallReturn,
         },
         server::{
@@ -140,10 +141,12 @@ pub async fn verify_opportunity(
         chain_store.provider.clone(),
         chain_store.config.clone(),
         opportunity.permission_key,
-        vec![chain_store.config.opportunity_adapter_contract],
-        vec![adapter_calldata],
-        vec![fake_bid.amount],
-    )?
+        vec![MulticallData {
+            target_contract: chain_store.config.opportunity_adapter_contract,
+            target_calldata: adapter_calldata.clone(),
+            bid_amount:      fake_bid.amount,
+        }],
+    )
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();

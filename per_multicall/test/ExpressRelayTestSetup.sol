@@ -134,8 +134,7 @@ contract ExpressRelayTestSetup is
      */
     function setUpContracts() public {
         // instantiate multicall contract with ExpressRelay operator as the deployer
-        // TODO: change admin to xc-admin
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         expressRelay = new ExpressRelay(
             admin,
             relayer,
@@ -143,10 +142,10 @@ contract ExpressRelayTestSetup is
             feeSplitRelayer
         );
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         weth = new WETH9();
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
         // deploy proxy contract and point it to implementation
         ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
@@ -159,11 +158,11 @@ contract ExpressRelayTestSetup is
             address(weth)
         );
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         mockPyth = new MockPyth(1_000_000, 0);
 
         bool allowUndercollateralized = false;
-        vm.prank(tokenVaultDeployer, tokenVaultDeployer); // we prank here to standardize the value of the token contract address across different runs
+        vm.prank(tokenVaultDeployer); // we prank here to standardize the value of the token contract address across different runs
         tokenVault = new TokenVault(
             address(expressRelay),
             address(mockPyth),
@@ -173,7 +172,7 @@ contract ExpressRelayTestSetup is
         feeSplitTokenVault = feeSplitProtocolDefault;
 
         // instantiate searcher A's contract with searcher A's wallet as the deployer
-        vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
+        vm.prank(searcherAOwnerAddress);
         searcherA = new SearcherVault(
             address(expressRelay),
             address(tokenVault)
@@ -181,16 +180,16 @@ contract ExpressRelayTestSetup is
         console.log("contract of searcher A is", address(searcherA));
 
         // instantiate searcher B's contract with searcher B's wallet as the deployer
-        vm.prank(searcherBOwnerAddress, searcherBOwnerAddress);
+        vm.prank(searcherBOwnerAddress);
         searcherB = new SearcherVault(
             address(expressRelay),
             address(tokenVault)
         );
         console.log("contract of searcher B is", address(searcherB));
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         token1 = new MyToken("token1", "T1");
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         token2 = new MyToken("token2", "T2");
         console.log("contract of token1 is", address(token1));
         console.log("contract of token2 is", address(token2));
@@ -278,12 +277,12 @@ contract ExpressRelayTestSetup is
         // create vault 0
         uint256 minCollatPERVault0 = 110 * healthPrecision;
         uint256 minCollatPermissionlessVault0 = 100 * healthPrecision;
-        vm.prank(depositor, depositor);
+        vm.prank(depositor);
         MyToken(tokensCollateral[0]).approve(
             address(tokenVault),
             amountsCollateral[0]
         );
-        vm.prank(depositor, depositor);
+        vm.prank(depositor);
         tokenVault.createVault(
             tokensCollateral[0],
             tokensDebt[0],
@@ -299,12 +298,12 @@ contract ExpressRelayTestSetup is
         // create vault 1
         uint256 minCollatPERVault1 = 110 * healthPrecision;
         uint256 minCollatPermissionlessVault1 = 100 * healthPrecision;
-        vm.prank(depositor, depositor);
+        vm.prank(depositor);
         MyToken(tokensCollateral[1]).approve(
             address(tokenVault),
             amountsCollateral[1]
         );
-        vm.prank(depositor, depositor);
+        vm.prank(depositor);
         tokenVault.createVault(
             tokensCollateral[1],
             tokensDebt[1],

@@ -22,12 +22,6 @@ import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
     /**
      * @notice setUp function - sets up the contracts, wallets, tokens, oracle feeds, and vaults for the test
-     *
-     * This function creates the entire environment for the start of each test. It is called before each test.
-     * This function creates the ExpressRelay, WETH9, OpportunityAdapter, MockPyth, TokenVault, SearcherVault, and two ERC-20 token contracts. The two ERC-20 tokens are used as collateral and debt tokens for the vaults that will be created.
-     * It also sets up the initial token amounts for the depositor, searcher A, searcher B, and the token vault. Additionally, it sets the initial oracle prices for the tokens.
-     * The function then sets up two vaults in the TokenVault contract. Each vault's collateral and debt tokens are set, as well as the amounts of each token in the vault. Based on the amounts in the vault and the initial token prices, we back out the liquidation threshold prices--these are used later in the tests to set prices that trigger liquidation.
-     * Finally, the function funds the searcher wallets with Eth and tokens. It also creates the allowances from the searchers' wallets to the liquidation adapter to use the searcher wallets' tokens and weth to liquidate vaults.
      */
     function setUp() public {
         setUpWallets();
@@ -58,7 +52,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
+        vm.prank(searcherAOwnerAddress);
         searcherA.doLiquidate(
             0,
             0,
@@ -98,8 +92,8 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         uint256 validUntil = UINT256_MAX;
 
-        vm.expectRevert(abi.encodeWithSelector(InvalidLiquidation.selector));
-        vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
+        vm.expectRevert(InvalidLiquidation.selector);
+        vm.prank(searcherAOwnerAddress);
         searcherA.doLiquidate(
             0,
             0,
@@ -137,7 +131,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -209,7 +203,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -290,10 +284,10 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
 
         // drain searcherA contract of Eth, so that the first liquidation fails
-        vm.prank(searcherAOwnerAddress, searcherAOwnerAddress);
+        vm.prank(searcherAOwnerAddress);
         searcherA.withdrawEth(address(searcherA).balance);
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -364,7 +358,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -379,7 +373,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEq(balancesAPost.collateral, balancesAPre.collateral);
         assertEq(balancesAPost.debt, balancesAPre.debt);
 
-        assertFailedExternal(multicallStatuses[0], "InvalidLiquidation()");
+        assertFailedExternal(multicallStatuses[0], InvalidLiquidation.selector);
     }
 
     function testLiquidateMismatchedBidFail() public {
@@ -411,7 +405,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -456,7 +450,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -517,7 +511,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -535,7 +529,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         assertFailedExternal(
             multicallStatuses[0],
-            "InvalidExecutorSignature()"
+            InvalidExecutorSignature.selector
         );
     }
 
@@ -567,7 +561,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -582,7 +576,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         assertEqBalances(balancesAPost, balancesAPre);
         assertEq(balanceProtocolPre, balanceProtocolPost);
-        assertFailedExternal(multicallStatuses[0], "ExpiredSignature()");
+        assertFailedExternal(multicallStatuses[0], ExpiredSignature.selector);
     }
 
     /**
@@ -623,7 +617,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
-        vm.prank(relayer, relayer);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -651,6 +645,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEqBalances(balancesBPost, balancesBPre);
 
         assertEq(multicallStatuses[0].externalSuccess, true);
-        assertFailedExternal(multicallStatuses[1], "TargetCallFailed(string)");
+        assertFailedExternal(multicallStatuses[1], TargetCallFailed.selector);
     }
 }

@@ -46,6 +46,12 @@ contract ExpressRelayState is IExpressRelay {
         _;
     }
 
+    function validateFeeSplit(uint256 feeSplit) internal view {
+        if (feeSplit > state.feeSplitPrecision) {
+            revert InvalidFeeSplit();
+        }
+    }
+
     /**
      * @notice getAdmin function - returns the address of the admin
      */
@@ -75,9 +81,7 @@ contract ExpressRelayState is IExpressRelay {
      * @param feeSplit: split of fee to be sent to the protocol. 10**18 is 100%
      */
     function setFeeProtocolDefault(uint256 feeSplit) public onlyAdmin {
-        if (feeSplit > state.feeSplitPrecision) {
-            revert InvalidFeeSplit();
-        }
+        validateFeeSplit(feeSplit);
         state.feeSplitProtocolDefault = feeSplit;
     }
 
@@ -98,9 +102,7 @@ contract ExpressRelayState is IExpressRelay {
         address feeRecipient,
         uint256 feeSplit
     ) public onlyAdmin {
-        if (feeSplit > state.feeSplitPrecision) {
-            revert InvalidFeeSplit();
-        }
+        validateFeeSplit(feeSplit);
         state.feeConfig[feeRecipient] = feeSplit;
     }
 
@@ -125,9 +127,7 @@ contract ExpressRelayState is IExpressRelay {
      * @param feeSplit: split of remaining fee (after subtracting protocol fee) to be sent to the relayer. 10**18 is 100%
      */
     function setFeeRelayer(uint256 feeSplit) public onlyAdmin {
-        if (feeSplit > state.feeSplitPrecision) {
-            revert InvalidFeeSplit();
-        }
+        validateFeeSplit(feeSplit);
         state.feeSplitRelayer = feeSplit;
     }
 
