@@ -51,6 +51,7 @@ pub struct SimulatedBid {
     pub target_contract: Address,
     pub target_calldata: Bytes,
     pub bid_amount:      BidAmount,
+    pub bid_status:      BidStatus,
     // simulation_time:
 }
 
@@ -125,6 +126,60 @@ pub struct ChainStore {
     pub config:           EthereumConfig,
     pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
     pub bids:             RwLock<HashMap<PermissionKey, Vec<SimulatedBid>>>,
+    pub event_sender:     broadcast::Sender<UpdateEvent>,
+}
+
+impl ChainStore {
+    pub async fn get_status(&self, permission_key: Bytes, id: BidId) -> Option<BidStatus> {
+        let bids_all = self.bids.read().await;
+        let bids_permission_key = bids_all.get(&permission_key);
+        match bids_permission_key {
+            Some(bids) => {
+                let bid = bids.iter().find(|bid| bid.id == id);
+                bid.map(|bid| bid.bid_status.clone())
+            }
+            None => None,
+        }
+    }
+
+    pub async fn broadcast_status(&self, permission_key: Bytes, id: BidId) {
+        let status = self.get_status(permission_key, id).await;
+        match status {
+            Some(status) => {
+                match self
+                    .event_sender
+                    .send(UpdateEvent::BidStatusUpdate(BidStatusWithId {
+                        id,
+                        bid_status: status,
+                    })) {
+                    Ok(_) => (),
+                    Err(e) => tracing::error!("Failed to send bid status update: {}", e),
+                };
+            }
+            None => (),
+        }
+    }
+
+    pub async fn set_and_broadcast_status(&self, permission_key: Bytes, update: BidStatusWithId) {
+        match self
+            .bids
+            .write()
+            .await
+            .get_mut(&permission_key)
+            .unwrap_or(&mut vec![])
+            .iter_mut()
+            .find(|b| b.id == update.id)
+        {
+            Some(bid) => {
+                bid.bid_status = update.bid_status.clone();
+            }
+            None => {
+                tracing::error!("Failed to find bid with id: {}", update.id);
+            }
+        }
+
+        self.broadcast_status(permission_key, update.id).await;
+    }
 }
 
 #[derive(Default)]
@@ -153,31 +208,9 @@ pub struct BidStatusWithId {
     pub bid_status: BidStatus,
 }
 
-pub struct BidStatusStore {
-    pub bids_status:  RwLock<HashMap<BidId, BidStatus>>,
-    pub event_sender: broadcast::Sender<UpdateEvent>,
-}
-
-impl BidStatusStore {
-    pub async fn get_status(&self, id: &BidId) -> Option<BidStatus> {
-        self.bids_status.read().await.get(id).cloned()
-    }
-
-    pub async fn set_and_broadcast(&self, update: BidStatusWithId) {
-        self.bids_status
-            .write()
-            .await
-            .insert(update.id, update.bid_status.clone());
-        match self.event_sender.send(UpdateEvent::BidStatusUpdate(update)) {
-            Ok(_) => (),
-            Err(e) => tracing::error!("Failed to send bid status update: {}", e),
-        };
-    }
-}
-
 pub struct Store {
     pub chains:            HashMap<ChainId, ChainStore>,
-    pub bid_status_store:  BidStatusStore,
+    pub bid_id_store:      RwLock<HashMap<BidId, (ChainId, PermissionKey)>>,
     pub opportunity_store: OpportunityStore,
     pub relayer:           LocalWallet,
     pub ws:                WsState,

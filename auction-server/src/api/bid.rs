@@ -82,9 +82,20 @@ pub async fn bid_status(
     State(store): State<Arc<Store>>,
     Path(bid_id): Path<BidId>,
 ) -> Result<Json<BidStatus>, RestError> {
-    let status = store.bid_status_store.get_status(&bid_id).await;
-    match status {
-        Some(status) => Ok(status.into()),
+    let bid_id_store = store.bid_id_store.read().await.clone();
+    let bid_id_vals = bid_id_store.get(&bid_id);
+    match bid_id_vals {
+        Some((chain_id, permission_key)) => {
+            let chain_store = store
+                .chains
+                .get(chain_id)
+                .ok_or(RestError::InvalidChainId)?;
+            let status = chain_store.get_status(permission_key.clone(), bid_id).await;
+            match status {
+                Some(status) => Ok(Json(status)),
+                None => Err(RestError::BidNotFound),
+            }
+        }
         None => Err(RestError::BidNotFound),
     }
 }

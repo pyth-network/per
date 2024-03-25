@@ -228,6 +228,8 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
     tracing::info!("Starting transaction submitter...");
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
+    let bid_id_store = &store.bid_id_store;
+
     // this should be replaced by a subscription to the chain and trigger on new blocks
     let mut submission_interval = tokio::time::interval(Duration::from_secs(5));
     while !SHOULD_EXIT.load(Ordering::Acquire) {
@@ -270,8 +272,16 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                             true => BidStatus::Submitted(receipt.transaction_hash),
                                             false => BidStatus::Lost
                                         };
-                                        store.bid_status_store.set_and_broadcast(BidStatusWithId { id: bid.id, bid_status }).await;
+                                        chain_store.set_and_broadcast_status(permission_key.clone(), BidStatusWithId { id: bid.id, bid_status }).await;
                                     }
+
+                                    // remove bids from bid_id_store
+                                    let bid_ids_to_remove = bids.iter().map(|b| b.id);
+                                    for bid_id in bid_ids_to_remove {
+                                        bid_id_store.write().await.remove(&bid_id);
+                                    }
+
+                                    // remove bids from chain_store
                                     chain_store.bids.write().await.remove(&permission_key);
                                 }
                                 None => {
@@ -358,13 +368,16 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
             target_calldata: bid.target_calldata.clone(),
             bid_amount:      bid.amount,
             id:              bid_id,
+            bid_status:      BidStatus::Pending,
         });
-    store
-        .bid_status_store
-        .set_and_broadcast(BidStatusWithId {
-            id:         bid_id,
-            bid_status: BidStatus::Pending,
-        })
+    let bid_id_store = &store.bid_id_store;
+    bid_id_store
+        .write()
+        .await
+        .insert(bid_id, (bid.chain_id.clone(), bid.permission_key.clone()));
+
+    chain_store
+        .broadcast_status(bid.permission_key, bid_id)
         .await;
     Ok(bid_id)
 }

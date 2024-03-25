@@ -1,7 +1,9 @@
 use {
     crate::{
-        api,
-        api::ws,
+        api::{
+            self,
+            ws,
+        },
         auction::run_submission_loop,
         config::{
             ChainId,
@@ -10,7 +12,6 @@ use {
         },
         opportunity_adapter::run_verification_loop,
         state::{
-            BidStatusStore,
             ChainStore,
             OpportunityStore,
             Store,
@@ -64,11 +65,13 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let wallet = run_options.relayer_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {}", wallet.address().to_string());
 
-    let chain_store: anyhow::Result<HashMap<ChainId, ChainStore>> = join_all(
-        config
-            .chains
-            .iter()
-            .map(|(chain_id, chain_config)| async move {
+    let (broadcast_sender, broadcast_receiver) =
+        tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
+
+    let chain_store: anyhow::Result<HashMap<ChainId, ChainStore>> =
+        join_all(config.chains.iter().map(|(chain_id, chain_config)| {
+            let broadcast_sender_clone = broadcast_sender.clone();
+            async move {
                 let mut provider = Provider::<Http>::try_from(chain_config.geth_rpc_addr.clone())
                     .map_err(|err| {
                     anyhow!(
@@ -88,23 +91,19 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         bids: Default::default(),
                         token_spoof_info: Default::default(),
                         config: chain_config.clone(),
+                        event_sender: broadcast_sender_clone,
                     },
                 ))
-            }),
-    )
-    .await
-    .into_iter()
-    .collect();
+            }
+        }))
+        .await
+        .into_iter()
+        .collect();
 
-    let (broadcast_sender, broadcast_receiver) =
-        tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
     let store = Arc::new(Store {
         chains:            chain_store?,
         opportunity_store: OpportunityStore::default(),
-        bid_status_store:  BidStatusStore {
-            bids_status:  Default::default(),
-            event_sender: broadcast_sender.clone(),
-        },
+        bid_id_store:      Default::default(),
         relayer:           wallet,
         ws:                ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
