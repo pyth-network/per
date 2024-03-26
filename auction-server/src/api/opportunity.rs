@@ -105,7 +105,6 @@ pub async fn post_opportunity(
         id,
         creation_time: now_odt.unix_timestamp() as UnixTimestamp,
         params: versioned_params.clone(),
-        bidders: Default::default(),
     };
 
     verify_opportunity(params.clone(), chain_store, store.relayer.address())

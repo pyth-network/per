@@ -37,10 +37,7 @@ use {
         BigDecimal,
     },
     std::{
-        collections::{
-            HashMap,
-            HashSet,
-        },
+        collections::HashMap,
         str::FromStr,
     },
     tokio::sync::{
@@ -120,7 +117,6 @@ pub struct Opportunity {
     pub id:            OpportunityId,
     pub creation_time: UnixTimestamp,
     pub params:        OpportunityParams,
-    pub bidders:       HashSet<Address>,
 }
 
 #[derive(Clone)]

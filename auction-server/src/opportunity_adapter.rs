@@ -421,13 +421,6 @@ pub async fn handle_opportunity_bid(
         .find(|o| o.id == opportunity_id)
         .ok_or(RestError::OpportunityNotFound)?;
 
-    // TODO: move this logic to searcher side
-    if opportunity.bidders.contains(&opportunity_bid.executor) {
-        return Err(RestError::BadParameters(
-            "Executor already bid on this opportunity".to_string(),
-        ));
-    }
-
     let OpportunityParams::V1(params) = &opportunity.params;
 
     let chain_store = store
@@ -455,18 +448,7 @@ pub async fn handle_opportunity_bid(
     )
     .await
     {
-        Ok(id) => {
-            let mut write_guard = store.opportunity_store.opportunities.write().await;
-            let opportunities = write_guard.get_mut(&opportunity_bid.permission_key);
-            if let Some(opportunities) = opportunities {
-                let opportunity = opportunities
-                    .iter_mut()
-                    .find(|o| o.id == opportunity_id)
-                    .ok_or(RestError::OpportunityNotFound)?;
-                opportunity.bidders.insert(opportunity_bid.executor);
-            }
-            Ok(id)
-        }
+        Ok(id) => Ok(id),
         Err(e) => match e {
             RestError::SimulationError { result, reason } => {
                 let parsed = parse_revert_error(&result);
