@@ -157,16 +157,6 @@ pub async fn get_opportunities(
     State(store): State<Arc<Store>>,
     query_params: Query<ChainIdQueryParams>,
 ) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
-    // let rows = sqlx::query!("SELECT * FROM opportunity")
-    //     .fetch_all(&store.db)
-    //     .await
-    //     .map_err(|e| {
-    //         tracing::error!("Failed to insert opportunity: {}", e);
-    //         RestError::TemporarilyUnavailable
-    //     })?;
-    // println!("{:?}", rows);
-
-
     let opportunities: Vec<OpportunityParamsWithMetadata> = store
         .opportunity_store
         .opportunities
