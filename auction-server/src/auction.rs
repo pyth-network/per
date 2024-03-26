@@ -49,6 +49,7 @@ use {
             Bytes,
             TransactionReceipt,
             TransactionRequest,
+            H160,
             U256,
         },
     },
@@ -87,6 +88,16 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
                 rpc_addr = config.geth_rpc_addr
             )
         })
+    }
+}
+
+impl From<(H160, Bytes, U256)> for MulticallData {
+    fn from(x: (H160, Bytes, U256)) -> Self {
+        MulticallData {
+            target_contract: x.0,
+            target_calldata: x.1,
+            bid_amount:      x.2,
+        }
     }
 }
 
@@ -232,7 +243,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             chain_store.config.clone(),
                             chain_store.network_id,
                             permission_key.clone(),
-                            winner_bids.iter().map(|b| MulticallData{target_contract: b.target_contract, target_calldata: b.target_calldata.clone(), bid_amount: b.bid_amount }).collect()
+                            winner_bids.iter().map(|b| MulticallData::from((b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
                         )
                         .await;
                         match submission {
@@ -298,11 +309,11 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         chain_store.provider.clone(),
         chain_store.config.clone(),
         bid.permission_key.clone(),
-        vec![MulticallData {
-            target_contract: bid.target_contract,
-            target_calldata: bid.target_calldata.clone(),
-            bid_amount:      bid.amount,
-        }],
+        vec![MulticallData::from((
+            bid.target_contract,
+            bid.target_calldata.clone(),
+            bid.amount,
+        ))],
     );
 
     if let Err(e) = call.await {

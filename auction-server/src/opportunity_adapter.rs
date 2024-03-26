@@ -141,11 +141,11 @@ pub async fn verify_opportunity(
         chain_store.provider.clone(),
         chain_store.config.clone(),
         opportunity.permission_key,
-        vec![MulticallData {
-            target_contract: chain_store.config.opportunity_adapter_contract,
-            target_calldata: adapter_calldata.clone(),
-            bid_amount:      fake_bid.amount,
-        }],
+        vec![MulticallData::from((
+            chain_store.config.opportunity_adapter_contract,
+            adapter_calldata,
+            fake_bid.amount,
+        ))],
     )
     .tx;
     let mut state = spoof::State::default();
