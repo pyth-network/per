@@ -82,14 +82,23 @@ contract VaultScript is Script {
 
     function deployExpressRelay() public returns (address) {
         (, uint256 skDeployer) = getDeployer();
-        (address operatorAddress, uint256 operatorSk) = makeAddrAndKey(
-            "perOperator"
-        );
-        console.log("pk per operator", operatorAddress);
-        console.log("sk per operator", operatorSk);
+        (address relayer, uint256 relayerSk) = makeAddrAndKey("relayer");
+        // TODO: set admin to different address than relayer
+        address admin = relayer;
+        console.log("pk relayer", relayer);
+        console.log("sk relayer", relayerSk);
+        // since feeSplitPrecision is set to 10 ** 18, this represents ~50% of the fees
+        uint256 feeSplitProtocolDefault = 50 * (10 ** 16);
+        // ~5% (10% of the remaining 50%) of the fees go to the relayer
+        uint256 feeSplitRelayer = 10 * (10 ** 16);
         vm.startBroadcast(skDeployer);
-        payable(operatorAddress).transfer(0.01 ether);
-        ExpressRelay multicall = new ExpressRelay(operatorAddress, 0);
+        payable(relayer).transfer(0.01 ether);
+        ExpressRelay multicall = new ExpressRelay(
+            admin,
+            relayer,
+            feeSplitProtocolDefault,
+            feeSplitRelayer
+        );
         vm.stopBroadcast();
         console.log("deployed ExpressRelay contract at", address(multicall));
         return address(multicall);
@@ -247,8 +256,8 @@ contract VaultScript is Script {
         (addressesScript[2], sksScript[2]) = makeAddrAndKey("depositor");
         console.log("sk depositor", sksScript[2]);
 
-        // make perOperator wallet
-        (addressesScript[3], sksScript[3]) = makeAddrAndKey("perOperator");
+        // make relayer wallet
+        (addressesScript[3], sksScript[3]) = makeAddrAndKey("relayer");
 
         // make tokenVaultDeployer wallet
         (addressesScript[4], sksScript[4]) = makeAddrAndKey(
@@ -309,7 +318,7 @@ contract VaultScript is Script {
 
         // instantiate ERC-20 tokens
         vm.startBroadcast(sksScript[3]);
-        console.log("balance of pk perOperator", addressesScript[3].balance);
+        console.log("balance of pk relayer", addressesScript[3].balance);
 
         // create token price feed IDs--see https://pyth.network/developers/price-feed-ids
         // TODO: automate converting bytes32 to string

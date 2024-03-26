@@ -3,111 +3,66 @@ pragma solidity ^0.8.13;
 
 import "./Errors.sol";
 import "./Structs.sol";
+import "./ExpressRelayState.sol";
+import "./ExpressRelayHelpers.sol";
 
-import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 
-contract ExpressRelay is IExpressRelay {
+contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
     event ReceivedETH(address sender, uint256 amount);
 
-    // TODO: separate the notion operator into relayer and admin.
-    // TODO: Relayer can submit transactions, admin can change relayers and set fees
-    address _operator;
-    mapping(address => uint256) _feeConfig;
-    mapping(bytes32 => bool) _permissions;
-    uint256 _defaultFee;
-
     /**
-     * @notice ExpressRelay constructor - Initializes a new multicall contract with given parameters
+     * @notice ExpressRelay constructor - Initializes a new ExpressRelay contract with given parameters
      *
-     * @param operator: address of express relay operator EOA
-     * @param defaultFee: default fee split to be paid to the protocol whose permissioning is being used
+     * @param admin: address of admin of express relay
+     * @param relayer: address of relayer EOA
+     * @param feeSplitProtocolDefault: default fee split to be paid to the protocol whose permissioning is being used
+     * @param feeSplitRelayer: split of the non-protocol fees to be paid to the relayer
      */
-    constructor(address operator, uint256 defaultFee) {
-        _operator = operator;
-        _defaultFee = defaultFee;
-    }
+    constructor(
+        address admin,
+        address relayer,
+        uint256 feeSplitProtocolDefault,
+        uint256 feeSplitRelayer
+    ) {
+        state.admin = admin;
+        state.relayer = relayer;
 
-    /**
-     * @notice getOperator function - returns the address of the express relay operator
-     */
-    function getOperator() public view returns (address) {
-        return _operator;
-    }
+        validateFeeSplit(feeSplitProtocolDefault);
+        state.feeSplitProtocolDefault = feeSplitProtocolDefault;
 
-    function isPermissioned(
-        address protocolFeeReceiver,
-        bytes calldata permissionId
-    ) public view returns (bool permissioned) {
-        return
-            _permissions[
-                keccak256(abi.encode(protocolFeeReceiver, permissionId))
-            ];
-    }
-
-    /**
-     * @notice setFee function - sets the fee for a given fee recipient
-     *
-     * @param feeRecipient: address of the fee recipient for the contract being registered
-     * @param feeSplit: amount of fee to be split with the protocol. 10**18 is 100%
-     */
-    function setFee(address feeRecipient, uint256 feeSplit) public {
-        if (msg.sender != _operator) {
-            revert Unauthorized();
-        }
-        _feeConfig[feeRecipient] = feeSplit;
-    }
-
-    function _isContract(address _addr) private view returns (bool) {
-        uint32 size;
-        assembly {
-            size := extcodesize(_addr)
-        }
-        return (size > 0);
-    }
-
-    function _bytesToAddress(
-        bytes memory bys
-    ) private pure returns (address addr) {
-        // this does not assume the struct fields of the permission key
-        addr = address(uint160(uint256(bytes32(bys))));
+        validateFeeSplit(feeSplitRelayer);
+        state.feeSplitRelayer = feeSplitRelayer;
     }
 
     /**
      * @notice multicall function - performs a number of calls to external contracts in order
      *
      * @param permissionKey: permission to allow for this call
-     * @param targetContracts: ordered list of contracts to call into
-     * @param targetCalldata: ordered list of calldata to call the targets with
-     * @param bidAmounts: ordered list of bids; call i will fail if it does not send this contract at least bid i
+     * @param multicallData: ordered list of data for multicall, consisting of targetContract, targetCalldata, and bidAmount
      */
     function multicall(
         bytes calldata permissionKey,
-        address[] calldata targetContracts,
-        bytes[] calldata targetCalldata,
-        uint256[] calldata bidAmounts
-    ) public payable returns (MulticallStatus[] memory multicallStatuses) {
-        if (msg.sender != _operator) {
-            revert Unauthorized();
-        }
+        MulticallData[] calldata multicallData
+    )
+        public
+        payable
+        onlyRelayer
+        returns (MulticallStatus[] memory multicallStatuses)
+    {
         if (permissionKey.length < 20) {
             revert InvalidPermission();
         }
 
-        _permissions[keccak256(permissionKey)] = true;
-        multicallStatuses = new MulticallStatus[](targetCalldata.length);
+        state.permissions[keccak256(permissionKey)] = true;
+        multicallStatuses = new MulticallStatus[](multicallData.length);
 
         uint256 totalBid = 0;
-        for (uint256 i = 0; i < targetCalldata.length; i++) {
-            // try/catch will revert if call to searcher fails or if bid conditions not met
+        for (uint256 i = 0; i < multicallData.length; i++) {
             try
-                this.callWithBid(
-                    targetContracts[i],
-                    targetCalldata[i],
-                    bidAmounts[i]
-                )
+                // callWithBid will revert if call to external contract fails or if bid conditions not met
+                this.callWithBid(multicallData[i])
             returns (bool success, bytes memory result) {
                 multicallStatuses[i].externalSuccess = success;
                 multicallStatuses[i].externalResult = result;
@@ -117,22 +72,21 @@ contract ExpressRelay is IExpressRelay {
 
             // only count bid if call was successful (and bid was paid out)
             if (multicallStatuses[i].externalSuccess) {
-                totalBid += bidAmounts[i];
+                totalBid += multicallData[i].bidAmount;
             }
         }
 
         // use the first 20 bytes of permission as fee receiver
-        address feeReceiver = _bytesToAddress(permissionKey);
+        address feeReceiver = bytesToAddress(permissionKey);
         // transfer fee to the protocol
-        uint256 protocolFee = _feeConfig[feeReceiver];
-        if (protocolFee == 0) {
-            protocolFee = _defaultFee;
+        uint256 feeSplitProtocol = state.feeConfig[feeReceiver];
+        if (feeSplitProtocol == 0) {
+            feeSplitProtocol = state.feeSplitProtocolDefault;
         }
-        uint256 feeProtocolNumerator = totalBid * protocolFee;
-        if (feeProtocolNumerator > 0) {
-            uint256 feeProtocol = feeProtocolNumerator /
-                1000_000_000_000_000_000;
-            if (_isContract(feeReceiver)) {
+        uint256 feeProtocol = (totalBid * feeSplitProtocol) /
+            state.feeSplitPrecision;
+        if (feeProtocol > 0) {
+            if (isContract(feeReceiver)) {
                 IExpressRelayFeeReceiver(feeReceiver).receiveAuctionProceedings{
                     value: feeProtocol
                 }(permissionKey);
@@ -140,25 +94,33 @@ contract ExpressRelay is IExpressRelay {
                 payable(feeReceiver).transfer(feeProtocol);
             }
         }
-        _permissions[keccak256(permissionKey)] = false;
+        state.permissions[keccak256(permissionKey)] = false;
+
+        // pay the relayer
+        uint256 feeRelayer = ((totalBid - feeProtocol) *
+            state.feeSplitRelayer) / state.feeSplitPrecision;
+        if (feeRelayer > 0) {
+            payable(state.relayer).transfer(feeRelayer);
+        }
     }
 
     /**
      * @notice callWithBid function - contained call to function with check for bid invariant
      *
-     * @param targetContract: contract address to call into
-     * @param targetCalldata: calldata to call the target with
-     * @param bid: bid to be paid; call will fail if it does not send this contract at least bid,
+     * @param multicallData: data for multicall, consisting of targetContract, targetCalldata, and bidAmount
      */
     function callWithBid(
-        address targetContract,
-        bytes calldata targetCalldata,
-        uint256 bid
+        MulticallData calldata multicallData
     ) public payable returns (bool, bytes memory) {
+        // manual check for internal call (function is public for try/catch)
+        if (msg.sender != address(this)) {
+            revert Unauthorized();
+        }
+
         uint256 balanceInitEth = address(this).balance;
 
-        (bool success, bytes memory result) = targetContract.call(
-            targetCalldata
+        (bool success, bytes memory result) = multicallData.targetContract.call(
+            multicallData.targetCalldata
         );
 
         if (success) {
@@ -166,7 +128,7 @@ contract ExpressRelay is IExpressRelay {
 
             // ensure that this contract was paid at least bid ETH
             require(
-                (balanceFinalEth - balanceInitEth >= bid) &&
+                (balanceFinalEth - balanceInitEth >= multicallData.bidAmount) &&
                     (balanceFinalEth >= balanceInitEth),
                 "invalid bid"
             );
