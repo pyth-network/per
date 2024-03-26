@@ -10,7 +10,6 @@ use {
         },
         opportunity_adapter::run_verification_loop,
         state::{
-            BidStatusStore,
             ChainStore,
             OpportunityStore,
             Store,
@@ -86,7 +85,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                     ChainStore {
                         provider,
                         network_id: id,
-                        bids: Default::default(),
                         token_spoof_info: Default::default(),
                         config: chain_config.clone(),
                     },
@@ -108,12 +106,10 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         .expect("Failed to connect to database");
     let store = Arc::new(Store {
         db:                pool,
+        bids:              Default::default(),
         chains:            chain_store?,
         opportunity_store: OpportunityStore::default(),
-        bid_status_store:  BidStatusStore {
-            bids_status:  Default::default(),
-            event_sender: broadcast_sender.clone(),
-        },
+        event_sender:      broadcast_sender.clone(),
         relayer:           wallet,
         ws:                ws::WsState {
             subscriber_counter: AtomicUsize::new(0),

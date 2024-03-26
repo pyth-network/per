@@ -60,6 +60,9 @@ pub struct SimulatedBid {
     pub target_contract: Address,
     pub target_calldata: Bytes,
     pub bid_amount:      BidAmount,
+    pub permission_key:  PermissionKey,
+    pub chain_id:        ChainId,
+    pub status:          BidStatus,
     // simulation_time:
 }
 
@@ -133,7 +136,6 @@ pub struct ChainStore {
     pub network_id:       u64,
     pub config:           EthereumConfig,
     pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
-    pub bids:             RwLock<HashMap<PermissionKey, Vec<SimulatedBid>>>,
 }
 
 #[derive(Default)]
@@ -169,6 +171,16 @@ pub enum BidStatus {
     Lost,
 }
 
+impl BidStatus {
+    pub fn status_name(&self) -> String {
+        match self {
+            BidStatus::Pending => "pending".to_string(),
+            BidStatus::Submitted(_) => "submitted".to_string(),
+            BidStatus::Lost => "lost".to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct BidStatusWithId {
     #[schema(value_type = String)]
@@ -176,31 +188,10 @@ pub struct BidStatusWithId {
     pub bid_status: BidStatus,
 }
 
-pub struct BidStatusStore {
-    pub bids_status:  RwLock<HashMap<BidId, BidStatus>>,
-    pub event_sender: broadcast::Sender<UpdateEvent>,
-}
-
-impl BidStatusStore {
-    pub async fn get_status(&self, id: &BidId) -> Option<BidStatus> {
-        self.bids_status.read().await.get(id).cloned()
-    }
-
-    pub async fn set_and_broadcast(&self, update: BidStatusWithId) {
-        self.bids_status
-            .write()
-            .await
-            .insert(update.id, update.bid_status.clone());
-        match self.event_sender.send(UpdateEvent::BidStatusUpdate(update)) {
-            Ok(_) => (),
-            Err(e) => tracing::error!("Failed to send bid status update: {}", e),
-        };
-    }
-}
-
 pub struct Store {
     pub chains:            HashMap<ChainId, ChainStore>,
-    pub bid_status_store:  BidStatusStore,
+    pub bids:              RwLock<HashMap<BidId, SimulatedBid>>,
+    pub event_sender:      broadcast::Sender<UpdateEvent>,
     pub opportunity_store: OpportunityStore,
     pub relayer:           LocalWallet,
     pub ws:                WsState,
@@ -280,35 +271,77 @@ impl Store {
     ) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
-        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')",
+        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
         permission_key.to_vec(),
         chain_id,
         &bid.target_contract.to_fixed_bytes(),
         bid.target_calldata.to_vec(),
-        BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap())
+        BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
+        bid.status.status_name(),
+        )
             .execute(&self.db)
             .await.map_err(|e| {
             tracing::error!("DB: Failed to insert bid: {}", e);
             RestError::TemporarilyUnavailable
         })?;
 
-        self.chains
-            .get(chain_id)
-            .expect("chain exists")
-            .bids
-            .write()
+        self.bids.write().await.insert(bid_id, bid.clone());
+        self.broadcast_status_update(BidStatusWithId {
+            id:         bid_id,
+            bid_status: bid.status.clone(),
+        });
+        Ok(())
+    }
+
+    pub async fn set_bid_status_and_broadcast(
+        &self,
+        update: BidStatusWithId,
+    ) -> anyhow::Result<()> {
+        sqlx::query!(
+            "UPDATE bid SET status = $1 WHERE id = $2",
+            update.bid_status.status_name(),
+            update.id
+        )
+        .execute(&self.db)
+        .await?;
+
+
+        self.bids.write().await.get_mut(&update.id).map(|bid| {
+            bid.status = update.bid_status.clone();
+        });
+        self.broadcast_status_update(update);
+        Ok(())
+    }
+
+    fn broadcast_status_update(&self, update: BidStatusWithId) {
+        match self.event_sender.send(UpdateEvent::BidStatusUpdate(update)) {
+            Ok(_) => (),
+            Err(e) => tracing::error!("Failed to send bid status update: {}", e),
+        };
+    }
+
+    pub async fn get_bids_by_chain_id(&self, chain_id: &ChainId) -> Vec<SimulatedBid> {
+        self.bids
+            .read()
             .await
-            .entry(permission_key)
-            .or_default()
-            .push(bid);
-        self.bid_status_store
-            .set_and_broadcast(BidStatusWithId {
-                id:         bid_id,
-                bid_status: BidStatus::Pending,
-            })
-            .await;
+            .values()
+            .filter(|bid| bid.chain_id.eq(chain_id))
+            .cloned()
+            .collect()
+    }
+
+    pub async fn remove_bid(&self, bid_id: &BidId) -> anyhow::Result<()> {
+        let now = OffsetDateTime::now_utc();
+        sqlx::query!(
+            "UPDATE bid SET removal_time = $1 WHERE id = $2 AND removal_time IS NULL",
+            PrimitiveDateTime::new(now.date(), now.time()),
+            bid_id
+        )
+        .execute(&self.db)
+        .await?;
+        self.bids.write().await.remove(bid_id);
         Ok(())
     }
 }
