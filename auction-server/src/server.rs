@@ -98,12 +98,11 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
 
-    // TODO: Make it configurable
     let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect("postgres://postgres@localhost/amin")
+        .max_connections(10)
+        .connect(&run_options.server.database_url)
         .await
-        .expect("Failed to connect to database");
+        .expect("Server should start with a valid database connection.");
     let store = Arc::new(Store {
         db:                pool,
         bids:              Default::default(),

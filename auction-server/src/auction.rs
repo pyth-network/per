@@ -363,8 +363,6 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         chain_id:        bid.chain_id.clone(),
         status:          BidStatus::Pending,
     };
-    store
-        .add_bid(&bid.chain_id, bid.permission_key.clone(), simulated_bid)
-        .await?;
+    store.add_bid(simulated_bid).await?;
     Ok(bid_id)
 }

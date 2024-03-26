@@ -13,5 +13,9 @@ pub struct Options {
     #[arg(long = "listen-addr")]
     #[arg(default_value = DEFAULT_LISTEN_ADDR)]
     #[arg(env = "LISTEN_ADDR")]
-    pub listen_addr: SocketAddr,
+    pub listen_addr:  SocketAddr,
+    /// database url for persistent storage
+    #[arg(long = "database-url")]
+    #[arg(env = "DATABASE_URL")]
+    pub database_url: String,
 }

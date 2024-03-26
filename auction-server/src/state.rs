@@ -263,19 +263,14 @@ impl Store {
         Ok(())
     }
 
-    pub async fn add_bid(
-        &self,
-        chain_id: &ChainId,
-        permission_key: PermissionKey,
-        bid: SimulatedBid,
-    ) -> Result<(), RestError> {
+    pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
         sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
-        permission_key.to_vec(),
-        chain_id,
+        bid.permission_key.to_vec(),
+        bid.chain_id,
         &bid.target_contract.to_fixed_bytes(),
         bid.target_calldata.to_vec(),
         BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
