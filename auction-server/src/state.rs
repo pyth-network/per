@@ -153,10 +153,6 @@ impl OpportunityStore {
             .or_insert_with(Vec::new)
             .push(opportunity);
     }
-
-    // pub fn get_opportunities(&self) -> &DashMap<PermissionKey, Vec<Opportunity>> {
-    //     &self.opportunities
-    // }
 }
 
 pub type BidId = Uuid;
@@ -248,10 +244,31 @@ impl Store {
             .execute(&self.db)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to insert opportunity: {}", e);
+                tracing::error!("DB: Failed to insert opportunity: {}", e);
                 RestError::TemporarilyUnavailable
             })?;
-        self.opportunity_store.add_opportunity(opportunity);
+        self.opportunity_store.add_opportunity(opportunity).await;
+        Ok(())
+    }
+
+    pub async fn remove_opportunity(&self, opportunity: &Opportunity) -> anyhow::Result<()> {
+        let key = match &opportunity.params {
+            OpportunityParams::V1(params) => params.permission_key.clone(),
+        };
+        self.opportunity_store
+            .opportunities
+            .write()
+            .await
+            .entry(key)
+            .and_modify(|opps| opps.retain(|o| o != opportunity));
+        let now = OffsetDateTime::now_utc();
+        sqlx::query!(
+            "UPDATE opportunity SET removal_time = $1 WHERE id = $2 AND removal_time IS NULL",
+            PrimitiveDateTime::new(now.date(), now.time()),
+            opportunity.id
+        )
+        .execute(&self.db)
+        .await?;
         Ok(())
     }
 }

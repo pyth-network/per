@@ -33,10 +33,7 @@ use {
         Deserialize,
         Serialize,
     },
-    sqlx::{
-        types::time::OffsetDateTime,
-        Row,
-    },
+    sqlx::types::time::OffsetDateTime,
     std::sync::Arc,
     utoipa::{
         IntoParams,

@@ -7,5 +7,6 @@ CREATE TABLE opportunity (
                              target_call_value NUMERIC(80, 0) NOT NULL,
                              target_calldata   BYTEA          NOT NULL,
                              sell_tokens       JSONB          NOT NULL,
-                             buy_tokens        JSONB          NOT NULL
+                             buy_tokens        JSONB          NOT NULL,
+                             removal_time      TIMESTAMP
 );

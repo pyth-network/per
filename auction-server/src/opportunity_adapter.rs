@@ -345,27 +345,24 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
         tokio::select! {
             _ = submission_interval.tick() => {
                 let all_opportunities = store.opportunity_store.opportunities.read().await.clone();
-                for (permission_key,opportunities) in all_opportunities.iter() {
+                for (_permission_key,opportunities) in all_opportunities.iter() {
                     // check each of the opportunities for this permission key for validity
-                    let mut opps_to_remove = vec![];
                     for opportunity in opportunities.iter() {
                         match verify_with_store(opportunity.clone(), &store).await {
                             Ok(_) => {}
                             Err(e) => {
-                                opps_to_remove.push(opportunity.id);
                                 tracing::info!(
                                     "Removing Opportunity {} with failed verification: {}",
                                     opportunity.id,
                                     e
                                 );
+                                match store.remove_opportunity(opportunity).await {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        tracing::error!("Failed to remove opportunity: {}", e);
+                                    }
+                                }
                             }
-                        }
-                    }
-                    let mut opportunities_map = store.opportunity_store.opportunities.write().await;
-                    if let Some(opportunities) = opportunities_map.get_mut(permission_key) {
-                        opportunities.retain(|x| !opps_to_remove.contains(&x.id));
-                        if opportunities.is_empty() {
-                            opportunities_map.remove(permission_key);
                         }
                     }
                 }
