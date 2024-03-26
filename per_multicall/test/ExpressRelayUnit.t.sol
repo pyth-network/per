@@ -69,6 +69,14 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expressRelay.setFeeProtocolDefault(0);
     }
 
+    function testGetFeeSplitProtocolUncustomized() public {
+        address protocol = makeAddr("protocol");
+        uint256 feeSplitProtocolDefaultPre = expressRelay
+            .getFeeProtocolDefault();
+        uint256 feeSplitProtocol = expressRelay.getFeeProtocol(protocol);
+        assertEq(feeSplitProtocol, feeSplitProtocolDefaultPre);
+    }
+
     function testSetFeeProtocolByAdmin() public {
         address protocol = makeAddr("protocol");
 
@@ -78,7 +86,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expressRelay.setFeeProtocol(protocol, fee);
         uint256 feeProtocolPost = expressRelay.getFeeProtocol(protocol);
 
-        assertEq(feeProtocolPre, feeSplitProtocolDefault);
         assertEq(feeProtocolPost, feeProtocolPre + 1);
     }
 
