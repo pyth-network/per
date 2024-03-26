@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE opportunity SET removal_time = $1 WHERE id = $2 AND removal_time IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamp",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "23f211b134ef73ab694a59738fd87ff51075c63e76f11f9f3dce49154fb04c4c"
+}

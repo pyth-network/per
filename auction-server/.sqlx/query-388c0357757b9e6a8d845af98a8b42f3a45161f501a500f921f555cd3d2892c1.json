@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE bid SET removal_time = $1 WHERE id = $2 AND removal_time IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamp",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "388c0357757b9e6a8d845af98a8b42f3a45161f501a500f921f555cd3d2892c1"
+}
