@@ -1,7 +1,10 @@
 use {
     crate::{
         api::RestError,
-        config::EthereumConfig,
+        config::{
+            ChainId,
+            EthereumConfig,
+        },
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -298,7 +301,7 @@ pub struct Bid {
     pub permission_key:  Bytes,
     /// The chain id to bid on.
     #[schema(example = "sepolia", value_type=String)]
-    pub chain_id:        String,
+    pub chain_id:        ChainId,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11",value_type = String)]
     pub target_contract: abi::Address,
@@ -345,24 +348,14 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
     };
 
     let bid_id = Uuid::new_v4();
-    chain_store
-        .bids
-        .write()
-        .await
-        .entry(bid.permission_key.clone())
-        .or_default()
-        .push(SimulatedBid {
-            target_contract: bid.target_contract,
-            target_calldata: bid.target_calldata.clone(),
-            bid_amount:      bid.amount,
-            id:              bid_id,
-        });
+    let simulated_bid = SimulatedBid {
+        target_contract: bid.target_contract,
+        target_calldata: bid.target_calldata.clone(),
+        bid_amount:      bid.amount,
+        id:              bid_id,
+    };
     store
-        .bid_status_store
-        .set_and_broadcast(BidStatusWithId {
-            id:         bid_id,
-            bid_status: BidStatus::Pending,
-        })
-        .await;
+        .add_bid(&bid.chain_id, bid.permission_key.clone(), simulated_bid)
+        .await?;
     Ok(bid_id)
 }
