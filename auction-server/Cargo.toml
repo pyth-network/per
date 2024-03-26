@@ -24,4 +24,4 @@ utoipa-swagger-ui  = { version = "3.1.4", features = ["axum"] }
 serde_yaml = "0.9.25"
 ethers      = "2.0.10"
 axum-macros = "0.4.0"
-sqlx = { version = "0.7", features = [ "runtime-tokio", "tls-native-tls", "postgres", "time", "uuid","bigdecimal" ] }
+sqlx = { version = "0.7", features = [ "runtime-tokio", "tls-native-tls", "postgres", "time", "uuid", "bigdecimal" ] }
