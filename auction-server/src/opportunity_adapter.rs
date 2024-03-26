@@ -344,11 +344,11 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             _ = submission_interval.tick() => {
-                let all_opportunities = store.opportunity_store.opportunities.clone();
-                for item in all_opportunities.iter() {
+                let all_opportunities = store.opportunity_store.opportunities.read().await.clone();
+                for (permission_key,opportunities) in all_opportunities.iter() {
                     // check each of the opportunities for this permission key for validity
                     let mut opps_to_remove = vec![];
-                    for opportunity in item.value().iter() {
+                    for opportunity in opportunities.iter() {
                         match verify_with_store(opportunity.clone(), &store).await {
                             Ok(_) => {}
                             Err(e) => {
@@ -361,12 +361,10 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
                             }
                         }
                     }
-                    let permission_key = item.key();
-                    let opportunities_map = &store.opportunity_store.opportunities;
-                    if let Some(mut opportunities) = opportunities_map.get_mut(permission_key) {
+                    let mut opportunities_map = store.opportunity_store.opportunities.write().await;
+                    if let Some(opportunities) = opportunities_map.get_mut(permission_key) {
                         opportunities.retain(|x| !opps_to_remove.contains(&x.id));
                         if opportunities.is_empty() {
-                            drop(opportunities);
                             opportunities_map.remove(permission_key);
                         }
                     }
@@ -412,6 +410,8 @@ pub async fn handle_opportunity_bid(
     let opportunities = store
         .opportunity_store
         .opportunities
+        .read()
+        .await
         .get(&opportunity_bid.permission_key)
         .ok_or(RestError::OpportunityNotFound)?
         .clone();
@@ -456,11 +456,9 @@ pub async fn handle_opportunity_bid(
     .await
     {
         Ok(id) => {
-            let opportunities = store
-                .opportunity_store
-                .opportunities
-                .get_mut(&opportunity_bid.permission_key);
-            if let Some(mut opportunities) = opportunities {
+            let mut write_guard = store.opportunity_store.opportunities.write().await;
+            let opportunities = write_guard.get_mut(&opportunity_bid.permission_key);
+            if let Some(opportunities) = opportunities {
                 let opportunity = opportunities
                     .iter_mut()
                     .find(|o| o.id == opportunity_id)
