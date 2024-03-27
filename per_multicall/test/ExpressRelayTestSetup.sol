@@ -557,7 +557,8 @@ contract ExpressRelayTestSetup is
         }
     }
 
-    function getMulticallData(
+    function getMulticallDataSinglePermissionKey(
+        bytes memory permission,
         address[] memory contracts,
         bytes[] memory data,
         BidInfo[] memory bidInfos
@@ -565,18 +566,23 @@ contract ExpressRelayTestSetup is
         require(
             (contracts.length == data.length) &&
                 (data.length == bidInfos.length),
-            "contracts, data, and bidAmounts must have the same length"
+            "contracts, data, and bidInfos must have the same length"
         );
-        uint256[] memory bidAmounts = extractBidAmounts(bidInfos);
+        multicallData = new MulticallData[](1);
 
-        multicallData = new MulticallData[](contracts.length);
+        CallWithBidData[] memory callWithBidData = new CallWithBidData[](
+            contracts.length
+        );
+
+        uint256[] memory bidAmounts = extractBidAmounts(bidInfos);
         for (uint i = 0; i < contracts.length; i++) {
-            multicallData[i] = MulticallData(
+            callWithBidData[i] = CallWithBidData(
                 contracts[i],
                 data[i],
                 bidAmounts[i]
             );
         }
+        multicallData[0] = MulticallData(permission, callWithBidData);
     }
 
     /**
@@ -585,28 +591,35 @@ contract ExpressRelayTestSetup is
     function assertExpectedBidPayment(
         uint256 balancePre,
         uint256 balancePost,
-        BidInfo[] memory bidInfos,
-        MulticallStatus[] memory multicallStatuses
+        MulticallData[] memory multicallData,
+        MulticallStatus[][] memory multicallStatuses
     ) public {
         require(
-            bidInfos.length == multicallStatuses.length,
-            "bidInfos and multicallStatuses must have the same length"
+            multicallData.length == multicallStatuses.length,
+            "multicallData and multicallStatuses must have the same length"
         );
 
         uint256 totalBid = 0;
         string memory emptyRevertReasonString = "";
 
-        for (uint i = 0; i < bidInfos.length; i++) {
-            bool externalSuccess = multicallStatuses[i].externalSuccess;
-            bool emptyRevertReason = compareStrings(
-                multicallStatuses[i].multicallRevertReason,
-                emptyRevertReasonString
+        for (uint i = 0; i < multicallData.length; i++) {
+            require(
+                multicallData[i].data.length == multicallStatuses[i].length,
+                "each entry of multicallData's data field and multicallStatuses must have the same length"
             );
+            for (uint j = 0; j < multicallData[i].data.length; j++) {
+                bool externalSuccess = multicallStatuses[i][j].externalSuccess;
+                bool emptyRevertReason = compareStrings(
+                    multicallStatuses[i][j].multicallRevertReason,
+                    emptyRevertReasonString
+                );
 
-            if (externalSuccess && emptyRevertReason) {
-                totalBid +=
-                    (bidInfos[i].bid * feeSplitTokenVault) /
-                    expressRelay.getFeeSplitPrecision();
+                if (externalSuccess && emptyRevertReason) {
+                    totalBid +=
+                        (multicallData[i].data[j].bidAmount *
+                            feeSplitTokenVault) /
+                        expressRelay.getFeeSplitPrecision();
+                }
             }
         }
 

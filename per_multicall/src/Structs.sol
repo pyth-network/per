@@ -22,10 +22,15 @@ struct TokenAmount {
     uint256 amount;
 }
 
-struct MulticallData {
+struct CallWithBidData {
     address targetContract;
     bytes targetCalldata;
     uint256 bidAmount;
+}
+
+struct MulticallData {
+    bytes permissionKey;
+    CallWithBidData[] data;
 }
 
 struct MulticallStatus {

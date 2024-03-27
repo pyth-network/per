@@ -118,11 +118,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bytes[] memory data
         ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
+        MulticallData[]
+            memory multicallData = getMulticallDataSinglePermissionKey(
+                permission,
+                contracts,
+                data,
+                bidInfos
+            );
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
         AccountBalance memory balancesAPre = getBalances(
@@ -132,8 +134,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
 
         vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
+        MulticallStatus[][] memory multicallStatuses = expressRelay.multicall(
             multicallData
         );
 
@@ -153,12 +154,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             balancesAPre.debt - amountsDebt[vaultNumber]
         );
 
-        assertEq(multicallStatuses[0].externalSuccess, true);
+        assertEq(multicallStatuses[0][0].externalSuccess, true);
 
         assertExpectedBidPayment(
             balanceProtocolPre,
             balanceProtocolPost,
-            bidInfos,
+            multicallData,
             multicallStatuses
         );
     }
@@ -185,11 +186,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bytes[] memory data
         ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
+        MulticallData[]
+            memory multicallData = getMulticallDataSinglePermissionKey(
+                permission,
+                contracts,
+                data,
+                bidInfos
+            );
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
         AccountBalance memory balancesAPre = getBalances(
@@ -204,8 +207,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
 
         vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
+        MulticallStatus[][] memory multicallStatuses = expressRelay.multicall(
             multicallData
         );
         uint256 balanceProtocolPost = address(tokenVault).balance;
@@ -239,7 +241,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertExpectedBidPayment(
             balanceProtocolPre,
             balanceProtocolPost,
-            bidInfos,
+            multicallData,
             multicallStatuses
         );
     }
@@ -265,11 +267,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bytes[] memory data
         ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
+        MulticallData[]
+            memory multicallData = getMulticallDataSinglePermissionKey(
+                permission,
+                contracts,
+                data,
+                bidInfos
+            );
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
         AccountBalance memory balancesAPre = getBalances(
@@ -288,8 +292,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         searcherA.withdrawEth(address(searcherA).balance);
 
         vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
+        MulticallStatus[][] memory multicallStatuses = expressRelay.multicall(
             multicallData
         );
 
@@ -324,7 +327,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertExpectedBidPayment(
             balanceProtocolPre,
             balanceProtocolPost,
-            bidInfos,
+            multicallData,
             multicallStatuses
         );
     }
@@ -343,11 +346,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bytes[] memory data
         ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
+        MulticallData[]
+            memory multicallData = getMulticallDataSinglePermissionKey(
+                permission,
+                contracts,
+                data,
+                bidInfos
+            );
 
         // wrong permisison key
         permission = abi.encode(address(0));
@@ -359,8 +364,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
 
         vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
+        MulticallStatus[][] memory multicallStatuses = expressRelay.multicall(
             multicallData
         );
 
@@ -373,7 +377,10 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEq(balancesAPost.collateral, balancesAPre.collateral);
         assertEq(balancesAPost.debt, balancesAPre.debt);
 
-        assertFailedExternal(multicallStatuses[0], InvalidLiquidation.selector);
+        assertFailedExternal(
+            multicallStatuses[0][0],
+            InvalidLiquidation.selector
+        );
     }
 
     function testLiquidateMismatchedBidFail() public {
@@ -393,11 +400,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         // mismatched bid--multicall expects higher bid than what is paid out by the searcher
         bidInfos[0].bid = bidInfos[0].bid + 1;
 
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
+        MulticallData[]
+            memory multicallData = getMulticallDataSinglePermissionKey(
+                permission,
+                contracts,
+                data,
+                bidInfos
+            );
 
         AccountBalance memory balancesAPre = getBalances(
             address(searcherA),
@@ -406,8 +415,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
 
         vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
+        MulticallStatus[][] memory multicallStatuses = expressRelay.multicall(
             multicallData
         );
 
@@ -420,7 +428,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEq(balancesAPost.collateral, balancesAPre.collateral);
         assertEq(balancesAPost.debt, balancesAPre.debt);
 
-        assertFailedMulticall(multicallStatuses[0], "invalid bid");
+        assertFailedMulticall(multicallStatuses[0][0], "invalid bid");
     }
 
     function testLiquidateOpportunityAdapter() public {
@@ -437,11 +445,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bytes[] memory data
         ) = getMulticallInfoOpportunityAdapter(vaultNumber, bidInfos);
 
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
+        MulticallData[]
+            memory multicallData = getMulticallDataSinglePermissionKey(
+                permission,
+                contracts,
+                data,
+                bidInfos
+            );
 
         AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
@@ -451,8 +461,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
         vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
+        MulticallStatus[][] memory multicallStatuses = expressRelay.multicall(
             multicallData
         );
 
@@ -473,12 +482,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             balancesAPre.debt - amountsDebt[vaultNumber]
         );
 
-        assertEq(multicallStatuses[0].externalSuccess, true);
+        assertEq(multicallStatuses[0][0].externalSuccess, true);
 
         assertExpectedBidPayment(
             balanceProtocolPre,
             balanceProtocolPost,
-            bidInfos,
+            multicallData,
             multicallStatuses
         );
     }
@@ -498,11 +507,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bytes[] memory data
         ) = getMulticallInfoOpportunityAdapter(vaultNumber, bidInfos);
 
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
+        MulticallData[]
+            memory multicallData = getMulticallDataSinglePermissionKey(
+                permission,
+                contracts,
+                data,
+                bidInfos
+            );
 
         AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
@@ -512,8 +523,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
         vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
+        MulticallStatus[][] memory multicallStatuses = expressRelay.multicall(
             multicallData
         );
 
@@ -528,7 +538,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEq(balanceProtocolPre, balanceProtocolPost);
 
         assertFailedExternal(
-            multicallStatuses[0],
+            multicallStatuses[0][0],
             InvalidExecutorSignature.selector
         );
     }
@@ -548,11 +558,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bytes[] memory data
         ) = getMulticallInfoOpportunityAdapter(vaultNumber, bidInfos);
 
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
+        MulticallData[]
+            memory multicallData = getMulticallDataSinglePermissionKey(
+                permission,
+                contracts,
+                data,
+                bidInfos
+            );
 
         AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
@@ -562,8 +574,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
         vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
+        MulticallStatus[][] memory multicallStatuses = expressRelay.multicall(
             multicallData
         );
 
@@ -576,7 +587,10 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         assertEqBalances(balancesAPost, balancesAPre);
         assertEq(balanceProtocolPre, balanceProtocolPost);
-        assertFailedExternal(multicallStatuses[0], ExpiredSignature.selector);
+        assertFailedExternal(
+            multicallStatuses[0][0],
+            ExpiredSignature.selector
+        );
     }
 
     /**
@@ -600,11 +614,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bytes[] memory data
         ) = getMulticallInfoOpportunityAdapter(vaultNumber, bidInfos);
 
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
+        MulticallData[]
+            memory multicallData = getMulticallDataSinglePermissionKey(
+                permission,
+                contracts,
+                data,
+                bidInfos
+            );
 
         AccountBalance memory balancesAPre = getBalances(
             searcherAOwnerAddress,
@@ -618,8 +634,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
 
         vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
+        MulticallStatus[][] memory multicallStatuses = expressRelay.multicall(
             multicallData
         );
 
@@ -644,7 +659,10 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
         assertEqBalances(balancesBPost, balancesBPre);
 
-        assertEq(multicallStatuses[0].externalSuccess, true);
-        assertFailedExternal(multicallStatuses[1], TargetCallFailed.selector);
+        assertEq(multicallStatuses[0][0].externalSuccess, true);
+        assertFailedExternal(
+            multicallStatuses[0][1],
+            TargetCallFailed.selector
+        );
     }
 }

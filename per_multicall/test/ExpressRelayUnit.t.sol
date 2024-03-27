@@ -131,6 +131,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         vm.prank(admin);
         expressRelay.setFeeRelayer(feeMax);
         uint256 feeRelayerPost = expressRelay.getFeeRelayer();
+        assertEq(feeRelayerPost, feeMax);
 
         // test setting fee to a value higher than the highest valid value, should fail
         uint256 fee = 10 ** 18 + 1;
@@ -146,19 +147,17 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     }
 
     function testMulticallByRelayerEmpty() public {
-        bytes memory permission = abi.encode("random permission");
         MulticallData[] memory multicallData;
 
         vm.prank(relayer);
-        expressRelay.multicall(permission, multicallData);
+        expressRelay.multicall(multicallData);
     }
 
     function testMulticallByNonRelayerFail() public {
-        bytes memory permission = abi.encode("random permission");
         MulticallData[] memory multicallData;
 
         vm.expectRevert(Unauthorized.selector);
         vm.prank(address(0xbad));
-        expressRelay.multicall(permission, multicallData);
+        expressRelay.multicall(multicallData);
     }
 }

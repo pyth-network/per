@@ -23,16 +23,20 @@ contract MulticallHelpers is Test, TestParsingHelpers {
     }
 
     function logMulticallStatuses(
-        MulticallStatus[] memory multicallStatuses
+        MulticallStatus[][] memory multicallStatuses
     ) internal view {
         for (uint256 i = 0; i < multicallStatuses.length; i++) {
-            console.log("External Success:");
-            console.log(multicallStatuses[i].externalSuccess);
-            console.log("External Result:");
-            console.logBytes(multicallStatuses[i].externalResult);
-            console.log("Multicall Revert reason:");
-            console.log(multicallStatuses[i].multicallRevertReason);
-            console.log("----------------------------");
+            console.log("Multicall Statuses for call ", i);
+            for (uint256 j = 0; j < multicallStatuses[i].length; j++) {
+                console.log("External Success:");
+                console.log(multicallStatuses[i][j].externalSuccess);
+                console.log("External Result:");
+                console.logBytes(multicallStatuses[i][j].externalResult);
+                console.log("Multicall Revert reason:");
+                console.log(multicallStatuses[i][j].multicallRevertReason);
+                console.log("----------------------------");
+            }
+            console.log("\n");
         }
     }
 }
