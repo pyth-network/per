@@ -12,7 +12,18 @@
         "Bytea",
         "Bytea",
         "Numeric",
-        "Text"
+        {
+          "Custom": {
+            "name": "bid_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "lost",
+                "submitted"
+              ]
+            }
+          }
+        }
       ]
     },
     "nullable": []

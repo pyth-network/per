@@ -7,6 +7,8 @@ Each blockchain is configured in `config.yaml`.
 
 This package uses Cargo for building and dependency management.
 Simply run `cargo build` and `cargo test` to build and test the project.
+We use `sqlx` for database operations, so you need to have a PostgreSQL server running locally.
+Check the Migration section for more information on how to setup the database.
 
 ## Local Development
 
@@ -25,12 +27,16 @@ This command will start the webservice on `localhost:9000`.
 
 You can check the documentation of the webservice by visiting `localhost:9000/docs`.
 
-## Migrations
+## DB & Migrations
+
+sqlx checks the database schema at compile time, so you need to have the database schema up-to-date
+before building the project. You can create a `.env` file similar
+to the `.env.example` file and set `DATABASE_URL` to the URL of your PostgreSQL database. This file
+will be picked up by sqlx-cli and cargo scripts when running the checks.
 
 Install sqlx-cli by running `cargo install sqlx-cli`. Then, run the following command to apply migrations:
 
 ```bash
-export DATABASE_URL=postgres://postgres@localhost/postgres
 sqlx migrate run
 ```
 
@@ -39,3 +45,7 @@ We use revertible migrations to manage the database schema. You can create a new
 ```bash
 sqlx migrate add -r <migration-name>
 ```
+
+Since we don't have a running db instance on CI, we use `cargo sqlx prepare` to generate the necessary
+info offline. This command will update the `.sqlx` folder.
+You need to commit the changes to this folder when adding or changing the queries.

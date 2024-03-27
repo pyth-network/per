@@ -274,7 +274,7 @@ impl Store {
         &bid.target_contract.to_fixed_bytes(),
         bid.target_calldata.to_vec(),
         BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
-        bid.status.status_name(),
+        bid.status.status_name() as _,
         )
             .execute(&self.db)
             .await.map_err(|e| {
@@ -301,7 +301,7 @@ impl Store {
         let now = OffsetDateTime::now_utc();
         sqlx::query!(
             "UPDATE bid SET status = $1, removal_time = $2 WHERE id = $3 AND removal_time IS NULL",
-            update.bid_status.status_name(),
+            update.bid_status.status_name() as _,
             PrimitiveDateTime::new(now.date(), now.time()),
             update.id
         )

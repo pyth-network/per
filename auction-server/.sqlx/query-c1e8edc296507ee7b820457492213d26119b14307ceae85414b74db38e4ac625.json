@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE bid SET status = $1, removal_time = $2 WHERE id = $3 AND removal_time IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "bid_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "lost",
+                "submitted"
+              ]
+            }
+          }
+        },
+        "Timestamp",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c1e8edc296507ee7b820457492213d26119b14307ceae85414b74db38e4ac625"
+}
