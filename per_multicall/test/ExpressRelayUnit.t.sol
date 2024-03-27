@@ -87,25 +87,22 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     }
 
     function testRemoveRelayerSubwalletByNonRelayerPrimaryFail() public {
-        address subwallet = makeAddr("subwallet");
+        address subwallet1 = makeAddr("subwallet1");
+        address subwallet2 = makeAddr("subwallet2");
         vm.prank(relayer);
-        expressRelay.addRelayerSubwallet(subwallet);
-        address[] memory relayerSubwalletsPre = expressRelay
-            .getRelayerSubwallets();
+        expressRelay.addRelayerSubwallet(subwallet1);
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet2);
 
         vm.expectRevert(Unauthorized.selector);
-        vm.prank(admin);
-        expressRelay.removeRelayerSubwallet(subwallet);
-        address[] memory relayerSubwalletsPost = expressRelay
-            .getRelayerSubwallets();
+        vm.prank(subwallet1);
+        expressRelay.removeRelayerSubwallet(subwallet2);
     }
 
     function testRemoveNonExistentRelayerSubwalletByRelayerFail() public {
         address subwallet = makeAddr("subwallet");
         vm.prank(relayer);
         expressRelay.addRelayerSubwallet(subwallet);
-        address[] memory relayerSubwalletsPre = expressRelay
-            .getRelayerSubwallets();
 
         address nonExistentSubwallet = makeAddr("nonExistentSubwallet");
         vm.expectRevert(RelayerSubwalletNotFound.selector);
@@ -207,7 +204,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         uint256 feeMax = 10 ** 18;
         vm.prank(admin);
         expressRelay.setFeeRelayer(feeMax);
-        uint256 feeRelayerPost = expressRelay.getFeeRelayer();
 
         // test setting fee to a value higher than the highest valid value, should fail
         uint256 fee = 10 ** 18 + 1;
