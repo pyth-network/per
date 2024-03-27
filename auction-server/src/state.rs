@@ -263,12 +263,16 @@ impl Store {
         let key = match &opportunity.params {
             OpportunityParams::V1(params) => params.permission_key.clone(),
         };
-        self.opportunity_store
-            .opportunities
-            .write()
-            .await
-            .entry(key)
-            .and_modify(|opps| opps.retain(|o| o != opportunity));
+        let mut write_guard = self.opportunity_store.opportunities.write().await;
+        let entry = write_guard.entry(key.clone());
+        if entry
+            .and_modify(|opps| opps.retain(|o| o != opportunity))
+            .or_default()
+            .is_empty()
+        {
+            write_guard.remove(&key);
+        }
+        drop(write_guard);
         let now = OffsetDateTime::now_utc();
         sqlx::query!(
             "UPDATE opportunity SET removal_time = $1 WHERE id = $2 AND removal_time IS NULL",
