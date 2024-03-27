@@ -36,67 +36,6 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
         state.feeSplitRelayer = feeSplitRelayer;
     }
 
-    function multicallPermissionKey(
-        MulticallData calldata multicallData
-    )
-        internal
-        returns (
-            MulticallStatus[] memory multicallStatusesPermissionKey,
-            uint256 totalBid,
-            uint256 feeProtocol
-        )
-    {
-        bytes memory permissionKey = multicallData.permissionKey;
-        CallWithBidData[] memory callWithBidData = multicallData.data;
-
-        if (permissionKey.length < 20) {
-            revert InvalidPermission();
-        }
-
-        state.permissions[keccak256(permissionKey)] = true;
-        multicallStatusesPermissionKey = new MulticallStatus[](
-            callWithBidData.length
-        );
-
-        totalBid = 0;
-        for (uint256 j = 0; j < callWithBidData.length; j++) {
-            try
-                // callWithBid will revert if call to external contract fails or if bid conditions not met
-                this.callWithBid(callWithBidData[j])
-            returns (bool success, bytes memory result) {
-                multicallStatusesPermissionKey[j].externalSuccess = success;
-                multicallStatusesPermissionKey[j].externalResult = result;
-            } catch Error(string memory reason) {
-                multicallStatusesPermissionKey[j]
-                    .multicallRevertReason = reason;
-            }
-
-            // only count bid if call was successful (and bid was paid out)
-            if (multicallStatusesPermissionKey[j].externalSuccess) {
-                totalBid += callWithBidData[j].bidAmount;
-            }
-        }
-
-        // use the first 20 bytes of permission as fee receiver
-        address feeReceiver = bytesToAddress(permissionKey);
-        // transfer fee to the protocol
-        uint256 feeSplitProtocol = state.feeConfig[feeReceiver];
-        if (feeSplitProtocol == 0) {
-            feeSplitProtocol = state.feeSplitProtocolDefault;
-        }
-        feeProtocol = (totalBid * feeSplitProtocol) / state.feeSplitPrecision;
-        if (feeProtocol > 0) {
-            if (isContract(feeReceiver)) {
-                IExpressRelayFeeReceiver(feeReceiver).receiveAuctionProceedings{
-                    value: feeProtocol
-                }(permissionKey);
-            } else {
-                payable(feeReceiver).transfer(feeProtocol);
-            }
-        }
-        state.permissions[keccak256(permissionKey)] = false;
-    }
-
     /**
      * @notice multicall function - performs a number of calls to external contracts in order
      *
@@ -115,64 +54,61 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
         multicallStatuses = new MulticallStatus[][](multicallData.length);
 
         for (uint256 i = 0; i < multicallData.length; i++) {
-            (
-                MulticallStatus[] memory multicallStatusesPermissionKey,
-                uint256 totalBid,
-                uint256 feeProtocol
-            ) = multicallPermissionKey(multicallData[i]);
+            bytes memory permissionKey = multicallData[i].permissionKey;
+            CallWithBidData[] memory callWithBidData = multicallData[i].data;
+
+            if (permissionKey.length < 20) {
+                revert InvalidPermission();
+            }
+
+            state.permissions[keccak256(permissionKey)] = true;
+            MulticallStatus[]
+                memory multicallStatusesPermissionKey = new MulticallStatus[](
+                    callWithBidData.length
+                );
+
+            uint256 totalBid = 0;
+            for (uint256 j = 0; j < callWithBidData.length; j++) {
+                try
+                    // callWithBid will revert if call to external contract fails or if bid conditions not met
+                    this.callWithBid(callWithBidData[j])
+                returns (bool success, bytes memory result) {
+                    multicallStatusesPermissionKey[j].externalSuccess = success;
+                    multicallStatusesPermissionKey[j].externalResult = result;
+                } catch Error(string memory reason) {
+                    multicallStatusesPermissionKey[j]
+                        .multicallRevertReason = reason;
+                }
+
+                // only count bid if call was successful (and bid was paid out)
+                if (multicallStatusesPermissionKey[j].externalSuccess) {
+                    totalBid += callWithBidData[j].bidAmount;
+                }
+            }
             multicallStatuses[i] = multicallStatusesPermissionKey;
             totalFees += totalBid;
-            totalFeesProtocol += feeProtocol;
-            // bytes memory permissionKey = multicallData[i].permissionKey;
-            // CallWithBidData[] memory callWithBidData = multicallData[i].data;
 
-            // if (permissionKey.length < 20) {
-            //     revert InvalidPermission();
-            // }
-
-            // state.permissions[keccak256(permissionKey)] = true;
-            // MulticallStatus[] memory multicallStatusesPermissionKey = new MulticallStatus[](callWithBidData.length);
-
-            // uint256 totalBid = 0;
-            // for (uint256 j = 0; j < callWithBidData.length; j++) {
-            //     try
-            //         // callWithBid will revert if call to external contract fails or if bid conditions not met
-            //         this.callWithBid(callWithBidData[j])
-            //     returns (bool success, bytes memory result) {
-            //         multicallStatusesPermissionKey[j].externalSuccess = success;
-            //         multicallStatusesPermissionKey[j].externalResult = result;
-            //     } catch Error(string memory reason) {
-            //         multicallStatusesPermissionKey[j].multicallRevertReason = reason;
-            //     }
-
-            //     // only count bid if call was successful (and bid was paid out)
-            //     if (multicallStatusesPermissionKey[j].externalSuccess) {
-            //         totalBid += callWithBidData[j].bidAmount;
-            //     }
-            // }
-            // multicallStatuses[i] = multicallStatusesPermissionKey;
-            // totalFees += totalBid;
-
-            // // use the first 20 bytes of permission as fee receiver
-            // address feeReceiver = bytesToAddress(permissionKey);
-            // // transfer fee to the protocol
-            // uint256 feeSplitProtocol = state.feeConfig[feeReceiver];
-            // if (feeSplitProtocol == 0) {
-            //     feeSplitProtocol = state.feeSplitProtocolDefault;
-            // }
-            // uint256 feeProtocol = (totalBid * feeSplitProtocol) /
-            //     state.feeSplitPrecision;
-            // if (feeProtocol > 0) {
-            //     if (isContract(feeReceiver)) {
-            //         IExpressRelayFeeReceiver(feeReceiver).receiveAuctionProceedings{
-            //             value: feeProtocol
-            //         }(permissionKey);
-            //     } else {
-            //         payable(feeReceiver).transfer(feeProtocol);
-            //     }
-            //     totalFeesProtocol += feeProtocol;
-            // }
-            // state.permissions[keccak256(permissionKey)] = false;
+            // use the first 20 bytes of permission as fee receiver
+            address feeReceiver = bytesToAddress(permissionKey);
+            // transfer fee to the protocol
+            uint256 feeSplitProtocol = state.feeConfig[feeReceiver];
+            if (feeSplitProtocol == 0) {
+                feeSplitProtocol = state.feeSplitProtocolDefault;
+            }
+            uint256 feeProtocol = (totalBid * feeSplitProtocol) /
+                state.feeSplitPrecision;
+            if (feeProtocol > 0) {
+                if (isContract(feeReceiver)) {
+                    IExpressRelayFeeReceiver(feeReceiver)
+                        .receiveAuctionProceedings{value: feeProtocol}(
+                        permissionKey
+                    );
+                } else {
+                    payable(feeReceiver).transfer(feeProtocol);
+                }
+                totalFeesProtocol += feeProtocol;
+            }
+            state.permissions[keccak256(permissionKey)] = false;
         }
 
         // pay the relayer
