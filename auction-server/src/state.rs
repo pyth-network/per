@@ -29,12 +29,18 @@ use {
         Deserialize,
         Serialize,
     },
-    sqlx::types::{
-        time::{
-            OffsetDateTime,
-            PrimitiveDateTime,
+    sqlx::{
+        database::HasArguments,
+        encode::IsNull,
+        types::{
+            time::{
+                OffsetDateTime,
+                PrimitiveDateTime,
+            },
+            BigDecimal,
         },
-        BigDecimal,
+        Postgres,
+        TypeInfo,
     },
     std::{
         collections::HashMap,
@@ -171,13 +177,24 @@ pub enum BidStatus {
     Lost,
 }
 
-impl BidStatus {
-    pub fn status_name(&self) -> String {
-        match self {
-            BidStatus::Pending => "pending".to_string(),
-            BidStatus::Submitted(_) => "submitted".to_string(),
-            BidStatus::Lost => "lost".to_string(),
-        }
+impl sqlx::Encode<'_, sqlx::Postgres> for BidStatus {
+    fn encode_by_ref(&self, buf: &mut <Postgres as HasArguments<'_>>::ArgumentBuffer) -> IsNull {
+        let result = match self {
+            BidStatus::Pending => "pending",
+            BidStatus::Submitted(_) => "submitted",
+            BidStatus::Lost => "lost",
+        };
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(result, buf)
+    }
+}
+
+impl sqlx::Type<sqlx::Postgres> for BidStatus {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("bid_status")
+    }
+
+    fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
+        ty.name() == "bid_status"
     }
 }
 
@@ -274,7 +291,7 @@ impl Store {
         &bid.target_contract.to_fixed_bytes(),
         bid.target_calldata.to_vec(),
         BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
-        bid.status.status_name() as _,
+        bid.status as _,
         )
             .execute(&self.db)
             .await.map_err(|e| {
@@ -301,7 +318,7 @@ impl Store {
         let now = OffsetDateTime::now_utc();
         sqlx::query!(
             "UPDATE bid SET status = $1, removal_time = $2 WHERE id = $3 AND removal_time IS NULL",
-            update.bid_status.status_name() as _,
+            update.bid_status as _,
             PrimitiveDateTime::new(now.date(), now.time()),
             update.id
         )
