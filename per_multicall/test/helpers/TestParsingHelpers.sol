@@ -42,6 +42,21 @@ contract TestParsingHelpers is Test {
         return BidInfo(bid, 1_000_000_000_000, vm.addr(executorSk), executorSk);
     }
 
+    function assertAddressInArray(
+        address addr,
+        address[] memory arr,
+        bool exists
+    ) internal pure {
+        bool found = false;
+        for (uint256 i = 0; i < arr.length; i++) {
+            if (arr[i] == addr) {
+                found = true;
+                break;
+            }
+        }
+        assert(found == exists);
+    }
+
     function assertEqBalances(
         AccountBalance memory a,
         AccountBalance memory b

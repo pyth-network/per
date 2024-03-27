@@ -45,3 +45,9 @@ error InvalidMagicValue();
 
 // Signature: 0x0601f697
 error InvalidFeeSplit();
+
+// Signature: 0xb40d37c3
+error DuplicateRelayerSubwallet();
+
+// Signature: 0xac4d92b3
+error RelayerSubwalletNotFound();

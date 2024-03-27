@@ -36,6 +36,75 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expressRelay.setRelayer(newRelayer);
     }
 
+    function testAddRelayerSubwalletByRelayerPrimary() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+        address[] memory relayerSubwallets = expressRelay
+            .getRelayerSubwallets();
+
+        assertAddressInArray(subwallet, relayerSubwallets, true);
+    }
+
+    function testAddRelayerSubwalletByNonRelayerPrimaryFail() public {
+        address subwallet = makeAddr("subwallet");
+        vm.expectRevert(Unauthorized.selector);
+        vm.prank(admin);
+        expressRelay.addRelayerSubwallet(subwallet);
+    }
+
+    function testAddDuplicateRelayerSubwalletByRelayerPrimaryFail() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+        vm.expectRevert(DuplicateRelayerSubwallet.selector);
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+    }
+
+    function testRemoveRelayerSubwalletByRelayerPrimary() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+        address[] memory relayerSubwalletsPre = expressRelay
+            .getRelayerSubwallets();
+
+        vm.prank(relayer);
+        expressRelay.removeRelayerSubwallet(subwallet);
+        address[] memory relayerSubwalletsPost = expressRelay
+            .getRelayerSubwallets();
+
+        assertEq(relayerSubwalletsPre.length, relayerSubwalletsPost.length + 1);
+        assertAddressInArray(subwallet, relayerSubwalletsPost, false);
+    }
+
+    function testRemoveRelayerSubwalletByNonRelayerPrimaryFail() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+        address[] memory relayerSubwalletsPre = expressRelay
+            .getRelayerSubwallets();
+
+        vm.expectRevert(Unauthorized.selector);
+        vm.prank(admin);
+        expressRelay.removeRelayerSubwallet(subwallet);
+        address[] memory relayerSubwalletsPost = expressRelay
+            .getRelayerSubwallets();
+    }
+
+    function testRemoveNonExistentRelayerSubwalletByRelayerFail() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+        address[] memory relayerSubwalletsPre = expressRelay
+            .getRelayerSubwallets();
+
+        address nonExistentSubwallet = makeAddr("nonExistentSubwallet");
+        vm.expectRevert(RelayerSubwalletNotFound.selector);
+        vm.prank(relayer);
+        expressRelay.removeRelayerSubwallet(nonExistentSubwallet);
+    }
+
     function testSetFeeProtocolDefaultByAdmin() public {
         uint256 feeSplitProtocolDefaultPre = expressRelay
             .getFeeProtocolDefault();
@@ -150,6 +219,18 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         MulticallData[] memory multicallData;
 
         vm.prank(relayer);
+        expressRelay.multicall(permission, multicallData);
+    }
+
+    function testMulticallByRelayerSubwalletEmpty() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+
+        bytes memory permission = abi.encode("random permission");
+        MulticallData[] memory multicallData;
+
+        vm.prank(subwallet);
         expressRelay.multicall(permission, multicallData);
     }
 
