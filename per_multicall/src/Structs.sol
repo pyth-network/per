@@ -33,6 +33,7 @@ struct MulticallData {
     CallWithBidData[] data;
 }
 
+// TODO: remove
 struct MulticallStatus {
     bool externalSuccess;
     bytes externalResult;

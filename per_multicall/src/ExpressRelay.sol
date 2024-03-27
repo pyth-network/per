@@ -47,11 +47,18 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
         public
         payable
         onlyRelayer
-        returns (MulticallStatus[][] memory multicallStatuses)
+        returns (
+            bool[][] memory externalSuccesses,
+            bytes[][] memory externalResults,
+            string[][] memory multicallRevertReasons
+        )
     {
+        externalSuccesses = new bool[][](multicallData.length);
+        externalResults = new bytes[][](multicallData.length);
+        multicallRevertReasons = new string[][](multicallData.length);
+
         uint256 totalFees = 0;
         uint256 totalFeesProtocol = 0;
-        multicallStatuses = new MulticallStatus[][](multicallData.length);
 
         for (uint256 i = 0; i < multicallData.length; i++) {
             bytes memory permissionKey = multicallData[i].permissionKey;
@@ -62,10 +69,10 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
             }
 
             state.permissions[keccak256(permissionKey)] = true;
-            MulticallStatus[]
-                memory multicallStatusesPermissionKey = new MulticallStatus[](
-                    callWithBidData.length
-                );
+
+            externalSuccesses[i] = new bool[](callWithBidData.length);
+            externalResults[i] = new bytes[](callWithBidData.length);
+            multicallRevertReasons[i] = new string[](callWithBidData.length);
 
             uint256 totalBid = 0;
             for (uint256 j = 0; j < callWithBidData.length; j++) {
@@ -73,19 +80,17 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
                     // callWithBid will revert if call to external contract fails or if bid conditions not met
                     this.callWithBid(callWithBidData[j])
                 returns (bool success, bytes memory result) {
-                    multicallStatusesPermissionKey[j].externalSuccess = success;
-                    multicallStatusesPermissionKey[j].externalResult = result;
+                    externalSuccesses[i][j] = success;
+                    externalResults[i][j] = result;
                 } catch Error(string memory reason) {
-                    multicallStatusesPermissionKey[j]
-                        .multicallRevertReason = reason;
+                    multicallRevertReasons[i][j] = reason;
                 }
 
                 // only count bid if call was successful (and bid was paid out)
-                if (multicallStatusesPermissionKey[j].externalSuccess) {
+                if (externalSuccesses[i][j]) {
                     totalBid += callWithBidData[j].bidAmount;
                 }
             }
-            multicallStatuses[i] = multicallStatusesPermissionKey;
             totalFees += totalBid;
 
             // use the first 20 bytes of permission as fee receiver

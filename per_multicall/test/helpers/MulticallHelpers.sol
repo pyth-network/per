@@ -8,32 +8,45 @@ import "./TestParsingHelpers.sol";
 
 contract MulticallHelpers is Test, TestParsingHelpers {
     function assertFailedMulticall(
-        MulticallStatus memory status,
+        string memory multicallRevertReason,
         string memory reason
     ) internal {
         // assert the multicall revert reason matches the expected reason
-        assertEq(status.multicallRevertReason, reason);
+        assertEq(multicallRevertReason, reason);
     }
 
     function assertFailedExternal(
-        MulticallStatus memory status,
+        bytes memory externalResult,
         bytes4 errorSelector
     ) internal {
-        assertEq(bytes4(status.externalResult), errorSelector);
+        assertEq(bytes4(externalResult), errorSelector);
     }
 
     function logMulticallStatuses(
-        MulticallStatus[][] memory multicallStatuses
+        bool[][] memory externalSuccesses,
+        bytes[][] memory externalResults,
+        string[][] memory multicallRevertReasons
     ) internal view {
-        for (uint256 i = 0; i < multicallStatuses.length; i++) {
+        require(
+            (externalSuccesses.length == externalResults.length) &&
+                (externalResults.length == multicallRevertReasons.length),
+            "arrays are not of equal length"
+        );
+        for (uint256 i = 0; i < externalSuccesses.length; i++) {
+            require(
+                (externalSuccesses[i].length == externalResults[i].length) &&
+                    (externalResults[i].length ==
+                        multicallRevertReasons[i].length),
+                "inner arrays are not of equal length"
+            );
             console.log("Multicall Statuses for call ", i);
-            for (uint256 j = 0; j < multicallStatuses[i].length; j++) {
+            for (uint256 j = 0; j < externalSuccesses[i].length; j++) {
                 console.log("External Success:");
-                console.log(multicallStatuses[i][j].externalSuccess);
+                console.log(externalSuccesses[i][j]);
                 console.log("External Result:");
-                console.logBytes(multicallStatuses[i][j].externalResult);
+                console.logBytes(externalResults[i][j]);
                 console.log("Multicall Revert reason:");
-                console.log(multicallStatuses[i][j].multicallRevertReason);
+                console.log(multicallRevertReasons[i][j]);
                 console.log("----------------------------");
             }
             console.log("\n");

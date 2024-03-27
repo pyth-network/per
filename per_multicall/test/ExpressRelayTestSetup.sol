@@ -592,11 +592,13 @@ contract ExpressRelayTestSetup is
         uint256 balancePre,
         uint256 balancePost,
         MulticallData[] memory multicallData,
-        MulticallStatus[][] memory multicallStatuses
+        bool[][] memory externalSuccesses,
+        string[][] memory multicallRevertReasons
     ) public {
         require(
-            multicallData.length == multicallStatuses.length,
-            "multicallData and multicallStatuses must have the same length"
+            (multicallData.length == externalSuccesses.length) &&
+                (externalSuccesses.length == multicallRevertReasons.length),
+            "multicallData and externalSuccesses and muilticallRevertReasons must have the same length"
         );
 
         uint256 totalBid = 0;
@@ -604,13 +606,15 @@ contract ExpressRelayTestSetup is
 
         for (uint i = 0; i < multicallData.length; i++) {
             require(
-                multicallData[i].data.length == multicallStatuses[i].length,
-                "each entry of multicallData's data field and multicallStatuses must have the same length"
+                (multicallData[i].data.length == externalSuccesses[i].length) &&
+                    (externalSuccesses[i].length ==
+                        multicallRevertReasons[i].length),
+                "each entry of multicallData's data field and externalSuccesses and multicallRevertReasons must have the same length"
             );
             for (uint j = 0; j < multicallData[i].data.length; j++) {
-                bool externalSuccess = multicallStatuses[i][j].externalSuccess;
+                bool externalSuccess = externalSuccesses[i][j];
                 bool emptyRevertReason = compareStrings(
-                    multicallStatuses[i][j].multicallRevertReason,
+                    multicallRevertReasons[i][j],
                     emptyRevertReasonString
                 );
 
