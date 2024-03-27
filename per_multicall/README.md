@@ -75,6 +75,8 @@ For verifying contracts, you can use the `forge verify-contract` command.
 For example, to verify the ERC1967Proxy contract on the Optimism network, you can run the following commands:
 
 ```
-forge verify-contract --via-ir <contract-address> ERC1967Proxy --verifier blockscout --verifier-url https://optimism-sepolia.blockscout.com/api/
-forge verify-contract --via-ir <contract-address> ERC1967Proxy --verifier-url https://api-sepolia-optimistic.etherscan.io/api
+forge verify-contract --via-ir <contract-address> ERC1967Proxy --verifier blockscout --verifier-url https://optimism-sepolia.blockscout.com/api/ --chain-id 11155420
+forge verify-contract --via-ir <contract-address> ERC1967Proxy --verifier-url https://api-sepolia-optimistic.etherscan.io/api --etherscan-api-key <optimistic-etherscan-api-key> --chain-id 11155420
+
+You may have to specify the constructor arguments used to initialize the contract, using the `--constructor-args` flag. For more info see the [forge instructions on verifying contracts](https://book.getfoundry.sh/forge/deploying?highlight=verify#verifying-a-pre-existing-contract).
 ```

@@ -39,7 +39,10 @@ contract VaultScript is Script {
     }
 
     function deployWeth() public returns (address) {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
         WETH9 weth = new WETH9();
+        vm.stopBroadcast();
         console.log("deployed weth contract at", address(weth));
         return address(weth);
     }
@@ -78,31 +81,53 @@ contract VaultScript is Script {
     }
 
     function deployExpressRelay() public returns (address) {
-        (address operatorAddress, uint256 operatorSk) = makeAddrAndKey(
-            "perOperator"
+        (, uint256 skDeployer) = getDeployer();
+        (address relayer, uint256 relayerSk) = makeAddrAndKey("relayer");
+        // TODO: set admin to different address than relayer
+        address admin = relayer;
+        console.log("pk relayer", relayer);
+        console.log("sk relayer", relayerSk);
+        // since feeSplitPrecision is set to 10 ** 18, this represents ~50% of the fees
+        uint256 feeSplitProtocolDefault = 50 * (10 ** 16);
+        // ~5% (10% of the remaining 50%) of the fees go to the relayer
+        uint256 feeSplitRelayer = 10 * (10 ** 16);
+        vm.startBroadcast(skDeployer);
+        payable(relayer).transfer(0.01 ether);
+        ExpressRelay multicall = new ExpressRelay(
+            admin,
+            relayer,
+            feeSplitProtocolDefault,
+            feeSplitRelayer
         );
-        console.log("pk per operator", operatorAddress);
-        console.log("sk per operator", operatorSk);
-        payable(operatorAddress).transfer(0.01 ether);
-        ExpressRelay multicall = new ExpressRelay(operatorAddress, 0);
+        vm.stopBroadcast();
         console.log("deployed ExpressRelay contract at", address(multicall));
         return address(multicall);
     }
 
     function deployVault(
         address multicall,
-        address oracle
+        address oracle,
+        bool allowUndercollateralized
     ) public returns (address) {
         // make token vault deployer wallet
         (, uint256 tokenVaultDeployerSk) = makeAddrAndKey("tokenVaultDeployer");
         console.log("sk token vault deployer", tokenVaultDeployerSk);
-        TokenVault vault = new TokenVault(multicall, oracle);
+        vm.startBroadcast(tokenVaultDeployerSk);
+        TokenVault vault = new TokenVault(
+            multicall,
+            oracle,
+            allowUndercollateralized
+        );
+        vm.stopBroadcast();
         console.log("deployed vault contract at", address(vault));
         return address(vault);
     }
 
     function deployMockPyth() public returns (address) {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
         MockPyth mockPyth = new MockPyth(1_000_000_000_000, 0);
+        vm.stopBroadcast();
         console.log("deployed mock pyth contract at", address(mockPyth));
         return address(mockPyth);
     }
@@ -111,8 +136,7 @@ contract VaultScript is Script {
         public
         returns (address, address, address, address, address)
     {
-        (address deployer, uint256 skDeployer) = getDeployer();
-        vm.startBroadcast(skDeployer);
+        (address deployer, ) = getDeployer();
         address weth = deployWeth();
         address expressRelay = deployExpressRelay();
         address opportunityAdapter = deployOpportunityAdapter(
@@ -122,8 +146,7 @@ contract VaultScript is Script {
             weth
         );
         address mockPyth = deployMockPyth();
-        address vault = deployVault(expressRelay, mockPyth);
-        vm.stopBroadcast();
+        address vault = deployVault(expressRelay, mockPyth, false);
         return (expressRelay, opportunityAdapter, mockPyth, vault, weth);
     }
 
@@ -133,9 +156,12 @@ contract VaultScript is Script {
     The erc-20 tokens have their actual name as symbol and pyth price feed id as their name. A huge amount of these tokens are minted to the token vault
     @param pyth The address of the already deployed pyth contract to use
     */
-    function setupTestnet(address pyth, address weth) public {
+    function setupTestnet(
+        address pyth,
+        address weth,
+        bool allowUndercollateralized
+    ) public {
         (address deployer, uint256 skDeployer) = getDeployer();
-        vm.startBroadcast(skDeployer);
         if (pyth == address(0)) pyth = deployMockPyth();
         if (weth == address(0)) weth = deployWeth();
         address expressRelay = deployExpressRelay();
@@ -145,7 +171,11 @@ contract VaultScript is Script {
             expressRelay,
             weth
         );
-        address vault = deployVault(expressRelay, pyth);
+        address vault = deployVault(
+            expressRelay,
+            pyth,
+            allowUndercollateralized
+        );
         address[] memory tokens = new address[](5);
         uint256 lots_of_money = 10 ** 36;
         // Vault simulator assumes the token name is pyth pricefeed id in mainnet
@@ -179,10 +209,13 @@ contract VaultScript is Script {
                 "PYTH"
             )
         );
+
+        vm.startBroadcast(skDeployer);
         for (uint i = 0; i < 5; i++) {
             MyToken(tokens[i]).mint(vault, lots_of_money);
         }
         vm.stopBroadcast();
+
         string memory obj = "";
         vm.serializeAddress(obj, "tokens", tokens);
         vm.serializeAddress(obj, "per", expressRelay);
@@ -223,8 +256,8 @@ contract VaultScript is Script {
         (addressesScript[2], sksScript[2]) = makeAddrAndKey("depositor");
         console.log("sk depositor", sksScript[2]);
 
-        // make perOperator wallet
-        (addressesScript[3], sksScript[3]) = makeAddrAndKey("perOperator");
+        // make relayer wallet
+        (addressesScript[3], sksScript[3]) = makeAddrAndKey("relayer");
 
         // make tokenVaultDeployer wallet
         (addressesScript[4], sksScript[4]) = makeAddrAndKey(
@@ -285,7 +318,7 @@ contract VaultScript is Script {
 
         // instantiate ERC-20 tokens
         vm.startBroadcast(sksScript[3]);
-        console.log("balance of pk perOperator", addressesScript[3].balance);
+        console.log("balance of pk relayer", addressesScript[3].balance);
 
         // create token price feed IDs--see https://pyth.network/developers/price-feed-ids
         // TODO: automate converting bytes32 to string

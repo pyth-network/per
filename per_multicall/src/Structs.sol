@@ -12,7 +12,7 @@ struct Vault {
     uint256 amountCollateral;
     uint256 amountDebt;
     uint256 minHealthRatio; // 10**18 is 100%
-    uint256 minPermissionLessHealthRatio;
+    uint256 minPermissionlessHealthRatio;
     bytes32 tokenIdCollateral;
     bytes32 tokenIdDebt;
 }
@@ -20,6 +20,12 @@ struct Vault {
 struct TokenAmount {
     address token;
     uint256 amount;
+}
+
+struct MulticallData {
+    address targetContract;
+    bytes targetCalldata;
+    uint256 bidAmount;
 }
 
 struct MulticallStatus {

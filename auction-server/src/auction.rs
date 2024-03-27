@@ -53,6 +53,7 @@ use {
             Bytes,
             TransactionReceipt,
             TransactionRequest,
+            H160,
             U256,
         },
     },
@@ -95,26 +96,29 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
     }
 }
 
+impl From<(H160, Bytes, U256)> for MulticallData {
+    fn from(x: (H160, Bytes, U256)) -> Self {
+        MulticallData {
+            target_contract: x.0,
+            target_calldata: x.1,
+            bid_amount:      x.2,
+        }
+    }
+}
+
 pub fn get_simulation_call(
     relayer: Address,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission_key: Bytes,
-    target_contracts: Vec<Address>,
-    target_calldata: Vec<Bytes>,
-    bid_amounts: Vec<BidAmount>,
+    multicall_data: Vec<MulticallData>,
 ) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
     let express_relay_contract =
         ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
     express_relay_contract
-        .multicall(
-            permission_key,
-            target_contracts,
-            target_calldata,
-            bid_amounts,
-        )
+        .multicall(permission_key, multicall_data)
         .from(relayer)
 }
 
@@ -139,19 +143,9 @@ pub async fn simulate_bids(
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission: Bytes,
-    target_contracts: Vec<Address>,
-    target_calldata: Vec<Bytes>,
-    bid_amounts: Vec<BidAmount>,
+    multicall_data: Vec<MulticallData>,
 ) -> Result<(), SimulationError> {
-    let call = get_simulation_call(
-        relayer,
-        provider,
-        chain_config,
-        permission,
-        target_contracts,
-        target_calldata,
-        bid_amounts,
-    );
+    let call = get_simulation_call(relayer, provider, chain_config, permission, multicall_data);
     match call.await {
         Ok(results) => {
             evaluate_simulation_results(results)?;
@@ -193,9 +187,7 @@ pub async fn submit_bids(
     chain_config: EthereumConfig,
     network_id: u64,
     permission: Bytes,
-    target_contracts: Vec<Address>,
-    target_calldata: Vec<Bytes>,
-    bid_amounts: Vec<BidAmount>,
+    multicall_data: Vec<MulticallData>,
 ) -> Result<Option<TransactionReceipt>, SubmissionError> {
     let transformer = LegacyTxTransformer {
         use_legacy_tx: chain_config.legacy_tx,
@@ -207,12 +199,8 @@ pub async fn submit_bids(
 
     let express_relay_contract =
         SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
-    let call = express_relay_contract.multicall(
-        permission,
-        target_contracts,
-        target_calldata,
-        bid_amounts,
-    );
+
+    let call = express_relay_contract.multicall(permission, multicall_data);
     let mut gas_estimate = call
         .estimate_gas()
         .await
@@ -265,9 +253,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             chain_store.config.clone(),
                             chain_store.network_id,
                             permission_key.clone(),
-                            winner_bids.iter().map(|b| b.target_contract).collect(),
-                            winner_bids.iter().map(|b| b.target_calldata.clone()).collect(),
-                            winner_bids.iter().map(|b| b.bid_amount).collect(),
+                            winner_bids.iter().map(|b| MulticallData::from((b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
                         )
                         .await;
                         match submission {
@@ -332,9 +318,11 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         chain_store.provider.clone(),
         chain_store.config.clone(),
         bid.permission_key.clone(),
-        vec![bid.target_contract],
-        vec![bid.target_calldata.clone()],
-        vec![bid.amount],
+        vec![MulticallData::from((
+            bid.target_contract,
+            bid.target_calldata.clone(),
+            bid.amount,
+        ))],
     );
 
     if let Err(e) = call.await {

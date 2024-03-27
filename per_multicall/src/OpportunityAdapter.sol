@@ -18,6 +18,7 @@ abstract contract OpportunityAdapter is SigVerify {
     /**
      * @notice OpportunityAdapter constructor - Initializes a new opportunity adapter contract with given parameters
      *
+     * @param admin: address of admin of opportunity adapter
      * @param expressRelay: address of express relay
      * @param weth: address of WETH contract
      */
@@ -165,5 +166,5 @@ abstract contract OpportunityAdapter is SigVerify {
         _signatureUsed[params.signature] = true;
     }
 
-    receive() external payable {} // TODO: can we get rid of this? seems not but unsure why
+    receive() external payable {}
 }

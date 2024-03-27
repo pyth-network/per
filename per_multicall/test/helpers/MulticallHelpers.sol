@@ -17,12 +17,9 @@ contract MulticallHelpers is Test, TestParsingHelpers {
 
     function assertFailedExternal(
         MulticallStatus memory status,
-        string memory reason
+        bytes4 errorSelector
     ) internal {
-        assertEq(
-            abi.encodePacked(bytes4(status.externalResult)),
-            keccakHash(reason)
-        );
+        assertEq(bytes4(status.externalResult), errorSelector);
     }
 
     function logMulticallStatuses(
