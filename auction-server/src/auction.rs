@@ -13,6 +13,7 @@ use {
             BidAmount,
             BidStatus,
             BidStatusWithId,
+            PermissionKey,
             SimulatedBid,
             Store,
         },
@@ -238,8 +239,10 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
             _ = submission_interval.tick() => {
                 for (chain_id, chain_store) in &store.chains {
                     let all_bids = store.get_bids_by_chain_id(chain_id).await;
-                    let bid_by_permission_key = all_bids.into_iter().fold(HashMap::new(), |mut acc, bid| {
-                        acc.entry(bid.permission_key.clone()).or_insert_with(Vec::new).push(bid);
+                    let bid_by_permission_key:HashMap<PermissionKey,Vec<SimulatedBid>> =
+                    all_bids.into_iter().fold(HashMap::new(),
+                        |mut acc, bid| {
+                        acc.entry(bid.permission_key.clone()).or_default().push(bid);
                         acc
                     });
 
@@ -277,8 +280,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                             true => BidStatus::Submitted(receipt.transaction_hash),
                                             false => BidStatus::Lost
                                         };
-                                        store.set_bid_status_and_broadcast(BidStatusWithId { id: bid.id, bid_status }).await?;
-                                        store.remove_bid(&bid.id).await?;
+                                        store.finalize_bid_status_and_broadcast(BidStatusWithId { id: bid.id, bid_status }).await?;
                                     }
                                 }
                                 None => {

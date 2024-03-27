@@ -290,22 +290,25 @@ impl Store {
         Ok(())
     }
 
-    pub async fn set_bid_status_and_broadcast(
+    pub async fn finalize_bid_status_and_broadcast(
         &self,
         update: BidStatusWithId,
     ) -> anyhow::Result<()> {
+        if update.bid_status == BidStatus::Pending {
+            return Err(anyhow::anyhow!("Cannot finalize a pending bid"));
+        }
+
+        let now = OffsetDateTime::now_utc();
         sqlx::query!(
-            "UPDATE bid SET status = $1 WHERE id = $2",
+            "UPDATE bid SET status = $1, removal_time = $2 WHERE id = $3 AND removal_time IS NULL",
             update.bid_status.status_name(),
+            PrimitiveDateTime::new(now.date(), now.time()),
             update.id
         )
         .execute(&self.db)
         .await?;
 
-
-        self.bids.write().await.get_mut(&update.id).map(|bid| {
-            bid.status = update.bid_status.clone();
-        });
+        self.bids.write().await.remove(&update.id);
         self.broadcast_status_update(update);
         Ok(())
     }
@@ -325,18 +328,5 @@ impl Store {
             .filter(|bid| bid.chain_id.eq(chain_id))
             .cloned()
             .collect()
-    }
-
-    pub async fn remove_bid(&self, bid_id: &BidId) -> anyhow::Result<()> {
-        let now = OffsetDateTime::now_utc();
-        sqlx::query!(
-            "UPDATE bid SET removal_time = $1 WHERE id = $2 AND removal_time IS NULL",
-            PrimitiveDateTime::new(now.date(), now.time()),
-            bid_id
-        )
-        .execute(&self.db)
-        .await?;
-        self.bids.write().await.remove(bid_id);
-        Ok(())
     }
 }
