@@ -63,19 +63,23 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     }
 
     function testRemoveRelayerSubwalletByRelayerPrimary() public {
-        address subwallet = makeAddr("subwallet");
+        address subwallet1 = makeAddr("subwallet1");
+        address subwallet2 = makeAddr("subwallet2");
         vm.prank(relayer);
-        expressRelay.addRelayerSubwallet(subwallet);
+        expressRelay.addRelayerSubwallet(subwallet1);
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet2);
         address[] memory relayerSubwalletsPre = expressRelay
             .getRelayerSubwallets();
 
         vm.prank(relayer);
-        expressRelay.removeRelayerSubwallet(subwallet);
+        expressRelay.removeRelayerSubwallet(subwallet1);
         address[] memory relayerSubwalletsPost = expressRelay
             .getRelayerSubwallets();
 
         assertEq(relayerSubwalletsPre.length, relayerSubwalletsPost.length + 1);
-        assertAddressInArray(subwallet, relayerSubwalletsPost, false);
+        assertAddressInArray(subwallet1, relayerSubwalletsPost, false);
+        assertAddressInArray(subwallet2, relayerSubwalletsPost, true);
     }
 
     function testRemoveRelayerSubwalletByNonRelayerPrimaryFail() public {
