@@ -47,10 +47,14 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     }
 
     function testAddRelayerSubwalletByNonRelayerPrimaryFail() public {
-        address subwallet = makeAddr("subwallet");
+        address subwallet1 = makeAddr("subwallet1");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet1);
+
+        address subwallet2 = makeAddr("subwallet2");
         vm.expectRevert(Unauthorized.selector);
-        vm.prank(admin);
-        expressRelay.addRelayerSubwallet(subwallet);
+        vm.prank(subwallet1);
+        expressRelay.addRelayerSubwallet(subwallet2);
     }
 
     function testAddDuplicateRelayerSubwalletByRelayerPrimaryFail() public {
