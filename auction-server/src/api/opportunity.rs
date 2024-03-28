@@ -33,13 +33,8 @@ use {
         Deserialize,
         Serialize,
     },
-    std::{
-        sync::Arc,
-        time::{
-            SystemTime,
-            UNIX_EPOCH,
-        },
-    },
+    sqlx::types::time::OffsetDateTime,
+    std::sync::Arc,
     utoipa::{
         IntoParams,
         ToResponse,
@@ -52,10 +47,10 @@ use {
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct OpportunityParamsWithMetadata {
     /// The opportunity unique id
-    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type=String)]
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     opportunity_id: OpportunityId,
     /// Creation time of the opportunity
-    #[schema(example = 1700000000, value_type=i64)]
+    #[schema(example = 1700000000, value_type = i64)]
     creation_time:  UnixTimestamp,
     /// opportunity data
     #[serde(flatten)]
@@ -87,9 +82,9 @@ impl From<Opportunity> for OpportunityParamsWithMetadata {
 /// The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
 /// and will be available for bidding.
 #[utoipa::path(post, path = "/v1/opportunities", request_body = OpportunityParams, responses(
-    (status = 200, description = "The created opportunity", body = OpportunityParamsWithMetadata),
-    (status = 400, response = ErrorBodyResponse),
-    (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
+(status = 200, description = "The created opportunity", body = OpportunityParamsWithMetadata),
+(status = 400, response = ErrorBodyResponse),
+(status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn post_opportunity(
     State(store): State<Arc<Store>>,
@@ -102,36 +97,23 @@ pub async fn post_opportunity(
         .ok_or(RestError::InvalidChainId)?;
 
     let id = Uuid::new_v4();
+    let now_odt = OffsetDateTime::now_utc();
     let opportunity = Opportunity {
         id,
-        creation_time: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| RestError::BadParameters("Invalid system time".to_string()))?
-            .as_secs() as UnixTimestamp,
+        creation_time: now_odt.unix_timestamp() as UnixTimestamp,
         params: versioned_params.clone(),
-        bidders: Default::default(),
     };
 
     verify_opportunity(params.clone(), chain_store, store.relayer.address())
         .await
         .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 
-
-    let opportunities_map = &store.opportunity_store.opportunities;
-    if let Some(mut opportunities_existing) = opportunities_map.get_mut(&params.permission_key) {
-        // check if same opportunity exists in the vector
-        for opportunity_existing in opportunities_existing.iter() {
-            if opportunity_existing == &opportunity {
-                return Err(RestError::BadParameters(
-                    "Duplicate opportunity submission".to_string(),
-                ));
-            }
-        }
-
-        opportunities_existing.push(opportunity.clone());
-    } else {
-        opportunities_map.insert(params.permission_key.clone(), vec![opportunity.clone()]);
+    if store.opportunity_exists(&opportunity).await {
+        return Err(RestError::BadParameters(
+            "Duplicate opportunity submission".to_string(),
+        ));
     }
+    store.add_opportunity(opportunity.clone()).await?;
 
     store
         .ws
@@ -142,32 +124,33 @@ pub async fn post_opportunity(
             RestError::TemporarilyUnavailable
         })?;
 
-    tracing::debug!("number of permission keys: {}", opportunities_map.len());
-    tracing::debug!(
-        "number of opportunities for key: {}",
-        opportunities_map
-            .get(&params.permission_key)
-            .map(|opps| opps.len())
-            .unwrap_or(0)
-    );
+    {
+        let opportunities_map = &store.opportunity_store.opportunities.read().await;
+        tracing::debug!("number of permission keys: {}", opportunities_map.len());
+        tracing::debug!(
+            "number of opportunities for key: {}",
+            opportunities_map
+                .get(&params.permission_key)
+                .map_or(0, |opps| opps.len())
+        );
+    }
 
     let opportunity_with_metadata: OpportunityParamsWithMetadata = opportunity.into();
 
     Ok(opportunity_with_metadata.into())
 }
 
-
 #[derive(Serialize, Deserialize, IntoParams)]
 pub struct ChainIdQueryParams {
-    #[param(example = "sepolia", value_type=Option<String>)]
+    #[param(example = "sepolia", value_type = Option < String >)]
     chain_id: Option<ChainId>,
 }
 
 /// Fetch all opportunities ready to be exectued.
 #[utoipa::path(get, path = "/v1/opportunities", responses(
-    (status = 200, description = "Array of opportunities ready for bidding", body = Vec<OpportunityParamsWithMetadata>),
-    (status = 400, response = ErrorBodyResponse),
-    (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
+(status = 200, description = "Array of opportunities ready for bidding", body = Vec < OpportunityParamsWithMetadata >),
+(status = 400, response = ErrorBodyResponse),
+(status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),
 params(ChainIdQueryParams))]
 pub async fn get_opportunities(
@@ -177,9 +160,11 @@ pub async fn get_opportunities(
     let opportunities: Vec<OpportunityParamsWithMetadata> = store
         .opportunity_store
         .opportunities
+        .read()
+        .await
         .iter()
-        .map(|opportunities_key| {
-            opportunities_key
+        .map(|(_key, opportunities)| {
+            opportunities
                 .last()
                 .expect("A permission key vector should have at least one opportunity")
                 .clone()
@@ -199,11 +184,11 @@ pub async fn get_opportunities(
 }
 
 /// Bid on opportunity
-#[utoipa::path(post, path = "/v1/opportunities/{opportunity_id}/bids", request_body=OpportunityBid,
-    params(("opportunity_id"=String, description = "Opportunity id to bid on")), responses(
-    (status = 200, description = "Bid Result", body = BidResult, example = json!({"status": "OK"})),
-    (status = 400, response = ErrorBodyResponse),
-    (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
+#[utoipa::path(post, path = "/v1/opportunities/{opportunity_id}/bids", request_body = OpportunityBid,
+params(("opportunity_id" = String, description = "Opportunity id to bid on")), responses(
+(status = 200, description = "Bid Result", body = BidResult, example = json ! ({"status": "OK"})),
+(status = 400, response = ErrorBodyResponse),
+(status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn opportunity_bid(
     State(store): State<Arc<Store>>,

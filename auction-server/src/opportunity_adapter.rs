@@ -90,7 +90,6 @@ abigen!(
 abigen!(ERC20, "../per_multicall/out/ERC20.sol/ERC20.json");
 abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
 
-
 pub enum VerificationResult {
     Success,
     UnableToSpoof,
@@ -348,30 +347,25 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             _ = submission_interval.tick() => {
-                let all_opportunities = store.opportunity_store.opportunities.clone();
-                for item in all_opportunities.iter() {
+                let all_opportunities = store.opportunity_store.opportunities.read().await.clone();
+                for (_permission_key,opportunities) in all_opportunities.iter() {
                     // check each of the opportunities for this permission key for validity
-                    let mut opps_to_remove = vec![];
-                    for opportunity in item.value().iter() {
+                    for opportunity in opportunities.iter() {
                         match verify_with_store(opportunity.clone(), &store).await {
                             Ok(_) => {}
                             Err(e) => {
-                                opps_to_remove.push(opportunity.id);
                                 tracing::info!(
                                     "Removing Opportunity {} with failed verification: {}",
                                     opportunity.id,
                                     e
                                 );
+                                match store.remove_opportunity(opportunity).await {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        tracing::error!("Failed to remove opportunity: {}", e);
+                                    }
+                                }
                             }
-                        }
-                    }
-                    let permission_key = item.key();
-                    let opportunities_map = &store.opportunity_store.opportunities;
-                    if let Some(mut opportunities) = opportunities_map.get_mut(permission_key) {
-                        opportunities.retain(|x| !opps_to_remove.contains(&x.id));
-                        if opportunities.is_empty() {
-                            drop(opportunities);
-                            opportunities_map.remove(permission_key);
                         }
                     }
                 }
@@ -416,6 +410,8 @@ pub async fn handle_opportunity_bid(
     let opportunities = store
         .opportunity_store
         .opportunities
+        .read()
+        .await
         .get(&opportunity_bid.permission_key)
         .ok_or(RestError::OpportunityNotFound)?
         .clone();
@@ -424,13 +420,6 @@ pub async fn handle_opportunity_bid(
         .iter()
         .find(|o| o.id == opportunity_id)
         .ok_or(RestError::OpportunityNotFound)?;
-
-    // TODO: move this logic to searcher side
-    if opportunity.bidders.contains(&opportunity_bid.executor) {
-        return Err(RestError::BadParameters(
-            "Executor already bid on this opportunity".to_string(),
-        ));
-    }
 
     let OpportunityParams::V1(params) = &opportunity.params;
 
@@ -459,20 +448,7 @@ pub async fn handle_opportunity_bid(
     )
     .await
     {
-        Ok(id) => {
-            let opportunities = store
-                .opportunity_store
-                .opportunities
-                .get_mut(&opportunity_bid.permission_key);
-            if let Some(mut opportunities) = opportunities {
-                let opportunity = opportunities
-                    .iter_mut()
-                    .find(|o| o.id == opportunity_id)
-                    .ok_or(RestError::OpportunityNotFound)?;
-                opportunity.bidders.insert(opportunity_bid.executor);
-            }
-            Ok(id)
-        }
+        Ok(id) => Ok(id),
         Err(e) => match e {
             RestError::SimulationError { result, reason } => {
                 let parsed = parse_revert_error(&result);

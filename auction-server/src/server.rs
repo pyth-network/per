@@ -10,7 +10,6 @@ use {
         },
         opportunity_adapter::run_verification_loop,
         state::{
-            BidStatusStore,
             ChainStore,
             OpportunityStore,
             Store,
@@ -29,6 +28,7 @@ use {
         signers::Signer,
     },
     futures::future::join_all,
+    sqlx::postgres::PgPoolOptions,
     std::{
         collections::HashMap,
         sync::{
@@ -43,6 +43,7 @@ use {
     },
 };
 
+
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     tokio::spawn(async move {
@@ -51,7 +52,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         tracing::info!("Shut down signal received, waiting for tasks...");
         SHOULD_EXIT.store(true, Ordering::Release);
     });
-
 
     let config = Config::load(&run_options.config.config).map_err(|err| {
         anyhow!(
@@ -85,7 +85,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                     ChainStore {
                         provider,
                         network_id: id,
-                        bids: Default::default(),
                         token_spoof_info: Default::default(),
                         config: chain_config.clone(),
                     },
@@ -98,13 +97,18 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
+
+    let pool = PgPoolOptions::new()
+        .max_connections(10)
+        .connect(&run_options.server.database_url)
+        .await
+        .expect("Server should start with a valid database connection.");
     let store = Arc::new(Store {
+        db:                pool,
+        bids:              Default::default(),
         chains:            chain_store?,
         opportunity_store: OpportunityStore::default(),
-        bid_status_store:  BidStatusStore {
-            bids_status:  Default::default(),
-            event_sender: broadcast_sender.clone(),
-        },
+        event_sender:      broadcast_sender.clone(),
         relayer:           wallet,
         ws:                ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
@@ -112,7 +116,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             broadcast_receiver,
         },
     });
-
 
     let submission_loop = tokio::spawn(run_submission_loop(store.clone()));
     let verification_loop = tokio::spawn(run_verification_loop(store.clone()));

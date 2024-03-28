@@ -27,7 +27,7 @@ repos:
       - id: cargo-clippy-auction-server
         name: Cargo clippy for auction server
         language: "rust"
-        entry: cargo +nightly-2023-07-23 clippy --manifest-path ./auction-server/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        entry: cargo +stable clippy --manifest-path ./auction-server/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
         pass_filenames: false
         files: auction-server
       # Hooks for vault-simulator

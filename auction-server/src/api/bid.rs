@@ -40,7 +40,6 @@ pub struct BidResult {
     pub id:     BidId,
 }
 
-
 /// Bid on a specific permission key for a specific chain.
 ///
 /// Your bid will be simulated and verified by the server. Depending on the outcome of the auction, a transaction
@@ -69,7 +68,6 @@ pub async fn process_bid(store: Arc<Store>, bid: Bid) -> Result<Json<BidResult>,
     }
 }
 
-
 /// Query the status of a specific bid.
 #[utoipa::path(get, path = "/v1/bids/{bid_id}",
     params(("bid_id"=String, description = "Bid id to query for")),
@@ -82,9 +80,8 @@ pub async fn bid_status(
     State(store): State<Arc<Store>>,
     Path(bid_id): Path<BidId>,
 ) -> Result<Json<BidStatus>, RestError> {
-    let status = store.bid_status_store.get_status(&bid_id).await;
-    match status {
-        Some(status) => Ok(status.into()),
+    match store.bids.read().await.get(&bid_id) {
+        Some(bid) => Ok(bid.status.clone().into()),
         None => Err(RestError::BidNotFound),
     }
 }

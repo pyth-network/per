@@ -45,7 +45,6 @@ pub fn calculate_balance_storage_key(owner: Address, balance_slot: U256) -> H256
     keccak256(Bytes::from(buffer)).into()
 }
 
-
 /// Calculate the storage key for the allowance of an spender for an address in an ERC20 token.
 /// This is used to spoof the allowance
 ///
@@ -69,7 +68,6 @@ pub fn calculate_allowance_storage_key(
     buffer_allowance[32..64].copy_from_slice(&spender_slot);
     keccak256(Bytes::from(buffer_allowance)).into()
 }
-
 
 const MAX_SLOT_FOR_BRUTEFORCE: i32 = 32;
 
@@ -102,7 +100,6 @@ async fn find_spoof_balance_slot(
     }
     Err(anyhow!("Could not find balance slot"))
 }
-
 
 /// Find the allowance slot of an ERC20 token that can be used to spoof the allowance of an address
 /// Returns an error if no slot is found or if the network calls fail

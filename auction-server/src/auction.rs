@@ -1,7 +1,10 @@
 use {
     crate::{
         api::RestError,
-        config::EthereumConfig,
+        config::{
+            ChainId,
+            EthereumConfig,
+        },
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -10,6 +13,7 @@ use {
             BidAmount,
             BidStatus,
             BidStatusWithId,
+            PermissionKey,
             SimulatedBid,
             Store,
         },
@@ -58,6 +62,7 @@ use {
         Serialize,
     },
     std::{
+        collections::HashMap,
         result,
         sync::{
             atomic::Ordering,
@@ -117,12 +122,10 @@ pub fn get_simulation_call(
         .from(relayer)
 }
 
-
 pub enum SimulationError {
     LogicalError { result: Bytes, reason: String },
     ContractError(ContractError<Provider<Http>>),
 }
-
 
 pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), SimulationError> {
     let failed_result = results.iter().find(|x| !x.external_success);
@@ -134,6 +137,7 @@ pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), 
     }
     Ok(())
 }
+
 pub async fn simulate_bids(
     relayer: Address,
     provider: Provider<Http>,
@@ -222,14 +226,20 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
         tokio::select! {
             _ = submission_interval.tick() => {
                 for (chain_id, chain_store) in &store.chains {
-                    let permission_bids = chain_store.bids.read().await.clone();
-                    // release lock asap
+                    let all_bids = store.get_bids_by_chain_id(chain_id).await;
+                    let bid_by_permission_key:HashMap<PermissionKey,Vec<SimulatedBid>> =
+                    all_bids.into_iter().fold(HashMap::new(),
+                        |mut acc, bid| {
+                        acc.entry(bid.permission_key.clone()).or_default().push(bid);
+                        acc
+                    });
+
                     tracing::info!(
                         "Chain: {chain_id} Auctions to process {auction_len}",
                         chain_id = chain_id,
-                        auction_len = permission_bids.len()
+                        auction_len = bid_by_permission_key.len()
                     );
-                    for (permission_key, bids) in permission_bids.iter() {
+                    for (permission_key, bids) in bid_by_permission_key.iter() {
                         let mut cloned_bids = bids.clone();
                         let permission_key = permission_key.clone();
                          cloned_bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
@@ -256,9 +266,8 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                             true => BidStatus::Submitted(receipt.transaction_hash),
                                             false => BidStatus::Lost
                                         };
-                                        store.bid_status_store.set_and_broadcast(BidStatusWithId { id: bid.id, bid_status }).await;
+                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }).await?;
                                     }
-                                    chain_store.bids.write().await.remove(&permission_key);
                                 }
                                 None => {
                                     tracing::error!("Failed to receive transaction receipt");
@@ -282,19 +291,19 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct Bid {
     /// The permission key to bid on.
-    #[schema(example = "0xdeadbeef", value_type=String)]
+    #[schema(example = "0xdeadbeef", value_type = String)]
     pub permission_key:  Bytes,
     /// The chain id to bid on.
-    #[schema(example = "sepolia", value_type=String)]
-    pub chain_id:        String,
+    #[schema(example = "sepolia", value_type = String)]
+    pub chain_id:        ChainId,
     /// The contract address to call.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11",value_type = String)]
+    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: abi::Address,
     /// Calldata for the contract call.
-    #[schema(example = "0xdeadbeef", value_type=String)]
+    #[schema(example = "0xdeadbeef", value_type = String)]
     pub target_calldata: Bytes,
     /// Amount of bid in wei.
-    #[schema(example = "10", value_type=String)]
+    #[schema(example = "10", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub amount:          BidAmount,
 }
@@ -335,24 +344,15 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
     };
 
     let bid_id = Uuid::new_v4();
-    chain_store
-        .bids
-        .write()
-        .await
-        .entry(bid.permission_key.clone())
-        .or_default()
-        .push(SimulatedBid {
-            target_contract: bid.target_contract,
-            target_calldata: bid.target_calldata.clone(),
-            bid_amount:      bid.amount,
-            id:              bid_id,
-        });
-    store
-        .bid_status_store
-        .set_and_broadcast(BidStatusWithId {
-            id:         bid_id,
-            bid_status: BidStatus::Pending,
-        })
-        .await;
+    let simulated_bid = SimulatedBid {
+        target_contract: bid.target_contract,
+        target_calldata: bid.target_calldata.clone(),
+        bid_amount:      bid.amount,
+        id:              bid_id,
+        permission_key:  bid.permission_key.clone(),
+        chain_id:        bid.chain_id.clone(),
+        status:          BidStatus::Pending,
+    };
+    store.add_bid(simulated_bid).await?;
     Ok(bid_id)
 }
