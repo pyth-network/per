@@ -43,6 +43,7 @@ contract TokenVault is IExpressRelayFeeReceiver {
         _allowUndercollateralized = allowUndercollateralized;
     }
 
+    //TODO: Fix function name/logic/documentation to match each other
     /**
      * @notice getLastVaultId function - getter function to get the id of the next vault to be created
      * Ids are sequential and start from 0
