@@ -5,11 +5,12 @@ import "./Errors.sol";
 import "./Structs.sol";
 import "./ExpressRelayState.sol";
 import "./ExpressRelayHelpers.sol";
+import "./SigVerify.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 
-contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
+contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
     event ReceivedETH(address sender, uint256 amount);
 
     /**
@@ -45,13 +46,15 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
      */
     function multicall(
         bytes calldata permissionKey,
-        MulticallData[] calldata multicallData
-    )
-        public
-        payable
-        onlyRelayer
-        returns (MulticallStatus[] memory multicallStatuses)
-    {
+        MulticallData[] calldata multicallData,
+        bytes calldata signature
+    ) public payable returns (MulticallStatus[] memory multicallStatuses) {
+        bytes memory digest = abi.encode(permissionKey, multicallData);
+        require(
+            verifyCalldata(state.relayer, digest, signature),
+            "invalid signature"
+        );
+
         if (permissionKey.length < 20) {
             revert InvalidPermission();
         }

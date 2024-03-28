@@ -220,10 +220,24 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
     function testMulticallByRelayerEmpty() public {
         bytes memory permission = abi.encode("random permission");
-        MulticallData[] memory multicallData;
+
+        address[] memory contractsEmpty;
+        bytes[] memory dataEmpty;
+        BidInfo[] memory bidInfosEmpty;
+
+        (
+            MulticallData[] memory multicallData,
+            bytes memory signatureRelayer
+        ) = getMulticallData(
+                contractsEmpty,
+                dataEmpty,
+                bidInfosEmpty,
+                permission,
+                relayerSk
+            );
 
         vm.prank(relayer);
-        expressRelay.multicall(permission, multicallData);
+        expressRelay.multicall(permission, multicallData, signatureRelayer);
     }
 
     function testMulticallByRelayerSubwalletEmpty() public {
@@ -232,18 +246,46 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expressRelay.addRelayerSubwallet(subwallet);
 
         bytes memory permission = abi.encode("random permission");
-        MulticallData[] memory multicallData;
+
+        address[] memory contractsEmpty;
+        bytes[] memory dataEmpty;
+        BidInfo[] memory bidInfosEmpty;
+
+        (
+            MulticallData[] memory multicallData,
+            bytes memory signatureRelayer
+        ) = getMulticallData(
+                contractsEmpty,
+                dataEmpty,
+                bidInfosEmpty,
+                permission,
+                relayerSk
+            );
 
         vm.prank(subwallet);
-        expressRelay.multicall(permission, multicallData);
+        expressRelay.multicall(permission, multicallData, signatureRelayer);
     }
 
     function testMulticallByNonRelayerFail() public {
         bytes memory permission = abi.encode("random permission");
-        MulticallData[] memory multicallData;
+
+        address[] memory contractsEmpty;
+        bytes[] memory dataEmpty;
+        BidInfo[] memory bidInfosEmpty;
+
+        (
+            MulticallData[] memory multicallData,
+            bytes memory signatureRelayer
+        ) = getMulticallData(
+                contractsEmpty,
+                dataEmpty,
+                bidInfosEmpty,
+                permission,
+                relayerSk
+            );
 
         vm.expectRevert(Unauthorized.selector);
         vm.prank(address(0xbad));
-        expressRelay.multicall(permission, multicallData);
+        expressRelay.multicall(permission, multicallData, signatureRelayer);
     }
 }
