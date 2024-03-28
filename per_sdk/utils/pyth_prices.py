@@ -3,7 +3,7 @@ from typing import TypedDict
 
 import httpx
 
-HERMES_ENDPOINT_HTTPS = "https://hermes.pyth.network/api/"
+HERMES_ENDPOINT_HTTPS = "http://hermes-stable.hermes-stable:8080/api/"
 HERMES_ENDPOINT_WSS = "wss://hermes.pyth.network/ws"
 
 
@@ -76,7 +76,6 @@ class PriceFeedClient:
         """
         url = HERMES_ENDPOINT_HTTPS + "latest_price_feeds?"
         params = {"ids[]": feedIds, "binary": "true"}
-
         data = (await self.client.get(url, params=params)).json()
 
         results = []

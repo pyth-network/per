@@ -65,12 +65,12 @@ class VaultMonitor:
         )
         self.price_feed_client = PriceFeedClient([])
 
-    async def get_accounts(self) -> list[ProtocolAccount]:
+    async def get_recent_accounts(self, count: int) -> list[ProtocolAccount]:
         """
-        Returns all the open accounts in the protocol in the form of a list of type ProtocolAccount.
+        Returns the last `count` accounts in the protocol in the form of a list of type ProtocolAccount.
 
         Args:
-            rpc_url (str): The RPC URL of the chain
+            count: The number of most recent accounts to return.
         Returns:
             List of objects of type ProtocolAccount (defined above). Each ProtocolAccount object represents an account/vault in the protocol.
         """
@@ -83,31 +83,27 @@ class VaultMonitor:
         vault_struct = [x["name"] for x in get_vault_details]
 
         accounts = []
-        done = False
-        account_number = 0
-
-        while not done:
+        last_account_number = await self.token_vault.functions.getLastVaultId().call()
+        for account_number in range(
+            max(0, last_account_number - count), last_account_number
+        ):
             vault = await self.token_vault.functions.getVault(account_number).call()
             vault_dict = dict(zip(vault_struct, vault))
-
-            if int(vault_dict["tokenCollateral"], 16) == 0:  # vault is not created yet
-                done = True
-            else:
-                account: ProtocolAccount = {
-                    "account_number": account_number,
-                    "token_address_collateral": vault_dict["tokenCollateral"],
-                    "token_id_collateral": vault_dict["tokenIdCollateral"].hex(),
-                    "token_address_debt": vault_dict["tokenDebt"],
-                    "token_id_debt": vault_dict["tokenIdDebt"].hex(),
-                    "amount_collateral": vault_dict["amountCollateral"],
-                    "amount_debt": vault_dict["amountDebt"],
-                    "min_health_ratio": vault_dict["minHealthRatio"],
-                    "min_permissionless_health_ratio": vault_dict[
-                        "minPermissionlessHealthRatio"
-                    ],
-                }
-                accounts.append(account)
-                account_number += 1
+            account: ProtocolAccount = {
+                "account_number": account_number,
+                "token_address_collateral": vault_dict["tokenCollateral"],
+                "token_id_collateral": vault_dict["tokenIdCollateral"].hex(),
+                "token_address_debt": vault_dict["tokenDebt"],
+                "token_id_debt": vault_dict["tokenIdDebt"].hex(),
+                "amount_collateral": vault_dict["amountCollateral"],
+                "amount_debt": vault_dict["amountDebt"],
+                "min_health_ratio": vault_dict["minHealthRatio"],
+                "min_permissionless_health_ratio": vault_dict[
+                    "minPermissionlessHealthRatio"
+                ],
+            }
+            accounts.append(account)
+            account_number += 1
 
         return accounts
 
@@ -208,18 +204,21 @@ class VaultMonitor:
         """
 
         liquidatable = []
-        accounts = await self.get_accounts()
+        # just get the last 5 accounts to optimize for rpc calls
+        accounts = await self.get_recent_accounts(5)
+        price_ids = set()
+        for account in accounts:
+            price_ids.add(account["token_id_collateral"])
+            price_ids.add(account["token_id_debt"])
+        price_ids = list(price_ids)
+        prices = await self.price_feed_client.get_pyth_prices_latest(price_ids)
+        price_dict = dict(zip(price_ids, prices))
         for account in accounts:
             # vault is already liquidated
             if account["amount_collateral"] == 0 and account["amount_debt"] == 0:
                 continue
-            # TODO: optimize this to only query for the price feeds that are needed and only query once
-            (
-                price_collateral,
-                price_debt,
-            ) = await self.price_feed_client.get_pyth_prices_latest(
-                [account["token_id_collateral"], account["token_id_debt"]]
-            )
+            price_collateral = price_dict.get(account["token_id_collateral"])
+            price_debt = price_dict.get(account["token_id_debt"])
             if price_collateral is None:
                 raise Exception(
                     f"Price for collateral token {account['token_id_collateral']} not found"
@@ -350,7 +349,7 @@ async def main():
                 f"List of liquidatable accounts:\n{json.dumps(opportunities, indent=2)}"
             )
 
-        await asyncio.sleep(1)
+        await asyncio.sleep(15)
 
 
 if __name__ == "__main__":
