@@ -266,7 +266,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                             true => BidStatus::Submitted(receipt.transaction_hash),
                                             false => BidStatus::Lost
                                         };
-                                        store.finalize_bid_status_and_broadcast(BidStatusWithId { id: bid.id, bid_status }).await?;
+                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }).await?;
                                     }
                                 }
                                 None => {

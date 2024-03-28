@@ -34,7 +34,8 @@ before building the project. You can create a `.env` file similar
 to the `.env.example` file and set `DATABASE_URL` to the URL of your PostgreSQL database. This file
 will be picked up by sqlx-cli and cargo scripts when running the checks.
 
-Install sqlx-cli by running `cargo install sqlx-cli`. Then, run the following command to apply migrations:
+In the current folder, install sqlx-cli by running `cargo install sqlx-cli`.
+Then, run the following command to apply migrations:
 
 ```bash
 sqlx migrate run

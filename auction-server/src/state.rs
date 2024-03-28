@@ -311,12 +311,14 @@ impl Store {
         Ok(())
     }
 
-    pub async fn finalize_bid_status_and_broadcast(
+    pub async fn broadcast_bid_status_and_remove(
         &self,
         update: BidStatusWithId,
     ) -> anyhow::Result<()> {
         if update.bid_status == BidStatus::Pending {
-            return Err(anyhow::anyhow!("Cannot finalize a pending bid"));
+            return Err(anyhow::anyhow!(
+                "Bid status cannot remain pending when removing a bid."
+            ));
         }
 
         let now = OffsetDateTime::now_utc();
