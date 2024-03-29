@@ -12,6 +12,7 @@ import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 
 contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
     event ReceivedETH(address sender, uint256 amount);
+    mapping(bytes => bool) _signatureUsed;
 
     /**
      * @notice ExpressRelay constructor - Initializes a new ExpressRelay contract with given parameters
@@ -54,6 +55,8 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
             verifyCalldata(state.relayer, digest, signature),
             "invalid signature"
         );
+        require(!_signatureUsed[signature], "signature already used");
+        _signatureUsed[signature] = true;
 
         if (permissionKey.length < 20) {
             revert InvalidPermission();
