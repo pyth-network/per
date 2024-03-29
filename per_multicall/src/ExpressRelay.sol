@@ -30,7 +30,6 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
     ) {
         state.admin = admin;
         state.relayer = relayer;
-        state.relayerSubwallets = new address[](0);
 
         validateFeeSplit(feeSplitProtocolDefault);
         state.feeSplitProtocolDefault = feeSplitProtocolDefault;
@@ -51,11 +50,12 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
         bytes calldata signature
     ) public payable returns (MulticallStatus[] memory multicallStatuses) {
         bytes memory digest = abi.encode(permissionKey, multicallData);
-        require(
-            verifyCalldata(state.relayer, digest, signature),
-            "invalid signature"
-        );
-        require(!_signatureUsed[signature], "signature already used");
+        if (!verifyCalldata(state.relayer, digest, signature)) {
+            revert InvalidRelayerSignature();
+        }
+        if (_signatureUsed[signature]) {
+            revert UsedRelayerSignature();
+        }
         _signatureUsed[signature] = true;
 
         if (permissionKey.length < 20) {

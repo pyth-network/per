@@ -7,6 +7,12 @@ error Unauthorized();
 // Signature: 0x868a64de
 error InvalidPermission();
 
+// Signature: 0x8186594e
+error InvalidRelayerSignature();
+
+// Signature: 0x96f86c20
+error UsedRelayerSignature();
+
 // Signature: 0x8f4450b5
 error InvalidExecutorSignature();
 

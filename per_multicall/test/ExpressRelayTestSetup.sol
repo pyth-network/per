@@ -563,7 +563,7 @@ contract ExpressRelayTestSetup is
         bytes[] memory data,
         BidInfo[] memory bidInfos,
         bytes memory permission,
-        uint256 relayerSecretKehy
+        uint256 relayerSecretKey
     )
         public
         pure
@@ -591,7 +591,7 @@ contract ExpressRelayTestSetup is
         signatureRelayer = createRelayerSignature(
             permission,
             multicallData,
-            relayerSecretKehy
+            relayerSecretKey
         );
     }
 

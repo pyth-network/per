@@ -343,13 +343,21 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bytes[] memory data
         ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
 
-        (
-            MulticallData[] memory multicallData,
-            bytes memory signatureRelayer
-        ) = getMulticallData(contracts, data, bidInfos, permission, relayerSk);
+        (MulticallData[] memory multicallData, ) = getMulticallData(
+            contracts,
+            data,
+            bidInfos,
+            permission,
+            relayerSk
+        );
 
-        // wrong permisison key
+        // wrong permission key
         permission = abi.encode(address(0));
+        bytes memory signatureRelayer = createRelayerSignature(
+            permission,
+            multicallData,
+            relayerSk
+        );
 
         AccountBalance memory balancesAPre = getBalances(
             address(searcherA),
