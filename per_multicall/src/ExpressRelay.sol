@@ -13,19 +13,19 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
     event ReceivedETH(address sender, uint256 amount);
 
     /**
-     * @notice ExpressRelay constructor - Initializes a new ExpressRelay contract with given parameters
+     * @notice ExpressRelay initializer - Initializes a new ExpressRelay contract with given parameters
      *
      * @param admin: address of admin of express relay
      * @param relayer: address of relayer EOA
      * @param feeSplitProtocolDefault: default fee split to be paid to the protocol whose permissioning is being used
      * @param feeSplitRelayer: split of the non-protocol fees to be paid to the relayer
      */
-    constructor(
+    function _initialize(
         address admin,
         address relayer,
         uint256 feeSplitProtocolDefault,
         uint256 feeSplitRelayer
-    ) {
+    ) internal {
         state.admin = admin;
         state.relayer = relayer;
 
