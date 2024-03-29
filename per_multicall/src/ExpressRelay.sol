@@ -29,6 +29,8 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
         state.admin = admin;
         state.relayer = relayer;
 
+        setFeeSplitPrecision();
+
         validateFeeSplit(feeSplitProtocolDefault);
         state.feeSplitProtocolDefault = feeSplitProtocolDefault;
 

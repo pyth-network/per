@@ -19,8 +19,9 @@ contract TokenVault is IExpressRelayFeeReceiver {
 
     event VaultReceivedETH(address sender, uint256 amount, bytes permissionKey);
 
+    address _admin;
     uint256 _nVaults;
-    address public immutable expressRelay;
+    address public expressRelay;
     mapping(uint256 => Vault) _vaults;
     address _oracle;
     bool _allowUndercollateralized;
@@ -33,14 +34,23 @@ contract TokenVault is IExpressRelayFeeReceiver {
      * @param allowUndercollateralized: boolean to allow undercollateralized vaults to be created and updated. Can be set to true for testing.
      */
     constructor(
+        address admin,
         address expressRelayAddress,
         address oracleAddress,
         bool allowUndercollateralized
     ) {
+        _admin = admin;
         _nVaults = 0;
         expressRelay = expressRelayAddress;
         _oracle = oracleAddress;
         _allowUndercollateralized = allowUndercollateralized;
+    }
+
+    function setExpressRelayAddress(address expressRelayAddress) public {
+        if (msg.sender != _admin) {
+            revert NotAdmin();
+        }
+        expressRelay = expressRelayAddress;
     }
 
     //TODO: Fix function name/logic/documentation to match each other

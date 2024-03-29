@@ -28,6 +28,7 @@ import "./helpers/PriceHelpers.sol";
 import "./helpers/TestParsingHelpers.sol";
 import "./helpers/MulticallHelpers.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
+import "../src/ExpressRelayUpgradable.sol";
 
 /**
  * @title ExpressRelayTestSetUp
@@ -49,7 +50,7 @@ contract ExpressRelayTestSetup is
     TokenVault public tokenVault;
     SearcherVault public searcherA;
     SearcherVault public searcherB;
-    ExpressRelay public expressRelay;
+    ExpressRelayUpgradable public expressRelay;
     WETH9 public weth;
     OpportunityAdapterUpgradable public opportunityAdapter;
     MockPyth public mockPyth;
@@ -135,7 +136,16 @@ contract ExpressRelayTestSetup is
     function setUpContracts() public {
         // instantiate multicall contract with ExpressRelay operator as the deployer
         vm.prank(relayer);
-        expressRelay = new ExpressRelay(
+        ExpressRelayUpgradable _expressRelay = new ExpressRelayUpgradable();
+        // deploy proxy contract and point it to implementation
+        ERC1967Proxy proxyExpressRelay = new ERC1967Proxy(
+            address(_expressRelay),
+            ""
+        );
+        expressRelay = ExpressRelayUpgradable(payable(proxyExpressRelay));
+        expressRelay.initialize(
+            // TODO: fix the owner and admin here
+            relayer,
             admin,
             relayer,
             feeSplitProtocolDefault,
@@ -148,8 +158,13 @@ contract ExpressRelayTestSetup is
         vm.prank(relayer);
         OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
         // deploy proxy contract and point it to implementation
-        ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
-        opportunityAdapter = OpportunityAdapterUpgradable(payable(proxy));
+        ERC1967Proxy proxyOpportunityAdapter = new ERC1967Proxy(
+            address(_opportunityAdapter),
+            ""
+        );
+        opportunityAdapter = OpportunityAdapterUpgradable(
+            payable(proxyOpportunityAdapter)
+        );
         opportunityAdapter.initialize(
             // TODO: fix the owner and admin here
             relayer,
@@ -164,6 +179,7 @@ contract ExpressRelayTestSetup is
         bool allowUndercollateralized = false;
         vm.prank(tokenVaultDeployer); // we prank here to standardize the value of the token contract address across different runs
         tokenVault = new TokenVault(
+            admin,
             address(expressRelay),
             address(mockPyth),
             allowUndercollateralized

@@ -1,6 +1,9 @@
 // Copyright (C) 2024 Lavra Holdings Limited - All Rights Reserved
 pragma solidity ^0.8.13;
 
+// Signature: 0x7bfa4b9f
+error NotAdmin();
+
 // Signature: 0xe922edfd
 error UncollateralizedVaultCreation();
 
