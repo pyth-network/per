@@ -12,8 +12,6 @@ contract ExpressRelayStorage {
         address admin;
         // address of primary relayer EOA, where relayer will ultimately receive fees
         address relayer;
-        // store of relayer subwallets permissioned to call ExpressRelay.multicall
-        address[] relayerSubwallets;
         // stores custom fee splits for protocol fee receivers
         mapping(address => uint256) feeConfig;
         // stores the flags for whether permission keys are currently allowed
@@ -43,17 +41,7 @@ contract ExpressRelayState is IExpressRelay {
 
     modifier onlyRelayer() {
         if (msg.sender != state.relayer) {
-            bool isSubwallet = false;
-            for (uint i = 0; i < state.relayerSubwallets.length; i++) {
-                if (state.relayerSubwallets[i] == msg.sender) {
-                    isSubwallet = true;
-                    break;
-                }
-            }
-
-            if (!isSubwallet) {
-                revert Unauthorized();
-            }
+            revert Unauthorized();
         }
         _;
     }
@@ -85,7 +73,6 @@ contract ExpressRelayState is IExpressRelay {
      */
     function setRelayer(address relayer) public onlyAdmin {
         state.relayer = relayer;
-        state.relayerSubwallets = new address[](0);
     }
 
     /**
@@ -93,45 +80,6 @@ contract ExpressRelayState is IExpressRelay {
      */
     function getRelayer() public view returns (address) {
         return state.relayer;
-    }
-
-    /**
-     * @notice addRelayerSubwallet function - adds a relayer subwallet
-     *
-     * @param subwallet: address of the relayer subwallet to be added
-     */
-    function addRelayerSubwallet(address subwallet) public onlyRelayerPrimary {
-        for (uint i = 0; i < state.relayerSubwallets.length; i++) {
-            if (state.relayerSubwallets[i] == subwallet) {
-                revert DuplicateRelayerSubwallet();
-            }
-        }
-        state.relayerSubwallets.push(subwallet);
-    }
-
-    function removeRelayerSubwallet(
-        address subwallet
-    ) public onlyRelayerPrimary {
-        for (uint i = 0; i < state.relayerSubwallets.length; i++) {
-            if (state.relayerSubwallets[i] == subwallet) {
-                state.relayerSubwallets[i] = state.relayerSubwallets[
-                    state.relayerSubwallets.length - 1
-                ];
-                state.relayerSubwallets.pop();
-                break;
-            }
-
-            if (i == state.relayerSubwallets.length - 1) {
-                revert RelayerSubwalletNotFound();
-            }
-        }
-    }
-
-    /**
-     * @notice getRelayerSubwallets function - returns the relayer subwallets
-     */
-    function getRelayerSubwallets() public view returns (address[] memory) {
-        return state.relayerSubwallets;
     }
 
     /**
