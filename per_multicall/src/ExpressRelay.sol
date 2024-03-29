@@ -52,10 +52,10 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
         if (!verifyCalldata(state.relayer, digest, signature)) {
             revert InvalidRelayerSignature();
         }
-        if (signatureUsed[signature]) {
+        if (state.signatureUsed[signature]) {
             revert UsedRelayerSignature();
         }
-        signatureUsed[signature] = true;
+        state.signatureUsed[signature] = true;
 
         if (permissionKey.length < 20) {
             revert InvalidPermission();
