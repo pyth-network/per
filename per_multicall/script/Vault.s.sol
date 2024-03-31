@@ -65,6 +65,14 @@ contract VaultScript is Script {
             );
         opportunityAdapter.initialize(owner, admin, expressRelay, wethAddress);
         vm.stopBroadcast();
+        console.log(
+            "deployed OpportunityAdapterUpgradable implementation contract at",
+            address(_opportunityAdapter)
+        );
+        console.log(
+            "OpportunityAdapterUpgradeable proxy at",
+            address(opportunityAdapter)
+        );
         return address(opportunityAdapter);
     }
 
@@ -108,7 +116,11 @@ contract VaultScript is Script {
             feeSplitRelayer
         );
         vm.stopBroadcast();
-        console.log("deployed ExpressRelay contract at", address(expressRelay));
+        console.log(
+            "deployed ExpressRelayUpgradable implementation at",
+            address(_expressRelayUpgradable)
+        );
+        console.log("ExpressRelay ERC1967 proxy at", address(expressRelay));
         return address(expressRelay);
     }
 
