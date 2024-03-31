@@ -28,7 +28,7 @@ contract ExpressRelayStorage {
 contract ExpressRelayState is IExpressRelay {
     ExpressRelayStorage.State state;
 
-    constructor() {
+    function setFeeSplitPrecision() internal {
         state.feeSplitPrecision = 10 ** 18;
     }
 

@@ -25,6 +25,7 @@ import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import "../src/Errors.sol";
 import {OpportunityAdapterUpgradable} from "../src/OpportunityAdapterUpgradable.sol";
+import {ExpressRelayUpgradable} from "../src/ExpressRelayUpgradable.sol";
 
 contract VaultScript is Script {
     string public latestEnvironmentPath = "latestEnvironment.json";
@@ -64,6 +65,14 @@ contract VaultScript is Script {
             );
         opportunityAdapter.initialize(owner, admin, expressRelay, wethAddress);
         vm.stopBroadcast();
+        console.log(
+            "deployed OpportunityAdapterUpgradable implementation contract at",
+            address(_opportunityAdapter)
+        );
+        console.log(
+            "OpportunityAdapterUpgradeable proxy at",
+            address(opportunityAdapter)
+        );
         return address(opportunityAdapter);
     }
 
@@ -80,28 +89,52 @@ contract VaultScript is Script {
         vm.stopBroadcast();
     }
 
-    function deployExpressRelay() public returns (address) {
+    function deployExpressRelay(
+        address owner,
+        address admin,
+        address relayer,
+        uint256 feeSplitProtocolDefault,
+        uint256 feeSplitRelayer
+    ) public returns (address) {
         (, uint256 skDeployer) = getDeployer();
-        (address relayer, uint256 relayerSk) = makeAddrAndKey("relayer");
-        // TODO: set admin to different address than relayer
-        address admin = relayer;
-        console.log("pk relayer", relayer);
-        console.log("sk relayer", relayerSk);
-        // since feeSplitPrecision is set to 10 ** 18, this represents ~50% of the fees
-        uint256 feeSplitProtocolDefault = 50 * (10 ** 16);
-        // ~5% (10% of the remaining 50%) of the fees go to the relayer
-        uint256 feeSplitRelayer = 10 * (10 ** 16);
         vm.startBroadcast(skDeployer);
-        payable(relayer).transfer(0.01 ether);
-        ExpressRelay multicall = new ExpressRelay(
+        ExpressRelayUpgradable _expressRelayUpgradable = new ExpressRelayUpgradable();
+        // deploy proxy contract and point it to implementation
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(_expressRelayUpgradable),
+            ""
+        );
+        // wrap in ABI to support easier calls
+        ExpressRelayUpgradable expressRelay = ExpressRelayUpgradable(
+            payable(proxy)
+        );
+        expressRelay.initialize(
+            owner,
             admin,
             relayer,
             feeSplitProtocolDefault,
             feeSplitRelayer
         );
         vm.stopBroadcast();
-        console.log("deployed ExpressRelay contract at", address(multicall));
-        return address(multicall);
+        console.log(
+            "deployed ExpressRelayUpgradable implementation at",
+            address(_expressRelayUpgradable)
+        );
+        console.log("ExpressRelay ERC1967 proxy at", address(expressRelay));
+        return address(expressRelay);
+    }
+
+    function upgradeExpressRelay(address proxyAddress) public {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
+        ExpressRelayUpgradable _newImplementation = new ExpressRelayUpgradable();
+        // Proxy object is technically an ExpressRelayUpgradable because it points to an implementation
+        // of such contract. Therefore we can call the upgradeTo function on it.
+        ExpressRelayUpgradable proxy = ExpressRelayUpgradable(
+            payable(proxyAddress)
+        );
+        proxy.upgradeTo(address(_newImplementation));
+        vm.stopBroadcast();
     }
 
     function deployVault(
@@ -109,11 +142,13 @@ contract VaultScript is Script {
         address oracle,
         bool allowUndercollateralized
     ) public returns (address) {
+        (address deployer, ) = getDeployer();
         // make token vault deployer wallet
         (, uint256 tokenVaultDeployerSk) = makeAddrAndKey("tokenVaultDeployer");
         console.log("sk token vault deployer", tokenVaultDeployerSk);
         vm.startBroadcast(tokenVaultDeployerSk);
         TokenVault vault = new TokenVault(
+            deployer,
             multicall,
             oracle,
             allowUndercollateralized
@@ -138,7 +173,20 @@ contract VaultScript is Script {
     {
         (address deployer, ) = getDeployer();
         address weth = deployWeth();
-        address expressRelay = deployExpressRelay();
+
+        (address relayer, uint256 relayerSk) = makeAddrAndKey("relayer");
+        // since feeSplitPrecision is set to 10 ** 18, this represents ~50% of the fees
+        uint256 feeSplitProtocolDefault = 50 * (10 ** 16);
+        // ~5% (10% of the remaining 50%) of the fees go to the relayer
+        uint256 feeSplitRelayer = 10 * (10 ** 16);
+        address expressRelay = deployExpressRelay(
+            deployer,
+            deployer,
+            relayer,
+            feeSplitProtocolDefault,
+            feeSplitRelayer
+        );
+
         address opportunityAdapter = deployOpportunityAdapter(
             deployer,
             deployer,
@@ -164,7 +212,20 @@ contract VaultScript is Script {
         (address deployer, uint256 skDeployer) = getDeployer();
         if (pyth == address(0)) pyth = deployMockPyth();
         if (weth == address(0)) weth = deployWeth();
-        address expressRelay = deployExpressRelay();
+
+        (address relayer, uint256 relayerSk) = makeAddrAndKey("relayer");
+        // since feeSplitPrecision is set to 10 ** 18, this represents ~50% of the fees
+        uint256 feeSplitProtocolDefault = 50 * (10 ** 16);
+        // ~5% (10% of the remaining 50%) of the fees go to the relayer
+        uint256 feeSplitRelayer = 10 * (10 ** 16);
+        address expressRelay = deployExpressRelay(
+            deployer,
+            deployer,
+            relayer,
+            feeSplitProtocolDefault,
+            feeSplitRelayer
+        );
+
         address opportunityAdapter = deployOpportunityAdapter(
             deployer,
             deployer,

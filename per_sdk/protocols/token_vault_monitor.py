@@ -206,41 +206,45 @@ class VaultMonitor:
         liquidatable = []
         # just get the last 5 accounts to optimize for rpc calls
         accounts = await self.get_recent_accounts(5)
-        price_ids = set()
-        for account in accounts:
-            price_ids.add(account["token_id_collateral"])
-            price_ids.add(account["token_id_debt"])
-        price_ids = list(price_ids)
-        prices = await self.price_feed_client.get_pyth_prices_latest(price_ids)
-        price_dict = dict(zip(price_ids, prices))
-        for account in accounts:
-            # vault is already liquidated
-            if account["amount_collateral"] == 0 and account["amount_debt"] == 0:
-                continue
-            price_collateral = price_dict.get(account["token_id_collateral"])
-            price_debt = price_dict.get(account["token_id_debt"])
-            if price_collateral is None:
-                raise Exception(
-                    f"Price for collateral token {account['token_id_collateral']} not found"
-                )
+        if len(accounts) > 0:
+            price_ids = set()
+            for account in accounts:
+                price_ids.add(account["token_id_collateral"])
+                price_ids.add(account["token_id_debt"])
+            price_ids = list(price_ids)
+            prices = await self.price_feed_client.get_pyth_prices_latest(price_ids)
+            price_dict = dict(zip(price_ids, prices))
+            for account in accounts:
+                # vault is already liquidated
+                if account["amount_collateral"] == 0 and account["amount_debt"] == 0:
+                    continue
+                price_collateral = price_dict.get(account["token_id_collateral"])
+                price_debt = price_dict.get(account["token_id_debt"])
+                if price_collateral is None:
+                    raise Exception(
+                        f"Price for collateral token {account['token_id_collateral']} not found"
+                    )
 
-            if price_debt is None:
-                raise Exception(
-                    f"Price for debt token {account['token_id_debt']} not found"
-                )
+                if price_debt is None:
+                    raise Exception(
+                        f"Price for debt token {account['token_id_debt']} not found"
+                    )
 
-            value_collateral = (
-                int(price_collateral["price"]["price"]) * account["amount_collateral"]
-            )
-            value_debt = int(price_debt["price"]["price"]) * account["amount_debt"]
-            health = value_collateral / value_debt
-            logger.debug(f"Account {account['account_number']} health: {health}")
-            if (
-                value_debt * int(account["min_health_ratio"])
-                > value_collateral * 10**18
-            ):
-                price_updates = [price_collateral, price_debt]
-                liquidatable.append(self.create_liquidation_opp(account, price_updates))
+                value_collateral = (
+                    int(price_collateral["price"]["price"])
+                    * account["amount_collateral"]
+                )
+                value_debt = int(price_debt["price"]["price"]) * account["amount_debt"]
+                health = value_collateral / value_debt
+                logger.debug(f"Account {account['account_number']} health: {health}")
+                if (
+                    value_debt * int(account["min_health_ratio"])
+                    > value_collateral * 10**18
+                ):
+                    price_updates = [price_collateral, price_debt]
+                    liquidatable.append(
+                        self.create_liquidation_opp(account, price_updates)
+                    )
 
         return liquidatable
 

@@ -16,7 +16,7 @@ abstract contract OpportunityAdapter is SigVerify {
     mapping(bytes => bool) _signatureUsed;
 
     /**
-     * @notice OpportunityAdapter constructor - Initializes a new opportunity adapter contract with given parameters
+     * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
      *
      * @param admin: address of admin of opportunity adapter
      * @param expressRelay: address of express relay
@@ -30,6 +30,18 @@ abstract contract OpportunityAdapter is SigVerify {
         _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
+    }
+
+    /**
+     * @notice setExpressRelay function - sets the address of the express relay authenticated for calling this contract
+     *
+     * @param expressRelay: address of express relay contract
+     */
+    function setExpressRelay(address expressRelay) public {
+        if (msg.sender != _admin) {
+            revert Unauthorized();
+        }
+        _expressRelay = expressRelay;
     }
 
     /**
