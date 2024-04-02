@@ -19,7 +19,10 @@ use {
         Result,
     },
     ethers::{
-        abi,
+        abi::{
+            self,
+            Token,
+        },
         contract::{
             abigen,
             ContractError,
@@ -45,13 +48,13 @@ use {
         },
         types::{
             transaction::eip2718::TypedTransaction,
-            Address,
             Bytes,
             TransactionReceipt,
             TransactionRequest,
             H160,
             U256,
         },
+        utils::hex::FromHex,
     },
     serde::{
         Deserialize,
@@ -101,8 +104,8 @@ impl From<(H160, Bytes, U256)> for MulticallData {
     }
 }
 
-pub fn get_simulation_call(
-    relayer: Address,
+pub async fn get_simulation_call(
+    relayer: LocalWallet,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission_key: Bytes,
@@ -112,9 +115,21 @@ pub fn get_simulation_call(
     let express_relay_contract =
         ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
+    // TODO: add multicall_data to the signature
+    let relayer_signature_result = relayer
+        .sign_message(ethers::abi::encode(&[Token::Bytes(
+            permission_key.to_vec(),
+        )]))
+        .await;
+    // TODO: handle signature error better
+    let relayer_signature_bytes = match relayer_signature_result {
+        Ok(signature) => Bytes::from_hex(signature.to_string()).unwrap_or_default(),
+        Err(_) => Bytes::default(),
+    };
+
     express_relay_contract
-        .multicall(permission_key, multicall_data)
-        .from(relayer)
+        .multicall(permission_key, multicall_data, relayer_signature_bytes)
+        .from(relayer.address())
 }
 
 
@@ -135,13 +150,14 @@ pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), 
     Ok(())
 }
 pub async fn simulate_bids(
-    relayer: Address,
+    relayer: LocalWallet,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission: Bytes,
     multicall_data: Vec<MulticallData>,
 ) -> Result<(), SimulationError> {
-    let call = get_simulation_call(relayer, provider, chain_config, permission, multicall_data);
+    let call =
+        get_simulation_call(relayer, provider, chain_config, permission, multicall_data).await;
     match call.await {
         Ok(results) => {
             evaluate_simulation_results(results)?;
@@ -189,14 +205,25 @@ pub async fn submit_bids(
         use_legacy_tx: chain_config.legacy_tx,
     };
     let client = Arc::new(TransformerMiddleware::new(
-        SignerMiddleware::new(provider, signer_wallet.with_chain_id(network_id)),
+        SignerMiddleware::new(provider, signer_wallet.clone().with_chain_id(network_id)),
         transformer,
     ));
 
     let express_relay_contract =
         SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
 
-    let call = express_relay_contract.multicall(permission, multicall_data);
+    // TODO: add multicall_data to the signature
+    let relayer_signature = signer_wallet
+        .clone()
+        .sign_message(ethers::abi::encode(&[Token::Bytes(permission.to_vec())]))
+        .await
+        .map_err(|err| {
+            SubmissionError::ProviderError(ProviderError::CustomError(err.to_string()))
+        })?;
+    let relayer_signature_bytes: Bytes = relayer_signature.to_vec().into();
+
+    let call =
+        express_relay_contract.multicall(permission, multicall_data, relayer_signature_bytes);
     let mut gas_estimate = call
         .estimate_gas()
         .await
@@ -304,8 +331,9 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         .chains
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
+
     let call = simulate_bids(
-        store.relayer.address(),
+        store.relayer.clone(),
         chain_store.provider.clone(),
         chain_store.config.clone(),
         bid.permission_key.clone(),

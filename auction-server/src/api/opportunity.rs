@@ -112,7 +112,7 @@ pub async fn post_opportunity(
         bidders: Default::default(),
     };
 
-    verify_opportunity(params.clone(), chain_store, store.relayer.address())
+    verify_opportunity(params.clone(), chain_store, store.relayer.clone())
         .await
         .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 

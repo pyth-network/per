@@ -103,7 +103,7 @@ pub enum VerificationResult {
 pub async fn verify_opportunity(
     opportunity: OpportunityParamsV1,
     chain_store: &ChainStore,
-    relayer: Address,
+    relayer: LocalWallet,
 ) -> Result<VerificationResult> {
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
@@ -147,6 +147,7 @@ pub async fn verify_opportunity(
             fake_bid.amount,
         ))],
     )
+    .await
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();
@@ -318,7 +319,7 @@ async fn verify_with_store(opportunity: Opportunity, store: &Store) -> Result<()
         .chains
         .get(&params.chain_id)
         .ok_or(anyhow!("Chain not found: {}", params.chain_id))?;
-    let relayer = store.relayer.address();
+    let relayer = store.relayer.clone();
     match verify_opportunity(params.clone(), chain_store, relayer).await {
         Ok(VerificationResult::Success) => Ok(()),
         Ok(VerificationResult::UnableToSpoof) => {
