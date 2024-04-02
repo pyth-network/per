@@ -148,6 +148,7 @@ pub async fn verify_opportunity(
         ))],
     )
     .await
+    .map_err(|_err| anyhow!("Error getting simulation call"))?
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();

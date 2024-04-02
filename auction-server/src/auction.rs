@@ -52,9 +52,13 @@ use {
             TransactionReceipt,
             TransactionRequest,
             H160,
+            H256,
             U256,
         },
-        utils::hex::FromHex,
+        utils::{
+            hex::FromHex,
+            keccak256,
+        },
     },
     serde::{
         Deserialize,
@@ -110,32 +114,52 @@ pub async fn get_simulation_call(
     chain_config: EthereumConfig,
     permission_key: Bytes,
     multicall_data: Vec<MulticallData>,
-) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
+) -> Result<FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>>, SimulationError>
+{
     let client = Arc::new(provider);
     let express_relay_contract =
         ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
-    // TODO: add multicall_data to the signature
-    let relayer_signature_result = relayer
-        .sign_message(ethers::abi::encode(&[Token::Bytes(
-            permission_key.to_vec(),
-        )]))
-        .await;
-    // TODO: handle signature error better
-    let relayer_signature_bytes = match relayer_signature_result {
-        Ok(signature) => Bytes::from_hex(signature.to_string()).unwrap_or_default(),
-        Err(_) => Bytes::default(),
-    };
+    let multicall_data_token = Token::Array(
+        multicall_data
+            .iter()
+            .map(|x| {
+                Token::Tuple(vec![
+                    Token::Address(x.target_contract),
+                    Token::Bytes(x.target_calldata.to_vec()),
+                    Token::Uint(x.bid_amount),
+                ])
+            })
+            .collect(),
+    );
+    let encoded =
+        ethers::abi::encode(&[Token::Bytes(permission_key.to_vec()), multicall_data_token]);
+    let digest = H256(keccak256(encoded));
+    let relayer_signature =
+        relayer
+            .sign_hash(digest)
+            .map_err(|err| SimulationError::SignatureError {
+                reason: err.to_string(),
+            })?;
+    let relayer_signature_bytes =
+        Bytes::from_hex(relayer_signature.to_string()).map_err(|err| {
+            SimulationError::SignatureError {
+                reason: err.to_string(),
+            }
+        })?;
 
-    express_relay_contract
+    let call = express_relay_contract
         .multicall(permission_key, multicall_data, relayer_signature_bytes)
-        .from(relayer.address())
+        .from(relayer.address());
+
+    Ok(call)
 }
 
 
 pub enum SimulationError {
     LogicalError { result: Bytes, reason: String },
     ContractError(ContractError<Provider<Http>>),
+    SignatureError { reason: String },
 }
 
 
@@ -157,7 +181,7 @@ pub async fn simulate_bids(
     multicall_data: Vec<MulticallData>,
 ) -> Result<(), SimulationError> {
     let call =
-        get_simulation_call(relayer, provider, chain_config, permission, multicall_data).await;
+        get_simulation_call(relayer, provider, chain_config, permission, multicall_data).await?;
     match call.await {
         Ok(results) => {
             evaluate_simulation_results(results)?;
@@ -212,14 +236,23 @@ pub async fn submit_bids(
     let express_relay_contract =
         SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
 
-    // TODO: add multicall_data to the signature
-    let relayer_signature = signer_wallet
-        .clone()
-        .sign_message(ethers::abi::encode(&[Token::Bytes(permission.to_vec())]))
-        .await
-        .map_err(|err| {
-            SubmissionError::ProviderError(ProviderError::CustomError(err.to_string()))
-        })?;
+    let multicall_data_token = Token::Array(
+        multicall_data
+            .iter()
+            .map(|x| {
+                Token::Tuple(vec![
+                    Token::Address(x.target_contract),
+                    Token::Bytes(x.target_calldata.to_vec()),
+                    Token::Uint(x.bid_amount),
+                ])
+            })
+            .collect(),
+    );
+    let encoded = ethers::abi::encode(&[Token::Bytes(permission.to_vec()), multicall_data_token]);
+    let digest = H256(keccak256(encoded));
+    let relayer_signature = signer_wallet.clone().sign_hash(digest).map_err(|err| {
+        SubmissionError::ProviderError(ProviderError::CustomError(err.to_string()))
+    })?;
     let relayer_signature_bytes: Bytes = relayer_signature.to_vec().into();
 
     let call =
@@ -359,6 +392,10 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
                 ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 _ => Err(RestError::BadParameters(format!("Error: {}", e))),
             },
+            SimulationError::SignatureError { reason } => Err(RestError::SimulationError {
+                result: Bytes::default(),
+                reason,
+            }),
         };
     };
 
