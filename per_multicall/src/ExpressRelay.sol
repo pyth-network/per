@@ -46,17 +46,17 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
     function multicall(
         bytes calldata permissionKey,
         MulticallData[] calldata multicallData,
+        uint256 nonce,
         bytes calldata signature
     ) public payable returns (MulticallStatus[] memory multicallStatuses) {
-        bytes memory digest = abi.encode(permissionKey, multicallData);
+        bytes memory digest = abi.encode(permissionKey, multicallData, nonce);
         if (!verifyCalldata(state.relayer, digest, signature)) {
             revert InvalidRelayerSignature();
         }
-        if (state.signatureUsed[signature]) {
-            revert UsedRelayerSignature();
+        if (state.nonces[msg.sender] != nonce) {
+            revert WrongNonce();
         }
-        state.signatureUsed[signature] = true;
-
+        state.nonces[msg.sender] += 1;
         if (permissionKey.length < 20) {
             revert InvalidPermission();
         }

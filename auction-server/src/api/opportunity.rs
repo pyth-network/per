@@ -28,7 +28,6 @@ use {
         },
         Json,
     },
-    ethers::signers::Signer,
     serde::{
         Deserialize,
         Serialize,

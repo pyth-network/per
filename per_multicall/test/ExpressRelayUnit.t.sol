@@ -151,6 +151,9 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         bytes[] memory dataEmpty;
         BidInfo[] memory bidInfosEmpty;
 
+        address submitter = address(0xdef);
+        uint256 nonce = expressRelay.getNonce(submitter);
+
         (
             MulticallData[] memory multicallData,
             bytes memory signatureRelayer
@@ -159,11 +162,17 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
                 dataEmpty,
                 bidInfosEmpty,
                 permission,
+                nonce,
                 relayerSk
             );
 
-        vm.prank(relayer);
-        expressRelay.multicall(permission, multicallData, signatureRelayer);
+        vm.prank(submitter);
+        expressRelay.multicall(
+            permission,
+            multicallData,
+            nonce,
+            signatureRelayer
+        );
     }
 
     function testMulticallInvalidSignatureFail() public {
@@ -173,11 +182,15 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         bytes[] memory dataEmpty;
         BidInfo[] memory bidInfosEmpty;
 
+        address submitter = address(0xdef);
+        uint256 nonce = expressRelay.getNonce(submitter);
+
         (MulticallData[] memory multicallData, ) = getMulticallData(
             contractsEmpty,
             dataEmpty,
             bidInfosEmpty,
             permission,
+            nonce,
             relayerSk
         );
 
@@ -189,16 +202,24 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         );
 
         vm.expectRevert(InvalidRelayerSignature.selector);
-        vm.prank(relayer);
-        expressRelay.multicall(permission, multicallData, signatureRelayer);
+        vm.prank(submitter);
+        expressRelay.multicall(
+            permission,
+            multicallData,
+            nonce,
+            signatureRelayer
+        );
     }
 
-    function testMulticallUsedSignatureFail() public {
+    function testMulticallNonceLowFail() public {
         bytes memory permission = abi.encode("random permission");
 
         address[] memory contractsEmpty;
         bytes[] memory dataEmpty;
         BidInfo[] memory bidInfosEmpty;
+
+        address submitter = address(0xdef);
+        uint256 nonce = expressRelay.getNonce(submitter);
 
         (
             MulticallData[] memory multicallData,
@@ -208,14 +229,89 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
                 dataEmpty,
                 bidInfosEmpty,
                 permission,
+                nonce,
                 relayerSk
             );
 
-        vm.prank(relayer);
-        expressRelay.multicall(permission, multicallData, signatureRelayer);
+        vm.prank(submitter);
+        expressRelay.multicall(
+            permission,
+            multicallData,
+            nonce,
+            signatureRelayer
+        );
 
-        vm.expectRevert(UsedRelayerSignature.selector);
-        vm.prank(relayer);
-        expressRelay.multicall(permission, multicallData, signatureRelayer);
+        vm.expectRevert(WrongNonce.selector);
+        vm.prank(submitter);
+        expressRelay.multicall(
+            permission,
+            multicallData,
+            nonce,
+            signatureRelayer
+        );
+    }
+
+    function testMulticallNonceHighFail() public {
+        bytes memory permission = abi.encode("random permission");
+
+        address[] memory contractsEmpty;
+        bytes[] memory dataEmpty;
+        BidInfo[] memory bidInfosEmpty;
+
+        address submitter = address(0xdef);
+        uint256 nonce = expressRelay.getNonce(submitter) + 1;
+
+        (
+            MulticallData[] memory multicallData,
+            bytes memory signatureRelayer
+        ) = getMulticallData(
+                contractsEmpty,
+                dataEmpty,
+                bidInfosEmpty,
+                permission,
+                nonce,
+                relayerSk
+            );
+
+        vm.expectRevert(WrongNonce.selector);
+        vm.prank(submitter);
+        expressRelay.multicall(
+            permission,
+            multicallData,
+            nonce,
+            signatureRelayer
+        );
+    }
+
+    function testMulticallNonceMismatchSignatureFail() public {
+        bytes memory permission = abi.encode("random permission");
+
+        address[] memory contractsEmpty;
+        bytes[] memory dataEmpty;
+        BidInfo[] memory bidInfosEmpty;
+
+        address submitter = address(0xdef);
+        uint256 nonce = expressRelay.getNonce(submitter);
+
+        (
+            MulticallData[] memory multicallData,
+            bytes memory signatureRelayer
+        ) = getMulticallData(
+                contractsEmpty,
+                dataEmpty,
+                bidInfosEmpty,
+                permission,
+                nonce,
+                relayerSk
+            );
+
+        vm.expectRevert(InvalidRelayerSignature.selector);
+        vm.prank(submitter);
+        expressRelay.multicall(
+            permission,
+            multicallData,
+            nonce + 1,
+            signatureRelayer
+        );
     }
 }

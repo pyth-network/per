@@ -132,8 +132,19 @@ pub async fn get_simulation_call(
             })
             .collect(),
     );
-    let encoded =
-        ethers::abi::encode(&[Token::Bytes(permission_key.to_vec()), multicall_data_token]);
+    let nonce = express_relay_contract
+        .get_nonce(relayer.address())
+        .await
+        .map_err(|err| {
+            SimulationError::ContractError(ContractError::ProviderError {
+                e: ProviderError::CustomError(err.to_string()),
+            })
+        })?;
+    let encoded = ethers::abi::encode(&[
+        Token::Bytes(permission_key.to_vec()),
+        multicall_data_token,
+        Token::Uint(nonce),
+    ]);
     let digest = H256(keccak256(encoded));
     let relayer_signature =
         relayer
@@ -149,7 +160,12 @@ pub async fn get_simulation_call(
         })?;
 
     let call = express_relay_contract
-        .multicall(permission_key, multicall_data, relayer_signature_bytes)
+        .multicall(
+            permission_key,
+            multicall_data,
+            nonce,
+            relayer_signature_bytes,
+        )
         .from(relayer.address());
 
     Ok(call)
@@ -248,15 +264,30 @@ pub async fn submit_bids(
             })
             .collect(),
     );
-    let encoded = ethers::abi::encode(&[Token::Bytes(permission.to_vec()), multicall_data_token]);
+    // TODO: replace with wallet submitting this transaction
+    let nonce = express_relay_contract
+        .get_nonce(signer_wallet.address())
+        .await
+        .map_err(|err| {
+            SubmissionError::ProviderError(ProviderError::CustomError(err.to_string()))
+        })?;
+    let encoded = ethers::abi::encode(&[
+        Token::Bytes(permission.to_vec()),
+        multicall_data_token,
+        Token::Uint(nonce),
+    ]);
     let digest = H256(keccak256(encoded));
     let relayer_signature = signer_wallet.clone().sign_hash(digest).map_err(|err| {
         SubmissionError::ProviderError(ProviderError::CustomError(err.to_string()))
     })?;
     let relayer_signature_bytes: Bytes = relayer_signature.to_vec().into();
 
-    let call =
-        express_relay_contract.multicall(permission, multicall_data, relayer_signature_bytes);
+    let call = express_relay_contract.multicall(
+        permission,
+        multicall_data,
+        nonce,
+        relayer_signature_bytes,
+    );
     let mut gas_estimate = call
         .estimate_gas()
         .await

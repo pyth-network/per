@@ -12,8 +12,8 @@ contract ExpressRelayStorage {
         address admin;
         // address of primary relayer EOA, where relayer will ultimately receive fees
         address relayer;
-        // store of signatures used in multicall to prevent replay attacks
-        mapping(bytes => bool) signatureUsed;
+        // store of nonces for submitting wallets to prevent replay
+        mapping(address => uint256) nonces;
         // stores custom fee splits for protocol fee receivers
         mapping(address => uint256) feeConfig;
         // stores the flags for whether permission keys are currently allowed
@@ -152,6 +152,15 @@ contract ExpressRelayState is IExpressRelay {
      */
     function getFeeSplitPrecision() public view returns (uint256) {
         return state.feeSplitPrecision;
+    }
+
+    /**
+     * @notice getNonce function - returns the nonce for a given wallet
+     *
+     * @param wallet: address of the wallet to get the nonce for
+     */
+    function getNonce(address wallet) public view returns (uint256) {
+        return state.nonces[wallet];
     }
 
     /**
