@@ -287,7 +287,8 @@ impl Store {
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
-        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        let tx_hash: Option<&[u8]> = None;
+        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, tx_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
         bid.permission_key.to_vec(),
@@ -296,6 +297,7 @@ impl Store {
         bid.target_calldata.to_vec(),
         BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
         bid.status as _,
+        tx_hash,
         )
             .execute(&self.db)
             .await.map_err(|e| {
@@ -315,17 +317,24 @@ impl Store {
         &self,
         update: BidStatusWithId,
     ) -> anyhow::Result<()> {
-        if update.bid_status == BidStatus::Pending {
-            return Err(anyhow::anyhow!(
-                "Bid status cannot remain pending when removing a bid."
-            ));
-        }
+        let tx_hash: Option<H256> = match update.bid_status {
+            BidStatus::Submitted(x) => Some(x),
+            BidStatus::Pending => {
+                return Err(anyhow::anyhow!(
+                    "Bid status cannot remain pending when removing a bid."
+                ));
+            }
+            BidStatus::Lost => None,
+        };
+
+        let tx_hash_bytes: Option<&[u8]> = tx_hash.as_ref().map(|x| x.as_bytes());
 
         let now = OffsetDateTime::now_utc();
         sqlx::query!(
-            "UPDATE bid SET status = $1, removal_time = $2 WHERE id = $3 AND removal_time IS NULL",
+            "UPDATE bid SET status = $1, removal_time = $2, tx_hash = $3 WHERE id = $4 AND removal_time IS NULL",
             update.bid_status as _,
             PrimitiveDateTime::new(now.date(), now.time()),
+            tx_hash_bytes,
             update.id
         )
         .execute(&self.db)

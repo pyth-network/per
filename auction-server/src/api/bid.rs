@@ -21,6 +21,7 @@ use {
         },
         Json,
     },
+    ethers::types::H256,
     serde::{
         Deserialize,
         Serialize,
@@ -80,8 +81,40 @@ pub async fn bid_status(
     State(store): State<Arc<Store>>,
     Path(bid_id): Path<BidId>,
 ) -> Result<Json<BidStatus>, RestError> {
-    match store.bids.read().await.get(&bid_id) {
-        Some(bid) => Ok(bid.status.clone().into()),
-        None => Err(RestError::BidNotFound),
+    let status_data = sqlx::query!(
+        // TODO: improve the call here to not cast to text
+        "SELECT status::text, tx_hash FROM bid WHERE id = $1",
+        bid_id
+    )
+    .fetch_one(&store.db)
+    .await
+    .map_err(|_| RestError::BidNotFound)?;
+
+    let status_json: Json<BidStatus>;
+    match status_data.status {
+        Some(status) => {
+            if status == "pending" {
+                status_json = BidStatus::Pending.into();
+            } else if status == "lost" {
+                status_json = BidStatus::Lost.into();
+            } else if status == "submitted" {
+                let tx_hash = match status_data.tx_hash {
+                    Some(tx_hash) => H256::from_slice(tx_hash.as_slice()),
+                    None => {
+                        return Err(RestError::BadParameters(
+                            "Transaction hash is missing".to_string(),
+                        ));
+                    }
+                };
+                status_json = BidStatus::Submitted(tx_hash).into();
+            } else {
+                return Err(RestError::BadParameters("Invalid status".to_string()));
+            }
+        }
+        None => {
+            return Err(RestError::BidNotFound);
+        }
     }
+
+    Ok(status_json)
 }
