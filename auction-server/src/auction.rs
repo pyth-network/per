@@ -10,6 +10,7 @@ use {
             SHOULD_EXIT,
         },
         state::{
+            AuctionParams,
             BidAmount,
             BidStatus,
             BidStatusWithId,
@@ -260,13 +261,19 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             Ok(receipt) => match receipt {
                                 Some(receipt) => {
                                     tracing::debug!("Submitted transaction: {:?}", receipt);
+                                    let auction_params = AuctionParams {
+                                        chain_id: chain_id.clone(),
+                                        permission_key: permission_key.clone(),
+                                        tx_hash: receipt.transaction_hash,
+                                    };
+                                    let auction_id = store.add_auction(auction_params).await?;
                                     let winner_ids:Vec<Uuid> = winner_bids.iter().map(|b| b.id).collect();
                                     for bid in cloned_bids {
                                         let bid_status = match winner_ids.contains(&bid.id) {
                                             true => BidStatus::Submitted(receipt.transaction_hash),
                                             false => BidStatus::Lost
                                         };
-                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }).await?;
+                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, auction_id).await?;
                                     }
                                 }
                                 None => {

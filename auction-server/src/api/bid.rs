@@ -9,6 +9,9 @@ use {
             Bid,
         },
         state::{
+            Auction,
+            AuctionId,
+            AuctionParams,
             BidId,
             BidStatus,
             Store,
@@ -83,7 +86,7 @@ pub async fn bid_status(
 ) -> Result<Json<BidStatus>, RestError> {
     let status_data = sqlx::query!(
         // TODO: improve the call here to not cast to text
-        "SELECT status::text, tx_hash FROM bid WHERE id = $1",
+        "SELECT status::text, auction_id FROM bid WHERE id = $1",
         bid_id
     )
     .fetch_one(&store.db)
@@ -98,15 +101,17 @@ pub async fn bid_status(
             } else if status == "lost" {
                 status_json = BidStatus::Lost.into();
             } else if status == "submitted" {
-                let tx_hash = match status_data.tx_hash {
-                    Some(tx_hash) => H256::from_slice(tx_hash.as_slice()),
+                match status_data.auction_id {
+                    Some(auction_id) => {
+                        let auction_info = get_auction_info(store.clone(), auction_id).await?;
+                        status_json = BidStatus::Submitted(auction_info.params.tx_hash).into();
+                    }
                     None => {
                         return Err(RestError::BadParameters(
-                            "Transaction hash is missing".to_string(),
+                            "Submitted bid must have auction id".to_string(),
                         ));
                     }
-                };
-                status_json = BidStatus::Submitted(tx_hash).into();
+                }
             } else {
                 return Err(RestError::BadParameters("Invalid status".to_string()));
             }
@@ -117,4 +122,23 @@ pub async fn bid_status(
     }
 
     Ok(status_json)
+}
+
+pub async fn get_auction_info(
+    store: Arc<Store>,
+    auction_id: AuctionId,
+) -> Result<Auction, RestError> {
+    let auction = sqlx::query!("SELECT * FROM auction WHERE id = $1", auction_id)
+        .fetch_one(&store.db)
+        .await
+        .map_err(|_| RestError::BidNotFound)?;
+
+    Ok(Auction {
+        id:     auction.id,
+        params: AuctionParams {
+            chain_id:       auction.chain_id,
+            permission_key: auction.permission_key.into(),
+            tx_hash:        H256::from_slice(auction.tx_hash.as_ref()),
+        },
+    })
 }

@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM auction WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "conclusion_time",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 2,
+        "name": "permission_key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "chain_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "tx_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9e533a8995ff99d5ec7f0c39aad8f422455bea6b192d5b13213d64cce96391ba"
+}

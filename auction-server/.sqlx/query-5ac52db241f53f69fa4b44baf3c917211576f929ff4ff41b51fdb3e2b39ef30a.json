@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bid SET status = $1, removal_time = $2, tx_hash = $3 WHERE id = $4 AND removal_time IS NULL",
+  "query": "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
   "describe": {
     "columns": [],
     "parameters": {
@@ -17,12 +17,11 @@
             }
           }
         },
-        "Timestamp",
-        "Bytea",
+        "Uuid",
         "Uuid"
       ]
     },
     "nullable": []
   },
-  "hash": "d8a729fce70940969d6656c1afb65cf66c07d24bfa6a44fef72f309818d46b3a"
+  "hash": "5ac52db241f53f69fa4b44baf3c917211576f929ff4ff41b51fdb3e2b39ef30a"
 }

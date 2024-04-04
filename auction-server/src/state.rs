@@ -165,6 +165,7 @@ impl OpportunityStore {
 
 pub type BidId = Uuid;
 
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 #[serde(tag = "status", content = "result", rename_all = "snake_case")]
 pub enum BidStatus {
@@ -203,6 +204,22 @@ pub struct BidStatusWithId {
     #[schema(value_type = String)]
     pub id:         BidId,
     pub bid_status: BidStatus,
+}
+
+pub type AuctionId = Uuid;
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+pub struct AuctionParams {
+    pub permission_key: PermissionKey,
+    pub chain_id:       ChainId,
+    pub tx_hash:        H256,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+pub struct Auction {
+    #[schema(value_type = String)]
+    pub id:     AuctionId,
+    pub params: AuctionParams,
 }
 
 pub struct Store {
@@ -284,11 +301,24 @@ impl Store {
         Ok(())
     }
 
+    pub async fn add_auction(&self, auction_params: AuctionParams) -> anyhow::Result<AuctionId> {
+        let auction_id = Uuid::new_v4();
+        let now = OffsetDateTime::now_utc();
+        sqlx::query!("INSERT INTO auction (id, conclusion_time, permission_key, chain_id, tx_hash) VALUES ($1, $2, $3, $4, $5)",
+        auction_id,
+        PrimitiveDateTime::new(now.date(), now.time()),
+        auction_params.permission_key.to_vec(),
+        auction_params.chain_id,
+        auction_params.tx_hash.as_bytes())
+            .execute(&self.db)
+            .await?;
+        Ok(auction_id)
+    }
+
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
-        let tx_hash: Option<&[u8]> = None;
-        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, tx_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
         bid.permission_key.to_vec(),
@@ -297,7 +327,6 @@ impl Store {
         bid.target_calldata.to_vec(),
         BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
         bid.status as _,
-        tx_hash,
         )
             .execute(&self.db)
             .await.map_err(|e| {
@@ -316,25 +345,12 @@ impl Store {
     pub async fn broadcast_bid_status_and_remove(
         &self,
         update: BidStatusWithId,
+        auction_id: AuctionId,
     ) -> anyhow::Result<()> {
-        let tx_hash: Option<H256> = match update.bid_status {
-            BidStatus::Submitted(x) => Some(x),
-            BidStatus::Pending => {
-                return Err(anyhow::anyhow!(
-                    "Bid status cannot remain pending when removing a bid."
-                ));
-            }
-            BidStatus::Lost => None,
-        };
-
-        let tx_hash_bytes: Option<&[u8]> = tx_hash.as_ref().map(|x| x.as_bytes());
-
-        let now = OffsetDateTime::now_utc();
         sqlx::query!(
-            "UPDATE bid SET status = $1, removal_time = $2, tx_hash = $3 WHERE id = $4 AND removal_time IS NULL",
+            "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
             update.bid_status as _,
-            PrimitiveDateTime::new(now.date(), now.time()),
-            tx_hash_bytes,
+            auction_id,
             update.id
         )
         .execute(&self.db)

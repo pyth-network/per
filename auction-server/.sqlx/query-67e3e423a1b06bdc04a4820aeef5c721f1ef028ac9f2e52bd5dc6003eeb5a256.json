@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT status::text, tx_hash FROM bid WHERE id = $1",
+  "query": "SELECT status::text, auction_id FROM bid WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -10,8 +10,8 @@
       },
       {
         "ordinal": 1,
-        "name": "tx_hash",
-        "type_info": "Bytea"
+        "name": "auction_id",
+        "type_info": "Uuid"
       }
     ],
     "parameters": {
@@ -24,5 +24,5 @@
       true
     ]
   },
-  "hash": "d3bf77d55e359e5700ac7732c3a70eac68221a42277c60d21789e618e9cec3d8"
+  "hash": "67e3e423a1b06bdc04a4820aeef5c721f1ef028ac9f2e52bd5dc6003eeb5a256"
 }
