@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 
 import "../src/Errors.sol";
 import "../src/Structs.sol";
+import "../src/ExpressRelayEvents.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 
@@ -15,7 +16,11 @@ import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
  * ExpressRelayUnitTest is a suite that tests the ExpressRelay contract.
  * This relates to testing the ExpressRelay setter methods and multicall.
  */
-contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
+contract ExpressRelayUnitTest is
+    Test,
+    ExpressRelayTestSetup,
+    ExpressRelayEvents
+{
     function setUp() public {
         setUpWallets();
         setUpContracts();
@@ -148,6 +153,9 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     function testMulticallByRelayerEmpty() public {
         bytes memory permission = abi.encode("random permission");
         MulticallData[] memory multicallData;
+
+        vm.expectEmit(true, true, true, true, address(expressRelay));
+        emit MulticallIssued(permission);
 
         vm.prank(relayer);
         expressRelay.multicall(permission, multicallData);

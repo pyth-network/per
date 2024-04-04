@@ -5,13 +5,16 @@ import "./Errors.sol";
 import "./Structs.sol";
 import "./ExpressRelayState.sol";
 import "./ExpressRelayHelpers.sol";
+import "./ExpressRelayEvents.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 
-contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
-    event ReceivedETH(address sender, uint256 amount);
-
+contract ExpressRelay is
+    ExpressRelayHelpers,
+    ExpressRelayState,
+    ExpressRelayEvents
+{
     /**
      * @notice ExpressRelay initializer - Initializes a new ExpressRelay contract with given parameters
      *
@@ -104,6 +107,8 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
         if (feeRelayer > 0) {
             payable(state.relayer).transfer(feeRelayer);
         }
+
+        emit MulticallIssued(permissionKey);
     }
 
     /**
