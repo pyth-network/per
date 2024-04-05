@@ -28,6 +28,7 @@ use {
         },
         Json,
     },
+    ethers::signers::Signer,
     serde::{
         Deserialize,
         Serialize,
@@ -111,7 +112,7 @@ pub async fn post_opportunity(
         bidders: Default::default(),
     };
 
-    verify_opportunity(params.clone(), chain_store, store.relayer.clone())
+    verify_opportunity(params.clone(), chain_store, store.relayer.address())
         .await
         .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
 

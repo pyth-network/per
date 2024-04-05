@@ -36,6 +36,96 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expressRelay.setRelayer(newRelayer);
     }
 
+    function testAddRelayerSubwalletByRelayerPrimary() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+        address[] memory relayerSubwallets = expressRelay
+            .getRelayerSubwallets();
+
+        assertAddressInArray(subwallet, relayerSubwallets, true);
+    }
+
+    function testAddRelayerSubwalletByNonRelayerPrimaryFail() public {
+        address subwallet1 = makeAddr("subwallet1");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet1);
+
+        address subwallet2 = makeAddr("subwallet2");
+        vm.expectRevert(Unauthorized.selector);
+        vm.prank(subwallet1);
+        expressRelay.addRelayerSubwallet(subwallet2);
+    }
+
+    function testAddDuplicateRelayerSubwalletByRelayerPrimaryFail() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+        vm.expectRevert(DuplicateRelayerSubwallet.selector);
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+    }
+
+    function testRemoveRelayerSubwalletByRelayerPrimary() public {
+        address subwallet1 = makeAddr("subwallet1");
+        address subwallet2 = makeAddr("subwallet2");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet1);
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet2);
+        address[] memory relayerSubwalletsPre = expressRelay
+            .getRelayerSubwallets();
+
+        vm.prank(relayer);
+        expressRelay.removeRelayerSubwallet(subwallet1);
+        address[] memory relayerSubwalletsPost = expressRelay
+            .getRelayerSubwallets();
+
+        assertEq(relayerSubwalletsPre.length, relayerSubwalletsPost.length + 1);
+        assertAddressInArray(subwallet1, relayerSubwalletsPost, false);
+        assertAddressInArray(subwallet2, relayerSubwalletsPost, true);
+    }
+
+    function testRemoveRelayerSubwalletByNonRelayerPrimaryFail() public {
+        address subwallet1 = makeAddr("subwallet1");
+        address subwallet2 = makeAddr("subwallet2");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet1);
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet2);
+
+        vm.expectRevert(Unauthorized.selector);
+        vm.prank(subwallet1);
+        expressRelay.removeRelayerSubwallet(subwallet2);
+    }
+
+    function testRemoveNonExistentRelayerSubwalletByRelayerFail() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+
+        address nonExistentSubwallet = makeAddr("nonExistentSubwallet");
+        vm.expectRevert(RelayerSubwalletNotFound.selector);
+        vm.prank(relayer);
+        expressRelay.removeRelayerSubwallet(nonExistentSubwallet);
+    }
+
+    function testChangeRelayerAfterAddingRelayerSubwallet() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+        address[] memory expectedSubwallets = new address[](1);
+        expectedSubwallets[0] = subwallet;
+        assertEq(expressRelay.getRelayerSubwallets(), expectedSubwallets);
+
+        address newRelayer = makeAddr("newRelayer");
+        vm.prank(admin);
+        expressRelay.setRelayer(newRelayer);
+
+        assertEq(expressRelay.getRelayer(), newRelayer);
+        assertEq(expressRelay.getRelayerSubwallets(), new address[](0));
+    }
+
     function testSetFeeProtocolDefaultByAdmin() public {
         uint256 feeSplitProtocolDefaultPre = expressRelay
             .getFeeProtocolDefault();
@@ -144,174 +234,32 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expressRelay.setFeeRelayer(0);
     }
 
-    function testMulticallEmpty() public {
+    function testMulticallByRelayerEmpty() public {
         bytes memory permission = abi.encode("random permission");
+        MulticallData[] memory multicallData;
 
-        address[] memory contractsEmpty;
-        bytes[] memory dataEmpty;
-        BidInfo[] memory bidInfosEmpty;
-
-        address submitter = address(0xdef);
-        uint256 nonce = expressRelay.getNonce(submitter);
-
-        (
-            MulticallData[] memory multicallData,
-            bytes memory signatureRelayer
-        ) = getMulticallData(
-                contractsEmpty,
-                dataEmpty,
-                bidInfosEmpty,
-                permission,
-                nonce,
-                relayerSk
-            );
-
-        vm.prank(submitter);
-        expressRelay.multicall(
-            permission,
-            multicallData,
-            nonce,
-            signatureRelayer
-        );
+        vm.prank(relayer);
+        expressRelay.multicall(permission, multicallData);
     }
 
-    function testMulticallInvalidSignatureFail() public {
+    function testMulticallByRelayerSubwalletEmpty() public {
+        address subwallet = makeAddr("subwallet");
+        vm.prank(relayer);
+        expressRelay.addRelayerSubwallet(subwallet);
+
         bytes memory permission = abi.encode("random permission");
+        MulticallData[] memory multicallData;
 
-        address[] memory contractsEmpty;
-        bytes[] memory dataEmpty;
-        BidInfo[] memory bidInfosEmpty;
-
-        address submitter = address(0xdef);
-        uint256 nonce = expressRelay.getNonce(submitter);
-
-        (MulticallData[] memory multicallData, ) = getMulticallData(
-            contractsEmpty,
-            dataEmpty,
-            bidInfosEmpty,
-            permission,
-            nonce,
-            relayerSk
-        );
-
-        // invalid signature
-        bytes memory signatureRelayer = abi.encodePacked(
-            bytes32(0),
-            bytes32(0),
-            uint8(0)
-        );
-
-        vm.expectRevert(InvalidRelayerSignature.selector);
-        vm.prank(submitter);
-        expressRelay.multicall(
-            permission,
-            multicallData,
-            nonce,
-            signatureRelayer
-        );
+        vm.prank(subwallet);
+        expressRelay.multicall(permission, multicallData);
     }
 
-    function testMulticallNonceLowFail() public {
+    function testMulticallByNonRelayerFail() public {
         bytes memory permission = abi.encode("random permission");
+        MulticallData[] memory multicallData;
 
-        address[] memory contractsEmpty;
-        bytes[] memory dataEmpty;
-        BidInfo[] memory bidInfosEmpty;
-
-        address submitter = address(0xdef);
-        uint256 nonce = expressRelay.getNonce(submitter);
-
-        (
-            MulticallData[] memory multicallData,
-            bytes memory signatureRelayer
-        ) = getMulticallData(
-                contractsEmpty,
-                dataEmpty,
-                bidInfosEmpty,
-                permission,
-                nonce,
-                relayerSk
-            );
-
-        vm.prank(submitter);
-        expressRelay.multicall(
-            permission,
-            multicallData,
-            nonce,
-            signatureRelayer
-        );
-
-        vm.expectRevert(WrongNonce.selector);
-        vm.prank(submitter);
-        expressRelay.multicall(
-            permission,
-            multicallData,
-            nonce,
-            signatureRelayer
-        );
-    }
-
-    function testMulticallNonceHighFail() public {
-        bytes memory permission = abi.encode("random permission");
-
-        address[] memory contractsEmpty;
-        bytes[] memory dataEmpty;
-        BidInfo[] memory bidInfosEmpty;
-
-        address submitter = address(0xdef);
-        uint256 nonce = expressRelay.getNonce(submitter) + 1;
-
-        (
-            MulticallData[] memory multicallData,
-            bytes memory signatureRelayer
-        ) = getMulticallData(
-                contractsEmpty,
-                dataEmpty,
-                bidInfosEmpty,
-                permission,
-                nonce,
-                relayerSk
-            );
-
-        vm.expectRevert(WrongNonce.selector);
-        vm.prank(submitter);
-        expressRelay.multicall(
-            permission,
-            multicallData,
-            nonce,
-            signatureRelayer
-        );
-    }
-
-    function testMulticallNonceMismatchSignatureFail() public {
-        bytes memory permission = abi.encode("random permission");
-
-        address[] memory contractsEmpty;
-        bytes[] memory dataEmpty;
-        BidInfo[] memory bidInfosEmpty;
-
-        address submitter = address(0xdef);
-        uint256 nonce = expressRelay.getNonce(submitter);
-
-        (
-            MulticallData[] memory multicallData,
-            bytes memory signatureRelayer
-        ) = getMulticallData(
-                contractsEmpty,
-                dataEmpty,
-                bidInfosEmpty,
-                permission,
-                nonce,
-                relayerSk
-            );
-
-        vm.expectRevert(InvalidRelayerSignature.selector);
-        vm.prank(submitter);
-        expressRelay.multicall(
-            permission,
-            multicallData,
-            nonce + 1,
-            signatureRelayer
-        );
+        vm.expectRevert(Unauthorized.selector);
+        vm.prank(address(0xbad));
+        expressRelay.multicall(permission, multicallData);
     }
 }

@@ -19,10 +19,7 @@ use {
         Result,
     },
     ethers::{
-        abi::{
-            self,
-            Token,
-        },
+        abi,
         contract::{
             abigen,
             ContractError,
@@ -48,16 +45,12 @@ use {
         },
         types::{
             transaction::eip2718::TypedTransaction,
+            Address,
             Bytes,
             TransactionReceipt,
             TransactionRequest,
             H160,
-            H256,
             U256,
-        },
-        utils::{
-            hex::FromHex,
-            keccak256,
         },
     },
     serde::{
@@ -108,74 +101,26 @@ impl From<(H160, Bytes, U256)> for MulticallData {
     }
 }
 
-pub async fn get_simulation_call(
-    relayer: LocalWallet,
+pub fn get_simulation_call(
+    relayer: Address,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission_key: Bytes,
     multicall_data: Vec<MulticallData>,
-) -> Result<FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>>, SimulationError>
-{
+) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
     let express_relay_contract =
         ExpressRelayContract::new(chain_config.express_relay_contract, client);
 
-    let multicall_data_token = Token::Array(
-        multicall_data
-            .iter()
-            .map(|x| {
-                Token::Tuple(vec![
-                    Token::Address(x.target_contract),
-                    Token::Bytes(x.target_calldata.to_vec()),
-                    Token::Uint(x.bid_amount),
-                ])
-            })
-            .collect(),
-    );
-    let nonce = express_relay_contract
-        .get_nonce(relayer.address())
-        .await
-        .map_err(|err| {
-            SimulationError::ContractError(ContractError::ProviderError {
-                e: ProviderError::CustomError(err.to_string()),
-            })
-        })?;
-    let encoded = ethers::abi::encode(&[
-        Token::Bytes(permission_key.to_vec()),
-        multicall_data_token,
-        Token::Uint(nonce),
-    ]);
-    let digest = H256(keccak256(encoded));
-    let relayer_signature =
-        relayer
-            .sign_hash(digest)
-            .map_err(|err| SimulationError::SignatureError {
-                reason: err.to_string(),
-            })?;
-    let relayer_signature_bytes =
-        Bytes::from_hex(relayer_signature.to_string()).map_err(|err| {
-            SimulationError::SignatureError {
-                reason: err.to_string(),
-            }
-        })?;
-
-    let call = express_relay_contract
-        .multicall(
-            permission_key,
-            multicall_data,
-            nonce,
-            relayer_signature_bytes,
-        )
-        .from(relayer.address());
-
-    Ok(call)
+    express_relay_contract
+        .multicall(permission_key, multicall_data)
+        .from(relayer)
 }
 
 
 pub enum SimulationError {
     LogicalError { result: Bytes, reason: String },
     ContractError(ContractError<Provider<Http>>),
-    SignatureError { reason: String },
 }
 
 
@@ -190,14 +135,13 @@ pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), 
     Ok(())
 }
 pub async fn simulate_bids(
-    relayer: LocalWallet,
+    relayer: Address,
     provider: Provider<Http>,
     chain_config: EthereumConfig,
     permission: Bytes,
     multicall_data: Vec<MulticallData>,
 ) -> Result<(), SimulationError> {
-    let call =
-        get_simulation_call(relayer, provider, chain_config, permission, multicall_data).await?;
+    let call = get_simulation_call(relayer, provider, chain_config, permission, multicall_data);
     match call.await {
         Ok(results) => {
             evaluate_simulation_results(results)?;
@@ -245,49 +189,14 @@ pub async fn submit_bids(
         use_legacy_tx: chain_config.legacy_tx,
     };
     let client = Arc::new(TransformerMiddleware::new(
-        SignerMiddleware::new(provider, signer_wallet.clone().with_chain_id(network_id)),
+        SignerMiddleware::new(provider, signer_wallet.with_chain_id(network_id)),
         transformer,
     ));
 
     let express_relay_contract =
         SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
 
-    let multicall_data_token = Token::Array(
-        multicall_data
-            .iter()
-            .map(|x| {
-                Token::Tuple(vec![
-                    Token::Address(x.target_contract),
-                    Token::Bytes(x.target_calldata.to_vec()),
-                    Token::Uint(x.bid_amount),
-                ])
-            })
-            .collect(),
-    );
-    // TODO: replace with wallet submitting this transaction
-    let nonce = express_relay_contract
-        .get_nonce(signer_wallet.address())
-        .await
-        .map_err(|err| {
-            SubmissionError::ProviderError(ProviderError::CustomError(err.to_string()))
-        })?;
-    let encoded = ethers::abi::encode(&[
-        Token::Bytes(permission.to_vec()),
-        multicall_data_token,
-        Token::Uint(nonce),
-    ]);
-    let digest = H256(keccak256(encoded));
-    let relayer_signature = signer_wallet.clone().sign_hash(digest).map_err(|err| {
-        SubmissionError::ProviderError(ProviderError::CustomError(err.to_string()))
-    })?;
-    let relayer_signature_bytes: Bytes = relayer_signature.to_vec().into();
-
-    let call = express_relay_contract.multicall(
-        permission,
-        multicall_data,
-        nonce,
-        relayer_signature_bytes,
-    );
+    let call = express_relay_contract.multicall(permission, multicall_data);
     let mut gas_estimate = call
         .estimate_gas()
         .await
@@ -395,9 +304,8 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         .chains
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
-
     let call = simulate_bids(
-        store.relayer.clone(),
+        store.relayer.address(),
         chain_store.provider.clone(),
         chain_store.config.clone(),
         bid.permission_key.clone(),
@@ -423,10 +331,6 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
                 ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 _ => Err(RestError::BadParameters(format!("Error: {}", e))),
             },
-            SimulationError::SignatureError { reason } => Err(RestError::SimulationError {
-                result: Bytes::default(),
-                reason,
-            }),
         };
     };
 

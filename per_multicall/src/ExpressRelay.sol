@@ -5,12 +5,11 @@ import "./Errors.sol";
 import "./Structs.sol";
 import "./ExpressRelayState.sol";
 import "./ExpressRelayHelpers.sol";
-import "./SigVerify.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 
-contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
+contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
     event ReceivedETH(address sender, uint256 amount);
 
     /**
@@ -29,6 +28,7 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
     ) {
         state.admin = admin;
         state.relayer = relayer;
+        state.relayerSubwallets = new address[](0);
 
         validateFeeSplit(feeSplitProtocolDefault);
         state.feeSplitProtocolDefault = feeSplitProtocolDefault;
@@ -45,18 +45,13 @@ contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState, SigVerify {
      */
     function multicall(
         bytes calldata permissionKey,
-        MulticallData[] calldata multicallData,
-        uint256 nonce,
-        bytes calldata signature
-    ) public payable returns (MulticallStatus[] memory multicallStatuses) {
-        bytes memory digest = abi.encode(permissionKey, multicallData, nonce);
-        if (!verifyCalldata(state.relayer, digest, signature)) {
-            revert InvalidRelayerSignature();
-        }
-        if (state.nonces[msg.sender] != nonce) {
-            revert WrongNonce();
-        }
-        state.nonces[msg.sender] += 1;
+        MulticallData[] calldata multicallData
+    )
+        public
+        payable
+        onlyRelayer
+        returns (MulticallStatus[] memory multicallStatuses)
+    {
         if (permissionKey.length < 20) {
             revert InvalidPermission();
         }

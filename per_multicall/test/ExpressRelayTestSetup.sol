@@ -63,7 +63,6 @@ contract ExpressRelayTestSetup is
     int32 constant tokenExpo = 0;
 
     address relayer;
-    uint256 relayerSk;
     address admin;
     address searcherAOwnerAddress;
     uint256 searcherAOwnerSk;
@@ -115,7 +114,7 @@ contract ExpressRelayTestSetup is
      * Sets up express relay operator, searcher, initial token vault deployer, and initial vault depositor wallets
      */
     function setUpWallets() public {
-        (relayer, relayerSk) = makeAddrAndKey("relayer");
+        (relayer, ) = makeAddrAndKey("relayer");
         admin = makeAddr("admin");
 
         (searcherAOwnerAddress, searcherAOwnerSk) = makeAddrAndKey("searcherA");
@@ -561,18 +560,8 @@ contract ExpressRelayTestSetup is
     function getMulticallData(
         address[] memory contracts,
         bytes[] memory data,
-        BidInfo[] memory bidInfos,
-        bytes memory permission,
-        uint256 nonce,
-        uint256 relayerSecretKey
-    )
-        public
-        pure
-        returns (
-            MulticallData[] memory multicallData,
-            bytes memory signatureRelayer
-        )
-    {
+        BidInfo[] memory bidInfos
+    ) public pure returns (MulticallData[] memory multicallData) {
         require(
             (contracts.length == data.length) &&
                 (data.length == bidInfos.length),
@@ -588,13 +577,6 @@ contract ExpressRelayTestSetup is
                 bidAmounts[i]
             );
         }
-
-        signatureRelayer = createRelayerSignature(
-            permission,
-            multicallData,
-            nonce,
-            relayerSecretKey
-        );
     }
 
     /**

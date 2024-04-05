@@ -8,19 +8,6 @@ import {Test} from "forge-std/Test.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 contract Signatures is Test, SigVerify {
-    function createRelayerSignature(
-        bytes memory permission,
-        MulticallData[] memory multicallData,
-        uint256 nonce,
-        uint256 relayerSk
-    ) public pure returns (bytes memory) {
-        bytes32 calldataHash = keccak256(
-            abi.encode(permission, multicallData, nonce)
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(relayerSk, calldataHash);
-        return abi.encodePacked(r, s, v);
-    }
-
     function createSearcherSignature(
         uint256 dataNumber,
         uint256 bid,

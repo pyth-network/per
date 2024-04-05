@@ -7,12 +7,6 @@ error Unauthorized();
 // Signature: 0x868a64de
 error InvalidPermission();
 
-// Signature: 0x8186594e
-error InvalidRelayerSignature();
-
-// Signature: 0xd9c6386f
-error WrongNonce();
-
 // Signature: 0x8f4450b5
 error InvalidExecutorSignature();
 
@@ -51,3 +45,9 @@ error InvalidMagicValue();
 
 // Signature: 0x0601f697
 error InvalidFeeSplit();
+
+// Signature: 0xb40d37c3
+error DuplicateRelayerSubwallet();
+
+// Signature: 0xac4d92b3
+error RelayerSubwalletNotFound();
