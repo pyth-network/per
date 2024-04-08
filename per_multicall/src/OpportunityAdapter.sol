@@ -13,7 +13,6 @@ abstract contract OpportunityAdapter is SigVerify {
     address _admin;
     address _expressRelay;
     address _weth;
-    mapping(bytes => bool) _signatureUsed;
 
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
@@ -21,6 +20,7 @@ abstract contract OpportunityAdapter is SigVerify {
      * @param admin: address of admin of opportunity adapter
      * @param expressRelay: address of express relay
      * @param weth: address of WETH contract
+     * @param name: name of the opportunity adapter
      */
     function _initialize(
         address admin,
@@ -30,6 +30,7 @@ abstract contract OpportunityAdapter is SigVerify {
         _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
+        SigVerify("OpportunityAdapter", "0");
     }
 
     /**
@@ -80,7 +81,8 @@ abstract contract OpportunityAdapter is SigVerify {
             revert Unauthorized();
         }
 
-        bool validSignature = verifyCalldata(
+        // If the signature is not valid or expired, this will revert
+        verifyCalldata(
             params.executor,
             abi.encode(
                 params.sellTokens,
@@ -91,17 +93,9 @@ abstract contract OpportunityAdapter is SigVerify {
                 params.bidAmount,
                 params.validUntil
             ),
-            params.signature
+            params.signature,
+            params.validUntil
         );
-        if (!validSignature) {
-            revert InvalidExecutorSignature();
-        }
-        if (block.timestamp > params.validUntil) {
-            revert ExpiredSignature();
-        }
-        if (_signatureUsed[params.signature]) {
-            revert SignatureAlreadyUsed();
-        }
     }
 
     function _prepareSellTokens(ExecutionParams memory params) internal {
@@ -183,7 +177,7 @@ abstract contract OpportunityAdapter is SigVerify {
         _callTargetContract(params);
         _validateAndTransferBuyTokens(params, buyTokensBalancesBeforeCall);
         _settleBid(params);
-        _signatureUsed[params.signature] = true;
+        _useSignature(params.signature);
     }
 
     receive() external payable {}

@@ -69,7 +69,7 @@ contract ExpressRelayUpgradable is
         _authorizeUpgrade(newImplementation);
         _upgradeToAndCallUUPS(newImplementation, new bytes(0), false);
 
-        magicCheck();
+        _magicCheck();
 
         emit ContractUpgraded(oldImplementation, _getImplementation());
     }
@@ -82,12 +82,12 @@ contract ExpressRelayUpgradable is
         _authorizeUpgrade(newImplementation);
         _upgradeToAndCallUUPS(newImplementation, data, true);
 
-        magicCheck();
+        _magicCheck();
 
         emit ContractUpgraded(oldImplementation, _getImplementation());
     }
 
-    function magicCheck() internal view {
+    function _magicCheck() internal view {
         // Calling a method using `this.<method>` will cause a contract call that will use
         // the new contract. This call will fail if the method does not exists or the magic
         // is different.
