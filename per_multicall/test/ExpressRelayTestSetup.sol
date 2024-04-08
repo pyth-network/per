@@ -456,6 +456,7 @@ contract ExpressRelayTestSetup is
      */
     function getMulticallInfoSearcherContracts(
         uint256 vaultNumber,
+        address[] memory contracts,
         BidInfo[] memory bidInfos
     ) public returns (bytes memory permission, bytes[] memory data) {
         vm.roll(2);
@@ -479,6 +480,8 @@ contract ExpressRelayTestSetup is
         for (uint i = 0; i < bidInfos.length; i++) {
             // create searcher signature
             bytes memory signatureSearcher = createSearcherSignature(
+                contracts[i],
+                bidInfos[i].executor,
                 vaultNumber,
                 bidInfos[i].bid,
                 bidInfos[i].validUntil,
@@ -545,6 +548,8 @@ contract ExpressRelayTestSetup is
             // create liquidation call params struct
             ExecutionParams
                 memory executionParams = createAndSignExecutionParams(
+                    address(opportunityAdapter),
+                    bidInfos[i].executor,
                     sellTokens,
                     buyTokens,
                     contractAddress,
@@ -619,7 +624,7 @@ contract ExpressRelayTestSetup is
         uint256 balancePost,
         BidInfo[] memory bidInfos,
         MulticallStatus[] memory multicallStatuses
-    ) public {
+    ) public view {
         require(
             bidInfos.length == multicallStatuses.length,
             "bidInfos and multicallStatuses must have the same length"

@@ -10,7 +10,7 @@ contract MulticallHelpers is Test, TestParsingHelpers {
     function assertFailedMulticall(
         MulticallStatus memory status,
         string memory reason
-    ) internal {
+    ) internal pure {
         // assert the multicall revert reason matches the expected reason
         assertEq(status.multicallRevertReason, reason);
     }
@@ -18,7 +18,7 @@ contract MulticallHelpers is Test, TestParsingHelpers {
     function assertFailedExternal(
         MulticallStatus memory status,
         bytes4 errorSelector
-    ) internal {
+    ) internal pure {
         assertEq(bytes4(status.externalResult), errorSelector);
     }
 

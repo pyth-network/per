@@ -116,7 +116,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
+        ) = getMulticallInfoSearcherContracts(vaultNumber, contracts, bidInfos);
 
         MulticallData[] memory multicallData = getMulticallData(
             contracts,
@@ -183,7 +183,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
+        ) = getMulticallInfoSearcherContracts(vaultNumber, contracts, bidInfos);
 
         MulticallData[] memory multicallData = getMulticallData(
             contracts,
@@ -263,7 +263,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
+        ) = getMulticallInfoSearcherContracts(vaultNumber, contracts, bidInfos);
 
         MulticallData[] memory multicallData = getMulticallData(
             contracts,
@@ -341,7 +341,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
+        ) = getMulticallInfoSearcherContracts(vaultNumber, contracts, bidInfos);
 
         MulticallData[] memory multicallData = getMulticallData(
             contracts,
@@ -388,7 +388,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             bytes[] memory data
-        ) = getMulticallInfoSearcherContracts(vaultNumber, bidInfos);
+        ) = getMulticallInfoSearcherContracts(vaultNumber, contracts, bidInfos);
 
         // mismatched bid--multicall expects higher bid than what is paid out by the searcher
         bidInfos[0].bid = bidInfos[0].bid + 1;

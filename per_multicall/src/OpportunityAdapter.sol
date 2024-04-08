@@ -14,8 +14,6 @@ abstract contract OpportunityAdapter is SigVerify {
     address _expressRelay;
     address _weth;
 
-    constructor() SigVerify("OpportunityAdapter", "0") {}
-
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
      *

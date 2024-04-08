@@ -26,10 +26,7 @@ contract SearcherVault is SigVerify {
      * @param expressRelayAddress: address of express relay
      * @param protocolAddress: address of token vault protocol contract
      */
-    constructor(
-        address expressRelayAddress,
-        address protocolAddress
-    ) SigVerify("SearcherVault", "0") {
+    constructor(address expressRelayAddress, address protocolAddress) {
         owner = msg.sender;
         expressRelay = expressRelayAddress;
         tokenVault = protocolAddress;
