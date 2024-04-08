@@ -14,13 +14,14 @@ abstract contract OpportunityAdapter is SigVerify {
     address _expressRelay;
     address _weth;
 
+    constructor() SigVerify("OpportunityAdapter", "0") {}
+
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
      *
      * @param admin: address of admin of opportunity adapter
      * @param expressRelay: address of express relay
      * @param weth: address of WETH contract
-     * @param name: name of the opportunity adapter
      */
     function _initialize(
         address admin,
@@ -30,7 +31,6 @@ abstract contract OpportunityAdapter is SigVerify {
         _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
-        SigVerify("OpportunityAdapter", "0");
     }
 
     /**
@@ -82,7 +82,7 @@ abstract contract OpportunityAdapter is SigVerify {
         }
 
         // If the signature is not valid or expired, this will revert
-        verifyCalldata(
+        _verifyCalldata(
             params.executor,
             abi.encode(
                 params.sellTokens,
@@ -165,6 +165,7 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
+<<<<<<< HEAD
     function executeOpportunity(ExecutionParams memory params) public payable {
         _verifyParams(params);
         // get balances of buy tokens before transferring sell tokens since there might be overlaps

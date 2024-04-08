@@ -7,13 +7,14 @@ import "openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
 import "./Errors.sol";
 
 contract SigVerify is EIP712 {
+    mapping(bytes => bool) _signatureUsed;
+    mapping(address => uint256) _nonces;
+
     // Signatures from different versions are not compatible.
     constructor(
         string memory name,
         string memory version
     ) EIP712(name, version) {}
-
-    mapping(bytes => bool) _signatureUsed;
 
     function _verifyCalldata(
         address _signer,
@@ -25,11 +26,11 @@ contract SigVerify is EIP712 {
             keccak256(
                 abi.encode(
                     keccak256(
-                        "verifyCalldata(address _signer, bytes memory _data, uint256 nonce, uint256 deadline)"
+                        "_verifyCalldata(address _signer, bytes memory _data, uint256 nonce, uint256 deadline)"
                     ),
                     _signer,
                     _data,
-                    nonces[_signer],
+                    _nonces[_signer],
                     deadline
                 )
             )
@@ -43,11 +44,11 @@ contract SigVerify is EIP712 {
             revert ExpiredSignature();
         }
 
-        if (_signatureUsed[params.signature] == true) {
+        if (_signatureUsed[signature] == true) {
             revert SignatureAlreadyUsed();
         }
 
-        nonces[_signer]++;
+        _nonces[_signer]++;
     }
 
     function _useSignature(bytes memory signature) internal {

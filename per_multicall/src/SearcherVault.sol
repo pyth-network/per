@@ -20,19 +20,19 @@ contract SearcherVault is SigVerify {
     address public immutable owner;
     address public immutable tokenVault;
 
-    mapping(bytes => bool) _signatureUsed;
-
     /**
      * @notice Searcher constructor - Initializes a new searcher contract with given parameters around token vault protocol
      *
      * @param expressRelayAddress: address of express relay
      * @param protocolAddress: address of token vault protocol contract
      */
-    constructor(address expressRelayAddress, address protocolAddress) {
+    constructor(
+        address expressRelayAddress,
+        address protocolAddress
+    ) SigVerify("SearcherVault", "0") {
         owner = msg.sender;
         expressRelay = expressRelayAddress;
         tokenVault = protocolAddress;
-        SigVerify("SearcherVault", "0");
     }
 
     /**

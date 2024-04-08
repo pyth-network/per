@@ -8,6 +8,8 @@ import {Test} from "forge-std/Test.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 contract Signatures is Test, SigVerify {
+    constructor() SigVerify("Signatures", "0") {}
+
     function createSearcherSignature(
         uint256 dataNumber,
         uint256 bid,
