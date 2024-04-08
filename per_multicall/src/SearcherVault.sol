@@ -32,6 +32,7 @@ contract SearcherVault is SigVerify {
         owner = msg.sender;
         expressRelay = expressRelayAddress;
         tokenVault = protocolAddress;
+        SigVerify("SearcherVault", "0");
     }
 
     /**
@@ -55,20 +56,13 @@ contract SearcherVault is SigVerify {
         }
 
         if (msg.sender == expressRelay) {
-            bool validSignatureSearcher = verifyCalldata(
+            // If the signature is not valid or expired, this will revert
+            _verifyCalldata(
                 owner,
                 abi.encode(vaultId, bid, validUntil),
-                signatureSearcher
+                signatureSearcher,
+                validUntil
             );
-            if (!validSignatureSearcher) {
-                revert InvalidSearcherSignature();
-            }
-            if (block.timestamp > validUntil) {
-                revert ExpiredSignature();
-            }
-            if (_signatureUsed[signatureSearcher]) {
-                revert SignatureAlreadyUsed();
-            }
         }
 
         address payable vaultContract = payable(tokenVault);
@@ -90,7 +84,7 @@ contract SearcherVault is SigVerify {
         }
 
         // mark signature as used
-        _signatureUsed[signatureSearcher] = true;
+        _useSignature(signatureSearcher);
     }
 
     function withdrawEth(uint256 amount) public {
