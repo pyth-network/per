@@ -142,7 +142,7 @@ pub async fn post_opportunity(
 
 #[derive(Serialize, Deserialize, IntoParams)]
 pub struct ChainIdQueryParams {
-    #[param(example = "sepolia", value_type = Option < String >)]
+    #[param(example = "op_sepolia", value_type = Option < String >)]
     chain_id: Option<ChainId>,
 }
 

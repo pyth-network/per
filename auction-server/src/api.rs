@@ -20,6 +20,7 @@ use {
             SHOULD_EXIT,
         },
         state::{
+            AuctionParams,
             BidStatus,
             BidStatusWithId,
             OpportunityParams,
@@ -62,6 +63,7 @@ async fn root() -> String {
     format!("Express Relay Auction Server API {}", crate_version!())
 }
 
+pub(crate) mod auction;
 mod bid;
 pub(crate) mod opportunity;
 pub(crate) mod ws;
@@ -75,7 +77,9 @@ pub enum RestError {
     InvalidChainId,
     /// The simulation failed
     SimulationError { result: Bytes, reason: String },
-    /// The order was not found
+    /// The auction was not found
+    AuctionNotFound,
+    /// The opportunity was not found
     OpportunityNotFound,
     /// The bid was not found
     BidNotFound,
@@ -100,6 +104,10 @@ impl RestError {
             RestError::SimulationError { result, reason } => (
                 StatusCode::BAD_REQUEST,
                 format!("Simulation failed: {} ({})", result, reason),
+            ),
+            RestError::AuctionNotFound => (
+                StatusCode::NOT_FOUND,
+                "Auction with the specified id was not found".to_string(),
             ),
             RestError::OpportunityNotFound => (
                 StatusCode::NOT_FOUND,
@@ -144,10 +152,12 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
+    auction::get_auctions,
     ),
     components(
     schemas(
     APIResponse,
+    AuctionParams,
     Bid,
     BidStatus,
     BidStatusWithId,
@@ -169,6 +179,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ErrorBodyResponse,
     OpportunityParamsWithMetadata,
     BidResult,
+    AuctionParams
     ),
     ),
     tags(
@@ -189,6 +200,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
             "/v1/opportunities/:opportunity_id/bids",
             post(opportunity::opportunity_bid),
         )
+        .route("/v1/auctions/:permission_key", get(auction::get_auctions))
         .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())

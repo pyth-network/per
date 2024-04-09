@@ -301,7 +301,7 @@ pub struct Bid {
     #[schema(example = "0xdeadbeef", value_type = String)]
     pub permission_key:  Bytes,
     /// The chain id to bid on.
-    #[schema(example = "sepolia", value_type = String)]
+    #[schema(example = "op_sepolia", value_type = String)]
     pub chain_id:        ChainId,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]

@@ -101,7 +101,7 @@ pub async fn bid_status(
             } else if status == "lost" {
                 match status_data.auction_id {
                     Some(auction_id) => {
-                        let auction_info = get_auction_info(store.clone(), auction_id).await?;
+                        let auction_info = get_auction_with_id(store.clone(), auction_id).await?;
                         status_json = BidStatus::Lost(auction_info.params.tx_hash).into();
                     }
                     None => {
@@ -113,7 +113,7 @@ pub async fn bid_status(
             } else if status == "submitted" {
                 match status_data.auction_id {
                     Some(auction_id) => {
-                        let auction_info = get_auction_info(store.clone(), auction_id).await?;
+                        let auction_info = get_auction_with_id(store.clone(), auction_id).await?;
                         status_json = BidStatus::Submitted(auction_info.params.tx_hash).into();
                     }
                     None => {
@@ -134,7 +134,8 @@ pub async fn bid_status(
     Ok(status_json)
 }
 
-pub async fn get_auction_info(
+// TODO: move this to auction.rs
+pub async fn get_auction_with_id(
     store: Arc<Store>,
     auction_id: AuctionId,
 ) -> Result<Auction, RestError> {

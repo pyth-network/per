@@ -95,7 +95,7 @@ pub struct OpportunityParamsV1 {
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
     pub permission_key:    Bytes,
     /// The chain id where the opportunity will be executed.
-    #[schema(example = "sepolia", value_type = String)]
+    #[schema(example = "op_sepolia", value_type = String)]
     pub chain_id:          ChainId,
     /// The contract address to call for execution of the opportunity.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
@@ -175,6 +175,7 @@ pub enum BidStatus {
     #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
     Submitted(H256),
     /// The bid lost the auction, which concluded with the transaction with the given hash
+    #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
     Lost(H256),
 }
 
@@ -208,14 +209,17 @@ pub struct BidStatusWithId {
 
 pub type AuctionId = Uuid;
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct AuctionParams {
+    #[schema(example = "0xdeadbeefcafe", value_type = String)]
     pub permission_key: PermissionKey,
+    #[schema(example = "op_sepolia", value_type = String)]
     pub chain_id:       ChainId,
+    #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
     pub tx_hash:        H256,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct Auction {
     #[schema(value_type = String)]
     pub id:     AuctionId,
