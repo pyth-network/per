@@ -7,34 +7,23 @@ import "openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
 import "./Errors.sol";
 
 contract SigVerify is EIP712 {
-    bytes32 public constant EIP712_SIGN_TYPEHASH =
-        keccak256(
-            bytes(
-                "_verifyCallData(address _signer,bytes memory _data,uint256 nonce,uint256 deadline)"
-            )
-        );
     mapping(bytes => bool) _signatureUsed;
-    mapping(address => uint256) _nonces;
 
     // Signatures from different versions are not compatible.
-    constructor() EIP712("SigVerify", "1") {}
+    constructor(
+        string memory name,
+        string memory version
+    ) EIP712(name, version) {}
 
-    function _verifyCalldata(
+    function verifyCalldata(
+        bytes memory typeHash,
         address _signer,
         bytes memory _data,
         bytes memory signature,
         uint256 deadline
-    ) internal {
+    ) internal view {
         bytes32 digest = _hashTypedDataV4(
-            keccak256(
-                abi.encode(
-                    EIP712_SIGN_TYPEHASH,
-                    _signer,
-                    _data,
-                    _nonces[_signer],
-                    deadline
-                )
-            )
+            keccak256(abi.encode(keccak256(typeHash), _signer, _data, deadline))
         );
         address signer = ECDSA.recover(digest, signature);
 
@@ -49,8 +38,6 @@ contract SigVerify is EIP712 {
         if (_signatureUsed[signature] == true) {
             revert SignatureAlreadyUsed();
         }
-
-        _nonces[_signer]++;
     }
 
     function _useSignature(bytes memory signature) internal {

@@ -26,7 +26,10 @@ contract SearcherVault is SigVerify {
      * @param expressRelayAddress: address of express relay
      * @param protocolAddress: address of token vault protocol contract
      */
-    constructor(address expressRelayAddress, address protocolAddress) {
+    constructor(
+        address expressRelayAddress,
+        address protocolAddress
+    ) SigVerify("Searcher", "1") {
         owner = msg.sender;
         expressRelay = expressRelayAddress;
         tokenVault = protocolAddress;
@@ -54,7 +57,8 @@ contract SearcherVault is SigVerify {
 
         if (msg.sender == expressRelay) {
             // If the signature is not valid or expired, this will revert
-            _verifyCalldata(
+            verifyCalldata(
+                "Liquidation(uint256 vaultId,uint256 bid,uint256 validUntil)",
                 owner,
                 abi.encode(vaultId, bid, validUntil),
                 signatureSearcher,

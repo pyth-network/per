@@ -10,6 +10,9 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 abstract contract OpportunityAdapter is SigVerify {
+    // TODO make sure it works
+    constructor() SigVerify("OpportunityAdapter", "1") {}
+
     address _admin;
     address _expressRelay;
     address _weth;
@@ -80,7 +83,8 @@ abstract contract OpportunityAdapter is SigVerify {
         }
 
         // If the signature is not valid or expired, this will revert
-        _verifyCalldata(
+        verifyCalldata(
+            "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)",
             params.executor,
             abi.encode(
                 params.sellTokens,

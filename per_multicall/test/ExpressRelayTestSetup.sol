@@ -23,7 +23,8 @@ import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-import "./helpers/Signatures.sol";
+import "./helpers/Signatures/SearcherSignature.sol";
+import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 import "./helpers/PriceHelpers.sol";
 import "./helpers/TestParsingHelpers.sol";
 import "./helpers/MulticallHelpers.sol";
@@ -43,7 +44,6 @@ import "../src/ExpressRelayUpgradable.sol";
  */
 contract ExpressRelayTestSetup is
     TestParsingHelpers,
-    Signatures,
     PriceHelpers,
     MulticallHelpers
 {
@@ -54,6 +54,9 @@ contract ExpressRelayTestSetup is
     WETH9 public weth;
     OpportunityAdapterUpgradable public opportunityAdapter;
     MockPyth public mockPyth;
+
+    SearcherSignature public searcherSignatureContract;
+    OpportunityAdapterSignature public opportunityAdapterSignatureContract;
 
     MyToken public token1;
     MyToken public token2;
@@ -172,6 +175,9 @@ contract ExpressRelayTestSetup is
             address(expressRelay),
             address(weth)
         );
+
+        searcherSignatureContract = new SearcherSignature();
+        opportunityAdapterSignatureContract = new OpportunityAdapterSignature();
 
         vm.prank(relayer);
         mockPyth = new MockPyth(1_000_000, 0);
@@ -479,14 +485,15 @@ contract ExpressRelayTestSetup is
 
         for (uint i = 0; i < bidInfos.length; i++) {
             // create searcher signature
-            bytes memory signatureSearcher = createSearcherSignature(
-                contracts[i],
-                bidInfos[i].executor,
-                vaultNumber,
-                bidInfos[i].bid,
-                bidInfos[i].validUntil,
-                bidInfos[i].executorSk
-            );
+            bytes memory signatureSearcher = searcherSignatureContract
+                .createSearcherSignature(
+                    contracts[i],
+                    bidInfos[i].executor,
+                    vaultNumber,
+                    bidInfos[i].bid,
+                    bidInfos[i].validUntil,
+                    bidInfos[i].executorSk
+                );
             data[i] = abi.encodeWithSelector(
                 searcherA.doLiquidate.selector,
                 vaultNumber,
@@ -546,8 +553,7 @@ contract ExpressRelayTestSetup is
 
         for (uint i = 0; i < bidInfos.length; i++) {
             // create liquidation call params struct
-            ExecutionParams
-                memory executionParams = createAndSignExecutionParams(
+            ExecutionParams memory executionParams = createAndSignExecutionParams(
                     address(opportunityAdapter),
                     bidInfos[i].executor,
                     sellTokens,
