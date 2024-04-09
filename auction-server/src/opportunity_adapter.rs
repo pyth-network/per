@@ -132,11 +132,19 @@ pub async fn verify_opportunity(
         },
     };
 
-    let digest = get_params_digest(make_opportunity_execution_params(
-        opportunity.clone(),
-        fake_bid.clone(),
-    ))?;
-    let signature = fake_wallet.sign_hash(digest)?;
+    let hashed_data = hash_structured_data(
+        get_domain_separator_v4(
+            chain_store.network_id,
+            &chain_store.config.opportunity_adapter_contract,
+        ),
+        get_hashed_data(
+            make_opportunity_execution_params(opportunity.clone(), fake_bid.clone()),
+            chain_store.network_id,
+            &chain_store.config.opportunity_adapter_contract,
+        )?,
+    );
+
+    let signature = fake_wallet.sign_hash(hashed_data)?;
     fake_bid.signature = signature;
     let params = make_opportunity_execution_params(opportunity.clone(), fake_bid.clone());
     let adapter_calldata = OpportunityAdapter::new(
@@ -232,9 +240,48 @@ pub async fn verify_opportunity(
     Ok(VerificationResult::Success)
 }
 
-fn get_params_digest(params: ExecutionParams) -> Result<H256> {
-    // this should reflect the verifyCalldata function in the OpportunityAdapter contract
-    let data = Bytes::from(abi::encode(&[
+fn get_type_hash() -> H256 {
+    let type_hash = "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)".as_bytes();
+    H256(keccak256(type_hash))
+}
+
+fn get_eip712_type_hash() -> H256 {
+    let type_hash =
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+            .as_bytes();
+    H256(keccak256(type_hash))
+}
+
+fn get_name_hash() -> H256 {
+    let name_hash = "OpportunityAdapter".as_bytes();
+    H256(keccak256(name_hash))
+}
+
+fn get_version_hash() -> H256 {
+    let version_hash = "1".as_bytes();
+    H256(keccak256(version_hash))
+}
+
+fn get_domain_separator_v4(chain_network_id: u64, contract_address: &Address) -> H256 {
+    let domain_separator = abi::encode(&[
+        get_eip712_type_hash().into_token(),
+        get_name_hash().into_token(),
+        get_version_hash().into_token(),
+        chain_network_id.into_token(),
+        contract_address.into_token(),
+    ]);
+
+    H256(keccak256(domain_separator))
+}
+
+pub fn hash_structured_data(domain_hash: H256, data_hash: H256) -> H256 {
+    let prefix = (b"\x19\x01").to_vec();
+    let concat = [&prefix[..], &domain_hash[..], &data_hash[..]].concat();
+    H256(keccak256(concat))
+}
+
+fn get_params_bytes(params: ExecutionParams) -> Bytes {
+    Bytes::from(abi::encode(&[
         params.sell_tokens.into_token(),
         params.buy_tokens.into_token(),
         params.target_contract.into_token(),
@@ -242,13 +289,41 @@ fn get_params_digest(params: ExecutionParams) -> Result<H256> {
         params.target_call_value.into_token(),
         params.bid_amount.into_token(),
         params.valid_until.into_token(),
+    ]))
+}
+
+fn get_params_digest(
+    params: ExecutionParams,
+    _chain_network_id: u64,
+    _contract_address: &Address,
+) -> Result<H256> {
+    // this should reflect the verifyCalldata function in the OpportunityAdapter contract
+    let data = get_params_bytes(params);
+    let digest = H256(keccak256(data));
+    Ok(digest)
+}
+
+fn get_hashed_data(
+    params: ExecutionParams,
+    _chain_network_id: u64,
+    _contract_address: &Address,
+) -> Result<H256> {
+    let data = Bytes::from(abi::encode(&[
+        get_type_hash().into_token(),
+        params.executor.into_token(),
+        get_params_bytes(params.clone()).into_token(),
+        params.valid_until.into_token(),
     ]));
     let digest = H256(keccak256(data));
     Ok(digest)
 }
 
-pub fn verify_signature(params: ExecutionParams) -> Result<()> {
-    let digest = get_params_digest(params.clone())?;
+pub fn verify_signature(
+    params: ExecutionParams,
+    chain_network_id: u64,
+    contract_address: &Address,
+) -> Result<()> {
+    let digest = get_params_digest(params.clone(), chain_network_id, contract_address)?;
     let signature = Signature::try_from(params.signature.to_vec().as_slice())
         .map_err(|_x| anyhow!("Error reading signature"))?;
     let signer = signature
@@ -312,13 +387,13 @@ pub fn make_opportunity_execution_params(
 pub async fn make_adapter_calldata(
     opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
-    provider: Provider<Http>,
-    adapter_contract: Address,
+    chain_store: &ChainStore,
 ) -> Result<Bytes> {
-    let params = make_opportunity_execution_params(opportunity, bid);
-    verify_signature(params.clone())?;
+    let adapter_contract = chain_store.config.opportunity_adapter_contract;
+    let params = make_opportunity_execution_params(opportunity.clone(), bid);
+    verify_signature(params.clone(), chain_store.network_id, &adapter_contract)?;
 
-    let client = Arc::new(provider);
+    let client = Arc::new(chain_store.provider.clone());
     let calldata = OpportunityAdapter::new(adapter_contract, client.clone())
         .execute_opportunity(params)
         .calldata()
@@ -455,14 +530,10 @@ pub async fn handle_opportunity_bid(
         .get(&params.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    let adapter_calldata = make_adapter_calldata(
-        params.clone(),
-        opportunity_bid.clone(),
-        chain_store.provider.clone(),
-        chain_store.config.opportunity_adapter_contract,
-    )
-    .await
-    .map_err(|e| RestError::BadParameters(e.to_string()))?;
+    let adapter_calldata =
+        make_adapter_calldata(params.clone(), opportunity_bid.clone(), chain_store)
+            .await
+            .map_err(|e| RestError::BadParameters(e.to_string()))?;
     match handle_bid(
         store.clone(),
         Bid {

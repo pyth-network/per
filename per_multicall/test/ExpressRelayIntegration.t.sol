@@ -527,10 +527,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEqBalances(balancesAPost, balancesAPre);
         assertEq(balanceProtocolPre, balanceProtocolPost);
 
-        assertFailedExternal(
-            multicallStatuses[0],
-            InvalidExecutorSignature.selector
-        );
+        assertFailedExternal(multicallStatuses[0], InvalidSignature.selector);
     }
 
     function testLiquidateOpportunityAdapterExpiredSignatureFail() public {

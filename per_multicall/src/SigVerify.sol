@@ -28,7 +28,7 @@ contract SigVerify is EIP712 {
         address signer = ECDSA.recover(digest, signature);
 
         if (signer == address(0) || signer != _signer) {
-            revert InvalidExecutorSignature();
+            revert InvalidSignature();
         }
 
         if (block.timestamp > deadline) {
