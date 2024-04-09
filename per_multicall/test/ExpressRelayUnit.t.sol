@@ -154,9 +154,6 @@ contract ExpressRelayUnitTest is
         bytes memory permission = abi.encode("random permission");
         MulticallData[] memory multicallData;
 
-        vm.expectEmit(true, true, true, true, address(expressRelay));
-        emit MulticallIssued(permission);
-
         vm.prank(relayer);
         expressRelay.multicall(permission, multicallData);
     }

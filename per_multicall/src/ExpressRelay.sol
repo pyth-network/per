@@ -79,6 +79,15 @@ contract ExpressRelay is
             if (multicallStatuses[i].externalSuccess) {
                 totalBid += multicallData[i].bidAmount;
             }
+
+            emit MulticallIssued(
+                permissionKey,
+                i,
+                multicallData[i].bidAmount,
+                multicallStatuses[i].externalSuccess,
+                multicallStatuses[i].externalResult,
+                multicallStatuses[i].multicallRevertReason
+            );
         }
 
         // use the first 20 bytes of permission as fee receiver
@@ -107,8 +116,6 @@ contract ExpressRelay is
         if (feeRelayer > 0) {
             payable(state.relayer).transfer(feeRelayer);
         }
-
-        emit MulticallIssued(permissionKey);
     }
 
     /**
