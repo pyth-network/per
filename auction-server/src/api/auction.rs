@@ -36,7 +36,17 @@ pub struct ChainIdQueryParams {
 }
 
 /// Query for auctions with the permission key specified.
-#[utoipa::path(get, path = "/v1/auctions/{permission_key}",params(("permission_key"=String, description = "Permission key to query for"), ChainIdQueryParams),responses((status = 200, description = "Array of auctions with the permission key", body = Vec<AuctionParams>),(status = 400, response = ErrorBodyResponse),(status = 404, description = "Permission key was not found", body = ErrorBodyResponse),))]
+#[utoipa::path(get, path = "/v1/auctions/{permission_key}",
+    params(
+        ("permission_key"=String, description = "Permission key to query for"),
+        ChainIdQueryParams
+    ),
+    responses(
+        (status = 200, description = "Array of auctions with the permission key", body = Vec<AuctionParams>),
+        (status = 400, response = ErrorBodyResponse),
+        (status = 404, description = "Permission key was not found", body = ErrorBodyResponse),
+    )
+)]
 pub async fn get_auctions(
     State(store): State<Arc<Store>>,
     Path(permission_key): Path<PermissionKey>,
