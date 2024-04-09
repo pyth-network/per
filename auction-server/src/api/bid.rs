@@ -99,7 +99,17 @@ pub async fn bid_status(
             if status == "pending" {
                 status_json = BidStatus::Pending.into();
             } else if status == "lost" {
-                status_json = BidStatus::Lost.into();
+                match status_data.auction_id {
+                    Some(auction_id) => {
+                        let auction_info = get_auction_info(store.clone(), auction_id).await?;
+                        status_json = BidStatus::Lost(auction_info.params.tx_hash).into();
+                    }
+                    None => {
+                        return Err(RestError::BadParameters(
+                            "Lost bid must have auction id".to_string(),
+                        ));
+                    }
+                }
             } else if status == "submitted" {
                 match status_data.auction_id {
                     Some(auction_id) => {

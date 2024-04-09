@@ -174,8 +174,8 @@ pub enum BidStatus {
     /// The bid won the auction and was submitted to the chain in a transaction with the given hash
     #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
     Submitted(H256),
-    /// The bid lost the auction
-    Lost,
+    /// The bid lost the auction, which concluded with the transaction with the given hash
+    Lost(H256),
 }
 
 impl sqlx::Encode<'_, sqlx::Postgres> for BidStatus {
@@ -183,7 +183,7 @@ impl sqlx::Encode<'_, sqlx::Postgres> for BidStatus {
         let result = match self {
             BidStatus::Pending => "pending",
             BidStatus::Submitted(_) => "submitted",
-            BidStatus::Lost => "lost",
+            BidStatus::Lost(_) => "lost",
         };
         <&str as sqlx::Encode<sqlx::Postgres>>::encode(result, buf)
     }
