@@ -1,7 +1,9 @@
 use {
     crate::{
-        api,
-        api::ws,
+        api::{
+            self,
+            ws,
+        },
         auction::run_submission_loop,
         config::{
             ChainId,
@@ -10,10 +12,12 @@ use {
         },
         opportunity_adapter::{
             get_weth_address,
+            get_signature_metadata,
             run_verification_loop,
         },
         state::{
             ChainStore,
+            ChainStoreSignatureConfig,
             OpportunityStore,
             Store,
         },
@@ -81,10 +85,18 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                     )
                 })?;
                 provider.set_interval(Duration::from_secs(chain_config.poll_interval));
+                
                 let id = provider.get_chainid().await?.as_u64();
                 let weth =
                     get_weth_address(chain_config.opportunity_adapter_contract, provider.clone())
                         .await?;
+                let opportunity_signature_metadata = get_signature_metadata(
+                    chain_config.express_relay_contract,
+                    provider.clone(),
+                    chain_config.opportunity_adapter_contract,
+                )
+                .await;
+
                 Ok((
                     chain_id.clone(),
                     ChainStore {
@@ -93,6 +105,9 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         token_spoof_info: Default::default(),
                         config: chain_config.clone(),
                         weth,
+                        signature_config: ChainStoreSignatureConfig {
+                            opportunity_adapter: opportunity_signature_metadata,
+                        },
                     },
                 ))
             }),

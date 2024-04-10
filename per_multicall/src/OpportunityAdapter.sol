@@ -16,6 +16,8 @@ abstract contract OpportunityAdapter is SigVerify {
     address _admin;
     address _expressRelay;
     address _weth;
+    string constant _opportunityType =
+        "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)";
 
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
@@ -77,6 +79,23 @@ abstract contract OpportunityAdapter is SigVerify {
         return abi.decode(_returnData, (string)); // All that remains is the revert string
     }
 
+    function getSignatureMetadata()
+        public
+        view
+        returns (SignatureMetadata memory config)
+    {
+        (
+            bytes1 _fields,
+            string memory name,
+            string memory version,
+            uint256 _chainId,
+            address _verifyingContract,
+            bytes32 _salt,
+            uint256[] memory _extensions
+        ) = eip712Domain();
+        config = SignatureMetadata(_opportunityType, name, version);
+    }
+
     function _verifyParams(ExecutionParams memory params) internal view {
         if (msg.sender != _expressRelay) {
             revert Unauthorized();
@@ -84,7 +103,7 @@ abstract contract OpportunityAdapter is SigVerify {
 
         // If the signature is not valid or expired, this will revert
         verifyCalldata(
-            "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)",
+            bytes(_opportunityType),
             params.executor,
             abi.encode(
                 params.sellTokens,
@@ -167,7 +186,6 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
-<<<<<<< HEAD
     function executeOpportunity(ExecutionParams memory params) public payable {
         _verifyParams(params);
         // get balances of buy tokens before transferring sell tokens since there might be overlaps

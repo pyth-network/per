@@ -14,11 +14,13 @@ use {
             OpportunityBid,
         },
         state::{
+            ChainStore,
             Opportunity,
             OpportunityId,
             OpportunityParams,
             Store,
             UnixTimestampMicros,
+            UnixTimestamp,
         },
     },
     axum::{
@@ -29,7 +31,10 @@ use {
         },
         Json,
     },
-    ethers::signers::Signer,
+    ethers::{
+        signers::Signer,
+        utils::to_checksum,
+    },
     serde::{
         Deserialize,
         Serialize,
@@ -43,21 +48,41 @@ use {
     uuid::Uuid,
 };
 
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+pub struct OpportunityAdapterSignatureConfig {
+    /// The raw type string for the opportunity
+    #[schema(example = "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)", value_type = String)]
+    pub opportunity_type: String,
+    /// The domain name parameter for the EIP712 domain separator.
+    #[schema(example = "OpportunityAdapter", value_type = String)]
+    pub domain_name:      String,
+    /// The domain version parameter for the EIP712 domain separator.
+    #[schema(example = "1", value_type = String)]
+    pub domain_version:   String,
+    /// The opportunity adapter contract address
+    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
+    pub contract_address: String, // Serde convert it to lower case
+}
+
+
 /// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct OpportunityParamsWithMetadata {
     /// The opportunity unique id
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
-    opportunity_id: OpportunityId,
+    opportunity_id:   OpportunityId,
     /// Creation time of the opportunity (in microseconds since the Unix epoch)
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
-    creation_time:  UnixTimestampMicros,
+    creation_time:    UnixTimestampMicros,
     /// opportunity data
     #[serde(flatten)]
     // expands params into component fields in the generated client schemas
     #[schema(inline)]
-    params:         OpportunityParams,
+    params:           OpportunityParams,
+    signature_config: OpportunityAdapterSignatureConfig,
 }
+
 
 impl OpportunityParamsWithMetadata {
     pub fn get_chain_id(&self) -> &ChainId {
@@ -67,12 +92,33 @@ impl OpportunityParamsWithMetadata {
     }
 }
 
-impl From<Opportunity> for OpportunityParamsWithMetadata {
-    fn from(val: Opportunity) -> Self {
+impl OpportunityParamsWithMetadata {
+    fn from_opportunity(val: Opportunity, chain_store: &ChainStore) -> Self {
         OpportunityParamsWithMetadata {
-            opportunity_id: val.id,
-            creation_time:  val.creation_time,
-            params:         val.params,
+            opportunity_id:   val.id,
+            creation_time:    val.creation_time,
+            params:           val.params,
+            signature_config: OpportunityAdapterSignatureConfig {
+                domain_name:      chain_store
+                    .signature_config
+                    .opportunity_adapter
+                    .domain_name
+                    .clone(),
+                domain_version:   chain_store
+                    .signature_config
+                    .opportunity_adapter
+                    .domain_version
+                    .clone(),
+                contract_address: to_checksum(
+                    &chain_store.config.opportunity_adapter_contract,
+                    None,
+                ),
+                opportunity_type: chain_store
+                    .signature_config
+                    .opportunity_adapter
+                    .opportunity_type
+                    .clone(),
+            },
         }
     }
 }
@@ -118,7 +164,9 @@ pub async fn post_opportunity(
     store
         .ws
         .broadcast_sender
-        .send(NewOpportunity(opportunity.clone().into()))
+        .send(NewOpportunity(
+            OpportunityParamsWithMetadata::from_opportunity(opportunity.clone(), chain_store),
+        ))
         .map_err(|e| {
             tracing::error!("Failed to send update: {}", e);
             RestError::TemporarilyUnavailable
@@ -135,7 +183,8 @@ pub async fn post_opportunity(
         );
     }
 
-    let opportunity_with_metadata: OpportunityParamsWithMetadata = opportunity.into();
+    let opportunity_with_metadata: OpportunityParamsWithMetadata =
+        OpportunityParamsWithMetadata::from_opportunity(opportunity.clone(), chain_store);
 
     Ok(opportunity_with_metadata.into())
 }
@@ -162,15 +211,24 @@ pub async fn get_opportunities(
                 .last()
                 .expect("A permission key vector should have at least one opportunity")
                 .clone()
-                .into()
         })
-        .filter(|params_with_id: &OpportunityParamsWithMetadata| {
-            let OpportunityParams::V1(params) = &params_with_id.params;
-            if let Some(chain_id) = &query_params.chain_id {
-                params.chain_id == *chain_id
-            } else {
-                true
+        .filter(|opportunity| {
+            let OpportunityParams::V1(params) = &opportunity.params;
+            match store.chains.get(&params.chain_id) {
+                Some(_chain_store) => {
+                    if let Some(chain_id) = &query_params.chain_id {
+                        params.chain_id == *chain_id
+                    } else {
+                        true
+                    }
+                }
+                None => false,
             }
+        })
+        .map(|opportunity| {
+            let OpportunityParams::V1(params) = &opportunity.params;
+            let chain_store = store.chains.get(&params.chain_id).unwrap();
+            OpportunityParamsWithMetadata::from_opportunity(opportunity, chain_store)
         })
         .collect();
 

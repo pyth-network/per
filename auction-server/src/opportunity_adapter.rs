@@ -137,10 +137,9 @@ pub async fn verify_opportunity(
             chain_store.network_id,
             &chain_store.config.opportunity_adapter_contract,
         ),
-        get_hashed_data(
+        get_data_hash(
+            get_data_type_hash(),
             make_opportunity_execution_params(opportunity.clone(), fake_bid.clone()),
-            chain_store.network_id,
-            &chain_store.config.opportunity_adapter_contract,
         )?,
     );
 
@@ -240,33 +239,37 @@ pub async fn verify_opportunity(
     Ok(VerificationResult::Success)
 }
 
-fn get_type_hash() -> H256 {
-    let type_hash = "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)".as_bytes();
+pub const OPPORTUNITY_DATA_TYPE: &str = "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)";
+pub const EIP712_TYPE: &str =
+    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
+pub const OPPORTUNITY_DOMAIN_NAME: &str = "OpportunityAdapter";
+pub const OPPORTUNITY_DOMAIN_VERSION: &str = "1";
+
+pub fn get_data_type_hash() -> H256 {
+    let type_hash = OPPORTUNITY_DATA_TYPE.as_bytes();
     H256(keccak256(type_hash))
 }
 
 fn get_eip712_type_hash() -> H256 {
-    let type_hash =
-        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-            .as_bytes();
+    let type_hash = EIP712_TYPE.as_bytes();
     H256(keccak256(type_hash))
 }
 
-fn get_name_hash() -> H256 {
-    let name_hash = "OpportunityAdapter".as_bytes();
+fn get_domain_name_hash() -> H256 {
+    let name_hash = OPPORTUNITY_DOMAIN_NAME.as_bytes();
     H256(keccak256(name_hash))
 }
 
-fn get_version_hash() -> H256 {
-    let version_hash = "1".as_bytes();
+fn get_domain_version_hash() -> H256 {
+    let version_hash = OPPORTUNITY_DOMAIN_VERSION.as_bytes();
     H256(keccak256(version_hash))
 }
 
 fn get_domain_separator_v4(chain_network_id: u64, contract_address: &Address) -> H256 {
     let domain_separator = abi::encode(&[
         get_eip712_type_hash().into_token(),
-        get_name_hash().into_token(),
-        get_version_hash().into_token(),
+        get_domain_name_hash().into_token(),
+        get_domain_version_hash().into_token(),
         chain_network_id.into_token(),
         contract_address.into_token(),
     ]);
@@ -303,13 +306,9 @@ fn get_params_digest(
     Ok(digest)
 }
 
-fn get_hashed_data(
-    params: ExecutionParams,
-    _chain_network_id: u64,
-    _contract_address: &Address,
-) -> Result<H256> {
+fn get_data_hash(type_hash: H256, params: ExecutionParams) -> Result<H256> {
     let data = Bytes::from(abi::encode(&[
-        get_type_hash().into_token(),
+        type_hash.into_token(),
         params.executor.into_token(),
         get_params_bytes(params.clone()).into_token(),
         params.valid_until.into_token(),
@@ -560,5 +559,25 @@ pub async fn handle_opportunity_bid(
             }
             _ => Err(e),
         },
+    }
+}
+
+pub async fn get_signature_metadata(
+    relayer: Address,
+    provider: Provider<Http>,
+    contract_address: Address,
+) -> SignatureMetadata {
+    let client = Arc::new(provider);
+    let opportunity_adapter = OpportunityAdapter::new(contract_address, client);
+    let call = opportunity_adapter.get_signature_metadata().from(relayer);
+
+    match call.await {
+        Ok(result) => result,
+        Err(e) => {
+            panic!(
+                "Error calling opportunity adapter for signature config: {:?}",
+                e
+            );
+        }
     }
 }

@@ -16,14 +16,14 @@ contract SigVerify is EIP712 {
     ) EIP712(name, version) {}
 
     function verifyCalldata(
-        bytes memory typeHash,
+        bytes memory rawType,
         address _signer,
         bytes memory _data,
         bytes memory signature,
         uint256 deadline
     ) internal view {
         bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(keccak256(typeHash), _signer, _data, deadline))
+            keccak256(abi.encode(keccak256(rawType), _signer, _data, deadline))
         );
         address signer = ECDSA.recover(digest, signature);
 

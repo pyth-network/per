@@ -46,3 +46,9 @@ struct ExecutionParams {
     uint256 bidAmount;
     bytes signature;
 }
+
+struct SignatureMetadata {
+    string opportunityType;
+    string domainName;
+    string domainVersion;
+}

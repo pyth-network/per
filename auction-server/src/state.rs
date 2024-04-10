@@ -11,6 +11,7 @@ use {
             ChainId,
             EthereumConfig,
         },
+        opportunity_adapter,
     },
     axum::Json,
     ethers::{
@@ -86,6 +87,7 @@ pub struct TokenAmount {
     pub amount: U256,
 }
 
+
 /// Opportunity parameters needed for on-chain execution
 /// If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
 /// by calling this target contract with the given target calldata and structures, they will
@@ -113,6 +115,7 @@ pub struct OpportunityParamsV1 {
     pub buy_tokens:  Vec<TokenAmount>,
 }
 
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 #[serde(tag = "version")]
 pub enum OpportunityParams {
@@ -138,12 +141,17 @@ pub enum SpoofInfo {
     UnableToSpoof,
 }
 
+pub struct ChainStoreSignatureConfig {
+    pub opportunity_adapter: opportunity_adapter::SignatureMetadata,
+}
+
 pub struct ChainStore {
     pub provider:         Provider<Http>,
     pub network_id:       u64,
     pub config:           EthereumConfig,
     pub weth:             Address,
     pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
+    pub signature_config: ChainStoreSignatureConfig,
 }
 
 #[derive(Default)]

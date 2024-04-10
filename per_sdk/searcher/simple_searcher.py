@@ -5,6 +5,7 @@ import urllib.parse
 from typing import TypedDict
 
 import httpx
+import web3
 from eth_account import Account
 
 from per_sdk.searcher.searcher_utils import BidInfo, construct_signature_executor
@@ -48,6 +49,20 @@ class OpportunityBid(TypedDict):
     signature: str
 
 
+eth_chain_id = None
+
+
+async def ـget_eth_chain_id(rpc_url: str) -> int:
+    global eth_chain_id
+    if eth_chain_id:
+        return eth_chain_id
+
+    w3 = web3.AsyncWeb3(web3.AsyncHTTPProvider(rpc_url))
+    eth_chain_id = await w3.eth.chain_id
+
+    return eth_chain_id
+
+
 def create_liquidation_transaction(
     opp: Opportunity, sk_liquidator: str, bid_info: BidInfo
 ) -> OpportunityBid:
@@ -60,6 +75,8 @@ def create_liquidation_transaction(
     Returns:
         An OpportunityBid object which can be sent to the liquidation server
     """
+    global eth_chain_id
+
     sell_tokens = [(opp["token"], int(opp["amount"])) for opp in opp["sell_tokens"]]
     buy_tokens = [(opp["token"], int(opp["amount"])) for opp in opp["buy_tokens"]]
 
@@ -74,6 +91,8 @@ def create_liquidation_transaction(
         int(opp["target_call_value"]),
         bid_info,
         sk_liquidator,
+        eth_chain_id,
+        opp["signature_config"],
     )
 
     opportunity_bid = {
@@ -104,6 +123,12 @@ async def main():
         help="Chain ID of the network to monitor for opportunities",
     )
     parser.add_argument(
+        "--rpc-url",
+        type=str,
+        required=True,
+        help="Chain RPC endpoint, used to fetch on-chain data via get_accounts",
+    )
+    parser.add_argument(
         "--bid",
         type=int,
         default=10,
@@ -116,6 +141,8 @@ async def main():
         help="Liquidation server endpoint to use for fetching opportunities and submitting bids",
     )
     args = parser.parse_args()
+
+    await ـget_eth_chain_id(args.rpc_url)
 
     logger.setLevel(logging.INFO if args.verbose == 0 else logging.DEBUG)
     log_handler = logging.StreamHandler()
