@@ -30,7 +30,7 @@ use {
 };
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct AuctionParamsWithMetadata {
+pub struct AuctionParamsWithId {
     #[schema(value_type = String)]
     pub id:     AuctionId,
     pub params: AuctionParams,
@@ -99,13 +99,13 @@ pub async fn get_auctions(
 pub async fn get_auction_with_id(
     store: Arc<Store>,
     auction_id: AuctionId,
-) -> Result<AuctionParamsWithMetadata, RestError> {
+) -> Result<AuctionParamsWithId, RestError> {
     let auction = sqlx::query!("SELECT * FROM auction WHERE id = $1", auction_id)
         .fetch_one(&store.db)
         .await
         .map_err(|_| RestError::BidNotFound)?;
 
-    Ok(AuctionParamsWithMetadata {
+    Ok(AuctionParamsWithId {
         id:     auction.id,
         params: AuctionParams {
             chain_id:       auction.chain_id,
