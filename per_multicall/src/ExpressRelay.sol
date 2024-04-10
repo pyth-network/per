@@ -83,10 +83,9 @@ contract ExpressRelay is
             emit MulticallIssued(
                 permissionKey,
                 i,
+                multicallData[i].bidId,
                 multicallData[i].bidAmount,
-                multicallStatuses[i].externalSuccess,
-                multicallStatuses[i].externalResult,
-                multicallStatuses[i].multicallRevertReason
+                multicallStatuses[i]
             );
         }
 

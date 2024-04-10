@@ -141,6 +141,7 @@ pub async fn verify_opportunity(
         chain_store.config.clone(),
         opportunity.permission_key,
         vec![MulticallData::from((
+            Uuid::new_v4().to_bytes_le(),
             chain_store.config.opportunity_adapter_contract,
             adapter_calldata,
             fake_bid.amount,

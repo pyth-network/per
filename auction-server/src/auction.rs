@@ -97,12 +97,13 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
     }
 }
 
-impl From<(H160, Bytes, U256)> for MulticallData {
-    fn from(x: (H160, Bytes, U256)) -> Self {
+impl From<([u8; 16], H160, Bytes, U256)> for MulticallData {
+    fn from(x: ([u8; 16], H160, Bytes, U256)) -> Self {
         MulticallData {
-            target_contract: x.0,
-            target_calldata: x.1,
-            bid_amount:      x.2,
+            bid_id:          x.0,
+            target_contract: x.1,
+            target_calldata: x.2,
+            bid_amount:      x.3,
         }
     }
 }
@@ -254,7 +255,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             chain_store.config.clone(),
                             chain_store.network_id,
                             permission_key.clone(),
-                            winner_bids.iter().map(|b| MulticallData::from((b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
+                            winner_bids.iter().map(|b| MulticallData::from((b.id.to_bytes_le(), b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
                         )
                         .await;
                         match submission {
@@ -326,6 +327,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         chain_store.config.clone(),
         bid.permission_key.clone(),
         vec![MulticallData::from((
+            Uuid::new_v4().to_bytes_le(),
             bid.target_contract,
             bid.target_calldata.clone(),
             bid.amount,

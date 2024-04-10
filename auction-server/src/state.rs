@@ -351,6 +351,12 @@ impl Store {
         update: BidStatusWithId,
         auction_id: AuctionId,
     ) -> anyhow::Result<()> {
+        if update.bid_status == BidStatus::Pending {
+            return Err(anyhow::anyhow!(
+                "Bid status cannot remain pending when removing a bid."
+            ));
+        }
+
         sqlx::query!(
             "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
             update.bid_status as _,

@@ -3,6 +3,7 @@ use {
         api::{
             bid::BidResult,
             ws::UpdateEvent::NewOpportunity,
+            ChainIdQueryParams,
             ErrorBodyResponse,
             RestError,
         },
@@ -36,7 +37,6 @@ use {
     sqlx::types::time::OffsetDateTime,
     std::sync::Arc,
     utoipa::{
-        IntoParams,
         ToResponse,
         ToSchema,
     },
@@ -138,12 +138,6 @@ pub async fn post_opportunity(
     let opportunity_with_metadata: OpportunityParamsWithMetadata = opportunity.into();
 
     Ok(opportunity_with_metadata.into())
-}
-
-#[derive(Serialize, Deserialize, IntoParams)]
-pub struct ChainIdQueryParams {
-    #[param(example = "op_sepolia", value_type = Option < String >)]
-    pub chain_id: Option<ChainId>,
 }
 
 /// Fetch all opportunities ready to be exectued.
