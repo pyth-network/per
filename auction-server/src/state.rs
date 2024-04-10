@@ -72,7 +72,7 @@ pub struct SimulatedBid {
     // simulation_time:
 }
 
-pub type UnixTimestamp = i64;
+pub type UnixTimestampNanos = i128;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 pub struct TokenAmount {
@@ -124,7 +124,7 @@ pub type OpportunityId = Uuid;
 #[derive(Clone, PartialEq)]
 pub struct Opportunity {
     pub id:            OpportunityId,
-    pub creation_time: UnixTimestamp,
+    pub creation_time: UnixTimestampNanos,
     pub params:        OpportunityParams,
 }
 
@@ -232,7 +232,7 @@ pub struct AuctionParams {
 pub struct AuctionParamsWithMetadata {
     #[schema(value_type = String)]
     pub id:              AuctionId,
-    pub conclusion_time: UnixTimestamp,
+    pub conclusion_time: UnixTimestampNanos,
     pub params:          AuctionParams,
 }
 
@@ -262,7 +262,7 @@ impl Store {
 
     // Add opportunity with specified parameters to the hot store and database
     pub async fn add_opportunity(&self, opportunity: Opportunity) -> Result<(), RestError> {
-        let odt = OffsetDateTime::from_unix_timestamp(opportunity.creation_time)
+        let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time)
             .expect("creation_time is valid");
         let OpportunityParams::V1(params) = &opportunity.params;
         sqlx::query!("INSERT INTO opportunity (id,
@@ -341,7 +341,8 @@ impl Store {
 
     // Add specified parameters of an already created auction to the database
     pub async fn update_auction(&self, auction: AuctionParamsWithMetadata) -> anyhow::Result<()> {
-        let conclusion_datetime = OffsetDateTime::from_unix_timestamp(auction.conclusion_time)?;
+        let conclusion_datetime =
+            OffsetDateTime::from_unix_timestamp_nanos(auction.conclusion_time)?;
         sqlx::query!("UPDATE auction SET conclusion_time = $1, tx_hash = $2 WHERE id = $3 AND permission_key = $4 AND chain_id = $5 AND conclusion_time IS NULL",
             PrimitiveDateTime::new(conclusion_datetime.date(), conclusion_datetime.time()),
             auction.params.tx_hash.as_bytes(),

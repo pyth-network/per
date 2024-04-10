@@ -273,7 +273,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                     };
                                     let auction = AuctionParamsWithMetadata {
                                         id: auction_id,
-                                        conclusion_time: OffsetDateTime::now_utc().unix_timestamp(),
+                                        conclusion_time: OffsetDateTime::now_utc().unix_timestamp_nanos(),
                                         params: auction_params,
                                     };
                                     store.update_auction(auction).await?;

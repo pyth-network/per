@@ -22,7 +22,7 @@ use {
             OpportunityParamsV1,
             SpoofInfo,
             Store,
-            UnixTimestamp,
+            UnixTimestampNanos,
         },
         token_spoof,
     },
@@ -303,7 +303,7 @@ pub async fn make_adapter_calldata(
     Ok(calldata)
 }
 
-const MAX_STALE_OPPORTUNITY_SECS: i64 = 60;
+const MAX_STALE_OPPORTUNITY_NANOS: i128 = 60_000_000_000;
 
 /// Verify an opportunity is still valid by checking staleness and simulating the execution call and checking the result
 /// Returns Ok(()) if the opportunity is still valid
@@ -323,8 +323,8 @@ async fn verify_with_store(opportunity: Opportunity, store: &Store) -> Result<()
         Ok(VerificationResult::Success) => Ok(()),
         Ok(VerificationResult::UnableToSpoof) => {
             let current_time =
-                SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as UnixTimestamp;
-            if current_time - opportunity.creation_time > MAX_STALE_OPPORTUNITY_SECS {
+                SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos() as UnixTimestampNanos;
+            if current_time - opportunity.creation_time > MAX_STALE_OPPORTUNITY_NANOS {
                 Err(anyhow!("Opportunity is stale and unverifiable"))
             } else {
                 Ok(())

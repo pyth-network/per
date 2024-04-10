@@ -22,7 +22,7 @@ pub async fn get_concluded_auction(
         .map_err(|_| RestError::AuctionNotFound)?;
 
     let conclusion_time = match auction.conclusion_time {
-        Some(conclusion_time) => conclusion_time.assume_utc().unix_timestamp(),
+        Some(conclusion_time) => conclusion_time.assume_utc().unix_timestamp_nanos(),
         None => return Err(RestError::AuctionNotConcluded),
     };
     let tx_hash = auction.tx_hash.as_ref();

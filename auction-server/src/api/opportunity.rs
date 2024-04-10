@@ -18,7 +18,7 @@ use {
             OpportunityId,
             OpportunityParams,
             Store,
-            UnixTimestamp,
+            UnixTimestampNanos,
         },
     },
     axum::{
@@ -51,7 +51,7 @@ pub struct OpportunityParamsWithMetadata {
     opportunity_id: OpportunityId,
     /// Creation time of the opportunity
     #[schema(example = 1700000000, value_type = i64)]
-    creation_time:  UnixTimestamp,
+    creation_time:  UnixTimestampNanos,
     /// opportunity data
     #[serde(flatten)]
     // expands params into component fields in the generated client schemas
@@ -100,7 +100,7 @@ pub async fn post_opportunity(
     let now_odt = OffsetDateTime::now_utc();
     let opportunity = Opportunity {
         id,
-        creation_time: now_odt.unix_timestamp() as UnixTimestamp,
+        creation_time: now_odt.unix_timestamp_nanos() as UnixTimestampNanos,
         params: versioned_params.clone(),
     };
 
