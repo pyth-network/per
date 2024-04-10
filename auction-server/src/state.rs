@@ -230,6 +230,7 @@ pub struct Store {
 }
 
 impl Store {
+    // Check if opportunity with specified parameters exists in the hot store
     pub async fn opportunity_exists(&self, opportunity: &Opportunity) -> bool {
         let key = match &opportunity.params {
             OpportunityParams::V1(params) => params.permission_key.clone(),
@@ -241,6 +242,8 @@ impl Store {
             .get(&key)
             .map_or(false, |opps| opps.contains(opportunity))
     }
+
+    // Add opportunity with specified parameters to the hot store and database
     pub async fn add_opportunity(&self, opportunity: Opportunity) -> Result<(), RestError> {
         let odt = OffsetDateTime::from_unix_timestamp(opportunity.creation_time)
             .expect("creation_time is valid");
@@ -273,6 +276,7 @@ impl Store {
         Ok(())
     }
 
+    // Remove opportunity from the hot opportunity store
     pub async fn remove_opportunity(&self, opportunity: &Opportunity) -> anyhow::Result<()> {
         let key = match &opportunity.params {
             OpportunityParams::V1(params) => params.permission_key.clone(),
@@ -298,6 +302,7 @@ impl Store {
         Ok(())
     }
 
+    // Add auction with specified parameters to the database
     pub async fn add_auction(&self, auction_params: AuctionParams) -> anyhow::Result<AuctionId> {
         let auction_id = Uuid::new_v4();
         let now = OffsetDateTime::now_utc();
@@ -312,6 +317,7 @@ impl Store {
         Ok(auction_id)
     }
 
+    // Add bid with specified paramters to hot store and database
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
@@ -339,6 +345,7 @@ impl Store {
         Ok(())
     }
 
+    // Broadcast bid status update after removing bid from hot store
     pub async fn broadcast_bid_status_and_remove(
         &self,
         update: BidStatusWithId,

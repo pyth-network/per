@@ -96,6 +96,7 @@ pub async fn get_auctions(
     Ok(Json(auctions))
 }
 
+// Get auction with the specified ID.
 pub async fn get_auction_with_id(
     store: Arc<Store>,
     auction_id: AuctionId,
