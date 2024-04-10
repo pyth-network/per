@@ -19,8 +19,8 @@ error ExpiredSignature();
 // Signature: 0x900bb2c9
 error SignatureAlreadyUsed();
 
-// Signature: 0xee97c593
-error InsufficientWETHForMsgValue();
+// Signature: 0xd461d1de
+error WethTransferFromFailed();
 
 // Signature: 0x729f3230
 error InvalidPERSignature();

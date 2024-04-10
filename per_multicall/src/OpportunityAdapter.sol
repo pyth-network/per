@@ -113,19 +113,7 @@ abstract contract OpportunityAdapter is SigVerify {
                 address(this),
                 params.sellTokens[i].amount
             );
-
-            // approve contract to spend sell tokens
-            uint256 approveAmount = params.sellTokens[i].amount;
-            if (params.sellTokens[i].token == weth) {
-                if (approveAmount >= params.targetCallValue) {
-                    // we need `parmas.targetCallValue` of to be sent to the contract directly
-                    // so this amount should be subtracted from the approveAmount
-                    approveAmount = approveAmount - params.targetCallValue;
-                } else {
-                    revert InsufficientWETHForMsgValue();
-                }
-            }
-            token.approve(params.targetContract, approveAmount);
+            token.approve(params.targetContract, params.sellTokens[i].amount);
         }
 
         // get balances of buy tokens before call
@@ -136,8 +124,17 @@ abstract contract OpportunityAdapter is SigVerify {
             balancesBuyTokens[i] = token.balanceOf(address(this)) + amount;
         }
         if (params.targetCallValue > 0) {
+            try
+                WETH9(payable(weth)).transferFrom(
+                    params.executor,
+                    address(this),
+                    params.targetCallValue
+                )
+            {} catch {
+                revert WethTransferFromFailed();
+            }
+
             // unwrap weth to eth to use in call
-            // TODO: Wrap in try catch and throw a revert with a better error since WETH9 reverts do not return a reason
             WETH9(payable(weth)).withdraw(params.targetCallValue);
         }
 
@@ -165,11 +162,15 @@ abstract contract OpportunityAdapter is SigVerify {
         }
 
         // transfer bid to opportunity adapter in the form of weth
-        WETH9(payable(weth)).transferFrom(
-            params.executor,
-            address(this),
-            params.bidAmount
-        );
+        try
+            WETH9(payable(weth)).transferFrom(
+                params.executor,
+                address(this),
+                params.bidAmount
+            )
+        {} catch {
+            revert WethTransferFromFailed();
+        }
         // unwrap weth to eth
         WETH9(payable(weth)).withdraw(params.bidAmount);
         payable(getExpressRelay()).transfer(params.bidAmount);
