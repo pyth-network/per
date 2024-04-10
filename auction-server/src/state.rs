@@ -219,13 +219,6 @@ pub struct AuctionParams {
     pub tx_hash:        H256,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct Auction {
-    #[schema(value_type = String)]
-    pub id:     AuctionId,
-    pub params: AuctionParams,
-}
-
 pub struct Store {
     pub chains:            HashMap<ChainId, ChainStore>,
     pub bids:              RwLock<HashMap<BidId, SimulatedBid>>,

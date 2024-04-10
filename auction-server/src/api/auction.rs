@@ -1,11 +1,12 @@
 use {
     crate::{
         api::{
+            opportunity::ChainIdQueryParams,
             ErrorBodyResponse,
             RestError,
         },
-        config::ChainId,
         state::{
+            AuctionId,
             AuctionParams,
             PermissionKey,
             Store,
@@ -25,17 +26,17 @@ use {
         Serialize,
     },
     std::sync::Arc,
-    utoipa::IntoParams,
+    utoipa::ToSchema,
 };
 
-// TODO: fix the duplicate definition btwn auction.rs and opportunity.rs
-#[derive(Serialize, Deserialize, IntoParams)]
-pub struct ChainIdQueryParams {
-    #[param(example = "op_sepolia", value_type = Option < String >)]
-    chain_id: Option<ChainId>,
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
+pub struct AuctionParamsWithMetadata {
+    #[schema(value_type = String)]
+    pub id:     AuctionId,
+    pub params: AuctionParams,
 }
 
-/// Query for auctions with the permission key specified.
+/// Query for auctions with the permission key and (optionally) chain ID specified.
 #[utoipa::path(get, path = "/v1/auctions/{permission_key}",
     params(
         ("permission_key"=String, description = "Permission key to query for"),
@@ -93,4 +94,23 @@ pub async fn get_auctions(
     };
 
     Ok(Json(auctions))
+}
+
+pub async fn get_auction_with_id(
+    store: Arc<Store>,
+    auction_id: AuctionId,
+) -> Result<AuctionParamsWithMetadata, RestError> {
+    let auction = sqlx::query!("SELECT * FROM auction WHERE id = $1", auction_id)
+        .fetch_one(&store.db)
+        .await
+        .map_err(|_| RestError::BidNotFound)?;
+
+    Ok(AuctionParamsWithMetadata {
+        id:     auction.id,
+        params: AuctionParams {
+            chain_id:       auction.chain_id,
+            permission_key: auction.permission_key.into(),
+            tx_hash:        H256::from_slice(auction.tx_hash.as_ref()),
+        },
+    })
 }
