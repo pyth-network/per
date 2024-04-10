@@ -3,12 +3,12 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
+import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "../src/Errors.sol";
 import "../src/Structs.sol";
 import "../src/OpportunityAdapter.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
-import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "./helpers/Signatures.sol";
 
 contract MockTarget {
@@ -56,10 +56,9 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
             block.timestamp + 1000,
             executorSk
         );
-        vm.startPrank(opportunityAdapter.owner());
+        vm.prank(opportunityAdapter.owner());
         vm.expectRevert(WethTransferFromFailed.selector);
         opportunityAdapter.executeOpportunity(executionParams);
-        vm.stopPrank();
     }
 
     function test_RevertWhen_InsufficientWethToTransferForBid() public {
@@ -84,10 +83,9 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
         weth.deposit{value: 123 wei}();
         weth.approve(address(opportunityAdapter), 123);
         vm.stopPrank();
-        vm.startPrank(opportunityAdapter.owner());
+        vm.prank(opportunityAdapter.owner());
         vm.expectCall(address(mockTarget), 123, targetCalldata);
         vm.expectRevert(WethTransferFromFailed.selector);
         opportunityAdapter.executeOpportunity(executionParams);
-        vm.stopPrank();
     }
 }
