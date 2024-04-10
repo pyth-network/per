@@ -167,24 +167,33 @@ pub type BidId = Uuid;
 
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
-#[serde(tag = "status", content = "result", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatus {
     /// The auction for this bid is pending
     Pending,
-    /// The bid won the auction and was submitted to the chain in a transaction with the given hash
-    #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-    Submitted(H256),
+    /// The bid won the auction, which concluded with it being placed in the index position of the multicall at the given hash
+    Submitted {
+        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
+        result: H256,
+        #[schema(example = "1", value_type = u64)]
+        index:  U256,
+    },
     /// The bid lost the auction, which concluded with the transaction with the given hash
-    #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-    Lost(H256),
+    Lost {
+        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
+        result: H256,
+    },
 }
 
 impl sqlx::Encode<'_, sqlx::Postgres> for BidStatus {
     fn encode_by_ref(&self, buf: &mut <Postgres as HasArguments<'_>>::ArgumentBuffer) -> IsNull {
         let result = match self {
             BidStatus::Pending => "pending",
-            BidStatus::Submitted(_) => "submitted",
-            BidStatus::Lost(_) => "lost",
+            BidStatus::Submitted {
+                result: _,
+                index: _,
+            } => "submitted",
+            BidStatus::Lost { result: _ } => "lost",
         };
         <&str as sqlx::Encode<sqlx::Postgres>>::encode(result, buf)
     }
@@ -217,6 +226,14 @@ pub struct AuctionParams {
     pub chain_id:       ChainId,
     #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
     pub tx_hash:        H256,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
+pub struct AuctionParamsWithMetadata {
+    #[schema(value_type = String)]
+    pub id:              AuctionId,
+    pub conclusion_time: UnixTimestamp,
+    pub params:          AuctionParams,
 }
 
 pub struct Store {
@@ -302,19 +319,38 @@ impl Store {
         Ok(())
     }
 
-    // Add auction with specified parameters to the database
-    pub async fn add_auction(&self, auction_params: AuctionParams) -> anyhow::Result<AuctionId> {
-        let auction_id = Uuid::new_v4();
+    // initialize a row in auction table to represent the start of the auction
+    pub async fn init_auction(
+        &self,
+        permission_key: PermissionKey,
+        chain_id: ChainId,
+    ) -> anyhow::Result<AuctionId> {
         let now = OffsetDateTime::now_utc();
-        sqlx::query!("INSERT INTO auction (id, conclusion_time, permission_key, chain_id, tx_hash) VALUES ($1, $2, $3, $4, $5)",
-        auction_id,
-        PrimitiveDateTime::new(now.date(), now.time()),
-        auction_params.permission_key.to_vec(),
-        auction_params.chain_id,
-        auction_params.tx_hash.as_bytes())
+        let auction_id = Uuid::new_v4();
+        sqlx::query!(
+            "INSERT INTO auction (id, creation_time, permission_key, chain_id) VALUES ($1, $2, $3, $4)",
+            auction_id,
+            PrimitiveDateTime::new(now.date(), now.time()),
+            permission_key.to_vec(),
+            chain_id
+        )
+        .execute(&self.db)
+        .await?;
+        Ok(auction_id)
+    }
+
+    // Add specified parameters of an already created auction to the database
+    pub async fn update_auction(&self, auction: AuctionParamsWithMetadata) -> anyhow::Result<()> {
+        let conclusion_datetime = OffsetDateTime::from_unix_timestamp(auction.conclusion_time)?;
+        sqlx::query!("UPDATE auction SET conclusion_time = $1, tx_hash = $2 WHERE id = $3 AND permission_key = $4 AND chain_id = $5 AND conclusion_time IS NULL",
+            PrimitiveDateTime::new(conclusion_datetime.date(), conclusion_datetime.time()),
+            auction.params.tx_hash.as_bytes(),
+            auction.id,
+            auction.params.permission_key.to_vec(),
+            auction.params.chain_id)
             .execute(&self.db)
             .await?;
-        Ok(auction_id)
+        Ok(())
     }
 
     // Add bid with specified paramters to hot store and database
@@ -351,20 +387,35 @@ impl Store {
         update: BidStatusWithId,
         auction_id: AuctionId,
     ) -> anyhow::Result<()> {
-        if update.bid_status == BidStatus::Pending {
-            return Err(anyhow::anyhow!(
-                "Bid status cannot remain pending when removing a bid."
-            ));
+        match update.bid_status {
+            BidStatus::Pending => {
+                return Err(anyhow::anyhow!(
+                    "Bid status cannot remain pending when removing a bid."
+                ));
+            }
+            BidStatus::Submitted { result: _, index } => {
+                let index_i32 = index.as_u32() as i32;
+                sqlx::query!(
+                    "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND auction_id is NULL",
+                    update.bid_status as _,
+                    auction_id,
+                    index_i32,
+                    update.id
+                )
+                .execute(&self.db)
+                .await?;
+            }
+            BidStatus::Lost { result: _ } => {
+                sqlx::query!(
+                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
+                    update.bid_status as _,
+                    auction_id,
+                    update.id
+                )
+                .execute(&self.db)
+                .await?;
+            }
         }
-
-        sqlx::query!(
-            "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
-            update.bid_status as _,
-            auction_id,
-            update.id
-        )
-        .execute(&self.db)
-        .await?;
 
         self.bids.write().await.remove(&update.id);
         self.broadcast_status_update(update);

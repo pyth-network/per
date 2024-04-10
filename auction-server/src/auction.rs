@@ -11,6 +11,7 @@ use {
         },
         state::{
             AuctionParams,
+            AuctionParamsWithMetadata,
             BidAmount,
             BidStatus,
             BidStatusWithId,
@@ -62,6 +63,7 @@ use {
         Deserialize,
         Serialize,
     },
+    sqlx::types::time::OffsetDateTime,
     std::{
         collections::HashMap,
         result,
@@ -242,6 +244,8 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                         auction_len = bid_by_permission_key.len()
                     );
                     for (permission_key, bids) in bid_by_permission_key.iter() {
+                        let auction_id = store.init_auction(permission_key.clone(), chain_id.clone()).await?;
+
                         let mut cloned_bids = bids.clone();
                         let permission_key = permission_key.clone();
                          cloned_bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
@@ -267,12 +271,18 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                         permission_key: permission_key.clone(),
                                         tx_hash: receipt.transaction_hash,
                                     };
-                                    let auction_id = store.add_auction(auction_params).await?;
+                                    let auction = AuctionParamsWithMetadata {
+                                        id: auction_id,
+                                        conclusion_time: OffsetDateTime::now_utc().unix_timestamp(),
+                                        params: auction_params,
+                                    };
+                                    store.update_auction(auction).await?;
                                     let winner_ids:Vec<Uuid> = winner_bids.iter().map(|b| b.id).collect();
                                     for bid in cloned_bids {
-                                        let bid_status = match winner_ids.contains(&bid.id) {
-                                            true => BidStatus::Submitted(receipt.transaction_hash),
-                                            false => BidStatus::Lost(receipt.transaction_hash)
+                                        let bid_index = winner_ids.iter().position(|&x| x == bid.id);
+                                        let bid_status = match bid_index {
+                                            Some(i) => BidStatus::Submitted { result: receipt.transaction_hash, index: U256::from(i) },
+                                            None => BidStatus::Lost { result: receipt.transaction_hash }
                                         };
                                         store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, auction_id).await?;
                                     }

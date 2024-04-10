@@ -1,7 +1,7 @@
 use {
     crate::{
         api::{
-            auction::get_auction_with_id,
+            auction::get_concluded_auction,
             ErrorBodyResponse,
             RestError,
         },
@@ -83,7 +83,7 @@ pub async fn bid_status(
 ) -> Result<Json<BidStatus>, RestError> {
     let status_data = sqlx::query!(
         // TODO: improve the call here to not cast to text
-        "SELECT status::text, auction_id FROM bid WHERE id = $1",
+        "SELECT status::text, auction_id, bundle_index FROM bid WHERE id = $1",
         bid_id
     )
     .fetch_one(&store.db)
@@ -98,8 +98,11 @@ pub async fn bid_status(
             } else if status == "lost" {
                 match status_data.auction_id {
                     Some(auction_id) => {
-                        let auction_info = get_auction_with_id(store.clone(), auction_id).await?;
-                        status_json = BidStatus::Lost(auction_info.params.tx_hash).into();
+                        let auction_info = get_concluded_auction(store.clone(), auction_id).await?;
+                        status_json = BidStatus::Lost {
+                            result: auction_info.params.tx_hash,
+                        }
+                        .into();
                     }
                     None => {
                         return Err(RestError::BadParameters(
@@ -110,8 +113,21 @@ pub async fn bid_status(
             } else if status == "submitted" {
                 match status_data.auction_id {
                     Some(auction_id) => {
-                        let auction_info = get_auction_with_id(store.clone(), auction_id).await?;
-                        status_json = BidStatus::Submitted(auction_info.params.tx_hash).into();
+                        let auction_info = get_concluded_auction(store.clone(), auction_id).await?;
+                        match status_data.bundle_index {
+                            Some(bundle_index) => {
+                                status_json = BidStatus::Submitted {
+                                    result: auction_info.params.tx_hash,
+                                    index:  bundle_index.into(),
+                                }
+                                .into();
+                            }
+                            None => {
+                                return Err(RestError::BadParameters(
+                                    "Submitted bid must have bundle index".to_string(),
+                                ));
+                            }
+                        }
                     }
                     None => {
                         return Err(RestError::BadParameters(

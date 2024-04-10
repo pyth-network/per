@@ -10,21 +10,26 @@
       },
       {
         "ordinal": 1,
-        "name": "conclusion_time",
+        "name": "creation_time",
         "type_info": "Timestamp"
       },
       {
         "ordinal": 2,
+        "name": "conclusion_time",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 3,
         "name": "permission_key",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "chain_id",
         "type_info": "Text"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "tx_hash",
         "type_info": "Bytea"
       }
@@ -37,9 +42,10 @@
     "nullable": [
       false,
       false,
+      true,
       false,
       false,
-      false
+      true
     ]
   },
   "hash": "9e533a8995ff99d5ec7f0c39aad8f422455bea6b192d5b13213d64cce96391ba"
