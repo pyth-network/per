@@ -35,7 +35,7 @@ contract SigVerify is EIP712 {
             revert ExpiredSignature();
         }
 
-        if (_signatureUsed[signature] == true) {
+        if (_signatureUsed[signature]) {
             revert SignatureAlreadyUsed();
         }
     }

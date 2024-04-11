@@ -114,7 +114,7 @@ impl From<&ChainStore> for OpportunityAdapterSignatureConfig {
 
 
 impl OpportunityParamsWithMetadata {
-    fn from_opportunity(val: Opportunity, chain_store: &ChainStore) -> Self {
+    fn from(val: Opportunity, chain_store: &ChainStore) -> Self {
         OpportunityParamsWithMetadata {
             opportunity_id:   val.id,
             creation_time:    val.creation_time,
@@ -165,9 +165,10 @@ pub async fn post_opportunity(
     store
         .ws
         .broadcast_sender
-        .send(NewOpportunity(
-            OpportunityParamsWithMetadata::from_opportunity(opportunity.clone(), chain_store),
-        ))
+        .send(NewOpportunity(OpportunityParamsWithMetadata::from(
+            opportunity.clone(),
+            chain_store,
+        )))
         .map_err(|e| {
             tracing::error!("Failed to send update: {}", e);
             RestError::TemporarilyUnavailable
@@ -185,7 +186,7 @@ pub async fn post_opportunity(
     }
 
     let opportunity_with_metadata: OpportunityParamsWithMetadata =
-        OpportunityParamsWithMetadata::from_opportunity(opportunity.clone(), chain_store);
+        OpportunityParamsWithMetadata::from(opportunity.clone(), chain_store);
 
     Ok(opportunity_with_metadata.into())
 }
@@ -229,7 +230,7 @@ pub async fn get_opportunities(
         .map(|opportunity| {
             let OpportunityParams::V1(params) = &opportunity.params;
             let chain_store = store.chains.get(&params.chain_id).unwrap();
-            OpportunityParamsWithMetadata::from_opportunity(opportunity, chain_store)
+            OpportunityParamsWithMetadata::from(opportunity, chain_store)
         })
         .collect();
 
