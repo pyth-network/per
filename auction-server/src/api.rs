@@ -69,7 +69,6 @@ async fn root() -> String {
     format!("Express Relay Auction Server API {}", crate_version!())
 }
 
-pub(crate) mod auction;
 mod bid;
 pub(crate) mod opportunity;
 pub(crate) mod ws;
@@ -83,10 +82,6 @@ pub enum RestError {
     InvalidChainId,
     /// The simulation failed
     SimulationError { result: Bytes, reason: String },
-    /// The auction was not concluded
-    AuctionNotConcluded,
-    /// The auction was not found
-    AuctionNotFound,
     /// The opportunity was not found
     OpportunityNotFound,
     /// The bid was not found
@@ -112,14 +107,6 @@ impl RestError {
             RestError::SimulationError { result, reason } => (
                 StatusCode::BAD_REQUEST,
                 format!("Simulation failed: {} ({})", result, reason),
-            ),
-            RestError::AuctionNotConcluded => (
-                StatusCode::BAD_REQUEST,
-                "Auction was not concluded".to_string(),
-            ),
-            RestError::AuctionNotFound => (
-                StatusCode::NOT_FOUND,
-                "Auction with the specified id was not found".to_string(),
             ),
             RestError::OpportunityNotFound => (
                 StatusCode::NOT_FOUND,

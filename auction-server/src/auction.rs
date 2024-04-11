@@ -281,7 +281,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                     for bid in cloned_bids {
                                         let bid_index = winner_ids.iter().position(|&x| x == bid.id);
                                         let bid_status = match bid_index {
-                                            Some(i) => BidStatus::Submitted { result: receipt.transaction_hash, index: U256::from(i) },
+                                            Some(i) => BidStatus::Submitted { result: receipt.transaction_hash, index: i as u32 },
                                             None => BidStatus::Lost { result: receipt.transaction_hash }
                                         };
                                         store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, auction_id).await?;

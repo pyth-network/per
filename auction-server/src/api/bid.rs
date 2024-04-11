@@ -1,7 +1,6 @@
 use {
     crate::{
         api::{
-            auction::get_concluded_auction,
             ErrorBodyResponse,
             RestError,
         },
@@ -81,68 +80,7 @@ pub async fn bid_status(
     State(store): State<Arc<Store>>,
     Path(bid_id): Path<BidId>,
 ) -> Result<Json<BidStatus>, RestError> {
-    let status_data = sqlx::query!(
-        // TODO: improve the call here to not cast to text
-        "SELECT status::text, auction_id, bundle_index FROM bid WHERE id = $1",
-        bid_id
-    )
-    .fetch_one(&store.db)
-    .await
-    .map_err(|_| RestError::BidNotFound)?;
-
-    let status_json: Json<BidStatus>;
-    match status_data.status {
-        Some(status) => {
-            if status == "pending" {
-                status_json = BidStatus::Pending.into();
-            } else if status == "lost" {
-                match status_data.auction_id {
-                    Some(auction_id) => {
-                        let auction_info = get_concluded_auction(store.clone(), auction_id).await?;
-                        status_json = BidStatus::Lost {
-                            result: auction_info.params.tx_hash,
-                        }
-                        .into();
-                    }
-                    None => {
-                        return Err(RestError::BadParameters(
-                            "Lost bid must have auction id".to_string(),
-                        ));
-                    }
-                }
-            } else if status == "submitted" {
-                match status_data.auction_id {
-                    Some(auction_id) => {
-                        let auction_info = get_concluded_auction(store.clone(), auction_id).await?;
-                        match status_data.bundle_index {
-                            Some(bundle_index) => {
-                                status_json = BidStatus::Submitted {
-                                    result: auction_info.params.tx_hash,
-                                    index:  bundle_index.into(),
-                                }
-                                .into();
-                            }
-                            None => {
-                                return Err(RestError::BadParameters(
-                                    "Submitted bid must have bundle index".to_string(),
-                                ));
-                            }
-                        }
-                    }
-                    None => {
-                        return Err(RestError::BadParameters(
-                            "Submitted bid must have auction id".to_string(),
-                        ));
-                    }
-                }
-            } else {
-                return Err(RestError::BadParameters("Invalid status".to_string()));
-            }
-        }
-        None => {
-            return Err(RestError::BidNotFound);
-        }
-    }
+    let status_json = store.get_bid_status(bid_id).await?;
 
     Ok(status_json)
 }

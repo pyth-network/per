@@ -12,6 +12,7 @@ use {
             EthereumConfig,
         },
     },
+    axum::Json,
     ethers::{
         providers::{
             Http,
@@ -175,8 +176,8 @@ pub enum BidStatus {
     Submitted {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
-        #[schema(example = 1, value_type = u64)]
-        index:  U256,
+        #[schema(example = 1, value_type = u32)]
+        index:  u32,
     },
     /// The bid lost the auction, which concluded with the transaction with the given hash
     Lost {
@@ -247,7 +248,6 @@ pub struct Store {
 }
 
 impl Store {
-    // Check if opportunity with specified parameters exists in the hot store
     pub async fn opportunity_exists(&self, opportunity: &Opportunity) -> bool {
         let key = match &opportunity.params {
             OpportunityParams::V1(params) => params.permission_key.clone(),
@@ -260,7 +260,6 @@ impl Store {
             .map_or(false, |opps| opps.contains(opportunity))
     }
 
-    // Add opportunity with specified parameters to the hot store and database
     pub async fn add_opportunity(&self, opportunity: Opportunity) -> Result<(), RestError> {
         let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time)
             .expect("creation_time is valid");
@@ -293,7 +292,6 @@ impl Store {
         Ok(())
     }
 
-    // Remove opportunity from the hot opportunity store
     pub async fn remove_opportunity(&self, opportunity: &Opportunity) -> anyhow::Result<()> {
         let key = match &opportunity.params {
             OpportunityParams::V1(params) => params.permission_key.clone(),
@@ -319,7 +317,6 @@ impl Store {
         Ok(())
     }
 
-    // initialize a row in auction table to represent the start of the auction
     pub async fn init_auction(
         &self,
         permission_key: PermissionKey,
@@ -339,22 +336,18 @@ impl Store {
         Ok(auction_id)
     }
 
-    // Add specified parameters of an already created auction to the database
     pub async fn update_auction(&self, auction: AuctionParamsWithMetadata) -> anyhow::Result<()> {
         let conclusion_datetime =
             OffsetDateTime::from_unix_timestamp_nanos(auction.conclusion_time)?;
-        sqlx::query!("UPDATE auction SET conclusion_time = $1, tx_hash = $2 WHERE id = $3 AND permission_key = $4 AND chain_id = $5 AND conclusion_time IS NULL",
+        sqlx::query!("UPDATE auction SET conclusion_time = $1, tx_hash = $2 WHERE id = $3 AND conclusion_time IS NULL",
             PrimitiveDateTime::new(conclusion_datetime.date(), conclusion_datetime.time()),
             auction.params.tx_hash.as_bytes(),
-            auction.id,
-            auction.params.permission_key.to_vec(),
-            auction.params.chain_id)
+            auction.id)
             .execute(&self.db)
             .await?;
         Ok(())
     }
 
-    // Add bid with specified paramters to hot store and database
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
@@ -382,7 +375,64 @@ impl Store {
         Ok(())
     }
 
-    // Broadcast bid status update after removing bid from hot store
+    pub async fn get_bid_status(&self, bid_id: BidId) -> Result<Json<BidStatus>, RestError> {
+        let status_data = sqlx::query!(
+            // TODO: improve the call here to not cast to text
+            "SELECT status::text, auction_id, bundle_index, tx_hash FROM (bid LEFT OUTER JOIN auction ON bid.auction_id = auction.id) WHERE bid.id = $1",
+            bid_id
+        )
+        .fetch_one(&self.db)
+        .await
+        .map_err(|_| RestError::BidNotFound)?;
+
+        let status_json: Json<BidStatus>;
+        match status_data.status {
+            Some(status) => {
+                if status == "pending" {
+                    status_json = BidStatus::Pending.into();
+                } else {
+                    match status_data.tx_hash {
+                        Some(tx_hash) => {
+                            let tx_hash = H256::from_slice(&tx_hash);
+                            if status == "lost" {
+                                status_json = BidStatus::Lost { result: tx_hash }.into();
+                            } else if status == "submitted" {
+                                match status_data.bundle_index {
+                                    Some(bundle_index) => {
+                                        status_json = BidStatus::Submitted {
+                                            result: tx_hash,
+                                            index:  bundle_index as u32,
+                                        }
+                                        .into();
+                                    }
+                                    None => {
+                                        return Err(RestError::BadParameters(
+                                            "Submitted bid must have bundle index".to_string(),
+                                        ));
+                                    }
+                                }
+                            } else {
+                                return Err(RestError::BadParameters(
+                                    "Invalid bid status".to_string(),
+                                ));
+                            }
+                        }
+                        None => {
+                            return Err(RestError::BadParameters(
+                                "Lost or submitted bid must have a transaction hash".to_string(),
+                            ));
+                        }
+                    }
+                }
+            }
+            None => {
+                return Err(RestError::BidNotFound);
+            }
+        }
+
+        Ok(status_json)
+    }
+
     pub async fn broadcast_bid_status_and_remove(
         &self,
         update: BidStatusWithId,
@@ -395,12 +445,11 @@ impl Store {
                 ));
             }
             BidStatus::Submitted { result: _, index } => {
-                let index_i32 = index.as_u32() as i32;
                 sqlx::query!(
                     "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND auction_id is NULL",
                     update.bid_status as _,
                     auction_id,
-                    index_i32,
+                    index as i32,
                     update.id
                 )
                 .execute(&self.db)

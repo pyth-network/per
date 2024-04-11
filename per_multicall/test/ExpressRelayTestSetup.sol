@@ -589,7 +589,12 @@ contract ExpressRelayTestSetup is
         for (uint i = 0; i < contracts.length; i++) {
             bytes16 bidId = bytes16(
                 keccak256(
-                    abi.encodePacked(contracts[i], data[i], bidAmounts[i])
+                    abi.encodePacked(
+                        keccak256("randomBidIdConstruction"),
+                        contracts[i],
+                        data[i],
+                        bidAmounts[i]
+                    )
                 )
             );
             multicallData[i] = MulticallData(
