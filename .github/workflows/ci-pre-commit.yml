@@ -36,7 +36,7 @@ jobs:
         run: forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit
       - name: Install forge dependencies 2
         working-directory: per_multicall
-        run: forge install OpenZeppelin/openzeppelin-contracts@v4.8.1 --no-git --no-commit
+        run: forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commit
       - name: Install forge dependencies 3
         working-directory: per_multicall
         run: forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.1 --no-git --no-commit
