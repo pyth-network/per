@@ -295,6 +295,7 @@ pub struct OpportunityAdapterExecutionParams {
 }
 
 fn verify_signature(execution_params: OpportunityAdapterExecutionParams) -> Result<()> {
+    // TODO Maybe use ECDSA to recover the signer?
     let structured_hash = execution_params.encode_eip712()?;
     let params = execution_params.params;
     let signature = Signature::try_from(params.signature.to_vec().as_slice())

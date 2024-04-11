@@ -16,6 +16,7 @@ class BidInfo(TypedDict):
     valid_until: int
 
 
+# Reference https://eips.ethereum.org/EIPS/eip-712
 class EIP712:
     def __init__(
         self, _name: str, _version: str, _chain_id: int, _verifying_contract: str
