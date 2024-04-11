@@ -131,7 +131,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
-        vm.startPrank(relayer, searcherAOwnerAddress);
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
@@ -377,7 +377,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
     }
 
     function testLiquidateMismatchedBidFail() public {
-        vm.startPrank(relayer, address(searcherA));
         uint256 vaultNumber = 0;
 
         address[] memory contracts = new address[](1);
@@ -406,6 +405,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
+        vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
