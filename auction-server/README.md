@@ -1,6 +1,5 @@
 # Auction Server
 
-A single instance of this webservice can simultaneously serve random numbers for several different blockchains.
 Each blockchain is configured in `config.yaml`.
 
 ## Build & Test
