@@ -40,8 +40,8 @@ class EIP712:
         )
 
     def domain_seperator_v4(self):
-        domain_hash = solidity_keccak(
-            ["bytes", "bytes", "bytes", "uint256", "address"],
+        encoded = encode(
+            ["bytes32", "bytes32", "bytes32", "uint256", "address"],
             [
                 self._type_hash(),
                 self._name_hash(),
@@ -50,6 +50,7 @@ class EIP712:
                 self.verifying_contract,
             ],
         )
+        domain_hash = solidity_keccak(["bytes"], [encoded])
         return domain_hash
 
     @staticmethod
@@ -110,7 +111,7 @@ def construct_signature_executor(
     )
 
     data_digest = encode(
-        ["bytes", "address", "bytes", "uint256"],
+        ["bytes32", "address", "bytes", "uint256"],
         [
             solidity_keccak(["string"], [signature_config["opportunity_type"]]),
             Account.from_key(secret_key).address,
