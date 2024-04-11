@@ -144,35 +144,44 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
-    function executeOpportunity(ExecutionParams memory params) public payable {
-        _verifyParams(params);
-
-        uint256[] memory expectedBuyTokensBalances = new uint256[](
-            params.buyTokens.length
-        );
-        // get balances of buy tokens before transferring sell tokens since there might be overlaps
-        for (uint i = 0; i < params.buyTokens.length; i++) {
-            IERC20 token = IERC20(params.buyTokens[i].token);
-            uint256 amount = params.buyTokens[i].amount;
-
-            expectedBuyTokensBalances[i] =
-                token.balanceOf(address(this)) +
-                amount;
+    function _getContractTokenBalances(
+        TokenAmount[] memory tokens
+    ) internal view returns (uint256[] memory) {
+        uint256[] memory tokenBalances = new uint256[](tokens.length);
+        for (uint i = 0; i < tokens.length; i++) {
+            IERC20 token = IERC20(tokens[i].token);
+            tokenBalances[i] = token.balanceOf(address(this));
         }
+        return tokenBalances;
+    }
 
-        _prepareSellTokens(params);
-        _transferFromAndUnwrapWeth(params.executor, params.targetCallValue);
-        _callTargetContract(params);
-
-        // check balances of buy tokens after call and transfer to executor
+    function _validateAndTransferBuyTokens(
+        ExecutionParams memory params,
+        uint256[] memory buyTokensBalancesBeforeCall
+    ) internal {
         for (uint i = 0; i < params.buyTokens.length; i++) {
             IERC20 token = IERC20(params.buyTokens[i].token);
-            if (token.balanceOf(address(this)) < expectedBuyTokensBalances[i]) {
+            if (
+                token.balanceOf(address(this)) <
+                buyTokensBalancesBeforeCall[i] + params.buyTokens[i].amount
+            ) {
                 revert InsufficientTokenReceived();
             }
             token.transfer(params.executor, params.buyTokens[i].amount);
         }
+    }
 
+    function executeOpportunity(ExecutionParams memory params) public payable {
+        _verifyParams(params);
+        // get balances of buy tokens before transferring sell tokens since there might be overlaps
+        uint256[]
+            memory buyTokensBalancesBeforeCall = _getContractTokenBalances(
+                params.buyTokens
+            );
+        _prepareSellTokens(params);
+        _transferFromAndUnwrapWeth(params.executor, params.targetCallValue);
+        _callTargetContract(params);
+        _validateAndTransferBuyTokens(params, buyTokensBalancesBeforeCall);
         _settleBid(params);
         _signatureUsed[params.signature] = true;
     }
