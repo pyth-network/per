@@ -13,7 +13,8 @@ use {
         opportunity_adapter::OpportunityBid,
         server::{EXIT_CHECK_INTERVAL, SHOULD_EXIT},
         state::{
-            BidStatus, BidStatusWithId, OpportunityParams, OpportunityParamsV1, Store, TokenAmount,
+            AuctionParams, BidStatus, BidStatusWithId, OpportunityParams, OpportunityParamsV1,
+            Store, TokenAmount,
         },
     },
     anyhow::Result,
@@ -36,6 +37,7 @@ async fn root() -> String {
     format!("Express Relay Auction Server API {}", crate_version!())
 }
 
+mod auction;
 mod bid;
 pub(crate) mod opportunity;
 pub(crate) mod ws;
@@ -49,6 +51,8 @@ pub enum RestError {
     InvalidChainId,
     /// The simulation failed
     SimulationError { result: Bytes, reason: String },
+    /// The auction was not found
+    AuctionNotFound,
     /// The opportunity was not found
     OpportunityNotFound,
     /// The bid was not found
@@ -74,6 +78,10 @@ impl RestError {
             RestError::SimulationError { result, reason } => (
                 StatusCode::BAD_REQUEST,
                 format!("Simulation failed: {} ({})", result, reason),
+            ),
+            RestError::AuctionNotFound => (
+                StatusCode::NOT_FOUND,
+                "Auction with the specified permission key was not found".to_string(),
             ),
             RestError::OpportunityNotFound => (
                 StatusCode::NOT_FOUND,
@@ -119,6 +127,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     #[derive(OpenApi)]
     #[openapi(
     paths(
+    auction::get_auctions,
     bid::bid,
     bid::bid_status,
     opportunity::post_opportunity,
@@ -128,6 +137,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     components(
     schemas(
     APIResponse,
+    AuctionParams,
     Bid,
     BidStatus,
     BidStatusWithId,
@@ -148,7 +158,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     responses(
     ErrorBodyResponse,
     OpportunityParamsWithMetadata,
-    BidResult
+    BidResult,
+    AuctionParams
     ),
     ),
     tags(
@@ -161,6 +172,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .route("/", get(root))
+        .route("/v1/auctions/:permission_key", get(auction::get_auctions))
         .route("/v1/bids", post(bid::bid))
         .route("/v1/bids/:bid_id", get(bid::bid_status))
         .route("/v1/opportunities", post(opportunity::post_opportunity))
