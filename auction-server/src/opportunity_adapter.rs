@@ -68,6 +68,7 @@ use {
         Serialize,
     },
     std::{
+        collections::HashMap,
         ops::Add,
         result,
         sync::{
@@ -162,26 +163,19 @@ pub async fn verify_opportunity(
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();
-    let mut sell_tokens = opportunity.sell_tokens.clone();
-    let found_weth = sell_tokens
-        .iter_mut()
-        .find_map(
-            |token_amount| match token_amount.token == chain_store.weth {
-                true => {
-                    token_amount.amount = token_amount.amount.add(opportunity.target_call_value);
-                    Some(())
-                }
-                false => None,
-            },
-        )
-        .is_some();
-    if !found_weth {
-        sell_tokens.push(crate::state::TokenAmount {
-            token:  chain_store.weth,
-            amount: opportunity.target_call_value,
-        });
-    }
-    for crate::state::TokenAmount { token, amount } in sell_tokens.into_iter() {
+    let mut required_tokens = opportunity.sell_tokens.clone();
+
+    required_tokens.push(crate::state::TokenAmount {
+        token:  chain_store.weth,
+        amount: opportunity.target_call_value,
+    });
+    let mut tokens_map = HashMap::<Address, U256>::new();
+    required_tokens.iter().for_each(|token_amount| {
+        let amount = tokens_map.entry(token_amount.token).or_insert(U256::zero());
+        *amount = amount.add(token_amount.amount);
+    });
+
+    for (token, amount) in tokens_map {
         let spoof_info = match token_spoof_info.get(&token) {
             Some(info) => info.clone(),
             None => {
