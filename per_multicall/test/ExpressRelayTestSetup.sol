@@ -553,18 +553,20 @@ contract ExpressRelayTestSetup is
 
         for (uint i = 0; i < bidInfos.length; i++) {
             // create liquidation call params struct
-            ExecutionParams memory executionParams = createAndSignExecutionParams(
-                    address(opportunityAdapter),
-                    bidInfos[i].executor,
-                    sellTokens,
-                    buyTokens,
-                    contractAddress,
-                    calldataVault,
-                    value,
-                    bidInfos[i].bid,
-                    bidInfos[i].validUntil,
-                    bidInfos[i].executorSk
-                );
+            ExecutionParams
+                memory executionParams = opportunityAdapterSignatureContract
+                    .createAndSignExecutionParams(
+                        address(opportunityAdapter),
+                        bidInfos[i].executor,
+                        sellTokens,
+                        buyTokens,
+                        contractAddress,
+                        calldataVault,
+                        value,
+                        bidInfos[i].bid,
+                        bidInfos[i].validUntil,
+                        bidInfos[i].executorSk
+                    );
 
             // manually set the executor address again since it's not necessarily the same as vm.addr(executorSk)
             executionParams.executor = bidInfos[i].executor;

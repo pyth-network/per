@@ -11,7 +11,7 @@ contract OpportunityAdapterSignature is Signature {
 
     constructor() Signature(_NAME, _VERSION) {}
 
-    function createOpportunityExecutionSignature(
+    function createAndSignExecutionParams(
         address contractAddress,
         address signer,
         TokenAmount[] memory sellTokens,
@@ -22,7 +22,7 @@ contract OpportunityAdapterSignature is Signature {
         uint256 bid,
         uint256 validUntil,
         uint256 executorSk
-    ) public view returns (bytes memory) {
+    ) public view returns (ExecutionParams memory executionParams) {
         bytes32 digest = _hashTypedDataV4(
             contractAddress,
             _NAME,
@@ -40,8 +40,18 @@ contract OpportunityAdapterSignature is Signature {
             ),
             validUntil
         );
-
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(executorSk, digest);
-        return abi.encodePacked(r, s, v);
+        executionParams = ExecutionParams(
+            sellTokens,
+            buyTokens,
+            vm.addr(executorSk),
+            target,
+            data,
+            value,
+            validUntil,
+            bid,
+            abi.encodePacked(r, s, v)
+        );
+        return executionParams;
     }
 }

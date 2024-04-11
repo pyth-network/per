@@ -9,13 +9,13 @@ import "../src/Errors.sol";
 import "../src/Structs.sol";
 import "../src/OpportunityAdapter.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
-import "./helpers/Signatures.sol";
+import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 
 contract MockTarget {
     function execute(bytes calldata data) public payable {}
 }
 
-contract OpportunityAdapterUnitTest is Test, Signatures {
+contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     MockTarget mockTarget;
     OpportunityAdapterUpgradable opportunityAdapter;
     WETH9 weth;

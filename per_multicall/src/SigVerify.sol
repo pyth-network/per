@@ -5,6 +5,7 @@ import "openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
 import "openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
 
 import "./Errors.sol";
+import "forge-std/console.sol";
 
 contract SigVerify is EIP712 {
     mapping(bytes => bool) _signatureUsed;
@@ -26,6 +27,10 @@ contract SigVerify is EIP712 {
             keccak256(abi.encode(keccak256(rawType), _signer, _data, deadline))
         );
         address signer = ECDSA.recover(digest, signature);
+
+        if (signer != _signer) {
+            console.log("Problem in signature");
+        }
 
         if (signer == address(0) || signer != _signer) {
             revert InvalidSignature();
