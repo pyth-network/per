@@ -39,7 +39,7 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
         mockTarget = new MockTarget();
     }
 
-    function test_RevertWhen_InsufficientWethToTransferForCall() public {
+    function testRevertWhenInsufficientWethToTransferForCall() public {
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
@@ -56,12 +56,13 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
             block.timestamp + 1000,
             executorSk
         );
-        vm.prank(opportunityAdapter.owner());
+        vm.prank(opportunityAdapter.getExpressRelay());
+        // callvalue is 1 wei, but executor has not deposited/approved any WETH
         vm.expectRevert(WethTransferFromFailed.selector);
         opportunityAdapter.executeOpportunity(executionParams);
     }
 
-    function test_RevertWhen_InsufficientWethToTransferForBid() public {
+    function testRevertWhenInsufficientWethToTransferForBid() public {
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
@@ -83,7 +84,9 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
         weth.deposit{value: 123 wei}();
         weth.approve(address(opportunityAdapter), 123);
         vm.stopPrank();
-        vm.prank(opportunityAdapter.owner());
+        vm.prank(opportunityAdapter.getExpressRelay());
+        // callvalue is 123 wei, and executor has approved 123 wei so the call should succeed but adapter does not have
+        // 100 more wei to return the bid
         vm.expectCall(address(mockTarget), 123, targetCalldata);
         vm.expectRevert(WethTransferFromFailed.selector);
         opportunityAdapter.executeOpportunity(executionParams);

@@ -58,6 +58,10 @@ abstract contract OpportunityAdapter is SigVerify {
         return _weth;
     }
 
+    function getWethContract() internal view returns (WETH9) {
+        return WETH9(payable(_weth));
+    }
+
     function _getRevertMsg(
         bytes memory _returnData
     ) internal pure returns (string memory) {
@@ -71,7 +75,7 @@ abstract contract OpportunityAdapter is SigVerify {
         return abi.decode(_returnData, (string)); // All that remains is the revert string
     }
 
-    function executeOpportunity(ExecutionParams memory params) public payable {
+    function _verifyParams(ExecutionParams memory params) internal view {
         if (msg.sender != _expressRelay) {
             revert Unauthorized();
         }
@@ -98,16 +102,11 @@ abstract contract OpportunityAdapter is SigVerify {
         if (_signatureUsed[params.signature]) {
             revert SignatureAlreadyUsed();
         }
+    }
 
-        uint256[] memory balancesBuyTokens = new uint256[](
-            params.buyTokens.length
-        );
-
-        address weth = getWeth();
-        // transfer sell tokens to this contract
+    function _prepareSellTokens(ExecutionParams memory params) internal {
         for (uint i = 0; i < params.sellTokens.length; i++) {
             IERC20 token = IERC20(params.sellTokens[i].token);
-
             token.transferFrom(
                 params.executor,
                 address(this),
@@ -115,67 +114,66 @@ abstract contract OpportunityAdapter is SigVerify {
             );
             token.approve(params.targetContract, params.sellTokens[i].amount);
         }
+    }
 
-        // get balances of buy tokens before call
-        for (uint i = 0; i < params.buyTokens.length; i++) {
-            IERC20 token = IERC20(params.buyTokens[i].token);
-            uint256 amount = params.buyTokens[i].amount;
-
-            balancesBuyTokens[i] = token.balanceOf(address(this)) + amount;
-        }
-        if (params.targetCallValue > 0) {
-            try
-                WETH9(payable(weth)).transferFrom(
-                    params.executor,
-                    address(this),
-                    params.targetCallValue
-                )
-            {} catch {
+    function _transferFromAndUnwrapWeth(
+        address source,
+        uint256 amount
+    ) internal {
+        WETH9 weth = getWethContract();
+        if (amount > 0) {
+            try weth.transferFrom(source, address(this), amount) {} catch {
                 revert WethTransferFromFailed();
             }
-
-            // unwrap weth to eth to use in call
-            WETH9(payable(weth)).withdraw(params.targetCallValue);
+            weth.withdraw(amount);
         }
+    }
 
+    function _settleBid(ExecutionParams memory params) internal {
+        _transferFromAndUnwrapWeth(params.executor, params.bidAmount);
+        payable(getExpressRelay()).transfer(params.bidAmount);
+    }
+
+    function _callTargetContract(ExecutionParams memory params) internal {
         (bool success, bytes memory reason) = params.targetContract.call{
             value: params.targetCallValue
         }(params.targetCalldata);
-
         if (!success) {
             string memory revertData = _getRevertMsg(reason);
             revert TargetCallFailed(revertData);
         }
+    }
 
-        // check balances of buy tokens after call and transfer to opportunity adapter
+    function executeOpportunity(ExecutionParams memory params) public payable {
+        _verifyParams(params);
+
+        uint256[] memory expectedBuyTokensBalances = new uint256[](
+            params.buyTokens.length
+        );
+        // get balances of buy tokens before transferring sell tokens since there might be overlaps
         for (uint i = 0; i < params.buyTokens.length; i++) {
             IERC20 token = IERC20(params.buyTokens[i].token);
             uint256 amount = params.buyTokens[i].amount;
 
-            uint256 balanceFinal = token.balanceOf(address(this));
-            if (balanceFinal < balancesBuyTokens[i]) {
+            expectedBuyTokensBalances[i] =
+                token.balanceOf(address(this)) +
+                amount;
+        }
+
+        _prepareSellTokens(params);
+        _transferFromAndUnwrapWeth(params.executor, params.targetCallValue);
+        _callTargetContract(params);
+
+        // check balances of buy tokens after call and transfer to executor
+        for (uint i = 0; i < params.buyTokens.length; i++) {
+            IERC20 token = IERC20(params.buyTokens[i].token);
+            if (token.balanceOf(address(this)) < expectedBuyTokensBalances[i]) {
                 revert InsufficientTokenReceived();
             }
-
-            // transfer buy tokens to the executor
-            token.transfer(params.executor, amount);
+            token.transfer(params.executor, params.buyTokens[i].amount);
         }
 
-        // transfer bid to opportunity adapter in the form of weth
-        try
-            WETH9(payable(weth)).transferFrom(
-                params.executor,
-                address(this),
-                params.bidAmount
-            )
-        {} catch {
-            revert WethTransferFromFailed();
-        }
-        // unwrap weth to eth
-        WETH9(payable(weth)).withdraw(params.bidAmount);
-        payable(getExpressRelay()).transfer(params.bidAmount);
-
-        // mark signature as used
+        _settleBid(params);
         _signatureUsed[params.signature] = true;
     }
 
