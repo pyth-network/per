@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./Errors.sol";
 import "./Structs.sol";
+import "./ExpressRelayEvents.sol";
 
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
 
@@ -27,7 +28,7 @@ contract ExpressRelayStorage {
     }
 }
 
-contract ExpressRelayState is IExpressRelay {
+contract ExpressRelayState is IExpressRelay, ExpressRelayEvents {
     ExpressRelayStorage.State state;
 
     function setFeeSplitPrecision() internal {
@@ -86,6 +87,7 @@ contract ExpressRelayState is IExpressRelay {
     function setRelayer(address relayer) public onlyAdmin {
         state.relayer = relayer;
         state.relayerSubwallets = new address[](0);
+        emit RelayerSet(relayer);
     }
 
     /**
@@ -107,6 +109,7 @@ contract ExpressRelayState is IExpressRelay {
             }
         }
         state.relayerSubwallets.push(subwallet);
+        emit RelayerSubwalletAdded(state.relayer, subwallet);
     }
 
     /**
@@ -130,6 +133,7 @@ contract ExpressRelayState is IExpressRelay {
                 revert RelayerSubwalletNotFound();
             }
         }
+        emit RelayerSubwalletRemoved(state.relayer, subwallet);
     }
 
     /**
@@ -147,6 +151,7 @@ contract ExpressRelayState is IExpressRelay {
     function setFeeProtocolDefault(uint256 feeSplit) public onlyAdmin {
         validateFeeSplit(feeSplit);
         state.feeSplitProtocolDefault = feeSplit;
+        emit FeeProtocolDefaultSet(feeSplit);
     }
 
     /**
@@ -168,6 +173,7 @@ contract ExpressRelayState is IExpressRelay {
     ) public onlyAdmin {
         validateFeeSplit(feeSplit);
         state.feeConfig[feeRecipient] = feeSplit;
+        emit FeeProtocolSet(feeRecipient, feeSplit);
     }
 
     /**
@@ -193,6 +199,7 @@ contract ExpressRelayState is IExpressRelay {
     function setFeeRelayer(uint256 feeSplit) public onlyAdmin {
         validateFeeSplit(feeSplit);
         state.feeSplitRelayer = feeSplit;
+        emit FeeRelayerSet(feeSplit);
     }
 
     /**

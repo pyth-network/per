@@ -5,16 +5,11 @@ import "./Errors.sol";
 import "./Structs.sol";
 import "./ExpressRelayState.sol";
 import "./ExpressRelayHelpers.sol";
-import "./ExpressRelayEvents.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 
-contract ExpressRelay is
-    ExpressRelayHelpers,
-    ExpressRelayState,
-    ExpressRelayEvents
-{
+contract ExpressRelay is ExpressRelayHelpers, ExpressRelayState {
     /**
      * @notice ExpressRelay initializer - Initializes a new ExpressRelay contract with given parameters
      *

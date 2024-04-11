@@ -12,4 +12,10 @@ contract ExpressRelayEvents {
         uint256 bidAmount,
         MulticallStatus multicallStatus
     );
+    event RelayerSet(address relayer);
+    event RelayerSubwalletAdded(address indexed relayer, address subwallet);
+    event RelayerSubwalletRemoved(address indexed relayer, address subwallet);
+    event FeeProtocolDefaultSet(uint256 feeSplit);
+    event FeeProtocolSet(address indexed feeRecipient, uint256 feeSplit);
+    event FeeRelayerSet(uint256 feeSplit);
 }
