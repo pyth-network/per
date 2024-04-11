@@ -554,7 +554,7 @@ pub async fn get_signature_metadata(
         Ok(result) => result,
         Err(e) => {
             panic!(
-                "Error calling opportunity adapter for signature config: {:?}",
+                "Error calling opportunity adapter for signature metadata: {:?}",
                 e
             );
         }

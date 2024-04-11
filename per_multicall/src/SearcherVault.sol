@@ -16,9 +16,9 @@ import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
 contract SearcherVault is SigVerify {
     event ReceivedETH(address, uint);
 
-    address public immutable expressRelay;
-    address public immutable owner;
-    address public immutable tokenVault;
+    address public expressRelay;
+    address public owner;
+    address public tokenVault;
 
     /**
      * @notice Searcher constructor - Initializes a new searcher contract with given parameters around token vault protocol
@@ -26,13 +26,14 @@ contract SearcherVault is SigVerify {
      * @param expressRelayAddress: address of express relay
      * @param protocolAddress: address of token vault protocol contract
      */
-    constructor(
+    function initialize(
         address expressRelayAddress,
         address protocolAddress
-    ) SigVerify("Searcher", "1") {
+    ) public initializer {
         owner = msg.sender;
         expressRelay = expressRelayAddress;
         tokenVault = protocolAddress;
+        __EIP712_init("Searcher", "1");
     }
 
     /**

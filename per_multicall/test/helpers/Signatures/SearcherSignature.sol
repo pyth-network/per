@@ -9,7 +9,9 @@ contract SearcherSignature is Signature {
     string constant _NAME = "Searcher";
     string constant _VERSION = "1";
 
-    constructor() Signature(_NAME, _VERSION) {}
+    function initializeSearcherSignature() public initializer {
+        _initializeSignature(_NAME, _VERSION);
+    }
 
     function createSearcherSignature(
         address contractAddress,

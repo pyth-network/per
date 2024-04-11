@@ -10,14 +10,13 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 abstract contract OpportunityAdapter is SigVerify {
-    // TODO make sure it works
-    constructor() SigVerify("OpportunityAdapter", "1") {}
-
     address _admin;
     address _expressRelay;
     address _weth;
-    string constant _opportunityType =
+    string constant _OPPOURTUNITY_TYPE =
         "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)";
+    string constant _DOMAIN_NAME = "OpportunityAdapter";
+    string constant _DOMAIN_VERSION = "1";
 
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
@@ -34,6 +33,7 @@ abstract contract OpportunityAdapter is SigVerify {
         _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
+        __EIP712_init(_DOMAIN_NAME, _DOMAIN_VERSION);
     }
 
     /**
@@ -93,7 +93,7 @@ abstract contract OpportunityAdapter is SigVerify {
             bytes32 _salt,
             uint256[] memory _extensions
         ) = eip712Domain();
-        config = SignatureMetadata(_opportunityType, name, version);
+        config = SignatureMetadata(_OPPOURTUNITY_TYPE, name, version);
     }
 
     function _verifyParams(ExecutionParams memory params) internal view {
@@ -103,7 +103,7 @@ abstract contract OpportunityAdapter is SigVerify {
 
         // If the signature is not valid or expired, this will revert
         verifyCalldata(
-            bytes(_opportunityType),
+            bytes(_OPPOURTUNITY_TYPE),
             params.executor,
             abi.encode(
                 params.sellTokens,

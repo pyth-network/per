@@ -9,7 +9,9 @@ contract OpportunityAdapterSignature is Signature {
     string constant _NAME = "OpportunityAdapter";
     string constant _VERSION = "1";
 
-    constructor() Signature(_NAME, _VERSION) {}
+    function initializeOpportunityAdapterSignature() public initializer {
+        _initializeSignature(_NAME, _VERSION);
+    }
 
     function createAndSignExecutionParams(
         address contractAddress,

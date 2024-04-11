@@ -24,7 +24,7 @@ COPY --from=npm_build /src/per_multicall/node_modules/ /src/per_multicall/node_m
 WORKDIR /src/per_multicall
 RUN forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit
 RUN forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commit
-RUN forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.1 --no-git --no-commit
+RUN forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
 
 # Build auction-server
 WORKDIR /src

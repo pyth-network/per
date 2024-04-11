@@ -177,7 +177,10 @@ contract ExpressRelayTestSetup is
         );
 
         searcherSignatureContract = new SearcherSignature();
+        searcherSignatureContract.initializeSearcherSignature();
         opportunityAdapterSignatureContract = new OpportunityAdapterSignature();
+        opportunityAdapterSignatureContract
+            .initializeOpportunityAdapterSignature();
 
         vm.prank(relayer);
         mockPyth = new MockPyth(1_000_000, 0);
@@ -194,19 +197,15 @@ contract ExpressRelayTestSetup is
         feeSplitTokenVault = feeSplitProtocolDefault;
 
         // instantiate searcher A's contract with searcher A's wallet as the deployer
+        searcherA = new SearcherVault();
         vm.prank(searcherAOwnerAddress);
-        searcherA = new SearcherVault(
-            address(expressRelay),
-            address(tokenVault)
-        );
+        searcherA.initialize(address(expressRelay), address(tokenVault));
         console.log("contract of searcher A is", address(searcherA));
 
         // instantiate searcher B's contract with searcher B's wallet as the deployer
+        searcherB = new SearcherVault();
         vm.prank(searcherBOwnerAddress);
-        searcherB = new SearcherVault(
-            address(expressRelay),
-            address(tokenVault)
-        );
+        searcherB.initialize(address(expressRelay), address(tokenVault));
         console.log("contract of searcher B is", address(searcherB));
 
         vm.prank(relayer);

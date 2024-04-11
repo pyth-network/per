@@ -64,7 +64,7 @@ contract ExpressRelayUpgradable is
     // But we are overriding them here because there was no owner before and
     // `_authorizeUpgrade` would cause a revert for these. Now we have an owner, and
     // because we want to test for the magic. We are overriding these methods.
-    function upgradeTo(address newImplementation) external override onlyProxy {
+    function upgradeTo(address newImplementation) public override onlyProxy {
         address oldImplementation = _getImplementation();
         _authorizeUpgrade(newImplementation);
         _upgradeToAndCallUUPS(newImplementation, new bytes(0), false);
@@ -77,7 +77,7 @@ contract ExpressRelayUpgradable is
     function upgradeToAndCall(
         address newImplementation,
         bytes memory data
-    ) external payable override onlyProxy {
+    ) public payable override onlyProxy {
         address oldImplementation = _getImplementation();
         _authorizeUpgrade(newImplementation);
         _upgradeToAndCallUUPS(newImplementation, data, true);

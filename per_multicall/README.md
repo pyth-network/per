@@ -8,7 +8,7 @@ Run the following commands to install necessary libraries:
 $ npm install
 $ forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit
 $ forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commit
-$ forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.1 --no-git --no-commit
+$ forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
 ```
 
 ## Repo contracts

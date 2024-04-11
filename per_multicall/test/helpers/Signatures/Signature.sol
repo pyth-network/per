@@ -4,16 +4,19 @@ pragma solidity ^0.8.13;
 import "../../../src/Structs.sol";
 import "../../../src/SigVerify.sol";
 import {Test} from "forge-std/Test.sol";
+import "forge-std/console.sol";
 
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
 import "openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract Signature is Test, SigVerify {
-    constructor(
-        string memory name,
-        string memory version
-    ) SigVerify(name, version) {}
+    function _initializeSignature(
+        string memory domainName,
+        string memory domainVersion
+    ) internal {
+        __EIP712_init(domainName, domainVersion);
+    }
 
     function _domainSeparatorV4(
         address contractAddress,

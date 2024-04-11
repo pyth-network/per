@@ -359,14 +359,18 @@ contract VaultScript is Script {
         // instantiate searcher A's contract with searcher A as sender/origin
         vm.startBroadcast(sksScript[0]);
         console.log("balance of pk searcherA", addressesScript[0].balance);
-        searcherA = new SearcherVault(expressRelay, tokenVaultAddress);
+        searcherA = new SearcherVault();
+        vm.prank(address(searcherA));
+        searcherA.initialize(expressRelay, tokenVaultAddress);
         vm.stopBroadcast();
         console.log("contract of searcher A is", address(searcherA));
 
         // instantiate searcher B's contract with searcher B as sender/origin
         vm.startBroadcast(sksScript[1]);
         console.log("balance of pk searcherB", addressesScript[1].balance);
-        searcherB = new SearcherVault(expressRelay, tokenVaultAddress);
+        vm.prank(address(searcherB));
+        searcherB = new SearcherVault();
+        searcherB.initialize(expressRelay, tokenVaultAddress);
         vm.stopBroadcast();
         console.log("contract of searcher B is", address(searcherB));
 
