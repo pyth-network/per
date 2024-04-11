@@ -68,6 +68,7 @@ use {
         Serialize,
     },
     std::{
+        ops::Add,
         result,
         sync::{
             atomic::Ordering,
@@ -93,6 +94,18 @@ abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
 pub enum VerificationResult {
     Success,
     UnableToSpoof,
+}
+
+pub async fn get_weth_address(
+    adapter_contract: Address,
+    provider: Provider<Http>,
+) -> Result<Address> {
+    let adapter = OpportunityAdapter::new(adapter_contract, Arc::new(provider));
+    adapter
+        .get_weth()
+        .call()
+        .await
+        .map_err(|e| anyhow!("Error getting WETH address from adapter: {:?}", e))
 }
 
 /// Verify an opportunity by simulating the execution call and checking the result
@@ -149,7 +162,26 @@ pub async fn verify_opportunity(
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();
-    for crate::state::TokenAmount { token, amount } in opportunity.sell_tokens.into_iter() {
+    let mut sell_tokens = opportunity.sell_tokens.clone();
+    let found_weth = sell_tokens
+        .iter_mut()
+        .find_map(
+            |token_amount| match token_amount.token == chain_store.weth {
+                true => {
+                    token_amount.amount = token_amount.amount.add(opportunity.target_call_value);
+                    Some(())
+                }
+                false => None,
+            },
+        )
+        .is_some();
+    if !found_weth {
+        sell_tokens.push(crate::state::TokenAmount {
+            token:  chain_store.weth,
+            amount: opportunity.target_call_value,
+        });
+    }
+    for crate::state::TokenAmount { token, amount } in sell_tokens.into_iter() {
         let spoof_info = match token_spoof_info.get(&token) {
             Some(info) => info.clone(),
             None => {

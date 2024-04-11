@@ -8,7 +8,10 @@ use {
             Config,
             RunOptions,
         },
-        opportunity_adapter::run_verification_loop,
+        opportunity_adapter::{
+            get_weth_address,
+            run_verification_loop,
+        },
         state::{
             ChainStore,
             OpportunityStore,
@@ -80,6 +83,9 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                 })?;
                 provider.set_interval(Duration::from_secs(chain_config.poll_interval));
                 let id = provider.get_chainid().await?.as_u64();
+                let weth =
+                    get_weth_address(chain_config.opportunity_adapter_contract, provider.clone())
+                        .await?;
                 Ok((
                     chain_id.clone(),
                     ChainStore {
@@ -87,6 +93,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         network_id: id,
                         token_spoof_info: Default::default(),
                         config: chain_config.clone(),
+                        weth,
                     },
                 ))
             }),
