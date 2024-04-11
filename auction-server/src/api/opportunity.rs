@@ -26,7 +26,7 @@ pub struct OpportunityParamsWithMetadata {
     /// The opportunity unique id
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     opportunity_id: OpportunityId,
-    /// Creation time of the opportunity (in nanoseconds since the Unix epoch)
+    /// Creation time of the opportunity (in microseconds since the Unix epoch)
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     creation_time: UnixTimestampMicros,
     /// opportunity data
