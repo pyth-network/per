@@ -543,8 +543,8 @@ contract ExpressRelayTestSetup is
 
         for (uint i = 0; i < bidInfos.length; i++) {
             // create liquidation call params struct
-            bytes
-                memory signatureLiquidator = createOpportunityExecutionSignature(
+            ExecutionParams
+                memory executionParams = createAndSignExecutionParams(
                     sellTokens,
                     buyTokens,
                     contractAddress,
@@ -554,17 +554,9 @@ contract ExpressRelayTestSetup is
                     bidInfos[i].validUntil,
                     bidInfos[i].executorSk
                 );
-            ExecutionParams memory executionParams = ExecutionParams(
-                sellTokens,
-                buyTokens,
-                bidInfos[i].executor,
-                contractAddress,
-                calldataVault,
-                value,
-                bidInfos[i].validUntil,
-                bidInfos[i].bid,
-                signatureLiquidator
-            );
+
+            // manually set the executor address again since it's not necessarily the same as vm.addr(executorSk)
+            executionParams.executor = bidInfos[i].executor;
 
             data[i] = abi.encodeWithSelector(
                 opportunityAdapter.executeOpportunity.selector,

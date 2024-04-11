@@ -21,7 +21,7 @@ contract Signatures is Test, SigVerify {
         return abi.encodePacked(r, s, v);
     }
 
-    function createOpportunityExecutionSignature(
+    function createAndSignExecutionParams(
         TokenAmount[] memory sellTokens,
         TokenAmount[] memory buyTokens,
         address target,
@@ -30,7 +30,7 @@ contract Signatures is Test, SigVerify {
         uint256 bid,
         uint256 validUntil,
         uint256 executorSk
-    ) public pure returns (bytes memory) {
+    ) public pure returns (ExecutionParams memory executionParams) {
         bytes32 calldataDigestExecutor = keccak256(
             abi.encode(
                 sellTokens,
@@ -46,6 +46,17 @@ contract Signatures is Test, SigVerify {
             executorSk,
             calldataDigestExecutor
         );
-        return abi.encodePacked(r, s, v);
+        executionParams = ExecutionParams(
+            sellTokens,
+            buyTokens,
+            vm.addr(executorSk),
+            target,
+            data,
+            value,
+            validUntil,
+            bid,
+            abi.encodePacked(r, s, v)
+        );
+        return executionParams;
     }
 }
