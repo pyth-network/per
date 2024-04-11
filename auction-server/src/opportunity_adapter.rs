@@ -57,7 +57,6 @@ use {
             spoof,
             Address,
             Bytes,
-            RecoveryMessage,
             Signature,
             H256,
             U256,
@@ -295,17 +294,6 @@ fn get_params_bytes(params: ExecutionParams) -> Bytes {
     ]))
 }
 
-fn get_params_digest(
-    params: ExecutionParams,
-    _chain_network_id: u64,
-    _contract_address: &Address,
-) -> Result<H256> {
-    // this should reflect the verifyCalldata function in the OpportunityAdapter contract
-    let data = get_params_bytes(params);
-    let digest = H256(keccak256(data));
-    Ok(digest)
-}
-
 fn get_data_hash(type_hash: H256, params: ExecutionParams) -> Result<H256> {
     let data = Bytes::from(abi::encode(&[
         type_hash.into_token(),
@@ -322,11 +310,14 @@ pub fn verify_signature(
     chain_network_id: u64,
     contract_address: &Address,
 ) -> Result<()> {
-    let digest = get_params_digest(params.clone(), chain_network_id, contract_address)?;
+    let structured_hash = hash_structured_data(
+        get_domain_separator_v4(chain_network_id, contract_address),
+        get_data_hash(get_data_type_hash(), params.clone())?,
+    );
     let signature = Signature::try_from(params.signature.to_vec().as_slice())
         .map_err(|_x| anyhow!("Error reading signature"))?;
     let signer = signature
-        .recover(RecoveryMessage::Hash(digest))
+        .recover(structured_hash)
         .map_err(|x| anyhow!(x.to_string()))?;
     let is_matched = signer == params.executor;
     is_matched.then_some(()).ok_or_else(|| {
