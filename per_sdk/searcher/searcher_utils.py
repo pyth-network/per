@@ -69,7 +69,6 @@ def construct_signature_executor(
     value: int,
     bid_info: BidInfo,
     secret_key: str,
-    chain_id: int,
     signature_config: OpportunitySignatureConfig,
 ) -> SignedMessage:
     """
@@ -124,7 +123,7 @@ def construct_signature_executor(
     eip712 = EIP712(
         signature_config["domain_name"],
         signature_config["domain_version"],
-        chain_id,
+        signature_config["chain_network_id"],
         signature_config["contract_address"],
     )
     structured_data_hash = EIP712.hash_typed_data_v4(

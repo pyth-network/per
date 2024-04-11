@@ -14,6 +14,8 @@ class OpportunitySignatureConfig(TypedDict):
     # The version parameter for the EIP712 domain separator.
     domain_version: str
     # The opportunity adapter contract address
+    chain_network_id: int
+    # The opportunity adapter contract address
     contract_address: str
 
 

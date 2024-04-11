@@ -60,6 +60,9 @@ pub struct OpportunityAdapterSignatureConfig {
     /// The domain version parameter for the EIP712 domain separator.
     #[schema(example = "1", value_type = String)]
     pub domain_version:   String,
+    /// The network chain id of the opportunity adapter contract
+    #[schema(example = 1, value_type = u64)]
+    pub chain_network_id: u64,
     /// The opportunity adapter contract address
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub contract_address: String, // Serde convert it to lower case
@@ -113,6 +116,7 @@ impl OpportunityParamsWithMetadata {
                     &chain_store.config.opportunity_adapter_contract,
                     None,
                 ),
+                chain_network_id: chain_store.network_id,
                 opportunity_type: chain_store
                     .signature_config
                     .opportunity_adapter

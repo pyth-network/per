@@ -109,7 +109,6 @@ searcher_command = (
     + "python3 -m per_sdk.searcher.simple_searcher "
     + "--private-key $SEARCHER_SK "
     + "--chain-id development "
-    + "--rpc-url %s " % (rpc_url)
     + "--verbose "
     + "--liquidation-server-url http://localhost:9000"
 )
