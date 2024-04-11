@@ -1,18 +1,8 @@
 use {
     anyhow::Result,
-    clap::{
-        crate_authors,
-        crate_description,
-        crate_name,
-        crate_version,
-        Args,
-        Parser,
-    },
+    clap::{crate_authors, crate_description, crate_name, crate_version, Args, Parser},
     ethers::abi::Address,
-    std::{
-        collections::HashMap,
-        fs,
-    },
+    std::{collections::HashMap, fs},
 };
 
 mod server;

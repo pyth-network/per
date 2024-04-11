@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auction SET conclusion_time = $1, tx_hash = $2 WHERE id = $3 AND permission_key = $4 AND chain_id = $5 AND conclusion_time IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamp",
+        "Bytea",
+        "Uuid",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eeac40b6e8c2829cb4ce3b6b27ce3632c61953a2e00bb12669e7bc3e89fdbe29"
+}

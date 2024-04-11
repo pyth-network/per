@@ -1,8 +1,5 @@
 use {
-    anyhow::Result,
-    clap::Parser,
-    server::start_server,
-    std::io::IsTerminal,
+    anyhow::Result, clap::Parser, server::start_server, std::io::IsTerminal,
     tracing_subscriber::filter::LevelFilter,
 };
 

@@ -3,28 +3,14 @@ use {
         api,
         api::ws,
         auction::run_submission_loop,
-        config::{
-            ChainId,
-            Config,
-            RunOptions,
-        },
+        config::{ChainId, Config, RunOptions},
         opportunity_adapter::run_verification_loop,
-        state::{
-            ChainStore,
-            OpportunityStore,
-            Store,
-        },
+        state::{ChainStore, OpportunityStore, Store},
     },
     anyhow::anyhow,
     ethers::{
-        prelude::{
-            LocalWallet,
-            Provider,
-        },
-        providers::{
-            Http,
-            Middleware,
-        },
+        prelude::{LocalWallet, Provider},
+        providers::{Http, Middleware},
         signers::Signer,
     },
     futures::future::join_all,
@@ -32,17 +18,12 @@ use {
     std::{
         collections::HashMap,
         sync::{
-            atomic::{
-                AtomicBool,
-                AtomicUsize,
-                Ordering,
-            },
+            atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc,
         },
         time::Duration,
     },
 };
-
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
@@ -104,13 +85,13 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         .await
         .expect("Server should start with a valid database connection.");
     let store = Arc::new(Store {
-        db:                pool,
-        bids:              Default::default(),
-        chains:            chain_store?,
+        db: pool,
+        bids: Default::default(),
+        chains: chain_store?,
         opportunity_store: OpportunityStore::default(),
-        event_sender:      broadcast_sender.clone(),
-        relayer:           wallet,
-        ws:                ws::WsState {
+        event_sender: broadcast_sender.clone(),
+        relayer: wallet,
+        ws: ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
             broadcast_sender,
             broadcast_receiver,

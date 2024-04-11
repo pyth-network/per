@@ -1,59 +1,30 @@
 use {
     crate::{
         api::{
-            ws::{
-                UpdateEvent,
-                WsState,
-            },
+            ws::{UpdateEvent, WsState},
             RestError,
         },
-        config::{
-            ChainId,
-            EthereumConfig,
-        },
+        config::{ChainId, EthereumConfig},
     },
+    axum::Json,
     ethers::{
-        providers::{
-            Http,
-            Provider,
-        },
+        providers::{Http, Provider},
         signers::LocalWallet,
-        types::{
-            Address,
-            Bytes,
-            H256,
-            U256,
-        },
+        types::{Address, Bytes, H256, U256},
     },
-    serde::{
-        Deserialize,
-        Serialize,
-    },
+    serde::{Deserialize, Serialize},
     sqlx::{
         database::HasArguments,
         encode::IsNull,
         types::{
-            time::{
-                OffsetDateTime,
-                PrimitiveDateTime,
-            },
+            time::{OffsetDateTime, PrimitiveDateTime},
             BigDecimal,
         },
-        Postgres,
-        TypeInfo,
+        Postgres, TypeInfo,
     },
-    std::{
-        collections::HashMap,
-        str::FromStr,
-    },
-    tokio::sync::{
-        broadcast,
-        RwLock,
-    },
-    utoipa::{
-        ToResponse,
-        ToSchema,
-    },
+    std::{collections::HashMap, str::FromStr},
+    tokio::sync::{broadcast, RwLock},
+    utoipa::{ToResponse, ToSchema},
     uuid::Uuid,
 };
 
@@ -62,23 +33,23 @@ pub type BidAmount = U256;
 
 #[derive(Clone)]
 pub struct SimulatedBid {
-    pub id:              BidId,
+    pub id: BidId,
     pub target_contract: Address,
     pub target_calldata: Bytes,
-    pub bid_amount:      BidAmount,
-    pub permission_key:  PermissionKey,
-    pub chain_id:        ChainId,
-    pub status:          BidStatus,
+    pub bid_amount: BidAmount,
+    pub permission_key: PermissionKey,
+    pub chain_id: ChainId,
+    pub status: BidStatus,
     // simulation_time:
 }
 
-pub type UnixTimestamp = i64;
+pub type UnixTimestampMicros = i128;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 pub struct TokenAmount {
     /// Token contract address
     #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", value_type = String)]
-    pub token:  ethers::abi::Address,
+    pub token: ethers::abi::Address,
     /// Token amount
     #[schema(example = "1000", value_type = String)]
     #[serde(with = "crate::serde::u256")]
@@ -93,23 +64,23 @@ pub struct TokenAmount {
 pub struct OpportunityParamsV1 {
     /// The permission key required for successful execution of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
-    pub permission_key:    Bytes,
+    pub permission_key: Bytes,
     /// The chain id where the opportunity will be executed.
-    #[schema(example = "sepolia", value_type = String)]
-    pub chain_id:          ChainId,
+    #[schema(example = "op_sepolia", value_type = String)]
+    pub chain_id: ChainId,
     /// The contract address to call for execution of the opportunity.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub target_contract:   ethers::abi::Address,
+    pub target_contract: ethers::abi::Address,
     /// Calldata for the target contract call.
     #[schema(example = "0xdeadbeef", value_type = String)]
-    pub target_calldata:   Bytes,
+    pub target_calldata: Bytes,
     /// The value to send with the contract call.
     #[schema(example = "1", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub target_call_value: U256,
 
     pub sell_tokens: Vec<TokenAmount>,
-    pub buy_tokens:  Vec<TokenAmount>,
+    pub buy_tokens: Vec<TokenAmount>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
@@ -123,24 +94,24 @@ pub type OpportunityId = Uuid;
 
 #[derive(Clone, PartialEq)]
 pub struct Opportunity {
-    pub id:            OpportunityId,
-    pub creation_time: UnixTimestamp,
-    pub params:        OpportunityParams,
+    pub id: OpportunityId,
+    pub creation_time: UnixTimestampMicros,
+    pub params: OpportunityParams,
 }
 
 #[derive(Clone)]
 pub enum SpoofInfo {
     Spoofed {
-        balance_slot:   U256,
+        balance_slot: U256,
         allowance_slot: U256,
     },
     UnableToSpoof,
 }
 
 pub struct ChainStore {
-    pub provider:         Provider<Http>,
-    pub network_id:       u64,
-    pub config:           EthereumConfig,
+    pub provider: Provider<Http>,
+    pub network_id: u64,
+    pub config: EthereumConfig,
     pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
 }
 
@@ -166,23 +137,33 @@ impl OpportunityStore {
 pub type BidId = Uuid;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
-#[serde(tag = "status", content = "result", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatus {
     /// The auction for this bid is pending
     Pending,
-    /// The bid won the auction and was submitted to the chain in a transaction with the given hash
-    #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-    Submitted(H256),
-    /// The bid lost the auction
-    Lost,
+    /// The bid won the auction, which concluded with it being placed in the index position of the multicall at the given hash
+    Submitted {
+        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
+        result: H256,
+        #[schema(example = 1, value_type = u32)]
+        index: u32,
+    },
+    /// The bid lost the auction, which concluded with the transaction with the given hash
+    Lost {
+        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
+        result: H256,
+    },
 }
 
 impl sqlx::Encode<'_, sqlx::Postgres> for BidStatus {
     fn encode_by_ref(&self, buf: &mut <Postgres as HasArguments<'_>>::ArgumentBuffer) -> IsNull {
         let result = match self {
             BidStatus::Pending => "pending",
-            BidStatus::Submitted(_) => "submitted",
-            BidStatus::Lost => "lost",
+            BidStatus::Submitted {
+                result: _,
+                index: _,
+            } => "submitted",
+            BidStatus::Lost { result: _ } => "lost",
         };
         <&str as sqlx::Encode<sqlx::Postgres>>::encode(result, buf)
     }
@@ -201,18 +182,38 @@ impl sqlx::Type<sqlx::Postgres> for BidStatus {
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct BidStatusWithId {
     #[schema(value_type = String)]
-    pub id:         BidId,
+    pub id: BidId,
     pub bid_status: BidStatus,
 }
 
+pub type AuctionId = Uuid;
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
+pub struct AuctionParams {
+    #[schema(example = "0xdeadbeefcafe", value_type = String)]
+    pub permission_key: PermissionKey,
+    #[schema(example = "op_sepolia", value_type = String)]
+    pub chain_id: ChainId,
+    #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
+    pub tx_hash: H256,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
+pub struct AuctionParamsWithMetadata {
+    #[schema(value_type = String)]
+    pub id: AuctionId,
+    pub conclusion_time: UnixTimestampMicros,
+    pub params: AuctionParams,
+}
+
 pub struct Store {
-    pub chains:            HashMap<ChainId, ChainStore>,
-    pub bids:              RwLock<HashMap<BidId, SimulatedBid>>,
-    pub event_sender:      broadcast::Sender<UpdateEvent>,
+    pub chains: HashMap<ChainId, ChainStore>,
+    pub bids: RwLock<HashMap<BidId, SimulatedBid>>,
+    pub event_sender: broadcast::Sender<UpdateEvent>,
     pub opportunity_store: OpportunityStore,
-    pub relayer:           LocalWallet,
-    pub ws:                WsState,
-    pub db:                sqlx::PgPool,
+    pub relayer: LocalWallet,
+    pub ws: WsState,
+    pub db: sqlx::PgPool,
 }
 
 impl Store {
@@ -227,8 +228,9 @@ impl Store {
             .get(&key)
             .map_or(false, |opps| opps.contains(opportunity))
     }
+
     pub async fn add_opportunity(&self, opportunity: Opportunity) -> Result<(), RestError> {
-        let odt = OffsetDateTime::from_unix_timestamp(opportunity.creation_time)
+        let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
             .expect("creation_time is valid");
         let OpportunityParams::V1(params) = &opportunity.params;
         sqlx::query!("INSERT INTO opportunity (id,
@@ -284,6 +286,37 @@ impl Store {
         Ok(())
     }
 
+    pub async fn init_auction(
+        &self,
+        permission_key: PermissionKey,
+        chain_id: ChainId,
+    ) -> anyhow::Result<AuctionId> {
+        let now = OffsetDateTime::now_utc();
+        let auction_id = Uuid::new_v4();
+        sqlx::query!(
+            "INSERT INTO auction (id, creation_time, permission_key, chain_id) VALUES ($1, $2, $3, $4)",
+            auction_id,
+            PrimitiveDateTime::new(now.date(), now.time()),
+            permission_key.to_vec(),
+            chain_id
+        )
+        .execute(&self.db)
+        .await?;
+        Ok(auction_id)
+    }
+
+    pub async fn update_auction(&self, auction: AuctionParamsWithMetadata) -> anyhow::Result<()> {
+        let conclusion_datetime =
+            OffsetDateTime::from_unix_timestamp_nanos(auction.conclusion_time * 1000)?;
+        sqlx::query!("UPDATE auction SET conclusion_time = $1, tx_hash = $2 WHERE id = $3 AND conclusion_time IS NULL",
+            PrimitiveDateTime::new(conclusion_datetime.date(), conclusion_datetime.time()),
+            auction.params.tx_hash.as_bytes(),
+            auction.id)
+            .execute(&self.db)
+            .await?;
+        Ok(())
+    }
+
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
@@ -305,31 +338,103 @@ impl Store {
 
         self.bids.write().await.insert(bid_id, bid.clone());
         self.broadcast_status_update(BidStatusWithId {
-            id:         bid_id,
+            id: bid_id,
             bid_status: bid.status.clone(),
         });
         Ok(())
     }
 
+    pub async fn get_bid_status(&self, bid_id: BidId) -> Result<Json<BidStatus>, RestError> {
+        let status_data = sqlx::query!(
+            // TODO: improve the call here to not cast to text
+            "SELECT status::text, auction_id, bundle_index, tx_hash FROM (bid LEFT OUTER JOIN auction ON bid.auction_id = auction.id) WHERE bid.id = $1",
+            bid_id
+        )
+        .fetch_one(&self.db)
+        .await
+        .map_err(|_| RestError::BidNotFound)?;
+
+        let status_json: Json<BidStatus>;
+        match status_data.status {
+            Some(status) => {
+                if status == "pending" {
+                    status_json = BidStatus::Pending.into();
+                } else {
+                    match status_data.tx_hash {
+                        Some(tx_hash) => {
+                            let tx_hash = H256::from_slice(&tx_hash);
+                            if status == "lost" {
+                                status_json = BidStatus::Lost { result: tx_hash }.into();
+                            } else if status == "submitted" {
+                                match status_data.bundle_index {
+                                    Some(bundle_index) => {
+                                        status_json = BidStatus::Submitted {
+                                            result: tx_hash,
+                                            index: bundle_index as u32,
+                                        }
+                                        .into();
+                                    }
+                                    None => {
+                                        return Err(RestError::BadParameters(
+                                            "Submitted bid must have bundle index".to_string(),
+                                        ));
+                                    }
+                                }
+                            } else {
+                                return Err(RestError::BadParameters(
+                                    "Invalid bid status".to_string(),
+                                ));
+                            }
+                        }
+                        None => {
+                            return Err(RestError::BadParameters(
+                                "Lost or submitted bid must have a transaction hash".to_string(),
+                            ));
+                        }
+                    }
+                }
+            }
+            None => {
+                return Err(RestError::BidNotFound);
+            }
+        }
+
+        Ok(status_json)
+    }
+
     pub async fn broadcast_bid_status_and_remove(
         &self,
         update: BidStatusWithId,
+        auction_id: AuctionId,
     ) -> anyhow::Result<()> {
-        if update.bid_status == BidStatus::Pending {
-            return Err(anyhow::anyhow!(
-                "Bid status cannot remain pending when removing a bid."
-            ));
+        match update.bid_status {
+            BidStatus::Pending => {
+                return Err(anyhow::anyhow!(
+                    "Bid status cannot remain pending when removing a bid."
+                ));
+            }
+            BidStatus::Submitted { result: _, index } => {
+                sqlx::query!(
+                    "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND auction_id is NULL",
+                    update.bid_status as _,
+                    auction_id,
+                    index as i32,
+                    update.id
+                )
+                .execute(&self.db)
+                .await?;
+            }
+            BidStatus::Lost { result: _ } => {
+                sqlx::query!(
+                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
+                    update.bid_status as _,
+                    auction_id,
+                    update.id
+                )
+                .execute(&self.db)
+                .await?;
+            }
         }
-
-        let now = OffsetDateTime::now_utc();
-        sqlx::query!(
-            "UPDATE bid SET status = $1, removal_time = $2 WHERE id = $3 AND removal_time IS NULL",
-            update.bid_status as _,
-            PrimitiveDateTime::new(now.date(), now.time()),
-            update.id
-        )
-        .execute(&self.db)
-        .await?;
 
         self.bids.write().await.remove(&update.id);
         self.broadcast_status_update(update);
