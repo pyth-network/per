@@ -21,7 +21,7 @@ repos:
       - id: cargo-fmt-auction-server
         name: Cargo format for auction server
         language: "rust"
-        entry: cargo +nightly-2024-04-10 fmt --manifest-path ./auction-server/Cargo.toml --all -- --config-path rustfmt.toml
+        entry: cargo +stable fmt --manifest-path ./auction-server/Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
         files: auction-server
       - id: cargo-clippy-auction-server
@@ -34,13 +34,13 @@ repos:
       - id: cargo-fmt-vault-simulator
         name: Cargo format for vault simulator
         language: "rust"
-        entry: cargo +nightly-2024-04-10 fmt --manifest-path ./vault-simulator/Cargo.toml --all -- --config-path rustfmt.toml
+        entry: cargo +stable fmt --manifest-path ./vault-simulator/Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
         files: vault-simulator
       - id: cargo-clippy-vault-simulator
         name: Cargo clippy for vault simulator
         language: "rust"
-        entry: cargo +nightly-2024-04-10 clippy --manifest-path ./vault-simulator/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        entry: cargo +stable clippy --manifest-path ./vault-simulator/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
         pass_filenames: false
         files: vault-simulator
       # For python files
