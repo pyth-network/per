@@ -175,7 +175,7 @@ pub enum BidStatus {
     Submitted {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
-        #[schema(example = "1", value_type = u64)]
+        #[schema(example = 1, value_type = u64)]
         index:  U256,
     },
     /// The bid lost the auction, which concluded with the transaction with the given hash

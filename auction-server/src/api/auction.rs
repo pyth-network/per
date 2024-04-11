@@ -39,6 +39,6 @@ pub async fn get_concluded_auction(
                 },
             })
         }
-        None => Err(RestError::AuctionNotFound),
+        None => Err(RestError::AuctionNotConcluded),
     }
 }
