@@ -1,6 +1,9 @@
 use {
     crate::{
-        api::RestError,
+        api::{
+            opportunity::OpportunityAdapterSignatureConfig,
+            RestError,
+        },
         auction::{
             evaluate_simulation_results,
             get_simulation_call,
@@ -55,6 +58,11 @@ use {
         },
         types::{
             spoof,
+            transaction::eip712::{
+                EIP712Domain,
+                Eip712,
+                Eip712Error,
+            },
             Address,
             Bytes,
             Signature,
@@ -90,6 +98,7 @@ abigen!(
 );
 abigen!(ERC20, "../per_multicall/out/ERC20.sol/ERC20.json");
 abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
+
 
 pub enum VerificationResult {
     Success,
@@ -131,20 +140,14 @@ pub async fn verify_opportunity(
         },
     };
 
-    let hashed_data = hash_structured_data(
-        get_domain_separator_v4(
-            chain_store.network_id,
-            &chain_store.config.opportunity_adapter_contract,
-        ),
-        get_data_hash(
-            get_data_type_hash(),
-            make_opportunity_execution_params(opportunity.clone(), fake_bid.clone()),
-        )?,
-    );
-
-    let signature = fake_wallet.sign_hash(hashed_data)?;
+    let hashed_data =
+        make_opportunity_execution_params(opportunity.clone(), fake_bid.clone(), chain_store)
+            .encode_eip712()?;
+    let signature = fake_wallet.sign_hash(hashed_data.into())?;
     fake_bid.signature = signature;
-    let params = make_opportunity_execution_params(opportunity.clone(), fake_bid.clone());
+    let params =
+        make_opportunity_execution_params(opportunity.clone(), fake_bid.clone(), chain_store)
+            .params;
     let adapter_calldata = OpportunityAdapter::new(
         chain_store.config.opportunity_adapter_contract,
         client.clone(),
@@ -238,50 +241,6 @@ pub async fn verify_opportunity(
     Ok(VerificationResult::Success)
 }
 
-pub const OPPORTUNITY_DATA_TYPE: &str = "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)";
-pub const EIP712_TYPE: &str =
-    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
-pub const OPPORTUNITY_DOMAIN_NAME: &str = "OpportunityAdapter";
-pub const OPPORTUNITY_DOMAIN_VERSION: &str = "1";
-
-pub fn get_data_type_hash() -> H256 {
-    let type_hash = OPPORTUNITY_DATA_TYPE.as_bytes();
-    H256(keccak256(type_hash))
-}
-
-fn get_eip712_type_hash() -> H256 {
-    let type_hash = EIP712_TYPE.as_bytes();
-    H256(keccak256(type_hash))
-}
-
-fn get_domain_name_hash() -> H256 {
-    let name_hash = OPPORTUNITY_DOMAIN_NAME.as_bytes();
-    H256(keccak256(name_hash))
-}
-
-fn get_domain_version_hash() -> H256 {
-    let version_hash = OPPORTUNITY_DOMAIN_VERSION.as_bytes();
-    H256(keccak256(version_hash))
-}
-
-fn get_domain_separator_v4(chain_network_id: u64, contract_address: &Address) -> H256 {
-    let domain_separator = abi::encode(&[
-        get_eip712_type_hash().into_token(),
-        get_domain_name_hash().into_token(),
-        get_domain_version_hash().into_token(),
-        chain_network_id.into_token(),
-        contract_address.into_token(),
-    ]);
-
-    H256(keccak256(domain_separator))
-}
-
-pub fn hash_structured_data(domain_hash: H256, data_hash: H256) -> H256 {
-    let prefix = (b"\x19\x01").to_vec();
-    let concat = [&prefix[..], &domain_hash[..], &data_hash[..]].concat();
-    H256(keccak256(concat))
-}
-
 fn get_params_bytes(params: ExecutionParams) -> Bytes {
     Bytes::from(abi::encode(&[
         params.sell_tokens.into_token(),
@@ -294,26 +253,50 @@ fn get_params_bytes(params: ExecutionParams) -> Bytes {
     ]))
 }
 
-fn get_data_hash(type_hash: H256, params: ExecutionParams) -> Result<H256> {
-    let data = Bytes::from(abi::encode(&[
-        type_hash.into_token(),
-        params.executor.into_token(),
-        get_params_bytes(params.clone()).into_token(),
-        params.valid_until.into_token(),
-    ]));
-    let digest = H256(keccak256(data));
-    Ok(digest)
+impl Eip712 for OpportunityAdapterExecutionParams {
+    type Error = Eip712Error;
+
+    fn domain(
+        &self,
+    ) -> std::prelude::v1::Result<ethers::types::transaction::eip712::EIP712Domain, Self::Error>
+    {
+        let config = self.signature_config.clone();
+        Ok(EIP712Domain {
+            name:               config.domain_name.into(),
+            version:            config.domain_version.into(),
+            chain_id:           U256::from(config.chain_network_id).into(),
+            verifying_contract: config.contract_address.into(),
+            salt:               None,
+        })
+    }
+
+    fn struct_hash(&self) -> std::prelude::v1::Result<[u8; 32], Self::Error> {
+        let type_bytes = self.signature_config.opportunity_type.as_bytes();
+        let type_hash = H256(keccak256(type_bytes));
+        let data = Bytes::from(abi::encode(&[
+            type_hash.into_token(),
+            self.params.executor.into_token(),
+            get_params_bytes(self.params.clone()).into_token(),
+            self.params.valid_until.into_token(),
+        ]));
+        let digest = H256(keccak256(data));
+        Ok(*digest.as_fixed_bytes())
+    }
+
+    fn type_hash() -> std::prelude::v1::Result<[u8; 32], Self::Error> {
+        todo!()
+    }
 }
 
-pub fn verify_signature(
-    params: ExecutionParams,
-    chain_network_id: u64,
-    contract_address: &Address,
-) -> Result<()> {
-    let structured_hash = hash_structured_data(
-        get_domain_separator_v4(chain_network_id, contract_address),
-        get_data_hash(get_data_type_hash(), params.clone())?,
-    );
+#[derive(ToSchema, Clone)]
+pub struct OpportunityAdapterExecutionParams {
+    params:           ExecutionParams,
+    signature_config: OpportunityAdapterSignatureConfig,
+}
+
+fn verify_signature(execution_params: OpportunityAdapterExecutionParams) -> Result<()> {
+    let structured_hash = execution_params.encode_eip712()?;
+    let params = execution_params.params;
     let signature = Signature::try_from(params.signature.to_vec().as_slice())
         .map_err(|_x| anyhow!("Error reading signature"))?;
     let signer = signature
@@ -352,25 +335,29 @@ impl From<crate::state::TokenAmount> for TokenAmount {
 pub fn make_opportunity_execution_params(
     opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
-) -> ExecutionParams {
-    ExecutionParams {
-        sell_tokens:       opportunity
-            .sell_tokens
-            .into_iter()
-            .map(TokenAmount::from)
-            .collect(),
-        buy_tokens:        opportunity
-            .buy_tokens
-            .into_iter()
-            .map(TokenAmount::from)
-            .collect(),
-        executor:          bid.executor,
-        target_contract:   opportunity.target_contract,
-        target_calldata:   opportunity.target_calldata,
-        target_call_value: opportunity.target_call_value,
-        valid_until:       bid.valid_until,
-        bid_amount:        bid.amount,
-        signature:         bid.signature.to_vec().into(),
+    chain_store: &ChainStore,
+) -> OpportunityAdapterExecutionParams {
+    OpportunityAdapterExecutionParams {
+        params:           ExecutionParams {
+            sell_tokens:       opportunity
+                .sell_tokens
+                .into_iter()
+                .map(TokenAmount::from)
+                .collect(),
+            buy_tokens:        opportunity
+                .buy_tokens
+                .into_iter()
+                .map(TokenAmount::from)
+                .collect(),
+            executor:          bid.executor,
+            target_contract:   opportunity.target_contract,
+            target_calldata:   opportunity.target_calldata,
+            target_call_value: opportunity.target_call_value,
+            valid_until:       bid.valid_until,
+            bid_amount:        bid.amount,
+            signature:         bid.signature.to_vec().into(),
+        },
+        signature_config: chain_store.into(),
     }
 }
 
@@ -380,12 +367,12 @@ pub async fn make_adapter_calldata(
     chain_store: &ChainStore,
 ) -> Result<Bytes> {
     let adapter_contract = chain_store.config.opportunity_adapter_contract;
-    let params = make_opportunity_execution_params(opportunity.clone(), bid);
-    verify_signature(params.clone(), chain_store.network_id, &adapter_contract)?;
+    let execution_params = make_opportunity_execution_params(opportunity.clone(), bid, chain_store);
+    verify_signature(execution_params.clone())?;
 
     let client = Arc::new(chain_store.provider.clone());
     let calldata = OpportunityAdapter::new(adapter_contract, client.clone())
-        .execute_opportunity(params)
+        .execute_opportunity(execution_params.params)
         .calldata()
         .ok_or(anyhow!(
             "Failed to generate calldata for opportunity adapter"

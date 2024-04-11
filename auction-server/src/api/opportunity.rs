@@ -31,10 +31,7 @@ use {
         },
         Json,
     },
-    ethers::{
-        signers::Signer,
-        utils::to_checksum,
-    },
+    ethers::signers::Signer,
     serde::{
         Deserialize,
         Serialize,
@@ -65,7 +62,7 @@ pub struct OpportunityAdapterSignatureConfig {
     pub chain_network_id: u64,
     /// The opportunity adapter contract address
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub contract_address: String, // Serde convert it to lower case
+    pub contract_address: ethers::abi::Address,
 }
 
 
@@ -95,34 +92,34 @@ impl OpportunityParamsWithMetadata {
     }
 }
 
+impl From<&ChainStore> for OpportunityAdapterSignatureConfig {
+    fn from(val: &ChainStore) -> Self {
+        OpportunityAdapterSignatureConfig {
+            domain_name:      val.signature_config.opportunity_adapter.domain_name.clone(),
+            domain_version:   val
+                .signature_config
+                .opportunity_adapter
+                .domain_version
+                .clone(),
+            contract_address: val.config.opportunity_adapter_contract,
+            chain_network_id: val.network_id,
+            opportunity_type: val
+                .signature_config
+                .opportunity_adapter
+                .opportunity_type
+                .clone(),
+        }
+    }
+}
+
+
 impl OpportunityParamsWithMetadata {
     fn from_opportunity(val: Opportunity, chain_store: &ChainStore) -> Self {
         OpportunityParamsWithMetadata {
             opportunity_id:   val.id,
             creation_time:    val.creation_time,
             params:           val.params,
-            signature_config: OpportunityAdapterSignatureConfig {
-                domain_name:      chain_store
-                    .signature_config
-                    .opportunity_adapter
-                    .domain_name
-                    .clone(),
-                domain_version:   chain_store
-                    .signature_config
-                    .opportunity_adapter
-                    .domain_version
-                    .clone(),
-                contract_address: to_checksum(
-                    &chain_store.config.opportunity_adapter_contract,
-                    None,
-                ),
-                chain_network_id: chain_store.network_id,
-                opportunity_type: chain_store
-                    .signature_config
-                    .opportunity_adapter
-                    .opportunity_type
-                    .clone(),
-            },
+            signature_config: chain_store.into(),
         }
     }
 }
