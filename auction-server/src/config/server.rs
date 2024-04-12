@@ -1,4 +1,7 @@
-use {clap::Args, std::net::SocketAddr};
+use {
+    clap::Args,
+    std::net::SocketAddr,
+};
 
 const DEFAULT_LISTEN_ADDR: &str = "127.0.0.1:9000";
 
@@ -10,7 +13,7 @@ pub struct Options {
     #[arg(long = "listen-addr")]
     #[arg(default_value = DEFAULT_LISTEN_ADDR)]
     #[arg(env = "LISTEN_ADDR")]
-    pub listen_addr: SocketAddr,
+    pub listen_addr:  SocketAddr,
     /// database url for persistent storage
     #[arg(long = "database-url")]
     #[arg(env = "DATABASE_URL")]

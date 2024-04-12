@@ -1,22 +1,45 @@
 use {
     crate::{
         api::{
-            bid::BidResult, ws::UpdateEvent::NewOpportunity, ChainIdQueryParams, ErrorBodyResponse,
+            bid::BidResult,
+            ws::UpdateEvent::NewOpportunity,
+            ChainIdQueryParams,
+            ErrorBodyResponse,
             RestError,
         },
         config::ChainId,
-        opportunity_adapter::{handle_opportunity_bid, verify_opportunity, OpportunityBid},
-        state::{Opportunity, OpportunityId, OpportunityParams, Store, UnixTimestampMicros},
+        opportunity_adapter::{
+            handle_opportunity_bid,
+            verify_opportunity,
+            OpportunityBid,
+        },
+        state::{
+            Opportunity,
+            OpportunityId,
+            OpportunityParams,
+            Store,
+            UnixTimestampMicros,
+        },
     },
     axum::{
-        extract::{Path, Query, State},
+        extract::{
+            Path,
+            Query,
+            State,
+        },
         Json,
     },
     ethers::signers::Signer,
-    serde::{Deserialize, Serialize},
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     sqlx::types::time::OffsetDateTime,
     std::sync::Arc,
-    utoipa::{ToResponse, ToSchema},
+    utoipa::{
+        ToResponse,
+        ToSchema,
+    },
     uuid::Uuid,
 };
 
@@ -28,12 +51,12 @@ pub struct OpportunityParamsWithMetadata {
     opportunity_id: OpportunityId,
     /// Creation time of the opportunity (in microseconds since the Unix epoch)
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
-    creation_time: UnixTimestampMicros,
+    creation_time:  UnixTimestampMicros,
     /// opportunity data
     #[serde(flatten)]
     // expands params into component fields in the generated client schemas
     #[schema(inline)]
-    params: OpportunityParams,
+    params:         OpportunityParams,
 }
 
 impl OpportunityParamsWithMetadata {
@@ -48,8 +71,8 @@ impl From<Opportunity> for OpportunityParamsWithMetadata {
     fn from(val: Opportunity) -> Self {
         OpportunityParamsWithMetadata {
             opportunity_id: val.id,
-            creation_time: val.creation_time,
-            params: val.params,
+            creation_time:  val.creation_time,
+            params:         val.params,
         }
     }
 }

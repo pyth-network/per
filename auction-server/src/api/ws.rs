@@ -1,32 +1,63 @@
 use {
     crate::{
         api::{
-            bid::{process_bid, BidResult},
-            opportunity::{process_opportunity_bid, OpportunityParamsWithMetadata},
+            bid::{
+                process_bid,
+                BidResult,
+            },
+            opportunity::{
+                process_opportunity_bid,
+                OpportunityParamsWithMetadata,
+            },
         },
         auction::Bid,
         config::ChainId,
         opportunity_adapter::OpportunityBid,
-        server::{EXIT_CHECK_INTERVAL, SHOULD_EXIT},
-        state::{BidId, BidStatusWithId, OpportunityId, Store},
+        server::{
+            EXIT_CHECK_INTERVAL,
+            SHOULD_EXIT,
+        },
+        state::{
+            BidId,
+            BidStatusWithId,
+            OpportunityId,
+            Store,
+        },
     },
-    anyhow::{anyhow, Result},
+    anyhow::{
+        anyhow,
+        Result,
+    },
     axum::{
         extract::{
-            ws::{Message, WebSocket},
-            State, WebSocketUpgrade,
+            ws::{
+                Message,
+                WebSocket,
+            },
+            State,
+            WebSocketUpgrade,
         },
         response::IntoResponse,
     },
     futures::{
-        stream::{SplitSink, SplitStream},
-        SinkExt, StreamExt,
+        stream::{
+            SplitSink,
+            SplitStream,
+        },
+        SinkExt,
+        StreamExt,
     },
-    serde::{Deserialize, Serialize},
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     std::{
         collections::HashSet,
         sync::{
-            atomic::{AtomicUsize, Ordering},
+            atomic::{
+                AtomicUsize,
+                Ordering,
+            },
             Arc,
         },
         time::Duration,
@@ -37,7 +68,7 @@ use {
 
 pub struct WsState {
     pub subscriber_counter: AtomicUsize,
-    pub broadcast_sender: broadcast::Sender<UpdateEvent>,
+    pub broadcast_sender:   broadcast::Sender<UpdateEvent>,
     pub broadcast_receiver: broadcast::Receiver<UpdateEvent>,
 }
 
@@ -60,14 +91,14 @@ pub enum ClientMessage {
     #[serde(rename = "post_opportunity_bid")]
     PostOpportunityBid {
         #[schema(value_type = String)]
-        opportunity_id: OpportunityId,
+        opportunity_id:  OpportunityId,
         opportunity_bid: OpportunityBid,
     },
 }
 
 #[derive(Deserialize, Clone, ToSchema)]
 pub struct ClientRequest {
-    id: String,
+    id:  String,
     #[serde(flatten)]
     msg: ClientMessage,
 }
@@ -102,7 +133,7 @@ pub enum ServerResultMessage {
 /// id is only None when the client message is invalid
 #[derive(Serialize, Clone, ToSchema)]
 pub struct ServerResultResponse {
-    id: Option<String>,
+    id:     Option<String>,
     #[serde(flatten)]
     result: ServerResultMessage,
 }
@@ -134,17 +165,17 @@ pub type SubscriberId = usize;
 /// Subscriber is an actor that handles a single websocket connection.
 /// It listens to the store for updates and sends them to the client.
 pub struct Subscriber {
-    id: SubscriberId,
-    closed: bool,
-    store: Arc<Store>,
-    notify_receiver: broadcast::Receiver<UpdateEvent>,
-    receiver: SplitStream<WebSocket>,
-    sender: SplitSink<WebSocket, Message>,
-    chain_ids: HashSet<ChainId>,
-    bid_ids: HashSet<BidId>,
-    ping_interval: tokio::time::Interval,
+    id:                  SubscriberId,
+    closed:              bool,
+    store:               Arc<Store>,
+    notify_receiver:     broadcast::Receiver<UpdateEvent>,
+    receiver:            SplitStream<WebSocket>,
+    sender:              SplitSink<WebSocket, Message>,
+    chain_ids:           HashSet<ChainId>,
+    bid_ids:             HashSet<BidId>,
+    ping_interval:       tokio::time::Interval,
     exit_check_interval: tokio::time::Interval,
-    responded_to_ping: bool,
+    responded_to_ping:   bool,
 }
 
 const PING_INTERVAL_DURATION: Duration = Duration::from_secs(30);
@@ -267,13 +298,13 @@ impl Subscriber {
 
         let response = match maybe_client_message {
             Err(e) => ServerResultResponse {
-                id: None,
+                id:     None,
                 result: ServerResultMessage::Err(e.to_string()),
             },
 
             Ok(ClientRequest { msg, id }) => {
                 let ok_response = ServerResultResponse {
-                    id: Some(id.clone()),
+                    id:     Some(id.clone()),
                     result: ServerResultMessage::Success(None),
                 };
                 match msg {
@@ -289,7 +320,7 @@ impl Subscriber {
                         // asked correct chain ids and return an error to be more explicit and clear.
                         if !not_found_chain_ids.is_empty() {
                             ServerResultResponse {
-                                id: Some(id),
+                                id:     Some(id),
                                 result: ServerResultMessage::Err(format!(
                                     "Chain id(s) with id(s) {:?} not found",
                                     not_found_chain_ids
@@ -310,14 +341,14 @@ impl Subscriber {
                             Ok(bid_result) => {
                                 self.bid_ids.insert(bid_result.id);
                                 ServerResultResponse {
-                                    id: Some(id.clone()),
+                                    id:     Some(id.clone()),
                                     result: ServerResultMessage::Success(Some(
                                         APIResponse::BidResult(bid_result.0),
                                     )),
                                 }
                             }
                             Err(e) => ServerResultResponse {
-                                id: Some(id),
+                                id:     Some(id),
                                 result: ServerResultMessage::Err(e.to_status_and_message().1),
                             },
                         }
@@ -336,14 +367,14 @@ impl Subscriber {
                             Ok(bid_result) => {
                                 self.bid_ids.insert(bid_result.id);
                                 ServerResultResponse {
-                                    id: Some(id.clone()),
+                                    id:     Some(id.clone()),
                                     result: ServerResultMessage::Success(Some(
                                         APIResponse::BidResult(bid_result.0),
                                     )),
                                 }
                             }
                             Err(e) => ServerResultResponse {
-                                id: Some(id),
+                                id:     Some(id),
                                 result: ServerResultMessage::Err(e.to_status_and_message().1),
                             },
                         }
