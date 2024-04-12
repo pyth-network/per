@@ -224,10 +224,7 @@ fn get_params_bytes(params: ExecutionParams) -> Bytes {
 impl Eip712 for OpportunityAdapterExecutionParams {
     type Error = Eip712Error;
 
-    fn domain(
-        &self,
-    ) -> std::prelude::v1::Result<ethers::types::transaction::eip712::EIP712Domain, Self::Error>
-    {
+    fn domain(&self) -> Result<EIP712Domain, Self::Error> {
         let config = self.signature_config.clone();
         Ok(EIP712Domain {
             name: config.domain_name.into(),
@@ -238,7 +235,7 @@ impl Eip712 for OpportunityAdapterExecutionParams {
         })
     }
 
-    fn struct_hash(&self) -> std::prelude::v1::Result<[u8; 32], Self::Error> {
+    fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
         let type_bytes = self.signature_config.opportunity_type.as_bytes();
         let type_hash = H256(keccak256(type_bytes));
         let data = Bytes::from(abi::encode(&[
@@ -251,7 +248,7 @@ impl Eip712 for OpportunityAdapterExecutionParams {
         Ok(*digest.as_fixed_bytes())
     }
 
-    fn type_hash() -> std::prelude::v1::Result<[u8; 32], Self::Error> {
+    fn type_hash() -> Result<[u8; 32], Self::Error> {
         todo!()
     }
 }

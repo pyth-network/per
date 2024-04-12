@@ -207,23 +207,23 @@ pub async fn get_opportunities(
                 .expect("A permission key vector should have at least one opportunity")
                 .clone()
         })
-        .filter(|opportunity| {
+        .filter_map(|opportunity| {
             let OpportunityParams::V1(params) = &opportunity.params;
             match store.chains.get(&params.chain_id) {
                 Some(_chain_store) => {
-                    if let Some(chain_id) = &query_params.chain_id {
-                        params.chain_id == *chain_id
-                    } else {
-                        true
+                    if query_params.chain_id.is_some() {
+                        let query_chain_id = query_params.chain_id.clone().unwrap();
+                        if params.chain_id != query_chain_id {
+                            return None;
+                        }
                     }
+                    Some(OpportunityParamsWithMetadata::from(
+                        opportunity.clone(),
+                        _chain_store,
+                    ))
                 }
-                None => false,
+                None => None,
             }
-        })
-        .map(|opportunity| {
-            let OpportunityParams::V1(params) = &opportunity.params;
-            let chain_store = store.chains.get(&params.chain_id).unwrap();
-            OpportunityParamsWithMetadata::from(opportunity, chain_store)
         })
         .collect();
 
