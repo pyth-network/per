@@ -1,30 +1,60 @@
 use {
     crate::{
         api::{
-            ws::{UpdateEvent, WsState},
+            ws::{
+                UpdateEvent,
+                WsState,
+            },
             RestError,
         },
-        config::{ChainId, EthereumConfig},
+        config::{
+            ChainId,
+            EthereumConfig,
+        },
     },
     axum::Json,
     ethers::{
-        providers::{Http, Provider},
+        providers::{
+            Http,
+            Provider,
+        },
         signers::LocalWallet,
-        types::{Address, Bytes, H256, U256},
+        types::{
+            Address,
+            Bytes,
+            H256,
+            U256,
+        },
     },
-    serde::{Deserialize, Serialize},
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     sqlx::{
         database::HasArguments,
         encode::IsNull,
         types::{
-            time::{OffsetDateTime, PrimitiveDateTime},
+            time::{
+                OffsetDateTime,
+                PrimitiveDateTime,
+            },
             BigDecimal,
         },
-        Postgres, TypeInfo,
+        Postgres,
+        TypeInfo,
     },
-    std::{collections::HashMap, str::FromStr},
-    tokio::sync::{broadcast, RwLock},
-    utoipa::{ToResponse, ToSchema},
+    std::{
+        collections::HashMap,
+        str::FromStr,
+    },
+    tokio::sync::{
+        broadcast,
+        RwLock,
+    },
+    utoipa::{
+        ToResponse,
+        ToSchema,
+    },
     uuid::Uuid,
 };
 
@@ -33,13 +63,13 @@ pub type BidAmount = U256;
 
 #[derive(Clone)]
 pub struct SimulatedBid {
-    pub id: BidId,
+    pub id:              BidId,
     pub target_contract: Address,
     pub target_calldata: Bytes,
-    pub bid_amount: BidAmount,
-    pub permission_key: PermissionKey,
-    pub chain_id: ChainId,
-    pub status: BidStatus,
+    pub bid_amount:      BidAmount,
+    pub permission_key:  PermissionKey,
+    pub chain_id:        ChainId,
+    pub status:          BidStatus,
     // simulation_time:
 }
 
@@ -49,7 +79,7 @@ pub type UnixTimestampMicros = i128;
 pub struct TokenAmount {
     /// Token contract address
     #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", value_type = String)]
-    pub token: ethers::abi::Address,
+    pub token:  ethers::abi::Address,
     /// Token amount
     #[schema(example = "1000", value_type = String)]
     #[serde(with = "crate::serde::u256")]
@@ -64,23 +94,23 @@ pub struct TokenAmount {
 pub struct OpportunityParamsV1 {
     /// The permission key required for successful execution of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
-    pub permission_key: Bytes,
+    pub permission_key:    Bytes,
     /// The chain id where the opportunity will be executed.
     #[schema(example = "op_sepolia", value_type = String)]
-    pub chain_id: ChainId,
+    pub chain_id:          ChainId,
     /// The contract address to call for execution of the opportunity.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub target_contract: ethers::abi::Address,
+    pub target_contract:   ethers::abi::Address,
     /// Calldata for the target contract call.
     #[schema(example = "0xdeadbeef", value_type = String)]
-    pub target_calldata: Bytes,
+    pub target_calldata:   Bytes,
     /// The value to send with the contract call.
     #[schema(example = "1", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub target_call_value: U256,
 
     pub sell_tokens: Vec<TokenAmount>,
-    pub buy_tokens: Vec<TokenAmount>,
+    pub buy_tokens:  Vec<TokenAmount>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
@@ -94,25 +124,25 @@ pub type OpportunityId = Uuid;
 
 #[derive(Clone, PartialEq)]
 pub struct Opportunity {
-    pub id: OpportunityId,
+    pub id:            OpportunityId,
     pub creation_time: UnixTimestampMicros,
-    pub params: OpportunityParams,
+    pub params:        OpportunityParams,
 }
 
 #[derive(Clone)]
 pub enum SpoofInfo {
     Spoofed {
-        balance_slot: U256,
+        balance_slot:   U256,
         allowance_slot: U256,
     },
     UnableToSpoof,
 }
 
 pub struct ChainStore {
-    pub provider: Provider<Http>,
-    pub network_id: u64,
-    pub config: EthereumConfig,
-    pub weth: Address,
+    pub provider:         Provider<Http>,
+    pub network_id:       u64,
+    pub config:           EthereumConfig,
+    pub weth:             Address,
     pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
 }
 
@@ -147,7 +177,7 @@ pub enum BidStatus {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
         #[schema(example = 1, value_type = u32)]
-        index: u32,
+        index:  u32,
     },
     /// The bid lost the auction, which concluded with the transaction with the given hash
     Lost {
@@ -183,7 +213,7 @@ impl sqlx::Type<sqlx::Postgres> for BidStatus {
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct BidStatusWithId {
     #[schema(value_type = String)]
-    pub id: BidId,
+    pub id:         BidId,
     pub bid_status: BidStatus,
 }
 
@@ -194,27 +224,27 @@ pub struct AuctionParams {
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
     pub permission_key: PermissionKey,
     #[schema(example = "op_sepolia", value_type = String)]
-    pub chain_id: ChainId,
+    pub chain_id:       ChainId,
     #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-    pub tx_hash: H256,
+    pub tx_hash:        H256,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct AuctionParamsWithMetadata {
     #[schema(value_type = String)]
-    pub id: AuctionId,
+    pub id:              AuctionId,
     pub conclusion_time: UnixTimestampMicros,
-    pub params: AuctionParams,
+    pub params:          AuctionParams,
 }
 
 pub struct Store {
-    pub chains: HashMap<ChainId, ChainStore>,
-    pub bids: RwLock<HashMap<BidId, SimulatedBid>>,
-    pub event_sender: broadcast::Sender<UpdateEvent>,
+    pub chains:            HashMap<ChainId, ChainStore>,
+    pub bids:              RwLock<HashMap<BidId, SimulatedBid>>,
+    pub event_sender:      broadcast::Sender<UpdateEvent>,
     pub opportunity_store: OpportunityStore,
-    pub relayer: LocalWallet,
-    pub ws: WsState,
-    pub db: sqlx::PgPool,
+    pub relayer:           LocalWallet,
+    pub ws:                WsState,
+    pub db:                sqlx::PgPool,
 }
 
 impl Store {
@@ -339,7 +369,7 @@ impl Store {
 
         self.bids.write().await.insert(bid_id, bid.clone());
         self.broadcast_status_update(BidStatusWithId {
-            id: bid_id,
+            id:         bid_id,
             bid_status: bid.status.clone(),
         });
         Ok(())
@@ -371,7 +401,7 @@ impl Store {
                                     Some(bundle_index) => {
                                         status_json = BidStatus::Submitted {
                                             result: tx_hash,
-                                            index: bundle_index as u32,
+                                            index:  bundle_index as u32,
                                         }
                                         .into();
                                     }

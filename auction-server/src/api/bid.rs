@@ -1,16 +1,35 @@
 use {
     crate::{
-        api::{ErrorBodyResponse, RestError},
-        auction::{handle_bid, Bid},
-        state::{BidId, BidStatus, Store},
+        api::{
+            ErrorBodyResponse,
+            RestError,
+        },
+        auction::{
+            handle_bid,
+            Bid,
+        },
+        state::{
+            BidId,
+            BidStatus,
+            Store,
+        },
     },
     axum::{
-        extract::{Path, State},
+        extract::{
+            Path,
+            State,
+        },
         Json,
     },
-    serde::{Deserialize, Serialize},
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     std::sync::Arc,
-    utoipa::{ToResponse, ToSchema},
+    utoipa::{
+        ToResponse,
+        ToSchema,
+    },
 };
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
@@ -18,7 +37,7 @@ pub struct BidResult {
     pub status: String,
     /// The unique id created to identify the bid. This id can be used to query the status of the bid.
     #[schema(example = "beedbeed-58cc-4372-a567-0e02b2c3d479", value_type=String)]
-    pub id: BidId,
+    pub id:     BidId,
 }
 
 /// Bid on a specific permission key for a specific chain.

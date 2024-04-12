@@ -2,32 +2,84 @@ use {
     crate::{
         api::RestError,
         auction::{
-            evaluate_simulation_results, get_simulation_call, handle_bid, Bid, MulticallData,
+            evaluate_simulation_results,
+            get_simulation_call,
+            handle_bid,
+            Bid,
+            MulticallData,
             MulticallReturn,
         },
-        server::{EXIT_CHECK_INTERVAL, SHOULD_EXIT},
+        server::{
+            EXIT_CHECK_INTERVAL,
+            SHOULD_EXIT,
+        },
         state::{
-            BidAmount, ChainStore, Opportunity, OpportunityId, OpportunityParams,
-            OpportunityParamsV1, SpoofInfo, Store, UnixTimestampMicros,
+            BidAmount,
+            ChainStore,
+            Opportunity,
+            OpportunityId,
+            OpportunityParams,
+            OpportunityParamsV1,
+            SpoofInfo,
+            Store,
+            UnixTimestampMicros,
         },
         token_spoof,
     },
-    anyhow::{anyhow, Result},
-    ethers::{
-        abi::{AbiDecode, Tokenizable},
-        contract::{abigen, ContractRevert},
-        core::{abi, rand, utils::keccak256},
-        providers::{Http, Provider, RawCall},
-        signers::{LocalWallet, Signer},
-        types::{spoof, Address, Bytes, RecoveryMessage, Signature, H256, U256},
+    anyhow::{
+        anyhow,
+        Result,
     },
-    serde::{Deserialize, Serialize},
+    ethers::{
+        abi::{
+            AbiDecode,
+            Tokenizable,
+        },
+        contract::{
+            abigen,
+            ContractRevert,
+        },
+        core::{
+            abi,
+            rand,
+            utils::keccak256,
+        },
+        providers::{
+            Http,
+            Provider,
+            RawCall,
+        },
+        signers::{
+            LocalWallet,
+            Signer,
+        },
+        types::{
+            spoof,
+            Address,
+            Bytes,
+            RecoveryMessage,
+            Signature,
+            H256,
+            U256,
+        },
+    },
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     std::{
         collections::HashMap,
         ops::Add,
         result,
-        sync::{atomic::Ordering, Arc},
-        time::{Duration, SystemTime, UNIX_EPOCH},
+        sync::{
+            atomic::Ordering,
+            Arc,
+        },
+        time::{
+            Duration,
+            SystemTime,
+            UNIX_EPOCH,
+        },
     },
     utoipa::ToSchema,
     uuid::Uuid,
@@ -69,11 +121,11 @@ pub async fn verify_opportunity(
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
     let mut fake_bid = OpportunityBid {
-        executor: fake_wallet.address(),
-        valid_until: U256::max_value(),
+        executor:       fake_wallet.address(),
+        valid_until:    U256::max_value(),
         permission_key: opportunity.permission_key.clone(),
-        amount: U256::zero(),
-        signature: Signature {
+        amount:         U256::zero(),
+        signature:      Signature {
             v: 0,
             r: U256::zero(),
             s: U256::zero(),
@@ -115,7 +167,7 @@ pub async fn verify_opportunity(
     let mut required_tokens = opportunity.sell_tokens.clone();
 
     required_tokens.push(crate::state::TokenAmount {
-        token: chain_store.weth,
+        token:  chain_store.weth,
         amount: opportunity.target_call_value,
     });
     let mut tokens_map = HashMap::<Address, U256>::new();
@@ -227,7 +279,7 @@ pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
 impl From<crate::state::TokenAmount> for TokenAmount {
     fn from(token: crate::state::TokenAmount) -> Self {
         TokenAmount {
-            token: token.token,
+            token:  token.token,
             amount: token.amount,
         }
     }
@@ -237,23 +289,23 @@ pub fn make_opportunity_execution_params(
     bid: OpportunityBid,
 ) -> ExecutionParams {
     ExecutionParams {
-        sell_tokens: opportunity
+        sell_tokens:       opportunity
             .sell_tokens
             .into_iter()
             .map(TokenAmount::from)
             .collect(),
-        buy_tokens: opportunity
+        buy_tokens:        opportunity
             .buy_tokens
             .into_iter()
             .map(TokenAmount::from)
             .collect(),
-        executor: bid.executor,
-        target_contract: opportunity.target_contract,
-        target_calldata: opportunity.target_calldata,
+        executor:          bid.executor,
+        target_contract:   opportunity.target_contract,
+        target_calldata:   opportunity.target_calldata,
         target_call_value: opportunity.target_call_value,
-        valid_until: bid.valid_until,
-        bid_amount: bid.amount,
-        signature: bid.signature.to_vec().into(),
+        valid_until:       bid.valid_until,
+        bid_amount:        bid.amount,
+        signature:         bid.signature.to_vec().into(),
     }
 }
 
@@ -361,20 +413,20 @@ pub struct OpportunityBid {
     /// The bid amount in wei.
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
-    pub amount: BidAmount,
+    pub amount:         BidAmount,
     /// How long the bid will be valid for.
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
-    pub valid_until: U256,
+    pub valid_until:    U256,
     /// Executor address
     #[schema(example = "0x5FbDB2315678afecb367f032d93F642f64180aa2", value_type=String)]
-    pub executor: abi::Address,
+    pub executor:       abi::Address,
     #[schema(
         example = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
         value_type=String
     )]
     #[serde(with = "crate::serde::signature")]
-    pub signature: Signature,
+    pub signature:      Signature,
 }
 
 pub async fn handle_opportunity_bid(
@@ -414,11 +466,11 @@ pub async fn handle_opportunity_bid(
     match handle_bid(
         store.clone(),
         Bid {
-            permission_key: params.permission_key.clone(),
-            chain_id: params.chain_id.clone(),
+            permission_key:  params.permission_key.clone(),
+            chain_id:        params.chain_id.clone(),
             target_contract: chain_store.config.opportunity_adapter_contract,
             target_calldata: adapter_calldata,
-            amount: opportunity_bid.amount,
+            amount:          opportunity_bid.amount,
         },
     )
     .await
