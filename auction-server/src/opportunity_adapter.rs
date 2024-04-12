@@ -1,9 +1,6 @@
 use {
     crate::{
-        api::{
-            opportunity::OpportunityAdapterSignatureConfig,
-            RestError,
-        },
+        api::{opportunity::OpportunityAdapterSignatureConfig, RestError},
         auction::{
             evaluate_simulation_results,
             get_simulation_call,
@@ -34,46 +31,18 @@ use {
         Result,
     },
     ethers::{
-        abi::{
-            AbiDecode,
-            Tokenizable,
-        },
-        contract::{
-            abigen,
-            ContractRevert,
-        },
-        core::{
-            abi,
-            rand,
-            utils::keccak256,
-        },
-        providers::{
-            Http,
-            Provider,
-            RawCall,
-        },
-        signers::{
-            LocalWallet,
-            Signer,
-        },
+        abi::{AbiDecode, Tokenizable},
+        contract::{abigen, ContractRevert},
+        core::{abi, rand, utils::keccak256},
+        providers::{Http, Provider, RawCall},
+        signers::{LocalWallet, Signer},
         types::{
             spoof,
-            transaction::eip712::{
-                EIP712Domain,
-                Eip712,
-                Eip712Error,
-            },
-            Address,
-            Bytes,
-            Signature,
-            H256,
-            U256,
+            transaction::eip712::{EIP712Domain, Eip712, Eip712Error},
+            Address, Bytes, Signature, H256, U256,
         },
     },
-    serde::{
-        Deserialize,
-        Serialize,
-    },
+    serde::{Deserialize, Serialize},
     std::{
         collections::HashMap,
         ops::Add,
@@ -98,7 +67,6 @@ abigen!(
 );
 abigen!(ERC20, "../per_multicall/out/ERC20.sol/ERC20.json");
 abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
-
 
 pub enum VerificationResult {
     Success,
@@ -262,11 +230,11 @@ impl Eip712 for OpportunityAdapterExecutionParams {
     {
         let config = self.signature_config.clone();
         Ok(EIP712Domain {
-            name:               config.domain_name.into(),
-            version:            config.domain_version.into(),
-            chain_id:           U256::from(config.chain_network_id).into(),
+            name: config.domain_name.into(),
+            version: config.domain_version.into(),
+            chain_id: U256::from(config.chain_network_id).into(),
             verifying_contract: config.contract_address.into(),
-            salt:               None,
+            salt: None,
         })
     }
 
@@ -290,7 +258,7 @@ impl Eip712 for OpportunityAdapterExecutionParams {
 
 #[derive(ToSchema, Clone)]
 pub struct OpportunityAdapterExecutionParams {
-    params:           ExecutionParams,
+    params: ExecutionParams,
     signature_config: OpportunityAdapterSignatureConfig,
 }
 
@@ -339,24 +307,24 @@ pub fn make_opportunity_execution_params(
     chain_store: &ChainStore,
 ) -> OpportunityAdapterExecutionParams {
     OpportunityAdapterExecutionParams {
-        params:           ExecutionParams {
-            sell_tokens:       opportunity
+        params: ExecutionParams {
+            sell_tokens: opportunity
                 .sell_tokens
                 .into_iter()
                 .map(TokenAmount::from)
                 .collect(),
-            buy_tokens:        opportunity
+            buy_tokens: opportunity
                 .buy_tokens
                 .into_iter()
                 .map(TokenAmount::from)
                 .collect(),
-            executor:          bid.executor,
-            target_contract:   opportunity.target_contract,
-            target_calldata:   opportunity.target_calldata,
+            executor: bid.executor,
+            target_contract: opportunity.target_contract,
+            target_calldata: opportunity.target_calldata,
             target_call_value: opportunity.target_call_value,
-            valid_until:       bid.valid_until,
-            bid_amount:        bid.amount,
-            signature:         bid.signature.to_vec().into(),
+            valid_until: bid.valid_until,
+            bid_amount: bid.amount,
+            signature: bid.signature.to_vec().into(),
         },
         signature_config: chain_store.into(),
     }

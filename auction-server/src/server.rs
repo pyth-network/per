@@ -1,9 +1,6 @@
 use {
     crate::{
-        api::{
-            self,
-            ws,
-        },
+        api::{self, ws},
         auction::run_submission_loop,
         config::{
             ChainId,

@@ -32,10 +32,7 @@ use {
         Json,
     },
     ethers::signers::Signer,
-    serde::{
-        Deserialize,
-        Serialize,
-    },
+    serde::{Deserialize, Serialize},
     sqlx::types::time::OffsetDateTime,
     std::sync::Arc,
     utoipa::{
@@ -45,7 +42,6 @@ use {
     uuid::Uuid,
 };
 
-
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 pub struct OpportunityAdapterSignatureConfig {
     /// The raw type string for the opportunity
@@ -53,10 +49,10 @@ pub struct OpportunityAdapterSignatureConfig {
     pub opportunity_type: String,
     /// The domain name parameter for the EIP712 domain separator.
     #[schema(example = "OpportunityAdapter", value_type = String)]
-    pub domain_name:      String,
+    pub domain_name: String,
     /// The domain version parameter for the EIP712 domain separator.
     #[schema(example = "1", value_type = String)]
-    pub domain_version:   String,
+    pub domain_version: String,
     /// The network chain id of the opportunity adapter contract
     #[schema(example = 1, value_type = u64)]
     pub chain_network_id: u64,
@@ -65,24 +61,22 @@ pub struct OpportunityAdapterSignatureConfig {
     pub contract_address: ethers::abi::Address,
 }
 
-
 /// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct OpportunityParamsWithMetadata {
     /// The opportunity unique id
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
-    opportunity_id:   OpportunityId,
+    opportunity_id: OpportunityId,
     /// Creation time of the opportunity (in microseconds since the Unix epoch)
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
-    creation_time:    UnixTimestampMicros,
+    creation_time: UnixTimestampMicros,
     /// opportunity data
     #[serde(flatten)]
     // expands params into component fields in the generated client schemas
     #[schema(inline)]
-    params:           OpportunityParams,
+    params: OpportunityParams,
     signature_config: OpportunityAdapterSignatureConfig,
 }
-
 
 impl OpportunityParamsWithMetadata {
     pub fn get_chain_id(&self) -> &ChainId {
@@ -95,8 +89,8 @@ impl OpportunityParamsWithMetadata {
 impl From<&ChainStore> for OpportunityAdapterSignatureConfig {
     fn from(val: &ChainStore) -> Self {
         OpportunityAdapterSignatureConfig {
-            domain_name:      val.signature_config.opportunity_adapter.domain_name.clone(),
-            domain_version:   val
+            domain_name: val.signature_config.opportunity_adapter.domain_name.clone(),
+            domain_version: val
                 .signature_config
                 .opportunity_adapter
                 .domain_version
@@ -112,13 +106,12 @@ impl From<&ChainStore> for OpportunityAdapterSignatureConfig {
     }
 }
 
-
 impl OpportunityParamsWithMetadata {
     fn from(val: Opportunity, chain_store: &ChainStore) -> Self {
         OpportunityParamsWithMetadata {
-            opportunity_id:   val.id,
-            creation_time:    val.creation_time,
-            params:           val.params,
+            opportunity_id: val.id,
+            creation_time: val.creation_time,
+            params: val.params,
             signature_config: chain_store.into(),
         }
     }

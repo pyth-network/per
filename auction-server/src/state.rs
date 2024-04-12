@@ -7,10 +7,7 @@ use {
             },
             RestError,
         },
-        config::{
-            ChainId,
-            EthereumConfig,
-        },
+        config::{ChainId, EthereumConfig},
         opportunity_adapter,
     },
     axum::Json,
@@ -87,7 +84,6 @@ pub struct TokenAmount {
     pub amount: U256,
 }
 
-
 /// Opportunity parameters needed for on-chain execution
 /// If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
 /// by calling this target contract with the given target calldata and structures, they will
@@ -114,7 +110,6 @@ pub struct OpportunityParamsV1 {
     pub sell_tokens: Vec<TokenAmount>,
     pub buy_tokens:  Vec<TokenAmount>,
 }
-
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 #[serde(tag = "version")]
