@@ -22,7 +22,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2023-07-23
+          toolchain: nightly-2023-04-10
           components: rustfmt, clippy
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1.1.1

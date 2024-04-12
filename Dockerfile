@@ -10,7 +10,7 @@ RUN npm install
 
 FROM rust:${RUST_VERSION} AS build
 # Set default toolchain
-RUN rustup default nightly-2023-07-23
+RUN rustup default nightly-2024-04-10
 
 # Install dependencies
 RUN curl -L https://foundry.paradigm.xyz | bash
