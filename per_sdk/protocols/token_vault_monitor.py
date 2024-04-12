@@ -157,19 +157,6 @@ class VaultMonitor:
         )
         call_value = len(price_updates)
 
-        if call_value > 0 and account["token_address_collateral"] == self.weth_address:
-            sell_tokens = [
-                (
-                    account["token_address_debt"],
-                    str(account["amount_debt"] + call_value),
-                )
-            ]
-        else:
-            sell_tokens = [
-                (account["token_address_debt"], str(account["amount_debt"])),
-                (self.weth_address, str(call_value)),
-            ]
-
         opp: Opportunity = {
             "chain_id": self.chain_id,
             "target_contract": self.contract_address,
@@ -177,7 +164,9 @@ class VaultMonitor:
             "permission_key": permission,
             "account": str(account["account_number"]),
             "target_call_value": str(call_value),
-            "sell_tokens": sell_tokens,
+            "sell_tokens": [
+                (account["token_address_debt"], str(account["amount_debt"])),
+            ],
             "buy_tokens": [
                 (account["token_address_collateral"], str(account["amount_collateral"]))
             ],

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT status::text, auction_id, bundle_index FROM bid WHERE id = $1",
+  "query": "SELECT status::text, auction_id, bundle_index, tx_hash FROM (bid LEFT OUTER JOIN auction ON bid.auction_id = auction.id) WHERE bid.id = $1",
   "describe": {
     "columns": [
       {
@@ -17,6 +17,11 @@
         "ordinal": 2,
         "name": "bundle_index",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "tx_hash",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -27,8 +32,9 @@
     "nullable": [
       null,
       true,
+      true,
       true
     ]
   },
-  "hash": "d1dc73c1eba8de30352f01814dbba2769f3644809aa417c2cfddc172b5fbc265"
+  "hash": "f9a562ce14696826db0326c4244f185774a302db785578c07f9c882da59b3ee2"
 }
