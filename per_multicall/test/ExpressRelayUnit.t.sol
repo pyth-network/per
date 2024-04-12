@@ -7,6 +7,7 @@ import "forge-std/console.sol";
 import "../src/Errors.sol";
 import "../src/Structs.sol";
 import "../src/ExpressRelayEvents.sol";
+import "../src/ExpressRelayGovernanceEvents.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 
@@ -19,7 +20,8 @@ import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 contract ExpressRelayUnitTest is
     Test,
     ExpressRelayTestSetup,
-    ExpressRelayEvents
+    ExpressRelayEvents,
+    ExpressRelayGovernanceEvents
 {
     function setUp() public {
         setUpWallets();
@@ -28,6 +30,10 @@ contract ExpressRelayUnitTest is
 
     function testSetRelayerByAdmin() public {
         address newRelayer = makeAddr("newRelayer");
+
+        vm.expectEmit(true, true, true, true, address(expressRelay));
+        emit RelayerSet(newRelayer);
+
         vm.prank(admin);
         expressRelay.setRelayer(newRelayer);
 
@@ -43,6 +49,10 @@ contract ExpressRelayUnitTest is
 
     function testAddRelayerSubwalletByRelayerPrimary() public {
         address subwallet = makeAddr("subwallet");
+
+        vm.expectEmit(true, true, true, true, address(expressRelay));
+        emit RelayerSubwalletAdded(relayer, subwallet);
+
         vm.prank(relayer);
         expressRelay.addRelayerSubwallet(subwallet);
         address[] memory relayerSubwallets = expressRelay
@@ -80,6 +90,9 @@ contract ExpressRelayUnitTest is
         expressRelay.addRelayerSubwallet(subwallet2);
         address[] memory relayerSubwalletsPre = expressRelay
             .getRelayerSubwallets();
+
+        vm.expectEmit(true, true, true, true, address(expressRelay));
+        emit RelayerSubwalletRemoved(relayer, subwallet1);
 
         vm.prank(relayer);
         expressRelay.removeRelayerSubwallet(subwallet1);
@@ -124,6 +137,10 @@ contract ExpressRelayUnitTest is
         assertEq(expressRelay.getRelayerSubwallets(), expectedSubwallets);
 
         address newRelayer = makeAddr("newRelayer");
+
+        vm.expectEmit(true, true, true, true, address(expressRelay));
+        emit RelayerSet(newRelayer);
+
         vm.prank(admin);
         expressRelay.setRelayer(newRelayer);
 
@@ -135,6 +152,10 @@ contract ExpressRelayUnitTest is
         uint256 feeSplitProtocolDefaultPre = expressRelay
             .getFeeProtocolDefault();
         uint256 fee = feeSplitProtocolDefaultPre + 1;
+
+        vm.expectEmit(true, true, true, true, address(expressRelay));
+        emit FeeProtocolDefaultSet(fee);
+
         vm.prank(admin);
         expressRelay.setFeeProtocolDefault(fee);
         uint256 feeSplitProtocolDefaultPost = expressRelay
@@ -177,6 +198,10 @@ contract ExpressRelayUnitTest is
 
         uint256 feeProtocolPre = expressRelay.getFeeProtocol(protocol);
         uint256 fee = feeProtocolPre + 1;
+
+        vm.expectEmit(true, true, true, true, address(expressRelay));
+        emit FeeProtocolSet(protocol, fee);
+
         vm.prank(admin);
         expressRelay.setFeeProtocol(protocol, fee);
         uint256 feeProtocolPost = expressRelay.getFeeProtocol(protocol);
@@ -212,6 +237,10 @@ contract ExpressRelayUnitTest is
     function testSetFeeRelayerByAdmin() public {
         uint256 feeSplitRelayerPre = expressRelay.getFeeRelayer();
         uint256 fee = feeSplitRelayerPre + 1;
+
+        vm.expectEmit(true, true, true, true, address(expressRelay));
+        emit FeeRelayerSet(fee);
+
         vm.prank(admin);
         expressRelay.setFeeRelayer(fee);
         uint256 feeSplitRelayerPost = expressRelay.getFeeRelayer();
