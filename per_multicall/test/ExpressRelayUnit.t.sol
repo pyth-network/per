@@ -7,6 +7,7 @@ import "forge-std/console.sol";
 import "../src/Errors.sol";
 import "../src/Structs.sol";
 import "../src/ExpressRelayEvents.sol";
+import "../src/ExpressRelayGovernanceEvents.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 
@@ -19,7 +20,8 @@ import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 contract ExpressRelayUnitTest is
     Test,
     ExpressRelayTestSetup,
-    ExpressRelayEvents
+    ExpressRelayEvents,
+    ExpressRelayGovernanceEvents
 {
     function setUp() public {
         setUpWallets();

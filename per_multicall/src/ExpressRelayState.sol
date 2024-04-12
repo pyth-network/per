@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./Errors.sol";
 import "./Structs.sol";
-import "./ExpressRelayEvents.sol";
+import "./ExpressRelayGovernanceEvents.sol";
 
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
 
@@ -28,7 +28,7 @@ contract ExpressRelayStorage {
     }
 }
 
-contract ExpressRelayState is IExpressRelay, ExpressRelayEvents {
+contract ExpressRelayState is IExpressRelay, ExpressRelayGovernanceEvents {
     ExpressRelayStorage.State state;
 
     function setFeeSplitPrecision() internal {
