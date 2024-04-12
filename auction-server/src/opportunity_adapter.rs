@@ -323,7 +323,7 @@ pub fn make_opportunity_execution_params(
             bid_amount: bid.amount,
             signature: bid.signature.to_vec().into(),
         },
-        signature_config: chain_store.into(),
+        signature_config: OpportunityAdapterSignatureConfig::from(chain_store),
     }
 }
 

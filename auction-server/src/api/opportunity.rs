@@ -86,8 +86,8 @@ impl OpportunityParamsWithMetadata {
     }
 }
 
-impl From<&ChainStore> for OpportunityAdapterSignatureConfig {
-    fn from(val: &ChainStore) -> Self {
+impl OpportunityAdapterSignatureConfig {
+    pub fn from(val: &ChainStore) -> Self {
         OpportunityAdapterSignatureConfig {
             domain_name: val.signature_config.opportunity_adapter.domain_name.clone(),
             domain_version: val
@@ -112,7 +112,7 @@ impl OpportunityParamsWithMetadata {
             opportunity_id: val.id,
             creation_time: val.creation_time,
             params: val.params,
-            signature_config: chain_store.into(),
+            signature_config: OpportunityAdapterSignatureConfig::from(chain_store),
         }
     }
 }
