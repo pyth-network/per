@@ -4,57 +4,31 @@ use {
             bid::BidResult,
             opportunity::OpportunityParamsWithMetadata,
             ws::{
-                APIResponse,
-                ClientMessage,
-                ClientRequest,
-                ServerResultMessage,
-                ServerResultResponse,
-                ServerUpdateResponse,
+                APIResponse, ClientMessage, ClientRequest, ServerResultMessage,
+                ServerResultResponse, ServerUpdateResponse,
             },
         },
         auction::Bid,
-        config::RunOptions,
+        config::{ChainId, RunOptions},
         opportunity_adapter::OpportunityBid,
-        server::{
-            EXIT_CHECK_INTERVAL,
-            SHOULD_EXIT,
-        },
+        server::{EXIT_CHECK_INTERVAL, SHOULD_EXIT},
         state::{
-            BidStatus,
-            BidStatusWithId,
-            OpportunityParams,
-            OpportunityParamsV1,
-            Store,
-            TokenAmount,
+            BidStatus, BidStatusWithId, OpportunityParams, OpportunityParamsV1, Store, TokenAmount,
         },
     },
     anyhow::Result,
     axum::{
         http::StatusCode,
-        response::{
-            IntoResponse,
-            Response,
-        },
-        routing::{
-            get,
-            post,
-        },
-        Json,
-        Router,
+        response::{IntoResponse, Response},
+        routing::{get, post},
+        Json, Router,
     },
     clap::crate_version,
     ethers::types::Bytes,
-    serde::Serialize,
-    std::sync::{
-        atomic::Ordering,
-        Arc,
-    },
+    serde::{Deserialize, Serialize},
+    std::sync::{atomic::Ordering, Arc},
     tower_http::cors::CorsLayer,
-    utoipa::{
-        OpenApi,
-        ToResponse,
-        ToSchema,
-    },
+    utoipa::{IntoParams, OpenApi, ToResponse, ToSchema},
     utoipa_swagger_ui::SwaggerUi,
 };
 
@@ -75,7 +49,7 @@ pub enum RestError {
     InvalidChainId,
     /// The simulation failed
     SimulationError { result: Bytes, reason: String },
-    /// The order was not found
+    /// The opportunity was not found
     OpportunityNotFound,
     /// The bid was not found
     BidNotFound,
@@ -123,6 +97,12 @@ struct ErrorBodyResponse {
     error: String,
 }
 
+#[derive(Serialize, Deserialize, IntoParams)]
+pub struct ChainIdQueryParams {
+    #[param(example = "op_sepolia", value_type = Option < String >)]
+    pub chain_id: Option<ChainId>,
+}
+
 impl IntoResponse for RestError {
     fn into_response(self) -> Response {
         let (status, msg) = self.to_status_and_message();
@@ -168,7 +148,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     responses(
     ErrorBodyResponse,
     OpportunityParamsWithMetadata,
-    BidResult,
+    BidResult
     ),
     ),
     tags(

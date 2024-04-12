@@ -9,23 +9,11 @@
 /// and checking if the output of the balance or allowance is the expected value
 use ethers::addressbook::Address;
 use {
-    crate::{
-        opportunity_adapter::ERC20,
-        state::SpoofInfo,
-    },
+    crate::{opportunity_adapter::ERC20, state::SpoofInfo},
     anyhow::anyhow,
     ethers::{
         core::rand,
-        prelude::{
-            spoof,
-            Bytes,
-            LocalWallet,
-            Provider,
-            RawCall,
-            Signer,
-            H256,
-            U256,
-        },
+        prelude::{spoof, Bytes, LocalWallet, Provider, RawCall, Signer, H256, U256},
         providers::Http,
         utils::keccak256,
     },

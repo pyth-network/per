@@ -1,12 +1,7 @@
 pub mod u256 {
     use {
         ethers::types::U256,
-        serde::{
-            de::Error,
-            Deserialize,
-            Deserializer,
-            Serializer,
-        },
+        serde::{de::Error, Deserialize, Deserializer, Serializer},
     };
 
     pub fn serialize<S>(b: &U256, s: S) -> Result<S::Ok, S::Error>
@@ -27,12 +22,7 @@ pub mod u256 {
 pub mod signature {
     use {
         ethers::types::Signature,
-        serde::{
-            de::Error,
-            Deserialize,
-            Deserializer,
-            Serializer,
-        },
+        serde::{de::Error, Deserialize, Deserializer, Serializer},
         std::str::FromStr,
     };
 

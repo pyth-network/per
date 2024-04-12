@@ -1,73 +1,34 @@
 use {
     crate::{
         api::RestError,
-        config::{
-            ChainId,
-            EthereumConfig,
-        },
-        server::{
-            EXIT_CHECK_INTERVAL,
-            SHOULD_EXIT,
-        },
+        config::{ChainId, EthereumConfig},
+        server::{EXIT_CHECK_INTERVAL, SHOULD_EXIT},
         state::{
-            BidAmount,
-            BidStatus,
-            BidStatusWithId,
-            PermissionKey,
-            SimulatedBid,
-            Store,
+            AuctionParams, AuctionParamsWithMetadata, BidAmount, BidStatus, BidStatusWithId,
+            PermissionKey, SimulatedBid, Store,
         },
     },
-    anyhow::{
-        anyhow,
-        Result,
-    },
+    anyhow::{anyhow, Result},
     ethers::{
         abi,
-        contract::{
-            abigen,
-            ContractError,
-            EthError,
-            FunctionCall,
-        },
+        contract::{abigen, ContractError, EthError, FunctionCall},
         middleware::{
-            transformer::{
-                Transformer,
-                TransformerError,
-            },
-            SignerMiddleware,
-            TransformerMiddleware,
+            transformer::{Transformer, TransformerError},
+            SignerMiddleware, TransformerMiddleware,
         },
-        providers::{
-            Http,
-            Provider,
-            ProviderError,
-        },
-        signers::{
-            LocalWallet,
-            Signer,
-        },
+        providers::{Http, Provider, ProviderError},
+        signers::{LocalWallet, Signer},
         types::{
-            transaction::eip2718::TypedTransaction,
-            Address,
-            Bytes,
-            TransactionReceipt,
-            TransactionRequest,
-            H160,
-            U256,
+            transaction::eip2718::TypedTransaction, Address, Bytes, TransactionReceipt,
+            TransactionRequest, H160, U256,
         },
     },
-    serde::{
-        Deserialize,
-        Serialize,
-    },
+    serde::{Deserialize, Serialize},
+    sqlx::types::time::OffsetDateTime,
     std::{
         collections::HashMap,
         result,
-        sync::{
-            atomic::Ordering,
-            Arc,
-        },
+        sync::{atomic::Ordering, Arc},
         time::Duration,
     },
     utoipa::ToSchema,
@@ -96,12 +57,13 @@ impl TryFrom<EthereumConfig> for Provider<Http> {
     }
 }
 
-impl From<(H160, Bytes, U256)> for MulticallData {
-    fn from(x: (H160, Bytes, U256)) -> Self {
+impl From<([u8; 16], H160, Bytes, U256)> for MulticallData {
+    fn from(x: ([u8; 16], H160, Bytes, U256)) -> Self {
         MulticallData {
-            target_contract: x.0,
-            target_calldata: x.1,
-            bid_amount:      x.2,
+            bid_id: x.0,
+            target_contract: x.1,
+            target_calldata: x.2,
+            bid_amount: x.3,
         }
     }
 }
@@ -240,6 +202,8 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                         auction_len = bid_by_permission_key.len()
                     );
                     for (permission_key, bids) in bid_by_permission_key.iter() {
+                        let auction_id = store.init_auction(permission_key.clone(), chain_id.clone()).await?;
+
                         let mut cloned_bids = bids.clone();
                         let permission_key = permission_key.clone();
                          cloned_bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
@@ -253,20 +217,32 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             chain_store.config.clone(),
                             chain_store.network_id,
                             permission_key.clone(),
-                            winner_bids.iter().map(|b| MulticallData::from((b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
+                            winner_bids.iter().map(|b| MulticallData::from((b.id.to_bytes_le(), b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
                         )
                         .await;
                         match submission {
                             Ok(receipt) => match receipt {
                                 Some(receipt) => {
                                     tracing::debug!("Submitted transaction: {:?}", receipt);
+                                    let auction_params = AuctionParams {
+                                        chain_id: chain_id.clone(),
+                                        permission_key: permission_key.clone(),
+                                        tx_hash: receipt.transaction_hash,
+                                    };
+                                    let auction = AuctionParamsWithMetadata {
+                                        id: auction_id,
+                                        conclusion_time: OffsetDateTime::now_utc().unix_timestamp_nanos() / 1000,
+                                        params: auction_params,
+                                    };
+                                    store.update_auction(auction).await?;
                                     let winner_ids:Vec<Uuid> = winner_bids.iter().map(|b| b.id).collect();
                                     for bid in cloned_bids {
-                                        let bid_status = match winner_ids.contains(&bid.id) {
-                                            true => BidStatus::Submitted(receipt.transaction_hash),
-                                            false => BidStatus::Lost
+                                        let bid_index = winner_ids.iter().position(|&x| x == bid.id);
+                                        let bid_status = match bid_index {
+                                            Some(i) => BidStatus::Submitted { result: receipt.transaction_hash, index: i as u32 },
+                                            None => BidStatus::Lost { result: receipt.transaction_hash }
                                         };
-                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }).await?;
+                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, auction_id).await?;
                                     }
                                 }
                                 None => {
@@ -292,10 +268,10 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
 pub struct Bid {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type = String)]
-    pub permission_key:  Bytes,
+    pub permission_key: Bytes,
     /// The chain id to bid on.
-    #[schema(example = "sepolia", value_type = String)]
-    pub chain_id:        ChainId,
+    #[schema(example = "op_sepolia", value_type = String)]
+    pub chain_id: ChainId,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: abi::Address,
@@ -305,7 +281,7 @@ pub struct Bid {
     /// Amount of bid in wei.
     #[schema(example = "10", value_type = String)]
     #[serde(with = "crate::serde::u256")]
-    pub amount:          BidAmount,
+    pub amount: BidAmount,
 }
 
 pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, RestError> {
@@ -319,6 +295,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         chain_store.config.clone(),
         bid.permission_key.clone(),
         vec![MulticallData::from((
+            Uuid::new_v4().to_bytes_le(),
             bid.target_contract,
             bid.target_calldata.clone(),
             bid.amount,
@@ -347,11 +324,11 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
     let simulated_bid = SimulatedBid {
         target_contract: bid.target_contract,
         target_calldata: bid.target_calldata.clone(),
-        bid_amount:      bid.amount,
-        id:              bid_id,
-        permission_key:  bid.permission_key.clone(),
-        chain_id:        bid.chain_id.clone(),
-        status:          BidStatus::Pending,
+        bid_amount: bid.amount,
+        id: bid_id,
+        permission_key: bid.permission_key.clone(),
+        chain_id: bid.chain_id.clone(),
+        status: BidStatus::Pending,
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)

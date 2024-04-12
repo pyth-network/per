@@ -1,45 +1,22 @@
 use {
     crate::{
         api::{
-            bid::BidResult,
-            ws::UpdateEvent::NewOpportunity,
-            ErrorBodyResponse,
+            bid::BidResult, ws::UpdateEvent::NewOpportunity, ChainIdQueryParams, ErrorBodyResponse,
             RestError,
         },
         config::ChainId,
-        opportunity_adapter::{
-            handle_opportunity_bid,
-            verify_opportunity,
-            OpportunityBid,
-        },
-        state::{
-            Opportunity,
-            OpportunityId,
-            OpportunityParams,
-            Store,
-            UnixTimestamp,
-        },
+        opportunity_adapter::{handle_opportunity_bid, verify_opportunity, OpportunityBid},
+        state::{Opportunity, OpportunityId, OpportunityParams, Store, UnixTimestampMicros},
     },
     axum::{
-        extract::{
-            Path,
-            Query,
-            State,
-        },
+        extract::{Path, Query, State},
         Json,
     },
     ethers::signers::Signer,
-    serde::{
-        Deserialize,
-        Serialize,
-    },
+    serde::{Deserialize, Serialize},
     sqlx::types::time::OffsetDateTime,
     std::sync::Arc,
-    utoipa::{
-        IntoParams,
-        ToResponse,
-        ToSchema,
-    },
+    utoipa::{ToResponse, ToSchema},
     uuid::Uuid,
 };
 
@@ -49,14 +26,14 @@ pub struct OpportunityParamsWithMetadata {
     /// The opportunity unique id
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     opportunity_id: OpportunityId,
-    /// Creation time of the opportunity
-    #[schema(example = 1700000000, value_type = i64)]
-    creation_time:  UnixTimestamp,
+    /// Creation time of the opportunity (in microseconds since the Unix epoch)
+    #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
+    creation_time: UnixTimestampMicros,
     /// opportunity data
     #[serde(flatten)]
     // expands params into component fields in the generated client schemas
     #[schema(inline)]
-    params:         OpportunityParams,
+    params: OpportunityParams,
 }
 
 impl OpportunityParamsWithMetadata {
@@ -71,8 +48,8 @@ impl From<Opportunity> for OpportunityParamsWithMetadata {
     fn from(val: Opportunity) -> Self {
         OpportunityParamsWithMetadata {
             opportunity_id: val.id,
-            creation_time:  val.creation_time,
-            params:         val.params,
+            creation_time: val.creation_time,
+            params: val.params,
         }
     }
 }
@@ -100,7 +77,7 @@ pub async fn post_opportunity(
     let now_odt = OffsetDateTime::now_utc();
     let opportunity = Opportunity {
         id,
-        creation_time: now_odt.unix_timestamp() as UnixTimestamp,
+        creation_time: now_odt.unix_timestamp_nanos() / 1000 as UnixTimestampMicros,
         params: versioned_params.clone(),
     };
 
@@ -138,12 +115,6 @@ pub async fn post_opportunity(
     let opportunity_with_metadata: OpportunityParamsWithMetadata = opportunity.into();
 
     Ok(opportunity_with_metadata.into())
-}
-
-#[derive(Serialize, Deserialize, IntoParams)]
-pub struct ChainIdQueryParams {
-    #[param(example = "sepolia", value_type = Option < String >)]
-    chain_id: Option<ChainId>,
 }
 
 /// Fetch all opportunities ready to be exectued.

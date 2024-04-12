@@ -10,6 +10,6 @@ CREATE TABLE bid
     target_calldata BYTEA          NOT NULL,
     bid_amount      NUMERIC(78, 0) NOT NULL,
     status          bid_status     NOT NULL,
-    auction_id      UUID,     -- TODO: should be linked to the auction table in the future
-    removal_time    TIMESTAMP -- TODO: should be removed and read from the auction table in the future
+    auction_id      UUID           REFERENCES auction(id) ON DELETE RESTRICT,
+    bundle_index    INTEGER        CHECK (bundle_index >= 0)
 );
