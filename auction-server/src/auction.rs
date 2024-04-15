@@ -184,17 +184,6 @@ pub async fn simulate_bids(
     // TODO: implement L1 data fee estimation for L2s
     // E.g. Optimism: https://docs.optimism.io/stack/transactions/fees#formula
 
-    // TODO: delete
-    // I think base fee estimation below is worse--redirect to uninterpretable eth_gasPrice rpc call whose implementation seems node-specific.
-    // The Besu client for example uses median of last 100 blocks, which is not a great estimate of current base fee relative to the last block (guaranteed to be within 12.5%)
-    // let base_fee_result = provider.get_gas_price().await;
-    // let base_fee = match base_fee_result {
-    //     Ok(price) => price,
-    //     Err(e) => {
-    //         return Err(SimulationError::ContractError(ContractError::ProviderError { e }));
-    //     }
-    // };
-
     let gas_cost = gas_estimate * max_fee;
 
     match call.await {
