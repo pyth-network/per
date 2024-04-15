@@ -53,7 +53,7 @@ pub struct OpportunityAdapterSignatureConfig {
     #[schema(example = "1", value_type = String)]
     pub domain_version:   String,
     /// The network chain id of the opportunity adapter contract
-    #[schema(example = 1, value_type = u64)]
+    #[schema(example = 31337, value_type = u64)]
     pub chain_network_id: u64,
     /// The opportunity adapter contract address
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]

@@ -143,7 +143,6 @@ abstract contract OpportunityAdapter is SigVerify {
             revert Unauthorized();
         }
 
-        // If the signature is not valid or expired, this will revert
         verifyCalldata(
             _EXECUTION_PARAMS_TYPE,
             _hash_execution_params(params),
