@@ -13,8 +13,6 @@ contract ExpressRelayStorage {
         address admin;
         // address of primary relayer EOA, where relayer will ultimately receive fees
         address relayer;
-        // store of relayer subwallets permissioned to call ExpressRelay.multicall
-        address[] relayerSubwallets;
         // stores custom fee splits for protocol fee receivers
         mapping(address => uint256) feeConfig;
         // stores the flags for whether permission keys are currently allowed
@@ -25,6 +23,8 @@ contract ExpressRelayStorage {
         uint256 feeSplitRelayer;
         // precision for fee splits
         uint256 feeSplitPrecision;
+        // store of relayer subwallets permissioned to call ExpressRelay.multicall
+        address[] relayerSubwallets;
     }
 }
 
