@@ -150,6 +150,26 @@ pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), 
     Ok(())
 }
 
+pub async fn estimate_gas_cost(
+    provider: Provider<Http>,
+    gas: U256,
+) -> Result<U256, SimulationError> {
+    // TODO: need better gas price estimation than default (esp for L1)
+    let max_fee_result = provider.estimate_eip1559_fees(None).await;
+    let (max_fee, _max_priority_fee) = match max_fee_result {
+        Ok(fees) => (fees.0, fees.1),
+        Err(e) => {
+            return Err(SimulationError::ContractError(
+                ContractError::ProviderError { e },
+            ));
+        }
+    };
+    // TODO: implement L1 data fee estimation for L2s
+    // E.g. Optimism: https://docs.optimism.io/stack/transactions/fees#formula
+
+    Ok(gas * max_fee)
+}
+
 pub async fn simulate_bids(
     relayer: Address,
     provider: Provider<Http>,
@@ -171,20 +191,7 @@ pub async fn simulate_bids(
         .map_err(SimulationError::ContractError)?;
     gas_estimate *= 2;
 
-    // TODO: need better gas price estimation than default (esp for L1)
-    let max_fee_result = provider.estimate_eip1559_fees(None).await;
-    let (max_fee, _max_priority_fee) = match max_fee_result {
-        Ok(fees) => (fees.0, fees.1),
-        Err(e) => {
-            return Err(SimulationError::ContractError(
-                ContractError::ProviderError { e },
-            ));
-        }
-    };
-    // TODO: implement L1 data fee estimation for L2s
-    // E.g. Optimism: https://docs.optimism.io/stack/transactions/fees#formula
-
-    let gas_cost = gas_estimate * max_fee;
+    let gas_cost = estimate_gas_cost(provider, gas_estimate).await?;
 
     match call.await {
         Ok(results) => {
