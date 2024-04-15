@@ -42,6 +42,7 @@ use {
         },
         providers::{
             Http,
+            Middleware,
             Provider,
             ProviderError,
         },
@@ -127,8 +128,15 @@ pub fn get_simulation_call(
 }
 
 pub enum SimulationError {
-    LogicalError { result: Bytes, reason: String },
+    LogicalError {
+        result: Bytes,
+        reason: String,
+    },
     ContractError(ContractError<Provider<Http>>),
+    GasError {
+        gas_cost:         U256,
+        total_bid_amount: U256,
+    },
 }
 
 pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), SimulationError> {
@@ -149,7 +157,46 @@ pub async fn simulate_bids(
     permission: Bytes,
     multicall_data: Vec<MulticallData>,
 ) -> Result<(), SimulationError> {
-    let call = get_simulation_call(relayer, provider, chain_config, permission, multicall_data);
+    let call = get_simulation_call(
+        relayer,
+        provider.clone(),
+        chain_config,
+        permission,
+        multicall_data.clone(),
+    );
+
+    let mut gas_estimate = call
+        .estimate_gas()
+        .await
+        .map_err(SimulationError::ContractError)?;
+    gas_estimate *= 2;
+
+    // TODO: need better gas price estimation than default (esp for L1)
+    let max_fee_result = provider.estimate_eip1559_fees(None).await;
+    let (max_fee, _max_priority_fee) = match max_fee_result {
+        Ok(fees) => (fees.0, fees.1),
+        Err(e) => {
+            return Err(SimulationError::ContractError(
+                ContractError::ProviderError { e },
+            ));
+        }
+    };
+    // TODO: implement L1 data fee estimation for L2s
+    // E.g. Optimism: https://docs.optimism.io/stack/transactions/fees#formula
+
+    // TODO: delete
+    // I think base fee estimation below is worse--redirect to uninterpretable eth_gasPrice rpc call whose implementation seems node-specific.
+    // The Besu client for example uses median of last 100 blocks, which is not a great estimate of current base fee relative to the last block (guaranteed to be within 12.5%)
+    // let base_fee_result = provider.get_gas_price().await;
+    // let base_fee = match base_fee_result {
+    //     Ok(price) => price,
+    //     Err(e) => {
+    //         return Err(SimulationError::ContractError(ContractError::ProviderError { e }));
+    //     }
+    // };
+
+    let gas_cost = gas_estimate * max_fee;
+
     match call.await {
         Ok(results) => {
             evaluate_simulation_results(results)?;
@@ -158,6 +205,18 @@ pub async fn simulate_bids(
             return Err(SimulationError::ContractError(e));
         }
     };
+
+    let mut total_bid_amount = U256::zero();
+    for data in multicall_data.clone() {
+        total_bid_amount += data.bid_amount;
+    }
+    if gas_cost > total_bid_amount {
+        return Err(SimulationError::GasError {
+            gas_cost,
+            total_bid_amount,
+        });
+    }
+
     Ok(())
 }
 
@@ -216,6 +275,8 @@ pub async fn submit_bids(
         .send()
         .await
         .map_err(SubmissionError::ContractError)?;
+
+    // TODO: gas estimate (price)
 
     send_call.await.map_err(SubmissionError::ProviderError)
 }
@@ -359,6 +420,13 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
                 ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 _ => Err(RestError::BadParameters(format!("Error: {}", e))),
             },
+            SimulationError::GasError {
+                gas_cost,
+                total_bid_amount,
+            } => Err(RestError::ExcessiveGasCost {
+                gas_cost,
+                total_bid_amount,
+            }),
         };
     };
 

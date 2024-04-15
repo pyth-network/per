@@ -438,7 +438,7 @@ contract VaultScript is Script {
         IERC20(address(token2)).approve(opportunityAdapter, 199_999_999);
         // deposit ETH to get WETH
         WETH9(payable(wethAddress)).deposit{value: 1 ether}();
-        WETH9(payable(wethAddress)).approve(opportunityAdapter, 399_999_999);
+        WETH9(payable(wethAddress)).approve(opportunityAdapter, 1 ether);
         vm.stopBroadcast();
         vm.startBroadcast(sksScript[1]);
         IERC20(address(token1)).approve(opportunityAdapter, 199_999_999);

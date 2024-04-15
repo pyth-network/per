@@ -46,7 +46,10 @@ use {
         Router,
     },
     clap::crate_version,
-    ethers::types::Bytes,
+    ethers::types::{
+        Bytes,
+        U256,
+    },
     serde::{
         Deserialize,
         Serialize,
@@ -86,6 +89,11 @@ pub enum RestError {
     OpportunityNotFound,
     /// The bid was not found
     BidNotFound,
+    /// The gas cost of executing the call exceeded the total value of all paid bids
+    ExcessiveGasCost {
+        gas_cost:         U256,
+        total_bid_amount: U256,
+    },
     /// Internal error occurred during processing the request
     TemporarilyUnavailable,
 }
@@ -115,6 +123,10 @@ impl RestError {
             RestError::BidNotFound => (
                 StatusCode::NOT_FOUND,
                 "Bid with the specified id was not found".to_string(),
+            ),
+            RestError::ExcessiveGasCost { gas_cost, total_bid_amount } => (
+                StatusCode::BAD_REQUEST,
+                format!("The gas cost of executing the call ({}) exceeded the total value of all paid bids ({})", gas_cost, total_bid_amount),
             ),
             RestError::TemporarilyUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,

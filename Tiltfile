@@ -110,6 +110,7 @@ searcher_command = (
     + "--private-key $SEARCHER_SK "
     + "--chain-id development "
     + "--verbose "
+    + "--bid 10000000000000000 "
     + "--liquidation-server-url http://localhost:9000"
 )
 local_resource(
