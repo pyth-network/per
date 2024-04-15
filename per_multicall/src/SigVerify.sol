@@ -9,20 +9,33 @@ import "forge-std/console.sol";
 
 contract SigVerify is EIP712Upgradeable {
     mapping(bytes => bool) _signatureUsed;
+    string constant _SIGNATURE_TYPE =
+        "Signature(ExecutionParams executionParams,address signer,uint256 deadline)";
 
     function verifyCalldata(
-        bytes memory rawType,
-        address _signer,
-        bytes memory _data,
+        string memory executionParamsType,
+        bytes32 hashed_data,
+        address signer,
         bytes memory signature,
         uint256 deadline
     ) public view {
         bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(keccak256(rawType), _signer, _data, deadline))
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        bytes(
+                            string.concat(_SIGNATURE_TYPE, executionParamsType)
+                        )
+                    ),
+                    hashed_data,
+                    signer,
+                    deadline
+                )
+            )
         );
-        address signer = ECDSA.recover(digest, signature);
+        address _signer = ECDSA.recover(digest, signature);
 
-        if (signer == address(0) || signer != _signer) {
+        if (_signer == address(0) || _signer != signer) {
             revert InvalidSignature();
         }
 

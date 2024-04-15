@@ -7,7 +7,10 @@ use {
             },
             RestError,
         },
-        config::{ChainId, EthereumConfig},
+        config::{
+            ChainId,
+            EthereumConfig,
+        },
         opportunity_adapter,
     },
     axum::Json,

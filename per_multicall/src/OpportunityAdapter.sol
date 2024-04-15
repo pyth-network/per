@@ -13,8 +13,10 @@ abstract contract OpportunityAdapter is SigVerify {
     address _admin;
     address _expressRelay;
     address _weth;
-    string constant _OPPOURTUNITY_TYPE =
-        "Opportunity(TokenAmount sellTokens,TokenAmount buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount,uint256 validUntil)TokenAmount(address token,uint256 amount)";
+    string constant _EXECUTION_PARAMS_TYPE =
+        "ExecutionParams(TokenAmount[] sellTokens,TokenAmount[] buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
+    string constant _TOKEN_AMOUNT_TYPE =
+        "TokenAmount(address token,uint256 amount)";
     string constant _DOMAIN_NAME = "OpportunityAdapter";
     string constant _DOMAIN_VERSION = "1";
 
@@ -93,7 +95,47 @@ abstract contract OpportunityAdapter is SigVerify {
             bytes32 _salt,
             uint256[] memory _extensions
         ) = eip712Domain();
-        config = SignatureMetadata(_OPPOURTUNITY_TYPE, name, version);
+        config = SignatureMetadata(name, version);
+    }
+
+    function _hash_token_amount(
+        TokenAmount memory tokenAmount
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(bytes(_TOKEN_AMOUNT_TYPE)),
+                    tokenAmount.token,
+                    tokenAmount.amount
+                )
+            );
+    }
+
+    function _hash_token_amounts(
+        TokenAmount[] memory tokenAmounts
+    ) internal pure returns (bytes32) {
+        bytes32[] memory hashed_tokens = new bytes32[](tokenAmounts.length);
+        for (uint i = 0; i < tokenAmounts.length; i++) {
+            hashed_tokens[i] = _hash_token_amount(tokenAmounts[i]);
+        }
+        return keccak256(abi.encodePacked(hashed_tokens));
+    }
+
+    function _hash_execution_params(
+        ExecutionParams memory params
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(bytes(_EXECUTION_PARAMS_TYPE)),
+                    _hash_token_amounts(params.sellTokens),
+                    _hash_token_amounts(params.buyTokens),
+                    params.targetContract,
+                    keccak256(params.targetCalldata),
+                    params.targetCallValue,
+                    params.bidAmount
+                )
+            );
     }
 
     function _verifyParams(ExecutionParams memory params) internal view {
@@ -103,17 +145,9 @@ abstract contract OpportunityAdapter is SigVerify {
 
         // If the signature is not valid or expired, this will revert
         verifyCalldata(
-            bytes(_OPPOURTUNITY_TYPE),
+            _EXECUTION_PARAMS_TYPE,
+            _hash_execution_params(params),
             params.executor,
-            abi.encode(
-                params.sellTokens,
-                params.buyTokens,
-                params.targetContract,
-                params.targetCalldata,
-                params.targetCallValue,
-                params.bidAmount,
-                params.validUntil
-            ),
             params.signature,
             params.validUntil
         );

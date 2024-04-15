@@ -1,6 +1,9 @@
 use {
     crate::{
-        api::{opportunity::OpportunityAdapterSignatureConfig, RestError},
+        api::{
+            opportunity::OpportunityAdapterSignatureConfig,
+            RestError,
+        },
         auction::{
             evaluate_simulation_results,
             get_simulation_call,
@@ -31,18 +34,41 @@ use {
         Result,
     },
     ethers::{
-        abi::{AbiDecode, Tokenizable},
-        contract::{abigen, ContractRevert},
-        core::{abi, rand, utils::keccak256},
-        providers::{Http, Provider, RawCall},
-        signers::{LocalWallet, Signer},
+        abi::AbiDecode,
+        contract::{
+            abigen,
+            ContractRevert,
+        },
+        core::{
+            abi,
+            rand,
+        },
+        providers::{
+            Http,
+            Provider,
+            RawCall,
+        },
+        signers::{
+            LocalWallet,
+            Signer,
+        },
         types::{
             spoof,
-            transaction::eip712::{EIP712Domain, Eip712, Eip712Error},
-            Address, Bytes, Signature, H256, U256,
+            transaction::eip712::{
+                EIP712Domain,
+                Eip712,
+                TypedData,
+            },
+            Address,
+            Bytes,
+            Signature,
+            U256,
         },
     },
-    serde::{Deserialize, Serialize},
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     std::{
         collections::HashMap,
         ops::Add,
@@ -108,9 +134,13 @@ pub async fn verify_opportunity(
         },
     };
 
-    let hashed_data =
+    let typed_data: Option<TypedData> =
         make_opportunity_execution_params(opportunity.clone(), fake_bid.clone(), chain_store)
-            .encode_eip712()?;
+            .into();
+    if typed_data.is_none() {
+        return Err(anyhow!("Error creating typed data"));
+    }
+    let hashed_data = typed_data.unwrap().encode_eip712()?;
     let signature = fake_wallet.sign_hash(hashed_data.into())?;
     fake_bid.signature = signature;
     let params =
@@ -209,59 +239,75 @@ pub async fn verify_opportunity(
     Ok(VerificationResult::Success)
 }
 
-fn get_params_bytes(params: ExecutionParams) -> Bytes {
-    Bytes::from(abi::encode(&[
-        params.sell_tokens.into_token(),
-        params.buy_tokens.into_token(),
-        params.target_contract.into_token(),
-        params.target_calldata.into_token(),
-        params.target_call_value.into_token(),
-        params.bid_amount.into_token(),
-        params.valid_until.into_token(),
-    ]))
-}
-
-impl Eip712 for OpportunityAdapterExecutionParams {
-    type Error = Eip712Error;
-
-    fn domain(&self) -> Result<EIP712Domain, Self::Error> {
-        let config = self.signature_config.clone();
-        Ok(EIP712Domain {
-            name: config.domain_name.into(),
-            version: config.domain_version.into(),
-            chain_id: U256::from(config.chain_network_id).into(),
-            verifying_contract: config.contract_address.into(),
-            salt: None,
+impl From<OpportunityAdapterExecutionParams> for Option<TypedData> {
+    fn from(val: OpportunityAdapterExecutionParams) -> Self {
+        let params = val.params;
+        let config = val.signature_config;
+        let data_type = serde_json::json!({
+            "Signature": [
+                {"name": "executionParams", "type": "ExecutionParams"},
+                {"name": "signer", "type": "address"},
+                {"name": "deadline", "type": "uint256"},
+            ],
+            "ExecutionParams": [
+                {"name": "sellTokens", "type": "TokenAmount[]"},
+                {"name": "buyTokens", "type": "TokenAmount[]"},
+                {"name": "targetContract", "type": "address"},
+                {"name": "targetCalldata", "type": "bytes"},
+                {"name": "targetCallValue", "type": "uint256"},
+                {"name": "bidAmount", "type": "uint256"},
+            ],
+            "TokenAmount": [
+                {"name": "token", "type": "address"},
+                {"name": "amount", "type": "uint256"},
+            ]
+        });
+        let data = serde_json::json!({
+            "executionParams": {
+                "sellTokens": params.sell_tokens.into_iter().map(|x| serde_json::json!({
+                    "token": x.token,
+                    "amount": x.amount,
+                })).collect::<Vec<_>>(),
+                "buyTokens": params.buy_tokens.into_iter().map(|x| serde_json::json!({
+                    "token": x.token,
+                    "amount": x.amount,
+                })).collect::<Vec<_>>(),
+                "targetContract": params.target_contract,
+                "targetCalldata": params.target_calldata,
+                "targetCallValue": params.target_call_value,
+                "bidAmount": params.bid_amount,
+            },
+            "signer": params.executor,
+            "deadline": params.valid_until,
+        });
+        Some(TypedData {
+            domain:       EIP712Domain {
+                name:               config.domain_name.into(),
+                version:            config.domain_version.into(),
+                chain_id:           U256::from(config.chain_network_id).into(),
+                verifying_contract: config.contract_address.into(),
+                salt:               None,
+            },
+            types:        serde_json::from_value(data_type).ok()?,
+            primary_type: "Signature".into(),
+            message:      serde_json::from_value(data).ok()?,
         })
-    }
-
-    fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
-        let type_bytes = self.signature_config.opportunity_type.as_bytes();
-        let type_hash = H256(keccak256(type_bytes));
-        let data = Bytes::from(abi::encode(&[
-            type_hash.into_token(),
-            self.params.executor.into_token(),
-            get_params_bytes(self.params.clone()).into_token(),
-            self.params.valid_until.into_token(),
-        ]));
-        let digest = H256(keccak256(data));
-        Ok(*digest.as_fixed_bytes())
-    }
-
-    fn type_hash() -> Result<[u8; 32], Self::Error> {
-        todo!()
     }
 }
 
 #[derive(ToSchema, Clone)]
 pub struct OpportunityAdapterExecutionParams {
-    params: ExecutionParams,
+    params:           ExecutionParams,
     signature_config: OpportunityAdapterSignatureConfig,
 }
 
 fn verify_signature(execution_params: OpportunityAdapterExecutionParams) -> Result<()> {
     // TODO Maybe use ECDSA to recover the signer?
-    let structured_hash = execution_params.encode_eip712()?;
+    let typed_data: Option<TypedData> = execution_params.clone().into();
+    if typed_data.is_none() {
+        return Err(anyhow!("Error creating typed data"));
+    }
+    let structured_hash = typed_data.unwrap().encode_eip712()?;
     let params = execution_params.params;
     let signature = Signature::try_from(params.signature.to_vec().as_slice())
         .map_err(|_x| anyhow!("Error reading signature"))?;
@@ -304,24 +350,24 @@ pub fn make_opportunity_execution_params(
     chain_store: &ChainStore,
 ) -> OpportunityAdapterExecutionParams {
     OpportunityAdapterExecutionParams {
-        params: ExecutionParams {
-            sell_tokens: opportunity
+        params:           ExecutionParams {
+            sell_tokens:       opportunity
                 .sell_tokens
                 .into_iter()
                 .map(TokenAmount::from)
                 .collect(),
-            buy_tokens: opportunity
+            buy_tokens:        opportunity
                 .buy_tokens
                 .into_iter()
                 .map(TokenAmount::from)
                 .collect(),
-            executor: bid.executor,
-            target_contract: opportunity.target_contract,
-            target_calldata: opportunity.target_calldata,
+            executor:          bid.executor,
+            target_contract:   opportunity.target_contract,
+            target_calldata:   opportunity.target_calldata,
             target_call_value: opportunity.target_call_value,
-            valid_until: bid.valid_until,
-            bid_amount: bid.amount,
-            signature: bid.signature.to_vec().into(),
+            valid_until:       bid.valid_until,
+            bid_amount:        bid.amount,
+            signature:         bid.signature.to_vec().into(),
         },
         signature_config: OpportunityAdapterSignatureConfig::from(chain_store),
     }

@@ -59,9 +59,9 @@ contract SearcherVault is SigVerify {
         if (msg.sender == expressRelay) {
             // If the signature is not valid or expired, this will revert
             verifyCalldata(
-                "Liquidation(uint256 vaultId,uint256 bid,uint256 validUntil)",
+                "ExecutionParams(uint256 vaultId,uint256 bid)",
+                keccak256(abi.encode(vaultId, bid, validUntil)),
                 owner,
-                abi.encode(vaultId, bid, validUntil),
                 signatureSearcher,
                 validUntil
             );

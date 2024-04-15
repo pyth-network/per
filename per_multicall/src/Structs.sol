@@ -48,7 +48,6 @@ struct ExecutionParams {
 }
 
 struct SignatureMetadata {
-    string opportunityType;
     string domainName;
     string domainVersion;
 }

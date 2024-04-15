@@ -1,6 +1,9 @@
 use {
     crate::{
-        api::{self, ws},
+        api::{
+            self,
+            ws,
+        },
         auction::run_submission_loop,
         config::{
             ChainId,
@@ -8,8 +11,8 @@ use {
             RunOptions,
         },
         opportunity_adapter::{
-            get_weth_address,
             get_signature_metadata,
+            get_weth_address,
             run_verification_loop,
         },
         state::{
