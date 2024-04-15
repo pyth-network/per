@@ -80,3 +80,12 @@ forge verify-contract --via-ir <contract-address> ERC1967Proxy --verifier-url ht
 
 You may have to specify the constructor arguments used to initialize the contract, using the `--constructor-args` flag. For more info see the [forge instructions on verifying contracts](https://book.getfoundry.sh/forge/deploying?highlight=verify#verifying-a-pre-existing-contract).
 ```
+
+# Upgrading contracts on optimism testnet
+
+Run the following to upgrade ExpressRelay and OpportunityAdapter contracts on the optimism testnet:
+
+```
+forge script script/Vault.s.sol --via-ir --fork-url https://sepolia.optimism.io -vvv --sig 'upgradeExpressRelay(address)' 0xc643e55EE8944F3017F4CB8C82aa3DB1AA2d8941 --broadcast
+forge script script/Vault.s.sol --via-ir --fork-url https://sepolia.optimism.io -vvv --sig 'upgradeOpportunityAdapter(address)' 0xD35E56C06320B1ED549a8F85d316FEc854FF4b71 --broadcast
+```
