@@ -555,7 +555,7 @@ contract ExpressRelayTestSetup is
             ExecutionParams
                 memory executionParams = opportunityAdapterSignatureContract
                     .createAndSignExecutionParams(
-                        address(opportunityAdapter),
+                        opportunityAdapter,
                         bidInfos[i].executor,
                         sellTokens,
                         buyTokens,

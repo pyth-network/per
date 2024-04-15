@@ -43,14 +43,19 @@ contract Signature is Test, SigVerify {
         string memory version,
         bytes memory typeHash,
         address signer,
-        bytes memory data,
+        bytes32 hashed_data,
         uint256 deadline
     ) internal view virtual returns (bytes32) {
         return
             MessageHashUtils.toTypedDataHash(
                 _domainSeparatorV4(contractAddress, name, version),
                 keccak256(
-                    abi.encode(keccak256(typeHash), signer, data, deadline)
+                    abi.encode(
+                        keccak256(typeHash),
+                        hashed_data,
+                        signer,
+                        deadline
+                    )
                 )
             );
     }

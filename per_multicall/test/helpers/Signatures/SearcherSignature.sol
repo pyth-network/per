@@ -5,7 +5,7 @@ import "./Signature.sol";
 
 contract SearcherSignature is Signature {
     bytes constant _TYPE_HASH =
-        "Liquidation(uint256 vaultId,uint256 bid,uint256 validUntil)";
+        "Signature(ExecutionParams executionParams,address signer,uint256 deadline)ExecutionParams(uint256 vaultId,uint256 bid)";
     string constant _NAME = "Searcher";
     string constant _VERSION = "1";
 
@@ -27,7 +27,7 @@ contract SearcherSignature is Signature {
             _VERSION,
             _TYPE_HASH,
             signer,
-            abi.encode(dataNumber, bid, validUntil),
+            keccak256(abi.encode(dataNumber, bid)),
             validUntil
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(searcherSk, digest);

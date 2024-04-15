@@ -60,7 +60,7 @@ contract SearcherVault is SigVerify {
             // If the signature is not valid or expired, this will revert
             verifyCalldata(
                 "ExecutionParams(uint256 vaultId,uint256 bid)",
-                keccak256(abi.encode(vaultId, bid, validUntil)),
+                keccak256(abi.encode(vaultId, bid)),
                 owner,
                 signatureSearcher,
                 validUntil

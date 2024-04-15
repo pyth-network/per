@@ -123,7 +123,7 @@ abstract contract OpportunityAdapter is SigVerify {
 
     function _hash_execution_params(
         ExecutionParams memory params
-    ) internal pure returns (bytes32) {
+    ) public pure returns (bytes32) {
         return
             keccak256(
                 abi.encode(

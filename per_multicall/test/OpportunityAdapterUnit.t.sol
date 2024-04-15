@@ -47,7 +47,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
             abi.encode(0)
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            address(opportunityAdapter),
+            opportunityAdapter,
             executor,
             noTokens,
             noTokens,
@@ -72,7 +72,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
             abi.encode("arbitrary data")
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            address(opportunityAdapter),
+            opportunityAdapter,
             executor,
             noTokens,
             noTokens,
