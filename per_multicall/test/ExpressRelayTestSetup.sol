@@ -30,6 +30,9 @@ import "./helpers/MulticallHelpers.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/ExpressRelayUpgradable.sol";
 
+import "../src/ExpressRelayEvents.sol";
+import "../src/ExpressRelayGovernanceEvents.sol";
+
 /**
  * @title ExpressRelayTestSetUp
  *
@@ -45,7 +48,9 @@ contract ExpressRelayTestSetup is
     TestParsingHelpers,
     Signatures,
     PriceHelpers,
-    MulticallHelpers
+    MulticallHelpers,
+    ExpressRelayEvents,
+    ExpressRelayGovernanceEvents
 {
     TokenVault public tokenVault;
     SearcherVault public searcherA;
@@ -643,5 +648,27 @@ contract ExpressRelayTestSetup is
         }
 
         assertEq(balancePost, balancePre + totalBid);
+    }
+
+    function expectMulticallIssued(
+        bytes memory permission,
+        MulticallData[] memory multicallData,
+        MulticallStatus[] memory expectedMulticallStatuses
+    ) internal {
+        require(
+            multicallData.length == expectedMulticallStatuses.length,
+            "Multicall data and status length mismatch"
+        );
+        for (uint i = 0; i < multicallData.length; i++) {
+            // TODO: maybe check the data as well, eventually
+            vm.expectEmit(true, true, true, false, address(expressRelay));
+            emit MulticallIssued(
+                permission,
+                i,
+                multicallData[i].bidId,
+                multicallData[i].bidAmount,
+                expectedMulticallStatuses[i]
+            );
+        }
     }
 }

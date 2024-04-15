@@ -131,6 +131,15 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalSuccess = true;
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
         vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
@@ -153,7 +162,10 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             balancesAPre.debt - amountsDebt[vaultNumber]
         );
 
-        assertEq(multicallStatuses[0].externalSuccess, true);
+        assertEq(
+            multicallStatuses[0].externalSuccess,
+            expectedMulticallStatuses[0].externalSuccess
+        );
 
         assertExpectedBidPayment(
             balanceProtocolPre,
@@ -201,6 +213,16 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             address(searcherB),
             tokensCollateral[vaultNumber],
             tokensDebt[vaultNumber]
+        );
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](2);
+        expectedMulticallStatuses[0].externalSuccess = true;
+        expectedMulticallStatuses[1].externalSuccess = false;
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
         );
 
         vm.prank(relayer);
@@ -287,6 +309,16 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         vm.prank(searcherAOwnerAddress);
         searcherA.withdrawEth(address(searcherA).balance);
 
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](2);
+        expectedMulticallStatuses[0].externalSuccess = false;
+        expectedMulticallStatuses[1].externalSuccess = true;
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
         vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
@@ -358,6 +390,17 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
+            InvalidLiquidation.selector
+        );
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
         vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
@@ -373,7 +416,11 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEq(balancesAPost.collateral, balancesAPre.collateral);
         assertEq(balancesAPost.debt, balancesAPre.debt);
 
-        assertFailedExternal(multicallStatuses[0], InvalidLiquidation.selector);
+        // TODO: make these checks happen in for loop, function to check every single element
+        assertFailedExternal(
+            multicallStatuses[0],
+            expectedMulticallStatuses[0].externalResult
+        );
     }
 
     function testLiquidateMismatchedBidFail() public {
@@ -405,6 +452,16 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalSuccess = false;
+        expectedMulticallStatuses[0].multicallRevertReason = "invalid bid";
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
         vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
@@ -420,7 +477,10 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEq(balancesAPost.collateral, balancesAPre.collateral);
         assertEq(balancesAPost.debt, balancesAPre.debt);
 
-        assertFailedMulticall(multicallStatuses[0], "invalid bid");
+        assertFailedMulticall(
+            multicallStatuses[0],
+            expectedMulticallStatuses[0].multicallRevertReason
+        );
     }
 
     function testLiquidateOpportunityAdapter() public {
@@ -450,6 +510,15 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalSuccess = true;
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
         vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
@@ -473,7 +542,10 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             balancesAPre.debt - amountsDebt[vaultNumber]
         );
 
-        assertEq(multicallStatuses[0].externalSuccess, true);
+        assertEq(
+            multicallStatuses[0].externalSuccess,
+            expectedMulticallStatuses[0].externalSuccess
+        );
 
         assertExpectedBidPayment(
             balanceProtocolPre,
@@ -511,6 +583,18 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalSuccess = false;
+        expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
+            InvalidExecutorSignature.selector
+        );
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
         vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
@@ -529,7 +613,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         assertFailedExternal(
             multicallStatuses[0],
-            InvalidExecutorSignature.selector
+            expectedMulticallStatuses[0].externalResult
         );
     }
 
@@ -561,6 +645,18 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
         uint256 balanceProtocolPre = address(tokenVault).balance;
 
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalSuccess = false;
+        expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
+            ExpiredSignature.selector
+        );
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
         vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
@@ -576,7 +672,10 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         assertEqBalances(balancesAPost, balancesAPre);
         assertEq(balanceProtocolPre, balanceProtocolPost);
-        assertFailedExternal(multicallStatuses[0], ExpiredSignature.selector);
+        assertFailedExternal(
+            multicallStatuses[0],
+            expectedMulticallStatuses[0].externalResult
+        );
     }
 
     /**
@@ -617,6 +716,18 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             tokensDebt[vaultNumber]
         );
 
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](2);
+        expectedMulticallStatuses[0].externalSuccess = true;
+        expectedMulticallStatuses[1].externalResult = abi.encodeWithSelector(
+            TargetCallFailed.selector
+        );
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
         vm.prank(relayer);
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
@@ -644,7 +755,13 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
         assertEqBalances(balancesBPost, balancesBPre);
 
-        assertEq(multicallStatuses[0].externalSuccess, true);
-        assertFailedExternal(multicallStatuses[1], TargetCallFailed.selector);
+        assertEq(
+            multicallStatuses[0].externalSuccess,
+            expectedMulticallStatuses[0].externalSuccess
+        );
+        assertFailedExternal(
+            multicallStatuses[1],
+            expectedMulticallStatuses[1].externalResult
+        );
     }
 }

@@ -6,8 +6,6 @@ import "forge-std/console.sol";
 
 import "../src/Errors.sol";
 import "../src/Structs.sol";
-import "../src/ExpressRelayEvents.sol";
-import "../src/ExpressRelayGovernanceEvents.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 
@@ -17,12 +15,7 @@ import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
  * ExpressRelayUnitTest is a suite that tests the ExpressRelay contract.
  * This relates to testing the ExpressRelay setter methods and multicall.
  */
-contract ExpressRelayUnitTest is
-    Test,
-    ExpressRelayTestSetup,
-    ExpressRelayEvents,
-    ExpressRelayGovernanceEvents
-{
+contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     function setUp() public {
         setUpWallets();
         setUpContracts();
@@ -268,7 +261,7 @@ contract ExpressRelayUnitTest is
         expressRelay.setFeeRelayer(0);
     }
 
-    function testMulticallByRelayerEmpty() public {
+    function testMulticallByRelayer() public {
         bytes memory permission = abi.encode("random permission");
         MulticallData[] memory multicallData;
 
@@ -276,7 +269,7 @@ contract ExpressRelayUnitTest is
         expressRelay.multicall(permission, multicallData);
     }
 
-    function testMulticallByRelayerSubwalletEmpty() public {
+    function testMulticallByRelayerSubwallet() public {
         address subwallet = makeAddr("subwallet");
         vm.prank(relayer);
         expressRelay.addRelayerSubwallet(subwallet);
@@ -288,12 +281,21 @@ contract ExpressRelayUnitTest is
         expressRelay.multicall(permission, multicallData);
     }
 
-    function testMulticallByNonRelayerFail() public {
+    function testMulticallByNonRelayer() public {
         bytes memory permission = abi.encode("random permission");
         MulticallData[] memory multicallData;
 
         vm.expectRevert(Unauthorized.selector);
         vm.prank(address(0xbad));
+        expressRelay.multicall(permission, multicallData);
+    }
+
+    function testMulticallInvalidPermissionFail() public {
+        bytes memory permission = abi.encodePacked(uint8(0));
+        MulticallData[] memory multicallData;
+
+        vm.expectRevert(InvalidPermission.selector);
+        vm.prank(relayer);
         expressRelay.multicall(permission, multicallData);
     }
 }
