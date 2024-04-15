@@ -162,9 +162,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             balancesAPre.debt - amountsDebt[vaultNumber]
         );
 
-        assertEq(
-            multicallStatuses[0].externalSuccess,
-            expectedMulticallStatuses[0].externalSuccess
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            true,
+            true
         );
 
         assertExpectedBidPayment(
@@ -256,6 +259,15 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEq(balancesBPost.debt, balancesBPre.debt);
 
         logMulticallStatuses(multicallStatuses);
+
+        // set checkExternalResult to false, failure comes from an unknown error
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            false,
+            true
+        );
 
         // only the first bid should be paid
         assertExpectedBidPayment(
@@ -352,6 +364,14 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         logMulticallStatuses(multicallStatuses);
 
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            true,
+            true
+        );
+
         // only the second bid should be paid
         assertExpectedBidPayment(
             balanceProtocolPre,
@@ -416,10 +436,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEq(balancesAPost.collateral, balancesAPre.collateral);
         assertEq(balancesAPost.debt, balancesAPre.debt);
 
-        // TODO: make these checks happen in for loop, function to check every single element
-        assertFailedExternal(
-            multicallStatuses[0],
-            expectedMulticallStatuses[0].externalResult
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            true,
+            true
         );
     }
 
@@ -477,9 +499,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEq(balancesAPost.collateral, balancesAPre.collateral);
         assertEq(balancesAPost.debt, balancesAPre.debt);
 
-        assertFailedMulticall(
-            multicallStatuses[0],
-            expectedMulticallStatuses[0].multicallRevertReason
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            true,
+            true
         );
     }
 
@@ -542,9 +567,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             balancesAPre.debt - amountsDebt[vaultNumber]
         );
 
-        assertEq(
-            multicallStatuses[0].externalSuccess,
-            expectedMulticallStatuses[0].externalSuccess
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            true,
+            true
         );
 
         assertExpectedBidPayment(
@@ -611,9 +639,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         assertEqBalances(balancesAPost, balancesAPre);
         assertEq(balanceProtocolPre, balanceProtocolPost);
 
-        assertFailedExternal(
-            multicallStatuses[0],
-            expectedMulticallStatuses[0].externalResult
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            true,
+            true
         );
     }
 
@@ -672,9 +703,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         assertEqBalances(balancesAPost, balancesAPre);
         assertEq(balanceProtocolPre, balanceProtocolPost);
-        assertFailedExternal(
-            multicallStatuses[0],
-            expectedMulticallStatuses[0].externalResult
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            true,
+            true
         );
     }
 
@@ -755,13 +789,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
         assertEqBalances(balancesBPost, balancesBPre);
 
-        assertEq(
-            multicallStatuses[0].externalSuccess,
-            expectedMulticallStatuses[0].externalSuccess
-        );
-        assertFailedExternal(
-            multicallStatuses[1],
-            expectedMulticallStatuses[1].externalResult
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            true,
+            true
         );
     }
 }

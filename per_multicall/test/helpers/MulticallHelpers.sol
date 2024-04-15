@@ -35,4 +35,34 @@ contract MulticallHelpers is Test, TestParsingHelpers {
             console.log("----------------------------");
         }
     }
+
+    function checkMulticallStatuses(
+        MulticallStatus[] memory observed,
+        MulticallStatus[] memory expected,
+        bool checkExternalSuccess,
+        bool checkExternalResult,
+        bool checkExternalRevertReason
+    ) internal {
+        assertEq(observed.length, expected.length);
+        for (uint256 i = 0; i < observed.length; i++) {
+            if (checkExternalSuccess) {
+                assertEq(
+                    observed[i].externalSuccess,
+                    expected[i].externalSuccess
+                );
+            }
+            if (checkExternalResult) {
+                assertEq(
+                    bytes4(observed[i].externalResult),
+                    bytes4(expected[i].externalResult)
+                );
+            }
+            if (checkExternalRevertReason) {
+                assertEq(
+                    observed[i].multicallRevertReason,
+                    expected[i].multicallRevertReason
+                );
+            }
+        }
+    }
 }
