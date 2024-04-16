@@ -7,7 +7,60 @@ import "forge-std/console.sol";
 import "../src/Errors.sol";
 import "../src/Structs.sol";
 
+import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
+import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
+
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
+
+// Signature: 0x10c280f6
+error MockProtocolUnauthorized();
+
+contract MockProtocol is IExpressRelayFeeReceiver {
+    address _expressRelay;
+    address _feeReceiver;
+    event MockProtocolReceivedAuctionProceedings(bytes permissionKey);
+
+    constructor(address expressRelay) {
+        _expressRelay = expressRelay;
+        _feeReceiver = address(this);
+    }
+
+    function setFeeReceiver(address feeReceiver) public {
+        _feeReceiver = feeReceiver;
+    }
+
+    function execute() public payable {
+        if (
+            !IExpressRelay(_expressRelay).isPermissioned(
+                _feeReceiver,
+                abi.encode(uint256(0))
+            )
+        ) {
+            revert MockProtocolUnauthorized();
+        }
+    }
+
+    function receiveAuctionProceedings(
+        bytes calldata permissionKey
+    ) external payable {
+        emit MockProtocolReceivedAuctionProceedings(permissionKey);
+    }
+}
+
+contract MockTarget {
+    address _expressRelay;
+    address _mockProtocol;
+
+    constructor(address expressRelay, address mockProtocol) {
+        _expressRelay = expressRelay;
+        _mockProtocol = mockProtocol;
+    }
+
+    function passThrough(uint256 bid) public payable {
+        MockProtocol(_mockProtocol).execute();
+        payable(_expressRelay).transfer(bid);
+    }
+}
 
 /**
  * @title ExpressRelayUnitTest
@@ -16,9 +69,20 @@ import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
  * This relates to testing the ExpressRelay setter methods and multicall.
  */
 contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
+    MockProtocol mockProtocol;
+    MockTarget mockTarget;
+
     function setUp() public {
         setUpWallets();
         setUpContracts();
+
+        mockProtocol = new MockProtocol(address(expressRelay));
+
+        mockTarget = new MockTarget(
+            address(expressRelay),
+            address(mockProtocol)
+        );
+        vm.deal(address(mockTarget), 1 ether);
     }
 
     function testSetRelayerByAdmin() public {
@@ -316,4 +380,84 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         vm.prank(relayer);
         expressRelay.multicall(permission, multicallData);
     }
+
+    function testMulticallMockTarget() public {
+        address feeReceiver = address(mockProtocol);
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        bytes memory permission = abi.encode(
+            address(feeReceiver),
+            abi.encode(uint256(0))
+        );
+
+        uint256 bid = 100;
+        bytes memory targetCalldata = abi.encodeWithSelector(
+            mockTarget.passThrough.selector,
+            bid
+        );
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = targetCalldata;
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        MulticallData[] memory multicallData = getMulticallData(
+            contracts,
+            data,
+            bidInfos
+        );
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalSuccess = true;
+        expectMulticallIssued(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
+        vm.prank(relayer);
+        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
+            permission,
+            multicallData
+        );
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            false,
+            true
+        );
+
+        assertExpectedBidPaymentMockTarget(
+            balancesPre,
+            balancesPost,
+            bidInfos,
+            multicallStatuses
+        );
+    }
+
+    // function testMulticallMockTargetFail()
+    // function testMulticallMockTargetEoaFeeReceiver()
+    // function testMulticallMockTargetWrongPermissionFail()
+    // function testMulticallMockTargetWrongMismatchedBidFail()
+    // function testMulticallMockTargetMultiple()
+    // function testMulticallMockTargetMultipleFailSecond()--use invalid data/selector
+    // function
+
+    // function testCallWithBidByContract() public {
+
+    // }
 }

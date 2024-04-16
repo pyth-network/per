@@ -170,7 +170,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             true
         );
 
-        assertExpectedBidPayment(
+        assertExpectedBidPaymentTokenVault(
             balanceProtocolPre,
             balanceProtocolPost,
             bidInfos,
@@ -270,7 +270,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
 
         // only the first bid should be paid
-        assertExpectedBidPayment(
+        assertExpectedBidPaymentTokenVault(
             balanceProtocolPre,
             balanceProtocolPost,
             bidInfos,
@@ -373,7 +373,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
 
         // only the second bid should be paid
-        assertExpectedBidPayment(
+        assertExpectedBidPaymentTokenVault(
             balanceProtocolPre,
             balanceProtocolPost,
             bidInfos,
@@ -575,7 +575,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             true
         );
 
-        assertExpectedBidPayment(
+        assertExpectedBidPaymentTokenVault(
             balanceProtocolPre,
             balanceProtocolPost,
             bidInfos,

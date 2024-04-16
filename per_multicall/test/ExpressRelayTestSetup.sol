@@ -617,9 +617,9 @@ contract ExpressRelayTestSetup is
     }
 
     /**
-     * @notice assertExpectedBidPayment function - checks that the expected bid payment is equal to the actual bid payment
+     * @notice assertExpectedBidPaymentTokenVault function - checks that the expected bid payment to TokenVault is equal to the actual bid payment
      */
-    function assertExpectedBidPayment(
+    function assertExpectedBidPaymentTokenVault(
         uint256 balancePre,
         uint256 balancePost,
         BidInfo[] memory bidInfos,
@@ -648,6 +648,85 @@ contract ExpressRelayTestSetup is
         }
 
         assertEq(balancePost, balancePre + totalBid);
+    }
+
+    struct BalancesMockTarget {
+        uint256 balanceFeeReceiver;
+        uint256 balanceMockTarget;
+        uint256 balanceExpressRelay;
+        uint256 balanceRelayer;
+    }
+
+    function getBalancesMockTarget(
+        address feeReceiver,
+        address mockTarget
+    ) public view returns (BalancesMockTarget memory) {
+        return
+            BalancesMockTarget(
+                feeReceiver.balance,
+                mockTarget.balance,
+                address(expressRelay).balance,
+                relayer.balance
+            );
+    }
+
+    /**
+     * @notice assertExpectedBidPaymentMockTarget function - checks that the expected bid payment from feePayer relayer fee receiver is equal to the actual bid payment
+     */
+    function assertExpectedBidPaymentMockTarget(
+        BalancesMockTarget memory balancesPre,
+        BalancesMockTarget memory balancesPost,
+        BidInfo[] memory bidInfos,
+        MulticallStatus[] memory multicallStatuses
+    ) public {
+        require(
+            bidInfos.length == multicallStatuses.length,
+            "bidInfos and multicallStatuses must have the same length"
+        );
+
+        BalancesMockTarget memory fees;
+
+        string memory emptyRevertReasonString = "";
+
+        for (uint i = 0; i < bidInfos.length; i++) {
+            bool emptyRevertReason = compareStrings(
+                multicallStatuses[i].multicallRevertReason,
+                emptyRevertReasonString
+            );
+
+            if (multicallStatuses[i].externalSuccess && emptyRevertReason) {
+                fees.balanceMockTarget += bidInfos[i].bid;
+
+                uint256 protocolSplit = (bidInfos[i].bid *
+                    expressRelay.getFeeProtocolDefault()) /
+                    expressRelay.getFeeSplitPrecision();
+                fees.balanceFeeReceiver += protocolSplit;
+
+                uint256 remainder = (bidInfos[i].bid - protocolSplit);
+                uint256 relayerSplit = (remainder * feeSplitRelayer) /
+                    expressRelay.getFeeSplitPrecision();
+                fees.balanceRelayer += relayerSplit;
+
+                fees.balanceExpressRelay += remainder - relayerSplit;
+            }
+        }
+
+        assertEq(
+            balancesPost.balanceFeeReceiver,
+            balancesPre.balanceFeeReceiver + fees.balanceFeeReceiver
+        );
+        assertEq(
+            balancesPost.balanceMockTarget,
+            balancesPre.balanceMockTarget - fees.balanceMockTarget
+        );
+        assertEq(
+            balancesPost.balanceExpressRelay,
+            balancesPre.balanceExpressRelay + fees.balanceExpressRelay
+        );
+        assertEq(
+            balancesPost.balanceRelayer,
+            balancesPre.balanceRelayer + fees.balanceRelayer
+        );
     }
 
     function expectMulticallIssued(
