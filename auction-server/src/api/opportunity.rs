@@ -74,6 +74,7 @@ pub struct OpportunityParamsWithMetadata {
     // expands params into component fields in the generated client schemas
     #[schema(inline)]
     params:           OpportunityParams,
+    /// The data needed to sign the opportunity
     signature_config: OpportunityAdapterSignatureConfig,
 }
 
