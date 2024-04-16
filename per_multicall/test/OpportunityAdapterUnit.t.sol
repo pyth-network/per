@@ -40,8 +40,21 @@ contract MockTarget {
 }
 
 contract OpportunityAdapterHarness is OpportunityAdapterUpgradable {
-    function exposed_prepareSellTokens(ExecutionParams calldata params) public {
+    function exposedPrepareSellTokens(ExecutionParams calldata params) public {
         _prepareSellTokens(params);
+    }
+}
+
+contract InvalidMagicOpportunityAdapter is
+    Initializable,
+    OwnableUpgradeable,
+    UUPSUpgradeable
+{
+    // Only allow the owner to upgrade the proxy to a new implementation.
+    function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    function opportunityAdapterUpgradableMagic() public pure returns (uint32) {
+        return 0x00000000;
     }
 }
 
@@ -153,6 +166,11 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
             executorSk
         );
         buyToken.mint(address(mockTarget), 100);
+        uint256 initialAdapterBuyTokenBalance = 5000;
+        buyToken.mint(
+            address(opportunityAdapter),
+            initialAdapterBuyTokenBalance
+        ); // initial balance should not affect the result
         sellToken.mint(executor, 1000);
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
@@ -173,6 +191,10 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
         );
         opportunityAdapter.executeOpportunity(executionParams);
         assertEq(buyToken.balanceOf(executor), 100);
+        assertEq(
+            buyToken.balanceOf(address(opportunityAdapter)),
+            initialAdapterBuyTokenBalance
+        );
         assertEq(sellToken.balanceOf(executor), 0);
     }
 
@@ -211,8 +233,9 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         buyTokens[0] = TokenAmount(address(buyToken), 100);
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.execute.selector,
-            abi.encode("arbitrary data")
+            mockTarget.executeAndReturnErc20.selector,
+            address(buyToken),
+            99
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
             sellTokens,
@@ -224,6 +247,8 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
             block.timestamp + 1000,
             executorSk
         );
+        buyToken.mint(address(mockTarget), 100);
+        buyToken.mint(address(opportunityAdapter), 1000); // initial balance should not affect the result
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectCall(address(mockTarget), targetCalldata);
         vm.expectRevert(InsufficientTokenReceived.selector);
@@ -327,7 +352,7 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
         buyToken.mint(executor, 100);
         vm.prank(executor);
         buyToken.approve(address(opportunityAdapter), 100);
-        opportunityAdapter.exposed_prepareSellTokens(executionParams);
+        opportunityAdapter.exposedPrepareSellTokens(executionParams);
         assertEq(buyToken.balanceOf(address(opportunityAdapter)), 100);
         assertEq(
             buyToken.allowance(
@@ -339,31 +364,84 @@ contract OpportunityAdapterUnitTest is Test, Signatures {
         assertEq(buyToken.balanceOf(executor), 0);
     }
 
-    function testRevertWhenMultipleBuyTokensWithSameTokenNotFulfilled() public {
+    function testRevertWhenDuplicateTokens() public {
         (, uint256 executorSk) = makeAddrAndKey("executor");
-        TokenAmount[] memory sellTokens = new TokenAmount[](0);
-        TokenAmount[] memory buyTokens = new TokenAmount[](3);
-        buyTokens[0] = TokenAmount(address(buyToken), 100);
-        buyTokens[1] = TokenAmount(address(buyToken), 200);
-        buyTokens[2] = TokenAmount(address(buyToken), 300);
+        TokenAmount[] memory noTokens = new TokenAmount[](0);
+        TokenAmount[] memory duplicateTokens = new TokenAmount[](2);
+        duplicateTokens[0] = TokenAmount(address(buyToken), 100);
+        duplicateTokens[1] = TokenAmount(address(buyToken), 200);
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.executeAndReturnErc20.selector,
-            address(buyToken),
-            300
+            mockTarget.execute.selector,
+            abi.encode("arbitrary data")
+        );
+        ExecutionParams
+            memory executionParamsDuplicateBuy = createAndSignExecutionParams(
+                noTokens,
+                duplicateTokens,
+                address(mockTarget),
+                targetCalldata,
+                0,
+                0,
+                block.timestamp + 1000,
+                executorSk
+            );
+        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.expectRevert(DuplicateToken.selector);
+        opportunityAdapter.executeOpportunity(executionParamsDuplicateBuy);
+        ExecutionParams
+            memory executionParamsDuplicateSell = createAndSignExecutionParams(
+                duplicateTokens,
+                noTokens,
+                address(mockTarget),
+                targetCalldata,
+                0,
+                0,
+                block.timestamp + 1000,
+                executorSk
+            );
+        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.expectRevert(DuplicateToken.selector);
+        opportunityAdapter.executeOpportunity(executionParamsDuplicateSell);
+    }
+
+    function testRevertWhenExpired() public {
+        (, uint256 executorSk) = makeAddrAndKey("executor");
+        TokenAmount[] memory noTokens = new TokenAmount[](0);
+        bytes memory targetCalldata = abi.encodeWithSelector(
+            mockTarget.execute.selector,
+            abi.encode(0)
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            sellTokens,
-            buyTokens,
+            noTokens,
+            noTokens,
             address(mockTarget),
             targetCalldata,
             0,
             0,
-            block.timestamp + 1000,
+            block.timestamp + 1,
             executorSk
         );
-        buyToken.mint(address(mockTarget), 300);
+        vm.warp(block.timestamp + 2);
         vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectRevert(DuplicateToken.selector);
+        vm.expectRevert(ExpiredSignature.selector);
         opportunityAdapter.executeOpportunity(executionParams);
+    }
+
+    function testRevertWhenUpgradeWithWrongContract() public {
+        vm.expectRevert("ERC1967Upgrade: new implementation is not UUPS");
+        opportunityAdapter.upgradeTo(address(sellToken));
+    }
+
+    function testRevertWhenUpgradeWithWrongMagic() public {
+        InvalidMagicOpportunityAdapter invalidMagicOpportunityAdapter = new InvalidMagicOpportunityAdapter();
+        vm.prank(opportunityAdapter.owner());
+        vm.expectRevert(InvalidMagicValue.selector);
+        opportunityAdapter.upgradeTo(address(invalidMagicOpportunityAdapter));
+    }
+
+    function testSuccessfulUpgrade() public {
+        OpportunityAdapterUpgradable newOpportunityAdapter = new OpportunityAdapterUpgradable();
+        vm.prank(opportunityAdapter.owner());
+        opportunityAdapter.upgradeTo(address(newOpportunityAdapter));
     }
 }

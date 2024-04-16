@@ -80,13 +80,13 @@ abstract contract OpportunityAdapter is SigVerify {
             ),
             params.signature
         );
+        if (!validSignature) {
+            revert InvalidExecutorSignature();
+        }
 
         _revertOnDuplicate(params.sellTokens);
         _revertOnDuplicate(params.buyTokens);
 
-        if (!validSignature) {
-            revert InvalidExecutorSignature();
-        }
         if (block.timestamp > params.validUntil) {
             revert ExpiredSignature();
         }
