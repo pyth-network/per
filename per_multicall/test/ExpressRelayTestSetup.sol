@@ -27,6 +27,7 @@ import "./helpers/Signatures.sol";
 import "./helpers/PriceHelpers.sol";
 import "./helpers/TestParsingHelpers.sol";
 import "./helpers/MulticallHelpers.sol";
+import "./helpers/ExpressRelayHarness.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/ExpressRelayUpgradable.sol";
 
@@ -59,6 +60,8 @@ contract ExpressRelayTestSetup is
     WETH9 public weth;
     OpportunityAdapterUpgradable public opportunityAdapter;
     MockPyth public mockPyth;
+
+    ExpressRelayHarness public expressRelayHarness;
 
     MyToken public token1;
     MyToken public token2;
@@ -214,6 +217,24 @@ contract ExpressRelayTestSetup is
         token2 = new MyToken("token2", "T2");
         console.log("contract of token1 is", address(token1));
         console.log("contract of token2 is", address(token2));
+    }
+
+    function setUpExpressRelayHarness() public {
+        vm.prank(relayer);
+        ExpressRelayHarness _expressRelay = new ExpressRelayHarness();
+        ERC1967Proxy proxyExpressRelay = new ERC1967Proxy(
+            address(_expressRelay),
+            ""
+        );
+        expressRelayHarness = ExpressRelayHarness(payable(proxyExpressRelay));
+        expressRelayHarness.initialize(
+            // TODO: fix the owner and admin here
+            relayer,
+            admin,
+            relayer,
+            feeSplitProtocolDefault,
+            feeSplitRelayer
+        );
     }
 
     /**
@@ -711,6 +732,27 @@ contract ExpressRelayTestSetup is
             }
         }
 
+        console.log(
+            balancesPost.balanceFeeReceiver,
+            balancesPre.balanceFeeReceiver,
+            fees.balanceFeeReceiver
+        );
+        console.log(
+            balancesPost.balanceMockTarget,
+            balancesPre.balanceMockTarget,
+            fees.balanceMockTarget
+        );
+        console.log(
+            balancesPost.balanceExpressRelay,
+            balancesPre.balanceExpressRelay,
+            fees.balanceExpressRelay
+        );
+        console.log(
+            balancesPost.balanceRelayer,
+            balancesPre.balanceRelayer,
+            fees.balanceRelayer
+        );
+
         assertEq(
             balancesPost.balanceFeeReceiver,
             balancesPre.balanceFeeReceiver + fees.balanceFeeReceiver
@@ -727,6 +769,57 @@ contract ExpressRelayTestSetup is
             balancesPost.balanceRelayer,
             balancesPre.balanceRelayer + fees.balanceRelayer
         );
+    }
+
+    function runChecksMockTarget(
+        address feeReceiver,
+        address mockTargetAddress,
+        MulticallStatus[] memory multicallStatuses,
+        MulticallStatus[] memory expectedMulticallStatuses,
+        BalancesMockTarget memory balancesPre,
+        BidInfo[] memory bidInfos
+    ) public {
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            mockTargetAddress
+        );
+
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            true,
+            false,
+            true
+        );
+
+        assertExpectedBidPaymentMockTarget(
+            balancesPre,
+            balancesPost,
+            bidInfos,
+            multicallStatuses
+        );
+    }
+
+    function makeMulticallMockTargetCall(
+        address mockTargetAddress,
+        address feeReceiver,
+        address[] memory contracts,
+        bytes[] memory data,
+        BidInfo[] memory bidInfos
+    )
+        public
+        view
+        returns (
+            bytes memory permission,
+            BalancesMockTarget memory balancesPre,
+            MulticallData[] memory multicallData
+        )
+    {
+        permission = abi.encode(address(feeReceiver), abi.encode(uint256(0)));
+
+        balancesPre = getBalancesMockTarget(feeReceiver, mockTargetAddress);
+
+        multicallData = getMulticallData(contracts, data, bidInfos);
     }
 
     function expectMulticallIssued(
