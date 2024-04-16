@@ -262,7 +262,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     }
 
     function testMulticallByRelayer() public {
-        bytes memory permission = abi.encode("random permission");
+        (, , bytes memory permission) = generateRandomPermission();
         MulticallData[] memory multicallData;
 
         vm.prank(relayer);
@@ -270,11 +270,12 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     }
 
     function testMulticallByRelayerSubwallet() public {
+        (, , bytes memory permission) = generateRandomPermission();
+
         address subwallet = makeAddr("subwallet");
         vm.prank(relayer);
         expressRelay.addRelayerSubwallet(subwallet);
 
-        bytes memory permission = abi.encode("random permission");
         MulticallData[] memory multicallData;
 
         vm.prank(subwallet);
@@ -282,12 +283,29 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     }
 
     function testMulticallByNonRelayer() public {
-        bytes memory permission = abi.encode("random permission");
+        (, , bytes memory permission) = generateRandomPermission();
+
         MulticallData[] memory multicallData;
 
         vm.expectRevert(Unauthorized.selector);
         vm.prank(address(0xbad));
         expressRelay.multicall(permission, multicallData);
+    }
+
+    function testMulticallPermissionToggle() public {
+        (
+            address protocol,
+            bytes memory permissionId,
+            bytes memory permission
+        ) = generateRandomPermission();
+
+        assert(!expressRelay.isPermissioned(protocol, permissionId));
+
+        MulticallData[] memory multicallData;
+        vm.prank(relayer);
+        expressRelay.multicall(permission, multicallData);
+
+        assert(!expressRelay.isPermissioned(protocol, permissionId));
     }
 
     function testMulticallInvalidPermissionFail() public {

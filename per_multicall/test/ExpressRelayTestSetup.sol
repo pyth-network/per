@@ -671,4 +671,15 @@ contract ExpressRelayTestSetup is
             );
         }
     }
+
+    function generateRandomPermission()
+        public
+        returns (address, bytes memory, bytes memory)
+    {
+        address protocol = makeAddr("protocol");
+        bytes memory permissionId = abi.encode("random permission id");
+        bytes memory permission = abi.encode(protocol, permissionId);
+
+        return (protocol, permissionId, permission);
+    }
 }
