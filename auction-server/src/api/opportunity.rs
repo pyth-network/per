@@ -89,12 +89,8 @@ impl OpportunityParamsWithMetadata {
 impl OpportunityAdapterSignatureConfig {
     pub fn from(val: &ChainStore) -> Self {
         OpportunityAdapterSignatureConfig {
-            domain_name:      val.signature_config.opportunity_adapter.domain_name.clone(),
-            domain_version:   val
-                .signature_config
-                .opportunity_adapter
-                .domain_version
-                .clone(),
+            domain_name:      val.domain_separator.name.clone(),
+            domain_version:   val.domain_separator.version.clone(),
             contract_address: val.config.opportunity_adapter_contract,
             chain_network_id: val.network_id,
         }
@@ -196,28 +192,22 @@ pub async fn get_opportunities(
         .read()
         .await
         .iter()
-        .map(|(_key, opportunities)| {
-            opportunities
+        .filter_map(|(_key, opportunities)| {
+            let opportunity = opportunities
                 .last()
-                .expect("A permission key vector should have at least one opportunity")
-                .clone()
+                .expect("A permission key vector should have at least one opportunity");
+
+            let OpportunityParams::V1(params) = opportunity.params.clone();
+            store.chains.get(&params.chain_id).map(|chain_store| {
+                OpportunityParamsWithMetadata::from(opportunity.clone(), chain_store)
+            })
         })
-        .filter_map(|opportunity| {
-            let OpportunityParams::V1(params) = &opportunity.params;
-            match store.chains.get(&params.chain_id) {
-                Some(_chain_store) => {
-                    if query_params.chain_id.is_some() {
-                        let query_chain_id = query_params.chain_id.clone().unwrap();
-                        if params.chain_id != query_chain_id {
-                            return None;
-                        }
-                    }
-                    Some(OpportunityParamsWithMetadata::from(
-                        opportunity.clone(),
-                        _chain_store,
-                    ))
-                }
-                None => None,
+        .filter(|params_with_id: &OpportunityParamsWithMetadata| {
+            let OpportunityParams::V1(params) = &params_with_id.params;
+            if let Some(chain_id) = &query_params.chain_id {
+                params.chain_id == *chain_id
+            } else {
+                true
             }
         })
         .collect();

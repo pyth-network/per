@@ -11,7 +11,6 @@ use {
             ChainId,
             EthereumConfig,
         },
-        opportunity_adapter,
     },
     axum::Json,
     ethers::{
@@ -139,8 +138,9 @@ pub enum SpoofInfo {
     UnableToSpoof,
 }
 
-pub struct ChainStoreSignatureConfig {
-    pub opportunity_adapter: opportunity_adapter::SignatureMetadata,
+pub struct DomainSeparator {
+    pub name:    String,
+    pub version: String,
 }
 
 pub struct ChainStore {
@@ -149,7 +149,7 @@ pub struct ChainStore {
     pub config:           EthereumConfig,
     pub weth:             Address,
     pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
-    pub signature_config: ChainStoreSignatureConfig,
+    pub domain_separator: DomainSeparator,
 }
 
 #[derive(Default)]

@@ -81,23 +81,6 @@ abstract contract OpportunityAdapter is SigVerify {
         return abi.decode(_returnData, (string)); // All that remains is the revert string
     }
 
-    function getSignatureMetadata()
-        public
-        view
-        returns (SignatureMetadata memory config)
-    {
-        (
-            bytes1 _fields,
-            string memory name,
-            string memory version,
-            uint256 _chainId,
-            address _verifyingContract,
-            bytes32 _salt,
-            uint256[] memory _extensions
-        ) = eip712Domain();
-        config = SignatureMetadata(name, version);
-    }
-
     function _hash_token_amount(
         TokenAmount memory tokenAmount
     ) internal pure returns (bytes32) {

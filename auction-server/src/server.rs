@@ -11,13 +11,12 @@ use {
             RunOptions,
         },
         opportunity_adapter::{
-            get_signature_metadata,
+            get_domain_separator,
             get_weth_address,
             run_verification_loop,
         },
         state::{
             ChainStore,
-            ChainStoreSignatureConfig,
             OpportunityStore,
             Store,
         },
@@ -90,12 +89,18 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                 let weth =
                     get_weth_address(chain_config.opportunity_adapter_contract, provider.clone())
                         .await?;
-                let opportunity_signature_metadata = get_signature_metadata(
-                    chain_config.express_relay_contract,
+                let domain_separator = get_domain_separator(
                     provider.clone(),
                     chain_config.opportunity_adapter_contract,
                 )
-                .await;
+                .await
+                .map_err(|err| {
+                    anyhow!(
+                        "Failed to get domain separator for chain({chain_id}): {:?}",
+                        err,
+                        chain_id = chain_id
+                    )
+                })?;
 
                 Ok((
                     chain_id.clone(),
@@ -105,9 +110,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         token_spoof_info: Default::default(),
                         config: chain_config.clone(),
                         weth,
-                        signature_config: ChainStoreSignatureConfig {
-                            opportunity_adapter: opportunity_signature_metadata,
-                        },
+                        domain_separator,
                     },
                 ))
             }),

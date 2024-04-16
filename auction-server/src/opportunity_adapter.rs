@@ -19,6 +19,7 @@ use {
         state::{
             BidAmount,
             ChainStore,
+            DomainSeparator,
             Opportunity,
             OpportunityId,
             OpportunityParams,
@@ -302,7 +303,7 @@ pub struct OpportunityAdapterExecutionParams {
 }
 
 fn verify_signature(execution_params: OpportunityAdapterExecutionParams) -> Result<()> {
-    // TODO Maybe use ECDSA to recover the signer?
+    // TODO Maybe use ECDSA to recover the signer? https://docs.rs/k256/latest/k256/ecdsa/index.html
     let typed_data: Option<TypedData> = execution_params.clone().into();
     if typed_data.is_none() {
         return Err(anyhow!("Error creating typed data"));
@@ -552,22 +553,22 @@ pub async fn handle_opportunity_bid(
     }
 }
 
-pub async fn get_signature_metadata(
-    relayer: Address,
+pub async fn get_domain_separator(
     provider: Provider<Http>,
     contract_address: Address,
-) -> SignatureMetadata {
+) -> anyhow::Result<DomainSeparator> {
     let client = Arc::new(provider);
     let opportunity_adapter = OpportunityAdapter::new(contract_address, client);
-    let call = opportunity_adapter.get_signature_metadata().from(relayer);
+    let call = opportunity_adapter.eip_712_domain();
 
-    match call.await {
-        Ok(result) => result,
-        Err(e) => {
-            panic!(
-                "Error calling opportunity adapter for signature metadata: {:?}",
-                e
-            );
-        }
-    }
+    let result = call.await.map_err(|e| {
+        anyhow!(
+            "Error calling opportunity adapter for signature metadata: {:?}",
+            e
+        )
+    })?;
+    Ok(DomainSeparator {
+        name:    result.1,
+        version: result.2,
+    })
 }
