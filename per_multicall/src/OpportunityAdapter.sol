@@ -62,20 +62,7 @@ abstract contract OpportunityAdapter is SigVerify {
         return WETH9(payable(_weth));
     }
 
-    function _getRevertMsg(
-        bytes memory _returnData
-    ) internal pure returns (string memory) {
-        // If the _res length is less than 68, then the transaction failed silently (without a revert message)
-        if (_returnData.length < 68) return "Transaction reverted silently";
-
-        assembly {
-            // Slice the sighash.
-            _returnData := add(_returnData, 0x04)
-        }
-        return abi.decode(_returnData, (string)); // All that remains is the revert string
-    }
-
-    function _verifyParams(ExecutionParams memory params) internal view {
+    function _verifyParams(ExecutionParams calldata params) internal view {
         if (msg.sender != _expressRelay) {
             revert Unauthorized();
         }
@@ -93,6 +80,10 @@ abstract contract OpportunityAdapter is SigVerify {
             ),
             params.signature
         );
+
+        _revertOnDuplicate(params.sellTokens);
+        _revertOnDuplicate(params.buyTokens);
+
         if (!validSignature) {
             revert InvalidExecutorSignature();
         }
@@ -104,7 +95,17 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
-    function _prepareSellTokens(ExecutionParams memory params) internal {
+    function _revertOnDuplicate(TokenAmount[] calldata tokens) internal pure {
+        for (uint i = 0; i < tokens.length; i++) {
+            for (uint j = i + 1; j < tokens.length; j++) {
+                if (tokens[i].token == tokens[j].token) {
+                    revert DuplicateToken();
+                }
+            }
+        }
+    }
+
+    function _prepareSellTokens(ExecutionParams calldata params) internal {
         for (uint i = 0; i < params.sellTokens.length; i++) {
             IERC20 token = IERC20(params.sellTokens[i].token);
             token.transferFrom(
@@ -121,31 +122,30 @@ abstract contract OpportunityAdapter is SigVerify {
         uint256 amount
     ) internal {
         WETH9 weth = getWethContract();
-        if (amount > 0) {
-            try weth.transferFrom(source, address(this), amount) {} catch {
-                revert WethTransferFromFailed();
-            }
-            weth.withdraw(amount);
+        try weth.transferFrom(source, address(this), amount) {} catch {
+            revert WethTransferFromFailed();
+        }
+        weth.withdraw(amount);
+    }
+
+    function _settleBid(ExecutionParams calldata params) internal {
+        if (params.bidAmount > 0) {
+            _transferFromAndUnwrapWeth(params.executor, params.bidAmount);
+            payable(getExpressRelay()).transfer(params.bidAmount);
         }
     }
 
-    function _settleBid(ExecutionParams memory params) internal {
-        _transferFromAndUnwrapWeth(params.executor, params.bidAmount);
-        payable(getExpressRelay()).transfer(params.bidAmount);
-    }
-
-    function _callTargetContract(ExecutionParams memory params) internal {
-        (bool success, bytes memory reason) = params.targetContract.call{
+    function _callTargetContract(ExecutionParams calldata params) internal {
+        (bool success, bytes memory returnData) = params.targetContract.call{
             value: params.targetCallValue
         }(params.targetCalldata);
         if (!success) {
-            string memory revertData = _getRevertMsg(reason);
-            revert TargetCallFailed(revertData);
+            revert TargetCallFailed(returnData);
         }
     }
 
     function _getContractTokenBalances(
-        TokenAmount[] memory tokens
+        TokenAmount[] calldata tokens
     ) internal view returns (uint256[] memory) {
         uint256[] memory tokenBalances = new uint256[](tokens.length);
         for (uint i = 0; i < tokens.length; i++) {
@@ -156,7 +156,7 @@ abstract contract OpportunityAdapter is SigVerify {
     }
 
     function _validateAndTransferBuyTokens(
-        ExecutionParams memory params,
+        ExecutionParams calldata params,
         uint256[] memory buyTokensBalancesBeforeCall
     ) internal {
         for (uint i = 0; i < params.buyTokens.length; i++) {
@@ -171,7 +171,9 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
-    function executeOpportunity(ExecutionParams memory params) public payable {
+    function executeOpportunity(
+        ExecutionParams calldata params
+    ) public payable {
         _verifyParams(params);
         // get balances of buy tokens before transferring sell tokens since there might be overlaps
         uint256[]
@@ -179,12 +181,15 @@ abstract contract OpportunityAdapter is SigVerify {
                 params.buyTokens
             );
         _prepareSellTokens(params);
-        _transferFromAndUnwrapWeth(params.executor, params.targetCallValue);
+        if (params.targetCallValue > 0) {
+            _transferFromAndUnwrapWeth(params.executor, params.targetCallValue);
+        }
         _callTargetContract(params);
         _validateAndTransferBuyTokens(params, buyTokensBalancesBeforeCall);
         _settleBid(params);
         _signatureUsed[params.signature] = true;
     }
 
+    // necessary to receive ETH from WETH contract using withdraw
     receive() external payable {}
 }

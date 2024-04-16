@@ -22,6 +22,9 @@ error SignatureAlreadyUsed();
 // Signature: 0xd461d1de
 error WethTransferFromFailed();
 
+// Signature: 0x464e3f6a
+error DuplicateToken();
+
 // Signature: 0x729f3230
 error InvalidPERSignature();
 
@@ -31,8 +34,8 @@ error InvalidTimestamp();
 // Signature: 0xaba47339
 error NotRegistered();
 
-// Signature: 0x714ed4ea
-error TargetCallFailed(string reason);
+// Signature: 0xa932c97a
+error TargetCallFailed(bytes returnData);
 
 // Signature: 0x4af147aa
 error InsufficientTokenReceived();
