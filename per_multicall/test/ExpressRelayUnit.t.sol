@@ -1027,7 +1027,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
                 bidInfos
             );
 
-        // TODO: potentially expect specific revert error msg
         vm.expectRevert("invalid bid");
         vm.prank(address(expressRelay));
         expressRelay.callWithBid(multicallData[0]);

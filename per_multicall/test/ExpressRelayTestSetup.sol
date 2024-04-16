@@ -219,6 +219,9 @@ contract ExpressRelayTestSetup is
         console.log("contract of token2 is", address(token2));
     }
 
+    /**
+     * @notice setUpExpressRelayHarness function - sets up the ExpressRelayHarness contract for internal function tests
+     */
     function setUpExpressRelayHarness() public {
         vm.prank(relayer);
         ExpressRelayHarness _expressRelay = new ExpressRelayHarness();
@@ -479,6 +482,9 @@ contract ExpressRelayTestSetup is
 
     /**
      * @notice getMulticallInfoSearcherContracts function - creates necessary permission and data for multicall to searcher contracts
+     *
+     * @param vaultNumber: the vault number to liquidate
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
      */
     function getMulticallInfoSearcherContracts(
         uint256 vaultNumber,
@@ -523,6 +529,9 @@ contract ExpressRelayTestSetup is
 
     /**
      * @notice getMulticallInfoOpportunityAdapter function - creates necessary permission and data for multicall to liquidation adapter contract
+     *
+     * @param vaultNumber: the vault number to liquidate
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
      */
     function getMulticallInfoOpportunityAdapter(
         uint256 vaultNumber,
@@ -591,6 +600,13 @@ contract ExpressRelayTestSetup is
         }
     }
 
+    /**
+     * @notice getRandomBidId function - generates a random bid ID based on the target contract, target calldata, and bid amount
+     *
+     * @param targetContract: the target contract address
+     * @param targetCalldata: the target calldata
+     * @param bidAmount: the bid amount
+     */
     function getRandomBidId(
         address targetContract,
         bytes memory targetCalldata,
@@ -609,6 +625,13 @@ contract ExpressRelayTestSetup is
             );
     }
 
+    /**
+     * @notice getMulticallData function - creates necessary data for multicall to multiple contracts
+     *
+     * @param contracts: array of contract addresses
+     * @param data: array of calldata
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     */
     function getMulticallData(
         address[] memory contracts,
         bytes[] memory data,
@@ -638,7 +661,12 @@ contract ExpressRelayTestSetup is
     }
 
     /**
-     * @notice assertExpectedBidPaymentTokenVault function - checks that the expected bid payment to TokenVault is equal to the actual bid payment
+     * @notice assertExpectedBidPaymentTokenVault function - checks that the expected bid payments across fee receiver, target contract, express relay, and relayer are equal to the actual payments
+     *
+     * @param balancePre: the balances of the fee receiver, target contract, express relay, and relayer before the bid
+     * @param balancePost: the balances of the fee receiver, target contract, express relay, and relayer after the bid
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     * @param multicallStatuses: array of MulticallStatus structs containing external success, result, and revert reason
      */
     function assertExpectedBidPaymentTokenVault(
         uint256 balancePre,
@@ -678,6 +706,12 @@ contract ExpressRelayTestSetup is
         uint256 balanceRelayer;
     }
 
+    /**
+     * @notice getBalances function - gets the balances of the fee receiver, MockTarget target contract, express relay, and relayer
+     *
+     * @param feeReceiver: the address of the fee receiver
+     * @param mockTarget: the address of the MockTarget contract
+     */
     function getBalancesMockTarget(
         address feeReceiver,
         address mockTarget
@@ -692,7 +726,12 @@ contract ExpressRelayTestSetup is
     }
 
     /**
-     * @notice assertExpectedBidPaymentMockTarget function - checks that the expected bid payment from feePayer relayer fee receiver is equal to the actual bid payment
+     * @notice assertExpectedBidPaymentMockTarget function - checks that the expected bid payments across fee receiver, target contract, express relay, and relayer are equal to the actual payments
+     *
+     * @param balancesPre: the balances of the fee receiver, target contract, express relay, and relayer before the bid
+     * @param balancesPost: the balances of the fee receiver, target contract, express relay, and relayer after the bid
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     * @param multicallStatuses: array of MulticallStatus structs containing external success, result, and revert reason
      */
     function assertExpectedBidPaymentMockTarget(
         BalancesMockTarget memory balancesPre,
@@ -750,6 +789,16 @@ contract ExpressRelayTestSetup is
         );
     }
 
+    /**
+     * @notice runChecksMockTarget function - runs MulticallStatus and payment checks for interactions with MockTarget contract
+     *
+     * @param feeReceiver: the address of the fee receiver
+     * @param mockTargetAddress: the address of the MockTarget contract
+     * @param multicallStatuses: array of MulticallStatus structs containing external success, result, and revert reason
+     * @param expectedMulticallStatuses: expected values for MulticallStatus structs
+     * @param balancesPre: the balances of the fee receiver, target contract, express relay, and relayer before the bid
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     */
     function runChecksMockTarget(
         address feeReceiver,
         address mockTargetAddress,
@@ -779,6 +828,15 @@ contract ExpressRelayTestSetup is
         );
     }
 
+    /**
+     * @notice makeMulticallMockTargetCall function - creates necessary permission, balances, and data for multicall to MockTarget contract
+     *
+     * @param mockTargetAddress: the address of the MockTarget contract
+     * @param feeReceiver: the address of the fee receiver
+     * @param contracts: array of target contract addresses
+     * @param data: array of target calldata
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     */
     function makeMulticallMockTargetCall(
         address mockTargetAddress,
         address feeReceiver,
@@ -801,6 +859,13 @@ contract ExpressRelayTestSetup is
         multicallData = getMulticallData(contracts, data, bidInfos);
     }
 
+    /**
+     * @notice expectMulticallIssued function - emits the expected MulticallIssued event for each loop of multicall for the given data
+     *
+     * @param permission: the permission key
+     * @param multicallData: array of MulticallData structs containing bid ID, bid amount, target contract address, and target calldata
+     * @param expectedMulticallStatuses: expected values for MulticallStatus structs
+     */
     function expectMulticallIssued(
         bytes memory permission,
         MulticallData[] memory multicallData,
@@ -811,7 +876,7 @@ contract ExpressRelayTestSetup is
             "Multicall data and status length mismatch"
         );
         for (uint i = 0; i < multicallData.length; i++) {
-            // TODO: maybe check the data as well, eventually
+            // TODO: maybe check the data as well, eventually--currently sometimes difficult to pin down exact multicallRevertReason
             vm.expectEmit(true, true, true, false, address(expressRelay));
             emit MulticallIssued(
                 permission,
@@ -823,6 +888,9 @@ contract ExpressRelayTestSetup is
         }
     }
 
+    /**
+     * @notice generateRandomPermission function - generates a random permission for testing purposes
+     */
     function generateRandomPermission()
         public
         returns (address, bytes memory, bytes memory)
