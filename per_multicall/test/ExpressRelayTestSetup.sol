@@ -732,27 +732,6 @@ contract ExpressRelayTestSetup is
             }
         }
 
-        console.log(
-            balancesPost.balanceFeeReceiver,
-            balancesPre.balanceFeeReceiver,
-            fees.balanceFeeReceiver
-        );
-        console.log(
-            balancesPost.balanceMockTarget,
-            balancesPre.balanceMockTarget,
-            fees.balanceMockTarget
-        );
-        console.log(
-            balancesPost.balanceExpressRelay,
-            balancesPre.balanceExpressRelay,
-            fees.balanceExpressRelay
-        );
-        console.log(
-            balancesPost.balanceRelayer,
-            balancesPre.balanceRelayer,
-            fees.balanceRelayer
-        );
-
         assertEq(
             balancesPost.balanceFeeReceiver,
             balancesPre.balanceFeeReceiver + fees.balanceFeeReceiver

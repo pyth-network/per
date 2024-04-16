@@ -275,6 +275,56 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expressRelay.setFeeRelayer(0);
     }
 
+    function testSetFeeSplitPrecision() public {
+        expressRelayHarness.exposed_setFeeSplitPrecision();
+        uint256 feeSplitPrecision = expressRelayHarness.getFeeSplitPrecision();
+        assertEq(feeSplitPrecision, 10 ** 18);
+    }
+
+    function testValidateFeeSplit(uint256 feeSplit) public {
+        uint256 feeSplitPrecision = expressRelay.getFeeSplitPrecision();
+        if (feeSplit > feeSplitPrecision) {
+            vm.expectRevert(InvalidFeeSplit.selector);
+        }
+        expressRelayHarness.exposed_validateFeeSplit(feeSplit);
+    }
+
+    function testValidateFeeSplitMax() public {
+        uint256 feeSplit = expressRelay.getFeeSplitPrecision();
+        expressRelayHarness.exposed_validateFeeSplit(feeSplit);
+    }
+
+    function testIsContract() public {
+        assert(expressRelayHarness.exposed_isContract(address(this)));
+        assert(expressRelayHarness.exposed_isContract(address(expressRelay)));
+        assert(expressRelayHarness.exposed_isContract(address(mockProtocol)));
+        assert(expressRelayHarness.exposed_isContract(address(mockTarget)));
+        assert(
+            expressRelayHarness.exposed_isContract(address(opportunityAdapter))
+        );
+        assert(expressRelayHarness.exposed_isContract(address(tokenVault)));
+        assert(expressRelayHarness.exposed_isContract(address(weth)));
+        assert(expressRelayHarness.exposed_isContract(address(searcherA)));
+        assert(expressRelayHarness.exposed_isContract(address(searcherB)));
+
+        assert(!expressRelayHarness.exposed_isContract(address(0)));
+        assert(!expressRelayHarness.exposed_isContract(address(0xdeadbeef)));
+        assert(!expressRelayHarness.exposed_isContract(relayer));
+        assert(!expressRelayHarness.exposed_isContract(admin));
+        assert(!expressRelayHarness.exposed_isContract(searcherAOwnerAddress));
+        assert(!expressRelayHarness.exposed_isContract(searcherBOwnerAddress));
+        assert(!expressRelayHarness.exposed_isContract(tokenVaultDeployer));
+        assert(!expressRelayHarness.exposed_isContract(depositor));
+    }
+
+    function testBytesToAddress(address addr, bytes memory data) public {
+        bytes memory addrBytes = abi.encode(addr, data);
+        address addrDecoded = expressRelayHarness.exposed_bytesToAddress(
+            addrBytes
+        );
+        assertEq(addrDecoded, addr);
+    }
+
     function testMulticallByRelayer() public {
         (, , bytes memory permission) = generateRandomPermission();
         MulticallData[] memory multicallData;
@@ -838,7 +888,9 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
                 bidInfos
             );
 
-        vm.expectRevert(Unauthorized.selector);
+        if (caller != relayer) {
+            vm.expectRevert(Unauthorized.selector);
+        }
         vm.prank(caller);
         expressRelay.callWithBid(multicallData[0]);
 
