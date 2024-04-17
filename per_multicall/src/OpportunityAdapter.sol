@@ -64,7 +64,7 @@ abstract contract OpportunityAdapter is SigVerify {
         return _weth;
     }
 
-    function getWethContract() internal view returns (WETH9) {
+    function _getWethContract() internal view returns (WETH9) {
         return WETH9(payable(_weth));
     }
 
@@ -81,7 +81,7 @@ abstract contract OpportunityAdapter is SigVerify {
         return abi.decode(_returnData, (string)); // All that remains is the revert string
     }
 
-    function _hash_token_amount(
+    function _hashTokenAmount(
         TokenAmount memory tokenAmount
     ) internal pure returns (bytes32) {
         return
@@ -94,25 +94,25 @@ abstract contract OpportunityAdapter is SigVerify {
             );
     }
 
-    function _hash_token_amounts(
+    function _hashTokenAmounts(
         TokenAmount[] memory tokenAmounts
     ) internal pure returns (bytes32) {
-        bytes32[] memory hashed_tokens = new bytes32[](tokenAmounts.length);
+        bytes32[] memory hashedTokens = new bytes32[](tokenAmounts.length);
         for (uint i = 0; i < tokenAmounts.length; i++) {
-            hashed_tokens[i] = _hash_token_amount(tokenAmounts[i]);
+            hashedTokens[i] = _hashTokenAmount(tokenAmounts[i]);
         }
-        return keccak256(abi.encodePacked(hashed_tokens));
+        return keccak256(abi.encodePacked(hashedTokens));
     }
 
-    function _hash_execution_params(
+    function hashExecutionParams(
         ExecutionParams memory params
     ) public pure returns (bytes32) {
         return
             keccak256(
                 abi.encode(
                     keccak256(bytes(_EXECUTION_PARAMS_TYPE)),
-                    _hash_token_amounts(params.sellTokens),
-                    _hash_token_amounts(params.buyTokens),
+                    _hashTokenAmounts(params.sellTokens),
+                    _hashTokenAmounts(params.buyTokens),
                     params.targetContract,
                     keccak256(params.targetCalldata),
                     params.targetCallValue,
@@ -128,7 +128,7 @@ abstract contract OpportunityAdapter is SigVerify {
 
         verifyCalldata(
             _EXECUTION_PARAMS_TYPE,
-            _hash_execution_params(params),
+            hashExecutionParams(params),
             params.executor,
             params.signature,
             params.validUntil
@@ -151,7 +151,7 @@ abstract contract OpportunityAdapter is SigVerify {
         address source,
         uint256 amount
     ) internal {
-        WETH9 weth = getWethContract();
+        WETH9 weth = _getWethContract();
         if (amount > 0) {
             try weth.transferFrom(source, address(this), amount) {} catch {
                 revert WethTransferFromFailed();

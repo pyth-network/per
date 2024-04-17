@@ -11,7 +11,7 @@ use {
             RunOptions,
         },
         opportunity_adapter::{
-            get_domain_separator,
+            get_eip_712_domain,
             get_weth_address,
             run_verification_loop,
         },
@@ -89,18 +89,16 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                 let weth =
                     get_weth_address(chain_config.opportunity_adapter_contract, provider.clone())
                         .await?;
-                let domain_separator = get_domain_separator(
-                    provider.clone(),
-                    chain_config.opportunity_adapter_contract,
-                )
-                .await
-                .map_err(|err| {
-                    anyhow!(
-                        "Failed to get domain separator for chain({chain_id}): {:?}",
-                        err,
-                        chain_id = chain_id
-                    )
-                })?;
+                let eip_712_domain =
+                    get_eip_712_domain(provider.clone(), chain_config.opportunity_adapter_contract)
+                        .await
+                        .map_err(|err| {
+                            anyhow!(
+                                "Failed to get domain separator for chain({chain_id}): {:?}",
+                                err,
+                                chain_id = chain_id
+                            )
+                        })?;
 
                 Ok((
                     chain_id.clone(),
@@ -110,7 +108,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         token_spoof_info: Default::default(),
                         config: chain_config.clone(),
                         weth,
-                        domain_separator,
+                        eip_712_domain,
                     },
                 ))
             }),

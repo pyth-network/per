@@ -1,6 +1,7 @@
 use {
     crate::{
         api::{
+            opportunity::EIP712Domain,
             ws::{
                 UpdateEvent,
                 WsState,
@@ -138,18 +139,13 @@ pub enum SpoofInfo {
     UnableToSpoof,
 }
 
-pub struct DomainSeparator {
-    pub name:    String,
-    pub version: String,
-}
-
 pub struct ChainStore {
     pub provider:         Provider<Http>,
     pub network_id:       u64,
     pub config:           EthereumConfig,
     pub weth:             Address,
     pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
-    pub domain_separator: DomainSeparator,
+    pub eip_712_domain:   EIP712Domain,
 }
 
 #[derive(Default)]

@@ -1,7 +1,7 @@
 use {
     crate::{
         api::{
-            opportunity::OpportunityAdapterSignatureConfig,
+            opportunity::EIP712Domain,
             RestError,
         },
         auction::{
@@ -19,7 +19,6 @@ use {
         state::{
             BidAmount,
             ChainStore,
-            DomainSeparator,
             Opportunity,
             OpportunityId,
             OpportunityParams,
@@ -56,9 +55,8 @@ use {
         types::{
             spoof,
             transaction::eip712::{
-                EIP712Domain,
+                self,
                 Eip712,
-                TypedData,
             },
             Address,
             Bytes,
@@ -135,7 +133,7 @@ pub async fn verify_opportunity(
         },
     };
 
-    let typed_data: Option<TypedData> =
+    let typed_data: Option<eip712::TypedData> =
         make_opportunity_execution_params(opportunity.clone(), fake_bid.clone(), chain_store)
             .into();
     if typed_data.is_none() {
@@ -240,10 +238,21 @@ pub async fn verify_opportunity(
     Ok(VerificationResult::Success)
 }
 
-impl From<OpportunityAdapterExecutionParams> for Option<TypedData> {
+impl From<EIP712Domain> for eip712::EIP712Domain {
+    fn from(val: EIP712Domain) -> Self {
+        eip712::EIP712Domain {
+            name:               Some(val.name),
+            version:            Some(val.version),
+            chain_id:           Some(val.chain_id),
+            verifying_contract: Some(val.verifying_contract),
+            salt:               None,
+        }
+    }
+}
+
+impl From<OpportunityAdapterExecutionParams> for Option<eip712::TypedData> {
     fn from(val: OpportunityAdapterExecutionParams) -> Self {
         let params = val.params;
-        let config = val.signature_config;
         let data_type = serde_json::json!({
             "Signature": [
                 {"name": "executionParams", "type": "ExecutionParams"},
@@ -281,14 +290,8 @@ impl From<OpportunityAdapterExecutionParams> for Option<TypedData> {
             "signer": params.executor,
             "deadline": params.valid_until,
         });
-        Some(TypedData {
-            domain:       EIP712Domain {
-                name:               config.domain_name.into(),
-                version:            config.domain_version.into(),
-                chain_id:           U256::from(config.chain_network_id).into(),
-                verifying_contract: config.contract_address.into(),
-                salt:               None,
-            },
+        Some(eip712::TypedData {
+            domain:       val.eip_712_domain.into(),
             types:        serde_json::from_value(data_type).ok()?,
             primary_type: "Signature".into(),
             message:      serde_json::from_value(data).ok()?,
@@ -298,13 +301,13 @@ impl From<OpportunityAdapterExecutionParams> for Option<TypedData> {
 
 #[derive(ToSchema, Clone)]
 pub struct OpportunityAdapterExecutionParams {
-    params:           ExecutionParams,
-    signature_config: OpportunityAdapterSignatureConfig,
+    params:         ExecutionParams,
+    eip_712_domain: EIP712Domain,
 }
 
 fn verify_signature(execution_params: OpportunityAdapterExecutionParams) -> Result<()> {
     // TODO Maybe use ECDSA to recover the signer? https://docs.rs/k256/latest/k256/ecdsa/index.html
-    let typed_data: Option<TypedData> = execution_params.clone().into();
+    let typed_data: Option<eip712::TypedData> = execution_params.clone().into();
     if typed_data.is_none() {
         return Err(anyhow!("Error creating typed data"));
     }
@@ -351,7 +354,7 @@ pub fn make_opportunity_execution_params(
     chain_store: &ChainStore,
 ) -> OpportunityAdapterExecutionParams {
     OpportunityAdapterExecutionParams {
-        params:           ExecutionParams {
+        params:         ExecutionParams {
             sell_tokens:       opportunity
                 .sell_tokens
                 .into_iter()
@@ -370,7 +373,7 @@ pub fn make_opportunity_execution_params(
             bid_amount:        bid.amount,
             signature:         bid.signature.to_vec().into(),
         },
-        signature_config: OpportunityAdapterSignatureConfig::from(chain_store),
+        eip_712_domain: chain_store.eip_712_domain.clone(),
     }
 }
 
@@ -553,10 +556,10 @@ pub async fn handle_opportunity_bid(
     }
 }
 
-pub async fn get_domain_separator(
+pub async fn get_eip_712_domain(
     provider: Provider<Http>,
     contract_address: Address,
-) -> anyhow::Result<DomainSeparator> {
+) -> anyhow::Result<EIP712Domain> {
     let client = Arc::new(provider);
     let opportunity_adapter = OpportunityAdapter::new(contract_address, client);
     let call = opportunity_adapter.eip_712_domain();
@@ -567,8 +570,10 @@ pub async fn get_domain_separator(
             e
         )
     })?;
-    Ok(DomainSeparator {
-        name:    result.1,
-        version: result.2,
+    Ok(EIP712Domain {
+        name:               result.1,
+        version:            result.2,
+        chain_id:           result.3,
+        verifying_contract: result.4,
     })
 }

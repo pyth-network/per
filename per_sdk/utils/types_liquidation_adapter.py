@@ -6,17 +6,15 @@ class TokenAmount(TypedDict):
     amount: str
 
 
-class OpportunitySignatureConfig(TypedDict):
-    # The type hash for the opportunity
-    opportunity_type: str
+class EIP712Domain(TypedDict):
     # The name parameter for the EIP712 domain separator.
-    domain_name: str
+    name: str
     # The version parameter for the EIP712 domain separator.
-    domain_version: str
+    verion: str
     # The opportunity adapter contract address
-    chain_network_id: int
+    chain_id: int
     # The opportunity adapter contract address
-    contract_address: str
+    verifying_contract: str
 
 
 class Opportunity(TypedDict):
@@ -36,8 +34,8 @@ class Opportunity(TypedDict):
     sell_tokens: list[TokenAmount]
     # A list of tokens that ought to be received by the liquidator in exchange for the sell tokens.
     buy_tokens: list[TokenAmount]
-    # The data you need to sign the opportunity.
-    signature_config: OpportunitySignatureConfig
+    # The eip712 domain config to be used for signing the opportunity
+    eip_712_domain: EIP712Domain
     # Opportunity format version, used to determine how to interpret the opportunity data
     version: str
 

@@ -4,7 +4,7 @@ import web3
 from eth_account import Account
 from eth_account.datastructures import SignedMessage
 
-from per_sdk.utils.types_liquidation_adapter import OpportunitySignatureConfig
+from per_sdk.utils.types_liquidation_adapter import EIP712Domain
 
 solidity_keccak = web3.Web3.solidity_keccak
 
@@ -23,7 +23,7 @@ def construct_signature_executor(
     value: int,
     bid_info: BidInfo,
     secret_key: str,
-    signature_config: OpportunitySignatureConfig,
+    eip_712_domain: EIP712Domain,
 ) -> SignedMessage:
     """
     Constructs a signature for an executors' bid to submit to the auction server.
@@ -37,17 +37,17 @@ def construct_signature_executor(
         bid: The amount of native token to bid on this opportunity.
         valid_until: The timestamp at which the transaction will expire.
         secret_key: A 0x-prefixed hex string representing the liquidator's private key.
-        signing_data: The extra data you need to sign the opportunity.
+        eip_712_domain: The EIP712 domain data to create the signature.
     Returns:
         An EIP712 SignedMessage object, representing the liquidator's signature.
     """
 
     executor = Account.from_key(secret_key).address
     domain_data = {
-        "name": signature_config["domain_name"],
-        "version": signature_config["domain_version"],
-        "chainId": signature_config["chain_network_id"],
-        "verifyingContract": signature_config["contract_address"],
+        "name": eip_712_domain["name"],
+        "version": eip_712_domain["version"],
+        "chainId": eip_712_domain["chain_id"],
+        "verifyingContract": eip_712_domain["verifying_contract"],
     }
     message_types = {
         "Signature": [

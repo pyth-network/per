@@ -3,7 +3,7 @@ use {
         api::{
             bid::BidResult,
             opportunity::{
-                OpportunityAdapterSignatureConfig,
+                EIP712Domain,
                 OpportunityParamsWithMetadata,
             },
             ws::{
@@ -168,10 +168,10 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     BidStatus,
     BidStatusWithId,
     BidResult,
+    EIP712Domain,
     OpportunityParamsV1,
     OpportunityBid,
     OpportunityParams,
-    OpportunityAdapterSignatureConfig,
     OpportunityParamsWithMetadata,
     TokenAmount,
     BidResult,

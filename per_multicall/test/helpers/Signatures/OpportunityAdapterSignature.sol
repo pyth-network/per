@@ -26,7 +26,7 @@ contract OpportunityAdapterSignature is Signature {
         uint256 validUntil,
         uint256 executorSk
     ) public view returns (ExecutionParams memory executionParams) {
-        ExecutionParams memory fake_execution_params = ExecutionParams(
+        ExecutionParams memory fakeExecutionParams = ExecutionParams(
             sellTokens,
             buyTokens,
             vm.addr(executorSk),
@@ -43,7 +43,7 @@ contract OpportunityAdapterSignature is Signature {
             _VERSION,
             _TYPE_HASH,
             signer,
-            opportunityAdapter._hash_execution_params(fake_execution_params),
+            opportunityAdapter.hashExecutionParams(fakeExecutionParams),
             validUntil
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(executorSk, digest);

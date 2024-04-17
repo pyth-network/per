@@ -458,6 +458,9 @@ contract ExpressRelayTestSetup is
 
     /**
      * @notice getMulticallInfoSearcherContracts function - creates necessary permission and data for multicall to searcher contracts
+     * @param vaultNumber: the vault number to be liquidated
+     * @param contracts: the searcher contracts to be called
+     * @param bidInfos: the bid info for each searcher contract
      */
     function getMulticallInfoSearcherContracts(
         uint256 vaultNumber,

@@ -46,8 +46,3 @@ struct ExecutionParams {
     uint256 bidAmount;
     bytes signature;
 }
-
-struct SignatureMetadata {
-    string domainName;
-    string domainVersion;
-}
