@@ -64,12 +64,12 @@ contract ExpressRelayUpgradable is
     // But we are overriding them here because there was no owner before and
     // `_authorizeUpgrade` would cause a revert for these. Now we have an owner, and
     // because we want to test for the magic. We are overriding these methods.
-    function upgradeTo(address newImplementation) external override onlyProxy {
+    function upgradeTo(address newImplementation) public override onlyProxy {
         address oldImplementation = _getImplementation();
         _authorizeUpgrade(newImplementation);
         _upgradeToAndCallUUPS(newImplementation, new bytes(0), false);
 
-        magicCheck();
+        _magicCheck();
 
         emit ContractUpgraded(oldImplementation, _getImplementation());
     }
@@ -77,17 +77,17 @@ contract ExpressRelayUpgradable is
     function upgradeToAndCall(
         address newImplementation,
         bytes memory data
-    ) external payable override onlyProxy {
+    ) public payable override onlyProxy {
         address oldImplementation = _getImplementation();
         _authorizeUpgrade(newImplementation);
         _upgradeToAndCallUUPS(newImplementation, data, true);
 
-        magicCheck();
+        _magicCheck();
 
         emit ContractUpgraded(oldImplementation, _getImplementation());
     }
 
-    function magicCheck() internal view {
+    function _magicCheck() internal view {
         // Calling a method using `this.<method>` will cause a contract call that will use
         // the new contract. This call will fail if the method does not exists or the magic
         // is different.

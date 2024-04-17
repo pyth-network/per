@@ -306,7 +306,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct Bid {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type = String)]

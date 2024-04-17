@@ -1,6 +1,7 @@
 use {
     crate::{
         api::{
+            opportunity::EIP712Domain,
             ws::{
                 UpdateEvent,
                 WsState,
@@ -144,6 +145,7 @@ pub struct ChainStore {
     pub config:           EthereumConfig,
     pub weth:             Address,
     pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
+    pub eip_712_domain:   EIP712Domain,
 }
 
 #[derive(Default)]
