@@ -254,7 +254,7 @@ impl From<OpportunityAdapterExecutionParams> for Option<eip712::TypedData> {
     fn from(val: OpportunityAdapterExecutionParams) -> Self {
         let params = val.params;
         let data_type = serde_json::json!({
-            "Signature": [
+            "SignedParams": [
                 {"name": "executionParams", "type": "ExecutionParams"},
                 {"name": "signer", "type": "address"},
                 {"name": "deadline", "type": "uint256"},
@@ -292,9 +292,11 @@ impl From<OpportunityAdapterExecutionParams> for Option<eip712::TypedData> {
         });
         Some(eip712::TypedData {
             domain:       val.eip_712_domain.into(),
-            types:        serde_json::from_value(data_type).ok()?,
-            primary_type: "Signature".into(),
-            message:      serde_json::from_value(data).ok()?,
+            types:        serde_json::from_value(data_type)
+                .expect("Failed to parse data type for eip712 typed data"),
+            primary_type: "SignedParams".into(),
+            message:      serde_json::from_value(data)
+                .expect("Failed to parse data for eip712 typed data"),
         })
     }
 }
@@ -384,6 +386,7 @@ pub async fn make_adapter_calldata(
 ) -> Result<Bytes> {
     let adapter_contract = chain_store.config.opportunity_adapter_contract;
     let execution_params = make_opportunity_execution_params(opportunity.clone(), bid, chain_store);
+    // TODO do we really need it here?
     verify_signature(execution_params.clone())?;
 
     let client = Arc::new(chain_store.provider.clone());

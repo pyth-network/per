@@ -10,7 +10,7 @@ import "forge-std/console.sol";
 contract SigVerify is EIP712Upgradeable {
     mapping(bytes => bool) _signatureUsed;
     string constant _SIGNATURE_TYPE =
-        "Signature(ExecutionParams executionParams,address signer,uint256 deadline)";
+        "SignedParams(ExecutionParams executionParams,address signer,uint256 deadline)";
 
     /**
      * @notice Verifies the validity of the provided calldata signature and parameters.

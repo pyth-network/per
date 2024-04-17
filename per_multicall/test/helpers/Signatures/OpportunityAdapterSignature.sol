@@ -6,7 +6,7 @@ import "../../../src/OpportunityAdapterUpgradable.sol";
 
 contract OpportunityAdapterSignature is Signature {
     bytes constant _TYPE_HASH =
-        "Signature(ExecutionParams executionParams,address signer,uint256 deadline)ExecutionParams(TokenAmount[] sellTokens,TokenAmount[] buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
+        "SignedParams(ExecutionParams executionParams,address signer,uint256 deadline)ExecutionParams(TokenAmount[] sellTokens,TokenAmount[] buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
     string constant _NAME = "OpportunityAdapter";
     string constant _VERSION = "1";
 
@@ -43,7 +43,7 @@ contract OpportunityAdapterSignature is Signature {
             _VERSION,
             _TYPE_HASH,
             signer,
-            opportunityAdapter.hashExecutionParams(fakeExecutionParams),
+            opportunityAdapter.hash(fakeExecutionParams),
             validUntil
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(executorSk, digest);

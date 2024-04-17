@@ -50,7 +50,7 @@ def construct_signature_executor(
         "verifyingContract": eip_712_domain["verifying_contract"],
     }
     message_types = {
-        "Signature": [
+        "SignedParams": [
             {"name": "executionParams", "type": "ExecutionParams"},
             {"name": "signer", "type": "address"},
             {"name": "deadline", "type": "uint256"},
