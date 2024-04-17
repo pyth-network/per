@@ -11,9 +11,9 @@ class EIP712Domain(TypedDict):
     name: str
     # The version parameter for the EIP712 domain separator.
     verion: str
-    # The opportunity adapter contract address
-    chain_id: int
-    # The opportunity adapter contract address
+    # The network chain id parameter for the EIP712 domain separator.
+    chain_id: str
+    # The verifying contract parameter for the EIP712 domain separator.
     verifying_contract: str
 
 

@@ -21,7 +21,7 @@ contract SearcherSignature is Signature {
         uint256 validUntil,
         uint256 searcherSk
     ) public view returns (bytes memory) {
-        bytes32 digest = _hashTypedDataV4(
+        bytes32 digest = _customHashTypedDataV4(
             contractAddress,
             _NAME,
             _VERSION,

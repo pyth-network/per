@@ -56,7 +56,8 @@ pub struct EIP712Domain {
     #[schema(example = "1", value_type = String)]
     pub version:            String,
     /// The network chain id parameter for EIP712 domain.
-    #[schema(example = 31337, value_type = u64)]
+    #[schema(example = "31337", value_type=String)]
+    #[serde(with = "crate::serde::u256")]
     pub chain_id:           U256,
     /// The verifying contract address parameter for the EIP712 domain.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]

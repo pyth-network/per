@@ -18,7 +18,7 @@ contract Signature is Test, SigVerify {
         __EIP712_init(domainName, domainVersion);
     }
 
-    function _domainSeparatorV4(
+    function _customDomainSeparatorV4(
         address contractAddress,
         string memory name,
         string memory version
@@ -37,22 +37,22 @@ contract Signature is Test, SigVerify {
             );
     }
 
-    function _hashTypedDataV4(
+    function _customHashTypedDataV4(
         address contractAddress,
         string memory name,
         string memory version,
         bytes memory typeHash,
         address signer,
-        bytes32 hashed_data,
+        bytes32 hashedData,
         uint256 deadline
     ) internal view virtual returns (bytes32) {
         return
             MessageHashUtils.toTypedDataHash(
-                _domainSeparatorV4(contractAddress, name, version),
+                _customDomainSeparatorV4(contractAddress, name, version),
                 keccak256(
                     abi.encode(
                         keccak256(typeHash),
-                        hashed_data,
+                        hashedData,
                         signer,
                         deadline
                     )

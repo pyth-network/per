@@ -37,7 +37,7 @@ contract OpportunityAdapterSignature is Signature {
             bid,
             abi.encodePacked("0", "0", "0")
         );
-        bytes32 digest = _hashTypedDataV4(
+        bytes32 digest = _customHashTypedDataV4(
             address(opportunityAdapter),
             _NAME,
             _VERSION,
