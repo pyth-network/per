@@ -133,13 +133,10 @@ pub async fn verify_opportunity(
         },
     };
 
-    let typed_data: Option<eip712::TypedData> =
+    let typed_data: eip712::TypedData =
         make_opportunity_execution_params(opportunity.clone(), fake_bid.clone(), chain_store)
             .into();
-    if typed_data.is_none() {
-        return Err(anyhow!("Error creating typed data"));
-    }
-    let hashed_data = typed_data.unwrap().encode_eip712()?;
+    let hashed_data = typed_data.encode_eip712()?;
     let signature = fake_wallet.sign_hash(hashed_data.into())?;
     fake_bid.signature = signature;
     let params =
@@ -250,7 +247,7 @@ impl From<EIP712Domain> for eip712::EIP712Domain {
     }
 }
 
-impl From<OpportunityAdapterExecutionParams> for Option<eip712::TypedData> {
+impl From<OpportunityAdapterExecutionParams> for eip712::TypedData {
     fn from(val: OpportunityAdapterExecutionParams) -> Self {
         let params = val.params;
         let data_type = serde_json::json!({
@@ -290,14 +287,14 @@ impl From<OpportunityAdapterExecutionParams> for Option<eip712::TypedData> {
             "signer": params.executor,
             "deadline": params.valid_until,
         });
-        Some(eip712::TypedData {
+        eip712::TypedData {
             domain:       val.eip_712_domain.into(),
             types:        serde_json::from_value(data_type)
                 .expect("Failed to parse data type for eip712 typed data"),
             primary_type: "SignedParams".into(),
             message:      serde_json::from_value(data)
                 .expect("Failed to parse data for eip712 typed data"),
-        })
+        }
     }
 }
 
@@ -309,11 +306,8 @@ pub struct OpportunityAdapterExecutionParams {
 
 fn verify_signature(execution_params: OpportunityAdapterExecutionParams) -> Result<()> {
     // TODO Maybe use ECDSA to recover the signer? https://docs.rs/k256/latest/k256/ecdsa/index.html
-    let typed_data: Option<eip712::TypedData> = execution_params.clone().into();
-    if typed_data.is_none() {
-        return Err(anyhow!("Error creating typed data"));
-    }
-    let structured_hash = typed_data.unwrap().encode_eip712()?;
+    let typed_data: eip712::TypedData = execution_params.clone().into();
+    let structured_hash = typed_data.encode_eip712()?;
     let params = execution_params.params;
     let signature = Signature::try_from(params.signature.to_vec().as_slice())
         .map_err(|_x| anyhow!("Error reading signature"))?;
