@@ -815,9 +815,7 @@ contract ExpressRelayTestSetup is
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            false,
-            true
+            false
         );
 
         assertExpectedBidPaymentMockTarget(
@@ -860,13 +858,13 @@ contract ExpressRelayTestSetup is
     }
 
     /**
-     * @notice expectMulticallIssued function - emits the expected MulticallIssued event for each loop of multicall for the given data
+     * @notice expectMulticallIssuedEmit function - emits the expected MulticallIssued event for each loop of multicall for the given data
      *
      * @param permission: the permission key
      * @param multicallData: array of MulticallData structs containing bid ID, bid amount, target contract address, and target calldata
      * @param expectedMulticallStatuses: expected values for MulticallStatus structs
      */
-    function expectMulticallIssued(
+    function expectMulticallIssuedEmit(
         bytes memory permission,
         MulticallData[] memory multicallData,
         MulticallStatus[] memory expectedMulticallStatuses
@@ -893,12 +891,14 @@ contract ExpressRelayTestSetup is
      */
     function generateRandomPermission()
         public
-        returns (address, bytes memory, bytes memory)
+        returns (
+            address protocol,
+            bytes memory permissionId,
+            bytes memory permission
+        )
     {
-        address protocol = makeAddr("protocol");
-        bytes memory permissionId = abi.encode("random permission id");
-        bytes memory permission = abi.encode(protocol, permissionId);
-
-        return (protocol, permissionId, permission);
+        protocol = makeAddr("protocol");
+        permissionId = abi.encode("random permission id");
+        permission = abi.encode(protocol, permissionId);
     }
 }

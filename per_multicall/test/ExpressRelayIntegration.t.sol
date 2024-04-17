@@ -134,7 +134,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = true;
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -165,8 +165,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            true,
             true
         );
 
@@ -222,7 +220,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             memory expectedMulticallStatuses = new MulticallStatus[](2);
         expectedMulticallStatuses[0].externalSuccess = true;
         expectedMulticallStatuses[1].externalSuccess = false;
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -264,9 +262,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            false,
-            true
+            false
         );
 
         // only the first bid should be paid
@@ -325,7 +321,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             memory expectedMulticallStatuses = new MulticallStatus[](2);
         expectedMulticallStatuses[0].externalSuccess = false;
         expectedMulticallStatuses[1].externalSuccess = true;
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -367,8 +363,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            true,
             true
         );
 
@@ -415,7 +409,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
             InvalidLiquidation.selector
         );
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -439,8 +433,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            true,
             true
         );
     }
@@ -478,7 +470,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = false;
         expectedMulticallStatuses[0].multicallRevertReason = "invalid bid";
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -502,8 +494,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            true,
             true
         );
     }
@@ -538,7 +528,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = true;
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -570,8 +560,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            true,
             true
         );
 
@@ -617,7 +605,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
             InvalidExecutorSignature.selector
         );
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -642,8 +630,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            true,
             true
         );
     }
@@ -682,7 +668,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
             ExpiredSignature.selector
         );
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -706,8 +692,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            true,
             true
         );
     }
@@ -756,7 +740,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[1].externalResult = abi.encodeWithSelector(
             TargetCallFailed.selector
         );
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -792,8 +776,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            true,
-            true,
             true
         );
     }

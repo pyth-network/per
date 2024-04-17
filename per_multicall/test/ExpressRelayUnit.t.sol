@@ -35,6 +35,10 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         vm.deal(address(mockTarget), 1 ether);
     }
 
+    function testGetAdmin() public {
+        assertEq(expressRelay.getAdmin(), admin);
+    }
+
     function testSetRelayerByAdmin() public {
         address newRelayer = makeAddr("newRelayer");
 
@@ -120,8 +124,8 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expressRelay.addRelayerSubwallet(subwallet2);
 
         vm.expectRevert(Unauthorized.selector);
-        vm.prank(subwallet1);
-        expressRelay.removeRelayerSubwallet(subwallet2);
+        vm.prank(subwallet2);
+        expressRelay.removeRelayerSubwallet(subwallet1);
     }
 
     function testRemoveNonExistentRelayerSubwalletByRelayerFail() public {
@@ -289,12 +293,12 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expressRelayHarness.exposed_validateFeeSplit(feeSplit);
     }
 
-    function testValidateFeeSplitMax() public {
+    function testValidateFeeSplitMax() public view {
         uint256 feeSplit = expressRelay.getFeeSplitPrecision();
         expressRelayHarness.exposed_validateFeeSplit(feeSplit);
     }
 
-    function testIsContract() public {
+    function testIsContract() public view {
         assert(expressRelayHarness.exposed_isContract(address(this)));
         assert(expressRelayHarness.exposed_isContract(address(expressRelay)));
         assert(expressRelayHarness.exposed_isContract(address(mockProtocol)));
@@ -373,12 +377,19 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     }
 
     function testMulticallInvalidPermissionFail() public {
-        bytes memory permission = abi.encodePacked(uint8(0));
+        // permission is 20 bytes, so this should not trigger invalid permission error
+        bytes memory permissionValid = abi.encodePacked(uint160(0));
         MulticallData[] memory multicallData;
+
+        vm.prank(relayer);
+        expressRelay.multicall(permissionValid, multicallData);
+
+        // permission is 19 bytes, so this should trigger invalid permission error
+        bytes memory permissionInvalid = abi.encodePacked(uint152(0));
 
         vm.expectRevert(InvalidPermission.selector);
         vm.prank(relayer);
-        expressRelay.multicall(permission, multicallData);
+        expressRelay.multicall(permissionInvalid, multicallData);
     }
 
     function testMulticallMockTarget() public {
@@ -409,7 +420,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = true;
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -465,7 +476,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
             MockProtocolFail.selector
         );
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -516,7 +527,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = true;
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -571,7 +582,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
             MockProtocolUnauthorized.selector
         );
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -627,7 +638,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = false;
         expectedMulticallStatuses[0].multicallRevertReason = "invalid bid";
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -683,7 +694,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             memory expectedMulticallStatuses = new MulticallStatus[](2);
         expectedMulticallStatuses[0].externalSuccess = true;
         expectedMulticallStatuses[1].externalSuccess = true;
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -745,7 +756,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[1].externalResult = abi.encodeWithSelector(
             MockProtocolFail.selector
         );
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -795,7 +806,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
-        expectMulticallIssued(
+        expectMulticallIssuedEmit(
             permission,
             multicallData,
             expectedMulticallStatuses
@@ -888,7 +899,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
                 bidInfos
             );
 
-        if (caller != relayer) {
+        if (caller != address(expressRelay)) {
             vm.expectRevert(Unauthorized.selector);
         }
         vm.prank(caller);
