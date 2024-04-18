@@ -660,45 +660,6 @@ contract ExpressRelayTestSetup is
         }
     }
 
-    /**
-     * @notice assertExpectedBidPaymentTokenVault function - checks that the expected bid payments across fee receiver, target contract, express relay, and relayer are equal to the actual payments
-     *
-     * @param balancePre: the balances of the fee receiver, target contract, express relay, and relayer before the bid
-     * @param balancePost: the balances of the fee receiver, target contract, express relay, and relayer after the bid
-     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
-     * @param multicallStatuses: array of MulticallStatus structs containing external success, result, and revert reason
-     */
-    function assertExpectedBidPaymentTokenVault(
-        uint256 balancePre,
-        uint256 balancePost,
-        BidInfo[] memory bidInfos,
-        MulticallStatus[] memory multicallStatuses
-    ) public {
-        require(
-            bidInfos.length == multicallStatuses.length,
-            "bidInfos and multicallStatuses must have the same length"
-        );
-
-        uint256 totalBid = 0;
-        string memory emptyRevertReasonString = "";
-
-        for (uint i = 0; i < bidInfos.length; i++) {
-            bool externalSuccess = multicallStatuses[i].externalSuccess;
-            bool emptyRevertReason = compareStrings(
-                multicallStatuses[i].multicallRevertReason,
-                emptyRevertReasonString
-            );
-
-            if (externalSuccess && emptyRevertReason) {
-                totalBid +=
-                    (bidInfos[i].bid * feeSplitTokenVault) /
-                    expressRelay.getFeeSplitPrecision();
-            }
-        }
-
-        assertEq(balancePost, balancePre + totalBid);
-    }
-
     struct BalancesMockTarget {
         uint256 balanceFeeReceiver;
         uint256 balanceMockTarget;
