@@ -943,9 +943,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             );
 
         vm.prank(address(expressRelay));
-        (bool success, bytes memory result) = expressRelay.callWithBid(
-            multicallData[0]
-        );
+        (bool success, ) = expressRelay.callWithBid(multicallData[0]);
 
         BalancesMockTarget memory balancesPost = getBalancesMockTarget(
             feeReceiver,
