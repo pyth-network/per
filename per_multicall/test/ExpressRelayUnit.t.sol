@@ -408,13 +408,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
 
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
@@ -463,13 +457,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
 
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
@@ -508,13 +496,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
 
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
@@ -559,13 +541,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
 
         // intentionally use incorrect permission
         permission = abi.encodePacked(address(feeReceiver), uint256(1));
@@ -611,13 +587,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
 
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
@@ -659,13 +629,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
 
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](2);
@@ -721,13 +685,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
 
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](2);
@@ -776,13 +734,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         (
             bytes memory permission,
             MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
 
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
@@ -815,7 +767,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
 
         (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
-            address(mockTarget),
             feeReceiver,
             contracts,
             data,
@@ -845,6 +796,8 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
     }
 
     function testCallWithBidByNonContractFail(address caller) public {
+        vm.assume(caller != address(expressRelay));
+
         address feeReceiver = address(mockProtocol);
 
         uint256 bid = 100;
@@ -858,7 +811,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
 
         (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
-            address(mockTarget),
             feeReceiver,
             contracts,
             data,
@@ -870,9 +822,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             address(mockTarget)
         );
 
-        if (caller != address(expressRelay)) {
-            vm.expectRevert(Unauthorized.selector);
-        }
+        vm.expectRevert(Unauthorized.selector);
         vm.prank(caller);
         expressRelay.callWithBid(multicallData[0]);
     }
@@ -891,7 +841,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
 
         (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
-            address(mockTarget),
             feeReceiver,
             contracts,
             data,
@@ -933,7 +882,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
 
         (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
-            address(mockTarget),
             feeReceiver,
             contracts,
             data,
@@ -984,7 +932,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         bidInfos[0] = makeBidInfo(bidAsserted, searcherAOwnerSk);
 
         (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
-            address(mockTarget),
             feeReceiver,
             contracts,
             data,

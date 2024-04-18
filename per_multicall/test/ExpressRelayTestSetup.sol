@@ -745,21 +745,19 @@ contract ExpressRelayTestSetup is
     /**
      * @notice makeMulticallMockTargetCall function - creates necessary permission, balances, and data for multicall to MockTarget contract
      *
-     * @param mockTargetAddress: the address of the MockTarget contract
      * @param feeReceiver: the address of the fee receiver
      * @param contracts: array of target contract addresses
      * @param data: array of target calldata
      * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
      */
     function makeMulticallMockTargetCall(
-        address mockTargetAddress,
         address feeReceiver,
         address[] memory contracts,
         bytes[] memory data,
         BidInfo[] memory bidInfos
     )
         public
-        view
+        pure
         returns (bytes memory permission, MulticallData[] memory multicallData)
     {
         permission = abi.encode(address(feeReceiver), abi.encode(uint256(0)));
