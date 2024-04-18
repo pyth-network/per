@@ -707,6 +707,7 @@ contract ExpressRelayTestSetup is
      *
      * @param balancesPre: the balances of the fee receiver, MockTarget target contract, express relay, and relayer before the bids
      * @param bidsSuccessful: the bid amounts that should have been successfully processed
+     * @param feeReceiver: the address of the fee receiver
      */
     function getExpectedPostBidBalances(
         BalancesMockTarget memory balancesPre,
@@ -759,15 +760,9 @@ contract ExpressRelayTestSetup is
     )
         public
         view
-        returns (
-            bytes memory permission,
-            BalancesMockTarget memory balancesPre,
-            MulticallData[] memory multicallData
-        )
+        returns (bytes memory permission, MulticallData[] memory multicallData)
     {
         permission = abi.encode(address(feeReceiver), abi.encode(uint256(0)));
-
-        balancesPre = getBalancesMockTarget(feeReceiver, mockTargetAddress);
 
         multicallData = getMulticallData(contracts, data, bidInfos);
     }
@@ -815,5 +810,43 @@ contract ExpressRelayTestSetup is
         protocol = makeAddr("protocol");
         permissionId = abi.encode("random permission id");
         permission = abi.encode(protocol, permissionId);
+    }
+
+    function runMulticallMockTargetSuccessfulAndCheck(
+        bytes memory permission,
+        MulticallData[] memory multicallData,
+        MulticallStatus[] memory expectedMulticallStatuses,
+        address mockTarget,
+        BalancesMockTarget memory balancesPostExpected
+    ) public {
+        assertEq(expectedMulticallStatuses.length, multicallData.length);
+
+        expectMulticallIssuedEmit(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
+        vm.prank(relayer);
+        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
+            permission,
+            multicallData
+        );
+
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            false
+        );
+
+        address feeReceiver = expressRelayHarness.exposed_bytesToAddress(
+            permission
+        );
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            mockTarget
+        );
+        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
     }
 }

@@ -407,7 +407,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         (
             bytes memory permission,
-            BalancesMockTarget memory balancesPre,
             MulticallData[] memory multicallData
         ) = makeMulticallMockTargetCall(
                 address(mockTarget),
@@ -420,27 +419,11 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = true;
-        expectMulticallIssuedEmit(
-            permission,
-            multicallData,
-            expectedMulticallStatuses
-        );
-
-        vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
-            multicallData
-        );
-
-        checkMulticallStatuses(
-            multicallStatuses,
-            expectedMulticallStatuses,
-            false
-        );
 
         uint256[] memory bidsExpectedSuccessful = new uint256[](1);
         bidsExpectedSuccessful[0] = bid;
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
             feeReceiver,
             address(mockTarget)
         );
@@ -450,7 +433,14 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
                 bidsExpectedSuccessful,
                 feeReceiver
             );
-        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPostExpected
+        );
     }
 
     function testMulticallMockTargetFail() public {
@@ -472,7 +462,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         (
             bytes memory permission,
-            BalancesMockTarget memory balancesPre,
             MulticallData[] memory multicallData
         ) = makeMulticallMockTargetCall(
                 address(mockTarget),
@@ -487,29 +476,19 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
             MockProtocolFail.selector
         );
-        expectMulticallIssuedEmit(
-            permission,
-            multicallData,
-            expectedMulticallStatuses
-        );
 
-        vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
-            multicallData
-        );
-
-        checkMulticallStatuses(
-            multicallStatuses,
-            expectedMulticallStatuses,
-            false
-        );
-
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
             feeReceiver,
             address(mockTarget)
         );
-        assertEqBalancesMockTarget(balancesPost, balancesPre);
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPre
+        );
     }
 
     function testMulticallMockTargetEoaFeeReceiver() public {
@@ -528,7 +507,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         (
             bytes memory permission,
-            BalancesMockTarget memory balancesPre,
             MulticallData[] memory multicallData
         ) = makeMulticallMockTargetCall(
                 address(mockTarget),
@@ -541,27 +519,11 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = true;
-        expectMulticallIssuedEmit(
-            permission,
-            multicallData,
-            expectedMulticallStatuses
-        );
-
-        vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
-            multicallData
-        );
-
-        checkMulticallStatuses(
-            multicallStatuses,
-            expectedMulticallStatuses,
-            false
-        );
 
         uint256[] memory bidsExpectedSuccessful = new uint256[](1);
         bidsExpectedSuccessful[0] = bid;
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
             feeReceiver,
             address(mockTarget)
         );
@@ -571,7 +533,14 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
                 bidsExpectedSuccessful,
                 feeReceiver
             );
-        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPostExpected
+        );
     }
 
     function testMulticallMockTargetWrongPermissionFail() public {
@@ -589,7 +558,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         (
             bytes memory permission,
-            BalancesMockTarget memory balancesPre,
             MulticallData[] memory multicallData
         ) = makeMulticallMockTargetCall(
                 address(mockTarget),
@@ -607,29 +575,19 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
             MockProtocolUnauthorized.selector
         );
-        expectMulticallIssuedEmit(
-            permission,
-            multicallData,
-            expectedMulticallStatuses
-        );
 
-        vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
-            multicallData
-        );
-
-        checkMulticallStatuses(
-            multicallStatuses,
-            expectedMulticallStatuses,
-            false
-        );
-
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
             feeReceiver,
             address(mockTarget)
         );
-        assertEqBalancesMockTarget(balancesPost, balancesPre);
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPre
+        );
     }
 
     function testMulticallMockTargetWrongMismatchedBidFail() public {
@@ -652,7 +610,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         (
             bytes memory permission,
-            BalancesMockTarget memory balancesPre,
             MulticallData[] memory multicallData
         ) = makeMulticallMockTargetCall(
                 address(mockTarget),
@@ -666,29 +623,19 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = false;
         expectedMulticallStatuses[0].multicallRevertReason = "invalid bid";
-        expectMulticallIssuedEmit(
-            permission,
-            multicallData,
-            expectedMulticallStatuses
-        );
 
-        vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
-            multicallData
-        );
-
-        checkMulticallStatuses(
-            multicallStatuses,
-            expectedMulticallStatuses,
-            false
-        );
-
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
             feeReceiver,
             address(mockTarget)
         );
-        assertEqBalancesMockTarget(balancesPost, balancesPre);
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPre
+        );
     }
 
     function testMulticallMockTargetMultiple() public {
@@ -711,7 +658,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         (
             bytes memory permission,
-            BalancesMockTarget memory balancesPre,
             MulticallData[] memory multicallData
         ) = makeMulticallMockTargetCall(
                 address(mockTarget),
@@ -725,28 +671,12 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             memory expectedMulticallStatuses = new MulticallStatus[](2);
         expectedMulticallStatuses[0].externalSuccess = true;
         expectedMulticallStatuses[1].externalSuccess = true;
-        expectMulticallIssuedEmit(
-            permission,
-            multicallData,
-            expectedMulticallStatuses
-        );
-
-        vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
-            multicallData
-        );
-
-        checkMulticallStatuses(
-            multicallStatuses,
-            expectedMulticallStatuses,
-            false
-        );
 
         uint256[] memory bidsExpectedSuccessful = new uint256[](2);
         bidsExpectedSuccessful[0] = bid0;
         bidsExpectedSuccessful[1] = bid1;
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
             feeReceiver,
             address(mockTarget)
         );
@@ -756,7 +686,14 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
                 bidsExpectedSuccessful,
                 feeReceiver
             );
-        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPostExpected
+        );
     }
 
     function testMulticallMockTargetMultipleFailSecond() public {
@@ -783,7 +720,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         (
             bytes memory permission,
-            BalancesMockTarget memory balancesPre,
             MulticallData[] memory multicallData
         ) = makeMulticallMockTargetCall(
                 address(mockTarget),
@@ -799,27 +735,11 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[1].externalResult = abi.encodeWithSelector(
             MockProtocolFail.selector
         );
-        expectMulticallIssuedEmit(
-            permission,
-            multicallData,
-            expectedMulticallStatuses
-        );
-
-        vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
-            multicallData
-        );
-
-        checkMulticallStatuses(
-            multicallStatuses,
-            expectedMulticallStatuses,
-            false
-        );
 
         uint256[] memory bidsExpectedSuccessful = new uint256[](1);
         bidsExpectedSuccessful[0] = bid0;
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
             feeReceiver,
             address(mockTarget)
         );
@@ -829,7 +749,14 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
                 bidsExpectedSuccessful,
                 feeReceiver
             );
-        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPostExpected
+        );
     }
 
     function testMulticallMockTargetInvalidDataFail() public {
@@ -848,7 +775,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         (
             bytes memory permission,
-            BalancesMockTarget memory balancesPre,
             MulticallData[] memory multicallData
         ) = makeMulticallMockTargetCall(
                 address(mockTarget),
@@ -860,29 +786,19 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         MulticallStatus[]
             memory expectedMulticallStatuses = new MulticallStatus[](1);
-        expectMulticallIssuedEmit(
-            permission,
-            multicallData,
-            expectedMulticallStatuses
-        );
 
-        vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
-            multicallData
-        );
-
-        checkMulticallStatuses(
-            multicallStatuses,
-            expectedMulticallStatuses,
-            false
-        );
-
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
             feeReceiver,
             address(mockTarget)
         );
-        assertEqBalancesMockTarget(balancesPost, balancesPre);
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPre
+        );
     }
 
     function testCallWithBidByContractFail() public {
@@ -898,17 +814,18 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         data[0] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid);
         bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
 
-        (
-            ,
-            BalancesMockTarget memory balancesPre,
-            MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            address(mockTarget),
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
 
         vm.prank(address(expressRelay));
         (bool success, bytes memory result) = expressRelay.callWithBid(
@@ -940,30 +857,24 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         data[0] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid);
         bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
 
-        (
-            ,
-            BalancesMockTarget memory balancesPre,
-            MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            address(mockTarget),
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
 
         if (caller != address(expressRelay)) {
             vm.expectRevert(Unauthorized.selector);
         }
         vm.prank(caller);
         expressRelay.callWithBid(multicallData[0]);
-
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
-            feeReceiver,
-            address(mockTarget)
-        );
-
-        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 
     function testCallWithBidByContractInvalidDataFail() public {
@@ -979,17 +890,18 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         data[0] = abi.encodeWithSelector(bytes4(0xDEADBEEF));
         bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
 
-        (
-            ,
-            BalancesMockTarget memory balancesPre,
-            MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            address(mockTarget),
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
 
         vm.prank(address(expressRelay));
         (bool success, ) = expressRelay.callWithBid(multicallData[0]);
@@ -1020,17 +932,18 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         );
         bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
 
-        (
-            ,
-            BalancesMockTarget memory balancesPre,
-            MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            address(mockTarget),
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
 
         vm.prank(address(expressRelay));
         (bool success, ) = expressRelay.callWithBid(multicallData[0]);
@@ -1070,27 +983,16 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         );
         bidInfos[0] = makeBidInfo(bidAsserted, searcherAOwnerSk);
 
-        (
-            ,
-            BalancesMockTarget memory balancesPre,
-            MulticallData[] memory multicallData
-        ) = makeMulticallMockTargetCall(
-                address(mockTarget),
-                feeReceiver,
-                contracts,
-                data,
-                bidInfos
-            );
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            address(mockTarget),
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
 
         vm.expectRevert("invalid bid");
         vm.prank(address(expressRelay));
         expressRelay.callWithBid(multicallData[0]);
-
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
-            feeReceiver,
-            address(mockTarget)
-        );
-
-        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 }
