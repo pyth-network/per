@@ -668,6 +668,22 @@ contract ExpressRelayTestSetup is
     }
 
     /**
+     * @notice assertEqBalancesMockTarget function - asserts that the balances of the fee receiver, MockTarget target contract, express relay, and relayer are equal
+     *
+     * @param a: the first BalancesMockTarget struct
+     * @param b: the second BalancesMockTarget struct
+     */
+    function assertEqBalancesMockTarget(
+        BalancesMockTarget memory a,
+        BalancesMockTarget memory b
+    ) public pure {
+        assertEq(a.balanceFeeReceiver, b.balanceFeeReceiver);
+        assertEq(a.balanceMockTarget, b.balanceMockTarget);
+        assertEq(a.balanceExpressRelay, b.balanceExpressRelay);
+        assertEq(a.balanceRelayer, b.balanceRelayer);
+    }
+
+    /**
      * @notice getBalances function - gets the balances of the fee receiver, MockTarget target contract, express relay, and relayer
      *
      * @param feeReceiver: the address of the fee receiver
@@ -687,104 +703,42 @@ contract ExpressRelayTestSetup is
     }
 
     /**
-     * @notice assertExpectedBidPaymentMockTarget function - checks that the expected bid payments across fee receiver, target contract, express relay, and relayer are equal to the actual payments
+     * @notice getExpectedPostBidBalances function - calculates the expected balances after successful bids
      *
-     * @param balancesPre: the balances of the fee receiver, target contract, express relay, and relayer before the bid
-     * @param balancesPost: the balances of the fee receiver, target contract, express relay, and relayer after the bid
-     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
-     * @param multicallStatuses: array of MulticallStatus structs containing external success, result, and revert reason
+     * @param balancesPre: the balances of the fee receiver, MockTarget target contract, express relay, and relayer before the bids
+     * @param bidsSuccessful: the bid amounts that should have been successfully processed
      */
-    function assertExpectedBidPaymentMockTarget(
+    function getExpectedPostBidBalances(
         BalancesMockTarget memory balancesPre,
-        BalancesMockTarget memory balancesPost,
-        BidInfo[] memory bidInfos,
-        MulticallStatus[] memory multicallStatuses
-    ) public {
-        require(
-            bidInfos.length == multicallStatuses.length,
-            "bidInfos and multicallStatuses must have the same length"
+        uint256[] memory bidsSuccessful,
+        address feeReceiver
+    ) public view returns (BalancesMockTarget memory) {
+        BalancesMockTarget memory balancesPost = BalancesMockTarget(
+            balancesPre.balanceFeeReceiver,
+            balancesPre.balanceMockTarget,
+            balancesPre.balanceExpressRelay,
+            balancesPre.balanceRelayer
         );
 
-        BalancesMockTarget memory fees;
-
-        string memory emptyRevertReasonString = "";
-
-        for (uint i = 0; i < bidInfos.length; i++) {
-            bool emptyRevertReason = compareStrings(
-                multicallStatuses[i].multicallRevertReason,
-                emptyRevertReasonString
-            );
-
-            if (multicallStatuses[i].externalSuccess && emptyRevertReason) {
-                fees.balanceMockTarget += bidInfos[i].bid;
-
-                uint256 protocolSplit = (bidInfos[i].bid *
-                    expressRelay.getFeeProtocolDefault()) /
-                    expressRelay.getFeeSplitPrecision();
-                fees.balanceFeeReceiver += protocolSplit;
-
-                uint256 remainder = (bidInfos[i].bid - protocolSplit);
-                uint256 relayerSplit = (remainder * feeSplitRelayer) /
-                    expressRelay.getFeeSplitPrecision();
-                fees.balanceRelayer += relayerSplit;
-
-                fees.balanceExpressRelay += remainder - relayerSplit;
-            }
+        uint256 totalBid = 0;
+        for (uint i = 0; i < bidsSuccessful.length; i++) {
+            totalBid += bidsSuccessful[i];
         }
 
-        assertEq(
-            balancesPost.balanceFeeReceiver,
-            balancesPre.balanceFeeReceiver + fees.balanceFeeReceiver
-        );
-        assertEq(
-            balancesPost.balanceMockTarget,
-            balancesPre.balanceMockTarget - fees.balanceMockTarget
-        );
-        assertEq(
-            balancesPost.balanceExpressRelay,
-            balancesPre.balanceExpressRelay + fees.balanceExpressRelay
-        );
-        assertEq(
-            balancesPost.balanceRelayer,
-            balancesPre.balanceRelayer + fees.balanceRelayer
-        );
-    }
+        balancesPost.balanceMockTarget -= totalBid;
 
-    /**
-     * @notice runChecksMockTarget function - runs MulticallStatus and payment checks for interactions with MockTarget contract
-     *
-     * @param feeReceiver: the address of the fee receiver
-     * @param mockTargetAddress: the address of the MockTarget contract
-     * @param multicallStatuses: array of MulticallStatus structs containing external success, result, and revert reason
-     * @param expectedMulticallStatuses: expected values for MulticallStatus structs
-     * @param balancesPre: the balances of the fee receiver, target contract, express relay, and relayer before the bid
-     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
-     */
-    function runChecksMockTarget(
-        address feeReceiver,
-        address mockTargetAddress,
-        MulticallStatus[] memory multicallStatuses,
-        MulticallStatus[] memory expectedMulticallStatuses,
-        BalancesMockTarget memory balancesPre,
-        BidInfo[] memory bidInfos
-    ) public {
-        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
-            feeReceiver,
-            mockTargetAddress
-        );
+        uint256 protocolSplit = (totalBid *
+            expressRelay.getFeeProtocol(feeReceiver)) /
+            expressRelay.getFeeSplitPrecision();
+        balancesPost.balanceFeeReceiver += protocolSplit;
 
-        checkMulticallStatuses(
-            multicallStatuses,
-            expectedMulticallStatuses,
-            false
-        );
+        uint256 remainder = (totalBid - protocolSplit);
+        uint256 relayerSplit = (remainder * feeSplitRelayer) /
+            expressRelay.getFeeSplitPrecision();
+        balancesPost.balanceRelayer += relayerSplit;
+        balancesPost.balanceExpressRelay += remainder - relayerSplit;
 
-        assertExpectedBidPaymentMockTarget(
-            balancesPre,
-            balancesPost,
-            bidInfos,
-            multicallStatuses
-        );
+        return balancesPost;
     }
 
     /**

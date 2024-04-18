@@ -432,14 +432,25 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             multicallData
         );
 
-        runChecksMockTarget(
-            feeReceiver,
-            address(mockTarget),
+        checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            balancesPre,
-            bidInfos
+            false
         );
+
+        uint256[] memory bidsExpectedSuccessful = new uint256[](1);
+        bidsExpectedSuccessful[0] = bid;
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        BalancesMockTarget
+            memory balancesPostExpected = getExpectedPostBidBalances(
+                balancesPre,
+                bidsExpectedSuccessful,
+                feeReceiver
+            );
+        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
     }
 
     function testMulticallMockTargetFail() public {
@@ -488,14 +499,17 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             multicallData
         );
 
-        runChecksMockTarget(
-            feeReceiver,
-            address(mockTarget),
+        checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            balancesPre,
-            bidInfos
+            false
         );
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 
     function testMulticallMockTargetEoaFeeReceiver() public {
@@ -539,14 +553,25 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             multicallData
         );
 
-        runChecksMockTarget(
-            feeReceiver,
-            address(mockTarget),
+        checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            balancesPre,
-            bidInfos
+            false
         );
+
+        uint256[] memory bidsExpectedSuccessful = new uint256[](1);
+        bidsExpectedSuccessful[0] = bid;
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        BalancesMockTarget
+            memory balancesPostExpected = getExpectedPostBidBalances(
+                balancesPre,
+                bidsExpectedSuccessful,
+                feeReceiver
+            );
+        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
     }
 
     function testMulticallMockTargetWrongPermissionFail() public {
@@ -594,14 +619,17 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             multicallData
         );
 
-        runChecksMockTarget(
-            feeReceiver,
-            address(mockTarget),
+        checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            balancesPre,
-            bidInfos
+            false
         );
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 
     function testMulticallMockTargetWrongMismatchedBidFail() public {
@@ -650,14 +678,17 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             multicallData
         );
 
-        runChecksMockTarget(
-            feeReceiver,
-            address(mockTarget),
+        checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            balancesPre,
-            bidInfos
+            false
         );
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 
     function testMulticallMockTargetMultiple() public {
@@ -706,14 +737,26 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             multicallData
         );
 
-        runChecksMockTarget(
-            feeReceiver,
-            address(mockTarget),
+        checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            balancesPre,
-            bidInfos
+            false
         );
+
+        uint256[] memory bidsExpectedSuccessful = new uint256[](2);
+        bidsExpectedSuccessful[0] = bid0;
+        bidsExpectedSuccessful[1] = bid1;
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        BalancesMockTarget
+            memory balancesPostExpected = getExpectedPostBidBalances(
+                balancesPre,
+                bidsExpectedSuccessful,
+                feeReceiver
+            );
+        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
     }
 
     function testMulticallMockTargetMultipleFailSecond() public {
@@ -768,14 +811,25 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             multicallData
         );
 
-        runChecksMockTarget(
-            feeReceiver,
-            address(mockTarget),
+        checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            balancesPre,
-            bidInfos
+            false
         );
+
+        uint256[] memory bidsExpectedSuccessful = new uint256[](1);
+        bidsExpectedSuccessful[0] = bid0;
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        BalancesMockTarget
+            memory balancesPostExpected = getExpectedPostBidBalances(
+                balancesPre,
+                bidsExpectedSuccessful,
+                feeReceiver
+            );
+        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
     }
 
     function testMulticallMockTargetInvalidDataFail() public {
@@ -818,14 +872,17 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             multicallData
         );
 
-        runChecksMockTarget(
-            feeReceiver,
-            address(mockTarget),
+        checkMulticallStatuses(
             multicallStatuses,
             expectedMulticallStatuses,
-            balancesPre,
-            bidInfos
+            false
         );
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 
     function testCallWithBidByContractFail() public {
@@ -867,11 +924,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         // should fail bc permission isn't turned on
         assertEq(bytes4(result), MockProtocolUnauthorized.selector);
 
-        assertEq(
-            balancesPost.balanceExpressRelay,
-            balancesPre.balanceExpressRelay
-        );
-        assertEq(balancesPost.balanceMockTarget, balancesPre.balanceMockTarget);
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 
     function testCallWithBidByNonContractFail(address caller) public {
@@ -910,11 +963,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             address(mockTarget)
         );
 
-        assertEq(
-            balancesPost.balanceExpressRelay,
-            balancesPre.balanceExpressRelay
-        );
-        assertEq(balancesPost.balanceMockTarget, balancesPre.balanceMockTarget);
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 
     function testCallWithBidByContractInvalidDataFail() public {
@@ -952,11 +1001,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
         assert(!success);
 
-        assertEq(
-            balancesPost.balanceExpressRelay,
-            balancesPre.balanceExpressRelay
-        );
-        assertEq(balancesPost.balanceMockTarget, balancesPre.balanceMockTarget);
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 
     function testCallWithBidByContractPermissionless() public {
@@ -990,13 +1035,14 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         vm.prank(address(expressRelay));
         (bool success, ) = expressRelay.callWithBid(multicallData[0]);
 
+        assert(success);
+
         BalancesMockTarget memory balancesPost = getBalancesMockTarget(
             feeReceiver,
             address(mockTarget)
         );
 
-        assert(success);
-
+        // no payout of the bids to relayer or protocol within callWithBid
         assertEq(
             balancesPost.balanceExpressRelay,
             balancesPre.balanceExpressRelay + bid
@@ -1045,10 +1091,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             address(mockTarget)
         );
 
-        assertEq(
-            balancesPost.balanceExpressRelay,
-            balancesPre.balanceExpressRelay
-        );
-        assertEq(balancesPost.balanceMockTarget, balancesPre.balanceMockTarget);
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
     }
 }
