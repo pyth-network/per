@@ -21,7 +21,7 @@ contract MockTarget {
         address token,
         uint256 amount
     ) public payable {
-        MyToken(token).transfer(msg.sender, amount);
+        MyToken(token).mint(msg.sender, amount);
     }
 
     function transferSellTokenFromSenderAndBuyTokenToSender(
@@ -31,7 +31,7 @@ contract MockTarget {
         uint256 buyAmount
     ) public payable {
         MyToken(sellToken).transferFrom(msg.sender, address(this), sellAmount);
-        MyToken(buyToken).transfer(msg.sender, buyAmount);
+        MyToken(buyToken).mint(msg.sender, buyAmount);
     }
 
     function revertCall() public payable {
@@ -40,7 +40,7 @@ contract MockTarget {
 }
 
 contract OpportunityAdapterHarness is OpportunityAdapterUpgradable {
-    function exposedPrepareSellTokens(ExecutionParams calldata params) public {
+    function exposed_PrepareSellTokens(ExecutionParams calldata params) public {
         _prepareSellTokens(params);
     }
 }
@@ -105,7 +105,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     }
 
     function testRevertWhenInsufficientWethToTransferForBid() public {
-        (address executor, ) = makeAddrAndKey("executor");
+        address executor = makeAddr("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.doNothing.selector
@@ -135,52 +135,55 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     receive() external payable {}
 
     function testExecutionWithBidAndCallValue() public {
-        (address executor, ) = makeAddrAndKey("executor");
+        address executor = makeAddr("executor");
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
-        sellTokens[0] = TokenAmount(address(sellToken), 1000);
+        uint256 sellTokenAmount = 1000;
+        sellTokens[0] = TokenAmount(address(sellToken), sellTokenAmount);
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
-        buyTokens[0] = TokenAmount(address(buyToken), 100);
+        uint256 buyTokenAmount = 100;
+        buyTokens[0] = TokenAmount(address(buyToken), buyTokenAmount);
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
             address(sellToken),
-            1000,
+            sellTokenAmount,
             address(buyToken),
-            100
+            buyTokenAmount
         );
+        uint256 callValue = 123;
+        uint256 bid = 100;
         ExecutionParams memory executionParams = createAndSignExecutionParams(
             sellTokens,
             buyTokens,
             targetCalldata,
-            123,
-            100,
+            callValue,
+            bid,
             block.timestamp + 1000
         );
-        buyToken.mint(address(mockTarget), 100);
         uint256 initialAdapterBuyTokenBalance = 5000;
         buyToken.mint(
             address(opportunityAdapter),
             initialAdapterBuyTokenBalance
         ); // initial balance should not affect the result
-        sellToken.mint(executor, 1000);
+        sellToken.mint(executor, sellTokenAmount);
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
-        weth.deposit{value: 223 wei}();
-        weth.approve(address(opportunityAdapter), 223);
-        sellToken.approve(address(opportunityAdapter), 1000);
+        weth.deposit{value: (callValue + bid)}();
+        weth.approve(address(opportunityAdapter), (callValue + bid));
+        sellToken.approve(address(opportunityAdapter), sellTokenAmount);
         vm.stopPrank();
         vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectCall(address(mockTarget), 123, targetCalldata);
-        vm.expectCall(address(this), 100, bytes(""));
+        vm.expectCall(address(mockTarget), callValue, targetCalldata);
+        vm.expectCall(address(this), bid, bytes(""));
         vm.expectCall(
             address(weth),
-            abi.encodeWithSelector(WETH9.withdraw.selector, 123)
+            abi.encodeWithSelector(WETH9.withdraw.selector, callValue)
         );
         vm.expectCall(
             address(weth),
-            abi.encodeWithSelector(WETH9.withdraw.selector, 100)
+            abi.encodeWithSelector(WETH9.withdraw.selector, bid)
         );
         opportunityAdapter.executeOpportunity(executionParams);
-        assertEq(buyToken.balanceOf(executor), 100);
+        assertEq(buyToken.balanceOf(executor), buyTokenAmount);
         assertEq(
             buyToken.balanceOf(address(opportunityAdapter)),
             initialAdapterBuyTokenBalance
@@ -203,7 +206,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         );
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectCall(address(mockTarget), targetCalldata);
-        // should not call the followings
+        // When count is 0 (3rd argument) we expect 0 calls to be made to the specified address
         vm.expectCall(address(this), bytes(""), 0);
         vm.expectCall(
             address(weth),
@@ -216,11 +219,13 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     function testRevertWhenInsufficientTokensReceived() public {
         TokenAmount[] memory sellTokens = new TokenAmount[](0);
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
-        buyTokens[0] = TokenAmount(address(buyToken), 100);
+        uint256 expectedBuyTokenAmount = 100;
+        uint256 actualBuyTokenAmount = 99;
+        buyTokens[0] = TokenAmount(address(buyToken), expectedBuyTokenAmount);
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.transferTokenToSender.selector,
             address(buyToken),
-            99
+            actualBuyTokenAmount
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
             sellTokens,
@@ -230,7 +235,6 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
             0,
             block.timestamp + 1000
         );
-        buyToken.mint(address(mockTarget), 100);
         buyToken.mint(address(opportunityAdapter), 1000); // initial balance should not affect the result
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectCall(address(mockTarget), targetCalldata);
@@ -291,8 +295,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         ExecutionParams memory executionParams = createDummyExecutionParams(
             false
         );
-        (address invalidAdmin, ) = makeAddrAndKey("invalidExpressRelay");
-        vm.prank(invalidAdmin);
+        vm.prank(makeAddr("nonRelayer"));
         vm.expectRevert(Unauthorized.selector);
         opportunityAdapter.executeOpportunity(executionParams);
     }
@@ -327,45 +330,50 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     }
 
     function testSetExpressRelay() public {
-        (address invalidAdmin, ) = makeAddrAndKey("invalidAdmin");
-        vm.prank(invalidAdmin);
-        vm.expectRevert(Unauthorized.selector);
-        opportunityAdapter.setExpressRelay(address(this));
-
-        (address newRelay, ) = makeAddrAndKey("newRelay");
+        address newRelay = makeAddr("newRelay");
         opportunityAdapter.setExpressRelay(newRelay);
         assertEq(opportunityAdapter.getExpressRelay(), newRelay);
+    }
+
+    function testRevertWhenUnauthorizedSetExpressRelay() public {
+        vm.prank(makeAddr("invalidAdmin"));
+        vm.expectRevert(Unauthorized.selector);
+        opportunityAdapter.setExpressRelay(address(this));
     }
 
     function testPrepareSellTokens() public {
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
         TokenAmount[] memory buyTokens = new TokenAmount[](0);
-        sellTokens[0] = TokenAmount(address(buyToken), 100);
-        (address executor, ) = makeAddrAndKey("executor");
+        uint256 sellTokenAmount = 100;
+        sellTokens[0] = TokenAmount(address(sellToken), sellTokenAmount);
+        address executor = makeAddr("executor");
         ExecutionParams memory executionParams = createAndSignExecutionParams(
             sellTokens,
             buyTokens,
             bytes(""),
-            1,
+            0,
             0,
             block.timestamp + 1000
         );
-        buyToken.mint(executor, 100);
+        sellToken.mint(executor, sellTokenAmount);
         vm.prank(executor);
-        buyToken.approve(address(opportunityAdapter), 100);
-        opportunityAdapter.exposedPrepareSellTokens(executionParams);
-        assertEq(buyToken.balanceOf(address(opportunityAdapter)), 100);
+        sellToken.approve(address(opportunityAdapter), sellTokenAmount);
+        opportunityAdapter.exposed_PrepareSellTokens(executionParams);
         assertEq(
-            buyToken.allowance(
+            sellToken.balanceOf(address(opportunityAdapter)),
+            sellTokenAmount
+        );
+        assertEq(
+            sellToken.allowance(
                 address(opportunityAdapter),
                 address(mockTarget)
             ),
-            100
+            sellTokenAmount
         );
         assertEq(buyToken.balanceOf(executor), 0);
     }
 
-    function testRevertWhenDuplicateTokens() public {
+    function testRevertWhenDuplicateBuyTokensOrDuplicateSellTokens() public {
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         TokenAmount[] memory duplicateTokens = new TokenAmount[](2);
         duplicateTokens[0] = TokenAmount(address(buyToken), 100);
