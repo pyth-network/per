@@ -12,13 +12,13 @@ Auctions for each permission key with at least a single bid will be conducted ev
 - On an unsuccessful submission:
   - Bids will remain in a pending state and will be evaluated again in the next round of auction along with any new bids received in the meantime
 
-⚠️Auction server will make the best effort to only submit bids that will not revert on-chain but there is no guarantee.
+⚠️ Auction server will make the best effort to only submit bids that will not revert on-chain but there is no guarantee.
 This means that a bid can become public without actual execution
 
-⚠️Bids can be submitted on-chain multiple times.
+⚠️ Bids can be submitted on-chain multiple times.
 The searcher is responsible for implementing security precautions to avoid replay attacks.
 
-⚠️Any information regarding the bids will remain private until the bid is submitted on-chain.
+⚠️ Any information regarding the bids will remain private until the bid is submitted on-chain.
 From that point we consider the winning bids public and publish this information to other searchers too.
 Losing bids information will remain private forever.
 

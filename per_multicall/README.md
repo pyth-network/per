@@ -2,8 +2,8 @@
 
 ## Overview
 
-[Express Relay]('./ExressRelay.md')
-[Opportunity Adapter]('./OpportunityAdapter.md')
+[Express Relay](./ExressRelay.md)
+[Opportunity Adapter](./OpportunityAdapter.md)
 
 ## Setup
 

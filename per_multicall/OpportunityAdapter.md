@@ -41,8 +41,8 @@ by calling the executeOpportunity the contract will:
 
 If any of the mentioned steps fail the whole call will revert.
 
-⚠️Calling any ERC20 tokens with custom/malicious behaviour should be handled by the callee
+⚠️ Calling any ERC20 tokens with custom/malicious behaviour should be handled by the callee
 and is out of the scope for this contract.
 
-⚠️In cases where less than the specified amount of tokens is used by the target call,
+⚠️ In cases where less than the specified amount of tokens is used by the target call,
 the remaining tokens will remain in the contract and still approved to be used by the `targetContract`
