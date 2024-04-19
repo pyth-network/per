@@ -6,6 +6,17 @@ class TokenAmount(TypedDict):
     amount: str
 
 
+class EIP712Domain(TypedDict):
+    # The name parameter for the EIP712 domain separator.
+    name: str
+    # The version parameter for the EIP712 domain separator.
+    verion: str
+    # The network chain id parameter for the EIP712 domain separator.
+    chain_id: str
+    # The verifying contract parameter for the EIP712 domain separator.
+    verifying_contract: str
+
+
 class Opportunity(TypedDict):
     # The unique id of the opportunity
     opportunity_id: str
@@ -23,6 +34,8 @@ class Opportunity(TypedDict):
     sell_tokens: list[TokenAmount]
     # A list of tokens that ought to be received by the liquidator in exchange for the sell tokens.
     buy_tokens: list[TokenAmount]
+    # The eip712 domain config to be used for signing the opportunity
+    eip_712_domain: EIP712Domain
     # Opportunity format version, used to determine how to interpret the opportunity data
     version: str
 

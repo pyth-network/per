@@ -13,7 +13,12 @@ abstract contract OpportunityAdapter is SigVerify {
     address _admin;
     address _expressRelay;
     address _weth;
-    mapping(bytes => bool) _signatureUsed;
+    string constant _EXECUTION_PARAMS_TYPE =
+        "ExecutionParams(TokenAmount[] sellTokens,TokenAmount[] buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
+    string constant _TOKEN_AMOUNT_TYPE =
+        "TokenAmount(address token,uint256 amount)";
+    string constant _DOMAIN_NAME = "OpportunityAdapter";
+    string constant _DOMAIN_VERSION = "1";
 
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
@@ -30,6 +35,7 @@ abstract contract OpportunityAdapter is SigVerify {
         _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
+        __EIP712_init(_DOMAIN_NAME, _DOMAIN_VERSION);
     }
 
     /**
@@ -58,8 +64,46 @@ abstract contract OpportunityAdapter is SigVerify {
         return _weth;
     }
 
-    function getWethContract() internal view returns (WETH9) {
+    function _getWethContract() internal view returns (WETH9) {
         return WETH9(payable(_weth));
+    }
+
+    function hash(
+        TokenAmount memory tokenAmount
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(bytes(_TOKEN_AMOUNT_TYPE)),
+                    tokenAmount.token,
+                    tokenAmount.amount
+                )
+            );
+    }
+
+    function hash(
+        TokenAmount[] memory tokenAmounts
+    ) internal pure returns (bytes32) {
+        bytes32[] memory hashedTokens = new bytes32[](tokenAmounts.length);
+        for (uint i = 0; i < tokenAmounts.length; i++) {
+            hashedTokens[i] = hash(tokenAmounts[i]);
+        }
+        return keccak256(abi.encodePacked(hashedTokens));
+    }
+
+    function hash(ExecutionParams memory params) public pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(bytes(_EXECUTION_PARAMS_TYPE)),
+                    hash(params.sellTokens),
+                    hash(params.buyTokens),
+                    params.targetContract,
+                    keccak256(params.targetCalldata),
+                    params.targetCallValue,
+                    params.bidAmount
+                )
+            );
     }
 
     function _verifyParams(ExecutionParams calldata params) internal view {
@@ -67,32 +111,16 @@ abstract contract OpportunityAdapter is SigVerify {
             revert Unauthorized();
         }
 
-        bool validSignature = verifyCalldata(
+        verifyCalldata(
+            _EXECUTION_PARAMS_TYPE,
+            hash(params),
             params.executor,
-            abi.encode(
-                params.sellTokens,
-                params.buyTokens,
-                params.targetContract,
-                params.targetCalldata,
-                params.targetCallValue,
-                params.bidAmount,
-                params.validUntil
-            ),
-            params.signature
+            params.signature,
+            params.validUntil
         );
-        if (!validSignature) {
-            revert InvalidExecutorSignature();
-        }
 
         _revertOnDuplicate(params.sellTokens);
         _revertOnDuplicate(params.buyTokens);
-
-        if (block.timestamp > params.validUntil) {
-            revert ExpiredSignature();
-        }
-        if (_signatureUsed[params.signature]) {
-            revert SignatureAlreadyUsed();
-        }
     }
 
     function _revertOnDuplicate(TokenAmount[] calldata tokens) internal pure {
@@ -121,7 +149,7 @@ abstract contract OpportunityAdapter is SigVerify {
         address source,
         uint256 amount
     ) internal {
-        WETH9 weth = getWethContract();
+        WETH9 weth = _getWethContract();
         try weth.transferFrom(source, address(this), amount) {} catch {
             revert WethTransferFromFailed();
         }
@@ -187,7 +215,7 @@ abstract contract OpportunityAdapter is SigVerify {
         _callTargetContract(params);
         _validateAndTransferBuyTokens(params, buyTokensBalancesBeforeCall);
         _settleBid(params);
-        _signatureUsed[params.signature] = true;
+        _useSignature(params.signature);
     }
 
     // necessary to receive ETH from WETH contract using withdraw

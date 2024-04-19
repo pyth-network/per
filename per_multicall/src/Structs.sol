@@ -35,6 +35,7 @@ struct MulticallStatus {
     string multicallRevertReason;
 }
 
+// TODO separate into different structs - ExecutionParams should match with the EIP712 types in the contract
 struct ExecutionParams {
     TokenAmount[] sellTokens;
     TokenAmount[] buyTokens;

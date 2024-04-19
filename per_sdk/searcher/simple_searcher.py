@@ -74,6 +74,7 @@ def create_liquidation_transaction(
         int(opp["target_call_value"]),
         bid_info,
         sk_liquidator,
+        opp["eip_712_domain"],
     )
 
     opportunity_bid = {

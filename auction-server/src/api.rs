@@ -2,7 +2,10 @@ use {
     crate::{
         api::{
             bid::BidResult,
-            opportunity::OpportunityParamsWithMetadata,
+            opportunity::{
+                EIP712Domain,
+                OpportunityParamsWithMetadata,
+            },
             ws::{
                 APIResponse,
                 ClientMessage,
@@ -165,6 +168,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     BidStatus,
     BidStatusWithId,
     BidResult,
+    EIP712Domain,
     OpportunityParamsV1,
     OpportunityBid,
     OpportunityParams,

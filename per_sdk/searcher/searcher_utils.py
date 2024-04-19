@@ -1,9 +1,12 @@
 from typing import TypedDict
 
 import web3
-from eth_abi import encode
+from eth_account import Account
 from eth_account.datastructures import SignedMessage
-from web3.auto import w3
+
+from per_sdk.utils.types_liquidation_adapter import EIP712Domain
+
+solidity_keccak = web3.Web3.solidity_keccak
 
 
 class BidInfo(TypedDict):
@@ -11,6 +14,7 @@ class BidInfo(TypedDict):
     valid_until: int
 
 
+# Reference https://eips.ethereum.org/EIPS/eip-712
 def construct_signature_executor(
     sell_tokens: list[(str, int)],
     buy_tokens: list[(str, int)],
@@ -19,6 +23,7 @@ def construct_signature_executor(
     value: int,
     bid_info: BidInfo,
     secret_key: str,
+    eip_712_domain: EIP712Domain,
 ) -> SignedMessage:
     """
     Constructs a signature for an executors' bid to submit to the auction server.
@@ -32,31 +37,65 @@ def construct_signature_executor(
         bid: The amount of native token to bid on this opportunity.
         valid_until: The timestamp at which the transaction will expire.
         secret_key: A 0x-prefixed hex string representing the liquidator's private key.
+        eip_712_domain: The EIP712 domain data to create the signature.
     Returns:
-        A SignedMessage object, representing the liquidator's signature.
+        An EIP712 SignedMessage object, representing the liquidator's signature.
     """
 
-    digest = encode(
-        [
-            "(address,uint256)[]",
-            "(address,uint256)[]",
-            "address",
-            "bytes",
-            "uint256",
-            "uint256",
-            "uint256",
+    executor = Account.from_key(secret_key).address
+    domain_data = {
+        "name": eip_712_domain["name"],
+        "version": eip_712_domain["version"],
+        "chainId": eip_712_domain["chain_id"],
+        "verifyingContract": eip_712_domain["verifying_contract"],
+    }
+    message_types = {
+        "SignedParams": [
+            {"name": "executionParams", "type": "ExecutionParams"},
+            {"name": "signer", "type": "address"},
+            {"name": "deadline", "type": "uint256"},
         ],
-        [
-            sell_tokens,
-            buy_tokens,
-            address,
-            calldata,
-            value,
-            bid_info["bid"],
-            bid_info["valid_until"],
+        "ExecutionParams": [
+            {"name": "sellTokens", "type": "TokenAmount[]"},
+            {"name": "buyTokens", "type": "TokenAmount[]"},
+            {"name": "targetContract", "type": "address"},
+            {"name": "targetCalldata", "type": "bytes"},
+            {"name": "targetCallValue", "type": "uint256"},
+            {"name": "bidAmount", "type": "uint256"},
         ],
-    )
-    msg_data = web3.Web3.solidity_keccak(["bytes"], [digest])
-    signature = w3.eth.account.signHash(msg_data, private_key=secret_key)
+        "TokenAmount": [
+            {"name": "token", "type": "address"},
+            {"name": "amount", "type": "uint256"},
+        ],
+    }
 
-    return signature
+    # the data to be signed
+    message_data = {
+        "executionParams": {
+            "sellTokens": [
+                {
+                    "token": token[0],
+                    "amount": int(token[1]),
+                }
+                for token in sell_tokens
+            ],
+            "buyTokens": [
+                {
+                    "token": token[0],
+                    "amount": int(token[1]),
+                }
+                for token in buy_tokens
+            ],
+            "targetContract": address,
+            "targetCalldata": calldata,
+            "targetCallValue": value,
+            "bidAmount": bid_info["bid"],
+        },
+        "signer": executor,
+        "deadline": bid_info["valid_until"],
+    }
+
+    signed_typed_data = Account.sign_typed_data(
+        secret_key, domain_data, message_types, message_data
+    )
+    return signed_typed_data

@@ -7,11 +7,8 @@ error Unauthorized();
 // Signature: 0x868a64de
 error InvalidPermission();
 
-// Signature: 0x8f4450b5
-error InvalidExecutorSignature();
-
-// Signature: 0xf136a5b7
-error InvalidSearcherSignature();
+// Signature: 0x8baa579f
+error InvalidSignature();
 
 // Signature: 0xdf4cc36d
 error ExpiredSignature();

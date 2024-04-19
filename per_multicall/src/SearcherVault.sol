@@ -16,11 +16,9 @@ import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
 contract SearcherVault is SigVerify {
     event ReceivedETH(address, uint);
 
-    address public immutable expressRelay;
-    address public immutable owner;
-    address public immutable tokenVault;
-
-    mapping(bytes => bool) _signatureUsed;
+    address public expressRelay;
+    address public owner;
+    address public tokenVault;
 
     /**
      * @notice Searcher constructor - Initializes a new searcher contract with given parameters around token vault protocol
@@ -28,10 +26,14 @@ contract SearcherVault is SigVerify {
      * @param expressRelayAddress: address of express relay
      * @param protocolAddress: address of token vault protocol contract
      */
-    constructor(address expressRelayAddress, address protocolAddress) {
+    function initialize(
+        address expressRelayAddress,
+        address protocolAddress
+    ) public initializer {
         owner = msg.sender;
         expressRelay = expressRelayAddress;
         tokenVault = protocolAddress;
+        __EIP712_init("Searcher", "1");
     }
 
     /**
@@ -55,20 +57,14 @@ contract SearcherVault is SigVerify {
         }
 
         if (msg.sender == expressRelay) {
-            bool validSignatureSearcher = verifyCalldata(
+            // If the signature is not valid or expired, this will revert
+            verifyCalldata(
+                "ExecutionParams(uint256 vaultId,uint256 bid)",
+                keccak256(abi.encode(vaultId, bid)),
                 owner,
-                abi.encode(vaultId, bid, validUntil),
-                signatureSearcher
+                signatureSearcher,
+                validUntil
             );
-            if (!validSignatureSearcher) {
-                revert InvalidSearcherSignature();
-            }
-            if (block.timestamp > validUntil) {
-                revert ExpiredSignature();
-            }
-            if (_signatureUsed[signatureSearcher]) {
-                revert SignatureAlreadyUsed();
-            }
         }
 
         address payable vaultContract = payable(tokenVault);
@@ -90,7 +86,7 @@ contract SearcherVault is SigVerify {
         }
 
         // mark signature as used
-        _signatureUsed[signatureSearcher] = true;
+        _useSignature(signatureSearcher);
     }
 
     function withdrawEth(uint256 amount) public {
