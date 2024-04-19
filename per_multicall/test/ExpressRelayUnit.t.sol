@@ -6,10 +6,9 @@ import "forge-std/console.sol";
 
 import "../src/Errors.sol";
 import "../src/Structs.sol";
-import "../src/ExpressRelayEvents.sol";
-import "../src/ExpressRelayGovernanceEvents.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
+import "./helpers/MockProtocol.sol";
 
 /**
  * @title ExpressRelayUnitTest
@@ -17,15 +16,27 @@ import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
  * ExpressRelayUnitTest is a suite that tests the ExpressRelay contract.
  * This relates to testing the ExpressRelay setter methods and multicall.
  */
-contract ExpressRelayUnitTest is
-    Test,
-    ExpressRelayTestSetup,
-    ExpressRelayEvents,
-    ExpressRelayGovernanceEvents
-{
+contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
+    MockProtocol mockProtocol;
+    MockTarget mockTarget;
+
     function setUp() public {
         setUpWallets();
         setUpContracts();
+
+        setUpExpressRelayHarness();
+
+        mockProtocol = new MockProtocol(address(expressRelay));
+
+        mockTarget = new MockTarget(
+            address(expressRelay),
+            address(mockProtocol)
+        );
+        vm.deal(address(mockTarget), 1 ether);
+    }
+
+    function testGetAdmin() public {
+        assertEq(expressRelay.getAdmin(), admin);
     }
 
     function testSetRelayerByAdmin() public {
@@ -113,8 +124,8 @@ contract ExpressRelayUnitTest is
         expressRelay.addRelayerSubwallet(subwallet2);
 
         vm.expectRevert(Unauthorized.selector);
-        vm.prank(subwallet1);
-        expressRelay.removeRelayerSubwallet(subwallet2);
+        vm.prank(subwallet2);
+        expressRelay.removeRelayerSubwallet(subwallet1);
     }
 
     function testRemoveNonExistentRelayerSubwalletByRelayerFail() public {
@@ -268,32 +279,662 @@ contract ExpressRelayUnitTest is
         expressRelay.setFeeRelayer(0);
     }
 
-    function testMulticallByRelayerEmpty() public {
-        bytes memory permission = abi.encode("random permission");
+    function testSetFeeSplitPrecision() public {
+        expressRelayHarness.exposed_setFeeSplitPrecision();
+        uint256 feeSplitPrecision = expressRelayHarness.getFeeSplitPrecision();
+        assertEq(feeSplitPrecision, 10 ** 18);
+    }
+
+    function testValidateFeeSplit(uint256 feeSplit) public {
+        uint256 feeSplitPrecision = expressRelay.getFeeSplitPrecision();
+        if (feeSplit > feeSplitPrecision) {
+            vm.expectRevert(InvalidFeeSplit.selector);
+        }
+        expressRelayHarness.exposed_validateFeeSplit(feeSplit);
+    }
+
+    function testValidateFeeSplitMax() public view {
+        uint256 feeSplit = expressRelay.getFeeSplitPrecision();
+        expressRelayHarness.exposed_validateFeeSplit(feeSplit);
+    }
+
+    function testIsContract() public view {
+        assert(expressRelayHarness.exposed_isContract(address(this)));
+        assert(expressRelayHarness.exposed_isContract(address(expressRelay)));
+        assert(expressRelayHarness.exposed_isContract(address(mockProtocol)));
+        assert(expressRelayHarness.exposed_isContract(address(mockTarget)));
+        assert(
+            expressRelayHarness.exposed_isContract(address(opportunityAdapter))
+        );
+        assert(expressRelayHarness.exposed_isContract(address(tokenVault)));
+        assert(expressRelayHarness.exposed_isContract(address(weth)));
+        assert(expressRelayHarness.exposed_isContract(address(searcherA)));
+        assert(expressRelayHarness.exposed_isContract(address(searcherB)));
+
+        assert(!expressRelayHarness.exposed_isContract(address(0)));
+        assert(!expressRelayHarness.exposed_isContract(address(0xdeadbeef)));
+        assert(!expressRelayHarness.exposed_isContract(relayer));
+        assert(!expressRelayHarness.exposed_isContract(admin));
+        assert(!expressRelayHarness.exposed_isContract(searcherAOwnerAddress));
+        assert(!expressRelayHarness.exposed_isContract(searcherBOwnerAddress));
+        assert(!expressRelayHarness.exposed_isContract(tokenVaultDeployer));
+        assert(!expressRelayHarness.exposed_isContract(depositor));
+    }
+
+    function testBytesToAddress(address addr, bytes memory data) public {
+        bytes memory addrBytes = abi.encode(addr, data);
+        address addrDecoded = expressRelayHarness.exposed_bytesToAddress(
+            addrBytes
+        );
+        assertEq(addrDecoded, addr);
+    }
+
+    function testMulticallByRelayer() public {
+        (, , bytes memory permission) = generateRandomPermission();
         MulticallData[] memory multicallData;
 
         vm.prank(relayer);
         expressRelay.multicall(permission, multicallData);
     }
 
-    function testMulticallByRelayerSubwalletEmpty() public {
+    function testMulticallByRelayerSubwallet() public {
+        (, , bytes memory permission) = generateRandomPermission();
+
         address subwallet = makeAddr("subwallet");
         vm.prank(relayer);
         expressRelay.addRelayerSubwallet(subwallet);
 
-        bytes memory permission = abi.encode("random permission");
         MulticallData[] memory multicallData;
 
         vm.prank(subwallet);
         expressRelay.multicall(permission, multicallData);
     }
 
-    function testMulticallByNonRelayerFail() public {
-        bytes memory permission = abi.encode("random permission");
+    function testMulticallByNonRelayer() public {
+        (, , bytes memory permission) = generateRandomPermission();
+
         MulticallData[] memory multicallData;
 
         vm.expectRevert(Unauthorized.selector);
         vm.prank(address(0xbad));
         expressRelay.multicall(permission, multicallData);
+    }
+
+    function testMulticallPermissionToggle() public {
+        (
+            address protocol,
+            bytes memory permissionId,
+            bytes memory permission
+        ) = generateRandomPermission();
+
+        assert(!expressRelay.isPermissioned(protocol, permissionId));
+
+        MulticallData[] memory multicallData;
+        vm.prank(relayer);
+        expressRelay.multicall(permission, multicallData);
+
+        assert(!expressRelay.isPermissioned(protocol, permissionId));
+    }
+
+    function testMulticallInvalidPermissionFail() public {
+        // permission is 20 bytes, so this should not trigger invalid permission error
+        bytes memory permissionValid = abi.encodePacked(uint160(0));
+        MulticallData[] memory multicallData;
+
+        vm.prank(relayer);
+        expressRelay.multicall(permissionValid, multicallData);
+
+        // permission is 19 bytes, so this should trigger invalid permission error
+        bytes memory permissionInvalid = abi.encodePacked(uint152(0));
+
+        vm.expectRevert(InvalidPermission.selector);
+        vm.prank(relayer);
+        expressRelay.multicall(permissionInvalid, multicallData);
+    }
+
+    function testMulticallMockTarget() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid);
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (
+            bytes memory permission,
+            MulticallData[] memory multicallData
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalSuccess = true;
+
+        uint256[] memory bidsExpectedSuccessful = new uint256[](1);
+        bidsExpectedSuccessful[0] = bid;
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        BalancesMockTarget
+            memory balancesPostExpected = getExpectedPostBidBalances(
+                balancesPre,
+                bidsExpectedSuccessful,
+                feeReceiver
+            );
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPostExpected
+        );
+    }
+
+    function testMulticallMockTargetFail() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        // use the failing function, bid should not be paid out
+        data[0] = abi.encodeWithSelector(
+            mockTarget.passThroughFail.selector,
+            bid
+        );
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (
+            bytes memory permission,
+            MulticallData[] memory multicallData
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
+            MockProtocolFail.selector
+        );
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPre
+        );
+    }
+
+    function testMulticallMockTargetEoaFeeReceiver() public {
+        address feeReceiver = makeAddr("feeReceiverMockProtocol");
+        mockProtocol.setFeeReceiver(feeReceiver);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid);
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (
+            bytes memory permission,
+            MulticallData[] memory multicallData
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalSuccess = true;
+
+        uint256[] memory bidsExpectedSuccessful = new uint256[](1);
+        bidsExpectedSuccessful[0] = bid;
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        BalancesMockTarget
+            memory balancesPostExpected = getExpectedPostBidBalances(
+                balancesPre,
+                bidsExpectedSuccessful,
+                feeReceiver
+            );
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPostExpected
+        );
+    }
+
+    function testMulticallMockTargetWrongPermissionFail() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid);
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (
+            bytes memory permission,
+            MulticallData[] memory multicallData
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
+
+        // intentionally use incorrect permission
+        permission = abi.encodePacked(address(feeReceiver), uint256(1));
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
+            MockProtocolUnauthorized.selector
+        );
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPre
+        );
+    }
+
+    function testMulticallMockTargetWrongMismatchedBidFail() public {
+        address feeReceiver = address(mockProtocol);
+
+        // use different amounts in the asserted bid and the actual payment
+        uint256 bidAsserted = 100;
+        uint256 bidPaid = 90;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(
+            mockTarget.passThrough.selector,
+            bidPaid
+        );
+        bidInfos[0] = makeBidInfo(bidAsserted, searcherAOwnerSk);
+
+        (
+            bytes memory permission,
+            MulticallData[] memory multicallData
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+        expectedMulticallStatuses[0].externalSuccess = false;
+        expectedMulticallStatuses[0].multicallRevertReason = "invalid bid";
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPre
+        );
+    }
+
+    function testMulticallMockTargetMultiple() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid0 = 100;
+        uint256 bid1 = 93;
+
+        address[] memory contracts = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        BidInfo[] memory bidInfos = new BidInfo[](2);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid0);
+        bidInfos[0] = makeBidInfo(bid0, searcherAOwnerSk);
+
+        contracts[1] = address(mockTarget);
+        data[1] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid1);
+        bidInfos[1] = makeBidInfo(bid1, searcherBOwnerSk);
+
+        (
+            bytes memory permission,
+            MulticallData[] memory multicallData
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](2);
+        expectedMulticallStatuses[0].externalSuccess = true;
+        expectedMulticallStatuses[1].externalSuccess = true;
+
+        uint256[] memory bidsExpectedSuccessful = new uint256[](2);
+        bidsExpectedSuccessful[0] = bid0;
+        bidsExpectedSuccessful[1] = bid1;
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        BalancesMockTarget
+            memory balancesPostExpected = getExpectedPostBidBalances(
+                balancesPre,
+                bidsExpectedSuccessful,
+                feeReceiver
+            );
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPostExpected
+        );
+    }
+
+    function testMulticallMockTargetMultipleFailSecond() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid0 = 100;
+        uint256 bid1 = 93;
+
+        address[] memory contracts = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        BidInfo[] memory bidInfos = new BidInfo[](2);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid0);
+        bidInfos[0] = makeBidInfo(bid0, searcherAOwnerSk);
+
+        contracts[1] = address(mockTarget);
+        // use the failing function, bid1 should not be paid out
+        data[1] = abi.encodeWithSelector(
+            mockTarget.passThroughFail.selector,
+            bid1
+        );
+        bidInfos[1] = makeBidInfo(bid1, searcherBOwnerSk);
+
+        (
+            bytes memory permission,
+            MulticallData[] memory multicallData
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](2);
+        expectedMulticallStatuses[0].externalSuccess = true;
+        expectedMulticallStatuses[1].externalResult = abi.encodeWithSelector(
+            MockProtocolFail.selector
+        );
+
+        uint256[] memory bidsExpectedSuccessful = new uint256[](1);
+        bidsExpectedSuccessful[0] = bid0;
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+        BalancesMockTarget
+            memory balancesPostExpected = getExpectedPostBidBalances(
+                balancesPre,
+                bidsExpectedSuccessful,
+                feeReceiver
+            );
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPostExpected
+        );
+    }
+
+    function testMulticallMockTargetInvalidDataFail() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        // use invalid data, should fail
+        data[0] = abi.encodeWithSelector(bytes4(0xDEADBEEF));
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (
+            bytes memory permission,
+            MulticallData[] memory multicallData
+        ) = makeMulticallMockTargetCall(feeReceiver, contracts, data, bidInfos);
+
+        MulticallStatus[]
+            memory expectedMulticallStatuses = new MulticallStatus[](1);
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        runMulticallMockTargetSuccessfulAndCheck(
+            permission,
+            multicallData,
+            expectedMulticallStatuses,
+            address(mockTarget),
+            balancesPre
+        );
+    }
+
+    function testCallWithBidByContractFail() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid);
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        vm.prank(address(expressRelay));
+        (bool success, bytes memory result) = expressRelay.callWithBid(
+            multicallData[0]
+        );
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        assert(!success);
+        // should fail bc permission isn't turned on
+        assertEq(bytes4(result), MockProtocolUnauthorized.selector);
+
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
+    }
+
+    function testCallWithBidByNonContractFail(address caller) public {
+        vm.assume(caller != address(expressRelay));
+
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(mockTarget.passThrough.selector, bid);
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        vm.expectRevert(Unauthorized.selector);
+        vm.prank(caller);
+        expressRelay.callWithBid(multicallData[0]);
+    }
+
+    function testCallWithBidByContractInvalidDataFail() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(bytes4(0xDEADBEEF));
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        vm.prank(address(expressRelay));
+        (bool success, ) = expressRelay.callWithBid(multicallData[0]);
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        assert(!success);
+
+        assertEqBalancesMockTarget(balancesPost, balancesPre);
+    }
+
+    function testCallWithBidByContractPermissionless() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(
+            mockTarget.passThroughPermissionless.selector,
+            bid
+        );
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        vm.prank(address(expressRelay));
+        (bool success, ) = expressRelay.callWithBid(multicallData[0]);
+
+        assert(success);
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            address(mockTarget)
+        );
+
+        // no payout of the bids to relayer or protocol within callWithBid
+        assertEq(
+            balancesPost.balanceExpressRelay,
+            balancesPre.balanceExpressRelay + bid
+        );
+        assertEq(
+            balancesPost.balanceMockTarget,
+            balancesPre.balanceMockTarget - bid
+        );
+    }
+
+    function testCallWithBidByContractPermissionlessMismatchedBidFail() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bidAsserted = 100;
+        uint256 bidPaid = 93;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(mockTarget);
+        data[0] = abi.encodeWithSelector(
+            mockTarget.passThroughPermissionless.selector,
+            bidPaid
+        );
+        bidInfos[0] = makeBidInfo(bidAsserted, searcherAOwnerSk);
+
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        vm.expectRevert("invalid bid");
+        vm.prank(address(expressRelay));
+        expressRelay.callWithBid(multicallData[0]);
     }
 }

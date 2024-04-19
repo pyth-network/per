@@ -28,8 +28,12 @@ import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 import "./helpers/PriceHelpers.sol";
 import "./helpers/TestParsingHelpers.sol";
 import "./helpers/MulticallHelpers.sol";
+import "./helpers/ExpressRelayHarness.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/ExpressRelayUpgradable.sol";
+
+import "../src/ExpressRelayEvents.sol";
+import "../src/ExpressRelayGovernanceEvents.sol";
 
 /**
  * @title ExpressRelayTestSetUp
@@ -45,7 +49,9 @@ import "../src/ExpressRelayUpgradable.sol";
 contract ExpressRelayTestSetup is
     TestParsingHelpers,
     PriceHelpers,
-    MulticallHelpers
+    MulticallHelpers,
+    ExpressRelayEvents,
+    ExpressRelayGovernanceEvents
 {
     TokenVault public tokenVault;
     SearcherVault public searcherA;
@@ -55,6 +61,7 @@ contract ExpressRelayTestSetup is
     OpportunityAdapterUpgradable public opportunityAdapter;
     MockPyth public mockPyth;
 
+    ExpressRelayHarness public expressRelayHarness;
     SearcherSignature public searcherSignatureContract;
     OpportunityAdapterSignature public opportunityAdapterSignatureContract;
 
@@ -214,6 +221,27 @@ contract ExpressRelayTestSetup is
         token2 = new MyToken("token2", "T2");
         console.log("contract of token1 is", address(token1));
         console.log("contract of token2 is", address(token2));
+    }
+
+    /**
+     * @notice setUpExpressRelayHarness function - sets up the ExpressRelayHarness contract for internal function tests
+     */
+    function setUpExpressRelayHarness() public {
+        vm.prank(relayer);
+        ExpressRelayHarness _expressRelay = new ExpressRelayHarness();
+        ERC1967Proxy proxyExpressRelay = new ERC1967Proxy(
+            address(_expressRelay),
+            ""
+        );
+        expressRelayHarness = ExpressRelayHarness(payable(proxyExpressRelay));
+        expressRelayHarness.initialize(
+            // TODO: fix the owner and admin here
+            relayer,
+            admin,
+            relayer,
+            feeSplitProtocolDefault,
+            feeSplitRelayer
+        );
     }
 
     /**
@@ -509,6 +537,9 @@ contract ExpressRelayTestSetup is
 
     /**
      * @notice getMulticallInfoOpportunityAdapter function - creates necessary permission and data for multicall to liquidation adapter contract
+     *
+     * @param vaultNumber: the vault number to liquidate
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
      */
     function getMulticallInfoOpportunityAdapter(
         uint256 vaultNumber,
@@ -580,6 +611,13 @@ contract ExpressRelayTestSetup is
         }
     }
 
+    /**
+     * @notice getRandomBidId function - generates a random bid ID based on the target contract, target calldata, and bid amount
+     *
+     * @param targetContract: the target contract address
+     * @param targetCalldata: the target calldata
+     * @param bidAmount: the bid amount
+     */
     function getRandomBidId(
         address targetContract,
         bytes memory targetCalldata,
@@ -598,6 +636,13 @@ contract ExpressRelayTestSetup is
             );
     }
 
+    /**
+     * @notice getMulticallData function - creates necessary data for multicall to multiple contracts
+     *
+     * @param contracts: array of contract addresses
+     * @param data: array of calldata
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     */
     function getMulticallData(
         address[] memory contracts,
         bytes[] memory data,
@@ -626,37 +671,191 @@ contract ExpressRelayTestSetup is
         }
     }
 
+    struct BalancesMockTarget {
+        uint256 balanceFeeReceiver;
+        uint256 balanceMockTarget;
+        uint256 balanceExpressRelay;
+        uint256 balanceRelayer;
+    }
+
     /**
-     * @notice assertExpectedBidPayment function - checks that the expected bid payment is equal to the actual bid payment
+     * @notice assertEqBalancesMockTarget function - asserts that the balances of the fee receiver, MockTarget target contract, express relay, and relayer are equal
+     *
+     * @param a: the first BalancesMockTarget struct
+     * @param b: the second BalancesMockTarget struct
      */
-    function assertExpectedBidPayment(
-        uint256 balancePre,
-        uint256 balancePost,
-        BidInfo[] memory bidInfos,
-        MulticallStatus[] memory multicallStatuses
+    function assertEqBalancesMockTarget(
+        BalancesMockTarget memory a,
+        BalancesMockTarget memory b
     ) public {
-        require(
-            bidInfos.length == multicallStatuses.length,
-            "bidInfos and multicallStatuses must have the same length"
+        assertEq(a.balanceFeeReceiver, b.balanceFeeReceiver);
+        assertEq(a.balanceMockTarget, b.balanceMockTarget);
+        assertEq(a.balanceExpressRelay, b.balanceExpressRelay);
+        assertEq(a.balanceRelayer, b.balanceRelayer);
+    }
+
+    /**
+     * @notice getBalances function - gets the balances of the fee receiver, MockTarget target contract, express relay, and relayer
+     *
+     * @param feeReceiver: the address of the fee receiver
+     * @param mockTarget: the address of the MockTarget contract
+     */
+    function getBalancesMockTarget(
+        address feeReceiver,
+        address mockTarget
+    ) public view returns (BalancesMockTarget memory) {
+        return
+            BalancesMockTarget(
+                feeReceiver.balance,
+                mockTarget.balance,
+                address(expressRelay).balance,
+                relayer.balance
+            );
+    }
+
+    /**
+     * @notice getExpectedPostBidBalances function - calculates the expected balances after successful bids
+     *
+     * @param balancesPre: the balances of the fee receiver, MockTarget target contract, express relay, and relayer before the bids
+     * @param bidsSuccessful: the bid amounts that should have been successfully processed
+     * @param feeReceiver: the address of the fee receiver
+     */
+    function getExpectedPostBidBalances(
+        BalancesMockTarget memory balancesPre,
+        uint256[] memory bidsSuccessful,
+        address feeReceiver
+    ) public view returns (BalancesMockTarget memory) {
+        BalancesMockTarget memory balancesPost = BalancesMockTarget(
+            balancesPre.balanceFeeReceiver,
+            balancesPre.balanceMockTarget,
+            balancesPre.balanceExpressRelay,
+            balancesPre.balanceRelayer
         );
 
         uint256 totalBid = 0;
-        string memory emptyRevertReasonString = "";
-
-        for (uint i = 0; i < bidInfos.length; i++) {
-            bool externalSuccess = multicallStatuses[i].externalSuccess;
-            bool emptyRevertReason = compareStrings(
-                multicallStatuses[i].multicallRevertReason,
-                emptyRevertReasonString
-            );
-
-            if (externalSuccess && emptyRevertReason) {
-                totalBid +=
-                    (bidInfos[i].bid * feeSplitTokenVault) /
-                    expressRelay.getFeeSplitPrecision();
-            }
+        for (uint i = 0; i < bidsSuccessful.length; i++) {
+            totalBid += bidsSuccessful[i];
         }
 
-        assertEq(balancePost, balancePre + totalBid);
+        balancesPost.balanceMockTarget -= totalBid;
+
+        uint256 protocolSplit = (totalBid *
+            expressRelay.getFeeProtocol(feeReceiver)) /
+            expressRelay.getFeeSplitPrecision();
+        balancesPost.balanceFeeReceiver += protocolSplit;
+
+        uint256 remainder = (totalBid - protocolSplit);
+        uint256 relayerSplit = (remainder * feeSplitRelayer) /
+            expressRelay.getFeeSplitPrecision();
+        balancesPost.balanceRelayer += relayerSplit;
+        balancesPost.balanceExpressRelay += remainder - relayerSplit;
+
+        return balancesPost;
+    }
+
+    /**
+     * @notice makeMulticallMockTargetCall function - creates necessary permission, balances, and data for multicall to MockTarget contract
+     *
+     * @param feeReceiver: the address of the fee receiver
+     * @param contracts: array of target contract addresses
+     * @param data: array of target calldata
+     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     */
+    function makeMulticallMockTargetCall(
+        address feeReceiver,
+        address[] memory contracts,
+        bytes[] memory data,
+        BidInfo[] memory bidInfos
+    )
+        public
+        pure
+        returns (bytes memory permission, MulticallData[] memory multicallData)
+    {
+        permission = abi.encode(address(feeReceiver), abi.encode(uint256(0)));
+
+        multicallData = getMulticallData(contracts, data, bidInfos);
+    }
+
+    /**
+     * @notice expectMulticallIssuedEmit function - emits the expected MulticallIssued event for each loop of multicall for the given data
+     *
+     * @param permission: the permission key
+     * @param multicallData: array of MulticallData structs containing bid ID, bid amount, target contract address, and target calldata
+     * @param expectedMulticallStatuses: expected values for MulticallStatus structs
+     */
+    function expectMulticallIssuedEmit(
+        bytes memory permission,
+        MulticallData[] memory multicallData,
+        MulticallStatus[] memory expectedMulticallStatuses
+    ) internal {
+        require(
+            multicallData.length == expectedMulticallStatuses.length,
+            "Multicall data and status length mismatch"
+        );
+        for (uint i = 0; i < multicallData.length; i++) {
+            // TODO: maybe check the data as well, eventually--currently sometimes difficult to pin down exact multicallRevertReason
+            vm.expectEmit(true, true, true, false, address(expressRelay));
+            emit MulticallIssued(
+                permission,
+                i,
+                multicallData[i].bidId,
+                multicallData[i].bidAmount,
+                expectedMulticallStatuses[i]
+            );
+        }
+    }
+
+    /**
+     * @notice generateRandomPermission function - generates a random permission for testing purposes
+     */
+    function generateRandomPermission()
+        public
+        returns (
+            address protocol,
+            bytes memory permissionId,
+            bytes memory permission
+        )
+    {
+        protocol = makeAddr("protocol");
+        permissionId = abi.encode("random permission id");
+        permission = abi.encode(protocol, permissionId);
+    }
+
+    function runMulticallMockTargetSuccessfulAndCheck(
+        bytes memory permission,
+        MulticallData[] memory multicallData,
+        MulticallStatus[] memory expectedMulticallStatuses,
+        address mockTarget,
+        BalancesMockTarget memory balancesPostExpected
+    ) public {
+        assertEq(expectedMulticallStatuses.length, multicallData.length);
+
+        expectMulticallIssuedEmit(
+            permission,
+            multicallData,
+            expectedMulticallStatuses
+        );
+
+        vm.prank(relayer);
+        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
+            permission,
+            multicallData
+        );
+
+        checkMulticallStatuses(
+            multicallStatuses,
+            expectedMulticallStatuses,
+            false
+        );
+
+        address feeReceiver = expressRelayHarness.exposed_bytesToAddress(
+            permission
+        );
+
+        BalancesMockTarget memory balancesPost = getBalancesMockTarget(
+            feeReceiver,
+            mockTarget
+        );
+        assertEqBalancesMockTarget(balancesPost, balancesPostExpected);
     }
 }

@@ -86,7 +86,6 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     }
 
     function testRevertWhenInsufficientWethToTransferForCall() public {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.doNothing.selector
@@ -106,7 +105,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     }
 
     function testRevertWhenInsufficientWethToTransferForBid() public {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
+        (address executor, ) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.doNothing.selector
@@ -136,7 +135,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     receive() external payable {}
 
     function testExecutionWithBidAndCallValue() public {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
+        (address executor, ) = makeAddrAndKey("executor");
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
         sellTokens[0] = TokenAmount(address(sellToken), 1000);
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
@@ -190,7 +189,6 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     }
 
     function testExecutionWithNoBidAndCallValue() public {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.doNothing.selector
@@ -216,7 +214,6 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     }
 
     function testRevertWhenInsufficientTokensReceived() public {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory sellTokens = new TokenAmount[](0);
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         buyTokens[0] = TokenAmount(address(buyToken), 100);
@@ -268,7 +265,6 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     function createDummyExecutionParams(
         bool shouldRevert
     ) internal returns (ExecutionParams memory) {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata;
         if (shouldRevert) {
@@ -345,7 +341,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
         TokenAmount[] memory buyTokens = new TokenAmount[](0);
         sellTokens[0] = TokenAmount(address(buyToken), 100);
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
+        (address executor, ) = makeAddrAndKey("executor");
         ExecutionParams memory executionParams = createAndSignExecutionParams(
             sellTokens,
             buyTokens,
@@ -370,7 +366,6 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     }
 
     function testRevertWhenDuplicateTokens() public {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         TokenAmount[] memory duplicateTokens = new TokenAmount[](2);
         duplicateTokens[0] = TokenAmount(address(buyToken), 100);
@@ -405,7 +400,6 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     }
 
     function testRevertWhenExpired() public {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.doNothing.selector
