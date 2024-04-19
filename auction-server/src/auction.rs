@@ -259,7 +259,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             chain_store.config.clone(),
                             chain_store.network_id,
                             permission_key.clone(),
-                            winner_bids.iter().map(|b| MulticallData::from((b.id.to_bytes_le(), b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
+                            winner_bids.iter().map(|b| MulticallData::from((b.id.into_bytes(), b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
                         )
                         .await;
                         match submission {
@@ -306,7 +306,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct Bid {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type = String)]
@@ -337,7 +337,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         chain_store.config.clone(),
         bid.permission_key.clone(),
         vec![MulticallData::from((
-            Uuid::new_v4().to_bytes_le(),
+            Uuid::new_v4().into_bytes(),
             bid.target_contract,
             bid.target_calldata.clone(),
             bid.amount,

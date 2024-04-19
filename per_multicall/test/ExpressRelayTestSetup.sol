@@ -23,7 +23,8 @@ import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-import "./helpers/Signatures.sol";
+import "./helpers/Signatures/SearcherSignature.sol";
+import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 import "./helpers/PriceHelpers.sol";
 import "./helpers/TestParsingHelpers.sol";
 import "./helpers/MulticallHelpers.sol";
@@ -47,7 +48,6 @@ import "../src/ExpressRelayGovernanceEvents.sol";
  */
 contract ExpressRelayTestSetup is
     TestParsingHelpers,
-    Signatures,
     PriceHelpers,
     MulticallHelpers,
     ExpressRelayEvents,
@@ -62,6 +62,8 @@ contract ExpressRelayTestSetup is
     MockPyth public mockPyth;
 
     ExpressRelayHarness public expressRelayHarness;
+    SearcherSignature public searcherSignatureContract;
+    OpportunityAdapterSignature public opportunityAdapterSignatureContract;
 
     MyToken public token1;
     MyToken public token2;
@@ -181,6 +183,12 @@ contract ExpressRelayTestSetup is
             address(weth)
         );
 
+        searcherSignatureContract = new SearcherSignature();
+        searcherSignatureContract.initializeSearcherSignature();
+        opportunityAdapterSignatureContract = new OpportunityAdapterSignature();
+        opportunityAdapterSignatureContract
+            .initializeOpportunityAdapterSignature();
+
         vm.prank(relayer);
         mockPyth = new MockPyth(1_000_000, 0);
 
@@ -196,19 +204,15 @@ contract ExpressRelayTestSetup is
         feeSplitTokenVault = feeSplitProtocolDefault;
 
         // instantiate searcher A's contract with searcher A's wallet as the deployer
+        searcherA = new SearcherVault();
         vm.prank(searcherAOwnerAddress);
-        searcherA = new SearcherVault(
-            address(expressRelay),
-            address(tokenVault)
-        );
+        searcherA.initialize(address(expressRelay), address(tokenVault));
         console.log("contract of searcher A is", address(searcherA));
 
         // instantiate searcher B's contract with searcher B's wallet as the deployer
+        searcherB = new SearcherVault();
         vm.prank(searcherBOwnerAddress);
-        searcherB = new SearcherVault(
-            address(expressRelay),
-            address(tokenVault)
-        );
+        searcherB.initialize(address(expressRelay), address(tokenVault));
         console.log("contract of searcher B is", address(searcherB));
 
         vm.prank(relayer);
@@ -482,12 +486,13 @@ contract ExpressRelayTestSetup is
 
     /**
      * @notice getMulticallInfoSearcherContracts function - creates necessary permission and data for multicall to searcher contracts
-     *
-     * @param vaultNumber: the vault number to liquidate
-     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     * @param vaultNumber: the vault number to be liquidated
+     * @param contracts: the searcher contracts to be called
+     * @param bidInfos: the bid info for each searcher contract
      */
     function getMulticallInfoSearcherContracts(
         uint256 vaultNumber,
+        address[] memory contracts,
         BidInfo[] memory bidInfos
     ) public returns (bytes memory permission, bytes[] memory data) {
         vm.roll(2);
@@ -510,12 +515,15 @@ contract ExpressRelayTestSetup is
 
         for (uint i = 0; i < bidInfos.length; i++) {
             // create searcher signature
-            bytes memory signatureSearcher = createSearcherSignature(
-                vaultNumber,
-                bidInfos[i].bid,
-                bidInfos[i].validUntil,
-                bidInfos[i].executorSk
-            );
+            bytes memory signatureSearcher = searcherSignatureContract
+                .createSearcherSignature(
+                    contracts[i],
+                    bidInfos[i].executor,
+                    vaultNumber,
+                    bidInfos[i].bid,
+                    bidInfos[i].validUntil,
+                    bidInfos[i].executorSk
+                );
             data[i] = abi.encodeWithSelector(
                 searcherA.doLiquidate.selector,
                 vaultNumber,
@@ -579,16 +587,19 @@ contract ExpressRelayTestSetup is
         for (uint i = 0; i < bidInfos.length; i++) {
             // create liquidation call params struct
             ExecutionParams
-                memory executionParams = createAndSignExecutionParams(
-                    sellTokens,
-                    buyTokens,
-                    contractAddress,
-                    calldataVault,
-                    value,
-                    bidInfos[i].bid,
-                    bidInfos[i].validUntil,
-                    bidInfos[i].executorSk
-                );
+                memory executionParams = opportunityAdapterSignatureContract
+                    .createAndSignExecutionParams(
+                        opportunityAdapter,
+                        bidInfos[i].executor,
+                        sellTokens,
+                        buyTokens,
+                        contractAddress,
+                        calldataVault,
+                        value,
+                        bidInfos[i].bid,
+                        bidInfos[i].validUntil,
+                        bidInfos[i].executorSk
+                    );
 
             // manually set the executor address again since it's not necessarily the same as vm.addr(executorSk)
             executionParams.executor = bidInfos[i].executor;

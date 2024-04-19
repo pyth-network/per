@@ -8,7 +8,7 @@ Run the following commands to install necessary libraries:
 $ npm install
 $ forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit
 $ forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commit
-$ forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.1 --no-git --no-commit
+$ forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
 ```
 
 ## Repo contracts
@@ -79,4 +79,13 @@ forge verify-contract --via-ir <contract-address> ERC1967Proxy --verifier blocks
 forge verify-contract --via-ir <contract-address> ERC1967Proxy --verifier-url https://api-sepolia-optimistic.etherscan.io/api --etherscan-api-key <optimistic-etherscan-api-key> --chain-id 11155420
 
 You may have to specify the constructor arguments used to initialize the contract, using the `--constructor-args` flag. For more info see the [forge instructions on verifying contracts](https://book.getfoundry.sh/forge/deploying?highlight=verify#verifying-a-pre-existing-contract).
+```
+
+# Upgrading contracts on optimism testnet
+
+Run the following to upgrade ExpressRelay and OpportunityAdapter contracts on the optimism testnet:
+
+```
+forge script script/Vault.s.sol --via-ir --fork-url https://sepolia.optimism.io -vvv --sig 'upgradeExpressRelay(address)' 0xc643e55EE8944F3017F4CB8C82aa3DB1AA2d8941 --broadcast
+forge script script/Vault.s.sol --via-ir --fork-url https://sepolia.optimism.io -vvv --sig 'upgradeOpportunityAdapter(address)' 0xD35E56C06320B1ED549a8F85d316FEc854FF4b71 --broadcast
 ```
