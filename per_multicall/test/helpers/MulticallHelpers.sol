@@ -17,9 +17,9 @@ contract MulticallHelpers is Test, TestParsingHelpers {
 
     function assertFailedExternal(
         MulticallStatus memory status,
-        bytes4 errorSelector
-    ) internal pure {
-        assertEq(bytes4(status.externalResult), errorSelector);
+        bytes memory errorSelector
+    ) internal {
+        assertEq(bytes4(status.externalResult), bytes4(errorSelector));
     }
 
     function logMulticallStatuses(
@@ -33,6 +33,29 @@ contract MulticallHelpers is Test, TestParsingHelpers {
             console.log("Multicall Revert reason:");
             console.log(multicallStatuses[i].multicallRevertReason);
             console.log("----------------------------");
+        }
+    }
+
+    function checkMulticallStatuses(
+        MulticallStatus[] memory observed,
+        MulticallStatus[] memory expected,
+        bool checkExternalResult
+    ) internal {
+        assertEq(observed.length, expected.length);
+        for (uint256 i = 0; i < observed.length; i++) {
+            assertEq(observed[i].externalSuccess, expected[i].externalSuccess);
+
+            if (checkExternalResult) {
+                assertEq(
+                    bytes4(observed[i].externalResult),
+                    bytes4(expected[i].externalResult)
+                );
+            }
+
+            assertEq(
+                observed[i].multicallRevertReason,
+                expected[i].multicallRevertReason
+            );
         }
     }
 }
