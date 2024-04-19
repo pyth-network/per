@@ -15,23 +15,23 @@ import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 contract MockTarget {
     error BadCall();
 
-    function execute(bytes calldata data) public payable {}
+    function doNothing() public payable {}
 
-    function executeAndReturnErc20(
+    function transferTokenToSender(
         address token,
         uint256 amount
     ) public payable {
         MyToken(token).transfer(msg.sender, amount);
     }
 
-    function executeGetAndReturnErc20(
+    function transferSellTokenFromSenderAndBuyTokenToSender(
         address sellToken,
         uint256 sellAmount,
         address buyToken,
         uint256 buyAmount
     ) public payable {
-        MyToken(buyToken).transfer(msg.sender, buyAmount);
         MyToken(sellToken).transferFrom(msg.sender, address(this), sellAmount);
+        MyToken(buyToken).transfer(msg.sender, buyAmount);
     }
 
     function revertCall() public payable {
@@ -50,7 +50,6 @@ contract InvalidMagicOpportunityAdapter is
     OwnableUpgradeable,
     UUPSUpgradeable
 {
-    // Only allow the owner to upgrade the proxy to a new implementation.
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function opportunityAdapterUpgradableMagic() public pure returns (uint32) {
@@ -90,20 +89,15 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.execute.selector,
-            abi.encode(0)
+            mockTarget.doNothing.selector
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            opportunityAdapter,
-            executor,
             noTokens,
             noTokens,
-            address(mockTarget),
             targetCalldata,
             1,
             0,
-            block.timestamp + 1000,
-            executorSk
+            block.timestamp + 1000
         );
         vm.prank(opportunityAdapter.getExpressRelay());
         // callvalue is 1 wei, but executor has not deposited/approved any WETH
@@ -115,20 +109,15 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.execute.selector,
-            abi.encode("arbitrary data")
+            mockTarget.doNothing.selector
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            opportunityAdapter,
-            executor,
             noTokens,
             noTokens,
-            address(mockTarget),
             targetCalldata,
             123,
             100,
-            block.timestamp + 1000,
-            executorSk
+            block.timestamp + 1000
         );
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
@@ -153,23 +142,19 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         buyTokens[0] = TokenAmount(address(buyToken), 100);
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.executeGetAndReturnErc20.selector,
+            mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
             address(sellToken),
             1000,
             address(buyToken),
             100
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            opportunityAdapter,
-            executor,
             sellTokens,
             buyTokens,
-            address(mockTarget),
             targetCalldata,
             123,
             100,
-            block.timestamp + 1000,
-            executorSk
+            block.timestamp + 1000
         );
         buyToken.mint(address(mockTarget), 100);
         uint256 initialAdapterBuyTokenBalance = 5000;
@@ -208,20 +193,15 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.execute.selector,
-            abi.encode("arbitrary data")
+            mockTarget.doNothing.selector
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            opportunityAdapter,
-            executor,
             noTokens,
             noTokens,
-            address(mockTarget),
             targetCalldata,
             0,
             0,
-            block.timestamp + 1000,
-            executorSk
+            block.timestamp + 1000
         );
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectCall(address(mockTarget), targetCalldata);
@@ -241,21 +221,17 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         buyTokens[0] = TokenAmount(address(buyToken), 100);
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.executeAndReturnErc20.selector,
+            mockTarget.transferTokenToSender.selector,
             address(buyToken),
             99
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            opportunityAdapter,
-            executor,
             sellTokens,
             buyTokens,
-            address(mockTarget),
             targetCalldata,
             0,
             0,
-            block.timestamp + 1000,
-            executorSk
+            block.timestamp + 1000
         );
         buyToken.mint(address(mockTarget), 100);
         buyToken.mint(address(opportunityAdapter), 1000); // initial balance should not affect the result
@@ -263,6 +239,30 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         vm.expectCall(address(mockTarget), targetCalldata);
         vm.expectRevert(InsufficientTokenReceived.selector);
         opportunityAdapter.executeOpportunity(executionParams);
+    }
+
+    function createAndSignExecutionParams(
+        TokenAmount[] memory sellTokens,
+        TokenAmount[] memory buyTokens,
+        bytes memory data,
+        uint256 value,
+        uint256 bid,
+        uint256 validUntil
+    ) public returns (ExecutionParams memory executionParams) {
+        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
+        return
+            super.createAndSignExecutionParams(
+                opportunityAdapter,
+                executor,
+                sellTokens,
+                buyTokens,
+                address(mockTarget),
+                data,
+                value,
+                bid,
+                validUntil,
+                executorSk
+            );
     }
 
     function createDummyExecutionParams(
@@ -277,22 +277,17 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
             );
         } else {
             targetCalldata = abi.encodeWithSelector(
-                mockTarget.execute.selector,
-                abi.encode("arbitrary data")
+                mockTarget.doNothing.selector
             );
         }
         return
             createAndSignExecutionParams(
-                opportunityAdapter,
-                executor,
                 noTokens,
                 noTokens,
-                address(mockTarget),
                 targetCalldata,
                 0,
                 0,
-                block.timestamp + 1000,
-                executorSk
+                block.timestamp + 1000
             );
     }
 
@@ -352,16 +347,12 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         sellTokens[0] = TokenAmount(address(buyToken), 100);
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            opportunityAdapter,
-            executor,
             sellTokens,
             buyTokens,
-            address(mockTarget),
             bytes(""),
             1,
             0,
-            block.timestamp + 1000,
-            executorSk
+            block.timestamp + 1000
         );
         buyToken.mint(executor, 100);
         vm.prank(executor);
@@ -385,37 +376,28 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         duplicateTokens[0] = TokenAmount(address(buyToken), 100);
         duplicateTokens[1] = TokenAmount(address(buyToken), 200);
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.execute.selector,
-            abi.encode("arbitrary data")
+            mockTarget.doNothing.selector
         );
         ExecutionParams
             memory executionParamsDuplicateBuy = createAndSignExecutionParams(
-                opportunityAdapter,
-                executor,
                 noTokens,
                 duplicateTokens,
-                address(mockTarget),
                 targetCalldata,
                 0,
                 0,
-                block.timestamp + 1000,
-                executorSk
+                block.timestamp + 1000
             );
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectRevert(DuplicateToken.selector);
         opportunityAdapter.executeOpportunity(executionParamsDuplicateBuy);
         ExecutionParams
             memory executionParamsDuplicateSell = createAndSignExecutionParams(
-                opportunityAdapter,
-                executor,
                 duplicateTokens,
                 noTokens,
-                address(mockTarget),
                 targetCalldata,
                 0,
                 0,
-                block.timestamp + 1000,
-                executorSk
+                block.timestamp + 1000
             );
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectRevert(DuplicateToken.selector);
@@ -426,20 +408,15 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.execute.selector,
-            abi.encode(0)
+            mockTarget.doNothing.selector
         );
         ExecutionParams memory executionParams = createAndSignExecutionParams(
-            opportunityAdapter,
-            executor,
             noTokens,
             noTokens,
-            address(mockTarget),
             targetCalldata,
             0,
             0,
-            block.timestamp + 1,
-            executorSk
+            block.timestamp + 1
         );
         vm.warp(block.timestamp + 2);
         vm.prank(opportunityAdapter.getExpressRelay());
