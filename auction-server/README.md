@@ -24,7 +24,8 @@ The searcher is responsible for implementing security precautions to avoid repla
 - Not submit a bid that would have succeeded on-chain
 - Submit a bid multiple times
 - Create a suboptimal bundle of bids
-  Relayer is responsible for monitoring the health of these dependencies and landing the correct bids on-chain.
+
+Relayer is responsible for monitoring the health of these dependencies and landing the correct bids on-chain.
 
 ⚠️ Any information regarding the bids will remain private until the bid is submitted on-chain.
 From that point we consider the winning bids public and publish this information to other searchers too.
