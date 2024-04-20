@@ -46,22 +46,25 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
             mockTarget.execute.selector,
             abi.encode(0)
         );
-        ExecutionParams memory executionParams = createAndSignExecutionParams(
-            opportunityAdapter,
+        ExecutionParams memory executionParams = ExecutionParams(
+            noTokens,
+            noTokens,
             executor,
-            noTokens,
-            noTokens,
             address(mockTarget),
             targetCalldata,
-            1,
             0,
             block.timestamp + 1000,
+            100
+        );
+        bytes memory signature = createOpportunityAdapterSignature(
+            opportunityAdapter,
+            executionParams,
             executorSk
         );
         vm.prank(opportunityAdapter.getExpressRelay());
         // callvalue is 1 wei, but executor has not deposited/approved any WETH
         vm.expectRevert(WethTransferFromFailed.selector);
-        opportunityAdapter.executeOpportunity(executionParams);
+        opportunityAdapter.executeOpportunity(executionParams, signature);
     }
 
     function testRevertWhenInsufficientWethToTransferForBid() public {
@@ -71,16 +74,20 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
             mockTarget.execute.selector,
             abi.encode("arbitrary data")
         );
-        ExecutionParams memory executionParams = createAndSignExecutionParams(
-            opportunityAdapter,
+
+        ExecutionParams memory executionParams = ExecutionParams(
+            noTokens,
+            noTokens,
             executor,
-            noTokens,
-            noTokens,
             address(mockTarget),
             targetCalldata,
             123,
-            100,
             block.timestamp + 1000,
+            100
+        );
+        bytes memory signature = createOpportunityAdapterSignature(
+            opportunityAdapter,
+            executionParams,
             executorSk
         );
         vm.deal(executor, 1 ether);
@@ -93,6 +100,6 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         // 100 more wei to return the bid
         vm.expectCall(address(mockTarget), 123, targetCalldata);
         vm.expectRevert(WethTransferFromFailed.selector);
-        opportunityAdapter.executeOpportunity(executionParams);
+        opportunityAdapter.executeOpportunity(executionParams, signature);
     }
 }

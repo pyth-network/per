@@ -5,12 +5,9 @@ import "openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
 import "openzeppelin-contracts-upgradeable/contracts/utils/cryptography/EIP712Upgradeable.sol";
 
 import "./Errors.sol";
-import "forge-std/console.sol";
 
 contract SigVerify is EIP712Upgradeable {
     mapping(bytes => bool) _signatureUsed;
-    string constant _SIGNATURE_TYPE =
-        "SignedParams(ExecutionParams executionParams,address signer,uint256 deadline)";
 
     /**
      * @notice Verifies the validity of the provided calldata signature and parameters.
@@ -18,8 +15,7 @@ contract SigVerify is EIP712Upgradeable {
      * with the ecdsa recovered signer from the provided signature. It also checks for the
      * validity of the signature, expiration of the deadline, and whether the signature
      * has already been used.
-     * @param executionParamsType The type of execution parameters. This is used to create the complete typed data hash by concatenating it with the signature type.
-     * @param hashedData The eip712 hashed data constructed from the execution parameters with the provided type.
+     * @param hashedData The eip712 hashed data constructed for signature verification.
      * @param signer The expected signer address.
      * @param signature The signature to be verified.
      * @param deadline The deadline timestamp in seconds until which the signature is valid.
@@ -28,7 +24,6 @@ contract SigVerify is EIP712Upgradeable {
      * Throws `SignatureAlreadyUsed` if the signature has already been used.
      */
     function verifyCalldata(
-        string memory executionParamsType,
         bytes32 hashedData,
         address signer,
         bytes memory signature,
@@ -42,20 +37,7 @@ contract SigVerify is EIP712Upgradeable {
             revert SignatureAlreadyUsed();
         }
 
-        bytes32 digest = _hashTypedDataV4(
-            keccak256(
-                abi.encode(
-                    keccak256(
-                        bytes(
-                            string.concat(_SIGNATURE_TYPE, executionParamsType)
-                        )
-                    ),
-                    hashedData,
-                    signer,
-                    deadline
-                )
-            )
-        );
+        bytes32 digest = _hashTypedDataV4(hashedData);
         address _signer = ECDSA.recover(digest, signature);
 
         if (_signer == address(0) || _signer != signer) {

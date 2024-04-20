@@ -50,17 +50,14 @@ def construct_signature_executor(
         "verifyingContract": eip_712_domain["verifying_contract"],
     }
     message_types = {
-        "SignedParams": [
-            {"name": "executionParams", "type": "ExecutionParams"},
-            {"name": "signer", "type": "address"},
-            {"name": "deadline", "type": "uint256"},
-        ],
         "ExecutionParams": [
             {"name": "sellTokens", "type": "TokenAmount[]"},
             {"name": "buyTokens", "type": "TokenAmount[]"},
+            {"name": "executor", "type": "address"},
             {"name": "targetContract", "type": "address"},
             {"name": "targetCalldata", "type": "bytes"},
             {"name": "targetCallValue", "type": "uint256"},
+            {"name": "validUntil", "type": "uint256"},
             {"name": "bidAmount", "type": "uint256"},
         ],
         "TokenAmount": [
@@ -71,28 +68,26 @@ def construct_signature_executor(
 
     # the data to be signed
     message_data = {
-        "executionParams": {
-            "sellTokens": [
-                {
-                    "token": token[0],
-                    "amount": int(token[1]),
-                }
-                for token in sell_tokens
-            ],
-            "buyTokens": [
-                {
-                    "token": token[0],
-                    "amount": int(token[1]),
-                }
-                for token in buy_tokens
-            ],
-            "targetContract": address,
-            "targetCalldata": calldata,
-            "targetCallValue": value,
-            "bidAmount": bid_info["bid"],
-        },
-        "signer": executor,
-        "deadline": bid_info["valid_until"],
+        "sellTokens": [
+            {
+                "token": token[0],
+                "amount": int(token[1]),
+            }
+            for token in sell_tokens
+        ],
+        "buyTokens": [
+            {
+                "token": token[0],
+                "amount": int(token[1]),
+            }
+            for token in buy_tokens
+        ],
+        "executor": executor,
+        "targetContract": address,
+        "targetCalldata": calldata,
+        "targetCallValue": value,
+        "validUntil": bid_info["valid_until"],
+        "bidAmount": bid_info["bid"],
     }
 
     signed_typed_data = Account.sign_typed_data(
