@@ -61,9 +61,13 @@ contract OpportunityAdapterIntegrationTest is
     MyToken buyToken;
     MyToken sellToken;
 
-    function setUp() public {
+    function setUpTokens() internal {
         buyToken = new MyToken("BuyToken", "BT");
         sellToken = new MyToken("SellToken", "ST");
+        weth = new WETH9();
+    }
+
+    function setUpOpportunityAdapter() internal {
         OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
         ERC1967Proxy proxyOpportunityAdapter = new ERC1967Proxy(
             address(_opportunityAdapter),
@@ -72,13 +76,17 @@ contract OpportunityAdapterIntegrationTest is
         opportunityAdapter = OpportunityAdapterUpgradable(
             payable(proxyOpportunityAdapter)
         );
-        weth = new WETH9();
         opportunityAdapter.initialize(
             address(this),
             address(this),
             address(this),
             address(weth)
         );
+    }
+
+    function setUp() public {
+        setUpTokens();
+        setUpOpportunityAdapter();
         mockTarget = new MockTarget();
     }
 

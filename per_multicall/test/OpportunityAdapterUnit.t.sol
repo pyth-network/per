@@ -11,40 +11,7 @@ import "../src/OpportunityAdapter.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/MyToken.sol";
 import "./helpers/Signatures/OpportunityAdapterSignature.sol";
-
-contract OpportunityAdapterHarness is OpportunityAdapter {
-    function exposed_PrepareSellTokens(
-        TokenAmount[] calldata sellTokens,
-        address executor,
-        address targetContract
-    ) public {
-        _prepareSellTokens(sellTokens, executor, targetContract);
-    }
-
-    function exposed_checkDuplicateTokens(
-        TokenAmount[] calldata tokens
-    ) public {
-        _checkDuplicateTokens(tokens);
-    }
-
-    function exposed_getContractTokenBalances(
-        TokenAmount[] calldata tokens
-    ) public returns (uint256[] memory) {
-        return _getContractTokenBalances(tokens);
-    }
-
-    function exposed_validateAndTransferBuyTokens(
-        TokenAmount[] calldata buyTokens,
-        address executor,
-        uint256[] memory buyTokensBalancesBeforeCall
-    ) public {
-        _validateAndTransferBuyTokens(
-            buyTokens,
-            executor,
-            buyTokensBalancesBeforeCall
-        );
-    }
-}
+import "./helpers/OpportunityAdapterHarness.sol";
 
 contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
     OpportunityAdapterHarness opportunityAdapter;
