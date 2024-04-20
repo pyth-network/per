@@ -5,8 +5,6 @@ import "./Signature.sol";
 import "../../../src/OpportunityAdapterUpgradable.sol";
 
 contract OpportunityAdapterSignature is Signature {
-    bytes constant _TYPE_HASH =
-        "SignedParams(ExecutionParams executionParams,address signer,uint256 deadline)ExecutionParams(TokenAmount[] sellTokens,TokenAmount[] buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
     string constant _NAME = "OpportunityAdapter";
     string constant _VERSION = "1";
 
@@ -14,50 +12,17 @@ contract OpportunityAdapterSignature is Signature {
         _initializeSignature(_NAME, _VERSION);
     }
 
-    function createAndSignExecutionParams(
+    function createOpportunityAdapterSignature(
         OpportunityAdapterUpgradable opportunityAdapter,
-        address signer,
-        TokenAmount[] memory sellTokens,
-        TokenAmount[] memory buyTokens,
-        address target,
-        bytes memory data,
-        uint256 value,
-        uint256 bid,
-        uint256 validUntil,
+        ExecutionParams memory executionParams,
         uint256 executorSk
-    ) public view returns (ExecutionParams memory executionParams) {
-        ExecutionParams memory fakeExecutionParams = ExecutionParams(
-            sellTokens,
-            buyTokens,
-            vm.addr(executorSk),
-            target,
-            data,
-            value,
-            validUntil,
-            bid,
-            abi.encodePacked("0", "0", "0")
-        );
-        bytes32 digest = _customHashTypedDataV4(
+    ) public view returns (bytes memory) {
+        bytes32 hashedData = opportunityAdapter.hash(executionParams);
+        bytes32 domainSeparator = _domainSeparatorV4(
             address(opportunityAdapter),
             _NAME,
-            _VERSION,
-            _TYPE_HASH,
-            signer,
-            opportunityAdapter.hash(fakeExecutionParams),
-            validUntil
+            _VERSION
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(executorSk, digest);
-        executionParams = ExecutionParams(
-            sellTokens,
-            buyTokens,
-            vm.addr(executorSk),
-            target,
-            data,
-            value,
-            validUntil,
-            bid,
-            abi.encodePacked(r, s, v)
-        );
-        return executionParams;
+        return createSignature(hashedData, domainSeparator, executorSk);
     }
 }

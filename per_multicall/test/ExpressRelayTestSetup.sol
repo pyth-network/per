@@ -583,30 +583,29 @@ contract ExpressRelayTestSetup is
         address contractAddress = address(tokenVault);
 
         data = new bytes[](bidInfos.length);
-
         for (uint i = 0; i < bidInfos.length; i++) {
             // create liquidation call params struct
-            ExecutionParams
-                memory executionParams = opportunityAdapterSignatureContract
-                    .createAndSignExecutionParams(
-                        opportunityAdapter,
-                        bidInfos[i].executor,
-                        sellTokens,
-                        buyTokens,
-                        contractAddress,
-                        calldataVault,
-                        value,
-                        bidInfos[i].bid,
-                        bidInfos[i].validUntil,
-                        bidInfos[i].executorSk
-                    );
+            ExecutionParams memory executionParams = ExecutionParams(
+                sellTokens,
+                buyTokens,
+                bidInfos[i].executor,
+                contractAddress,
+                calldataVault,
+                value,
+                bidInfos[i].validUntil,
+                bidInfos[i].bid
+            );
 
-            // manually set the executor address again since it's not necessarily the same as vm.addr(executorSk)
-            executionParams.executor = bidInfos[i].executor;
-
+            bytes memory signature = opportunityAdapterSignatureContract
+                .createOpportunityAdapterSignature(
+                    opportunityAdapter,
+                    executionParams,
+                    bidInfos[i].executorSk
+                );
             data[i] = abi.encodeWithSelector(
                 opportunityAdapter.executeOpportunity.selector,
-                executionParams
+                executionParams,
+                signature
             );
         }
     }

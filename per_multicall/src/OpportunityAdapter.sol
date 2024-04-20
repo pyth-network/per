@@ -14,7 +14,7 @@ abstract contract OpportunityAdapter is SigVerify {
     address _expressRelay;
     address _weth;
     string constant _EXECUTION_PARAMS_TYPE =
-        "ExecutionParams(TokenAmount[] sellTokens,TokenAmount[] buyTokens,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
+        "ExecutionParams(TokenAmount[] sellTokens,TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 validUntil,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
     string constant _TOKEN_AMOUNT_TYPE =
         "TokenAmount(address token,uint256 amount)";
     string constant _DOMAIN_NAME = "OpportunityAdapter";
@@ -98,24 +98,28 @@ abstract contract OpportunityAdapter is SigVerify {
                     keccak256(bytes(_EXECUTION_PARAMS_TYPE)),
                     hash(params.sellTokens),
                     hash(params.buyTokens),
+                    params.executor,
                     params.targetContract,
                     keccak256(params.targetCalldata),
                     params.targetCallValue,
+                    params.validUntil,
                     params.bidAmount
                 )
             );
     }
 
-    function _verifyParams(ExecutionParams calldata params) internal view {
+    function _verifyParams(
+        ExecutionParams calldata params,
+        bytes memory signature
+    ) internal view {
         if (msg.sender != _expressRelay) {
             revert Unauthorized();
         }
 
         verifyCalldata(
-            _EXECUTION_PARAMS_TYPE,
             hash(params),
             params.executor,
-            params.signature,
+            signature,
             params.validUntil
         );
 
@@ -200,9 +204,10 @@ abstract contract OpportunityAdapter is SigVerify {
     }
 
     function executeOpportunity(
-        ExecutionParams calldata params
+        ExecutionParams calldata params,
+        bytes memory signature
     ) public payable {
-        _verifyParams(params);
+        _verifyParams(params, signature);
         // get balances of buy tokens before transferring sell tokens since there might be overlaps
         uint256[]
             memory buyTokensBalancesBeforeCall = _getContractTokenBalances(
@@ -215,7 +220,7 @@ abstract contract OpportunityAdapter is SigVerify {
         _callTargetContract(params);
         _validateAndTransferBuyTokens(params, buyTokensBalancesBeforeCall);
         _settleBid(params);
-        _useSignature(params.signature);
+        _useSignature(signature);
     }
 
     // necessary to receive ETH from WETH contract using withdraw
