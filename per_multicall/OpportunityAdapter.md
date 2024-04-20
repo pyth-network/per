@@ -1,6 +1,9 @@
 # Opportunity Adapter Contract
 
 This contract executes an `opportunity` on behalf of an `executor` in a secure manner.
+An opportunity refers to any arbitrary contract call with pre-defined expectations of token exchanges.
+The opportunity adapter handles routing arbitrary calldata to an external contract along with assertions around the
+quantity of ETH and different tokens exchanged as a result of the contract call.
 The main function `executeOpportunity` accepts an `ExecutionParams` type.
 The `executor` should allow this contract to spend their tokens on their behalf using the ERC20 `approve` method.
 
@@ -19,12 +22,11 @@ struct ExecutionParams {
   uint256 targetCallValue;
   uint256 validUntil;
   uint256 bidAmount;
-  bytes signature;
 }
 
 ```
 
-by calling the executeOpportunity the contract will:
+by calling the `executeOpportunity` the contract will:
 
 1. Verify the parameters are valid:
    1. Verify it is being called from the `expressRelay` contract

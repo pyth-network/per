@@ -18,9 +18,17 @@ This means that a bid can become public without actual execution
 ⚠️ Bids can be submitted on-chain multiple times.
 The searcher is responsible for implementing security precautions to avoid replay attacks.
 
+⚠️ Any sort of RPC staleness, network issues, networks forks, etc. can cause the auction server to:
+
+- Submit a bid that will revert on-chain
+- Not submit a bid that would have succeeded on-chain
+- Submit a bid multiple times
+- Create a suboptimal bundle of bids
+  Relayer is responsible for monitoring the health of these dependencies and landing the correct bids on-chain.
+
 ⚠️ Any information regarding the bids will remain private until the bid is submitted on-chain.
 From that point we consider the winning bids public and publish this information to other searchers too.
-Losing bids information will remain private forever.
+Losing bids information will remain private forever (similar to a sealed-bid auction).
 
 ## Build & Test
 
