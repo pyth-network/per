@@ -12,477 +12,139 @@ import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/MyToken.sol";
 import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 
-contract MockTarget {
-    error BadCall();
-
-    function doNothing() public payable {}
-
-    function transferTokenToSender(
-        address token,
-        uint256 amount
-    ) public payable {
-        MyToken(token).mint(msg.sender, amount);
+contract OpportunityAdapterHarness is OpportunityAdapter {
+    function exposed_PrepareSellTokens(
+        TokenAmount[] calldata sellTokens,
+        address executor,
+        address targetContract
+    ) public {
+        _prepareSellTokens(sellTokens, executor, targetContract);
     }
 
-    function transferSellTokenFromSenderAndBuyTokenToSender(
-        address sellToken,
-        uint256 sellAmount,
-        address buyToken,
-        uint256 buyAmount
-    ) public payable {
-        MyToken(sellToken).transferFrom(msg.sender, address(this), sellAmount);
-        MyToken(buyToken).mint(msg.sender, buyAmount);
+    function exposed_checkDuplicateTokens(
+        TokenAmount[] calldata tokens
+    ) public {
+        _checkDuplicateTokens(tokens);
     }
 
-    function revertCall() public payable {
-        revert BadCall();
+    function exposed_getContractTokenBalances(
+        TokenAmount[] calldata tokens
+    ) public returns (uint256[] memory) {
+        return _getContractTokenBalances(tokens);
     }
-}
 
-contract OpportunityAdapterHarness is OpportunityAdapterUpgradable {
-    function exposed_PrepareSellTokens(ExecutionParams calldata params) public {
-        _prepareSellTokens(params);
-    }
-}
-
-contract InvalidMagicOpportunityAdapter is
-    Initializable,
-    OwnableUpgradeable,
-    UUPSUpgradeable
-{
-    function _authorizeUpgrade(address) internal override onlyOwner {}
-
-    function opportunityAdapterUpgradableMagic() public pure returns (uint32) {
-        return 0x00000000;
+    function exposed_validateAndTransferBuyTokens(
+        TokenAmount[] calldata buyTokens,
+        address executor,
+        uint256[] memory buyTokensBalancesBeforeCall
+    ) public {
+        _validateAndTransferBuyTokens(
+            buyTokens,
+            executor,
+            buyTokensBalancesBeforeCall
+        );
     }
 }
 
 contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
-    MockTarget mockTarget;
     OpportunityAdapterHarness opportunityAdapter;
-    WETH9 weth;
-    MyToken buyToken;
-    MyToken sellToken;
+    MyToken myToken;
 
     function setUp() public {
-        buyToken = new MyToken("BuyToken", "BT");
-        sellToken = new MyToken("SellToken", "ST");
-        OpportunityAdapterHarness _opportunityAdapter = new OpportunityAdapterHarness();
-        ERC1967Proxy proxyOpportunityAdapter = new ERC1967Proxy(
-            address(_opportunityAdapter),
-            ""
-        );
-        opportunityAdapter = OpportunityAdapterHarness(
-            payable(proxyOpportunityAdapter)
-        );
-        weth = new WETH9();
-        opportunityAdapter.initialize(
-            address(this),
-            address(this),
-            address(this),
-            address(weth)
-        );
-        mockTarget = new MockTarget();
+        opportunityAdapter = new OpportunityAdapterHarness();
+        myToken = new MyToken("SellToken", "ST");
     }
 
-    function testRevertWhenInsufficientWethToTransferForCall() public {
-        TokenAmount[] memory noTokens = new TokenAmount[](0);
-        bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.doNothing.selector
-        );
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createExecutionParamsAndSignature(
-                noTokens,
-                noTokens,
-                targetCalldata,
-                1,
-                0,
-                block.timestamp + 1000
-            );
-        vm.prank(opportunityAdapter.getExpressRelay());
-        // callvalue is 1 wei, but executor has not deposited/approved any WETH
-        vm.expectRevert(WethTransferFromFailed.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-    }
-
-    function testRevertWhenInsufficientWethToTransferForBid() public {
-        address executor = makeAddr("executor");
-        TokenAmount[] memory noTokens = new TokenAmount[](0);
-        bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.doNothing.selector
-        );
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createExecutionParamsAndSignature(
-                noTokens,
-                noTokens,
-                targetCalldata,
-                123,
-                100,
-                block.timestamp + 1000
-            );
-        vm.deal(executor, 1 ether);
-        vm.startPrank(executor);
-        weth.deposit{value: 123 wei}();
-        weth.approve(address(opportunityAdapter), 123);
-        vm.stopPrank();
-        vm.prank(opportunityAdapter.getExpressRelay());
-        // callvalue is 123 wei, and executor has approved 123 wei so the call should succeed but adapter does not have
-        // 100 more wei to return the bid
-        vm.expectCall(address(mockTarget), 123, targetCalldata);
-        vm.expectRevert(WethTransferFromFailed.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-    }
-
-    // successful bids will be received by this contract
-    receive() external payable {}
-
-    function testExecutionWithBidAndCallValue() public {
-        address executor = makeAddr("executor");
+    function testPrepareSellTokens(uint256 tokenAmount) public {
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
-        uint256 sellTokenAmount = 1000;
-        sellTokens[0] = TokenAmount(address(sellToken), sellTokenAmount);
-        TokenAmount[] memory buyTokens = new TokenAmount[](1);
-        uint256 buyTokenAmount = 100;
-        buyTokens[0] = TokenAmount(address(buyToken), buyTokenAmount);
-        bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
-            address(sellToken),
-            sellTokenAmount,
-            address(buyToken),
-            buyTokenAmount
-        );
-        uint256 callValue = 123;
-        uint256 bid = 100;
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createExecutionParamsAndSignature(
-                sellTokens,
-                buyTokens,
-                targetCalldata,
-                callValue,
-                bid,
-                block.timestamp + 1000
-            );
-        uint256 initialAdapterBuyTokenBalance = 5000;
-        buyToken.mint(
-            address(opportunityAdapter),
-            initialAdapterBuyTokenBalance
-        ); // initial balance should not affect the result
-        sellToken.mint(executor, sellTokenAmount);
-        vm.deal(executor, 1 ether);
-        vm.startPrank(executor);
-        weth.deposit{value: (callValue + bid)}();
-        weth.approve(address(opportunityAdapter), (callValue + bid));
-        sellToken.approve(address(opportunityAdapter), sellTokenAmount);
-        vm.stopPrank();
-        vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectCall(address(mockTarget), callValue, targetCalldata);
-        vm.expectCall(address(this), bid, bytes(""));
-        vm.expectCall(
-            address(weth),
-            abi.encodeWithSelector(WETH9.withdraw.selector, callValue)
-        );
-        vm.expectCall(
-            address(weth),
-            abi.encodeWithSelector(WETH9.withdraw.selector, bid)
-        );
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-        assertEq(buyToken.balanceOf(executor), buyTokenAmount);
-        assertEq(
-            buyToken.balanceOf(address(opportunityAdapter)),
-            initialAdapterBuyTokenBalance
-        );
-        assertEq(sellToken.balanceOf(executor), 0);
-    }
-
-    function testExecutionWithNoBidAndCallValue() public {
-        TokenAmount[] memory noTokens = new TokenAmount[](0);
-        bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.doNothing.selector
-        );
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createExecutionParamsAndSignature(
-                noTokens,
-                noTokens,
-                targetCalldata,
-                0,
-                0,
-                block.timestamp + 1000
-            );
-        vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectCall(address(mockTarget), targetCalldata);
-        // When count is 0 (3rd argument) we expect 0 calls to be made to the specified address
-        vm.expectCall(address(this), bytes(""), 0);
-        vm.expectCall(
-            address(weth),
-            abi.encodeWithSelector(WETH9.withdraw.selector, 0),
-            0
-        );
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-    }
-
-    function testRevertWhenInsufficientTokensReceived() public {
-        TokenAmount[] memory sellTokens = new TokenAmount[](0);
-        TokenAmount[] memory buyTokens = new TokenAmount[](1);
-        uint256 expectedBuyTokenAmount = 100;
-        uint256 actualBuyTokenAmount = 99;
-        buyTokens[0] = TokenAmount(address(buyToken), expectedBuyTokenAmount);
-        bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.transferTokenToSender.selector,
-            address(buyToken),
-            actualBuyTokenAmount
-        );
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createExecutionParamsAndSignature(
-                sellTokens,
-                buyTokens,
-                targetCalldata,
-                0,
-                0,
-                block.timestamp + 1000
-            );
-        buyToken.mint(address(opportunityAdapter), 1000); // initial balance should not affect the result
-        vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectCall(address(mockTarget), targetCalldata);
-        vm.expectRevert(InsufficientTokenReceived.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-    }
-
-    function createExecutionParamsAndSignature(
-        TokenAmount[] memory sellTokens,
-        TokenAmount[] memory buyTokens,
-        bytes memory data,
-        uint256 value,
-        uint256 bid,
-        uint256 validUntil
-    )
-        public
-        returns (ExecutionParams memory executionParams, bytes memory signature)
-    {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
-        executionParams = ExecutionParams(
+        sellTokens[0] = TokenAmount(address(myToken), tokenAmount);
+        address executor = makeAddr("executor");
+        myToken.mint(executor, tokenAmount);
+        vm.prank(executor);
+        myToken.approve(address(opportunityAdapter), tokenAmount);
+        address targetContract = makeAddr("targetContract");
+        opportunityAdapter.exposed_PrepareSellTokens(
             sellTokens,
+            executor,
+            targetContract
+        );
+        assertEq(myToken.balanceOf(address(opportunityAdapter)), tokenAmount);
+        assertEq(
+            myToken.allowance(address(opportunityAdapter), targetContract),
+            tokenAmount
+        );
+        assertEq(myToken.balanceOf(executor), 0);
+    }
+
+    function testCheckDuplicateTokens() public {
+        TokenAmount[] memory tokens = new TokenAmount[](3);
+        address token0 = makeAddr("token0");
+        address token1 = makeAddr("token1");
+        address token2 = makeAddr("token2");
+        tokens[0] = TokenAmount(token0, 0);
+        tokens[1] = TokenAmount(token1, 0);
+        tokens[2] = TokenAmount(token2, 0);
+        opportunityAdapter.exposed_checkDuplicateTokens(tokens);
+        tokens[1] = TokenAmount(token2, 0);
+        vm.expectRevert(DuplicateToken.selector);
+        opportunityAdapter.exposed_checkDuplicateTokens(tokens);
+    }
+
+    function testGetContractTokenBalances(uint256 tokenAmount) public {
+        TokenAmount[] memory tokens = new TokenAmount[](2);
+        tokens[0] = TokenAmount(address(myToken), 0);
+        tokens[1] = TokenAmount(address(myToken), 0);
+        myToken.mint(address(opportunityAdapter), tokenAmount);
+        uint256[] memory balances = opportunityAdapter
+            .exposed_getContractTokenBalances(tokens);
+        assertEq(balances[0], tokenAmount);
+        assertEq(balances[1], tokenAmount);
+    }
+
+    function testRevertWhenTokenDoesNotExistInGetContractTokenBalances()
+        public
+    {
+        TokenAmount[] memory tokens = new TokenAmount[](2);
+        tokens[0] = TokenAmount(address(myToken), 0);
+        tokens[1] = TokenAmount(makeAddr("InvalidToken"), 0);
+        vm.expectRevert();
+        uint256[] memory balances = opportunityAdapter
+            .exposed_getContractTokenBalances(tokens);
+    }
+
+    function testValidateAndTransferBuyTokens(uint256 tokenAmount) public {
+        TokenAmount[] memory buyTokens = new TokenAmount[](1);
+        buyTokens[0] = TokenAmount(address(myToken), tokenAmount);
+        address executor = makeAddr("executor");
+        address targetContract = makeAddr("targetContract");
+        uint256[] memory buyTokensBalancesBeforeCall = new uint256[](1);
+        buyTokensBalancesBeforeCall[0] = 0;
+        myToken.mint(address(opportunityAdapter), tokenAmount);
+        opportunityAdapter.exposed_validateAndTransferBuyTokens(
             buyTokens,
             executor,
-            address(mockTarget),
-            data,
-            value,
-            validUntil,
-            bid
+            buyTokensBalancesBeforeCall
         );
-        signature = createOpportunityAdapterSignature(
-            opportunityAdapter,
-            executionParams,
-            executorSk
-        );
+        assertEq(myToken.balanceOf(address(opportunityAdapter)), 0);
+        assertEq(myToken.balanceOf(executor), tokenAmount);
     }
 
-    function createDummyExecutionParams(
-        bool shouldRevert
-    )
-        internal
-        returns (ExecutionParams memory executionParams, bytes memory signature)
-    {
-        TokenAmount[] memory noTokens = new TokenAmount[](0);
-        bytes memory targetCalldata;
-        if (shouldRevert) {
-            targetCalldata = abi.encodeWithSelector(
-                mockTarget.revertCall.selector
-            );
-        } else {
-            targetCalldata = abi.encodeWithSelector(
-                mockTarget.doNothing.selector
-            );
-        }
-        return
-            createExecutionParamsAndSignature(
-                noTokens,
-                noTokens,
-                targetCalldata,
-                0,
-                0,
-                block.timestamp + 1000
-            );
-    }
-
-    function testRevertWhenNotCalledByExpressRelay() public {
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createDummyExecutionParams(false);
-        vm.prank(makeAddr("nonRelayer"));
-        vm.expectRevert(Unauthorized.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-    }
-
-    function testRevertWhenSignatureReused() public {
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createDummyExecutionParams(false);
-        vm.startPrank(opportunityAdapter.getExpressRelay());
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-        vm.expectRevert(SignatureAlreadyUsed.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-        vm.stopPrank();
-    }
-
-    function testRevertWhenTargetCallFails() public {
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createDummyExecutionParams(true);
-        vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TargetCallFailed.selector,
-                abi.encodeWithSelector(MockTarget.BadCall.selector)
-            )
-        );
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-    }
-
-    function testGetWeth() public {
-        assertEq(opportunityAdapter.getWeth(), address(weth));
-    }
-
-    function testSetExpressRelay() public {
-        address newRelay = makeAddr("newRelay");
-        opportunityAdapter.setExpressRelay(newRelay);
-        assertEq(opportunityAdapter.getExpressRelay(), newRelay);
-    }
-
-    function testRevertWhenUnauthorizedSetExpressRelay() public {
-        vm.prank(makeAddr("invalidAdmin"));
-        vm.expectRevert(Unauthorized.selector);
-        opportunityAdapter.setExpressRelay(address(this));
-    }
-
-    function testPrepareSellTokens() public {
-        TokenAmount[] memory sellTokens = new TokenAmount[](1);
-        TokenAmount[] memory buyTokens = new TokenAmount[](0);
-        uint256 sellTokenAmount = 100;
-        sellTokens[0] = TokenAmount(address(sellToken), sellTokenAmount);
+    function testRevertWhenInsufficientTokensInValidateAndTransferBuyTokens(
+        uint128 tokenAmount
+    ) public {
+        // tokenAmount is uint128 to avoid overflow in the test
+        TokenAmount[] memory buyTokens = new TokenAmount[](1);
+        buyTokens[0] = TokenAmount(address(myToken), tokenAmount);
         address executor = makeAddr("executor");
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createExecutionParamsAndSignature(
-                sellTokens,
-                buyTokens,
-                bytes(""),
-                0,
-                0,
-                block.timestamp + 1000
-            );
-        sellToken.mint(executor, sellTokenAmount);
-        vm.prank(executor);
-        sellToken.approve(address(opportunityAdapter), sellTokenAmount);
-        opportunityAdapter.exposed_PrepareSellTokens(executionParams);
-        assertEq(
-            sellToken.balanceOf(address(opportunityAdapter)),
-            sellTokenAmount
+        address targetContract = makeAddr("targetContract");
+        uint256[] memory buyTokensBalancesBeforeCall = new uint256[](1);
+        buyTokensBalancesBeforeCall[0] = 1; // not all tokens were received because of the call
+        myToken.mint(address(opportunityAdapter), tokenAmount);
+        vm.expectRevert(InsufficientTokenReceived.selector);
+        opportunityAdapter.exposed_validateAndTransferBuyTokens(
+            buyTokens,
+            executor,
+            buyTokensBalancesBeforeCall
         );
-        assertEq(
-            sellToken.allowance(
-                address(opportunityAdapter),
-                address(mockTarget)
-            ),
-            sellTokenAmount
-        );
-        assertEq(buyToken.balanceOf(executor), 0);
-    }
-
-    function testRevertWhenDuplicateBuyTokensOrDuplicateSellTokens() public {
-        TokenAmount[] memory noTokens = new TokenAmount[](0);
-        TokenAmount[] memory duplicateTokens = new TokenAmount[](2);
-        duplicateTokens[0] = TokenAmount(address(buyToken), 100);
-        duplicateTokens[1] = TokenAmount(address(buyToken), 200);
-        bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.doNothing.selector
-        );
-        (
-            ExecutionParams memory executionParamsDuplicateBuy,
-            bytes memory signatureBuy
-        ) = createExecutionParamsAndSignature(
-                noTokens,
-                duplicateTokens,
-                targetCalldata,
-                0,
-                0,
-                block.timestamp + 1000
-            );
-        vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectRevert(DuplicateToken.selector);
-        opportunityAdapter.executeOpportunity(
-            executionParamsDuplicateBuy,
-            signatureBuy
-        );
-        (
-            ExecutionParams memory executionParamsDuplicateSell,
-            bytes memory signatureSell
-        ) = createExecutionParamsAndSignature(
-                duplicateTokens,
-                noTokens,
-                targetCalldata,
-                0,
-                0,
-                block.timestamp + 1000
-            );
-        vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectRevert(DuplicateToken.selector);
-        opportunityAdapter.executeOpportunity(
-            executionParamsDuplicateSell,
-            signatureSell
-        );
-    }
-
-    function testRevertWhenExpired() public {
-        TokenAmount[] memory noTokens = new TokenAmount[](0);
-        bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.doNothing.selector
-        );
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createExecutionParamsAndSignature(
-                noTokens,
-                noTokens,
-                targetCalldata,
-                0,
-                0,
-                block.timestamp + 1
-            );
-        vm.warp(block.timestamp + 2);
-        vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectRevert(ExpiredSignature.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-    }
-
-    function testRevertWhenUpgradeWithWrongContract() public {
-        vm.expectRevert("ERC1967Upgrade: new implementation is not UUPS");
-        opportunityAdapter.upgradeTo(address(sellToken));
-    }
-
-    function testRevertWhenUpgradeWithWrongMagic() public {
-        InvalidMagicOpportunityAdapter invalidMagicOpportunityAdapter = new InvalidMagicOpportunityAdapter();
-        vm.prank(opportunityAdapter.owner());
-        vm.expectRevert(InvalidMagicValue.selector);
-        opportunityAdapter.upgradeTo(address(invalidMagicOpportunityAdapter));
-    }
-
-    function testSuccessfulUpgrade() public {
-        OpportunityAdapterUpgradable newOpportunityAdapter = new OpportunityAdapterUpgradable();
-        vm.prank(opportunityAdapter.owner());
-        opportunityAdapter.upgradeTo(address(newOpportunityAdapter));
     }
 }

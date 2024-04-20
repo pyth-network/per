@@ -123,11 +123,13 @@ abstract contract OpportunityAdapter is SigVerify {
             params.validUntil
         );
 
-        _revertOnDuplicate(params.sellTokens);
-        _revertOnDuplicate(params.buyTokens);
+        _checkDuplicateTokens(params.sellTokens);
+        _checkDuplicateTokens(params.buyTokens);
     }
 
-    function _revertOnDuplicate(TokenAmount[] calldata tokens) internal pure {
+    function _checkDuplicateTokens(
+        TokenAmount[] calldata tokens
+    ) internal pure {
         for (uint i = 0; i < tokens.length; i++) {
             for (uint j = i + 1; j < tokens.length; j++) {
                 if (tokens[i].token == tokens[j].token) {
@@ -137,15 +139,15 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
-    function _prepareSellTokens(ExecutionParams calldata params) internal {
-        for (uint i = 0; i < params.sellTokens.length; i++) {
-            IERC20 token = IERC20(params.sellTokens[i].token);
-            token.transferFrom(
-                params.executor,
-                address(this),
-                params.sellTokens[i].amount
-            );
-            token.approve(params.targetContract, params.sellTokens[i].amount);
+    function _prepareSellTokens(
+        TokenAmount[] calldata sellTokens,
+        address executor,
+        address targetContract
+    ) internal {
+        for (uint i = 0; i < sellTokens.length; i++) {
+            IERC20 token = IERC20(sellTokens[i].token);
+            token.transferFrom(executor, address(this), sellTokens[i].amount);
+            token.approve(targetContract, sellTokens[i].amount);
         }
     }
 
@@ -160,17 +162,21 @@ abstract contract OpportunityAdapter is SigVerify {
         weth.withdraw(amount);
     }
 
-    function _settleBid(ExecutionParams calldata params) internal {
-        if (params.bidAmount > 0) {
-            _transferFromAndUnwrapWeth(params.executor, params.bidAmount);
-            payable(getExpressRelay()).transfer(params.bidAmount);
+    function _settleBid(address executor, uint256 bidAmount) internal {
+        if (bidAmount > 0) {
+            _transferFromAndUnwrapWeth(executor, bidAmount);
+            payable(getExpressRelay()).transfer(bidAmount);
         }
     }
 
-    function _callTargetContract(ExecutionParams calldata params) internal {
-        (bool success, bytes memory returnData) = params.targetContract.call{
-            value: params.targetCallValue
-        }(params.targetCalldata);
+    function _callTargetContract(
+        address targetContract,
+        bytes calldata targetCalldata,
+        uint256 targetCallValue
+    ) internal {
+        (bool success, bytes memory returnData) = targetContract.call{
+            value: targetCallValue
+        }(targetCalldata);
         if (!success) {
             revert TargetCallFailed(returnData);
         }
@@ -188,18 +194,19 @@ abstract contract OpportunityAdapter is SigVerify {
     }
 
     function _validateAndTransferBuyTokens(
-        ExecutionParams calldata params,
+        TokenAmount[] calldata buyTokens,
+        address executor,
         uint256[] memory buyTokensBalancesBeforeCall
     ) internal {
-        for (uint i = 0; i < params.buyTokens.length; i++) {
-            IERC20 token = IERC20(params.buyTokens[i].token);
+        for (uint i = 0; i < buyTokens.length; i++) {
+            IERC20 token = IERC20(buyTokens[i].token);
             if (
                 token.balanceOf(address(this)) <
-                buyTokensBalancesBeforeCall[i] + params.buyTokens[i].amount
+                buyTokensBalancesBeforeCall[i] + buyTokens[i].amount
             ) {
                 revert InsufficientTokenReceived();
             }
-            token.transfer(params.executor, params.buyTokens[i].amount);
+            token.transfer(executor, buyTokens[i].amount);
         }
     }
 
@@ -213,13 +220,25 @@ abstract contract OpportunityAdapter is SigVerify {
             memory buyTokensBalancesBeforeCall = _getContractTokenBalances(
                 params.buyTokens
             );
-        _prepareSellTokens(params);
+        _prepareSellTokens(
+            params.sellTokens,
+            params.executor,
+            params.targetContract
+        );
         if (params.targetCallValue > 0) {
             _transferFromAndUnwrapWeth(params.executor, params.targetCallValue);
         }
-        _callTargetContract(params);
-        _validateAndTransferBuyTokens(params, buyTokensBalancesBeforeCall);
-        _settleBid(params);
+        _callTargetContract(
+            params.targetContract,
+            params.targetCalldata,
+            params.targetCallValue
+        );
+        _validateAndTransferBuyTokens(
+            params.buyTokens,
+            params.executor,
+            buyTokensBalancesBeforeCall
+        );
+        _settleBid(params.executor, params.bidAmount);
         _useSignature(signature);
     }
 
