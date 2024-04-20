@@ -40,13 +40,13 @@ contract Signature is Test, SigVerify {
     function createSignature(
         bytes32 hashedData,
         bytes32 domainSeparator,
-        uint256 signer
+        uint256 signerSk
     ) public pure returns (bytes memory) {
         bytes32 digest = MessageHashUtils.toTypedDataHash(
             domainSeparator,
             hashedData
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerSk, digest);
         return abi.encodePacked(r, s, v);
     }
 }

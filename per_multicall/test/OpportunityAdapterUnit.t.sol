@@ -56,7 +56,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
             block.timestamp + 1000,
             100
         );
-        bytes memory signature = createSignature(
+        bytes memory signature = createOpportunityAdapterSignature(
             opportunityAdapter,
             executionParams,
             executorSk
@@ -85,7 +85,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
             block.timestamp + 1000,
             100
         );
-        bytes memory signature = createSignature(
+        bytes memory signature = createOpportunityAdapterSignature(
             opportunityAdapter,
             executionParams,
             executorSk

@@ -5,7 +5,7 @@ import "./Signature.sol";
 
 contract SearcherSignature is Signature {
     bytes constant _TYPE_HASH =
-        "ExecutionParams(uint256 vaultId,uint256 bid, address signer, uint256 validUntil)";
+        "ExecutionParams(uint256 vaultId,uint256 bid,address signer,uint256 validUntil)";
     string constant _NAME = "Searcher";
     string constant _VERSION = "1";
 
@@ -13,7 +13,7 @@ contract SearcherSignature is Signature {
         _initializeSignature(_NAME, _VERSION);
     }
 
-    function createSignature(
+    function createSearcherSignature(
         address contractAddress,
         address signer,
         uint256 dataNumber,

@@ -12,7 +12,7 @@ contract OpportunityAdapterSignature is Signature {
         _initializeSignature(_NAME, _VERSION);
     }
 
-    function createSignature(
+    function createOpportunityAdapterSignature(
         OpportunityAdapterUpgradable opportunityAdapter,
         ExecutionParams memory executionParams,
         uint256 executorSk

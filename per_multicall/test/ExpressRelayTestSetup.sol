@@ -516,7 +516,7 @@ contract ExpressRelayTestSetup is
         for (uint i = 0; i < bidInfos.length; i++) {
             // create searcher signature
             bytes memory signatureSearcher = searcherSignatureContract
-                .createSignature(
+                .createSearcherSignature(
                     contracts[i],
                     bidInfos[i].executor,
                     vaultNumber,
@@ -597,7 +597,7 @@ contract ExpressRelayTestSetup is
             );
 
             bytes memory signature = opportunityAdapterSignatureContract
-                .createSignature(
+                .createOpportunityAdapterSignature(
                     opportunityAdapter,
                     executionParams,
                     bidInfos[i].executorSk

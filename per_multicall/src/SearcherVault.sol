@@ -62,7 +62,7 @@ contract SearcherVault is SigVerify {
                 keccak256(
                     abi.encode(
                         keccak256(
-                            "ExecutionParams(uint256 vaultId,uint256 bid, address signer, uint256 validUntil)"
+                            "ExecutionParams(uint256 vaultId,uint256 bid,address signer,uint256 validUntil)"
                         ),
                         vaultId,
                         bid,
