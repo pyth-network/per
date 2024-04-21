@@ -375,48 +375,36 @@ contract OpportunityAdapterIntegrationTest is
         opportunityAdapter.setExpressRelay(address(this));
     }
 
+    function _testRevertWithDuplicateTokens(
+        TokenAmount[] memory sellTokens,
+        TokenAmount[] memory buyTokens
+    ) public {
+        bytes memory targetCalldata = abi.encodeWithSelector(
+            mockTarget.doNothing.selector
+        );
+        (
+            ExecutionParams memory executionParams,
+            bytes memory signature
+        ) = createExecutionParamsAndSignature(
+                sellTokens,
+                buyTokens,
+                targetCalldata,
+                0,
+                0,
+                block.timestamp + 1000
+            );
+        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.expectRevert(DuplicateToken.selector);
+        opportunityAdapter.executeOpportunity(executionParams, signature);
+    }
+
     function testRevertWhenDuplicateBuyTokensOrDuplicateSellTokens() public {
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         TokenAmount[] memory duplicateTokens = new TokenAmount[](2);
         duplicateTokens[0] = TokenAmount(address(buyToken), 100);
         duplicateTokens[1] = TokenAmount(address(buyToken), 200);
-        bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.doNothing.selector
-        );
-        (
-            ExecutionParams memory executionParamsDuplicateBuy,
-            bytes memory signatureBuy
-        ) = createExecutionParamsAndSignature(
-                noTokens,
-                duplicateTokens,
-                targetCalldata,
-                0,
-                0,
-                block.timestamp + 1000
-            );
-        vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectRevert(DuplicateToken.selector);
-        opportunityAdapter.executeOpportunity(
-            executionParamsDuplicateBuy,
-            signatureBuy
-        );
-        (
-            ExecutionParams memory executionParamsDuplicateSell,
-            bytes memory signatureSell
-        ) = createExecutionParamsAndSignature(
-                duplicateTokens,
-                noTokens,
-                targetCalldata,
-                0,
-                0,
-                block.timestamp + 1000
-            );
-        vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectRevert(DuplicateToken.selector);
-        opportunityAdapter.executeOpportunity(
-            executionParamsDuplicateSell,
-            signatureSell
-        );
+        _testRevertWithDuplicateTokens(duplicateTokens, noTokens);
+        _testRevertWithDuplicateTokens(noTokens, duplicateTokens);
     }
 
     function testRevertWhenExpired() public {
