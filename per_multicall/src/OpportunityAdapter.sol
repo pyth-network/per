@@ -6,10 +6,13 @@ import "./SigVerify.sol";
 import "./ExpressRelay.sol";
 import "./WETH9.sol";
 
+import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 abstract contract OpportunityAdapter is SigVerify {
+    using SafeERC20 for IERC20;
+
     address _admin;
     address _expressRelay;
     address _weth;
@@ -146,7 +149,11 @@ abstract contract OpportunityAdapter is SigVerify {
     ) internal {
         for (uint i = 0; i < sellTokens.length; i++) {
             IERC20 token = IERC20(sellTokens[i].token);
-            token.transferFrom(executor, address(this), sellTokens[i].amount);
+            token.safeTransferFrom(
+                executor,
+                address(this),
+                sellTokens[i].amount
+            );
             token.approve(targetContract, sellTokens[i].amount);
         }
     }
@@ -206,7 +213,7 @@ abstract contract OpportunityAdapter is SigVerify {
             ) {
                 revert InsufficientTokenReceived();
             }
-            token.transfer(executor, buyTokens[i].amount);
+            token.safeTransfer(executor, buyTokens[i].amount);
         }
     }
 
