@@ -90,6 +90,66 @@ contract OpportunityAdapterIntegrationTest is
         mockTarget = new MockTarget();
     }
 
+    // successful bids will be received by this contract
+    receive() external payable {}
+
+    function createExecutionParamsAndSignature(
+        TokenAmount[] memory sellTokens,
+        TokenAmount[] memory buyTokens,
+        bytes memory data,
+        uint256 value,
+        uint256 bid,
+        uint256 validUntil
+    )
+        public
+        returns (ExecutionParams memory executionParams, bytes memory signature)
+    {
+        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
+        executionParams = ExecutionParams(
+            sellTokens,
+            buyTokens,
+            executor,
+            address(mockTarget),
+            data,
+            value,
+            validUntil,
+            bid
+        );
+        signature = createOpportunityAdapterSignature(
+            opportunityAdapter,
+            executionParams,
+            executorSk
+        );
+    }
+
+    function createDummyExecutionParams(
+        bool shouldRevert
+    )
+        internal
+        returns (ExecutionParams memory executionParams, bytes memory signature)
+    {
+        TokenAmount[] memory noTokens = new TokenAmount[](0);
+        bytes memory targetCalldata;
+        if (shouldRevert) {
+            targetCalldata = abi.encodeWithSelector(
+                mockTarget.revertCall.selector
+            );
+        } else {
+            targetCalldata = abi.encodeWithSelector(
+                mockTarget.doNothing.selector
+            );
+        }
+        return
+            createExecutionParamsAndSignature(
+                noTokens,
+                noTokens,
+                targetCalldata,
+                0,
+                0,
+                block.timestamp + 1000
+            );
+    }
+
     function testRevertWhenInsufficientWethToTransferForCall() public {
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
@@ -144,9 +204,6 @@ contract OpportunityAdapterIntegrationTest is
         vm.expectRevert(WethTransferFromFailed.selector);
         opportunityAdapter.executeOpportunity(executionParams, signature);
     }
-
-    // successful bids will be received by this contract
-    receive() external payable {}
 
     function testExecutionWithBidAndCallValue() public {
         address executor = makeAddr("executor");
@@ -263,63 +320,6 @@ contract OpportunityAdapterIntegrationTest is
         vm.expectCall(address(mockTarget), targetCalldata);
         vm.expectRevert(InsufficientTokenReceived.selector);
         opportunityAdapter.executeOpportunity(executionParams, signature);
-    }
-
-    function createExecutionParamsAndSignature(
-        TokenAmount[] memory sellTokens,
-        TokenAmount[] memory buyTokens,
-        bytes memory data,
-        uint256 value,
-        uint256 bid,
-        uint256 validUntil
-    )
-        public
-        returns (ExecutionParams memory executionParams, bytes memory signature)
-    {
-        (address executor, uint256 executorSk) = makeAddrAndKey("executor");
-        executionParams = ExecutionParams(
-            sellTokens,
-            buyTokens,
-            executor,
-            address(mockTarget),
-            data,
-            value,
-            validUntil,
-            bid
-        );
-        signature = createOpportunityAdapterSignature(
-            opportunityAdapter,
-            executionParams,
-            executorSk
-        );
-    }
-
-    function createDummyExecutionParams(
-        bool shouldRevert
-    )
-        internal
-        returns (ExecutionParams memory executionParams, bytes memory signature)
-    {
-        TokenAmount[] memory noTokens = new TokenAmount[](0);
-        bytes memory targetCalldata;
-        if (shouldRevert) {
-            targetCalldata = abi.encodeWithSelector(
-                mockTarget.revertCall.selector
-            );
-        } else {
-            targetCalldata = abi.encodeWithSelector(
-                mockTarget.doNothing.selector
-            );
-        }
-        return
-            createExecutionParamsAndSignature(
-                noTokens,
-                noTokens,
-                targetCalldata,
-                0,
-                0,
-                block.timestamp + 1000
-            );
     }
 
     function testRevertWhenNotCalledByExpressRelay() public {
