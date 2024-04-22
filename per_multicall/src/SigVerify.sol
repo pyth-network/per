@@ -13,23 +13,23 @@ contract SigVerify is EIP712Upgradeable {
      * @notice Verifies the validity of the provided calldata signature and parameters.
      * @dev This function computes the eip712 data hash from the provided parameters and compares it
      * with the ecdsa recovered signer from the provided signature. It also checks for the
-     * validity of the signature, expiration of the deadline, and whether the signature
+     * validity of the signature, expiration timestamp, and whether the signature
      * has already been used.
      * @param hashedData The eip712 hashed data constructed for signature verification.
      * @param signer The expected signer address.
      * @param signature The signature to be verified.
-     * @param deadline The deadline timestamp in seconds until which the signature is valid.
+     * @param validUntil The latest timestamp in seconds until which the signature is valid.
      * @dev Throws `InvalidSignature` if the signature is invalid or doesn't match the signer.
-     * Throws `ExpiredSignature` if the signature has expired based on the provided deadline.
+     * Throws `ExpiredSignature` if the signature has expired based on the provided validUntil.
      * Throws `SignatureAlreadyUsed` if the signature has already been used.
      */
     function verifyCalldata(
         bytes32 hashedData,
         address signer,
         bytes memory signature,
-        uint256 deadline
+        uint256 validUntil
     ) public view {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > validUntil) {
             revert ExpiredSignature();
         }
 
