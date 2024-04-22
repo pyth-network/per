@@ -158,6 +158,16 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
+    function _zeroSellTokenAllowances(
+        TokenAmount[] calldata sellTokens,
+        address targetContract
+    ) internal {
+        for (uint i = 0; i < sellTokens.length; i++) {
+            IERC20 token = IERC20(sellTokens[i].token);
+            token.approve(targetContract, 0);
+        }
+    }
+
     function _transferFromAndUnwrapWeth(
         address source,
         uint256 amount
@@ -247,6 +257,7 @@ abstract contract OpportunityAdapter is SigVerify {
         );
         _settleBid(params.executor, params.bidAmount);
         _useSignature(signature);
+        _zeroSellTokenAllowances(params.sellTokens, params.targetContract);
     }
 
     // necessary to receive ETH from WETH contract using withdraw

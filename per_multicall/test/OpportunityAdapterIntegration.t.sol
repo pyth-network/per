@@ -264,6 +264,13 @@ contract OpportunityAdapterIntegrationTest is
             initialAdapterBuyTokenBalance
         );
         assertEq(sellToken.balanceOf(executor), 0);
+        assertEq(
+            sellToken.allowance(
+                address(opportunityAdapter),
+                address(mockTarget)
+            ),
+            0
+        );
     }
 
     function testExecutionWithNoBidAndCallValue() public {

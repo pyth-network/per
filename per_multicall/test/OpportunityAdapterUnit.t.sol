@@ -22,7 +22,9 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         myToken = new MyToken("SellToken", "ST");
     }
 
-    function testPrepareSellTokens(uint256 tokenAmount) public {
+    function testPrepareSellTokensZeroSellTokenAllowances(
+        uint256 tokenAmount
+    ) public {
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
         sellTokens[0] = TokenAmount(address(myToken), tokenAmount);
         address executor = makeAddr("executor");
@@ -41,6 +43,15 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
             tokenAmount
         );
         assertEq(myToken.balanceOf(executor), 0);
+
+        opportunityAdapter.exposed_zeroSellTokenAllowances(
+            sellTokens,
+            targetContract
+        );
+        assertEq(
+            myToken.allowance(address(opportunityAdapter), targetContract),
+            0
+        );
     }
 
     function testCheckDuplicateTokens() public {

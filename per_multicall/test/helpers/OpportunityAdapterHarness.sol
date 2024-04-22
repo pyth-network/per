@@ -13,6 +13,13 @@ contract OpportunityAdapterHarness is OpportunityAdapter {
         _prepareSellTokens(sellTokens, executor, targetContract);
     }
 
+    function exposed_zeroSellTokenAllowances(
+        TokenAmount[] calldata sellTokens,
+        address targetContract
+    ) public {
+        _zeroSellTokenAllowances(sellTokens, targetContract);
+    }
+
     function exposed_checkDuplicateTokens(
         TokenAmount[] calldata tokens
     ) public {
