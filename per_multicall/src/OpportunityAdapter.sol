@@ -158,6 +158,16 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
+    function _revokeAllowances(
+        TokenAmount[] calldata sellTokens,
+        address targetContract
+    ) internal {
+        for (uint i = 0; i < sellTokens.length; i++) {
+            IERC20 token = IERC20(sellTokens[i].token);
+            token.approve(targetContract, 0);
+        }
+    }
+
     function _transferFromAndUnwrapWeth(
         address source,
         uint256 amount
@@ -240,6 +250,7 @@ abstract contract OpportunityAdapter is SigVerify {
             params.targetCalldata,
             params.targetCallValue
         );
+        _revokeAllowances(params.sellTokens, params.targetContract);
         _validateAndTransferBuyTokens(
             params.buyTokens,
             params.executor,
