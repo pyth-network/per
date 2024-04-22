@@ -158,7 +158,7 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
-    function _zeroSellTokenAllowances(
+    function _revokeAllowances(
         TokenAmount[] calldata sellTokens,
         address targetContract
     ) internal {
@@ -250,6 +250,7 @@ abstract contract OpportunityAdapter is SigVerify {
             params.targetCalldata,
             params.targetCallValue
         );
+        _revokeAllowances(params.sellTokens, params.targetContract);
         _validateAndTransferBuyTokens(
             params.buyTokens,
             params.executor,
@@ -257,7 +258,6 @@ abstract contract OpportunityAdapter is SigVerify {
         );
         _settleBid(params.executor, params.bidAmount);
         _useSignature(signature);
-        _zeroSellTokenAllowances(params.sellTokens, params.targetContract);
     }
 
     // necessary to receive ETH from WETH contract using withdraw

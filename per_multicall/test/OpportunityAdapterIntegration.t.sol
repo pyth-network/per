@@ -213,10 +213,11 @@ contract OpportunityAdapterIntegrationTest is
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         uint256 buyTokenAmount = 100;
         buyTokens[0] = TokenAmount(address(buyToken), buyTokenAmount);
+        // transfer less sellToken than specified to test that allowances are revoked correctly
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
             address(sellToken),
-            sellTokenAmount,
+            sellTokenAmount - 1,
             address(buyToken),
             buyTokenAmount
         );

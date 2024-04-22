@@ -22,9 +22,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         myToken = new MyToken("SellToken", "ST");
     }
 
-    function testPrepareSellTokensZeroSellTokenAllowances(
-        uint256 tokenAmount
-    ) public {
+    function testPrepareSellTokensRevokeAllowances(uint256 tokenAmount) public {
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
         sellTokens[0] = TokenAmount(address(myToken), tokenAmount);
         address executor = makeAddr("executor");
@@ -44,10 +42,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         );
         assertEq(myToken.balanceOf(executor), 0);
 
-        opportunityAdapter.exposed_zeroSellTokenAllowances(
-            sellTokens,
-            targetContract
-        );
+        opportunityAdapter.exposed_revokeAllowances(sellTokens, targetContract);
         assertEq(
             myToken.allowance(address(opportunityAdapter), targetContract),
             0
