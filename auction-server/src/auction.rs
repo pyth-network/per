@@ -10,8 +10,6 @@ use {
             SHOULD_EXIT,
         },
         state::{
-            AuctionParams,
-            AuctionParamsWithMetadata,
             BidAmount,
             BidStatus,
             BidStatusWithId,
@@ -56,6 +54,7 @@ use {
             TransactionReceipt,
             TransactionRequest,
             H160,
+            H256,
             U256,
         },
     },
@@ -63,7 +62,6 @@ use {
         Deserialize,
         Serialize,
     },
-    sqlx::types::time::OffsetDateTime,
     std::{
         collections::HashMap,
         result,
@@ -220,6 +218,36 @@ pub async fn submit_bids(
     send_call.await.map_err(SubmissionError::ProviderError)
 }
 
+async fn get_bids_for_permission_key(
+    store: &Arc<Store>,
+    chain_id: &String,
+) -> HashMap<PermissionKey, Vec<SimulatedBid>> {
+    let all_bids = store.get_bids_by_chain_id(chain_id).await;
+    all_bids.into_iter().fold(HashMap::new(), |mut acc, bid| {
+        acc.entry(bid.permission_key.clone()).or_default().push(bid);
+        acc
+    })
+}
+
+fn get_winner_bids(mut bids: Vec<SimulatedBid>) -> Vec<SimulatedBid> {
+    bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
+
+    // TODO: simulate all bids together and keep the successful ones
+    // keep the highest bid for now
+    bids[..1].to_vec()
+}
+
+fn get_bid_status(bid: &SimulatedBid, winner_bids: &[SimulatedBid], result: H256) -> BidStatus {
+    let bid_index = winner_bids.iter().position(|b| b.id == bid.id);
+    match bid_index {
+        Some(i) => BidStatus::Submitted {
+            result,
+            index: i as u32,
+        },
+        None => BidStatus::Lost { result },
+    }
+}
+
 pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
     tracing::info!("Starting transaction submitter...");
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
@@ -230,29 +258,16 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
         tokio::select! {
             _ = submission_interval.tick() => {
                 for (chain_id, chain_store) in &store.chains {
-                    let all_bids = store.get_bids_by_chain_id(chain_id).await;
-                    let bid_by_permission_key:HashMap<PermissionKey,Vec<SimulatedBid>> =
-                    all_bids.into_iter().fold(HashMap::new(),
-                        |mut acc, bid| {
-                        acc.entry(bid.permission_key.clone()).or_default().push(bid);
-                        acc
-                    });
-
+                    let bids_for_permission_key = get_bids_for_permission_key(&store, chain_id).await;
                     tracing::info!(
                         "Chain: {chain_id} Auctions to process {auction_len}",
                         chain_id = chain_id,
-                        auction_len = bid_by_permission_key.len()
+                        auction_len = bids_for_permission_key.len()
                     );
-                    for (permission_key, bids) in bid_by_permission_key.iter() {
-                        let auction_id = store.init_auction(permission_key.clone(), chain_id.clone()).await?;
 
-                        let mut cloned_bids = bids.clone();
-                        let permission_key = permission_key.clone();
-                         cloned_bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
-
-                        // TODO: simulate all bids together and keep the successful ones
-                        // keep the highest bid for now
-                        let winner_bids = &cloned_bids[..1].to_vec();
+                    for (permission_key, bids) in bids_for_permission_key.iter() {
+                        let mut auction = store.init_auction(permission_key.clone(), chain_id.clone()).await?;
+                        let winner_bids = get_winner_bids(bids.clone());
                         let submission = submit_bids(
                             store.relayer.clone(),
                             chain_store.provider.clone(),
@@ -262,29 +277,15 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             winner_bids.iter().map(|b| MulticallData::from((b.id.into_bytes(), b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
                         )
                         .await;
+
                         match submission {
                             Ok(receipt) => match receipt {
                                 Some(receipt) => {
                                     tracing::debug!("Submitted transaction: {:?}", receipt);
-                                    let auction_params = AuctionParams {
-                                        chain_id: chain_id.clone(),
-                                        permission_key: permission_key.clone(),
-                                        tx_hash: receipt.transaction_hash,
-                                    };
-                                    let auction = AuctionParamsWithMetadata {
-                                        id: auction_id,
-                                        conclusion_time: OffsetDateTime::now_utc().unix_timestamp_nanos() / 1000,
-                                        params: auction_params,
-                                    };
-                                    store.update_auction(auction).await?;
-                                    let winner_ids:Vec<Uuid> = winner_bids.iter().map(|b| b.id).collect();
-                                    for bid in cloned_bids {
-                                        let bid_index = winner_ids.iter().position(|&x| x == bid.id);
-                                        let bid_status = match bid_index {
-                                            Some(i) => BidStatus::Submitted { result: receipt.transaction_hash, index: i as u32 },
-                                            None => BidStatus::Lost { result: receipt.transaction_hash }
-                                        };
-                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, auction_id).await?;
+                                    auction = store.update_auction(auction, receipt.transaction_hash).await?;
+                                    for bid in bids.iter() {
+                                        let bid_status = get_bid_status(bid, &winner_bids, receipt.transaction_hash);
+                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, &auction).await?;
                                     }
                                 }
                                 None => {
