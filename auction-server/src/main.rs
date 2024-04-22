@@ -9,7 +9,7 @@ use {
 mod api;
 mod auction;
 mod config;
-pub mod models;
+mod models;
 mod opportunity_adapter;
 mod serde;
 mod server;
