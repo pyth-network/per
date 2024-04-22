@@ -30,7 +30,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         vm.prank(executor);
         myToken.approve(address(opportunityAdapter), tokenAmount);
         address targetContract = makeAddr("targetContract");
-        opportunityAdapter.exposed_PrepareSellTokens(
+        opportunityAdapter.exposed_prepareSellTokens(
             sellTokens,
             executor,
             targetContract

@@ -247,6 +247,7 @@ contract OpportunityAdapterIntegrationTest is
         vm.stopPrank();
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectCall(address(mockTarget), callValue, targetCalldata);
+        // We expect the adapter to transfer the bid to the express relay
         vm.expectCall(address(this), bid, bytes(""));
         vm.expectCall(
             address(weth),
@@ -284,6 +285,7 @@ contract OpportunityAdapterIntegrationTest is
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectCall(address(mockTarget), targetCalldata);
         // When count is 0 (3rd argument) we expect 0 calls to be made to the specified address
+        // In this case, we do not expect adapter to transfer any ETH to the express relay
         vm.expectCall(address(this), bytes(""), 0);
         vm.expectCall(
             address(weth),

@@ -5,7 +5,7 @@ import {OpportunityAdapter} from "../../src/OpportunityAdapter.sol";
 import {TokenAmount} from "../../src/Structs.sol";
 
 contract OpportunityAdapterHarness is OpportunityAdapter {
-    function exposed_PrepareSellTokens(
+    function exposed_prepareSellTokens(
         TokenAmount[] calldata sellTokens,
         address executor,
         address targetContract

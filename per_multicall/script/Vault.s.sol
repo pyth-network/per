@@ -174,7 +174,7 @@ contract VaultScript is Script {
         (address deployer, ) = getDeployer();
         address weth = deployWeth();
 
-        (address relayer, ) = makeAddrAndKey("relayer");
+        address relayer = makeAddr("relayer");
         // since feeSplitPrecision is set to 10 ** 18, this represents ~50% of the fees
         uint256 feeSplitProtocolDefault = 50 * (10 ** 16);
         // ~5% (10% of the remaining 50%) of the fees go to the relayer
@@ -213,7 +213,7 @@ contract VaultScript is Script {
         if (pyth == address(0)) pyth = deployMockPyth();
         if (weth == address(0)) weth = deployWeth();
 
-        (address relayer, ) = makeAddrAndKey("relayer");
+        address relayer = makeAddr("relayer");
         // since feeSplitPrecision is set to 10 ** 18, this represents ~50% of the fees
         uint256 feeSplitProtocolDefault = 50 * (10 ** 16);
         // ~5% (10% of the remaining 50%) of the fees go to the relayer
