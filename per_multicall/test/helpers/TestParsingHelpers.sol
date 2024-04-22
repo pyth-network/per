@@ -60,7 +60,7 @@ contract TestParsingHelpers is Test {
     function assertEqBalances(
         AccountBalance memory a,
         AccountBalance memory b
-    ) internal pure {
+    ) internal {
         assertEq(a.collateral, b.collateral);
         assertEq(a.debt, b.debt);
     }

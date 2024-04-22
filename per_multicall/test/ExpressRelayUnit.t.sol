@@ -817,11 +817,6 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
             bidInfos
         );
 
-        BalancesMockTarget memory balancesPre = getBalancesMockTarget(
-            feeReceiver,
-            address(mockTarget)
-        );
-
         vm.expectRevert(Unauthorized.selector);
         vm.prank(caller);
         expressRelay.callWithBid(multicallData[0]);

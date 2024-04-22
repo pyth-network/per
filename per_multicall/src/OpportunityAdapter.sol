@@ -6,10 +6,13 @@ import "./SigVerify.sol";
 import "./ExpressRelay.sol";
 import "./WETH9.sol";
 
+import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 abstract contract OpportunityAdapter is SigVerify {
+    using SafeERC20 for IERC20;
+
     address _admin;
     address _expressRelay;
     address _weth;
@@ -68,19 +71,6 @@ abstract contract OpportunityAdapter is SigVerify {
         return WETH9(payable(_weth));
     }
 
-    function _getRevertMsg(
-        bytes memory _returnData
-    ) internal pure returns (string memory) {
-        // If the _res length is less than 68, then the transaction failed silently (without a revert message)
-        if (_returnData.length < 68) return "Transaction reverted silently";
-
-        assembly {
-            // Slice the sighash.
-            _returnData := add(_returnData, 0x04)
-        }
-        return abi.decode(_returnData, (string)); // All that remains is the revert string
-    }
-
     function hash(
         TokenAmount memory tokenAmount
     ) internal pure returns (bytes32) {
@@ -122,7 +112,7 @@ abstract contract OpportunityAdapter is SigVerify {
     }
 
     function _verifyParams(
-        ExecutionParams memory params,
+        ExecutionParams calldata params,
         bytes memory signature
     ) internal view {
         if (msg.sender != _expressRelay) {
@@ -135,17 +125,36 @@ abstract contract OpportunityAdapter is SigVerify {
             signature,
             params.validUntil
         );
+
+        _checkDuplicateTokens(params.sellTokens);
+        _checkDuplicateTokens(params.buyTokens);
     }
 
-    function _prepareSellTokens(ExecutionParams memory params) internal {
-        for (uint i = 0; i < params.sellTokens.length; i++) {
-            IERC20 token = IERC20(params.sellTokens[i].token);
-            token.transferFrom(
-                params.executor,
+    function _checkDuplicateTokens(
+        TokenAmount[] calldata tokens
+    ) internal pure {
+        for (uint i = 0; i < tokens.length; i++) {
+            for (uint j = i + 1; j < tokens.length; j++) {
+                if (tokens[i].token == tokens[j].token) {
+                    revert DuplicateToken();
+                }
+            }
+        }
+    }
+
+    function _prepareSellTokens(
+        TokenAmount[] calldata sellTokens,
+        address executor,
+        address targetContract
+    ) internal {
+        for (uint i = 0; i < sellTokens.length; i++) {
+            IERC20 token = IERC20(sellTokens[i].token);
+            token.safeTransferFrom(
+                executor,
                 address(this),
-                params.sellTokens[i].amount
+                sellTokens[i].amount
             );
-            token.approve(params.targetContract, params.sellTokens[i].amount);
+            token.approve(targetContract, sellTokens[i].amount);
         }
     }
 
@@ -154,31 +163,34 @@ abstract contract OpportunityAdapter is SigVerify {
         uint256 amount
     ) internal {
         WETH9 weth = _getWethContract();
-        if (amount > 0) {
-            try weth.transferFrom(source, address(this), amount) {} catch {
-                revert WethTransferFromFailed();
-            }
-            weth.withdraw(amount);
+        try weth.transferFrom(source, address(this), amount) {} catch {
+            revert WethTransferFromFailed();
+        }
+        weth.withdraw(amount);
+    }
+
+    function _settleBid(address executor, uint256 bidAmount) internal {
+        if (bidAmount > 0) {
+            _transferFromAndUnwrapWeth(executor, bidAmount);
+            payable(getExpressRelay()).transfer(bidAmount);
         }
     }
 
-    function _settleBid(ExecutionParams memory params) internal {
-        _transferFromAndUnwrapWeth(params.executor, params.bidAmount);
-        payable(getExpressRelay()).transfer(params.bidAmount);
-    }
-
-    function _callTargetContract(ExecutionParams memory params) internal {
-        (bool success, bytes memory reason) = params.targetContract.call{
-            value: params.targetCallValue
-        }(params.targetCalldata);
+    function _callTargetContract(
+        address targetContract,
+        bytes calldata targetCalldata,
+        uint256 targetCallValue
+    ) internal {
+        (bool success, bytes memory returnData) = targetContract.call{
+            value: targetCallValue
+        }(targetCalldata);
         if (!success) {
-            string memory revertData = _getRevertMsg(reason);
-            revert TargetCallFailed(revertData);
+            revert TargetCallFailed(returnData);
         }
     }
 
     function _getContractTokenBalances(
-        TokenAmount[] memory tokens
+        TokenAmount[] calldata tokens
     ) internal view returns (uint256[] memory) {
         uint256[] memory tokenBalances = new uint256[](tokens.length);
         for (uint i = 0; i < tokens.length; i++) {
@@ -189,23 +201,24 @@ abstract contract OpportunityAdapter is SigVerify {
     }
 
     function _validateAndTransferBuyTokens(
-        ExecutionParams memory params,
+        TokenAmount[] calldata buyTokens,
+        address executor,
         uint256[] memory buyTokensBalancesBeforeCall
     ) internal {
-        for (uint i = 0; i < params.buyTokens.length; i++) {
-            IERC20 token = IERC20(params.buyTokens[i].token);
+        for (uint i = 0; i < buyTokens.length; i++) {
+            IERC20 token = IERC20(buyTokens[i].token);
             if (
                 token.balanceOf(address(this)) <
-                buyTokensBalancesBeforeCall[i] + params.buyTokens[i].amount
+                buyTokensBalancesBeforeCall[i] + buyTokens[i].amount
             ) {
                 revert InsufficientTokenReceived();
             }
-            token.transfer(params.executor, params.buyTokens[i].amount);
+            token.safeTransfer(executor, buyTokens[i].amount);
         }
     }
 
     function executeOpportunity(
-        ExecutionParams memory params,
+        ExecutionParams calldata params,
         bytes memory signature
     ) public payable {
         _verifyParams(params, signature);
@@ -214,13 +227,28 @@ abstract contract OpportunityAdapter is SigVerify {
             memory buyTokensBalancesBeforeCall = _getContractTokenBalances(
                 params.buyTokens
             );
-        _prepareSellTokens(params);
-        _transferFromAndUnwrapWeth(params.executor, params.targetCallValue);
-        _callTargetContract(params);
-        _validateAndTransferBuyTokens(params, buyTokensBalancesBeforeCall);
-        _settleBid(params);
+        _prepareSellTokens(
+            params.sellTokens,
+            params.executor,
+            params.targetContract
+        );
+        if (params.targetCallValue > 0) {
+            _transferFromAndUnwrapWeth(params.executor, params.targetCallValue);
+        }
+        _callTargetContract(
+            params.targetContract,
+            params.targetCalldata,
+            params.targetCallValue
+        );
+        _validateAndTransferBuyTokens(
+            params.buyTokens,
+            params.executor,
+            buyTokensBalancesBeforeCall
+        );
+        _settleBid(params.executor, params.bidAmount);
         _useSignature(signature);
     }
 
+    // necessary to receive ETH from WETH contract using withdraw
     receive() external payable {}
 }

@@ -686,7 +686,7 @@ contract ExpressRelayTestSetup is
     function assertEqBalancesMockTarget(
         BalancesMockTarget memory a,
         BalancesMockTarget memory b
-    ) public pure {
+    ) public {
         assertEq(a.balanceFeeReceiver, b.balanceFeeReceiver);
         assertEq(a.balanceMockTarget, b.balanceMockTarget);
         assertEq(a.balanceExpressRelay, b.balanceExpressRelay);
