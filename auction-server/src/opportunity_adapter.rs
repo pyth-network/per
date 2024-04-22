@@ -475,7 +475,7 @@ pub struct OpportunityBid {
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
     pub amount:         BidAmount,
-    /// How long the bid will be valid for.
+    /// The latest unix timestamp in seconds until which the bid is valid
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
     pub valid_until:    U256,
