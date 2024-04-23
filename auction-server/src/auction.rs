@@ -13,6 +13,7 @@ use {
             BidAmount,
             BidStatus,
             BidStatusWithId,
+            ChainStore,
             PermissionKey,
             SimulatedBid,
             Store,
@@ -124,41 +125,6 @@ pub fn get_simulation_call(
         .from(relayer)
 }
 
-pub enum SimulationError {
-    LogicalError { result: Bytes, reason: String },
-    ContractError(ContractError<Provider<Http>>),
-}
-
-pub fn evaluate_simulation_results(results: Vec<MulticallStatus>) -> Result<(), SimulationError> {
-    let failed_result = results.iter().find(|x| !x.external_success);
-    if let Some(call_status) = failed_result {
-        return Err(SimulationError::LogicalError {
-            result: call_status.external_result.clone(),
-            reason: call_status.multicall_revert_reason.clone(),
-        });
-    }
-    Ok(())
-}
-
-pub async fn simulate_bids(
-    relayer: Address,
-    provider: Provider<Http>,
-    chain_config: EthereumConfig,
-    permission: Bytes,
-    multicall_data: Vec<MulticallData>,
-) -> Result<(), SimulationError> {
-    let call = get_simulation_call(relayer, provider, chain_config, permission, multicall_data);
-    match call.await {
-        Ok(results) => {
-            evaluate_simulation_results(results)?;
-        }
-        Err(e) => {
-            return Err(SimulationError::ContractError(e));
-        }
-    };
-    Ok(())
-}
-
 #[derive(Debug)]
 pub enum SubmissionError {
     ProviderError(ProviderError),
@@ -229,12 +195,45 @@ async fn get_bids_grouped_by_permission_key(
     })
 }
 
-fn get_winner_bids(mut bids: Vec<SimulatedBid>) -> Vec<SimulatedBid> {
+impl From<SimulatedBid> for MulticallData {
+    fn from(bid: SimulatedBid) -> Self {
+        MulticallData {
+            bid_id:          bid.id.into_bytes(),
+            target_contract: bid.target_contract,
+            target_calldata: bid.target_calldata,
+            bid_amount:      bid.bid_amount,
+        }
+    }
+}
+
+async fn get_winner_bids(
+    mut bids: Vec<SimulatedBid>,
+    permission_key: Bytes,
+    store: Arc<Store>,
+    chain_store: &ChainStore,
+) -> Result<Vec<SimulatedBid>, ContractError<Provider<Http>>> {
     bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
 
-    // TODO: simulate all bids together and keep the successful ones
-    // keep the highest bid for now
-    bids[..1].to_vec()
+    let simulation_result = get_simulation_call(
+        store.relayer.address(),
+        chain_store.provider.clone(),
+        chain_store.config.clone(),
+        permission_key.clone(),
+        bids.clone().into_iter().map(|b| b.into()).collect(),
+    )
+    .await?;
+
+    Ok(bids
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, bid)| {
+            if simulation_result[i].external_success {
+                Some(bid)
+            } else {
+                None
+            }
+        })
+        .collect())
 }
 
 fn get_bid_status(bid: &SimulatedBid, winner_bids: &[SimulatedBid], tx_hash: H256) -> BidStatus {
@@ -266,15 +265,22 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                     );
 
                     for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
+                        let winner_bids = get_winner_bids(bids.clone(), permission_key.clone(), store.clone(), chain_store).await?;
+                        if winner_bids.is_empty() {
+                            for bid in bids.iter() {
+                                store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status: BidStatus::FinalSimulationFailed }, None).await?;
+                            }
+                            continue;
+                        }
+
                         let mut auction = store.init_auction(permission_key.clone(), chain_id.clone()).await?;
-                        let winner_bids = get_winner_bids(bids.clone());
                         let submission = submit_bids(
                             store.relayer.clone(),
                             chain_store.provider.clone(),
                             chain_store.config.clone(),
                             chain_store.network_id,
                             permission_key.clone(),
-                            winner_bids.iter().map(|b| MulticallData::from((b.id.into_bytes(), b.target_contract, b.target_calldata.clone(), b.bid_amount))).collect()
+                            winner_bids.clone().into_iter().map(|b| b.into()).collect()
                         )
                         .await;
 
@@ -285,7 +291,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                     auction = store.conclude_auction(auction, receipt.transaction_hash).await?;
                                     for bid in bids.iter() {
                                         let bid_status = get_bid_status(bid, &winner_bids, receipt.transaction_hash);
-                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, &auction).await?;
+                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, Some(&auction)).await?;
                                     }
                                 }
                                 None => {
@@ -296,7 +302,6 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                                 tracing::error!("Transaction failed to submit: {:?}", err);
                             }
                         }
-
                     }
                 }
             }
@@ -332,7 +337,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         .chains
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
-    let call = simulate_bids(
+    let call = get_simulation_call(
         store.relayer.address(),
         chain_store.provider.clone(),
         chain_store.config.clone(),
@@ -345,12 +350,17 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         ))],
     );
 
-    if let Err(e) = call.await {
-        return match e {
-            SimulationError::LogicalError { result, reason } => {
-                Err(RestError::SimulationError { result, reason })
+    match call.await {
+        Ok(results) => {
+            if !results[0].external_success {
+                return Err(RestError::SimulationError {
+                    result: results[0].external_result.clone(),
+                    reason: results[0].multicall_revert_reason.clone(),
+                });
             }
-            SimulationError::ContractError(e) => match e {
+        }
+        Err(e) => {
+            return match e {
                 ContractError::Revert(reason) => Err(RestError::BadParameters(format!(
                     "Contract Revert Error: {}",
                     String::decode_with_selector(&reason)
@@ -359,9 +369,9 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
                 ContractError::MiddlewareError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
                 _ => Err(RestError::BadParameters(format!("Error: {}", e))),
-            },
-        };
-    };
+            };
+        }
+    }
 
     let bid_id = Uuid::new_v4();
     let simulated_bid = SimulatedBid {
