@@ -326,7 +326,7 @@ impl Store {
         Ok(auction)
     }
 
-    pub async fn update_auction(
+    pub async fn conclude_auction(
         &self,
         mut auction: models::Auction,
         transaction_hash: H256,

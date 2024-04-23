@@ -218,7 +218,7 @@ pub async fn submit_bids(
     send_call.await.map_err(SubmissionError::ProviderError)
 }
 
-async fn get_bids_for_permission_key(
+async fn get_bids_grouped_by_permission_key(
     store: &Arc<Store>,
     chain_id: &String,
 ) -> HashMap<PermissionKey, Vec<SimulatedBid>> {
@@ -237,14 +237,14 @@ fn get_winner_bids(mut bids: Vec<SimulatedBid>) -> Vec<SimulatedBid> {
     bids[..1].to_vec()
 }
 
-fn get_bid_status(bid: &SimulatedBid, winner_bids: &[SimulatedBid], result: H256) -> BidStatus {
+fn get_bid_status(bid: &SimulatedBid, winner_bids: &[SimulatedBid], tx_hash: H256) -> BidStatus {
     let bid_index = winner_bids.iter().position(|b| b.id == bid.id);
     match bid_index {
         Some(i) => BidStatus::Submitted {
-            result,
-            index: i as u32,
+            result: tx_hash,
+            index:  i as u32,
         },
-        None => BidStatus::Lost { result },
+        None => BidStatus::Lost { result: tx_hash },
     }
 }
 
@@ -258,14 +258,14 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
         tokio::select! {
             _ = submission_interval.tick() => {
                 for (chain_id, chain_store) in &store.chains {
-                    let bids_for_permission_key = get_bids_for_permission_key(&store, chain_id).await;
+                    let bids_grouped_by_permission_key = get_bids_grouped_by_permission_key(&store, chain_id).await;
                     tracing::info!(
                         "Chain: {chain_id} Auctions to process {auction_len}",
                         chain_id = chain_id,
-                        auction_len = bids_for_permission_key.len()
+                        auction_len = bids_grouped_by_permission_key.len()
                     );
 
-                    for (permission_key, bids) in bids_for_permission_key.iter() {
+                    for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
                         let mut auction = store.init_auction(permission_key.clone(), chain_id.clone()).await?;
                         let winner_bids = get_winner_bids(bids.clone());
                         let submission = submit_bids(
@@ -282,7 +282,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                             Ok(receipt) => match receipt {
                                 Some(receipt) => {
                                     tracing::debug!("Submitted transaction: {:?}", receipt);
-                                    auction = store.update_auction(auction, receipt.transaction_hash).await?;
+                                    auction = store.conclude_auction(auction, receipt.transaction_hash).await?;
                                     for bid in bids.iter() {
                                         let bid_status = get_bid_status(bid, &winner_bids, receipt.transaction_hash);
                                         store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, &auction).await?;
