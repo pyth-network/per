@@ -12,6 +12,7 @@ use {
             ChainId,
             EthereumConfig,
         },
+        models,
     },
     axum::Json,
     ethers::{
@@ -219,26 +220,6 @@ pub struct BidStatusWithId {
     pub bid_status: BidStatus,
 }
 
-pub type AuctionId = Uuid;
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
-pub struct AuctionParams {
-    #[schema(example = "0xdeadbeefcafe", value_type = String)]
-    pub permission_key: PermissionKey,
-    #[schema(example = "op_sepolia", value_type = String)]
-    pub chain_id:       ChainId,
-    #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-    pub tx_hash:        H256,
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct AuctionParamsWithMetadata {
-    #[schema(value_type = String)]
-    pub id:              AuctionId,
-    pub conclusion_time: UnixTimestampMicros,
-    pub params:          AuctionParams,
-}
-
 pub struct Store {
     pub chains:            HashMap<ChainId, ChainStore>,
     pub bids:              RwLock<HashMap<BidId, SimulatedBid>>,
@@ -323,31 +304,43 @@ impl Store {
         &self,
         permission_key: PermissionKey,
         chain_id: ChainId,
-    ) -> anyhow::Result<AuctionId> {
+    ) -> anyhow::Result<models::Auction> {
         let now = OffsetDateTime::now_utc();
-        let auction_id = Uuid::new_v4();
+        let auction = models::Auction {
+            id: Uuid::new_v4(),
+            creation_time: PrimitiveDateTime::new(now.date(), now.time()),
+            conclusion_time: None,
+            permission_key: permission_key.to_vec(),
+            chain_id,
+            tx_hash: None,
+        };
         sqlx::query!(
             "INSERT INTO auction (id, creation_time, permission_key, chain_id) VALUES ($1, $2, $3, $4)",
-            auction_id,
-            PrimitiveDateTime::new(now.date(), now.time()),
-            permission_key.to_vec(),
-            chain_id
+            auction.id,
+            auction.creation_time,
+            auction.permission_key,
+            auction.chain_id,
         )
         .execute(&self.db)
         .await?;
-        Ok(auction_id)
+        Ok(auction)
     }
 
-    pub async fn update_auction(&self, auction: AuctionParamsWithMetadata) -> anyhow::Result<()> {
-        let conclusion_datetime =
-            OffsetDateTime::from_unix_timestamp_nanos(auction.conclusion_time * 1000)?;
+    pub async fn conclude_auction(
+        &self,
+        mut auction: models::Auction,
+        transaction_hash: H256,
+    ) -> anyhow::Result<models::Auction> {
+        auction.tx_hash = Some(transaction_hash.as_bytes().to_vec());
+        let now = OffsetDateTime::now_utc();
+        auction.conclusion_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
         sqlx::query!("UPDATE auction SET conclusion_time = $1, tx_hash = $2 WHERE id = $3 AND conclusion_time IS NULL",
-            PrimitiveDateTime::new(conclusion_datetime.date(), conclusion_datetime.time()),
-            auction.params.tx_hash.as_bytes(),
+            auction.conclusion_time,
+            auction.tx_hash,
             auction.id)
             .execute(&self.db)
             .await?;
-        Ok(())
+        Ok(auction)
     }
 
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
@@ -438,7 +431,7 @@ impl Store {
     pub async fn broadcast_bid_status_and_remove(
         &self,
         update: BidStatusWithId,
-        auction_id: AuctionId,
+        auction: &models::Auction,
     ) -> anyhow::Result<()> {
         match update.bid_status {
             BidStatus::Pending => {
@@ -450,7 +443,7 @@ impl Store {
                 sqlx::query!(
                     "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND auction_id is NULL",
                     update.bid_status as _,
-                    auction_id,
+                    auction.id,
                     index as i32,
                     update.id
                 )
@@ -461,7 +454,7 @@ impl Store {
                 sqlx::query!(
                     "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
                     update.bid_status as _,
-                    auction_id,
+                    auction.id,
                     update.id
                 )
                 .execute(&self.db)

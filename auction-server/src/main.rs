@@ -9,11 +9,13 @@ use {
 mod api;
 mod auction;
 mod config;
+mod models;
 mod opportunity_adapter;
 mod serde;
 mod server;
 mod state;
 mod token_spoof;
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
