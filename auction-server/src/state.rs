@@ -482,7 +482,7 @@ impl Store {
                     .await?;
                 } else {
                     return Err(anyhow::anyhow!(
-                        "Cannot broadcast submitted bid status without auction."
+                        "Cannot broadcast lost bid status without auction."
                     ));
                 }
             }
