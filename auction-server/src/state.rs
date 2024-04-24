@@ -175,6 +175,8 @@ pub type BidId = Uuid;
 pub enum BidStatus {
     /// The auction for this bid is pending
     Pending,
+    /// The bid simulation was failed in the final simulation step before submission
+    SimulationFailed,
     /// The bid won the auction, which concluded with it being placed in the index position of the multicall at the given hash
     Submitted {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
@@ -193,6 +195,7 @@ impl sqlx::Encode<'_, sqlx::Postgres> for BidStatus {
     fn encode_by_ref(&self, buf: &mut <Postgres as HasArguments<'_>>::ArgumentBuffer) -> IsNull {
         let result = match self {
             BidStatus::Pending => "pending",
+            BidStatus::SimulationFailed => "simulation_failed",
             BidStatus::Submitted {
                 result: _,
                 index: _,
@@ -385,6 +388,8 @@ impl Store {
             Some(status) => {
                 if status == "pending" {
                     status_json = BidStatus::Pending.into();
+                } else if status == "simulation_failed" {
+                    status_json = BidStatus::SimulationFailed.into();
                 } else {
                     match status_data.tx_hash {
                         Some(tx_hash) => {
@@ -431,7 +436,7 @@ impl Store {
     pub async fn broadcast_bid_status_and_remove(
         &self,
         update: BidStatusWithId,
-        auction: &models::Auction,
+        auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
         match update.bid_status {
             BidStatus::Pending => {
@@ -439,26 +444,47 @@ impl Store {
                     "Bid status cannot remain pending when removing a bid."
                 ));
             }
-            BidStatus::Submitted { result: _, index } => {
+            BidStatus::SimulationFailed => {
                 sqlx::query!(
-                    "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND auction_id is NULL",
+                    "UPDATE bid SET status = $1 WHERE id = $2 AND auction_id is NULL",
                     update.bid_status as _,
-                    auction.id,
-                    index as i32,
                     update.id
                 )
                 .execute(&self.db)
                 .await?;
             }
+            BidStatus::Submitted { result: _, index } => {
+                if let Some(auction) = auction {
+                    sqlx::query!(
+                        "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND auction_id is NULL",
+                        update.bid_status as _,
+                        auction.id,
+                        index as i32,
+                        update.id
+                    )
+                    .execute(&self.db)
+                    .await?;
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Cannot broadcast submitted bid status without auction."
+                    ));
+                }
+            }
             BidStatus::Lost { result: _ } => {
-                sqlx::query!(
-                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
-                    update.bid_status as _,
-                    auction.id,
-                    update.id
-                )
-                .execute(&self.db)
-                .await?;
+                if let Some(auction) = auction {
+                    sqlx::query!(
+                        "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
+                        update.bid_status as _,
+                        auction.id,
+                        update.id
+                    )
+                    .execute(&self.db)
+                    .await?;
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Cannot broadcast lost bid status without auction."
+                    ));
+                }
             }
         }
 

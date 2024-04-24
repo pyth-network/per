@@ -5,7 +5,6 @@ use {
             RestError,
         },
         auction::{
-            evaluate_simulation_results,
             get_simulation_call,
             handle_bid,
             Bid,
@@ -224,8 +223,9 @@ pub async fn verify_opportunity(
 
     match MulticallReturn::decode(&result) {
         Ok(result) => {
-            evaluate_simulation_results(result.multicall_statuses)
-                .map_err(|_| anyhow!("Express Relay Simulation failed"))?;
+            if !result.multicall_statuses[0].external_success {
+                return Err(anyhow!("Express Relay Simulation failed"));
+            }
         }
         Err(e) => return Err(anyhow!(format!("Error decoding multicall result: {:?}", e))),
     }
