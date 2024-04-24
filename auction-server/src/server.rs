@@ -52,11 +52,11 @@ use {
     },
 };
 
-async fn recover_on_panic<F, G>(name: &str, f: F)
+async fn recover_on_panic<F, Fut>(name: &str, f: F)
 where
-    F: Fn() -> G,
-    G: Future + Send + 'static,
-    G::Output: Send + 'static,
+    F: Fn() -> Fut,
+    Fut: Future + Send + 'static,
+    Fut::Output: Send + 'static,
 {
     loop {
         let res = tokio::spawn(f()).await;
