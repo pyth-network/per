@@ -207,11 +207,12 @@ impl From<SimulatedBid> for MulticallData {
 }
 
 async fn get_winner_bids(
-    mut bids: Vec<SimulatedBid>,
+    bids: &Vec<SimulatedBid>,
     permission_key: Bytes,
     store: Arc<Store>,
     chain_store: &ChainStore,
 ) -> Result<Vec<SimulatedBid>, ContractError<Provider<Http>>> {
+    let mut bids = bids.clone();
     bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
 
     let simulation_result = get_simulation_call(
@@ -265,7 +266,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                     );
 
                     for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
-                        let winner_bids = get_winner_bids(bids.clone(), permission_key.clone(), store.clone(), chain_store).await?;
+                        let winner_bids = get_winner_bids(bids, permission_key.clone(), store.clone(), chain_store).await?;
                         if winner_bids.is_empty() {
                             for bid in bids.iter() {
                                 store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status: BidStatus::FinalSimulationFailed }, None).await?;
