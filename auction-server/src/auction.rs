@@ -212,6 +212,7 @@ async fn get_winner_bids(
     store: Arc<Store>,
     chain_store: &ChainStore,
 ) -> Result<Vec<SimulatedBid>, ContractError<Provider<Http>>> {
+    // TODO How we want to perform simulation, pruning, and determination
     let mut bids = bids.clone();
     bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
 
@@ -269,7 +270,7 @@ pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
                         let winner_bids = get_winner_bids(bids, permission_key.clone(), store.clone(), chain_store).await?;
                         if winner_bids.is_empty() {
                             for bid in bids.iter() {
-                                store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status: BidStatus::FinalSimulationFailed }, None).await?;
+                                store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status: BidStatus::SimulationFailed }, None).await?;
                             }
                             continue;
                         }

@@ -1,4 +1,4 @@
-UPDATE bid SET status = 'pending' WHERE status = 'final_simulation_failed';
+UPDATE bid SET status = 'lost' WHERE status = 'simulation_failed';
 CREATE TYPE new_bid_status AS ENUM ('pending', 'lost', 'submitted');
 ALTER TABLE bid
     ALTER COLUMN status TYPE new_bid_status

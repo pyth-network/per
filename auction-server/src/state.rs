@@ -175,8 +175,8 @@ pub type BidId = Uuid;
 pub enum BidStatus {
     /// The auction for this bid is pending
     Pending,
-    /// The bid simulation was failed in the final simulation step
-    FinalSimulationFailed,
+    /// The bid simulation was failed in the final simulation step before submission
+    SimulationFailed,
     /// The bid won the auction, which concluded with it being placed in the index position of the multicall at the given hash
     Submitted {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
@@ -195,7 +195,7 @@ impl sqlx::Encode<'_, sqlx::Postgres> for BidStatus {
     fn encode_by_ref(&self, buf: &mut <Postgres as HasArguments<'_>>::ArgumentBuffer) -> IsNull {
         let result = match self {
             BidStatus::Pending => "pending",
-            BidStatus::FinalSimulationFailed => "final_simulation_failed",
+            BidStatus::SimulationFailed => "simulation_failed",
             BidStatus::Submitted {
                 result: _,
                 index: _,
@@ -388,8 +388,8 @@ impl Store {
             Some(status) => {
                 if status == "pending" {
                     status_json = BidStatus::Pending.into();
-                } else if status == "final_simulation_failed" {
-                    status_json = BidStatus::FinalSimulationFailed.into();
+                } else if status == "simulation_failed" {
+                    status_json = BidStatus::SimulationFailed.into();
                 } else {
                     match status_data.tx_hash {
                         Some(tx_hash) => {
@@ -444,7 +444,7 @@ impl Store {
                     "Bid status cannot remain pending when removing a bid."
                 ));
             }
-            BidStatus::FinalSimulationFailed => {
+            BidStatus::SimulationFailed => {
                 sqlx::query!(
                     "UPDATE bid SET status = $1 WHERE id = $2 AND auction_id is NULL",
                     update.bid_status as _,
