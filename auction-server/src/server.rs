@@ -33,7 +33,10 @@ use {
         },
         signers::Signer,
     },
-    futures::future::join_all,
+    futures::{
+        future::join_all,
+        Future,
+    },
     sqlx::postgres::PgPoolOptions,
     std::{
         collections::HashMap,
@@ -47,7 +50,31 @@ use {
         },
         time::Duration,
     },
+    tokio::time::sleep,
 };
+
+async fn recover_on_panic<F, Fut>(name: &str, f: F)
+where
+    F: Fn() -> Fut,
+    Fut: Future + Send + 'static,
+    Fut::Output: Send + 'static,
+{
+    loop {
+        let res = tokio::spawn(f()).await;
+        match res {
+            Ok(_) => break,
+            Err(err) => {
+                if err.is_panic() {
+                    tracing::error!("{} is panicked: {:?}", name, err);
+                    sleep(Duration::from_millis(500)).await
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+}
+
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
@@ -139,10 +166,15 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         },
     });
 
-    let submission_loop = tokio::spawn(run_submission_loop(store.clone()));
-    let verification_loop = tokio::spawn(run_verification_loop(store.clone()));
-    let server_loop = tokio::spawn(api::start_api(run_options, store.clone()));
-    join_all(vec![submission_loop, verification_loop, server_loop]).await;
+
+    tokio::join!(
+        recover_on_panic("submission loop", || run_submission_loop(store.clone())),
+        recover_on_panic("verification loop", || run_verification_loop(store.clone())),
+        recover_on_panic("start api", || api::start_api(
+            run_options.clone(),
+            store.clone()
+        )),
+    );
     Ok(())
 }
 
