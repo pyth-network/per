@@ -63,7 +63,7 @@ where
         let res = tokio::spawn(f()).await;
         match res {
             Ok(result) => match result {
-                Ok(_) => break,
+                Ok(_) => break, // This will happen on graceful shutdown
                 Err(err) => {
                     tracing::error!("{} returned error: {:?}", name, err);
                     sleep(Duration::from_millis(500)).await;
