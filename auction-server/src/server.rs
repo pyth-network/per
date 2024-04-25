@@ -169,9 +169,12 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         },
     });
 
-
+    let ss = String::from("development");
     tokio::join!(
-        fault_tolerant_handler("submission loop", || run_submission_loop(store.clone())),
+        fault_tolerant_handler("submission loop", || run_submission_loop(
+            store.clone(),
+            ss.clone()
+        )),
         fault_tolerant_handler("verification loop", || run_verification_loop(store.clone())),
         fault_tolerant_handler("start api", || api::start_api(
             run_options.clone(),

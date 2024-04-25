@@ -41,8 +41,10 @@ use {
         },
         providers::{
             Http,
+            Middleware,
             Provider,
             ProviderError,
+            Ws,
         },
         signers::{
             LocalWallet,
@@ -59,10 +61,15 @@ use {
             U256,
         },
     },
+    futures::{
+        future::join_all,
+        StreamExt,
+    },
     serde::{
         Deserialize,
         Serialize,
     },
+    sqlx::types::time::OffsetDateTime,
     std::{
         collections::HashMap,
         result,
@@ -72,6 +79,7 @@ use {
         },
         time::Duration,
     },
+    tokio::time::sleep,
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -207,13 +215,13 @@ impl From<SimulatedBid> for MulticallData {
 }
 
 async fn get_winner_bids(
-    bids: &Vec<SimulatedBid>,
+    bids: &[SimulatedBid],
     permission_key: Bytes,
     store: Arc<Store>,
     chain_store: &ChainStore,
 ) -> Result<Vec<SimulatedBid>, ContractError<Provider<Http>>> {
     // TODO How we want to perform simulation, pruning, and determination
-    let mut bids = bids.clone();
+    let mut bids = bids.to_owned();
     bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
 
     let simulation_result = get_simulation_call(
@@ -249,63 +257,137 @@ fn get_bid_status(bid: &SimulatedBid, winner_bids: &[SimulatedBid], tx_hash: H25
     }
 }
 
-pub async fn run_submission_loop(store: Arc<Store>) -> Result<()> {
+async fn submit_auction(
+    bids: Vec<SimulatedBid>,
+    permission_key: Bytes,
+    store: Arc<Store>,
+    chain_id: String,
+    next_block_time: OffsetDateTime,
+) -> Result<()> {
+    let chain_store = store
+        .chains
+        .get(&chain_id)
+        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+    let time_diff_millis: u64 =
+        (next_block_time - OffsetDateTime::now_utc()).whole_milliseconds() as u64;
+    if time_diff_millis < 500 {
+        return Err(anyhow!(
+            "Time estimated next block time is less than 500ms: {}",
+            time_diff_millis
+        ));
+    }
+    sleep(Duration::from_millis(time_diff_millis - 500)).await;
+
+    let winner_bids =
+        get_winner_bids(&bids, permission_key.clone(), store.clone(), chain_store).await?;
+    if winner_bids.is_empty() {
+        for bid in bids.iter() {
+            store
+                .broadcast_bid_status_and_remove(
+                    BidStatusWithId {
+                        id:         bid.id,
+                        bid_status: BidStatus::SimulationFailed,
+                    },
+                    None,
+                )
+                .await?;
+        }
+        return Ok(());
+    }
+
+    let mut auction = store
+        .init_auction(permission_key.clone(), chain_id.clone())
+        .await?;
+    let submission = submit_bids(
+        store.relayer.clone(),
+        chain_store.provider.clone(),
+        chain_store.config.clone(),
+        chain_store.network_id,
+        permission_key.clone(),
+        winner_bids.clone().into_iter().map(|b| b.into()).collect(),
+    )
+    .await;
+
+    match submission {
+        Ok(receipt) => match receipt {
+            Some(receipt) => {
+                tracing::debug!("Submitted transaction: {:?}", receipt);
+                auction = store
+                    .conclude_auction(auction, receipt.transaction_hash)
+                    .await?;
+                for bid in bids.iter() {
+                    let bid_status = get_bid_status(bid, &winner_bids, receipt.transaction_hash);
+                    store
+                        .broadcast_bid_status_and_remove(
+                            BidStatusWithId {
+                                id: bid.id,
+                                bid_status,
+                            },
+                            Some(&auction),
+                        )
+                        .await?;
+                }
+            }
+            None => {
+                tracing::error!("Failed to receive transaction receipt");
+            }
+        },
+        Err(err) => {
+            tracing::error!("Transaction failed to submit: {:?}", err);
+        }
+    }
+    Ok(())
+}
+
+pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
     tracing::info!("Starting transaction submitter...");
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
-    // this should be replaced by a subscription to the chain and trigger on new blocks
-    let mut submission_interval = tokio::time::interval(Duration::from_secs(5));
+    let chain_store = store.chains.get(&chain_id);
+    if chain_store.is_none() {
+        return Err(anyhow!("Chain not found: {}", chain_id));
+    }
+
+    let chain_store = chain_store.unwrap();
+    let ws = Ws::connect(chain_store.config.geth_ws_addr.clone()).await?;
+    let ws_provider = Provider::new(ws);
+    let mut stream = ws_provider.subscribe_blocks().await?;
+
+    let mut last_block_time: Option<OffsetDateTime> = None;
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
-            _ = submission_interval.tick() => {
-                for (chain_id, chain_store) in &store.chains {
-                    let bids_grouped_by_permission_key = get_bids_grouped_by_permission_key(&store, chain_id).await;
-                    tracing::info!(
-                        "Chain: {chain_id} Auctions to process {auction_len}",
-                        chain_id = chain_id,
-                        auction_len = bids_grouped_by_permission_key.len()
-                    );
-
-                    for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
-                        let winner_bids = get_winner_bids(bids, permission_key.clone(), store.clone(), chain_store).await?;
-                        if winner_bids.is_empty() {
-                            for bid in bids.iter() {
-                                store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status: BidStatus::SimulationFailed }, None).await?;
-                            }
-                            continue;
-                        }
-
-                        let mut auction = store.init_auction(permission_key.clone(), chain_id.clone()).await?;
-                        let submission = submit_bids(
-                            store.relayer.clone(),
-                            chain_store.provider.clone(),
-                            chain_store.config.clone(),
-                            chain_store.network_id,
-                            permission_key.clone(),
-                            winner_bids.clone().into_iter().map(|b| b.into()).collect()
-                        )
-                        .await;
-
-                        match submission {
-                            Ok(receipt) => match receipt {
-                                Some(receipt) => {
-                                    tracing::debug!("Submitted transaction: {:?}", receipt);
-                                    auction = store.conclude_auction(auction, receipt.transaction_hash).await?;
-                                    for bid in bids.iter() {
-                                        let bid_status = get_bid_status(bid, &winner_bids, receipt.transaction_hash);
-                                        store.broadcast_bid_status_and_remove(BidStatusWithId { id: bid.id, bid_status }, Some(&auction)).await?;
-                                    }
-                                }
-                                None => {
-                                    tracing::error!("Failed to receive transaction receipt");
-                                }
-                            },
-                            Err(err) => {
-                                tracing::error!("Transaction failed to submit: {:?}", err);
-                            }
-                        }
-                    }
+            block = stream.next() => {
+                if block.is_none() {
+                    return Err(anyhow!("Block stream ended for chain: {}", chain_id));
                 }
+                if last_block_time.is_none() {
+                    last_block_time = Some(OffsetDateTime::now_utc());
+                    continue;
+                }
+
+                let now = OffsetDateTime::now_utc();
+                let next_block_time = now + (now - last_block_time.unwrap());
+                last_block_time = Some(now);
+
+                let bids_grouped_by_permission_key = get_bids_grouped_by_permission_key(&store, &chain_id).await;
+                tracing::info!(
+                    "Chain: {chain_id} Auctions to process {auction_len}",
+                    chain_id = chain_id,
+                    auction_len = bids_grouped_by_permission_key.len()
+                );
+
+                let mut workers = Vec::new();
+                for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
+                    let submit_auction_call = submit_auction(
+                        bids.clone(),
+                        permission_key.clone(),
+                        store.clone(),
+                        chain_id.clone(),
+                        next_block_time,
+                    );
+                    workers.push(tokio::spawn(submit_auction_call));
+                }
+                join_all(workers).await;
             }
             _ = exit_check_interval.tick() => {}
         }
