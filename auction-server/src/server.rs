@@ -50,6 +50,7 @@ use {
         },
         time::Duration,
     },
+    tokio::time::sleep,
 };
 
 async fn recover_on_panic<F, Fut>(name: &str, f: F)
@@ -65,6 +66,7 @@ where
             Err(err) => {
                 if err.is_panic() {
                     tracing::error!("{} is panicked: {:?}", name, err);
+                    sleep(Duration::from_millis(500)).await
                 } else {
                     break;
                 }
