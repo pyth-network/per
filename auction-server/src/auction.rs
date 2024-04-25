@@ -61,10 +61,7 @@ use {
             U256,
         },
     },
-    futures::{
-        future::join_all,
-        StreamExt,
-    },
+    futures::StreamExt,
     serde::{
         Deserialize,
         Serialize,
@@ -368,6 +365,7 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
                 let now = OffsetDateTime::now_utc();
                 let next_block_time = now + (now - last_block_time.unwrap());
                 last_block_time = Some(now);
+                // TODO sleep here
 
                 let bids_grouped_by_permission_key = get_bids_grouped_by_permission_key(&store, &chain_id).await;
                 tracing::info!(
@@ -376,18 +374,15 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
                     auction_len = bids_grouped_by_permission_key.len()
                 );
 
-                let mut workers = Vec::new();
                 for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
-                    let submit_auction_call = submit_auction(
+                    tokio::spawn(submit_auction(
                         bids.clone(),
                         permission_key.clone(),
                         store.clone(),
                         chain_id.clone(),
                         next_block_time,
-                    );
-                    workers.push(tokio::spawn(submit_auction_call));
+                    ));
                 }
-                join_all(workers).await;
             }
             _ = exit_check_interval.tick() => {}
         }
