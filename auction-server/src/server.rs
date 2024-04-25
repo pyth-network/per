@@ -53,23 +53,26 @@ use {
     tokio::time::sleep,
 };
 
-async fn recover_on_panic<F, Fut>(name: &str, f: F)
+async fn fault_tolerant_handler<F, Fut>(name: &str, f: F)
 where
     F: Fn() -> Fut,
-    Fut: Future + Send + 'static,
+    Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
     Fut::Output: Send + 'static,
 {
     loop {
         let res = tokio::spawn(f()).await;
         match res {
-            Ok(_) => break,
-            Err(err) => {
-                if err.is_panic() {
-                    tracing::error!("{} is panicked: {:?}", name, err);
-                    sleep(Duration::from_millis(500)).await
-                } else {
-                    break;
+            Ok(result) => match result {
+                Ok(_) => break, // This will happen on graceful shutdown
+                Err(err) => {
+                    tracing::error!("{} returned error: {:?}", name, err);
+                    sleep(Duration::from_millis(500)).await;
                 }
+            },
+            Err(err) => {
+                tracing::error!("{} is panicked or canceled: {:?}", name, err);
+                SHOULD_EXIT.store(true, Ordering::Release);
+                break;
             }
         }
     }
@@ -168,9 +171,9 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
 
     tokio::join!(
-        recover_on_panic("submission loop", || run_submission_loop(store.clone())),
-        recover_on_panic("verification loop", || run_verification_loop(store.clone())),
-        recover_on_panic("start api", || api::start_api(
+        fault_tolerant_handler("submission loop", || run_submission_loop(store.clone())),
+        fault_tolerant_handler("verification loop", || run_verification_loop(store.clone())),
+        fault_tolerant_handler("start api", || api::start_api(
             run_options.clone(),
             store.clone()
         )),
