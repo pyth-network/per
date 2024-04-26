@@ -363,7 +363,6 @@ fn estimate_next_block_time(
     previous_block_time: Option<OffsetDateTime>,
     current_block_time: OffsetDateTime,
 ) -> Option<OffsetDateTime> {
-    // TODO what if we the previous block was two blocks ago
     match previous_block_time {
         Some(previous_block_time) => {
             let next_block_time = current_block_time + (current_block_time - previous_block_time);
