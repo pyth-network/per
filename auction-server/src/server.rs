@@ -4,7 +4,10 @@ use {
             self,
             ws,
         },
-        auction::run_submission_loop,
+        auction::{
+            get_express_relay_contract,
+            run_submission_loop,
+        },
         config::{
             ChainId,
             Config,
@@ -104,7 +107,10 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         config
             .chains
             .iter()
-            .map(|(chain_id, chain_config)| async move {
+            .map(|(chain_id, chain_config)| {
+                (chain_id.clone(), chain_config.clone(), wallet.clone())
+            })
+            .map(|(chain_id, chain_config, wallet)| async move {
                 let mut provider = Provider::<Http>::try_from(chain_config.geth_rpc_addr.clone())
                     .map_err(|err| {
                     anyhow!(
@@ -131,6 +137,14 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                             )
                         })?;
 
+                let express_relay_contract = get_express_relay_contract(
+                    chain_config.express_relay_contract,
+                    provider.clone(),
+                    wallet.clone(),
+                    chain_config.legacy_tx,
+                    id,
+                );
+
                 Ok((
                     chain_id.clone(),
                     ChainStore {
@@ -140,6 +154,8 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         config: chain_config.clone(),
                         weth,
                         eip_712_domain,
+                        relayer: wallet.clone(),
+                        express_relay_contract: Arc::new(express_relay_contract),
                     },
                 ))
             }),

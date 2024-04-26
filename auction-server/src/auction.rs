@@ -36,6 +36,7 @@ use {
                 Transformer,
                 TransformerError,
             },
+            NonceManagerMiddleware,
             SignerMiddleware,
             TransformerMiddleware,
         },
@@ -86,8 +87,10 @@ abigen!(
     "../per_multicall/out/ExpressRelay.sol/ExpressRelay.json"
 );
 pub type ExpressRelayContract = ExpressRelay<Provider<Http>>;
-pub type SignableProvider =
-    TransformerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>, LegacyTxTransformer>;
+pub type SignableProvider = TransformerMiddleware<
+    NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    LegacyTxTransformer,
+>;
 pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
 
 impl TryFrom<EthereumConfig> for Provider<Http> {
@@ -155,24 +158,10 @@ impl Transformer for LegacyTxTransformer {
 }
 
 pub async fn submit_bids(
-    signer_wallet: LocalWallet,
-    provider: Provider<Http>,
-    chain_config: EthereumConfig,
-    network_id: u64,
+    express_relay_contract: Arc<SignableExpressRelayContract>,
     permission: Bytes,
     multicall_data: Vec<MulticallData>,
 ) -> Result<Option<TransactionReceipt>, SubmissionError> {
-    let transformer = LegacyTxTransformer {
-        use_legacy_tx: chain_config.legacy_tx,
-    };
-    let client = Arc::new(TransformerMiddleware::new(
-        SignerMiddleware::new(provider, signer_wallet.with_chain_id(network_id)),
-        transformer,
-    ));
-
-    let express_relay_contract =
-        SignableExpressRelayContract::new(chain_config.express_relay_contract, client);
-
     let call = express_relay_contract.multicall(permission, multicall_data);
     let mut gas_estimate = call
         .estimate_gas()
@@ -285,10 +274,7 @@ async fn submit_auction(
         .init_auction(permission_key.clone(), chain_id.clone())
         .await?;
     let submission = submit_bids(
-        store.relayer.clone(),
-        chain_store.provider.clone(),
-        chain_store.config.clone(),
-        chain_store.network_id,
+        chain_store.express_relay_contract.clone(),
         permission_key.clone(),
         winner_bids.clone().into_iter().map(|b| b.into()).collect(),
     )
@@ -325,6 +311,24 @@ async fn submit_auction(
     Ok(())
 }
 
+pub fn get_express_relay_contract(
+    address: Address,
+    provider: Provider<Http>,
+    relayer: LocalWallet,
+    use_legacy_tx: bool,
+    network_id: u64,
+) -> SignableExpressRelayContract {
+    let transformer = LegacyTxTransformer { use_legacy_tx };
+    let client = Arc::new(TransformerMiddleware::new(
+        NonceManagerMiddleware::new(
+            SignerMiddleware::new(provider, relayer.clone().with_chain_id(network_id)),
+            relayer.address(),
+        ),
+        transformer,
+    ));
+    SignableExpressRelayContract::new(address, client)
+}
+
 async fn submit_auctions(
     store: Arc<Store>,
     chain_id: String,
@@ -344,7 +348,6 @@ async fn submit_auctions(
         auction_len = bids_grouped_by_permission_key.len()
     );
 
-    // TODO handle the nonce
     for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
         store.task_tracker.spawn(submit_auction(
             bids.clone(),
