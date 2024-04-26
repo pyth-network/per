@@ -150,7 +150,6 @@ pub struct ChainStore {
     pub weth:                   Address,
     pub token_spoof_info:       RwLock<HashMap<Address, SpoofInfo>>,
     pub eip_712_domain:         EIP712Domain,
-    pub relayer:                LocalWallet,
     pub express_relay_contract: Arc<SignableExpressRelayContract>,
 }
 

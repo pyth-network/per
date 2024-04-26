@@ -154,7 +154,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         config: chain_config.clone(),
                         weth,
                         eip_712_domain,
-                        relayer: wallet.clone(),
                         express_relay_contract: Arc::new(express_relay_contract),
                     },
                 ))
