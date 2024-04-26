@@ -53,7 +53,7 @@ use {
     tokio::time::sleep,
 };
 
-async fn fault_tolerant_handler<F, Fut>(name: &str, f: F)
+async fn fault_tolerant_handler<F, Fut>(name: String, f: F)
 where
     F: Fn() -> Fut,
     Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
@@ -77,7 +77,6 @@ where
         }
     }
 }
-
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
@@ -169,14 +168,20 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         },
     });
 
-    let ss = String::from("development");
     tokio::join!(
-        fault_tolerant_handler("submission loop", || run_submission_loop(
-            store.clone(),
-            ss.clone()
+        async {
+            let submission_loops = store.chains.keys().map(|chain_id| {
+                fault_tolerant_handler(
+                    format!("submission loop for chain {}", chain_id.clone()),
+                    || run_submission_loop(store.clone(), chain_id.clone()),
+                )
+            });
+            join_all(submission_loops).await;
+        },
+        fault_tolerant_handler("verification loop".to_string(), || run_verification_loop(
+            store.clone()
         )),
-        fault_tolerant_handler("verification loop", || run_verification_loop(store.clone())),
-        fault_tolerant_handler("start api", || api::start_api(
+        fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),
             store.clone()
         )),
