@@ -360,6 +360,7 @@ fn estimate_next_block_time(
     previous_block_time: Option<OffsetDateTime>,
     current_block_time: OffsetDateTime,
 ) -> Option<OffsetDateTime> {
+    // TODO what if we the previous block was two blocks ago
     match previous_block_time {
         Some(previous_block_time) => {
             let next_block_time = current_block_time + (current_block_time - previous_block_time);
@@ -393,6 +394,7 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
                     return Err(anyhow!("Block stream ended for chain: {}", chain_id));
                 }
                 let current_block_time = OffsetDateTime::now_utc();
+                // TODO we are missing the very first block - Maybe we can store the block data somewhere
                 if let Some(next_block_time) = estimate_next_block_time(previous_block_time, current_block_time) {
                     // TODO what will happen on the spawns on the gracefull shutdown / process being killed
                     tokio::spawn(
