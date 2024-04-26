@@ -53,6 +53,7 @@ use {
         broadcast,
         RwLock,
     },
+    tokio_util::task::TaskTracker,
     utoipa::{
         ToResponse,
         ToSchema,
@@ -231,6 +232,7 @@ pub struct Store {
     pub relayer:           LocalWallet,
     pub ws:                WsState,
     pub db:                sqlx::PgPool,
+    pub task_tracker:      TaskTracker,
 }
 
 impl Store {

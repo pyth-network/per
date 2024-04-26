@@ -51,7 +51,9 @@ use {
         time::Duration,
     },
     tokio::time::sleep,
+    tokio_util::task::TaskTracker,
 };
+
 
 async fn fault_tolerant_handler<F, Fut>(name: String, f: F)
 where
@@ -154,6 +156,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         .connect(&run_options.server.database_url)
         .await
         .expect("Server should start with a valid database connection.");
+    let task_tracker = TaskTracker::new();
     let store = Arc::new(Store {
         db:                pool,
         bids:              Default::default(),
@@ -166,6 +169,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             broadcast_sender,
             broadcast_receiver,
         },
+        task_tracker:      task_tracker.clone(),
     });
 
     tokio::join!(
@@ -186,6 +190,12 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             store.clone()
         )),
     );
+
+    // To make sure all the spawned tasks will finish their job before shut down
+    // Closing task tracker doesn't mean that it won't accept new tasks!!
+    task_tracker.close();
+    task_tracker.wait().await;
+
     Ok(())
 }
 

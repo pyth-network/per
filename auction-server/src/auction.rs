@@ -346,7 +346,7 @@ async fn submit_auctions(
 
     // TODO handle the nonce
     for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
-        tokio::spawn(submit_auction(
+        store.task_tracker.spawn(submit_auction(
             bids.clone(),
             permission_key.clone(),
             store.clone(),
@@ -396,8 +396,7 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
                 let current_block_time = OffsetDateTime::now_utc();
                 // TODO we are missing the very first block - Maybe we can store the block data somewhere
                 if let Some(next_block_time) = estimate_next_block_time(previous_block_time, current_block_time) {
-                    // TODO what will happen on the spawns on the gracefull shutdown / process being killed
-                    tokio::spawn(
+                    store.task_tracker.spawn(
                         submit_auctions(store.clone(), chain_id.clone(), next_block_time)
                     );
                 }
