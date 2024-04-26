@@ -259,22 +259,11 @@ async fn submit_auction(
     permission_key: Bytes,
     store: Arc<Store>,
     chain_id: String,
-    next_block_time: OffsetDateTime,
 ) -> Result<()> {
     let chain_store = store
         .chains
         .get(&chain_id)
         .ok_or(anyhow!("Chain not found: {}", chain_id))?;
-    let time_diff_millis: u64 =
-        (next_block_time - OffsetDateTime::now_utc()).whole_milliseconds() as u64;
-    if time_diff_millis < 500 {
-        return Err(anyhow!(
-            "Time estimated next block time is less than 500ms: {}",
-            time_diff_millis
-        ));
-    }
-    sleep(Duration::from_millis(time_diff_millis - 500)).await;
-
     let winner_bids =
         get_winner_bids(&bids, permission_key.clone(), store.clone(), chain_store).await?;
     if winner_bids.is_empty() {
@@ -336,53 +325,81 @@ async fn submit_auction(
     Ok(())
 }
 
+async fn submit_auctions(
+    store: Arc<Store>,
+    chain_id: String,
+    next_block_time: OffsetDateTime,
+) -> Result<()> {
+    let time_diff_millis: u64 =
+        (next_block_time - OffsetDateTime::now_utc()).whole_milliseconds() as u64;
+    if time_diff_millis > 500 {
+        sleep(Duration::from_millis(time_diff_millis - 500)).await;
+    }
+
+    let bids_grouped_by_permission_key =
+        get_bids_grouped_by_permission_key(&store, &chain_id).await;
+    tracing::info!(
+        "Chain: {chain_id} Auctions to process {auction_len}",
+        chain_id = chain_id,
+        auction_len = bids_grouped_by_permission_key.len()
+    );
+
+    // TODO handle the nonce
+    for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
+        tokio::spawn(submit_auction(
+            bids.clone(),
+            permission_key.clone(),
+            store.clone(),
+            chain_id.clone(),
+        ));
+    }
+    Ok(())
+}
+
+fn estimate_next_block_time(
+    previous_block_time: Option<OffsetDateTime>,
+    current_block_time: OffsetDateTime,
+) -> Option<OffsetDateTime> {
+    match previous_block_time {
+        Some(previous_block_time) => {
+            let next_block_time = current_block_time + (current_block_time - previous_block_time);
+            Some(next_block_time)
+        }
+        None => None,
+    }
+}
+
+async fn get_ws_provider(store: Arc<Store>, chain_id: String) -> Result<Provider<Ws>> {
+    let chain_store = store
+        .chains
+        .get(&chain_id)
+        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+    let ws = Ws::connect(chain_store.config.geth_ws_addr.clone()).await?;
+    Ok(Provider::new(ws))
+}
+
 pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
     tracing::info!("Starting transaction submitter...");
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
-    let chain_store = store.chains.get(&chain_id);
-    if chain_store.is_none() {
-        return Err(anyhow!("Chain not found: {}", chain_id));
-    }
-
-    let chain_store = chain_store.unwrap();
-    let ws = Ws::connect(chain_store.config.geth_ws_addr.clone()).await?;
-    let ws_provider = Provider::new(ws);
+    let ws_provider = get_ws_provider(store.clone(), chain_id.clone()).await?;
     let mut stream = ws_provider.subscribe_blocks().await?;
 
-    let mut last_block_time: Option<OffsetDateTime> = None;
+    let mut previous_block_time: Option<OffsetDateTime> = None;
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             block = stream.next() => {
                 if block.is_none() {
                     return Err(anyhow!("Block stream ended for chain: {}", chain_id));
                 }
-                if last_block_time.is_none() {
-                    last_block_time = Some(OffsetDateTime::now_utc());
-                    continue;
+                let current_block_time = OffsetDateTime::now_utc();
+                if let Some(next_block_time) = estimate_next_block_time(previous_block_time, current_block_time) {
+                    // TODO what will happen on the spawns on the gracefull shutdown / process being killed
+                    tokio::spawn(
+                        submit_auctions(store.clone(), chain_id.clone(), next_block_time)
+                    );
                 }
-
-                let now = OffsetDateTime::now_utc();
-                let next_block_time = now + (now - last_block_time.unwrap());
-                last_block_time = Some(now);
-                // TODO sleep here
-
-                let bids_grouped_by_permission_key = get_bids_grouped_by_permission_key(&store, &chain_id).await;
-                tracing::info!(
-                    "Chain: {chain_id} Auctions to process {auction_len}",
-                    chain_id = chain_id,
-                    auction_len = bids_grouped_by_permission_key.len()
-                );
-
-                for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
-                    tokio::spawn(submit_auction(
-                        bids.clone(),
-                        permission_key.clone(),
-                        store.clone(),
-                        chain_id.clone(),
-                        next_block_time,
-                    ));
-                }
+                previous_block_time = Some(current_block_time);
             }
             _ = exit_check_interval.tick() => {}
         }
