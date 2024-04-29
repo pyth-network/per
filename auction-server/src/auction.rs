@@ -62,7 +62,10 @@ use {
             U256,
         },
     },
-    futures::StreamExt,
+    futures::{
+        future::join_all,
+        StreamExt,
+    },
     serde::{
         Deserialize,
         Serialize,
@@ -181,12 +184,16 @@ pub async fn submit_bids(
 async fn get_bids_grouped_by_permission_key(
     store: &Arc<Store>,
     chain_id: &String,
-) -> HashMap<PermissionKey, Vec<SimulatedBid>> {
+) -> (HashMap<PermissionKey, Vec<SimulatedBid>>, OffsetDateTime) {
+    let bid_collection_time = OffsetDateTime::now_utc();
     let all_bids = store.get_bids_by_chain_id(chain_id).await;
-    all_bids.into_iter().fold(HashMap::new(), |mut acc, bid| {
-        acc.entry(bid.permission_key.clone()).or_default().push(bid);
-        acc
-    })
+    (
+        all_bids.into_iter().fold(HashMap::new(), |mut acc, bid| {
+            acc.entry(bid.permission_key.clone()).or_default().push(bid);
+            acc
+        }),
+        bid_collection_time,
+    )
 }
 
 impl From<SimulatedBid> for MulticallData {
@@ -245,6 +252,7 @@ fn get_bid_status(bid: &SimulatedBid, winner_bids: &[SimulatedBid], tx_hash: H25
 
 async fn submit_auction(
     bids: Vec<SimulatedBid>,
+    bid_collection_time: OffsetDateTime,
     permission_key: Bytes,
     store: Arc<Store>,
     chain_id: String,
@@ -271,8 +279,13 @@ async fn submit_auction(
     }
 
     let mut auction = store
-        .init_auction(permission_key.clone(), chain_id.clone())
+        .init_auction(
+            permission_key.clone(),
+            chain_id.clone(),
+            bid_collection_time,
+        )
         .await?;
+
     let submission = submit_bids(
         chain_store.express_relay_contract.clone(),
         permission_key.clone(),
@@ -287,7 +300,7 @@ async fn submit_auction(
                 auction = store
                     .conclude_auction(auction, receipt.transaction_hash)
                     .await?;
-                for bid in bids.iter() {
+                join_all(bids.iter().map(|bid| async {
                     let bid_status = get_bid_status(bid, &winner_bids, receipt.transaction_hash);
                     store
                         .broadcast_bid_status_and_remove(
@@ -297,8 +310,9 @@ async fn submit_auction(
                             },
                             Some(&auction),
                         )
-                        .await?;
-                }
+                        .await
+                }))
+                .await;
             }
             None => {
                 tracing::error!("Failed to receive transaction receipt");
@@ -344,7 +358,7 @@ async fn submit_auctions(
         .await;
     }
 
-    let bids_grouped_by_permission_key =
+    let (bids_grouped_by_permission_key, bid_collection_time) =
         get_bids_grouped_by_permission_key(&store, &chain_id).await;
     tracing::info!(
         "Chain: {chain_id} Auctions to process {auction_len}",
@@ -355,6 +369,7 @@ async fn submit_auctions(
     for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
         store.task_tracker.spawn(submit_auction(
             bids.clone(),
+            bid_collection_time,
             permission_key.clone(),
             store.clone(),
             chain_id.clone(),

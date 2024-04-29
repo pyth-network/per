@@ -12,7 +12,8 @@
               "Enum": [
                 "pending",
                 "lost",
-                "submitted"
+                "submitted",
+                "simulation_failed"
               ]
             }
           }
