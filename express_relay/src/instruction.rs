@@ -24,7 +24,7 @@ pub struct SetSplitsArgs {
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct PermissionArgs{
-    pub permission_key: [u8; 32],
+    pub permission_id: Box<[u8]>,
     pub bid_id: [u8; 16],
     pub bid_amount: u64,
 }
@@ -32,7 +32,7 @@ pub struct PermissionArgs{
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct DepermissionArgs{
-    pub permission_key: [u8; 32],
+    pub permission_id: Box<[u8]>,
     pub bid_id: [u8; 16],
 }
 
@@ -69,8 +69,9 @@ pub enum ExpressRelayInstruction {
     Accounts expected:
     0. [Writable, Signer] relayer signer
     1. [Writable] permission account
-    2. express relay metadata
-    3. system program
+    2. protocol
+    3. express relay metadata
+    4. system program
     */
     Permission,
 

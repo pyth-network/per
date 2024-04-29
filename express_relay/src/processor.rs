@@ -181,7 +181,8 @@ impl Processor {
 
         let permission = next_account_info(account_info_iter)?;
 
-        let (pda_permission, bump_permission) = Pubkey::find_program_address(&[SEED_PERMISSION, &args.permission_key], program_id);
+        let protocol = next_account_info(account_info_iter)?;
+        let (pda_permission, bump_permission) = Pubkey::find_program_address(&[SEED_PERMISSION, &protocol.key.to_bytes(), &args.permission_id], program_id);
         assert_keys_equal(pda_permission, *permission.key)?;
 
         let metadata = next_account_info(account_info_iter)?;
@@ -211,7 +212,7 @@ impl Processor {
                 permission.clone(),
                 system_program.clone(),
             ],
-            &[&[SEED_PERMISSION, &args.permission_key, &[bump_permission]]],
+            &[&[SEED_PERMISSION, &protocol.key.to_bytes(), &args.permission_id, &[bump_permission]]],
         )?;
 
         let mut permission_data: PermissionMetadata = try_from_slice_unchecked(&permission.data.borrow_mut())?;
@@ -235,11 +236,10 @@ impl Processor {
 
         let permission = next_account_info(account_info_iter)?;
         let permission_data: PermissionMetadata = try_from_slice_unchecked(&permission.data.borrow())?;
-        let pda_permission = Pubkey::create_program_address(&[SEED_PERMISSION, &args.permission_key, &[permission_data.bump]], program_id)?;
-        assert_keys_equal(pda_permission, *permission.key)?;
 
         let protocol = next_account_info(account_info_iter)?;
-        // TODO: validate protocol given the permission key
+        let pda_permission = Pubkey::create_program_address(&[SEED_PERMISSION, &protocol.key.to_bytes(), &args.permission_id, &[permission_data.bump]], program_id)?;
+        assert_keys_equal(pda_permission, *permission.key)?;
 
         let relayer_fee_receiver = next_account_info(account_info_iter)?;
 
@@ -274,6 +274,5 @@ impl Processor {
     }
 }
 
-// TODO: refactor all the validation code
 // TODO: use anchor
 // TODO: check instruction index with sysvar account, check if relayer is used anywhere else
