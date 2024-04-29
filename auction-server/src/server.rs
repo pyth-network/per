@@ -4,7 +4,10 @@ use {
             self,
             ws,
         },
-        auction::run_submission_loop,
+        auction::{
+            get_express_relay_contract,
+            run_submission_loop,
+        },
         config::{
             ChainId,
             Config,
@@ -51,9 +54,11 @@ use {
         time::Duration,
     },
     tokio::time::sleep,
+    tokio_util::task::TaskTracker,
 };
 
-async fn fault_tolerant_handler<F, Fut>(name: &str, f: F)
+
+async fn fault_tolerant_handler<F, Fut>(name: String, f: F)
 where
     F: Fn() -> Fut,
     Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
@@ -78,7 +83,6 @@ where
     }
 }
 
-
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     tokio::spawn(async move {
@@ -99,11 +103,11 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let wallet = run_options.relayer_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {}", wallet.address().to_string());
 
-    let chain_store: anyhow::Result<HashMap<ChainId, ChainStore>> = join_all(
-        config
-            .chains
-            .iter()
-            .map(|(chain_id, chain_config)| async move {
+    let chain_store: anyhow::Result<HashMap<ChainId, ChainStore>> =
+        join_all(config.chains.iter().map(|(chain_id, chain_config)| {
+            let (chain_id, chain_config, wallet) =
+                (chain_id.clone(), chain_config.clone(), wallet.clone());
+            async move {
                 let mut provider = Provider::<Http>::try_from(chain_config.geth_rpc_addr.clone())
                     .map_err(|err| {
                     anyhow!(
@@ -130,6 +134,14 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                             )
                         })?;
 
+                let express_relay_contract = get_express_relay_contract(
+                    chain_config.express_relay_contract,
+                    provider.clone(),
+                    wallet.clone(),
+                    chain_config.legacy_tx,
+                    id,
+                );
+
                 Ok((
                     chain_id.clone(),
                     ChainStore {
@@ -139,13 +151,14 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         config: chain_config.clone(),
                         weth,
                         eip_712_domain,
+                        express_relay_contract: Arc::new(express_relay_contract),
                     },
                 ))
-            }),
-    )
-    .await
-    .into_iter()
-    .collect();
+            }
+        }))
+        .await
+        .into_iter()
+        .collect();
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -155,6 +168,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         .connect(&run_options.server.database_url)
         .await
         .expect("Server should start with a valid database connection.");
+    let task_tracker = TaskTracker::new();
     let store = Arc::new(Store {
         db:                pool,
         bids:              Default::default(),
@@ -167,17 +181,33 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             broadcast_sender,
             broadcast_receiver,
         },
+        task_tracker:      task_tracker.clone(),
     });
 
-
     tokio::join!(
-        fault_tolerant_handler("submission loop", || run_submission_loop(store.clone())),
-        fault_tolerant_handler("verification loop", || run_verification_loop(store.clone())),
-        fault_tolerant_handler("start api", || api::start_api(
+        async {
+            let submission_loops = store.chains.keys().map(|chain_id| {
+                fault_tolerant_handler(
+                    format!("submission loop for chain {}", chain_id.clone()),
+                    || run_submission_loop(store.clone(), chain_id.clone()),
+                )
+            });
+            join_all(submission_loops).await;
+        },
+        fault_tolerant_handler("verification loop".to_string(), || run_verification_loop(
+            store.clone()
+        )),
+        fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),
             store.clone()
         )),
     );
+
+    // To make sure all the spawned tasks will finish their job before shut down
+    // Closing task tracker doesn't mean that it won't accept new tasks!!
+    task_tracker.close();
+    task_tracker.wait().await;
+
     Ok(())
 }
 

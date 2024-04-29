@@ -3,6 +3,7 @@ load("ext://uibutton", "cmd_button", "location", "text_input")
 
 rpc_port = "9545"
 rpc_url = "http://127.0.0.1:%s" % rpc_port
+ws_url = "ws://127.0.0.1:%s" % rpc_port
 
 # Default anvil private key
 private_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
@@ -73,7 +74,7 @@ cmd_button(
 )
 
 local_resource(
-    "create-configs", "python3 integration.py %s" % rpc_url, resource_deps=["deploy-contracts"]
+    "create-configs", "python3 integration.py %s %s" % (rpc_url, ws_url), resource_deps=["deploy-contracts"]
 )
 
 local_resource(

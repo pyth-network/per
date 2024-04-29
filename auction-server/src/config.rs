@@ -77,6 +77,9 @@ pub struct EthereumConfig {
     /// URL of a Geth RPC endpoint to use for interacting with the blockchain.
     pub geth_rpc_addr: String,
 
+    /// URL of a Geth WS endpoint to use for interacting with the blockchain.
+    pub geth_ws_addr: String,
+
     /// Polling interval for event filters and pending transactions in seconds.
     pub poll_interval: u64,
 

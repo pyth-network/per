@@ -8,6 +8,7 @@ use {
             },
             RestError,
         },
+        auction::SignableExpressRelayContract,
         config::{
             ChainId,
             EthereumConfig,
@@ -48,11 +49,13 @@ use {
     std::{
         collections::HashMap,
         str::FromStr,
+        sync::Arc,
     },
     tokio::sync::{
         broadcast,
         RwLock,
     },
+    tokio_util::task::TaskTracker,
     utoipa::{
         ToResponse,
         ToSchema,
@@ -141,12 +144,13 @@ pub enum SpoofInfo {
 }
 
 pub struct ChainStore {
-    pub provider:         Provider<Http>,
-    pub network_id:       u64,
-    pub config:           EthereumConfig,
-    pub weth:             Address,
-    pub token_spoof_info: RwLock<HashMap<Address, SpoofInfo>>,
-    pub eip_712_domain:   EIP712Domain,
+    pub provider:               Provider<Http>,
+    pub network_id:             u64,
+    pub config:                 EthereumConfig,
+    pub weth:                   Address,
+    pub token_spoof_info:       RwLock<HashMap<Address, SpoofInfo>>,
+    pub eip_712_domain:         EIP712Domain,
+    pub express_relay_contract: Arc<SignableExpressRelayContract>,
 }
 
 #[derive(Default)]
@@ -231,6 +235,7 @@ pub struct Store {
     pub relayer:           LocalWallet,
     pub ws:                WsState,
     pub db:                sqlx::PgPool,
+    pub task_tracker:      TaskTracker,
 }
 
 impl Store {
