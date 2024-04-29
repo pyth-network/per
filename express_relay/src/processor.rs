@@ -12,6 +12,7 @@ use solana_program::{
 use crate::{
     instruction::{InitializeArgs, SetRelayerArgs, SetSplitsArgs, PermissionArgs, DepermissionArgs, ExpressRelayInstruction},
     error::ExpressRelayError,
+    utils::transfer_lamports,
     validation_utils::{assert_keys_equal, validate_fee_splits},
     state::{ExpressRelayMetadata, PermissionMetadata, SEED_METADATA, SEED_PERMISSION, RESERVE_EXPRESS_RELAY_METADATA, RESERVE_PERMISSION},
 };
@@ -262,26 +263,13 @@ impl Processor {
         let fee_protocol = bid_amount * metadata_data.split_protocol / metadata_data.split_precision;
         let fee_relayer = (bid_amount - fee_protocol) * metadata_data.split_relayer / metadata_data.split_precision;
 
-        Self::transfer_lamports(permission, protocol, fee_protocol)?;
-        Self::transfer_lamports(permission, relayer_fee_receiver, fee_relayer)?;
+        transfer_lamports(permission, protocol, fee_protocol)?;
+        transfer_lamports(permission, relayer_fee_receiver, fee_relayer)?;
 
         // close permission account
         permission.data.borrow_mut().fill(0);
-        Self::transfer_lamports(permission, relayer_signer, permission.lamports())?;
+        transfer_lamports(permission, relayer_signer, permission.lamports())?;
 
-        Ok(())
-    }
-
-    fn transfer_lamports(
-        from: &AccountInfo,
-        to: &AccountInfo,
-        amount: u64,
-    ) -> ProgramResult {
-        if **from.try_borrow_lamports()? < amount {
-            return Err(ProgramError::InsufficientFunds.into());
-        }
-        **from.try_borrow_mut_lamports()? -= amount;
-        **to.try_borrow_mut_lamports()? += amount;
         Ok(())
     }
 }
