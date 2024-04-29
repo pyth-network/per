@@ -184,8 +184,7 @@ impl Processor {
         assert_keys_equal(pda_permission, *permission.key)?;
 
         let metadata = next_account_info(account_info_iter)?;
-        // can below be borrow instead of borrow_mut?
-        let metadata_data: ExpressRelayMetadata = try_from_slice_unchecked(&metadata.data.borrow_mut())?;
+        let metadata_data: ExpressRelayMetadata = try_from_slice_unchecked(&metadata.data.borrow())?;
         let pda_metadata = Pubkey::create_program_address(&[SEED_METADATA, &[metadata_data.bump]], program_id)?;
         assert_keys_equal(pda_metadata, *metadata.key)?;
         assert_keys_equal(metadata_data.relayer_signer, *relayer_signer.key)?;
@@ -234,7 +233,7 @@ impl Processor {
         }
 
         let permission = next_account_info(account_info_iter)?;
-        let permission_data: PermissionMetadata = try_from_slice_unchecked(&permission.data.borrow_mut())?;
+        let permission_data: PermissionMetadata = try_from_slice_unchecked(&permission.data.borrow())?;
         let pda_permission = Pubkey::create_program_address(&[SEED_PERMISSION, &args.permission_key, &[permission_data.bump]], program_id)?;
         assert_keys_equal(pda_permission, *permission.key)?;
 
@@ -244,7 +243,7 @@ impl Processor {
         let relayer_fee_receiver = next_account_info(account_info_iter)?;
 
         let metadata = next_account_info(account_info_iter)?;
-        let metadata_data: ExpressRelayMetadata = try_from_slice_unchecked(&metadata.data.borrow_mut())?;
+        let metadata_data: ExpressRelayMetadata = try_from_slice_unchecked(&metadata.data.borrow())?;
         let pda_metadata = Pubkey::create_program_address(&[SEED_METADATA, &[metadata_data.bump]], program_id)?;
         assert_keys_equal(pda_metadata, *metadata.key)?;
         assert_keys_equal(metadata_data.relayer_signer, *relayer_signer.key)?;
