@@ -103,14 +103,11 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let wallet = run_options.relayer_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {}", wallet.address().to_string());
 
-    let chain_store: anyhow::Result<HashMap<ChainId, ChainStore>> = join_all(
-        config
-            .chains
-            .iter()
-            .map(|(chain_id, chain_config)| {
-                (chain_id.clone(), chain_config.clone(), wallet.clone())
-            })
-            .map(|(chain_id, chain_config, wallet)| async move {
+    let chain_store: anyhow::Result<HashMap<ChainId, ChainStore>> =
+        join_all(config.chains.iter().map(|(chain_id, chain_config)| {
+            let (chain_id, chain_config, wallet) =
+                (chain_id.clone(), chain_config.clone(), wallet.clone());
+            async move {
                 let mut provider = Provider::<Http>::try_from(chain_config.geth_rpc_addr.clone())
                     .map_err(|err| {
                     anyhow!(
@@ -157,11 +154,11 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         express_relay_contract: Arc::new(express_relay_contract),
                     },
                 ))
-            }),
-    )
-    .await
-    .into_iter()
-    .collect();
+            }
+        }))
+        .await
+        .into_iter()
+        .collect();
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);

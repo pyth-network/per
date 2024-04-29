@@ -329,6 +329,7 @@ pub fn get_express_relay_contract(
     SignableExpressRelayContract::new(address, client)
 }
 
+const AUCTION_SUBMISSION_WINDOW: u64 = 500;
 async fn submit_auctions(
     store: Arc<Store>,
     chain_id: String,
@@ -336,8 +337,11 @@ async fn submit_auctions(
 ) -> Result<()> {
     let time_diff_millis: u64 =
         (next_block_time - OffsetDateTime::now_utc()).whole_milliseconds() as u64;
-    if time_diff_millis > 500 {
-        sleep(Duration::from_millis(time_diff_millis - 500)).await;
+    if time_diff_millis > AUCTION_SUBMISSION_WINDOW {
+        sleep(Duration::from_millis(
+            time_diff_millis - AUCTION_SUBMISSION_WINDOW,
+        ))
+        .await;
     }
 
     let bids_grouped_by_permission_key =
@@ -360,16 +364,10 @@ async fn submit_auctions(
 }
 
 fn estimate_next_block_time(
-    previous_block_time: Option<OffsetDateTime>,
+    previous_block_time: OffsetDateTime,
     current_block_time: OffsetDateTime,
-) -> Option<OffsetDateTime> {
-    match previous_block_time {
-        Some(previous_block_time) => {
-            let next_block_time = current_block_time + (current_block_time - previous_block_time);
-            Some(next_block_time)
-        }
-        None => None,
-    }
+) -> OffsetDateTime {
+    current_block_time + (current_block_time - previous_block_time)
 }
 
 async fn get_ws_provider(store: Arc<Store>, chain_id: String) -> Result<Provider<Ws>> {
@@ -392,14 +390,18 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             block = stream.next() => {
+                let current_block_time = OffsetDateTime::now_utc();
                 if block.is_none() {
                     return Err(anyhow!("Block stream ended for chain: {}", chain_id));
                 }
-                let current_block_time = OffsetDateTime::now_utc();
                 // TODO we are missing the very first block - Maybe we can store the block data somewhere
-                if let Some(next_block_time) = estimate_next_block_time(previous_block_time, current_block_time) {
+                if let Some(previous_block_time) = previous_block_time {
                     store.task_tracker.spawn(
-                        submit_auctions(store.clone(), chain_id.clone(), next_block_time)
+                        submit_auctions(
+                            store.clone(),
+                            chain_id.clone(),
+                            estimate_next_block_time(previous_block_time, current_block_time)
+                        )
                     );
                 }
                 previous_block_time = Some(current_block_time);
