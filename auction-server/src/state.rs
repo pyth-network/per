@@ -312,6 +312,7 @@ impl Store {
         &self,
         permission_key: PermissionKey,
         chain_id: ChainId,
+        bid_collection_time: OffsetDateTime,
     ) -> anyhow::Result<models::Auction> {
         let now = OffsetDateTime::now_utc();
         let auction = models::Auction {
@@ -321,13 +322,18 @@ impl Store {
             permission_key: permission_key.to_vec(),
             chain_id,
             tx_hash: None,
+            bid_collection_time: Some(PrimitiveDateTime::new(
+                bid_collection_time.date(),
+                bid_collection_time.time(),
+            )),
         };
         sqlx::query!(
-            "INSERT INTO auction (id, creation_time, permission_key, chain_id) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO auction (id, creation_time, permission_key, chain_id, bid_collection_time) VALUES ($1, $2, $3, $4, $5)",
             auction.id,
             auction.creation_time,
             auction.permission_key,
             auction.chain_id,
+            auction.bid_collection_time,
         )
         .execute(&self.db)
         .await?;
