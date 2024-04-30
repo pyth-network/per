@@ -4,6 +4,8 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
+use crate::state::FEE_SPLIT_PRECISION;
+
 use super::error::ExpressRelayError;
 
 pub fn assert_keys_equal(key1: Pubkey, key2: Pubkey) -> ProgramResult {
@@ -15,14 +17,9 @@ pub fn assert_keys_equal(key1: Pubkey, key2: Pubkey) -> ProgramResult {
     }
 }
 
-pub fn validate_fee_splits(split_protocol: u64, split_relayer: u64, split_precision: u64) -> ProgramResult {
-    if split_precision > 0 {
-        if split_protocol <= split_precision {
-            if split_relayer <= split_precision {
-                return Ok(());
-            }
-        }
+pub fn validate_fee_split(split: u64) -> ProgramResult {
+    if split > FEE_SPLIT_PRECISION {
+        return Err(ExpressRelayError::InvalidFeeSplits.into())
     }
-
-    return Err(ExpressRelayError::InvalidFeeSplits.into())
+    Ok(())
 }

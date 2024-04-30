@@ -13,6 +13,10 @@ pub enum ExpressRelayError {
     PermissionAlreadyToggled,
     #[error("Already initialized")]
     AlreadyInitialized,
+    #[error("Permissioning instructions out of order")]
+    PermissioningOutOfOrder,
+    #[error("Relayer signer used elsewhere")]
+    RelayerSignerUsedElsewhere,
 }
 
 impl From<ExpressRelayError> for ProgramError {
