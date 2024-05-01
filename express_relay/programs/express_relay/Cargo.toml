@@ -1,0 +1,25 @@
+[package]
+name = "express_relay"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "express_relay"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = {version = "0.30.0", features = ["init-if-needed"]}
+solana-program = "1.18.12"
+
+[dev-dependencies]
+solana-program-test = "1.18.12"
+solana-sdk = "1.18.12"

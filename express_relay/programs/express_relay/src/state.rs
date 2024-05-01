@@ -1,29 +1,23 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::pubkey::Pubkey;
-use std::mem::size_of;
+use anchor_lang::prelude::*;
 
 pub const FEE_SPLIT_PRECISION: u64 = 1_000_000_000_000_000_000;
 
 pub const RESERVE_PERMISSION: usize = 200;
 pub const SEED_PERMISSION: &[u8] = b"permission";
 
-#[repr(C)]
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+#[account]
+#[derive(Default)]
 pub struct PermissionMetadata {
     pub bump: u8,
     pub balance: u64,
     pub bid_amount: u64,
 }
 
-impl PermissionMetadata {
-    pub const LEN: usize = size_of::<u8>() + size_of::<u64>() + size_of::<u64>() + RESERVE_PERMISSION;
-}
-
 pub const RESERVE_EXPRESS_RELAY_METADATA: usize = 200;
 pub const SEED_METADATA: &[u8] = b"metadata";
 
-#[repr(C)]
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+#[account]
+#[derive(Default)]
 pub struct ExpressRelayMetadata {
     pub bump: u8,
     pub admin: Pubkey,
@@ -36,9 +30,8 @@ pub struct ExpressRelayMetadata {
 pub const RESERVE_EXPRESS_RELAY_CONFIG_PROTOCOL: usize = 200;
 pub const SEED_CONFIG_PROTOCOL: &[u8] = b"config_protocol";
 
-#[repr(C)]
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+#[account]
+#[derive(Default)]
 pub struct ConfigProtocol {
-    pub bump: u8,
     pub split: u64,
 }
