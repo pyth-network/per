@@ -106,7 +106,6 @@ pub enum ExpressRelayInstruction {
     4. protocol config
     5. express relay metadata
     6. system program
-    7. sysvar instructions
     */
     Depermission,
 }
