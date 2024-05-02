@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-pub const FEE_SPLIT_PRECISION: u64 = 1_000_000_000_000_000_000;
+pub const FEE_SPLIT_PRECISION: u64 = 10_000;
 
 pub const RESERVE_PERMISSION: usize = 200;
 pub const SEED_PERMISSION: &[u8] = b"permission";

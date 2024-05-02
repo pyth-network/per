@@ -5,6 +5,7 @@ pub mod utils;
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_lang::solana_program::sysvar::instructions as tx_instructions;
 use solana_program::{serialize_utils::read_u16, sysvar::instructions::{load_current_index_checked, load_instruction_at_checked}};
+use anchor_syn::codegen::program::common::sighash;
 use crate::{
     error::ExpressRelayError,
     state::*,
@@ -69,7 +70,9 @@ pub mod express_relay {
 
         // check that no intermediate instructions use relayer_signer
         let num_instructions = read_u16(&mut 0, &sysvar_ixs.data.borrow()).map_err(|_| ProgramError::InvalidInstructionData)?;
-        for index in 1..num_instructions-1 {
+        // TODO: do we need to do a checked_sub/saturating_sub here?
+        let last_ix_index = num_instructions - 1;
+        for index in 1..last_ix_index {
             let ix = load_instruction_at_checked(index as usize, sysvar_ixs)?;
             if ix.accounts.iter().any(|acc| acc.pubkey == *relayer_signer.key) {
                 return err!(ExpressRelayError::RelayerSignerUsedElsewhere)
@@ -77,8 +80,14 @@ pub mod express_relay {
         }
 
         // check that last instruction is depermission, with matching permission pda
-        let ix_depermission = load_instruction_at_checked((num_instructions-1) as usize, sysvar_ixs)?;
-        let proper_depermissioning = (ix_depermission.program_id == *ctx.program_id) && (ix_depermission.accounts[1].pubkey == permission.key()) && (ix_depermission.data[0] == 5);
+        let ix_depermission = load_instruction_at_checked(last_ix_index as usize, sysvar_ixs)?;
+        // anchor discriminator comes from the hash of "{namespace}:{name}" https://github.com/coral-xyz/anchor/blob/2a07d841c65d6f303aa9c2b0c68a6e69c4739aab/lang/syn/src/codegen/program/common.rs#L9-L23
+        let program_equal = ix_depermission.program_id == *ctx.program_id;
+        // TODO: can we make this matching permission accounts check more robust (e.g. using account names in addition, to not rely on ordering alone)?
+        let matching_permission_accounts = ix_depermission.accounts[1].pubkey == permission.key();
+        let expected_discriminator = sighash("express_relay", "depermission");
+        let matching_discriminator = ix_depermission.data[0..8] == expected_discriminator;
+        let proper_depermissioning = program_equal && matching_permission_accounts && matching_discriminator;
         if !proper_depermissioning {
             return err!(ExpressRelayError::PermissioningOutOfOrder)
         }
@@ -98,7 +107,7 @@ pub mod express_relay {
         let protocol = &ctx.accounts.protocol;
         let relayer_fee_receiver = &ctx.accounts.relayer_fee_receiver;
 
-        if permission.to_account_info().lamports() < permission.balance + permission.bid_amount {
+        if permission.to_account_info().lamports() < permission.balance.saturating_add(permission.bid_amount) {
             return err!(ExpressRelayError::BidNotMet)
         }
 
@@ -110,7 +119,13 @@ pub mod express_relay {
         }
 
         let fee_protocol = permission.bid_amount * split_protocol / FEE_SPLIT_PRECISION;
-        let fee_relayer = (permission.bid_amount - fee_protocol) * express_relay_metadata.split_relayer / FEE_SPLIT_PRECISION;
+        if fee_protocol > permission.bid_amount {
+            return err!(ExpressRelayError::FeesTooHigh);
+        }
+        let fee_relayer = permission.bid_amount.saturating_sub(fee_protocol) * express_relay_metadata.split_relayer / FEE_SPLIT_PRECISION;
+        if fee_relayer.checked_add(fee_protocol).unwrap() > permission.bid_amount {
+            return err!(ExpressRelayError::FeesTooHigh);
+        }
 
         transfer_lamports(&permission.to_account_info(), &protocol.to_account_info(), fee_protocol)?;
         transfer_lamports(&permission.to_account_info(), &relayer_fee_receiver.to_account_info(), fee_relayer)?;
@@ -138,11 +153,11 @@ pub struct Initialize<'info> {
     pub payer: Signer<'info>,
     #[account(init, payer = payer, space = RESERVE_EXPRESS_RELAY_METADATA, seeds = [SEED_METADATA], bump)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
-    /// CHECK: this is just a keypair for the admin
+    /// CHECK: this is just the PK for the admin to sign from
     pub admin: UncheckedAccount<'info>,
-    /// CHECK: this is just a keypair for the relayer to sign with
+    /// CHECK: this is just the PK for the relayer to sign from
     pub relayer_signer: UncheckedAccount<'info>,
-    /// CHECK: this is just a public key for the relayer to receive fees at
+    /// CHECK: this is just a PK for the relayer to receive fees at
     pub relayer_fee_receiver: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
@@ -154,11 +169,11 @@ pub struct SetRelayerArgs {}
 pub struct SetRelayer<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
-    #[account(mut, seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = admin, has_one = relayer_signer, has_one = relayer_fee_receiver)]
+    #[account(mut, seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
-    /// CHECK: this is just a keypair for the relayer to sign with
+    /// CHECK: this is just the PK for the relayer to sign from
     pub relayer_signer: UncheckedAccount<'info>,
-    /// CHECK: this is just a public key for the relayer to receive fees at
+    /// CHECK: this is just a PK for the relayer to receive fees at
     pub relayer_fee_receiver: UncheckedAccount<'info>,
 }
 
@@ -189,7 +204,7 @@ pub struct SetProtocolSplit<'info> {
     pub protocol_config: Account<'info, ConfigProtocol>,
     #[account(seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
-    /// CHECK: this is just the protocol fee receiver address
+    /// CHECK: this is just the protocol fee receiver PK
     pub protocol: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
@@ -208,7 +223,7 @@ pub struct Permission<'info> {
     pub relayer_signer: Signer<'info>,
     #[account(init, payer = relayer_signer, space = RESERVE_PERMISSION, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump)]
     pub permission: Account<'info, PermissionMetadata>,
-    /// CHECK: this is just the protocol fee receiver address
+    /// CHECK: this is just the protocol fee receiver PK
     pub protocol: UncheckedAccount<'info>,
     #[account(seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = relayer_signer)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
@@ -232,10 +247,10 @@ pub struct Depermission<'info> {
     pub relayer_signer: Signer<'info>,
     #[account(mut, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump = permission.bump, close = relayer_signer)]
     pub permission: Account<'info, PermissionMetadata>,
-    /// CHECK: this is just the protocol fee receiver address
+    /// CHECK: this is just the protocol fee receiver PK
     #[account(mut)]
     pub protocol: UncheckedAccount<'info>,
-    /// CHECK: this is just a public key for the relayer to receive fees at
+    /// CHECK: this is just a PK for the relayer to receive fees at
     #[account(mut)]
     pub relayer_fee_receiver: UncheckedAccount<'info>,
     #[account(seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]

@@ -10,4 +10,6 @@ pub enum ExpressRelayError {
     PermissioningOutOfOrder,
     #[msg("Relayer signer used elsewhere")]
     RelayerSignerUsedElsewhere,
+    #[msg("Fees too high")]
+    FeesTooHigh,
 }
