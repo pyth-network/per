@@ -85,7 +85,7 @@ pub mod express_relay {
         let program_equal = ix_depermission.program_id == *ctx.program_id;
         // TODO: can we make this matching permission accounts check more robust (e.g. using account names in addition, to not rely on ordering alone)?
         let matching_permission_accounts = ix_depermission.accounts[1].pubkey == permission.key();
-        let expected_discriminator = sighash("express_relay", "depermission");
+        let expected_discriminator = sighash("global", "depermission");
         let matching_discriminator = ix_depermission.data[0..8] == expected_discriminator;
         let proper_depermissioning = program_equal && matching_permission_accounts && matching_discriminator;
         if !proper_depermissioning {
@@ -112,8 +112,11 @@ pub mod express_relay {
         }
 
         let split_protocol: u64;
-        if protocol_config.to_account_info().data_len() > 0 {
-            split_protocol = protocol_config.split;
+        let protocol_config_account_info = protocol_config.to_account_info();
+        if protocol_config_account_info.data_len() > 0 {
+            let account_data = &mut &**protocol_config_account_info.try_borrow_data()?;
+            let protocol_config_data = ConfigProtocol::try_deserialize(account_data)?;
+            split_protocol = protocol_config_data.split;
         } else {
             split_protocol = express_relay_metadata.split_protocol_default;
         }
@@ -245,7 +248,8 @@ pub struct DepermissionArgs {
 pub struct Depermission<'info> {
     #[account(mut)]
     pub relayer_signer: Signer<'info>,
-    #[account(mut, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump = permission.bump, close = relayer_signer)]
+    // TODO: upon close, should send funds to the program as opposed to the relayer signer
+    #[account(mut, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump, close = relayer_signer)]
     pub permission: Account<'info, PermissionMetadata>,
     /// CHECK: this is just the protocol fee receiver PK
     #[account(mut)]
@@ -253,8 +257,9 @@ pub struct Depermission<'info> {
     /// CHECK: this is just a PK for the relayer to receive fees at
     #[account(mut)]
     pub relayer_fee_receiver: UncheckedAccount<'info>,
+    /// CHECK: this cannot be checked against ConfigProtocol bc it may not be initialized bc anchor :(
     #[account(seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]
-    pub protocol_config: Account<'info, ConfigProtocol>,
+    pub protocol_config: UncheckedAccount<'info>,
     #[account(seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = relayer_signer, has_one = relayer_fee_receiver)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
     pub system_program: Program<'info, System>,
