@@ -25,6 +25,7 @@ use {
         Deserialize,
         Serialize,
     },
+    sqlx::types::time::OffsetDateTime,
     std::sync::Arc,
     utoipa::{
         ToResponse,
@@ -58,7 +59,7 @@ pub async fn bid(
 }
 
 pub async fn process_bid(store: Arc<Store>, bid: Bid) -> Result<Json<BidResult>, RestError> {
-    match handle_bid(store, bid).await {
+    match handle_bid(store, bid, OffsetDateTime::now_utc()).await {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),
             id,

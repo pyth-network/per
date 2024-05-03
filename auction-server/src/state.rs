@@ -75,7 +75,7 @@ pub struct SimulatedBid {
     pub permission_key:  PermissionKey,
     pub chain_id:        ChainId,
     pub status:          BidStatus,
-    pub creation_time:   OffsetDateTime,
+    pub initiation_time: OffsetDateTime,
 }
 
 pub type UnixTimestampMicros = i128;
@@ -359,15 +359,17 @@ impl Store {
 
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
-        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        let now = OffsetDateTime::now_utc();
+        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         bid.id,
-        PrimitiveDateTime::new(bid.creation_time.date(), bid.creation_time.time()),
+        PrimitiveDateTime::new(now.date(), now.time()),
         bid.permission_key.to_vec(),
         bid.chain_id,
         &bid.target_contract.to_fixed_bytes(),
         bid.target_calldata.to_vec(),
         BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
         bid.status as _,
+        PrimitiveDateTime::new(bid.initiation_time.date(), bid.initiation_time.time()),
         )
             .execute(&self.db)
             .await.map_err(|e| {

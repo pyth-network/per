@@ -228,7 +228,14 @@ pub async fn process_opportunity_bid(
     opportunity_id: OpportunityId,
     opportunity_bid: &OpportunityBid,
 ) -> Result<Json<BidResult>, RestError> {
-    match handle_opportunity_bid(store, opportunity_id, opportunity_bid).await {
+    match handle_opportunity_bid(
+        store,
+        opportunity_id,
+        opportunity_bid,
+        OffsetDateTime::now_utc(),
+    )
+    .await
+    {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),
             id,

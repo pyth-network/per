@@ -252,12 +252,8 @@ fn get_bid_status(bid: &SimulatedBid, winner_bids: &[SimulatedBid], tx_hash: H25
 const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
 // An auction is ready if there are any bids with a lifetime of AUCTION_MINIMUM_LIFETIME
 fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDateTime) -> bool {
-    for bid in bids.iter() {
-        if bid_collection_time - bid.creation_time > AUCTION_MINIMUM_LIFETIME {
-            return true;
-        }
-    }
-    false
+    bids.iter()
+        .any(|bid| bid_collection_time - bid.initiation_time > AUCTION_MINIMUM_LIFETIME)
 }
 
 async fn submit_auction(
@@ -399,7 +395,11 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             block = stream.next() => {
-                tracing::info!("New block received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), block);
+                if block.is_none() {
+                    return Err(anyhow!("Block stream ended for chain: {}", chain_id));
+                }
+
+                tracing::debug!("New block received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), block);
                 store.task_tracker.spawn(
                     submit_auctions(
                         store.clone(),
@@ -434,7 +434,11 @@ pub struct Bid {
     pub amount:          BidAmount,
 }
 
-pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, RestError> {
+pub async fn handle_bid(
+    store: Arc<Store>,
+    bid: Bid,
+    initiation_time: OffsetDateTime,
+) -> result::Result<Uuid, RestError> {
     let chain_store = store
         .chains
         .get(&bid.chain_id)
@@ -479,12 +483,12 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
     let simulated_bid = SimulatedBid {
         target_contract: bid.target_contract,
         target_calldata: bid.target_calldata.clone(),
-        bid_amount:      bid.amount,
-        id:              bid_id,
-        permission_key:  bid.permission_key.clone(),
-        chain_id:        bid.chain_id.clone(),
-        status:          BidStatus::Pending,
-        creation_time:   OffsetDateTime::now_utc(),
+        bid_amount: bid.amount,
+        id: bid_id,
+        permission_key: bid.permission_key.clone(),
+        chain_id: bid.chain_id.clone(),
+        status: BidStatus::Pending,
+        initiation_time,
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)
