@@ -50,7 +50,7 @@ async fn test_permission_depermission() {
 
     initialize(&mut program_context, payer, admin, relayer_signer.pubkey(), relayer_fee_receiver, split_protocol_default, split_relayer).await;
 
-    let permission_id: &[u8] = &[];
+    let permission_id: [u8; 8] = [0; 8];
     let bid_id: [u8; 16] = [0; 16];
     // NOTE: bid needs to be large enough to avoid running into insufficient rent errors
     let bid_amount = 100_000_000;

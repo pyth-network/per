@@ -212,9 +212,9 @@ pub struct SetProtocolSplit<'info> {
     pub system_program: Program<'info, System>,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Debug)]
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct PermissionArgs {
-    pub permission_id: Box<[u8]>,
+    pub permission_id: [u8; 8],
     pub bid_id: [u8; 16],
     pub bid_amount: u64,
 }
@@ -237,9 +237,9 @@ pub struct Permission<'info> {
     pub sysvar_instructions: UncheckedAccount<'info>,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Debug)]
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct DepermissionArgs {
-    pub permission_id: Box<[u8]>,
+    pub permission_id: [u8; 8],
     pub bid_id: [u8; 16],
 }
 
