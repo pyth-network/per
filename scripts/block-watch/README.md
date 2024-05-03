@@ -1,3 +1,7 @@
+## Overview
+
+This script is designed to monitor the behavior of blocks and RPC latency for new blocks. Our objective was to ensure that the number of blocks increments sequentially and is always a non-null value. Additionally, we aim to determine whether each new block is mined within a specific time frame or if there is tolerance for variations in mining times.
+
 ## Installation
 
 ### poetry

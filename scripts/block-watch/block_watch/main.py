@@ -21,12 +21,16 @@ urls = [
     "wss://optimism-rpc.publicnode.com",
     "wss://avalanche-c-chain-rpc.publicnode.com",
     "wss://mantle-rpc.publicnode.com",
-    # - "wss://opbnb-mainnet.nodereal.io/ws/v1/e9a36765eb8a40b9bd12e680a1fd2bc5",
-    # - "wss://aurora.drpc.org",
-    # - "wss://mainnet.fusionnetwork.io",
-    # - "wss://cronos.drpc.org",
-    # - "wss://bsc-rpc.publicnode.com",
-    # - "wss://polygon.drpc.org",
+
+    # These are the URLs that are currently not working with this script
+    # Either it's not possible to subscribe to newHeads
+    # Or the response is not in the expected format
+    # "wss://opbnb-mainnet.nodereal.io/ws/v1/e9a36765eb8a40b9bd12e680a1fd2bc5",
+    # "wss://aurora.drpc.org",
+    # "wss://mainnet.fusionnetwork.io",
+    # "wss://cronos.drpc.org",
+    # "wss://bsc-rpc.publicnode.com",
+    # "wss://polygon.drpc.org",
 ]
 
 
