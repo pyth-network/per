@@ -67,6 +67,7 @@ use {
         Deserialize,
         Serialize,
     },
+    sqlx::types::time::OffsetDateTime,
     std::{
         collections::HashMap,
         ops::Add,
@@ -494,6 +495,7 @@ pub async fn handle_opportunity_bid(
     store: Arc<Store>,
     opportunity_id: OpportunityId,
     opportunity_bid: &OpportunityBid,
+    initiation_time: OffsetDateTime,
 ) -> result::Result<Uuid, RestError> {
     let opportunities = store
         .opportunity_store
@@ -529,6 +531,7 @@ pub async fn handle_opportunity_bid(
             target_calldata: adapter_calldata,
             amount:          opportunity_bid.amount,
         },
+        initiation_time,
     )
     .await
     {
