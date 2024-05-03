@@ -80,7 +80,6 @@ use {
         },
         time::Duration,
     },
-    tokio::time::sleep,
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -250,6 +249,17 @@ fn get_bid_status(bid: &SimulatedBid, winner_bids: &[SimulatedBid], tx_hash: H25
     }
 }
 
+const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
+// An auction is ready if there are any bids with a lifetime of AUCTION_MINIMUM_LIFETIME
+fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDateTime) -> bool {
+    for bid in bids.iter() {
+        if bid_collection_time - bid.creation_time > AUCTION_MINIMUM_LIFETIME {
+            return true;
+        }
+    }
+    false
+}
+
 async fn submit_auction(
     bids: Vec<SimulatedBid>,
     bid_collection_time: OffsetDateTime,
@@ -261,6 +271,12 @@ async fn submit_auction(
         .chains
         .get(&chain_id)
         .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+
+    if !is_ready_for_auction(bids.clone(), bid_collection_time) {
+        tracing::info!("Auction for {} is not ready yet", permission_key);
+        return Ok(());
+    }
+
     let winner_bids =
         get_winner_bids(&bids, permission_key.clone(), store.clone(), chain_store).await?;
     if winner_bids.is_empty() {
@@ -343,21 +359,7 @@ pub fn get_express_relay_contract(
     SignableExpressRelayContract::new(address, client)
 }
 
-const AUCTION_SUBMISSION_WINDOW: u64 = 500;
-async fn submit_auctions(
-    store: Arc<Store>,
-    chain_id: String,
-    next_block_time: OffsetDateTime,
-) -> Result<()> {
-    let time_diff_millis: u64 =
-        (next_block_time - OffsetDateTime::now_utc()).whole_milliseconds() as u64;
-    if time_diff_millis > AUCTION_SUBMISSION_WINDOW {
-        sleep(Duration::from_millis(
-            time_diff_millis - AUCTION_SUBMISSION_WINDOW,
-        ))
-        .await;
-    }
-
+async fn submit_auctions(store: Arc<Store>, chain_id: String) -> Result<()> {
     let (bids_grouped_by_permission_key, bid_collection_time) =
         get_bids_grouped_by_permission_key(&store, &chain_id).await;
     tracing::info!(
@@ -378,13 +380,6 @@ async fn submit_auctions(
     Ok(())
 }
 
-fn estimate_next_block_time(
-    previous_block_time: OffsetDateTime,
-    current_block_time: OffsetDateTime,
-) -> OffsetDateTime {
-    current_block_time + (current_block_time - previous_block_time)
-}
-
 async fn get_ws_provider(store: Arc<Store>, chain_id: String) -> Result<Provider<Ws>> {
     let chain_store = store
         .chains
@@ -401,25 +396,16 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
     let ws_provider = get_ws_provider(store.clone(), chain_id.clone()).await?;
     let mut stream = ws_provider.subscribe_blocks().await?;
 
-    let mut previous_block_time: Option<OffsetDateTime> = None;
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             block = stream.next() => {
-                let current_block_time = OffsetDateTime::now_utc();
-                if block.is_none() {
-                    return Err(anyhow!("Block stream ended for chain: {}", chain_id));
-                }
-                // TODO we are missing the very first block - Maybe we can store the block data somewhere
-                if let Some(previous_block_time) = previous_block_time {
-                    store.task_tracker.spawn(
-                        submit_auctions(
-                            store.clone(),
-                            chain_id.clone(),
-                            estimate_next_block_time(previous_block_time, current_block_time)
-                        )
-                    );
-                }
-                previous_block_time = Some(current_block_time);
+                tracing::info!("New block received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), block);
+                store.task_tracker.spawn(
+                    submit_auctions(
+                        store.clone(),
+                        chain_id.clone(),
+                    )
+                );
             }
             _ = exit_check_interval.tick() => {}
         }
@@ -498,6 +484,7 @@ pub async fn handle_bid(store: Arc<Store>, bid: Bid) -> result::Result<Uuid, Res
         permission_key:  bid.permission_key.clone(),
         chain_id:        bid.chain_id.clone(),
         status:          BidStatus::Pending,
+        creation_time:   OffsetDateTime::now_utc(),
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)
