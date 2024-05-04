@@ -233,6 +233,15 @@ describe("express_relay", () => {
     let balance_debt_protocol_1 =
       await provider.connection.getTokenAccountBalance(taDebtProtocol[0]);
 
+    let permission = await PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("ata"),
+        ezLend.programId.toBuffer(),
+        vault[0].toBuffer(),
+      ],
+      expressRelay.programId
+    );
+
     const tx_liquidate = await ezLend.methods
       .liquidate({
         vaultId: vault_id_BN,
@@ -246,6 +255,8 @@ describe("express_relay", () => {
         collateralTaProgram: taCollateralProtocol.address,
         debtAtaPayer: ataDebtPayer.address,
         debtTaProgram: taDebtProtocol.address,
+        expressRelay: expressRelay.programId,
+        permission: permission[0],
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
       })

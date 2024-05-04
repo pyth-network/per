@@ -1,15 +1,22 @@
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer};
+// TODO: import these correctly in the future
+// use crate::{express_relay::state::SEED_PERMISSION};
+// express_relay::{ExpressRelay, state::{SEED_PERMISSION, PermissionMetadata}, ID as EXPRESS_RELAY_PROGRAM_ID};
+pub const SEED_PERMISSION: &[u8] = b"permission";
+#[account]
+#[derive(Default)]
+pub struct PermissionMetadata {
+    pub bump: u8,
+    pub balance: u64,
+    pub bid_amount: u64,
+}
 
 declare_id!("CpCzVaqa1Q4HHwx5d7TZLGbUqnXTthQQ5y3qJnWgi1ce");
 
 #[program]
 pub mod ez_lend {
     use super::*;
-
-    // pub fn initialize(ctx: Context<Initialize>, _data: InitializeArgs) -> Result<()> {
-    //     Ok(())
-    // }
 
     pub fn create_token_acc(_ctx: Context<CreateTokenAcc>, _data: CreateTokenAccArgs) -> Result<()> {
         Ok(())
@@ -73,6 +80,8 @@ pub mod ez_lend {
         let debt_ata_payer = &ctx.accounts.debt_ata_payer;
         let debt_ta_program = &ctx.accounts.debt_ta_program;
         let collateral_mint = &ctx.accounts.collateral_mint;
+        let express_relay = &ctx.accounts.express_relay;
+        let permission = &ctx.accounts.permission;
         let token_program = &ctx.accounts.token_program;
 
         // transfer debt from payer to vault
@@ -112,8 +121,6 @@ pub mod ez_lend {
     }
 }
 
-// const AUTHORITY_SEED: &[u8] = b"authority";
-
 #[account]
 #[derive(Default)]
 pub struct Vault {
@@ -123,22 +130,6 @@ pub struct Vault {
     pub debt_mint: Pubkey,
     pub debt_amount: u64,
 }
-
-// #[account]
-// #[derive(Default)]
-// pub struct Authority {}
-
-// #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Debug)]
-// pub struct InitializeArgs {}
-
-// #[derive(Accounts)]
-// pub struct Initialize<'info> {
-//     #[account(mut)]
-//     pub payer: Signer<'info>,
-//     #[account(init, payer = payer, space = 8 + 1, seeds = [AUTHORITY_SEED], bump)]
-//     pub ata_authority_program: Account<'info, Authority>,
-//     pub system_program: Program<'info, System>,
-// }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Debug)]
 pub struct CreateTokenAccArgs {}
@@ -233,6 +224,20 @@ pub struct Liquidate<'info> {
         token::mint = debt_mint
     )]
     pub debt_ta_program: Account<'info, TokenAccount>,
+    /// CHECK: we should check this in the future, TODO
+    pub express_relay: UncheckedAccount<'info>,
+    // #[account(address = EXPRESS_RELAY_PROGRAM_ID)]
+    // pub express_relay: Program<'info, ExpressRelay>,
+    #[account(
+        seeds = [
+            SEED_PERMISSION,
+            ID.as_ref(),
+            &data.vault_id.to_le_bytes()
+        ],
+        bump,
+        seeds::program = express_relay.key()
+    )]
+    pub permission: Account<'info, PermissionMetadata>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
