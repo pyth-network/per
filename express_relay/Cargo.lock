@@ -1572,6 +1572,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ez_lend_vanilla"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "express_relay",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
