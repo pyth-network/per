@@ -274,7 +274,10 @@ async fn submit_auction(
         return Ok(());
     }
 
-    if !store.update_in_progress_auctions(permission_key.clone(), chain_id.clone()) {
+    if !store
+        .update_in_progress_auctions(permission_key.clone(), chain_id.clone())
+        .await
+    {
         tracing::info!(
             "Auction for {} on chain {} is already in progress",
             permission_key,
@@ -352,7 +355,9 @@ async fn submit_auction(
 
     // TODO we should figure out a better way to handle bids and auction submission for permission keys
     sleep(Duration::from_secs(1)); // Sleep to make sure no removed bids are reprocessed
-    store.remove_in_progress_auction(permission_key, chain_id);
+    store
+        .remove_in_progress_auction(permission_key, chain_id)
+        .await;
     result
 }
 
