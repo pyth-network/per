@@ -25,6 +25,7 @@ use {
         },
     },
     anyhow::anyhow,
+    axum::async_trait,
     ethers::{
         prelude::{
             LocalWallet,
@@ -32,6 +33,8 @@ use {
         },
         providers::{
             Http,
+            HttpClientError,
+            JsonRpcClient,
             Middleware,
         },
         signers::Signer,
@@ -43,6 +46,7 @@ use {
     sqlx::postgres::PgPoolOptions,
     std::{
         collections::HashMap,
+        fmt::Debug,
         sync::{
             atomic::{
                 AtomicBool,
@@ -55,6 +59,11 @@ use {
     },
     tokio::time::sleep,
     tokio_util::task::TaskTracker,
+    url::{
+        Host,
+        ParseError,
+        Url,
+    },
 };
 
 
@@ -83,6 +92,28 @@ where
     }
 }
 
+
+#[derive(Debug)]
+struct TracedClient {
+    inner: Http,
+}
+
+#[async_trait]
+impl JsonRpcClient for TracedClient {
+    type Error = HttpClientError;
+
+    async fn request<
+        T: serde::Serialize + Send + Sync + Debug,
+        R: serde::de::DeserializeOwned + Send,
+    >(
+        &self,
+        method: &str,
+        params: T,
+    ) -> Result<R, HttpClientError> {
+        self.inner.request(method, params).await
+    }
+}
+
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     tokio::spawn(async move {
@@ -108,15 +139,9 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let (chain_id, chain_config, wallet) =
                 (chain_id.clone(), chain_config.clone(), wallet.clone());
             async move {
-                let mut provider = Provider::<Http>::try_from(chain_config.geth_rpc_addr.clone())
-                    .map_err(|err| {
-                    anyhow!(
-                        "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
-                        err,
-                        chain_id = chain_id,
-                        rpc_addr = chain_config.geth_rpc_addr
-                    )
-                })?;
+                let traced_provider =
+                    Http::new(Url::parse(chain_config.geth_rpc_addr.clone().as_str())?);
+                let mut provider = Provider::new(traced_provider);
                 provider.set_interval(Duration::from_secs(chain_config.poll_interval));
 
                 let id = provider.get_chainid().await?.as_u64();
