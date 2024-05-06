@@ -78,6 +78,7 @@ use {
             atomic::Ordering,
             Arc,
         },
+        thread::sleep,
         time::Duration,
     },
     utoipa::ToSchema,
@@ -273,68 +274,86 @@ async fn submit_auction(
         return Ok(());
     }
 
-    let winner_bids =
-        get_winner_bids(&bids, permission_key.clone(), store.clone(), chain_store).await?;
-    if winner_bids.is_empty() {
-        for bid in bids.iter() {
-            store
-                .broadcast_bid_status_and_remove(
-                    BidStatusWithId {
-                        id:         bid.id,
-                        bid_status: BidStatus::SimulationFailed,
-                    },
-                    None,
-                )
-                .await?;
-        }
+    if !store.update_in_progress_auctions(permission_key.clone(), chain_id.clone()) {
+        tracing::info!(
+            "Auction for {} on chain {} is already in progress",
+            permission_key,
+            chain_id
+        );
         return Ok(());
     }
 
-    let mut auction = store
-        .init_auction(
-            permission_key.clone(),
-            chain_id.clone(),
-            bid_collection_time,
-        )
-        .await?;
+    let result = async {
+        let winner_bids =
+            get_winner_bids(&bids, permission_key.clone(), store.clone(), chain_store).await?;
+        if winner_bids.is_empty() {
+            for bid in bids.iter() {
+                store
+                    .broadcast_bid_status_and_remove(
+                        BidStatusWithId {
+                            id:         bid.id,
+                            bid_status: BidStatus::SimulationFailed,
+                        },
+                        None,
+                    )
+                    .await?;
+            }
+            return Ok(());
+        }
 
-    let submission = submit_bids(
-        chain_store.express_relay_contract.clone(),
-        permission_key.clone(),
-        winner_bids.clone().into_iter().map(|b| b.into()).collect(),
-    )
+        let mut auction = store
+            .init_auction(
+                permission_key.clone(),
+                chain_id.clone(),
+                bid_collection_time,
+            )
+            .await?;
+
+        let submission = submit_bids(
+            chain_store.express_relay_contract.clone(),
+            permission_key.clone(),
+            winner_bids.clone().into_iter().map(|b| b.into()).collect(),
+        )
+        .await;
+
+        match submission {
+            Ok(receipt) => match receipt {
+                Some(receipt) => {
+                    tracing::debug!("Submitted transaction: {:?}", receipt);
+                    auction = store
+                        .conclude_auction(auction, receipt.transaction_hash)
+                        .await?;
+                    join_all(bids.iter().map(|bid| async {
+                        let bid_status =
+                            get_bid_status(bid, &winner_bids, receipt.transaction_hash);
+                        store
+                            .broadcast_bid_status_and_remove(
+                                BidStatusWithId {
+                                    id: bid.id,
+                                    bid_status,
+                                },
+                                Some(&auction),
+                            )
+                            .await
+                    }))
+                    .await;
+                }
+                None => {
+                    tracing::error!("Failed to receive transaction receipt");
+                }
+            },
+            Err(err) => {
+                tracing::error!("Transaction failed to submit: {:?}", err);
+            }
+        }
+        Ok(())
+    }
     .await;
 
-    match submission {
-        Ok(receipt) => match receipt {
-            Some(receipt) => {
-                tracing::debug!("Submitted transaction: {:?}", receipt);
-                auction = store
-                    .conclude_auction(auction, receipt.transaction_hash)
-                    .await?;
-                join_all(bids.iter().map(|bid| async {
-                    let bid_status = get_bid_status(bid, &winner_bids, receipt.transaction_hash);
-                    store
-                        .broadcast_bid_status_and_remove(
-                            BidStatusWithId {
-                                id: bid.id,
-                                bid_status,
-                            },
-                            Some(&auction),
-                        )
-                        .await
-                }))
-                .await;
-            }
-            None => {
-                tracing::error!("Failed to receive transaction receipt");
-            }
-        },
-        Err(err) => {
-            tracing::error!("Transaction failed to submit: {:?}", err);
-        }
-    }
-    Ok(())
+    // TODO we should figure out a better way to handle bids and auction submission for permission keys
+    sleep(Duration::from_secs(1)); // Sleep to make sure no removed bids are reprocessed
+    store.remove_in_progress_auction(permission_key, chain_id);
+    result
 }
 
 pub fn get_express_relay_contract(
@@ -358,6 +377,7 @@ pub fn get_express_relay_contract(
 async fn submit_auctions(store: Arc<Store>, chain_id: String) -> Result<()> {
     let (bids_grouped_by_permission_key, bid_collection_time) =
         get_bids_grouped_by_permission_key(&store, &chain_id).await;
+
     tracing::info!(
         "Chain: {chain_id} Auctions to process {auction_len}",
         chain_id = chain_id,

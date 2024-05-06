@@ -49,7 +49,11 @@ use {
     std::{
         collections::HashMap,
         str::FromStr,
-        sync::Arc,
+        sync::{
+            Arc,
+            Mutex,
+        },
+        time::Duration,
     },
     tokio::sync::{
         broadcast,
@@ -228,15 +232,18 @@ pub struct BidStatusWithId {
 }
 
 pub struct Store {
-    pub chains:            HashMap<ChainId, ChainStore>,
-    pub bids:              RwLock<HashMap<BidId, SimulatedBid>>,
-    pub event_sender:      broadcast::Sender<UpdateEvent>,
-    pub opportunity_store: OpportunityStore,
-    pub relayer:           LocalWallet,
-    pub ws:                WsState,
-    pub db:                sqlx::PgPool,
-    pub task_tracker:      TaskTracker,
+    pub chains:               HashMap<ChainId, ChainStore>,
+    pub bids:                 RwLock<HashMap<BidId, SimulatedBid>>,
+    pub event_sender:         broadcast::Sender<UpdateEvent>,
+    pub opportunity_store:    OpportunityStore,
+    pub relayer:              LocalWallet,
+    pub ws:                   WsState,
+    pub db:                   sqlx::PgPool,
+    pub task_tracker:         TaskTracker,
+    pub in_progress_auctions: Mutex<HashMap<(PermissionKey, ChainId), OffsetDateTime>>,
 }
+
+const AUCTION_LOCK_DURATION: Duration = Duration::from_secs(30);
 
 impl Store {
     pub async fn opportunity_exists(&self, opportunity: &Opportunity) -> bool {
@@ -520,5 +527,38 @@ impl Store {
             .filter(|bid| bid.chain_id.eq(chain_id))
             .cloned()
             .collect()
+    }
+
+    // Returns true if auction time was updated, false otherwise
+    pub fn update_in_progress_auctions(
+        &self,
+        permission_key: PermissionKey,
+        chain_id: ChainId,
+    ) -> bool {
+        let now = OffsetDateTime::now_utc();
+        match self.in_progress_auctions.lock() {
+            Ok(mut in_progress_auctions) => {
+                if let Some(existing_auction_time) =
+                    in_progress_auctions.get(&(permission_key.clone(), chain_id.clone()))
+                {
+                    if *existing_auction_time > now - AUCTION_LOCK_DURATION {
+                        return false;
+                    }
+                }
+
+                in_progress_auctions.insert((permission_key, chain_id), now);
+                true
+            }
+            Err(e) => {
+                tracing::error!("Failed to lock in_progress_auction: {}", e);
+                false
+            }
+        }
+    }
+
+    pub fn remove_in_progress_auction(&self, permission_key: PermissionKey, chain_id: ChainId) {
+        if let Ok(mut in_progress_auctions) = self.in_progress_auctions.lock() {
+            in_progress_auctions.remove(&(permission_key, chain_id));
+        }
     }
 }
