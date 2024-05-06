@@ -1,9 +1,5 @@
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer};
-use express_relay::{
-    state::{SEED_PERMISSION, PermissionMetadata},
-    ID as EXPRESS_RELAY_PROGRAM_ID
-};
 
 declare_id!("9Q549tbdkC9H3D7Pj5MA7FfdJbgA6WA4nzD1adFpK1hu");
 
@@ -217,16 +213,6 @@ pub struct Liquidate<'info> {
         token::mint = debt_mint
     )]
     pub debt_ta_program: Account<'info, TokenAccount>,
-    #[account(
-        seeds = [
-            SEED_PERMISSION,
-            ID.as_ref(),
-            &data.vault_id.to_le_bytes()
-        ],
-        bump,
-        seeds::program = EXPRESS_RELAY_PROGRAM_ID
-    )]
-    pub permission: Account<'info, PermissionMetadata>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
