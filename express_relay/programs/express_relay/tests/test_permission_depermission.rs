@@ -54,7 +54,8 @@ async fn test_permission_depermission() {
     let bid_id: [u8; 16] = [0; 16];
     // NOTE: bid needs to be large enough to avoid running into insufficient rent errors
     let bid_amount = 100_000_000;
-    let protocol = Keypair::new().pubkey();
+    // TODO: replace with another program's id?
+    let protocol = express_relay::id();
     let permission = Pubkey::find_program_address(&[SEED_PERMISSION, &protocol.to_bytes(), &permission_id], &express_relay::id()).0;
 
     let send_sol_ix = system_instruction::transfer(&searcher.pubkey(), &permission, bid_amount);

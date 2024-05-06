@@ -104,7 +104,7 @@ pub mod express_relay {
         let permission = &ctx.accounts.permission;
         let protocol_config = &ctx.accounts.protocol_config;
         let express_relay_metadata = &ctx.accounts.express_relay_metadata;
-        let protocol = &ctx.accounts.protocol;
+        let protocol_fee_receiver = &ctx.accounts.protocol_fee_receiver;
         let relayer_fee_receiver = &ctx.accounts.relayer_fee_receiver;
 
         if permission.to_account_info().lamports() < permission.balance.saturating_add(permission.bid_amount) {
@@ -130,8 +130,10 @@ pub mod express_relay {
             return err!(ExpressRelayError::FeesTooHigh);
         }
 
-        transfer_lamports(&permission.to_account_info(), &protocol.to_account_info(), fee_protocol)?;
+        transfer_lamports(&permission.to_account_info(), &protocol_fee_receiver.to_account_info(), fee_protocol)?;
         transfer_lamports(&permission.to_account_info(), &relayer_fee_receiver.to_account_info(), fee_relayer)?;
+        // send the remaining balance from the bid to the express relay metadata account
+        transfer_lamports(&permission.to_account_info(), &express_relay_metadata.to_account_info(), permission.bid_amount.saturating_sub(fee_protocol).saturating_sub(fee_relayer))?;
 
         Ok(())
     }
@@ -251,16 +253,23 @@ pub struct Depermission<'info> {
     // TODO: upon close, should send funds to the program as opposed to the relayer signer
     #[account(mut, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump, close = relayer_signer)]
     pub permission: Account<'info, PermissionMetadata>,
-    /// CHECK: this is just the protocol fee receiver PK
-    #[account(mut)]
+    /// CHECK: this is just the protocol program address
     pub protocol: UncheckedAccount<'info>,
+    /// CHECK: don't care what this PDA looks like
+    #[account(
+        mut,
+        seeds = [b"per_fees"],
+        seeds::program = protocol.key(),
+        bump
+    )]
+    pub protocol_fee_receiver: UncheckedAccount<'info>,
     /// CHECK: this is just a PK for the relayer to receive fees at
     #[account(mut)]
     pub relayer_fee_receiver: UncheckedAccount<'info>,
     /// CHECK: this cannot be checked against ConfigProtocol bc it may not be initialized bc anchor :(
     #[account(seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]
     pub protocol_config: UncheckedAccount<'info>,
-    #[account(seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = relayer_signer, has_one = relayer_fee_receiver)]
+    #[account(mut, seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = relayer_signer, has_one = relayer_fee_receiver)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
     pub system_program: Program<'info, System>,
 }

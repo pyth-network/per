@@ -13,7 +13,7 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
-import { BN } from "bn.js";
+// import { BN } from "bn.js";
 
 describe("express_relay", () => {
   // Configure the client to use the local cluster.
@@ -37,12 +37,36 @@ describe("express_relay", () => {
   let taCollateralProtocol;
   let taDebtProtocol;
 
+  let protocol = ezLend.programId;
+  let protocolFeeReceiver;
+
+  const relayerSigner = anchor.web3.Keypair.generate();
+  const relayerFeeReceiver = anchor.web3.Keypair.generate();
+  const admin = anchor.web3.Keypair.generate();
+  let expressRelayMetadata;
+  let splitProtocolDefault = new anchor.BN(5000);
+  let splitRelayer = new anchor.BN(2000);
+
+  console.log("payer: ", payer.publicKey.toBase58());
+  console.log("relayerSigner: ", relayerSigner.publicKey.toBase58());
+  console.log("relayerFeeReceiver: ", relayerFeeReceiver.publicKey.toBase58());
+  console.log("admin: ", admin.publicKey.toBase58());
+
   before(async () => {
-    let airdrop_signature = await provider.connection.requestAirdrop(
+    let airdrop_signature_payer = await provider.connection.requestAirdrop(
       payer.publicKey,
-      2 * LAMPORTS_PER_SOL
+      20 * LAMPORTS_PER_SOL
     );
-    await provider.connection.confirmTransaction(airdrop_signature);
+    await provider.connection.confirmTransaction(airdrop_signature_payer);
+
+    let airdrop_signature_relayer_signer =
+      await provider.connection.requestAirdrop(
+        relayerSigner.publicKey,
+        30 * LAMPORTS_PER_SOL
+      );
+    await provider.connection.confirmTransaction(
+      airdrop_signature_relayer_signer
+    );
 
     // create mints
     mintCollateral = await createMint(
@@ -60,6 +84,11 @@ describe("express_relay", () => {
       9
     );
 
+    protocolFeeReceiver = await PublicKey.findProgramAddressSync(
+      [anchor.utils.bytes.utf8.encode("per_fees")],
+      protocol
+    );
+
     // Initialize TAs
     ataCollateralPayer = await getOrCreateAssociatedTokenAccount(
       provider.connection,
@@ -75,11 +104,16 @@ describe("express_relay", () => {
     );
     taCollateralProtocol = await PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("ata"), mintCollateral.toBuffer()],
-      ezLend.programId
+      protocol
     );
     taDebtProtocol = await PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("ata"), mintDebt.toBuffer()],
-      ezLend.programId
+      protocol
+    );
+
+    expressRelayMetadata = await PublicKey.findProgramAddressSync(
+      [anchor.utils.bytes.utf8.encode("metadata")],
+      expressRelay.programId
     );
 
     const tx_collateral_ta = await ezLend.methods
@@ -159,22 +193,28 @@ describe("express_relay", () => {
       TOKEN_PROGRAM_ID
     );
 
-    // const tx = await ezLend.methods.
-    //   initialize({}).
-    //   accounts({
-    //     payer: payer.publicKey,
-    //     ataAuthorityProgram: authorityProtocol[0],
-    //     systemProgram: anchor.web3.SystemProgram.programId
-    //   }).
-    //   signers([payer]).
-    //   rpc();
+    await expressRelay.methods
+      .initialize({
+        splitProtocolDefault: splitProtocolDefault,
+        splitRelayer: splitRelayer,
+      })
+      .accounts({
+        payer: relayerSigner.publicKey,
+        express_relay_metadata: expressRelayMetadata[0],
+        admin: admin.publicKey,
+        relayerSigner: relayerSigner.publicKey,
+        relayerFeeReceiver: relayerFeeReceiver.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([relayerSigner])
+      .rpc();
   });
 
   it("Create vault", async () => {
     let vault_id = 0;
-    let vault_id_BN = new BN(vault_id);
-    let collateral_amount = new BN(100);
-    let debt_amount = new BN(50);
+    let vault_id_BN = new anchor.BN(vault_id);
+    let collateral_amount = new anchor.BN(100);
+    let debt_amount = new anchor.BN(50);
 
     // get token balances pre
     let balance_collateral_payer_0 =
@@ -196,7 +236,7 @@ describe("express_relay", () => {
     );
     let vault = await PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("vault"), vault_id_bytes],
-      ezLend.programId
+      protocol
     );
 
     const tx_create_vault = await ezLend.methods
@@ -235,14 +275,14 @@ describe("express_relay", () => {
 
     let permission = await PublicKey.findProgramAddressSync(
       [
-        anchor.utils.bytes.utf8.encode("ata"),
-        ezLend.programId.toBuffer(),
-        vault[0].toBuffer(),
+        anchor.utils.bytes.utf8.encode("permission"),
+        protocol.toBuffer(),
+        vault_id_bytes,
       ],
       expressRelay.programId
     );
 
-    const tx_liquidate = await ezLend.methods
+    const ixLiquidate = await ezLend.methods
       .liquidate({
         vaultId: vault_id_BN,
       })
@@ -261,7 +301,101 @@ describe("express_relay", () => {
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([payer])
-      .rpc();
+      .instruction();
+
+    let bidId: Uint8Array = new Uint8Array(16);
+    let bidAmount = new anchor.BN(100_000_000);
+    console.log("permission", permission[0]);
+    console.log("vault ID", vault_id_BN);
+    console.log("vault ID buffer", vault_id_bytes);
+    const ixPermission = await expressRelay.methods
+      .permission({
+        permissionId: vault_id_bytes,
+        bidId: bidId,
+        bidAmount: bidAmount,
+      })
+      .accounts({
+        relayerSigner: relayerSigner.publicKey,
+        permission: permission[0],
+        protocol: protocol,
+        expressRelayMetadata: expressRelayMetadata[0],
+        systemProgram: anchor.web3.SystemProgram.programId,
+        sysvarInstructions: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+      })
+      .signers([relayerSigner])
+      .instruction();
+
+    let protocolConfig = await PublicKey.findProgramAddressSync(
+      [anchor.utils.bytes.utf8.encode("config_protocol"), protocol.toBuffer()],
+      expressRelay.programId
+    );
+
+    const ixDepermission = await expressRelay.methods
+      .depermission({
+        permissionId: vault_id_bytes,
+        bidId: bidId,
+      })
+      .accounts({
+        relayerSigner: relayerSigner.publicKey,
+        permission: permission[0],
+        protocol: ezLend.programId,
+        protocolFeeReceiver: protocolFeeReceiver[0],
+        relayerFeeReceiver: relayerFeeReceiver.publicKey,
+        protocolConfig: protocolConfig[0],
+        expressRelayMetadata: expressRelayMetadata[0],
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([relayerSigner])
+      .instruction();
+
+    const ixSendSol = anchor.web3.SystemProgram.transfer({
+      fromPubkey: payer.publicKey,
+      toPubkey: permission[0],
+      lamports: bidAmount.toNumber(),
+    });
+
+    // create transaction
+    let transaction = new anchor.web3.Transaction();
+
+    transaction.add(ixPermission);
+    transaction.add(ixLiquidate);
+    transaction.add(ixSendSol);
+    transaction.add(ixDepermission);
+
+    let solProtocolPre = await provider.connection.getBalance(
+      protocolFeeReceiver[0]
+    );
+    let solRelayerPre = await provider.connection.getBalance(
+      relayerFeeReceiver.publicKey
+    );
+    let solExpressRelayPre = await provider.connection.getBalance(
+      expressRelayMetadata[0]
+    );
+
+    // send transaction
+    let signature = await provider.connection.sendTransaction(
+      transaction,
+      [payer, relayerSigner],
+      {}
+    );
+
+    const latestBlockHash = await provider.connection.getLatestBlockhash();
+    let txResponse = await provider.connection.confirmTransaction({
+      blockhash: latestBlockHash.blockhash,
+      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+      signature: signature,
+    });
+    console.log("Transaction response", txResponse.value["err"]);
+
+    let solProtocolPost = await provider.connection.getBalance(
+      protocolFeeReceiver[0]
+    );
+    let solRelayerPost = await provider.connection.getBalance(
+      relayerFeeReceiver.publicKey
+    );
+    let solExpressRelayPost = await provider.connection.getBalance(
+      expressRelayMetadata[0]
+    );
 
     // get token balances post creation
     let balance_collateral_payer_2 =
@@ -276,16 +410,31 @@ describe("express_relay", () => {
     let balance_debt_protocol_2 =
       await provider.connection.getTokenAccountBalance(taDebtProtocol[0]);
 
+    console.log("SOL balance change (protocol)");
+    console.log(solProtocolPre);
+    console.log(solProtocolPost);
+
+    console.log("SOL balance change (relayer)");
+    console.log(solRelayerPre);
+    console.log(solRelayerPost);
+
+    console.log("SOL balance change (express relay)");
+    console.log(solExpressRelayPre);
+    console.log(solExpressRelayPost);
+
+    console.log("BEFORE CREATION");
     console.log(balance_collateral_payer_0.value.amount);
     console.log(balance_debt_payer_0.value.amount);
     console.log(balance_collateral_protocol_0.value.amount);
     console.log(balance_debt_protocol_0.value.amount);
 
+    console.log("BEFORE LIQ");
     console.log(balance_collateral_payer_1.value.amount);
     console.log(balance_debt_payer_1.value.amount);
     console.log(balance_collateral_protocol_1.value.amount);
     console.log(balance_debt_protocol_1.value.amount);
 
+    console.log("AFTER LIQ");
     console.log(balance_collateral_payer_2.value.amount);
     console.log(balance_debt_payer_2.value.amount);
     console.log(balance_collateral_protocol_2.value.amount);

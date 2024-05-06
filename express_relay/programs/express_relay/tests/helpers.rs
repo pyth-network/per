@@ -172,6 +172,7 @@ pub async fn express_relay_tx(
         .to_account_metas(None),
     };
 
+    let protocol_fee_receiver = Pubkey::find_program_address(&[b"per_fees"], &protocol).0;
     let depermission_ix = Instruction {
         program_id: express_relay::id(),
         data:
@@ -185,6 +186,7 @@ pub async fn express_relay_tx(
             relayer_signer: relayer_signer.pubkey(),
             permission: permission,
             protocol: protocol,
+            protocol_fee_receiver: protocol_fee_receiver,
             relayer_fee_receiver: relayer_fee_receiver,
             protocol_config: protocol_config,
             express_relay_metadata: express_relay_metadata,
@@ -223,7 +225,7 @@ pub async fn express_relay_tx(
 
     let protocol_balance = program_context
         .banks_client
-        .get_balance(protocol)
+        .get_balance(protocol_fee_receiver)
         .await
         .unwrap();
 

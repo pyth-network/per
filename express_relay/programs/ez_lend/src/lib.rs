@@ -1,16 +1,10 @@
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer};
-// TODO: import these correctly in the future
-// use crate::{express_relay::state::SEED_PERMISSION};
-// express_relay::{ExpressRelay, state::{SEED_PERMISSION, PermissionMetadata}, ID as EXPRESS_RELAY_PROGRAM_ID};
-pub const SEED_PERMISSION: &[u8] = b"permission";
-#[account]
-#[derive(Default)]
-pub struct PermissionMetadata {
-    pub bump: u8,
-    pub balance: u64,
-    pub bid_amount: u64,
-}
+use express_relay::{
+    program::ExpressRelay,
+    state::{SEED_PERMISSION, PermissionMetadata},
+    ID as EXPRESS_RELAY_PROGRAM_ID
+};
 
 declare_id!("CpCzVaqa1Q4HHwx5d7TZLGbUqnXTthQQ5y3qJnWgi1ce");
 
@@ -80,8 +74,7 @@ pub mod ez_lend {
         let debt_ata_payer = &ctx.accounts.debt_ata_payer;
         let debt_ta_program = &ctx.accounts.debt_ta_program;
         let collateral_mint = &ctx.accounts.collateral_mint;
-        let express_relay = &ctx.accounts.express_relay;
-        let permission = &ctx.accounts.permission;
+        // let express_relay = &ctx.accounts.express_relay;
         let token_program = &ctx.accounts.token_program;
 
         // transfer debt from payer to vault
@@ -171,7 +164,8 @@ pub struct CreateVault<'info> {
     #[account(mut, token::mint = collateral_mint, token::authority = payer)]
     pub collateral_ata_payer: Account<'info, TokenAccount>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         seeds = [b"ata", collateral_mint.key().as_ref()],
         bump,
         token::mint = collateral_mint,
@@ -181,7 +175,8 @@ pub struct CreateVault<'info> {
     #[account(mut, token::mint = debt_mint, token::authority = payer)]
     pub debt_ata_payer: Account<'info, TokenAccount>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         seeds = [b"ata", debt_mint.key().as_ref()],
         bump,
         token::mint = debt_mint,
@@ -224,8 +219,6 @@ pub struct Liquidate<'info> {
         token::mint = debt_mint
     )]
     pub debt_ta_program: Account<'info, TokenAccount>,
-    /// CHECK: we should check this in the future, TODO
-    pub express_relay: UncheckedAccount<'info>,
     // #[account(address = EXPRESS_RELAY_PROGRAM_ID)]
     // pub express_relay: Program<'info, ExpressRelay>,
     #[account(
@@ -235,7 +228,7 @@ pub struct Liquidate<'info> {
             &data.vault_id.to_le_bytes()
         ],
         bump,
-        seeds::program = express_relay.key()
+        seeds::program = EXPRESS_RELAY_PROGRAM_ID
     )]
     pub permission: Account<'info, PermissionMetadata>,
     pub token_program: Program<'info, Token>,
