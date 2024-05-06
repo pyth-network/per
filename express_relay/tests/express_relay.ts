@@ -13,6 +13,7 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
+import { assert } from "chai";
 // import { BN } from "bn.js";
 
 describe("express_relay", () => {
@@ -210,24 +211,35 @@ describe("express_relay", () => {
       .rpc();
   });
 
-  it("Create vault", async () => {
+  it("Create and liquidate vault", async () => {
     let vault_id = 0;
     let vault_id_BN = new anchor.BN(vault_id);
     let collateral_amount = new anchor.BN(100);
     let debt_amount = new anchor.BN(50);
 
     // get token balances pre
-    let balance_collateral_payer_0 =
-      await provider.connection.getTokenAccountBalance(
-        ataCollateralPayer.address
-      );
-    let balance_debt_payer_0 = await provider.connection.getTokenAccountBalance(
-      ataDebtPayer.address
+    let balance_collateral_payer_0 = Number(
+      (
+        await provider.connection.getTokenAccountBalance(
+          ataCollateralPayer.address
+        )
+      ).value.amount
     );
-    let balance_collateral_protocol_0 =
-      await provider.connection.getTokenAccountBalance(taCollateralProtocol[0]);
-    let balance_debt_protocol_0 =
-      await provider.connection.getTokenAccountBalance(taDebtProtocol[0]);
+    let balance_debt_payer_0 = Number(
+      (await provider.connection.getTokenAccountBalance(ataDebtPayer.address))
+        .value.amount
+    );
+    let balance_collateral_protocol_0 = Number(
+      (
+        await provider.connection.getTokenAccountBalance(
+          taCollateralProtocol[0]
+        )
+      ).value.amount
+    );
+    let balance_debt_protocol_0 = Number(
+      (await provider.connection.getTokenAccountBalance(taDebtProtocol[0]))
+        .value.amount
+    );
 
     // convert the vault id to a bytearray
     let vault_id_bytes = new Uint8Array(8);
@@ -261,17 +273,28 @@ describe("express_relay", () => {
       .rpc();
 
     // get token balances post creation
-    let balance_collateral_payer_1 =
-      await provider.connection.getTokenAccountBalance(
-        ataCollateralPayer.address
-      );
-    let balance_debt_payer_1 = await provider.connection.getTokenAccountBalance(
-      ataDebtPayer.address
+    let balance_collateral_payer_1 = Number(
+      (
+        await provider.connection.getTokenAccountBalance(
+          ataCollateralPayer.address
+        )
+      ).value.amount
     );
-    let balance_collateral_protocol_1 =
-      await provider.connection.getTokenAccountBalance(taCollateralProtocol[0]);
-    let balance_debt_protocol_1 =
-      await provider.connection.getTokenAccountBalance(taDebtProtocol[0]);
+    let balance_debt_payer_1 = Number(
+      (await provider.connection.getTokenAccountBalance(ataDebtPayer.address))
+        .value.amount
+    );
+    let balance_collateral_protocol_1 = Number(
+      (
+        await provider.connection.getTokenAccountBalance(
+          taCollateralProtocol[0]
+        )
+      ).value.amount
+    );
+    let balance_debt_protocol_1 = Number(
+      (await provider.connection.getTokenAccountBalance(taDebtProtocol[0]))
+        .value.amount
+    );
 
     let permission = await PublicKey.findProgramAddressSync(
       [
@@ -295,7 +318,6 @@ describe("express_relay", () => {
         collateralTaProgram: taCollateralProtocol.address,
         debtAtaPayer: ataDebtPayer.address,
         debtTaProgram: taDebtProtocol.address,
-        expressRelay: expressRelay.programId,
         permission: permission[0],
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
@@ -305,9 +327,6 @@ describe("express_relay", () => {
 
     let bidId: Uint8Array = new Uint8Array(16);
     let bidAmount = new anchor.BN(100_000_000);
-    console.log("permission", permission[0]);
-    console.log("vault ID", vault_id_BN);
-    console.log("vault ID buffer", vault_id_bytes);
     const ixPermission = await expressRelay.methods
       .permission({
         permissionId: vault_id_bytes,
@@ -385,7 +404,9 @@ describe("express_relay", () => {
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
       signature: signature,
     });
-    console.log("Transaction response", txResponse.value["err"]);
+    if (txResponse.value["err"]) {
+      console.log("Transaction errored:", txResponse.value["err"]);
+    }
 
     let solProtocolPost = await provider.connection.getBalance(
       protocolFeeReceiver[0]
@@ -398,46 +419,63 @@ describe("express_relay", () => {
     );
 
     // get token balances post creation
-    let balance_collateral_payer_2 =
-      await provider.connection.getTokenAccountBalance(
-        ataCollateralPayer.address
-      );
-    let balance_debt_payer_2 = await provider.connection.getTokenAccountBalance(
-      ataDebtPayer.address
+    let balance_collateral_payer_2 = Number(
+      (
+        await provider.connection.getTokenAccountBalance(
+          ataCollateralPayer.address
+        )
+      ).value.amount
     );
-    let balance_collateral_protocol_2 =
-      await provider.connection.getTokenAccountBalance(taCollateralProtocol[0]);
-    let balance_debt_protocol_2 =
-      await provider.connection.getTokenAccountBalance(taDebtProtocol[0]);
+    let balance_debt_payer_2 = Number(
+      (await provider.connection.getTokenAccountBalance(ataDebtPayer.address))
+        .value.amount
+    );
+    let balance_collateral_protocol_2 = Number(
+      (
+        await provider.connection.getTokenAccountBalance(
+          taCollateralProtocol[0]
+        )
+      ).value.amount
+    );
+    let balance_debt_protocol_2 = Number(
+      (await provider.connection.getTokenAccountBalance(taDebtProtocol[0]))
+        .value.amount
+    );
 
-    console.log("SOL balance change (protocol)");
-    console.log(solProtocolPre);
-    console.log(solProtocolPost);
+    assert(solProtocolPost - solProtocolPre == 50_000_000);
+    assert(solRelayerPost - solRelayerPre == 10_000_000);
+    assert(solExpressRelayPost - solExpressRelayPre == 40_000_000);
 
-    console.log("SOL balance change (relayer)");
-    console.log(solRelayerPre);
-    console.log(solRelayerPost);
+    assert(
+      balance_collateral_payer_1 ==
+        balance_collateral_payer_0 - collateral_amount.toNumber()
+    );
+    assert(
+      balance_debt_payer_1 == balance_debt_payer_0 + debt_amount.toNumber()
+    );
+    assert(
+      balance_collateral_protocol_1 ==
+        balance_collateral_protocol_0 + collateral_amount.toNumber()
+    );
+    assert(
+      balance_debt_protocol_1 ==
+        balance_debt_protocol_0 - debt_amount.toNumber()
+    );
 
-    console.log("SOL balance change (express relay)");
-    console.log(solExpressRelayPre);
-    console.log(solExpressRelayPost);
-
-    console.log("BEFORE CREATION");
-    console.log(balance_collateral_payer_0.value.amount);
-    console.log(balance_debt_payer_0.value.amount);
-    console.log(balance_collateral_protocol_0.value.amount);
-    console.log(balance_debt_protocol_0.value.amount);
-
-    console.log("BEFORE LIQ");
-    console.log(balance_collateral_payer_1.value.amount);
-    console.log(balance_debt_payer_1.value.amount);
-    console.log(balance_collateral_protocol_1.value.amount);
-    console.log(balance_debt_protocol_1.value.amount);
-
-    console.log("AFTER LIQ");
-    console.log(balance_collateral_payer_2.value.amount);
-    console.log(balance_debt_payer_2.value.amount);
-    console.log(balance_collateral_protocol_2.value.amount);
-    console.log(balance_debt_protocol_2.value.amount);
+    assert(
+      balance_collateral_payer_2 ==
+        balance_collateral_payer_1 + collateral_amount.toNumber()
+    );
+    assert(
+      balance_debt_payer_2 == balance_debt_payer_1 - debt_amount.toNumber()
+    );
+    assert(
+      balance_collateral_protocol_2 ==
+        balance_collateral_protocol_1 - collateral_amount.toNumber()
+    );
+    assert(
+      balance_debt_protocol_2 ==
+        balance_debt_protocol_1 + debt_amount.toNumber()
+    );
   });
 });

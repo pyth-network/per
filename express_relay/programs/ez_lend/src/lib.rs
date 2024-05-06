@@ -1,7 +1,6 @@
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer};
 use express_relay::{
-    program::ExpressRelay,
     state::{SEED_PERMISSION, PermissionMetadata},
     ID as EXPRESS_RELAY_PROGRAM_ID
 };
@@ -74,7 +73,6 @@ pub mod ez_lend {
         let debt_ata_payer = &ctx.accounts.debt_ata_payer;
         let debt_ta_program = &ctx.accounts.debt_ta_program;
         let collateral_mint = &ctx.accounts.collateral_mint;
-        // let express_relay = &ctx.accounts.express_relay;
         let token_program = &ctx.accounts.token_program;
 
         // transfer debt from payer to vault
@@ -219,8 +217,6 @@ pub struct Liquidate<'info> {
         token::mint = debt_mint
     )]
     pub debt_ta_program: Account<'info, TokenAccount>,
-    // #[account(address = EXPRESS_RELAY_PROGRAM_ID)]
-    // pub express_relay: Program<'info, ExpressRelay>,
     #[account(
         seeds = [
             SEED_PERMISSION,
