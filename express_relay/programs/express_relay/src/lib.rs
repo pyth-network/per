@@ -250,7 +250,7 @@ pub struct DepermissionArgs {
 pub struct Depermission<'info> {
     #[account(mut)]
     pub relayer_signer: Signer<'info>,
-    // TODO: upon close, should send funds to the program as opposed to the relayer signer
+    // TODO: upon close, should send funds to the program as opposed to the relayer signer--o/w relayer will get all "fat-fingered" fees
     #[account(mut, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump, close = relayer_signer)]
     pub permission: Account<'info, PermissionMetadata>,
     /// CHECK: this is just the protocol program address

@@ -14,7 +14,6 @@ import {
 } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { assert } from "chai";
-// import { BN } from "bn.js";
 
 describe("express_relay", () => {
   // Configure the client to use the local cluster.
