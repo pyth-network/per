@@ -130,7 +130,7 @@ pub async fn express_relay_tx(
     searcher_payer: Keypair,
     relayer_signer: Keypair,
     protocol: Pubkey,
-    permission_id: [u8; 8],
+    permission_id: [u8; 32],
     bid_id: [u8; 16],
     bid_amount: u64,
     instruction: Instruction

@@ -165,9 +165,6 @@ describe("express_relay", () => {
       TOKEN_PROGRAM_ID
     );
 
-    console.log(ataDebtPayer.address);
-    console.log(taCollateralProtocol[0]);
-
     // (collateral, payer)
     await mintTo(
       provider.connection,
@@ -211,8 +208,7 @@ describe("express_relay", () => {
   });
 
   it("Create and liquidate vault", async () => {
-    let vault_id = 0;
-    let vault_id_BN = new anchor.BN(vault_id);
+    let vault_id_BN = new anchor.BN(0);
     let collateral_amount = new anchor.BN(100);
     let debt_amount = new anchor.BN(50);
 
@@ -241,10 +237,8 @@ describe("express_relay", () => {
     );
 
     // convert the vault id to a bytearray
-    let vault_id_bytes = new Uint8Array(8);
-    vault_id_bytes.set(
-      new Uint8Array(new BigUint64Array([BigInt(vault_id)]).buffer)
-    );
+    let vault_id_bytes = new Uint8Array(32);
+    vault_id_bytes.set(vault_id_BN.toArrayLike(Buffer, "le", 32), 0);
     let vault = await PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("vault"), vault_id_bytes],
       protocol
@@ -252,7 +246,7 @@ describe("express_relay", () => {
 
     const tx_create_vault = await ezLend.methods
       .createVault({
-        vaultId: vault_id_BN,
+        vaultId: vault_id_bytes,
         collateralAmount: collateral_amount,
         debtAmount: debt_amount,
       })
@@ -306,7 +300,7 @@ describe("express_relay", () => {
 
     const ixLiquidate = await ezLend.methods
       .liquidate({
-        vaultId: vault_id_BN,
+        vaultId: vault_id_bytes,
       })
       .accounts({
         vault: vault[0],

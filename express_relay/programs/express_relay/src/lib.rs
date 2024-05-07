@@ -216,7 +216,7 @@ pub struct SetProtocolSplit<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct PermissionArgs {
-    pub permission_id: [u8; 8],
+    pub permission_id: [u8; 32],
     pub bid_id: [u8; 16],
     pub bid_amount: u64,
 }
@@ -241,7 +241,7 @@ pub struct Permission<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct DepermissionArgs {
-    pub permission_id: [u8; 8],
+    pub permission_id: [u8; 32],
     pub bid_id: [u8; 16],
 }
 
