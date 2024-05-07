@@ -78,9 +78,9 @@ use {
             atomic::Ordering,
             Arc,
         },
-        thread::sleep,
         time::Duration,
     },
+    tokio::time::sleep,
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -354,7 +354,11 @@ async fn submit_auction(
     .await;
 
     // TODO we should figure out a better way to handle bids and auction submission for permission keys
-    sleep(Duration::from_secs(1)); // Sleep to make sure no removed bids are reprocessed
+    // The solution is temporary until a better method for handling bids and auctions can be found.
+    // While we process the current set of bids in this thread,
+    // Another thread may call submit auction with the same permission key and same set of bids.
+    // In order to prevent reprocessing of removed and broadcasted bids, we are sleeping for 1 seconds here.
+    sleep(Duration::from_secs(1)).await;
     store
         .remove_in_progress_auction(permission_key, chain_id)
         .await;
