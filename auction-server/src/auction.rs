@@ -248,13 +248,7 @@ fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDate
         .any(|bid| bid_collection_time - bid.initiation_time > AUCTION_MINIMUM_LIFETIME)
 }
 
-async fn submit_auction(
-    // bids: Vec<SimulatedBid>,
-    // bid_collection_time: OffsetDateTime,
-    permission_key: Bytes,
-    store: Arc<Store>,
-    chain_id: String,
-) -> Result<()> {
+async fn submit_auction(permission_key: Bytes, store: Arc<Store>, chain_id: String) -> Result<()> {
     let chain_store = store
         .chains
         .get(&chain_id)

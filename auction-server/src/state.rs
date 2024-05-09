@@ -382,8 +382,12 @@ impl Store {
             .read()
             .await
             .keys()
-            .filter(|(_, c)| c == &chain_id)
-            .map(|(k, _)| k.clone())
+            .filter_map(|(p, c)| {
+                if c != &chain_id {
+                    return None;
+                }
+                Some(p.clone())
+            })
             .collect()
     }
 
