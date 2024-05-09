@@ -481,20 +481,12 @@ impl Store {
     async fn remove_bid(&self, bid: SimulatedBid) {
         let mut write_guard = self.bids.write().await;
         let key = bid.get_auction_key();
+        let bids = write_guard.entry(key.clone()).or_insert_with(Vec::new);
 
-        write_guard
-            .entry(key.clone())
-            .or_insert_with(Vec::new)
-            .retain(|b| b.id != bid.id);
-
-        if write_guard
-            .entry(key.clone())
-            .or_insert_with(Vec::new)
-            .is_empty()
-        {
+        bids.retain(|b| b.id != bid.id);
+        if bids.is_empty() {
             write_guard.remove(&key);
         }
-
         drop(write_guard);
     }
 
