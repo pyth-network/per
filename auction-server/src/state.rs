@@ -50,10 +50,10 @@ use {
         collections::HashMap,
         str::FromStr,
         sync::Arc,
-        time::Duration,
     },
     tokio::sync::{
         broadcast,
+        Mutex,
         RwLock,
     },
     tokio_util::task::TaskTracker,
@@ -230,18 +230,16 @@ pub struct BidStatusWithId {
 }
 
 pub struct Store {
-    pub chains:               HashMap<ChainId, ChainStore>,
-    pub bids:                 RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
-    pub event_sender:         broadcast::Sender<UpdateEvent>,
-    pub opportunity_store:    OpportunityStore,
-    pub relayer:              LocalWallet,
-    pub ws:                   WsState,
-    pub db:                   sqlx::PgPool,
-    pub task_tracker:         TaskTracker,
-    pub in_progress_auctions: RwLock<HashMap<AuctionKey, OffsetDateTime>>,
+    pub chains:            HashMap<ChainId, ChainStore>,
+    pub bids:              RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
+    pub event_sender:      broadcast::Sender<UpdateEvent>,
+    pub opportunity_store: OpportunityStore,
+    pub relayer:           LocalWallet,
+    pub ws:                WsState,
+    pub db:                sqlx::PgPool,
+    pub task_tracker:      TaskTracker,
+    pub auction_lock:      Mutex<HashMap<AuctionKey, Arc<Mutex<()>>>>,
 }
-
-const AUCTION_LOCK_DURATION: Duration = Duration::from_secs(30);
 
 impl SimulatedBid {
     pub fn get_auction_key(&self) -> AuctionKey {
@@ -368,22 +366,17 @@ impl Store {
         Ok(auction)
     }
 
-    pub async fn get_bids(&self, key: AuctionKey) -> Vec<SimulatedBid> {
-        self.bids
-            .read()
-            .await
-            .get(&key)
-            .cloned()
-            .unwrap_or_default()
+    pub async fn get_bids(&self, key: &AuctionKey) -> Vec<SimulatedBid> {
+        self.bids.read().await.get(key).cloned().unwrap_or_default()
     }
 
-    pub async fn get_permission_keys_for_auction(&self, chain_id: ChainId) -> Vec<PermissionKey> {
+    pub async fn get_permission_keys_for_auction(&self, chain_id: &ChainId) -> Vec<PermissionKey> {
         self.bids
             .read()
             .await
             .keys()
             .filter_map(|(p, c)| {
-                if c != &chain_id {
+                if c != chain_id {
                     return None;
                 }
                 Some(p.clone())
@@ -417,6 +410,7 @@ impl Store {
             .entry(bid.get_auction_key())
             .or_insert_with(Vec::new)
             .push(bid.clone());
+
         self.broadcast_status_update(BidStatusWithId {
             id:         bid_id,
             bid_status: bid.status.clone(),
@@ -576,20 +570,26 @@ impl Store {
         };
     }
 
-    // Returns true if auction time was updated, false otherwise
-    pub async fn update_in_progress_auctions(&self, key: AuctionKey) -> bool {
-        let now = OffsetDateTime::now_utc();
-        let mut in_progress_auctions = self.in_progress_auctions.write().await;
-        if let Some(existing_auction_time) = in_progress_auctions.get(&key) {
-            if *existing_auction_time > now - AUCTION_LOCK_DURATION {
-                return false;
-            }
-        }
-        in_progress_auctions.insert(key.clone(), now);
-        true
+    pub async fn get_auction_lock(&self, key: AuctionKey) -> Arc<Mutex<()>> {
+        self.auction_lock
+            .lock()
+            .await
+            .entry(key)
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
     }
 
-    pub async fn remove_in_progress_auction(&self, key: AuctionKey) {
-        self.in_progress_auctions.write().await.remove(&key);
+    pub async fn remove_auction_lock(&self, key: &AuctionKey) {
+        let mut mutex_gaurd = self.auction_lock.lock().await;
+        let auction_lock = mutex_gaurd.get(key);
+        match auction_lock {
+            None => return,
+            Some(auction_lock) => {
+                if Arc::strong_count(auction_lock) == 1 {
+                    mutex_gaurd.remove(key);
+                }
+            }
+        }
+        drop(mutex_gaurd);
     }
 }

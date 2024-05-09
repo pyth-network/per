@@ -170,19 +170,19 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         .expect("Server should start with a valid database connection.");
     let task_tracker = TaskTracker::new();
     let store = Arc::new(Store {
-        db:                   pool,
-        bids:                 Default::default(),
-        chains:               chain_store?,
-        opportunity_store:    OpportunityStore::default(),
-        event_sender:         broadcast_sender.clone(),
-        relayer:              wallet,
-        ws:                   ws::WsState {
+        db:                pool,
+        bids:              Default::default(),
+        chains:            chain_store?,
+        opportunity_store: OpportunityStore::default(),
+        event_sender:      broadcast_sender.clone(),
+        relayer:           wallet,
+        ws:                ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
             broadcast_sender,
             broadcast_receiver,
         },
-        task_tracker:         task_tracker.clone(),
-        in_progress_auctions: Default::default(),
+        task_tracker:      task_tracker.clone(),
+        auction_lock:      Default::default(),
     });
 
     tokio::join!(
