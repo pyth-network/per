@@ -12,9 +12,7 @@ use {
         state::{
             BidAmount,
             BidStatus,
-            BidStatusWithId,
             ChainStore,
-            PermissionKey,
             SimulatedBid,
             Store,
         },
@@ -72,7 +70,6 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::{
-        collections::HashMap,
         result,
         sync::{
             atomic::Ordering,
@@ -80,7 +77,6 @@ use {
         },
         time::Duration,
     },
-    tokio::time::sleep,
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -181,21 +177,6 @@ pub async fn submit_bids(
     send_call.await.map_err(SubmissionError::ProviderError)
 }
 
-async fn get_bids_grouped_by_permission_key(
-    store: &Arc<Store>,
-    chain_id: &String,
-) -> (HashMap<PermissionKey, Vec<SimulatedBid>>, OffsetDateTime) {
-    let bid_collection_time = OffsetDateTime::now_utc();
-    let all_bids = store.get_bids_by_chain_id(chain_id).await;
-    (
-        all_bids.into_iter().fold(HashMap::new(), |mut acc, bid| {
-            acc.entry(bid.permission_key.clone()).or_default().push(bid);
-            acc
-        }),
-        bid_collection_time,
-    )
-}
-
 impl From<SimulatedBid> for MulticallData {
     fn from(bid: SimulatedBid) -> Self {
         MulticallData {
@@ -210,10 +191,20 @@ impl From<SimulatedBid> for MulticallData {
 async fn get_winner_bids(
     bids: &[SimulatedBid],
     permission_key: Bytes,
+    chain_id: String,
     store: Arc<Store>,
     chain_store: &ChainStore,
 ) -> Result<Vec<SimulatedBid>, ContractError<Provider<Http>>> {
     // TODO How we want to perform simulation, pruning, and determination
+    if bids.is_empty() {
+        tracing::warn!(
+            "No bids for permission key {} on chain {}",
+            permission_key,
+            chain_id,
+        );
+        return Ok(vec![]);
+    }
+
     let mut bids = bids.to_owned();
     bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
 
@@ -258,8 +249,8 @@ fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDate
 }
 
 async fn submit_auction(
-    bids: Vec<SimulatedBid>,
-    bid_collection_time: OffsetDateTime,
+    // bids: Vec<SimulatedBid>,
+    // bid_collection_time: OffsetDateTime,
     permission_key: Bytes,
     store: Arc<Store>,
     chain_id: String,
@@ -269,13 +260,8 @@ async fn submit_auction(
         .get(&chain_id)
         .ok_or(anyhow!("Chain not found: {}", chain_id))?;
 
-    if !is_ready_for_auction(bids.clone(), bid_collection_time) {
-        tracing::info!("Auction for {} is not ready yet", permission_key);
-        return Ok(());
-    }
-
     if !store
-        .update_in_progress_auctions(permission_key.clone(), chain_id.clone())
+        .update_in_progress_auctions((permission_key.clone(), chain_id.clone()))
         .await
     {
         tracing::info!(
@@ -286,19 +272,29 @@ async fn submit_auction(
         return Ok(());
     }
 
+    let bid_collection_time = OffsetDateTime::now_utc();
+    let bids = store
+        .get_bids((permission_key.clone(), chain_id.clone()))
+        .await;
+
     let result = async {
-        let winner_bids =
-            get_winner_bids(&bids, permission_key.clone(), store.clone(), chain_store).await?;
+        if !is_ready_for_auction(bids.clone(), bid_collection_time) {
+            tracing::info!("Auction for {} is not ready yet", permission_key);
+            return Ok(());
+        }
+
+        let winner_bids = get_winner_bids(
+            &bids,
+            permission_key.clone(),
+            chain_id.clone(),
+            store.clone(),
+            chain_store,
+        )
+        .await?;
         if winner_bids.is_empty() {
             for bid in bids.iter() {
                 store
-                    .broadcast_bid_status_and_remove(
-                        BidStatusWithId {
-                            id:         bid.id,
-                            bid_status: BidStatus::SimulationFailed,
-                        },
-                        None,
-                    )
+                    .broadcast_bid_status_and_remove(bid.clone(), BidStatus::SimulationFailed, None)
                     .await?;
             }
             return Ok(());
@@ -331,10 +327,8 @@ async fn submit_auction(
                             get_bid_status(bid, &winner_bids, receipt.transaction_hash);
                         store
                             .broadcast_bid_status_and_remove(
-                                BidStatusWithId {
-                                    id: bid.id,
-                                    bid_status,
-                                },
+                                bid.clone(),
+                                bid_status,
                                 Some(&auction),
                             )
                             .await
@@ -353,14 +347,8 @@ async fn submit_auction(
     }
     .await;
 
-    // TODO we should figure out a better way to handle bids and auction submission for permission keys
-    // The solution is temporary until a better method for handling bids and auctions can be found.
-    // While we process the current set of bids in this thread,
-    // Another thread may call submit auction with the same permission key and same set of bids.
-    // In order to prevent reprocessing of removed and broadcasted bids, we are sleeping for 1 seconds here.
-    sleep(Duration::from_secs(1)).await;
     store
-        .remove_in_progress_auction(permission_key, chain_id)
+        .remove_in_progress_auction((permission_key, chain_id))
         .await;
     result
 }
@@ -384,19 +372,18 @@ pub fn get_express_relay_contract(
 }
 
 async fn submit_auctions(store: Arc<Store>, chain_id: String) -> Result<()> {
-    let (bids_grouped_by_permission_key, bid_collection_time) =
-        get_bids_grouped_by_permission_key(&store, &chain_id).await;
+    let permission_keys = store
+        .get_permission_keys_for_auction(chain_id.clone())
+        .await;
 
     tracing::info!(
         "Chain: {chain_id} Auctions to process {auction_len}",
         chain_id = chain_id,
-        auction_len = bids_grouped_by_permission_key.len()
+        auction_len = permission_keys.len()
     );
 
-    for (permission_key, bids) in bids_grouped_by_permission_key.iter() {
+    for permission_key in permission_keys.iter() {
         store.task_tracker.spawn(submit_auction(
-            bids.clone(),
-            bid_collection_time,
             permission_key.clone(),
             store.clone(),
             chain_id.clone(),

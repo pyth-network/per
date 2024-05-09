@@ -127,6 +127,7 @@ pub enum OpportunityParams {
 }
 
 pub type OpportunityId = Uuid;
+pub type AuctionKey = (PermissionKey, ChainId);
 
 #[derive(Clone, PartialEq)]
 pub struct Opportunity {
@@ -230,17 +231,23 @@ pub struct BidStatusWithId {
 
 pub struct Store {
     pub chains:               HashMap<ChainId, ChainStore>,
-    pub bids:                 RwLock<HashMap<BidId, SimulatedBid>>,
+    pub bids:                 RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
     pub event_sender:         broadcast::Sender<UpdateEvent>,
     pub opportunity_store:    OpportunityStore,
     pub relayer:              LocalWallet,
     pub ws:                   WsState,
     pub db:                   sqlx::PgPool,
     pub task_tracker:         TaskTracker,
-    pub in_progress_auctions: RwLock<HashMap<(PermissionKey, ChainId), OffsetDateTime>>,
+    pub in_progress_auctions: RwLock<HashMap<AuctionKey, OffsetDateTime>>,
 }
 
 const AUCTION_LOCK_DURATION: Duration = Duration::from_secs(30);
+
+impl SimulatedBid {
+    pub fn get_auction_key(&self) -> AuctionKey {
+        (self.permission_key.clone(), self.chain_id.clone())
+    }
+}
 
 impl Store {
     pub async fn opportunity_exists(&self, opportunity: &Opportunity) -> bool {
@@ -361,6 +368,25 @@ impl Store {
         Ok(auction)
     }
 
+    pub async fn get_bids(&self, key: AuctionKey) -> Vec<SimulatedBid> {
+        self.bids
+            .read()
+            .await
+            .get(&key)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub async fn get_permission_keys_for_auction(&self, chain_id: ChainId) -> Vec<PermissionKey> {
+        self.bids
+            .read()
+            .await
+            .keys()
+            .filter(|(_, c)| c == &chain_id)
+            .map(|(k, _)| k.clone())
+            .collect()
+    }
+
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
@@ -381,7 +407,12 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
-        self.bids.write().await.insert(bid_id, bid.clone());
+        self.bids
+            .write()
+            .await
+            .entry(bid.get_auction_key())
+            .or_insert_with(Vec::new)
+            .push(bid.clone());
         self.broadcast_status_update(BidStatusWithId {
             id:         bid_id,
             bid_status: bid.status.clone(),
@@ -449,12 +480,33 @@ impl Store {
         Ok(status_json)
     }
 
+    async fn remove_bid(&self, bid: SimulatedBid) {
+        let mut write_guard = self.bids.write().await;
+        let key = bid.get_auction_key();
+
+        write_guard
+            .entry(key.clone())
+            .or_insert_with(Vec::new)
+            .retain(|b| b.id != bid.id);
+
+        if write_guard
+            .entry(key.clone())
+            .or_insert_with(Vec::new)
+            .is_empty()
+        {
+            write_guard.remove(&key);
+        }
+
+        drop(write_guard);
+    }
+
     pub async fn broadcast_bid_status_and_remove(
         &self,
-        update: BidStatusWithId,
+        bid: SimulatedBid,
+        updated_status: BidStatus,
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
-        match update.bid_status {
+        match updated_status {
             BidStatus::Pending => {
                 return Err(anyhow::anyhow!(
                     "Bid status cannot remain pending when removing a bid."
@@ -463,8 +515,8 @@ impl Store {
             BidStatus::SimulationFailed => {
                 sqlx::query!(
                     "UPDATE bid SET status = $1 WHERE id = $2 AND auction_id is NULL",
-                    update.bid_status as _,
-                    update.id
+                    updated_status as _,
+                    bid.id
                 )
                 .execute(&self.db)
                 .await?;
@@ -473,10 +525,10 @@ impl Store {
                 if let Some(auction) = auction {
                     sqlx::query!(
                         "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND auction_id is NULL",
-                        update.bid_status as _,
+                        updated_status as _,
                         auction.id,
                         index as i32,
-                        update.id
+                        bid.id
                     )
                     .execute(&self.db)
                     .await?;
@@ -490,9 +542,9 @@ impl Store {
                 if let Some(auction) = auction {
                     sqlx::query!(
                         "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
-                        update.bid_status as _,
+                        updated_status as _,
                         auction.id,
-                        update.id
+                        bid.id
                     )
                     .execute(&self.db)
                     .await?;
@@ -504,8 +556,12 @@ impl Store {
             }
         }
 
-        self.bids.write().await.remove(&update.id);
-        self.broadcast_status_update(update);
+        self.remove_bid(bid.clone()).await;
+
+        self.broadcast_status_update(BidStatusWithId {
+            id:         bid.id,
+            bid_status: updated_status,
+        });
         Ok(())
     }
 
@@ -516,43 +572,20 @@ impl Store {
         };
     }
 
-    pub async fn get_bids_by_chain_id(&self, chain_id: &ChainId) -> Vec<SimulatedBid> {
-        self.bids
-            .read()
-            .await
-            .values()
-            .filter(|bid| bid.chain_id.eq(chain_id))
-            .cloned()
-            .collect()
-    }
-
     // Returns true if auction time was updated, false otherwise
-    pub async fn update_in_progress_auctions(
-        &self,
-        permission_key: PermissionKey,
-        chain_id: ChainId,
-    ) -> bool {
+    pub async fn update_in_progress_auctions(&self, key: AuctionKey) -> bool {
         let now = OffsetDateTime::now_utc();
         let mut in_progress_auctions = self.in_progress_auctions.write().await;
-        if let Some(existing_auction_time) =
-            in_progress_auctions.get(&(permission_key.clone(), chain_id.clone()))
-        {
+        if let Some(existing_auction_time) = in_progress_auctions.get(&key) {
             if *existing_auction_time > now - AUCTION_LOCK_DURATION {
                 return false;
             }
         }
-        in_progress_auctions.insert((permission_key, chain_id), now);
+        in_progress_auctions.insert(key.clone(), now);
         true
     }
 
-    pub async fn remove_in_progress_auction(
-        &self,
-        permission_key: PermissionKey,
-        chain_id: ChainId,
-    ) {
-        self.in_progress_auctions
-            .write()
-            .await
-            .remove(&(permission_key, chain_id));
+    pub async fn remove_in_progress_auction(&self, key: AuctionKey) {
+        self.in_progress_auctions.write().await.remove(&key);
     }
 }
