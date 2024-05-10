@@ -488,7 +488,6 @@ impl Store {
         if bids.is_empty() {
             write_guard.remove(&key);
         }
-        drop(write_guard);
     }
 
     pub async fn broadcast_bid_status_and_remove(
@@ -576,13 +575,12 @@ impl Store {
         let mut mutex_gaurd = self.auction_lock.lock().await;
         let auction_lock = mutex_gaurd.get(key);
         match auction_lock {
-            None => return,
+            None => (),
             Some(auction_lock) => {
                 if Arc::strong_count(auction_lock) == 1 {
                     mutex_gaurd.remove(key);
                 }
             }
         }
-        drop(mutex_gaurd);
     }
 }
