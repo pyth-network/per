@@ -10,6 +10,7 @@ use {
             SHOULD_EXIT,
         },
         state::{
+            AuctionLock,
             BidAmount,
             BidStatus,
             ChainStore,
@@ -77,6 +78,7 @@ use {
         },
         time::Duration,
     },
+    tokio::sync::MutexGuard,
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -242,13 +244,14 @@ fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDate
         .any(|bid| bid_collection_time - bid.initiation_time > AUCTION_MINIMUM_LIFETIME)
 }
 
-async fn submit_auction_for_bids(
+async fn submit_auction_for_bids<'a>(
     bids: Vec<SimulatedBid>,
     bid_collection_time: OffsetDateTime,
     permission_key: Bytes,
     chain_id: String,
     store: Arc<Store>,
     chain_store: &ChainStore,
+    _: MutexGuard<'a, ()>,
 ) -> Result<()> {
     if !is_ready_for_auction(bids.clone(), bid_collection_time) {
         tracing::info!("Auction for {} is not ready yet", permission_key);
@@ -307,11 +310,13 @@ async fn submit_auction_for_bids(
     Ok(())
 }
 
-async fn submit_auction(permission_key: Bytes, store: Arc<Store>, chain_id: String) -> Result<()> {
-    let key = (permission_key.clone(), chain_id.clone());
-    let auction_lock = store.get_auction_lock(key.clone()).await;
+async fn submit_auction_for_lock(
+    store: Arc<Store>,
+    permission_key: Bytes,
+    chain_id: String,
+    auction_lock: AuctionLock,
+) -> Result<()> {
     let acquired_lock = auction_lock.lock().await;
-
     let chain_store = store
         .chains
         .get(&chain_id)
@@ -322,18 +327,23 @@ async fn submit_auction(permission_key: Bytes, store: Arc<Store>, chain_id: Stri
         .get_bids(&(permission_key.clone(), chain_id.clone()))
         .await;
 
-    let result = submit_auction_for_bids(
+    submit_auction_for_bids(
         bids,
         bid_collection_time,
         permission_key.clone(),
         chain_id.clone(),
         store.clone(),
         chain_store,
+        acquired_lock,
     )
-    .await;
+    .await
+}
 
-    drop(acquired_lock);
-    drop(auction_lock);
+async fn submit_auction(store: Arc<Store>, permission_key: Bytes, chain_id: String) -> Result<()> {
+    let key = (permission_key.clone(), chain_id.clone());
+    let auction_lock = store.get_auction_lock(key.clone()).await;
+    let result =
+        submit_auction_for_lock(store.clone(), permission_key, chain_id, auction_lock).await;
     store.remove_auction_lock(&key).await;
     result
 }
@@ -367,8 +377,8 @@ async fn submit_auctions(store: Arc<Store>, chain_id: String) -> Result<()> {
 
     for permission_key in permission_keys.iter() {
         store.task_tracker.spawn(submit_auction(
-            permission_key.clone(),
             store.clone(),
+            permission_key.clone(),
             chain_id.clone(),
         ));
     }

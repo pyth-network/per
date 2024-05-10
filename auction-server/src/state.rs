@@ -128,6 +128,7 @@ pub enum OpportunityParams {
 
 pub type OpportunityId = Uuid;
 pub type AuctionKey = (PermissionKey, ChainId);
+pub type AuctionLock = Arc<Mutex<()>>;
 
 #[derive(Clone, PartialEq)]
 pub struct Opportunity {
@@ -238,7 +239,7 @@ pub struct Store {
     pub ws:                WsState,
     pub db:                sqlx::PgPool,
     pub task_tracker:      TaskTracker,
-    pub auction_lock:      Mutex<HashMap<AuctionKey, Arc<Mutex<()>>>>,
+    pub auction_lock:      Mutex<HashMap<AuctionKey, AuctionLock>>,
 }
 
 impl SimulatedBid {
@@ -562,7 +563,7 @@ impl Store {
         };
     }
 
-    pub async fn get_auction_lock(&self, key: AuctionKey) -> Arc<Mutex<()>> {
+    pub async fn get_auction_lock(&self, key: AuctionKey) -> AuctionLock {
         self.auction_lock
             .lock()
             .await
