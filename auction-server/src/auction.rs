@@ -53,6 +53,7 @@ use {
         types::{
             transaction::eip2718::TypedTransaction,
             Address,
+            BlockNumber,
             Bytes,
             TransactionReceipt,
             TransactionRequest,
@@ -132,6 +133,7 @@ pub fn get_simulation_call(
     express_relay_contract
         .multicall(permission_key, multicall_data)
         .from(relayer)
+        .block(BlockNumber::Pending)
 }
 
 #[derive(Debug)]
@@ -277,6 +279,12 @@ async fn submit_auction_for_bids<'a>(
         )
         .await?;
 
+    tracing::info!(
+        "Submission for {} on chain {} started at {}",
+        permission_key,
+        chain_id,
+        OffsetDateTime::now_utc()
+    );
     let submission = submit_bids(
         chain_store.express_relay_contract.clone(),
         permission_key.clone(),
