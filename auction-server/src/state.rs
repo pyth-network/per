@@ -574,12 +574,10 @@ impl Store {
     pub async fn remove_auction_lock(&self, key: &AuctionKey) {
         let mut mutex_gaurd = self.auction_lock.lock().await;
         let auction_lock = mutex_gaurd.get(key);
-        match auction_lock {
-            None => (),
-            Some(auction_lock) => {
-                if Arc::strong_count(auction_lock) == 1 {
-                    mutex_gaurd.remove(key);
-                }
+        if let Some(auction_lock) = auction_lock {
+            // Whenever there is no thread borrowing a lock for this key, we can remove it from the locks HashMap.
+            if Arc::strong_count(auction_lock) == 1 {
+                mutex_gaurd.remove(key);
             }
         }
     }

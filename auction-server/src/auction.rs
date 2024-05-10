@@ -251,7 +251,7 @@ async fn submit_auction_for_bids<'a>(
     chain_id: String,
     store: Arc<Store>,
     chain_store: &ChainStore,
-    _: MutexGuard<'a, ()>,
+    _auction_mutex_gaurd: MutexGuard<'a, ()>,
 ) -> Result<()> {
     if !is_ready_for_auction(bids.clone(), bid_collection_time) {
         tracing::info!("Auction for {} is not ready yet", permission_key);
