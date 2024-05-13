@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 
 pub const FEE_SPLIT_PRECISION: u64 = 10_000;
 
+pub const SEED_EXPRESS_RELAY_FEES: &[u8] = b"express_relay_fees";
+
 pub const RESERVE_PERMISSION: usize = 200;
 pub const SEED_PERMISSION: &[u8] = b"permission";
 

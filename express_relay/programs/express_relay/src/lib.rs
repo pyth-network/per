@@ -258,7 +258,7 @@ pub struct Depermission<'info> {
     /// CHECK: don't care what this PDA looks like
     #[account(
         mut,
-        seeds = [b"per_fees"],
+        seeds = [SEED_EXPRESS_RELAY_FEES],
         seeds::program = protocol.key(),
         bump
     )]

@@ -141,7 +141,7 @@ pub struct CreateTokenAcc<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Debug)]
 pub struct CreateVaultArgs {
-    pub vault_id: u64,
+    pub vault_id: [u8; 32],
     pub collateral_amount: u64,
     pub debt_amount: u64,
 }
@@ -149,7 +149,7 @@ pub struct CreateVaultArgs {
 #[derive(Accounts)]
 #[instruction(data: CreateVaultArgs)]
 pub struct CreateVault<'info> {
-    #[account(init, payer = payer, space = 8 + 1 + 32 + 8 + 32 + 8, seeds = [b"vault".as_ref(), &data.vault_id.to_le_bytes()], bump)]
+    #[account(init, payer = payer, space = 8 + 1 + 32 + 8 + 32 + 8, seeds = [b"vault".as_ref(), &data.vault_id], bump)]
     pub vault: Account<'info, Vault>,
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -183,13 +183,13 @@ pub struct CreateVault<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct LiquidateArgs {
-    pub vault_id: u64,
+    pub vault_id: [u8; 32],
 }
 
 #[derive(Accounts)]
 #[instruction(data: LiquidateArgs)]
 pub struct Liquidate<'info> {
-    #[account(mut, seeds = [b"vault".as_ref(), &data.vault_id.to_le_bytes()], bump = vault.bump)]
+    #[account(mut, seeds = [b"vault".as_ref(), &data.vault_id], bump = vault.bump)]
     pub vault: Account<'info, Vault>,
     #[account(mut)]
     pub payer: Signer<'info>,

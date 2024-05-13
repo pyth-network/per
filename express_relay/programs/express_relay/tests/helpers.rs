@@ -2,7 +2,7 @@ use anchor_lang::{system_program, prelude::*};
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{account::Account, instruction::Instruction, signature::Keypair, transaction::Transaction, signer::Signer, sysvar::instructions::id as sysvar_instructions_id};
 use anchor_lang::{ToAccountMetas, InstructionData};
-use express_relay::{state::{SEED_METADATA, SEED_CONFIG_PROTOCOL, SEED_PERMISSION, ExpressRelayMetadata}, InitializeArgs, SetRelayerArgs, SetSplitsArgs, PermissionArgs, DepermissionArgs, accounts::{Initialize, SetRelayer, SetSplits, Permission, Depermission}};
+use express_relay::{state::{SEED_METADATA, SEED_CONFIG_PROTOCOL, SEED_PERMISSION, SEED_EXPRESS_RELAY_FEES, ExpressRelayMetadata}, InitializeArgs, SetRelayerArgs, SetSplitsArgs, PermissionArgs, DepermissionArgs, accounts::{Initialize, SetRelayer, SetSplits, Permission, Depermission}};
 
 pub async fn initialize(program_context: &mut ProgramTestContext, payer: Keypair, admin: Pubkey, relayer_signer: Pubkey, relayer_fee_receiver: Pubkey, split_protocol_default: u64, split_relayer: u64) -> Account {
     let express_relay_metadata = Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
@@ -172,7 +172,7 @@ pub async fn express_relay_tx(
         .to_account_metas(None),
     };
 
-    let protocol_fee_receiver = Pubkey::find_program_address(&[b"per_fees"], &protocol).0;
+    let protocol_fee_receiver = Pubkey::find_program_address(&[SEED_EXPRESS_RELAY_FEES], &protocol).0;
     let depermission_ix = Instruction {
         program_id: express_relay::id(),
         data:

@@ -85,7 +85,7 @@ describe("express_relay", () => {
     );
 
     protocolFeeReceiver = await PublicKey.findProgramAddressSync(
-      [anchor.utils.bytes.utf8.encode("per_fees")],
+      [anchor.utils.bytes.utf8.encode("express_relay_fees")],
       protocol
     );
 
