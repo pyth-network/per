@@ -5,6 +5,7 @@ use {
             ChainId,
             EthereumConfig,
         },
+        models::Auction,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -23,9 +24,13 @@ use {
         Result,
     },
     ethers::{
-        abi,
+        abi::{
+            self,
+            RawLog,
+        },
         contract::{
             abigen,
+            decode_logs,
             ContractError,
             EthError,
             FunctionCall,
@@ -43,7 +48,6 @@ use {
             Http,
             Middleware,
             Provider,
-            ProviderError,
             Ws,
         },
         signers::{
@@ -136,12 +140,6 @@ pub fn get_simulation_call(
         .block(BlockNumber::Pending)
 }
 
-#[derive(Debug)]
-pub enum SubmissionError {
-    ProviderError(ProviderError),
-    ContractError(ContractError<SignableProvider>),
-}
-
 /// Transformer that converts a transaction into a legacy transaction if use_legacy_tx is true.
 #[derive(Clone, Debug)]
 pub struct LegacyTxTransformer {
@@ -164,21 +162,16 @@ pub async fn submit_bids(
     express_relay_contract: Arc<SignableExpressRelayContract>,
     permission: Bytes,
     multicall_data: Vec<MulticallData>,
-) -> Result<Option<TransactionReceipt>, SubmissionError> {
+) -> Result<H256, ContractError<SignableProvider>> {
     let call = express_relay_contract.multicall(permission, multicall_data);
-    let mut gas_estimate = call
-        .estimate_gas()
-        .await
-        .map_err(SubmissionError::ContractError)?;
+    let mut gas_estimate = call.estimate_gas().await?;
+
     let gas_multiplier = U256::from(2); //TODO: smarter gas estimation
     gas_estimate *= gas_multiplier;
     let call_with_gas = call.gas(gas_estimate);
-    let send_call = call_with_gas
-        .send()
-        .await
-        .map_err(SubmissionError::ContractError)?;
+    let send_call = call_with_gas.send().await?;
 
-    send_call.await.map_err(SubmissionError::ProviderError)
+    Ok(send_call.tx_hash())
 }
 
 impl From<SimulatedBid> for MulticallData {
@@ -215,35 +208,115 @@ async fn get_winner_bids(
     )
     .await?;
 
-    Ok(bids
-        .into_iter()
-        .enumerate()
-        .filter_map(|(i, bid)| {
-            if simulation_result[i].external_success {
-                Some(bid)
-            } else {
-                None
-            }
-        })
-        .collect())
-}
-
-fn get_bid_status(bid: &SimulatedBid, winner_bids: &[SimulatedBid], tx_hash: H256) -> BidStatus {
-    let bid_index = winner_bids.iter().position(|b| b.id == bid.id);
-    match bid_index {
-        Some(i) => BidStatus::Submitted {
-            result: tx_hash,
-            index:  i as u32,
-        },
-        None => BidStatus::Lost { result: tx_hash },
+    match simulation_result
+        .iter()
+        .position(|simulation_result| simulation_result.external_success)
+    {
+        Some(index) => Ok(bids.into_iter().skip(index).collect()),
+        None => Ok(vec![]),
     }
 }
+
+fn get_bid_status(decoded_log: &MulticallIssuedFilter, receipt: &TransactionReceipt) -> BidStatus {
+    match decoded_log.multicall_status.external_success {
+        true => BidStatus::Won {
+            index:  decoded_log.multicall_index.as_u32(),
+            result: receipt.transaction_hash,
+        },
+        false => BidStatus::Lost {
+            index:  Some(decoded_log.multicall_index.as_u32()),
+            result: Some(receipt.transaction_hash),
+        },
+    }
+}
+
+fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Result<Vec<MulticallIssuedFilter>> {
+    let decoded_logs: Vec<MulticallIssuedFilter> = receipt
+        .logs
+        .clone()
+        .into_iter()
+        .filter_map(|log| {
+            let raw_log: RawLog = log.into();
+            match decode_logs::<MulticallIssuedFilter>(&[raw_log]) {
+                Ok(decoded_logs) => Some(decoded_logs[0].clone()),
+                Err(_) => None,
+            }
+        })
+        .collect();
+    Ok(decoded_logs)
+}
+
 
 const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
 // An auction is ready if there are any bids with a lifetime of AUCTION_MINIMUM_LIFETIME
 fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDateTime) -> bool {
     bids.iter()
         .any(|bid| bid_collection_time - bid.initiation_time > AUCTION_MINIMUM_LIFETIME)
+}
+
+async fn conclude_submitted_auction(store: Arc<Store>, auction: Auction) -> Result<()> {
+    if let Some(tx_hash) = auction.clone().tx_hash {
+        let chain_store = store
+            .chains
+            .get(&auction.chain_id)
+            .ok_or(anyhow!("Chain not found: {}", auction.chain_id))?;
+
+        let tx_hash = H256::from_slice(&tx_hash);
+        let receipt = chain_store
+            .provider
+            .get_transaction_receipt(tx_hash)
+            .await
+            .map_err(|e| anyhow!("Failed to get transaction receipt: {:?}", e))?;
+        if let Some(receipt) = receipt {
+            match decode_logs_for_receipt(&receipt) {
+                Ok(decoded_logs) => {
+                    let auction = store
+                        .conclude_auction(auction)
+                        .await
+                        .map_err(|e| anyhow!("Failed to conclude auction: {:?}", e))?;
+                    let bids: Vec<SimulatedBid> =
+                        store.bids_for_submitted_auction(auction.clone()).await;
+                    join_all(decoded_logs.iter().map(|decoded_log| async {
+                        if let Some(bid) = bids
+                            .clone()
+                            .into_iter()
+                            .find(|b| b.id == Uuid::from_bytes(decoded_log.bid_id))
+                        {
+                            let _ = store
+                                .broadcast_bid_status_and_update(
+                                    bid,
+                                    get_bid_status(decoded_log, &receipt),
+                                    Some(&auction),
+                                )
+                                .await;
+                        }
+                    }))
+                    .await;
+                    store.remove_submitted_auction(auction).await;
+                }
+                Err(err) => {
+                    tracing::error!("Failed to decode logs: {:?}", err);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
+    let auctions = store.get_submitted_auctions(&chain_id).await;
+
+    tracing::info!(
+        "Chain: {chain_id} Auctions to conclude {auction_len}",
+        chain_id = chain_id,
+        auction_len = auctions.len()
+    );
+
+    for auction in auctions.iter() {
+        store
+            .task_tracker
+            .spawn(conclude_submitted_auction(store.clone(), auction.clone()));
+    }
 }
 
 async fn submit_auction_for_bids<'a>(
@@ -255,6 +328,15 @@ async fn submit_auction_for_bids<'a>(
     chain_store: &ChainStore,
     _auction_mutex_gaurd: MutexGuard<'a, ()>,
 ) -> Result<()> {
+    let bids: Vec<SimulatedBid> = bids
+        .into_iter()
+        .filter(|bid| bid.status == BidStatus::Pending)
+        .collect();
+
+    if bids.is_empty() {
+        return Ok(());
+    }
+
     if !is_ready_for_auction(bids.clone(), bid_collection_time) {
         tracing::info!("Auction for {} is not ready yet", permission_key);
         return Ok(());
@@ -265,7 +347,14 @@ async fn submit_auction_for_bids<'a>(
     if winner_bids.is_empty() {
         for bid in bids.iter() {
             store
-                .broadcast_bid_status_and_remove(bid.clone(), BidStatus::SimulationFailed, None)
+                .broadcast_bid_status_and_update(
+                    bid.clone(),
+                    BidStatus::Lost {
+                        result: None,
+                        index:  None,
+                    },
+                    None,
+                )
                 .await?;
         }
         return Ok(());
@@ -285,36 +374,38 @@ async fn submit_auction_for_bids<'a>(
         chain_id,
         OffsetDateTime::now_utc()
     );
-    let submission = submit_bids(
+    let submit_bids_call = submit_bids(
         chain_store.express_relay_contract.clone(),
         permission_key.clone(),
         winner_bids.clone().into_iter().map(|b| b.into()).collect(),
-    )
-    .await;
+    );
 
-    match submission {
-        Ok(receipt) => match receipt {
-            Some(receipt) => {
-                tracing::debug!("Submitted transaction: {:?}", receipt);
-                auction = store
-                    .conclude_auction(auction, receipt.transaction_hash)
-                    .await?;
-                join_all(bids.iter().map(|bid| async {
-                    let bid_status = get_bid_status(bid, &winner_bids, receipt.transaction_hash);
+    match submit_bids_call.await {
+        Ok(tx_hash) => {
+            tracing::debug!("Submitted transaction: {:?}", tx_hash);
+            auction = store.submit_auction(auction, tx_hash).await?;
+            join_all(winner_bids.iter().enumerate().map(|(i, bid)| {
+                let (index, store, bid, auction) =
+                    (i as u32, store.clone(), bid.clone(), auction.clone());
+                async move {
                     store
-                        .broadcast_bid_status_and_remove(bid.clone(), bid_status, Some(&auction))
+                        .broadcast_bid_status_and_update(
+                            bid,
+                            BidStatus::Submitted {
+                                result: tx_hash,
+                                index,
+                            },
+                            Some(&auction),
+                        )
                         .await
-                }))
-                .await;
-            }
-            None => {
-                tracing::error!("Failed to receive transaction receipt");
-            }
-        },
+                }
+            }))
+            .await;
+        }
         Err(err) => {
             tracing::error!("Transaction failed to submit: {:?}", err);
         }
-    }
+    };
     Ok(())
 }
 
@@ -331,7 +422,7 @@ async fn submit_auction_for_lock(
         .ok_or(anyhow!("Chain not found: {}", chain_id))?;
 
     let bid_collection_time: OffsetDateTime = OffsetDateTime::now_utc();
-    let bids = store
+    let bids: Vec<SimulatedBid> = store
         .get_bids(&(permission_key.clone(), chain_id.clone()))
         .await;
 
@@ -422,6 +513,9 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
                         store.clone(),
                         chain_id.clone(),
                     )
+                );
+                store.task_tracker.spawn(
+                    conclude_submitted_auctions(store.clone(), chain_id.clone())
                 );
             }
             _ = exit_check_interval.tick() => {}

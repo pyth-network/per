@@ -12,4 +12,5 @@ pub struct Auction {
     pub chain_id:            String,
     pub tx_hash:             Option<Vec<u8>>,
     pub bid_collection_time: Option<PrimitiveDateTime>,
+    pub submission_time:     Option<PrimitiveDateTime>,
 }

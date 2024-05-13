@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auction SET conclusion_time = $1 WHERE id = $2 AND conclusion_time IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamp",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1c4b9c1709b81f2717726337eb07c63f4dd88bdc7f6edc3b062c8eee8a4def8d"
+}
