@@ -181,16 +181,19 @@ pub type BidId = Uuid;
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatus {
-    /// The auction for this bid is pending
+    /// The temporary state which means the auction for this bid is pending
     Pending,
-    /// The bid submitted to the chain, which concluded with it being placed in the index position of the multicall at the given hash
+    /// The bid submitted to the chain, which submitted with it being placed in the index position of the multicall at the given hash
+    /// This state is temporary and will be updated to either lost or won after conclusion of the auction
     Submitted {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
         #[schema(example = 1, value_type = u32)]
         index:  u32,
     },
-    /// The bid lost the auction, which may concluded with the transaction with the given hash and index
+    /// The bid lost the auction, which is concluded with the transaction with the given hash and index
+    /// The index will be None if the bid was not submitted to the chain and lost the auction by off-chain calculation
+    /// The result will be None if it the auction was concluded off-chain
     Lost {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
         result: Option<H256>,
