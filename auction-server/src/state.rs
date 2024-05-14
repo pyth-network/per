@@ -36,6 +36,7 @@ use {
     sqlx::{
         database::HasArguments,
         encode::IsNull,
+        postgres::PgQueryResult,
         types::{
             time::{
                 OffsetDateTime,
@@ -582,6 +583,7 @@ impl Store {
         updated_status: BidStatus,
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
+        let query_result: PgQueryResult;
         match updated_status {
             BidStatus::Pending => {
                 return Err(anyhow::anyhow!(
@@ -590,7 +592,7 @@ impl Store {
             }
             BidStatus::Submitted { result: _, index } => {
                 if let Some(auction) = auction {
-                    sqlx::query!(
+                    query_result = sqlx::query!(
                         "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND status = 'pending'",
                         updated_status as _,
                         auction.id,
@@ -611,7 +613,7 @@ impl Store {
             }
             BidStatus::Lost { result: _, index } => {
                 if let Some(auction) = auction {
-                    sqlx::query!(
+                    query_result = sqlx::query!(
                         "UPDATE bid SET status = $1, bundle_index = $2, auction_id = $3 WHERE id = $4 AND status = 'submitted'",
                         updated_status as _,
                         index.map(|i| i as i32),
@@ -621,7 +623,7 @@ impl Store {
                     .execute(&self.db)
                     .await?;
                 } else {
-                    sqlx::query!(
+                    query_result = sqlx::query!(
                         "UPDATE bid SET status = $1, bundle_index = $2 WHERE id = $3 AND status = 'pending'",
                         updated_status as _,
                         index.map(|i| i as i32),
@@ -633,7 +635,7 @@ impl Store {
                 self.remove_bid(bid.clone()).await;
             }
             BidStatus::Won { result: _, index } => {
-                sqlx::query!(
+                query_result = sqlx::query!(
                     "UPDATE bid SET status = $1, bundle_index = $2 WHERE id = $3 AND status = 'submitted'",
                     updated_status as _,
                     index as i32,
@@ -645,10 +647,12 @@ impl Store {
             }
         }
 
-        self.broadcast_status_update(BidStatusWithId {
-            id:         bid.id,
-            bid_status: updated_status,
-        });
+        if query_result.rows_affected() > 0 {
+            self.broadcast_status_update(BidStatusWithId {
+                id:         bid.id,
+                bid_status: updated_status,
+            });
+        }
         Ok(())
     }
 
