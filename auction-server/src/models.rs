@@ -1,4 +1,5 @@
 use {
+    ethers::types::H256,
     sqlx::types::time::PrimitiveDateTime,
     uuid::Uuid,
 };
@@ -10,7 +11,7 @@ pub struct Auction {
     pub conclusion_time:     Option<PrimitiveDateTime>,
     pub permission_key:      Vec<u8>,
     pub chain_id:            String,
-    pub tx_hash:             Option<Vec<u8>>,
+    pub tx_hash:             Option<H256>,
     pub bid_collection_time: Option<PrimitiveDateTime>,
     pub submission_time:     Option<PrimitiveDateTime>,
 }

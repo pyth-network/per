@@ -374,12 +374,12 @@ impl Store {
         mut auction: models::Auction,
         transaction_hash: H256,
     ) -> anyhow::Result<models::Auction> {
-        auction.tx_hash = Some(transaction_hash.as_bytes().to_vec());
+        auction.tx_hash = Some(transaction_hash);
         let now = OffsetDateTime::now_utc();
         auction.submission_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
         sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
             auction.submission_time,
-            auction.tx_hash,
+            auction.tx_hash.map(|h| h.as_bytes().to_vec()),
             auction.id)
             .execute(&self.db)
             .await?;
@@ -538,15 +538,13 @@ impl Store {
             ))
             .await;
         match auction.clone().tx_hash {
-            Some(tx_hash) => {
-                let tx_hash = H256::from_slice(&tx_hash);
-                bids.into_iter()
-                    .filter(|bid| match bid.status {
-                        BidStatus::Submitted { result, .. } => result == tx_hash,
-                        _ => false,
-                    })
-                    .collect()
-            }
+            Some(tx_hash) => bids
+                .into_iter()
+                .filter(|bid| match bid.status {
+                    BidStatus::Submitted { result, .. } => result == tx_hash,
+                    _ => false,
+                })
+                .collect(),
             None => vec![],
         }
     }

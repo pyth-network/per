@@ -210,7 +210,7 @@ async fn get_winner_bids(
 
     match simulation_result
         .iter()
-        .position(|simulation_result| simulation_result.external_success)
+        .position(|status| status.external_success)
     {
         Some(index) => Ok(bids.into_iter().skip(index).collect()),
         None => Ok(vec![]),
@@ -230,7 +230,7 @@ fn get_bid_status(decoded_log: &MulticallIssuedFilter, receipt: &TransactionRece
     }
 }
 
-fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Result<Vec<MulticallIssuedFilter>> {
+fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedFilter> {
     let decoded_logs: Vec<MulticallIssuedFilter> = receipt
         .logs
         .clone()
@@ -243,7 +243,7 @@ fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Result<Vec<Multicall
             }
         })
         .collect();
-    Ok(decoded_logs)
+    decoded_logs
 }
 
 
@@ -255,49 +255,46 @@ fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDate
 }
 
 async fn conclude_submitted_auction(store: Arc<Store>, auction: Auction) -> Result<()> {
-    if let Some(tx_hash) = auction.clone().tx_hash {
+    if let Some(tx_hash) = auction.tx_hash {
         let chain_store = store
             .chains
             .get(&auction.chain_id)
             .ok_or(anyhow!("Chain not found: {}", auction.chain_id))?;
 
-        let tx_hash = H256::from_slice(&tx_hash);
         let receipt = chain_store
             .provider
             .get_transaction_receipt(tx_hash)
             .await
             .map_err(|e| anyhow!("Failed to get transaction receipt: {:?}", e))?;
+
         if let Some(receipt) = receipt {
-            match decode_logs_for_receipt(&receipt) {
-                Ok(decoded_logs) => {
-                    let auction = store
-                        .conclude_auction(auction)
+            let decoded_logs = decode_logs_for_receipt(&receipt);
+            let auction = store
+                .conclude_auction(auction)
+                .await
+                .map_err(|e| anyhow!("Failed to conclude auction: {:?}", e))?;
+            let bids: Vec<SimulatedBid> = store.bids_for_submitted_auction(auction.clone()).await;
+
+            join_all(decoded_logs.iter().map(|decoded_log| async {
+                if let Some(bid) = bids
+                    .clone()
+                    .into_iter()
+                    .find(|b| b.id == Uuid::from_bytes(decoded_log.bid_id))
+                {
+                    if let Err(err) = store
+                        .broadcast_bid_status_and_update(
+                            bid,
+                            get_bid_status(decoded_log, &receipt),
+                            Some(&auction),
+                        )
                         .await
-                        .map_err(|e| anyhow!("Failed to conclude auction: {:?}", e))?;
-                    let bids: Vec<SimulatedBid> =
-                        store.bids_for_submitted_auction(auction.clone()).await;
-                    join_all(decoded_logs.iter().map(|decoded_log| async {
-                        if let Some(bid) = bids
-                            .clone()
-                            .into_iter()
-                            .find(|b| b.id == Uuid::from_bytes(decoded_log.bid_id))
-                        {
-                            let _ = store
-                                .broadcast_bid_status_and_update(
-                                    bid,
-                                    get_bid_status(decoded_log, &receipt),
-                                    Some(&auction),
-                                )
-                                .await;
-                        }
-                    }))
-                    .await;
-                    store.remove_submitted_auction(auction).await;
+                    {
+                        tracing::error!("Failed to broadcast bid status: {:?}", err);
+                    }
                 }
-                Err(err) => {
-                    tracing::error!("Failed to decode logs: {:?}", err);
-                }
-            }
+            }))
+            .await;
+            store.remove_submitted_auction(auction).await;
         }
     }
     Ok(())
