@@ -36,7 +36,12 @@ use {
     },
     anyhow::Result,
     axum::{
+        extract::{
+            self,
+            State,
+        },
         http::StatusCode,
+        middleware,
         response::{
             IntoResponse,
             Response,
@@ -150,6 +155,15 @@ pub async fn live() -> Response {
     (StatusCode::OK, "OK").into_response()
 }
 
+async fn auth(
+    State(_store): State<Arc<Store>>,
+    req: extract::Request,
+    next: middleware::Next,
+) -> Response {
+    println!("hi {}", req.uri().path());
+    next.run(req).await
+}
+
 pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
@@ -209,10 +223,13 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
+        .layer(middleware::from_fn_with_state(store.clone(), auth))
         .with_state(store);
 
-    axum::Server::bind(&run_options.server.listen_addr)
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(&run_options.server.listen_addr)
+        .await
+        .unwrap();
+    axum::serve(listener, app)
         .with_graceful_shutdown(async {
             while !SHOULD_EXIT.load(Ordering::Acquire) {
                 tokio::time::sleep(EXIT_CHECK_INTERVAL).await;

@@ -15,3 +15,9 @@ pub struct Auction {
     pub bid_collection_time: Option<PrimitiveDateTime>,
     pub submission_time:     Option<PrimitiveDateTime>,
 }
+
+#[derive(Clone)]
+pub struct Profile {
+    pub id:            Uuid,
+    pub creation_time: Option<PrimitiveDateTime>,
+}
