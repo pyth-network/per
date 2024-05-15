@@ -662,6 +662,9 @@ impl Store {
             }
         }
 
+        // It is possible to call this function multiple times from different threads if receipts are delayed
+        // Or the new block is mined faster than the bid status is updated.
+        // To ensure we do not broadcast the update more than once, we need to check the below "if"
         if query_result.rows_affected() > 0 {
             self.broadcast_status_update(BidStatusWithId {
                 id:         bid.id,
