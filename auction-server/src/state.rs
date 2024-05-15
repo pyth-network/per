@@ -48,7 +48,10 @@ use {
         TypeInfo,
     },
     std::{
-        collections::HashMap,
+        collections::{
+            hash_map::Entry,
+            HashMap,
+        },
         str::FromStr,
         sync::Arc,
     },
@@ -522,11 +525,12 @@ impl Store {
     async fn remove_bid(&self, bid: SimulatedBid) {
         let mut write_guard = self.bids.write().await;
         let key = bid.get_auction_key();
-        let bids = write_guard.entry(key.clone()).or_insert_with(Vec::new);
-
-        bids.retain(|b| b.id != bid.id);
-        if bids.is_empty() {
-            write_guard.remove(&key);
+        if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
+            let bids = entry.get_mut();
+            bids.retain(|b| b.id != bid.id);
+            if bids.is_empty() {
+                entry.remove();
+            }
         }
     }
 
@@ -537,7 +541,7 @@ impl Store {
                 auction.chain_id.clone(),
             ))
             .await;
-        match auction.clone().tx_hash {
+        match auction.tx_hash {
             Some(tx_hash) => bids
                 .into_iter()
                 .filter(|bid| match bid.status {
@@ -560,21 +564,31 @@ impl Store {
 
         let mut write_guard = self.submitted_auctions.write().await;
         let key: String = auction.chain_id;
-        let auctions = write_guard.entry(key.clone()).or_insert_with(Vec::new);
-
-        auctions.retain(|a| a.id != auction.id);
-        if auctions.is_empty() {
-            write_guard.remove(&key);
+        if let Entry::Occupied(mut entry) = write_guard.entry(key) {
+            let auctions = entry.get_mut();
+            auctions.retain(|a| a.id != auction.id);
+            if auctions.is_empty() {
+                entry.remove();
+            }
         }
     }
 
     async fn update_bid(&self, bid: SimulatedBid) {
         let mut write_guard = self.bids.write().await;
         let key = bid.get_auction_key();
-        let bids = write_guard.entry(key.clone()).or_insert_with(Vec::new);
-
-        if let Some(index) = bids.iter().position(|b| b.id == bid.id) {
-            bids[index] = bid;
+        match write_guard.entry(key.clone()) {
+            Entry::Occupied(mut entry) => {
+                let bids = entry.get_mut();
+                match bids.iter().position(|b| b.id == bid.id) {
+                    Some(index) => bids[index] = bid,
+                    None => {
+                        tracing::error!("Update bid failed - bid not found for: {:?}", bid);
+                    }
+                }
+            }
+            Entry::Vacant(_) => {
+                tracing::error!("Update bid failed - entry not found for key: {:?}", key);
+            }
         }
     }
 
