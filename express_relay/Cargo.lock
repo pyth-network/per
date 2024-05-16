@@ -2693,6 +2693,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "opportunity_adapter"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "anchor-syn",
+ "solana-program",
+]
+
+[[package]]
 name = "os_str_bytes"
 version = "6.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
