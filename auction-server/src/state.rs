@@ -195,9 +195,9 @@ pub enum BidStatus {
         index:  u32,
     },
     /// The bid lost the auction, which is concluded with the transaction with the given hash and index
-    /// The result will be None if it the auction was concluded off-chain and no auction was submitted to the chain
+    /// The result will be None if the auction was concluded off-chain and no auction was submitted to the chain
     /// The index will be None if the bid was not submitted to the chain and lost the auction by off-chain calculation
-    /// There are cases where the result is not none if the index is none.
+    /// There are cases where the result is not none and the index is none.
     /// It is because other bids were selected for submission to the chain, but not this one.
     Lost {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
