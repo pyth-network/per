@@ -186,7 +186,7 @@ pub type BidId = Uuid;
 pub enum BidStatus {
     /// The temporary state which means the auction for this bid is pending
     Pending,
-    /// The bid submitted to the chain, which submitted with it being placed in the index position of the multicall at the given hash
+    /// The bid submitted to the chain, with it being placed in the index position of the multicall at the given hash
     /// This state is temporary and will be updated to either lost or won after conclusion of the auction
     Submitted {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
@@ -195,8 +195,10 @@ pub enum BidStatus {
         index:  u32,
     },
     /// The bid lost the auction, which is concluded with the transaction with the given hash and index
+    /// The result will be None if it the auction was concluded off-chain and no auction was submitted to the chain
     /// The index will be None if the bid was not submitted to the chain and lost the auction by off-chain calculation
-    /// The result will be None if it the auction was concluded off-chain
+    /// There are cases where the result is not none if the index is none.
+    /// It is because other bids were selected for submission to the chain, but not this one.
     Lost {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
         result: Option<H256>,

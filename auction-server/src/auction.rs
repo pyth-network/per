@@ -24,15 +24,12 @@ use {
         Result,
     },
     ethers::{
-        abi::{
-            self,
-            RawLog,
-        },
+        abi,
         contract::{
             abigen,
-            decode_logs,
             ContractError,
             EthError,
+            EthEvent,
             FunctionCall,
         },
         middleware::{
@@ -87,6 +84,8 @@ use {
     utoipa::ToSchema,
     uuid::Uuid,
 };
+// use ethers::ethers_contract::EthEvent;
+// use ethers::ethers_contract::EthLogDecode;
 
 abigen!(
     ExpressRelay,
@@ -231,19 +230,12 @@ fn get_bid_status(decoded_log: &MulticallIssuedFilter, receipt: &TransactionRece
 }
 
 fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedFilter> {
-    let decoded_logs: Vec<MulticallIssuedFilter> = receipt
+    receipt
         .logs
         .clone()
         .into_iter()
-        .filter_map(|log| {
-            let raw_log: RawLog = log.into();
-            match decode_logs::<MulticallIssuedFilter>(&[raw_log]) {
-                Ok(decoded_logs) => Some(decoded_logs[0].clone()),
-                Err(_) => None,
-            }
-        })
-        .collect();
-    decoded_logs
+        .filter_map(|log| MulticallIssuedFilter::decode_log(&log.into()).ok())
+        .collect()
 }
 
 
