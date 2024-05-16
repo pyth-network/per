@@ -84,8 +84,6 @@ use {
     utoipa::ToSchema,
     uuid::Uuid,
 };
-// use ethers::ethers_contract::EthEvent;
-// use ethers::ethers_contract::EthLogDecode;
 
 abigen!(
     ExpressRelay,
@@ -374,6 +372,7 @@ async fn submit_auction_for_bids<'a>(
             tracing::debug!("Submitted transaction: {:?}", tx_hash);
             auction = store.submit_auction(auction, tx_hash).await?;
             join_all(winner_bids.iter().enumerate().map(|(i, bid)| {
+                // TODO update the status of bids to lost for those that are not going to be submitted to the chain for this auction
                 let (index, store, bid, auction) =
                     (i as u32, store.clone(), bid.clone(), auction.clone());
                 async move {
