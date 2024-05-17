@@ -2,6 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { ExpressRelay } from "../target/types/express_relay";
 import { EzLend } from "../target/types/ez_lend";
+import { OpportunityAdapter } from "../target/types/opportunity_adapter";
 import {
   createMint,
   createAccount,
@@ -21,6 +22,8 @@ describe("express_relay", () => {
 
   const expressRelay = anchor.workspace.ExpressRelay as Program<ExpressRelay>;
   const ezLend = anchor.workspace.EzLend as Program<EzLend>;
+  const opportunityAdapter = anchor.workspace
+    .OpportunityAdapter as Program<OpportunityAdapter>;
 
   const provider = anchor.AnchorProvider.local();
   const LAMPORTS_PER_SOL = 1000000000;
@@ -366,12 +369,94 @@ describe("express_relay", () => {
       lamports: bidAmount.toNumber(),
     });
 
+    let tokenExpectationCollateral = await PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("token_expectation"),
+        payer.publicKey.toBuffer(),
+        mintCollateral.toBuffer(),
+      ],
+      opportunityAdapter.programId
+    );
+
+    const ixInitializeTokenExpectationsCollateral =
+      await opportunityAdapter.methods
+        .initializeTokenExpectations({
+          expectedChange: collateral_amount,
+        })
+        .accounts({
+          executor: payer.publicKey,
+          mint: mintCollateral,
+          taExecutor: ataCollateralPayer.address,
+          tokenExpectation: tokenExpectationCollateral[0],
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          sysvarInstructions: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+        })
+        .signers([payer])
+        .instruction();
+
+    const ixCheckTokenBalanceCollateral = await opportunityAdapter.methods
+      .checkTokenBalance()
+      .accounts({
+        executor: payer.publicKey,
+        mint: mintCollateral,
+        taExecutor: ataCollateralPayer.address,
+        tokenExpectation: tokenExpectationCollateral[0],
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([payer])
+      .instruction();
+
+    let tokenExpectationDebt = await PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("token_expectation"),
+        payer.publicKey.toBuffer(),
+        mintDebt.toBuffer(),
+      ],
+      opportunityAdapter.programId
+    );
+
+    let debt_amount_neg = debt_amount.mul(new anchor.BN(-1));
+    const ixInitializeTokenExpectationsDebt = await opportunityAdapter.methods
+      .initializeTokenExpectations({
+        expectedChange: debt_amount_neg,
+      })
+      .accounts({
+        executor: payer.publicKey,
+        mint: mintDebt,
+        taExecutor: ataDebtPayer.address,
+        tokenExpectation: tokenExpectationDebt[0],
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        sysvarInstructions: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+      })
+      .signers([payer])
+      .instruction();
+
+    const ixCheckTokenBalanceDebt = await opportunityAdapter.methods
+      .checkTokenBalance()
+      .accounts({
+        executor: payer.publicKey,
+        mint: mintDebt,
+        taExecutor: ataDebtPayer.address,
+        tokenExpectation: tokenExpectationDebt[0],
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([payer])
+      .instruction();
+
     // create transaction
     let transaction = new anchor.web3.Transaction();
 
     transaction.add(ixPermission);
+    transaction.add(ixInitializeTokenExpectationsCollateral);
+    transaction.add(ixInitializeTokenExpectationsDebt);
     transaction.add(ixLiquidate);
     transaction.add(ixSendSol);
+    transaction.add(ixCheckTokenBalanceDebt);
+    transaction.add(ixCheckTokenBalanceCollateral);
     transaction.add(ixDepermission);
 
     let solProtocolPre = await provider.connection.getBalance(
@@ -411,7 +496,7 @@ describe("express_relay", () => {
       expressRelayMetadata[0]
     );
 
-    // get token balances post creation
+    // get token balances post liquidation
     let balance_collateral_payer_2 = Number(
       (
         await provider.connection.getTokenAccountBalance(

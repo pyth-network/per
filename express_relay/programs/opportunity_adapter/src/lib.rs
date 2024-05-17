@@ -45,9 +45,9 @@ pub mod opportunity_adapter {
         let expected_change_u64 = data.expected_change.abs() as u64;
 
         if data.expected_change < 0 {
-            token_expectation.balance_post_expected = ta_executor.amount - expected_change_u64;
+            token_expectation.balance_post_expected = ta_executor.amount.checked_sub(expected_change_u64).unwrap();
         } else {
-            token_expectation.balance_post_expected = ta_executor.amount + expected_change_u64;
+            token_expectation.balance_post_expected = ta_executor.amount.checked_add(expected_change_u64).unwrap();
         }
 
         Ok(())
@@ -57,7 +57,7 @@ pub mod opportunity_adapter {
         let token_expectation = &ctx.accounts.token_expectation;
         let ta_executor = &ctx.accounts.ta_executor;
 
-        if token_expectation.balance_post_expected < ta_executor.amount {
+        if token_expectation.balance_post_expected > ta_executor.amount {
             return err!(OpportunityAdapterError::TokenExpectationNotMet);
         }
 
@@ -77,11 +77,12 @@ pub struct InitializeTokenExpectation<'info> {
     pub mint: Account<'info, Mint>,
     #[account(token::mint = mint, token::authority = executor)]
     pub ta_executor: Account<'info, TokenAccount>,
-    #[account(init, payer = executor, space = RESERVE_TOKEN_EXPECTATION, seeds = [executor.key().as_ref(), mint.key().as_ref()], bump)]
+    #[account(init, payer = executor, space = RESERVE_TOKEN_EXPECTATION, seeds = [SEED_TOKEN_EXPECTATION, executor.key().as_ref(), mint.key().as_ref()], bump)]
     pub token_expectation: Account<'info, TokenExpectation>,
     // TODO: can we get rid of token_program
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    /// CHECK: this is the sysvar instructions account
     #[account(address = tx_instructions::ID)]
     pub sysvar_instructions: UncheckedAccount<'info>,
 }
@@ -96,7 +97,7 @@ pub struct CheckTokenBalance<'info> {
     pub mint: Account<'info, Mint>,
     #[account(token::mint = mint, token::authority = executor)]
     pub ta_executor: Account<'info, TokenAccount>,
-    #[account(mut, seeds = [executor.key().as_ref(), mint.key().as_ref()], bump, close = executor)]
+    #[account(mut, seeds = [SEED_TOKEN_EXPECTATION, executor.key().as_ref(), mint.key().as_ref()], bump, close = executor)]
     pub token_expectation: Account<'info, TokenExpectation>,
     // TODO: can we get rid of token_program
     pub token_program: Program<'info, Token>,
