@@ -20,7 +20,7 @@
                 "pending",
                 "lost",
                 "submitted",
-                "simulation_failed"
+                "won"
               ]
             }
           }

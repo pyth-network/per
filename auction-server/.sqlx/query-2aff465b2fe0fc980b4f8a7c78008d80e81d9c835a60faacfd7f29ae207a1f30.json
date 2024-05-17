@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE auction SET conclusion_time = $1, tx_hash = $2 WHERE id = $3 AND conclusion_time IS NULL",
+  "query": "UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
   "describe": {
     "columns": [],
     "parameters": {
@@ -12,5 +12,5 @@
     },
     "nullable": []
   },
-  "hash": "842a9c8c36b0d95ea630427c2deb20c60c0a3cf5f4e05e1a04bf0f6b3a4f8e83"
+  "hash": "2aff465b2fe0fc980b4f8a7c78008d80e81d9c835a60faacfd7f29ae207a1f30"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND auction_id is NULL",
+  "query": "UPDATE bid SET status = $1, bundle_index = $2 WHERE id = $3 AND status = 'pending'",
   "describe": {
     "columns": [],
     "parameters": {
@@ -13,17 +13,16 @@
                 "pending",
                 "lost",
                 "submitted",
-                "simulation_failed"
+                "won"
               ]
             }
           }
         },
-        "Uuid",
         "Int4",
         "Uuid"
       ]
     },
     "nullable": []
   },
-  "hash": "22831ba32a3f32292c0e36b0e9a6edf4fd34026155a2ea8ab04036000afeb2ac"
+  "hash": "6ffd6feaa2f4f9163a37c6fe7ec414372506acd0ff572594702a491c17171cda"
 }

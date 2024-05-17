@@ -36,6 +36,7 @@ use {
     sqlx::{
         database::HasArguments,
         encode::IsNull,
+        postgres::PgQueryResult,
         types::{
             time::{
                 OffsetDateTime,
@@ -47,7 +48,10 @@ use {
         TypeInfo,
     },
     std::{
-        collections::HashMap,
+        collections::{
+            hash_map::Entry,
+            HashMap,
+        },
         str::FromStr,
         sync::Arc,
     },
@@ -67,7 +71,7 @@ use {
 pub type PermissionKey = Bytes;
 pub type BidAmount = U256;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SimulatedBid {
     pub id:              BidId,
     pub target_contract: Address,
@@ -177,24 +181,36 @@ impl OpportunityStore {
 
 pub type BidId = Uuid;
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatus {
-    /// The auction for this bid is pending
+    /// The temporary state which means the auction for this bid is pending
     Pending,
-    /// The bid simulation was failed in the final simulation step before submission
-    SimulationFailed,
-    /// The bid won the auction, which concluded with it being placed in the index position of the multicall at the given hash
+    /// The bid is submitted to the chain, which is placed at the given index of the transaction with the given hash
+    /// This state is temporary and will be updated to either lost or won after conclusion of the auction
     Submitted {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
         #[schema(example = 1, value_type = u32)]
         index:  u32,
     },
-    /// The bid lost the auction, which concluded with the transaction with the given hash
+    /// The bid lost the auction, which is concluded with the transaction with the given hash and index
+    /// The result will be None if the auction was concluded off-chain and no auction was submitted to the chain
+    /// The index will be None if the bid was not submitted to the chain and lost the auction by off-chain calculation
+    /// There are cases where the result is not None and the index is None.
+    /// It is because other bids were selected for submission to the chain, but not this one.
     Lost {
+        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
+        result: Option<H256>,
+        #[schema(example = 1, value_type = Option<u32>)]
+        index:  Option<u32>,
+    },
+    /// The bid won the auction, which is concluded with the transaction with the given hash and index
+    Won {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
+        #[schema(example = 1, value_type = u32)]
+        index:  u32,
     },
 }
 
@@ -202,12 +218,18 @@ impl sqlx::Encode<'_, sqlx::Postgres> for BidStatus {
     fn encode_by_ref(&self, buf: &mut <Postgres as HasArguments<'_>>::ArgumentBuffer) -> IsNull {
         let result = match self {
             BidStatus::Pending => "pending",
-            BidStatus::SimulationFailed => "simulation_failed",
             BidStatus::Submitted {
                 result: _,
                 index: _,
             } => "submitted",
-            BidStatus::Lost { result: _ } => "lost",
+            BidStatus::Lost {
+                result: _,
+                index: _,
+            } => "lost",
+            BidStatus::Won {
+                result: _,
+                index: _,
+            } => "won",
         };
         <&str as sqlx::Encode<sqlx::Postgres>>::encode(result, buf)
     }
@@ -231,15 +253,16 @@ pub struct BidStatusWithId {
 }
 
 pub struct Store {
-    pub chains:            HashMap<ChainId, ChainStore>,
-    pub bids:              RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
-    pub event_sender:      broadcast::Sender<UpdateEvent>,
-    pub opportunity_store: OpportunityStore,
-    pub relayer:           LocalWallet,
-    pub ws:                WsState,
-    pub db:                sqlx::PgPool,
-    pub task_tracker:      TaskTracker,
-    pub auction_lock:      Mutex<HashMap<AuctionKey, AuctionLock>>,
+    pub chains:             HashMap<ChainId, ChainStore>,
+    pub bids:               RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
+    pub event_sender:       broadcast::Sender<UpdateEvent>,
+    pub opportunity_store:  OpportunityStore,
+    pub relayer:            LocalWallet,
+    pub ws:                 WsState,
+    pub db:                 sqlx::PgPool,
+    pub task_tracker:       TaskTracker,
+    pub auction_lock:       Mutex<HashMap<AuctionKey, AuctionLock>>,
+    pub submitted_auctions: RwLock<HashMap<ChainId, Vec<models::Auction>>>,
 }
 
 impl SimulatedBid {
@@ -336,6 +359,7 @@ impl Store {
                 bid_collection_time.date(),
                 bid_collection_time.time(),
             )),
+            submission_time: None,
         };
         sqlx::query!(
             "INSERT INTO auction (id, creation_time, permission_key, chain_id, bid_collection_time) VALUES ($1, $2, $3, $4, $5)",
@@ -350,20 +374,43 @@ impl Store {
         Ok(auction)
     }
 
-    pub async fn conclude_auction(
+    pub async fn submit_auction(
         &self,
         mut auction: models::Auction,
         transaction_hash: H256,
     ) -> anyhow::Result<models::Auction> {
-        auction.tx_hash = Some(transaction_hash.as_bytes().to_vec());
+        auction.tx_hash = Some(transaction_hash);
         let now = OffsetDateTime::now_utc();
-        auction.conclusion_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
-        sqlx::query!("UPDATE auction SET conclusion_time = $1, tx_hash = $2 WHERE id = $3 AND conclusion_time IS NULL",
-            auction.conclusion_time,
-            auction.tx_hash,
+        auction.submission_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
+        sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
+            auction.submission_time,
+            auction.tx_hash.map(|h| h.as_bytes().to_vec()),
             auction.id)
             .execute(&self.db)
             .await?;
+
+        self.submitted_auctions
+            .write()
+            .await
+            .entry(auction.clone().chain_id)
+            .or_insert_with(Vec::new)
+            .push(auction.clone());
+        Ok(auction)
+    }
+
+    pub async fn conclude_auction(
+        &self,
+        mut auction: models::Auction,
+    ) -> anyhow::Result<models::Auction> {
+        let now = OffsetDateTime::now_utc();
+        auction.conclusion_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
+        sqlx::query!(
+            "UPDATE auction SET conclusion_time = $1 WHERE id = $2 AND conclusion_time IS NULL",
+            auction.conclusion_time,
+            auction.id
+        )
+        .execute(&self.db)
+        .await?;
         Ok(auction)
     }
 
@@ -383,6 +430,15 @@ impl Store {
                 Some(p.clone())
             })
             .collect()
+    }
+
+    pub async fn get_submitted_auctions(&self, chain_id: &ChainId) -> Vec<models::Auction> {
+        self.submitted_auctions
+            .read()
+            .await
+            .get(chain_id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
@@ -434,39 +490,28 @@ impl Store {
             Some(status) => {
                 if status == "pending" {
                     status_json = BidStatus::Pending.into();
-                } else if status == "simulation_failed" {
-                    status_json = BidStatus::SimulationFailed.into();
                 } else {
-                    match status_data.tx_hash {
-                        Some(tx_hash) => {
-                            let tx_hash = H256::from_slice(&tx_hash);
-                            if status == "lost" {
-                                status_json = BidStatus::Lost { result: tx_hash }.into();
-                            } else if status == "submitted" {
-                                match status_data.bundle_index {
-                                    Some(bundle_index) => {
-                                        status_json = BidStatus::Submitted {
-                                            result: tx_hash,
-                                            index:  bundle_index as u32,
-                                        }
-                                        .into();
-                                    }
-                                    None => {
-                                        return Err(RestError::BadParameters(
-                                            "Submitted bid must have bundle index".to_string(),
-                                        ));
-                                    }
-                                }
-                            } else {
-                                return Err(RestError::BadParameters(
-                                    "Invalid bid status".to_string(),
-                                ));
-                            }
-                        }
-                        None => {
+                    let result = status_data
+                        .tx_hash
+                        .map(|tx_hash| H256::from_slice(&tx_hash));
+                    let index = status_data.bundle_index.map(|i| i as u32);
+                    if status == "lost" {
+                        status_json = BidStatus::Lost { result, index }.into();
+                    } else {
+                        if result.is_none() || index.is_none() {
                             return Err(RestError::BadParameters(
-                                "Lost or submitted bid must have a transaction hash".to_string(),
+                                "Won or submitted bid must have a transaction hash and index"
+                                    .to_string(),
                             ));
+                        }
+                        let result = result.unwrap();
+                        let index = index.unwrap();
+                        if status == "won" {
+                            status_json = BidStatus::Won { result, index }.into();
+                        } else if status == "submitted" {
+                            status_json = BidStatus::Submitted { result, index }.into();
+                        } else {
+                            return Err(RestError::BadParameters("Invalid bid status".to_string()));
                         }
                     }
                 }
@@ -482,39 +527,90 @@ impl Store {
     async fn remove_bid(&self, bid: SimulatedBid) {
         let mut write_guard = self.bids.write().await;
         let key = bid.get_auction_key();
-        let bids = write_guard.entry(key.clone()).or_insert_with(Vec::new);
-
-        bids.retain(|b| b.id != bid.id);
-        if bids.is_empty() {
-            write_guard.remove(&key);
+        if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
+            let bids = entry.get_mut();
+            bids.retain(|b| b.id != bid.id);
+            if bids.is_empty() {
+                entry.remove();
+            }
         }
     }
 
-    pub async fn broadcast_bid_status_and_remove(
+    pub async fn bids_for_submitted_auction(&self, auction: models::Auction) -> Vec<SimulatedBid> {
+        let bids = self
+            .get_bids(&(
+                auction.permission_key.clone().into(),
+                auction.chain_id.clone(),
+            ))
+            .await;
+        match auction.tx_hash {
+            Some(tx_hash) => bids
+                .into_iter()
+                .filter(|bid| match bid.status {
+                    BidStatus::Submitted { result, .. } => result == tx_hash,
+                    _ => false,
+                })
+                .collect(),
+            None => vec![],
+        }
+    }
+
+    pub async fn remove_submitted_auction(&self, auction: models::Auction) {
+        if !self
+            .bids_for_submitted_auction(auction.clone())
+            .await
+            .is_empty()
+        {
+            return;
+        }
+
+        let mut write_guard = self.submitted_auctions.write().await;
+        let key: String = auction.chain_id;
+        if let Entry::Occupied(mut entry) = write_guard.entry(key) {
+            let auctions = entry.get_mut();
+            auctions.retain(|a| a.id != auction.id);
+            if auctions.is_empty() {
+                entry.remove();
+            }
+        }
+    }
+
+    async fn update_bid(&self, bid: SimulatedBid) {
+        let mut write_guard = self.bids.write().await;
+        let key = bid.get_auction_key();
+        match write_guard.entry(key.clone()) {
+            Entry::Occupied(mut entry) => {
+                let bids = entry.get_mut();
+                match bids.iter().position(|b| b.id == bid.id) {
+                    Some(index) => bids[index] = bid,
+                    None => {
+                        tracing::error!("Update bid failed - bid not found for: {:?}", bid);
+                    }
+                }
+            }
+            Entry::Vacant(_) => {
+                tracing::error!("Update bid failed - entry not found for key: {:?}", key);
+            }
+        }
+    }
+
+    pub async fn broadcast_bid_status_and_update(
         &self,
         bid: SimulatedBid,
         updated_status: BidStatus,
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
+        let query_result: PgQueryResult;
         match updated_status {
             BidStatus::Pending => {
                 return Err(anyhow::anyhow!(
                     "Bid status cannot remain pending when removing a bid."
                 ));
             }
-            BidStatus::SimulationFailed => {
-                sqlx::query!(
-                    "UPDATE bid SET status = $1 WHERE id = $2 AND auction_id is NULL",
-                    updated_status as _,
-                    bid.id
-                )
-                .execute(&self.db)
-                .await?;
-            }
             BidStatus::Submitted { result: _, index } => {
                 if let Some(auction) = auction {
-                    sqlx::query!(
-                        "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND auction_id is NULL",
+                    query_result = sqlx::query!(
+                        "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND status = 'pending'",
                         updated_status as _,
                         auction.id,
                         index as i32,
@@ -522,36 +618,61 @@ impl Store {
                     )
                     .execute(&self.db)
                     .await?;
+
+                    let mut submitted_bid = bid.clone();
+                    submitted_bid.status = updated_status.clone();
+                    self.update_bid(submitted_bid).await;
                 } else {
                     return Err(anyhow::anyhow!(
                         "Cannot broadcast submitted bid status without auction."
                     ));
                 }
             }
-            BidStatus::Lost { result: _ } => {
+            BidStatus::Lost { result: _, index } => {
                 if let Some(auction) = auction {
-                    sqlx::query!(
-                        "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND auction_id is NULL",
+                    query_result = sqlx::query!(
+                        "UPDATE bid SET status = $1, bundle_index = $2, auction_id = $3 WHERE id = $4 AND status = 'submitted'",
                         updated_status as _,
+                        index.map(|i| i as i32),
                         auction.id,
                         bid.id
                     )
                     .execute(&self.db)
                     .await?;
                 } else {
-                    return Err(anyhow::anyhow!(
-                        "Cannot broadcast lost bid status without auction."
-                    ));
+                    query_result = sqlx::query!(
+                        "UPDATE bid SET status = $1, bundle_index = $2 WHERE id = $3 AND status = 'pending'",
+                        updated_status as _,
+                        index.map(|i| i as i32),
+                        bid.id
+                    )
+                    .execute(&self.db)
+                    .await?;
                 }
+                self.remove_bid(bid.clone()).await;
+            }
+            BidStatus::Won { result: _, index } => {
+                query_result = sqlx::query!(
+                    "UPDATE bid SET status = $1, bundle_index = $2 WHERE id = $3 AND status = 'submitted'",
+                    updated_status as _,
+                    index as i32,
+                    bid.id
+                )
+                .execute(&self.db)
+                .await?;
+                self.remove_bid(bid.clone()).await;
             }
         }
 
-        self.remove_bid(bid.clone()).await;
-
-        self.broadcast_status_update(BidStatusWithId {
-            id:         bid.id,
-            bid_status: updated_status,
-        });
+        // It is possible to call this function multiple times from different threads if receipts are delayed
+        // Or the new block is mined faster than the bid status is updated.
+        // To ensure we do not broadcast the update more than once, we need to check the below "if"
+        if query_result.rows_affected() > 0 {
+            self.broadcast_status_update(BidStatusWithId {
+                id:         bid.id,
+                bid_status: updated_status,
+            });
+        }
         Ok(())
     }
 
