@@ -6,6 +6,10 @@ use {
                 EIP712Domain,
                 OpportunityParamsWithMetadata,
             },
+            profile::{
+                CreateProfile,
+                Profile,
+            },
             ws::{
                 APIResponse,
                 ClientMessage,
@@ -79,6 +83,7 @@ async fn root() -> String {
 
 mod bid;
 pub(crate) mod opportunity;
+pub mod profile;
 pub(crate) mod ws;
 
 pub enum RestError {
@@ -174,6 +179,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
+    profile::post_profile,
     ),
     components(
     schemas(
@@ -194,12 +200,15 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ClientMessage,
     ServerResultMessage,
     ServerUpdateResponse,
-    ServerResultResponse
+    ServerResultResponse,
+    Profile,
+    CreateProfile,
     ),
     responses(
     ErrorBodyResponse,
     OpportunityParamsWithMetadata,
-    BidResult
+    BidResult,
+    Profile,
     ),
     ),
     tags(
@@ -221,6 +230,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
             post(opportunity::opportunity_bid),
         )
         .route("/v1/ws", get(ws::ws_route_handler))
+        .route("/v1/profiles", post(profile::post_profile))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
         .layer(middleware::from_fn_with_state(store.clone(), auth))

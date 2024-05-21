@@ -2,6 +2,7 @@ use {
     crate::{
         api::{
             opportunity::EIP712Domain,
+            profile as ApiProfile,
             ws::{
                 UpdateEvent,
                 WsState,
@@ -16,6 +17,7 @@ use {
         models,
     },
     axum::Json,
+    email_address::EmailAddress,
     ethers::{
         providers::{
             Http,
@@ -701,5 +703,36 @@ impl Store {
                 mutex_gaurd.remove(key);
             }
         }
+    }
+
+    pub async fn create_profile(
+        &self,
+        create_profile: ApiProfile::CreateProfile,
+    ) -> Result<models::Profile, RestError> {
+        let profile = sqlx::query!(
+            "INSERT INTO profile (name, email) VALUES ($1, $2) RETURNING id, name, email, created_at, updated_at",
+            create_profile.name,
+            create_profile.email.to_string(),
+        ).fetch_one(&self.db).await
+        .map_err(|e| {
+            if let Some(true) = e.as_database_error().map(|e| e.is_unique_violation()) {
+                return RestError::BadParameters("Profile with this email already exists".to_string());
+            }
+            tracing::error!("DB: Failed to insert profile: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        let email = EmailAddress::from_str(&profile.email).map_err(|e| {
+            tracing::error!("DB: Failed to fetch profile email: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        Ok(models::Profile {
+            id: profile.id,
+            name: profile.name,
+            email,
+            created_at: profile.created_at,
+            updated_at: profile.updated_at,
+        })
     }
 }
