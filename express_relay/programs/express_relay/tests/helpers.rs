@@ -157,7 +157,7 @@ pub async fn express_relay_tx(
         express_relay::instruction::Permission {
             data: PermissionArgs {
                 permission_id: permission_id.clone(),
-                bid_id: bid_id.clone(),
+                // bid_id: bid_id.clone(),
                 bid_amount: bid_amount.clone(),
             }
         }.data(),
@@ -179,7 +179,7 @@ pub async fn express_relay_tx(
         express_relay::instruction::Depermission {
             _data: DepermissionArgs {
                 permission_id: permission_id.clone(),
-                bid_id: bid_id,
+                // bid_id: bid_id,
             }
         }.data(),
         accounts: Depermission {

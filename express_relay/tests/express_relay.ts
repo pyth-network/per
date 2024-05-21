@@ -8,13 +8,73 @@ import {
   createAccount,
   getAccount,
   getOrCreateAssociatedTokenAccount,
+  getAssociatedTokenAddress,
   transfer,
+  approve,
   mintTo,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { assert } from "chai";
+
+// COMPACT ARRAY
+
+const LOW_VALUE = 127; // 0x7f
+const HIGH_VALUE = 16383; // 0x3fff
+
+/**
+ * Compact u16 array header size
+ * @param n elements in the compact array
+ * @returns size in bytes of array header
+ */
+const compactHeader = (n: number) =>
+  n <= LOW_VALUE ? 1 : n <= HIGH_VALUE ? 2 : 3;
+
+/**
+ * Compact u16 array size
+ * @param n elements in the compact array
+ * @param size bytes per each element
+ * @returns size in bytes of array
+ */
+const compactArraySize = (n: number, size: number) =>
+  compactHeader(n) + n * size;
+
+const getTxSize = (tx: Transaction, feePayer: PublicKey): number => {
+  const feePayerPk = [feePayer.toBase58()];
+
+  const signers = new Set<string>(feePayerPk);
+  const accounts = new Set<string>(feePayerPk);
+
+  const ixsSize = tx.instructions.reduce((acc, ix) => {
+    ix.keys.forEach(({ pubkey, isSigner }) => {
+      const pk = pubkey.toBase58();
+      if (isSigner) signers.add(pk);
+      accounts.add(pk);
+    });
+
+    accounts.add(ix.programId.toBase58());
+
+    const nIndexes = ix.keys.length;
+    const opaqueData = ix.data.length;
+
+    return (
+      acc +
+      1 + // PID index
+      compactArraySize(nIndexes, 1) +
+      compactArraySize(opaqueData, 1)
+    );
+  }, 0);
+
+  return (
+    compactArraySize(signers.size, 64) + // signatures
+    3 + // header
+    compactArraySize(accounts.size, 32) + // accounts
+    32 + // blockhash
+    compactHeader(tx.instructions.length) + // instructions
+    ixsSize
+  );
+};
 
 describe("express_relay", () => {
   // Configure the client to use the local cluster.
@@ -37,8 +97,13 @@ describe("express_relay", () => {
   let ataCollateralPayer;
   let ataDebtPayer;
 
+  let ataCollateralRelayer;
+  let ataDebtRelayer;
+
   let taCollateralProtocol;
   let taDebtProtocol;
+
+  let opportunityAdapterAuthority;
 
   let protocol = ezLend.programId;
   let protocolFeeReceiver;
@@ -105,6 +170,14 @@ describe("express_relay", () => {
       mintDebt,
       payer.publicKey
     );
+    ataCollateralRelayer = await getAssociatedTokenAddress(
+      mintCollateral,
+      relayerSigner.publicKey
+    );
+    ataDebtRelayer = await getAssociatedTokenAddress(
+      mintDebt,
+      relayerSigner.publicKey
+    );
     taCollateralProtocol = await PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("ata"), mintCollateral.toBuffer()],
       protocol
@@ -168,7 +241,7 @@ describe("express_relay", () => {
       TOKEN_PROGRAM_ID
     );
 
-    // (collateral, payer)
+    // (collateral, protocol)
     await mintTo(
       provider.connection,
       payer,
@@ -180,7 +253,7 @@ describe("express_relay", () => {
       undefined,
       TOKEN_PROGRAM_ID
     );
-    // (debt, payer)
+    // (debt, protocol)
     await mintTo(
       provider.connection,
       payer,
@@ -191,6 +264,29 @@ describe("express_relay", () => {
       [],
       undefined,
       TOKEN_PROGRAM_ID
+    );
+
+    opportunityAdapterAuthority = await PublicKey.findProgramAddressSync(
+      [anchor.utils.bytes.utf8.encode("authority")],
+      opportunityAdapter.programId
+    );
+
+    // approve user's tokens to opportunity adapter
+    await approve(
+      provider.connection,
+      payer,
+      ataCollateralPayer.address,
+      opportunityAdapterAuthority[0],
+      payer.publicKey,
+      1000
+    );
+    await approve(
+      provider.connection,
+      payer,
+      ataDebtPayer.address,
+      opportunityAdapterAuthority[0],
+      payer.publicKey,
+      10000
     );
 
     await expressRelay.methods
@@ -307,12 +403,15 @@ describe("express_relay", () => {
       })
       .accounts({
         vault: vault[0],
-        payer: payer.publicKey,
+        payer: relayerSigner.publicKey,
+        // payer: payer.publicKey,
         collateralMint: mintCollateral,
         debtMint: mintDebt,
-        collateralAtaPayer: ataCollateralPayer.address,
+        collateralAtaPayer: ataCollateralRelayer,
+        // collateralAtaPayer: ataCollateralPayer.address,
         collateralTaProgram: taCollateralProtocol.address,
-        debtAtaPayer: ataDebtPayer.address,
+        debtAtaPayer: ataDebtRelayer,
+        // debtAtaPayer: ataDebtPayer.address,
         debtTaProgram: taDebtProtocol.address,
         permission: permission[0],
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -353,7 +452,7 @@ describe("express_relay", () => {
       .accounts({
         relayerSigner: relayerSigner.publicKey,
         permission: permission[0],
-        protocol: ezLend.programId,
+        protocol: protocol,
         protocolFeeReceiver: protocolFeeReceiver[0],
         relayerFeeReceiver: relayerFeeReceiver.publicKey,
         protocolConfig: protocolConfig[0],
@@ -378,36 +477,6 @@ describe("express_relay", () => {
       opportunityAdapter.programId
     );
 
-    const ixInitializeTokenExpectationsCollateral =
-      await opportunityAdapter.methods
-        .initializeTokenExpectations({
-          expectedChange: collateral_amount,
-        })
-        .accounts({
-          executor: payer.publicKey,
-          mint: mintCollateral,
-          taExecutor: ataCollateralPayer.address,
-          tokenExpectation: tokenExpectationCollateral[0],
-          tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          sysvarInstructions: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-        })
-        .signers([payer])
-        .instruction();
-
-    const ixCheckTokenBalanceCollateral = await opportunityAdapter.methods
-      .checkTokenBalance()
-      .accounts({
-        executor: payer.publicKey,
-        mint: mintCollateral,
-        taExecutor: ataCollateralPayer.address,
-        tokenExpectation: tokenExpectationCollateral[0],
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([payer])
-      .instruction();
-
     let tokenExpectationDebt = await PublicKey.findProgramAddressSync(
       [
         anchor.utils.bytes.utf8.encode("token_expectation"),
@@ -417,46 +486,86 @@ describe("express_relay", () => {
       opportunityAdapter.programId
     );
 
-    let debt_amount_neg = debt_amount.mul(new anchor.BN(-1));
-    const ixInitializeTokenExpectationsDebt = await opportunityAdapter.methods
+    const remainingAccountsOpportunityAdapter = [
+      {
+        pubkey: mintDebt,
+        isWritable: false,
+        isSigner: false,
+      },
+      {
+        pubkey: ataDebtPayer.address,
+        isWritable: true,
+        isSigner: false,
+      },
+      {
+        pubkey: tokenExpectationDebt[0],
+        isWritable: true,
+        isSigner: false,
+      },
+      {
+        pubkey: ataDebtRelayer,
+        isWritable: true,
+        isSigner: false,
+      },
+      {
+        pubkey: mintCollateral,
+        isWritable: false,
+        isSigner: false,
+      },
+      {
+        pubkey: ataCollateralPayer.address,
+        isWritable: true,
+        isSigner: false,
+      },
+      {
+        pubkey: tokenExpectationCollateral[0],
+        isWritable: true,
+        isSigner: false,
+      },
+      {
+        pubkey: ataCollateralRelayer,
+        isWritable: true,
+        isSigner: false,
+      },
+    ];
+    const ixInitializeTokenExpectations = await opportunityAdapter.methods
       .initializeTokenExpectations({
-        expectedChange: debt_amount_neg,
+        sellTokens: [debt_amount],
+        buyTokens: [collateral_amount],
       })
       .accounts({
-        executor: payer.publicKey,
-        mint: mintDebt,
-        taExecutor: ataDebtPayer.address,
-        tokenExpectation: tokenExpectationDebt[0],
+        relayer: relayerSigner.publicKey,
+        user: payer.publicKey,
+        opportunityAdapterAuthority: opportunityAdapterAuthority[0],
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         sysvarInstructions: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
-      .signers([payer])
+      .remainingAccounts(remainingAccountsOpportunityAdapter)
+      .signers([relayerSigner])
       .instruction();
 
-    const ixCheckTokenBalanceDebt = await opportunityAdapter.methods
-      .checkTokenBalance()
+    const ixCheckTokenBalances = await opportunityAdapter.methods
+      .checkTokenBalances()
       .accounts({
-        executor: payer.publicKey,
-        mint: mintDebt,
-        taExecutor: ataDebtPayer.address,
-        tokenExpectation: tokenExpectationDebt[0],
+        relayer: relayerSigner.publicKey,
+        user: payer.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
-      .signers([payer])
+      .remainingAccounts(remainingAccountsOpportunityAdapter)
+      .signers([relayerSigner])
       .instruction();
 
     // create transaction
     let transaction = new anchor.web3.Transaction();
 
     transaction.add(ixPermission);
-    transaction.add(ixInitializeTokenExpectationsCollateral);
-    transaction.add(ixInitializeTokenExpectationsDebt);
+    transaction.add(ixInitializeTokenExpectations);
     transaction.add(ixLiquidate);
     transaction.add(ixSendSol);
-    transaction.add(ixCheckTokenBalanceDebt);
-    transaction.add(ixCheckTokenBalanceCollateral);
+    transaction.add(ixCheckTokenBalances);
     transaction.add(ixDepermission);
 
     let solProtocolPre = await provider.connection.getBalance(
@@ -469,12 +578,17 @@ describe("express_relay", () => {
       expressRelayMetadata[0]
     );
 
-    // send transaction
-    let signature = await provider.connection.sendTransaction(
-      transaction,
-      [payer, relayerSigner],
-      {}
+    console.log(
+      "SIZE of transaction: ",
+      getTxSize(transaction, relayerSigner.publicKey)
     );
+
+    // send transaction
+    let signature = await provider.connection
+      .sendTransaction(transaction, [payer, relayerSigner], {})
+      .catch((err) => {
+        console.log(err);
+      });
 
     const latestBlockHash = await provider.connection.getLatestBlockhash();
     let txResponse = await provider.connection.confirmTransaction({
@@ -482,6 +596,7 @@ describe("express_relay", () => {
       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
       signature: signature,
     });
+    console.log(txResponse);
     if (txResponse.value["err"]) {
       console.log("Transaction errored:", txResponse.value["err"]);
     }

@@ -11,8 +11,9 @@ use crate::{
     state::*,
     utils::*,
 };
+use opportunity_adapter::ID as OPPORTUNITY_ADAPTER_PROGRAM_ID;
 
-declare_id!("7L8f7kMv4swkFPeisT4qd137FEnmmRy4HCWh2YAbrsNh");
+declare_id!("AJ9QckBqWJdz5RAxpMi2P83q6R7y5xZ2yFxCAYr3bg3N");
 
 #[program]
 pub mod express_relay {
@@ -74,8 +75,11 @@ pub mod express_relay {
         let last_ix_index = num_instructions - 1;
         for index in 1..last_ix_index {
             let ix = load_instruction_at_checked(index as usize, sysvar_ixs)?;
-            if ix.accounts.iter().any(|acc| acc.pubkey == *relayer_signer.key) {
-                return err!(ExpressRelayError::RelayerSignerUsedElsewhere)
+            // only opportunity adapter allowed to use relayer signer as an account
+            if ix.program_id != OPPORTUNITY_ADAPTER_PROGRAM_ID {
+                if ix.accounts.iter().any(|acc| acc.pubkey == *relayer_signer.key) {
+                    return err!(ExpressRelayError::RelayerSignerUsedElsewhere)
+                }
             }
         }
 
@@ -217,7 +221,8 @@ pub struct SetProtocolSplit<'info> {
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct PermissionArgs {
     pub permission_id: [u8; 32],
-    pub bid_id: [u8; 16],
+    // TODO: maybe add bid_id back? depending on size constraints
+    // pub bid_id: [u8; 16],
     pub bid_amount: u64,
 }
 
@@ -242,7 +247,7 @@ pub struct Permission<'info> {
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct DepermissionArgs {
     pub permission_id: [u8; 32],
-    pub bid_id: [u8; 16],
+    // pub bid_id: [u8; 16],
 }
 
 #[derive(Accounts)]

@@ -5,7 +5,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-express_relay = "7L8f7kMv4swkFPeisT4qd137FEnmmRy4HCWh2YAbrsNh"
+express_relay = "AJ9QckBqWJdz5RAxpMi2P83q6R7y5xZ2yFxCAYr3bg3N"
+ez_lend = "3Gz8dhzokRoE5r9b5oyvrBqceAo9zxzVrgRzQdc6WTTm"
+ez_lend_vanilla = "AwBnwAgYZoGjZ1L1ADQ2uYBLg5uTUPwHKYCFt9peGWWC"
+opportunity_adapter = "Gn4yXmex2gAWUHJcFHy6iUkwPurka6uJMGPfzeZbKFFD"
 
 [registry]
 url = "https://api.apr.dev"

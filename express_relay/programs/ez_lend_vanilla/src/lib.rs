@@ -1,7 +1,7 @@
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer};
 
-declare_id!("9Q549tbdkC9H3D7Pj5MA7FfdJbgA6WA4nzD1adFpK1hu");
+declare_id!("AwBnwAgYZoGjZ1L1ADQ2uYBLg5uTUPwHKYCFt9peGWWC");
 
 #[program]
 pub mod ez_lend_vanilla {

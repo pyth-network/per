@@ -8,3 +8,10 @@ pub const SEED_TOKEN_EXPECTATION: &[u8] = b"token_expectation";
 pub struct TokenExpectation {
     pub balance_post_expected: u64
 }
+
+pub const RESERVE_AUTHORITY: usize = 100;
+pub const SEED_AUTHORITY: &[u8] = b"authority";
+
+#[account]
+#[derive(Default)]
+pub struct Authority {}

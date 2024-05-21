@@ -1556,6 +1556,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-syn",
+ "opportunity_adapter",
  "sha2 0.10.8",
  "solana-program",
  "solana-program-test",
