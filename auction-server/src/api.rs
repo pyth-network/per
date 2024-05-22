@@ -204,6 +204,13 @@ async fn auth(auth: Auth, req: extract::Request, next: middleware::Next) -> Resp
     next.run(req).await
 }
 
+#[macro_export]
+macro_rules! admin_only {
+    ($route:expr) => {
+        $route.layer(middleware::from_fn(auth))
+    };
+}
+
 pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
@@ -256,27 +263,34 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     )]
     struct ApiDoc;
 
-    let admin_only = Router::new()
-        .route("/v1/profiles", post(profile::post_profile))
+    let bid_routes = Router::new()
+        .route("/", post(bid::bid))
+        .route("/:bid_id", get(bid::bid_status));
+    let opportunity_routes = Router::new()
+        .route("/", post(opportunity::post_opportunity))
+        .route("/", get(opportunity::get_opportunities))
+        .route("/:opportunity_id/bids", post(opportunity::opportunity_bid));
+    let profile_routes = Router::new()
+        .route("/", admin_only!(post(profile::post_profile)))
         .route(
-            "/v1/profiles/access_tokens",
-            post(profile::post_profile_access_token),
-        )
-        .layer(middleware::from_fn(auth));
+            "/access_tokens",
+            post(admin_only!(post(profile::post_profile_access_token))),
+        );
+
+
+    let v1_routes = Router::new().nest(
+        "/v1",
+        Router::new()
+            .nest("/bids", bid_routes)
+            .nest("/opportunities", opportunity_routes)
+            .nest("/profiles", profile_routes)
+            .route("/ws", get(ws::ws_route_handler)),
+    );
 
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
-        .merge(admin_only)
+        .merge(v1_routes)
         .route("/", get(root))
-        .route("/v1/bids", post(bid::bid))
-        .route("/v1/bids/:bid_id", get(bid::bid_status))
-        .route("/v1/opportunities", post(opportunity::post_opportunity))
-        .route("/v1/opportunities", get(opportunity::get_opportunities))
-        .route(
-            "/v1/opportunities/:opportunity_id/bids",
-            post(opportunity::opportunity_bid),
-        )
-        .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
         .layer(middleware::from_extractor::<Auth>())
