@@ -42,6 +42,10 @@ pub struct RunOptions {
     #[arg(long = "relayer-private-key")]
     #[arg(env = "RELAYER_PRIVATE_KEY")]
     pub relayer_private_key: String,
+
+    #[arg(long = "secret-key")]
+    #[arg(env = "SECRET_KEY")]
+    pub secret_key: String,
 }
 
 #[derive(Args, Clone, Debug)]

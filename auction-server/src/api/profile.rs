@@ -71,11 +71,10 @@ pub struct AccessToken {
 (status = 400, response = ErrorBodyResponse),
 ),)]
 pub async fn post_profile(
-    auth: Auth,
+    _auth: Auth,
     State(store): State<Arc<Store>>,
     Json(versioned_params): Json<CreateProfile>,
 ) -> Result<Json<Profile>, RestError> {
-    println!("auth: {:?}", auth.is_admin);
     let profile = store.create_profile(versioned_params.clone()).await?;
     Ok(Json(Profile {
         id:    profile.id,

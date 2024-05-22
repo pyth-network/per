@@ -278,6 +278,7 @@ pub struct Store {
     pub task_tracker:       TaskTracker,
     pub auction_lock:       Mutex<HashMap<AuctionKey, AuctionLock>>,
     pub submitted_auctions: RwLock<HashMap<ChainId, Vec<models::Auction>>>,
+    pub secret_key:         String,
 }
 
 impl SimulatedBid {

@@ -184,6 +184,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         task_tracker:       task_tracker.clone(),
         auction_lock:       Default::default(),
         submitted_auctions: Default::default(),
+        secret_key:         run_options.secret_key.clone(),
     });
 
     tokio::join!(

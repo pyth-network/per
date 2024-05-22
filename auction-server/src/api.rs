@@ -45,6 +45,7 @@ use {
         async_trait,
         extract::{
             self,
+            FromRef,
             FromRequestParts,
         },
         http::{
@@ -181,16 +182,21 @@ pub struct Auth {
 #[async_trait]
 impl<S> FromRequestParts<S> for Auth
 where
+    Arc<Store>: FromRef<S>,
     S: Send + Sync,
 {
     type Rejection = StatusCode;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
-            Ok(_token) => Ok(Self {
-                profile:  None,
-                is_admin: true,
-            }),
+            Ok(token) => {
+                let state = Arc::from_ref(state);
+                let token = token.0 .0.token();
+                Ok(Self {
+                    profile:  None,
+                    is_admin: state.secret_key == token,
+                })
+            }
             Err(_) => Ok(Self {
                 profile:  None,
                 is_admin: false,
@@ -199,15 +205,20 @@ where
     }
 }
 
-async fn auth(auth: Auth, req: extract::Request, next: middleware::Next) -> Response {
-    println!("auth: {:?}", auth.is_admin);
+async fn admin_middleware(auth: Auth, req: extract::Request, next: middleware::Next) -> Response {
+    if !auth.is_admin {
+        return (StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
     next.run(req).await
 }
 
 #[macro_export]
 macro_rules! admin_only {
-    ($route:expr) => {
-        $route.layer(middleware::from_fn(auth))
+    ($state:expr, $route:expr) => {
+        $route.layer(middleware::from_fn_with_state(
+            $state.clone(),
+            admin_middleware,
+        ))
     };
 }
 
@@ -271,12 +282,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .route("/", get(opportunity::get_opportunities))
         .route("/:opportunity_id/bids", post(opportunity::opportunity_bid));
     let profile_routes = Router::new()
-        .route("/", admin_only!(post(profile::post_profile)))
+        .route("/", admin_only!(store, post(profile::post_profile)))
         .route(
             "/access_tokens",
-            post(admin_only!(post(profile::post_profile_access_token))),
+            admin_only!(store, post(profile::post_profile_access_token)),
         );
-
 
     let v1_routes = Router::new().nest(
         "/v1",
@@ -293,7 +303,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .route("/", get(root))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
-        .layer(middleware::from_extractor::<Auth>())
+        .layer(middleware::from_extractor_with_state::<Auth, Arc<Store>>(
+            store.clone(),
+        ))
         .with_state(store);
 
     let listener = tokio::net::TcpListener::bind(&run_options.server.listen_addr)

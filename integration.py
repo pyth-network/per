@@ -23,6 +23,7 @@ def main():
     with open('tilt-resources.env', 'w') as f:
         for k, v in field_mapping.items():
             f.write(f'export {v}={latest_env[k]}\n')
+        f.write('export SECRET_KEY=admin\n')
     # config_template
     template = f'''
 chains:
