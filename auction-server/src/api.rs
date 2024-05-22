@@ -7,6 +7,8 @@ use {
                 OpportunityParamsWithMetadata,
             },
             profile::{
+                AccessToken,
+                CreateAccessToken,
                 CreateProfile,
                 Profile,
             },
@@ -40,11 +42,15 @@ use {
     },
     anyhow::Result,
     axum::{
+        async_trait,
         extract::{
             self,
-            State,
+            FromRequestParts,
         },
-        http::StatusCode,
+        http::{
+            request::Parts,
+            StatusCode,
+        },
         middleware,
         response::{
             IntoResponse,
@@ -56,6 +62,13 @@ use {
         },
         Json,
         Router,
+    },
+    axum_extra::{
+        headers::{
+            authorization::Bearer,
+            Authorization,
+        },
+        TypedHeader,
     },
     clap::crate_version,
     ethers::types::Bytes,
@@ -160,12 +173,34 @@ pub async fn live() -> Response {
     (StatusCode::OK, "OK").into_response()
 }
 
-async fn auth(
-    State(_store): State<Arc<Store>>,
-    req: extract::Request,
-    next: middleware::Next,
-) -> Response {
-    println!("hi {}", req.uri().path());
+pub struct Auth {
+    profile:  Option<Profile>,
+    is_admin: bool,
+}
+
+#[async_trait]
+impl<S> FromRequestParts<S> for Auth
+where
+    S: Send + Sync,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
+            Ok(_token) => Ok(Self {
+                profile:  None,
+                is_admin: true,
+            }),
+            Err(_) => Ok(Self {
+                profile:  None,
+                is_admin: false,
+            }),
+        }
+    }
+}
+
+async fn auth(auth: Auth, req: extract::Request, next: middleware::Next) -> Response {
+    println!("auth: {:?}", auth.is_admin);
     next.run(req).await
 }
 
@@ -180,6 +215,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
     profile::post_profile,
+    profile::post_profile_access_token,
     ),
     components(
     schemas(
@@ -203,6 +239,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ServerResultResponse,
     Profile,
     CreateProfile,
+    CreateAccessToken,
+    AccessToken,
     ),
     responses(
     ErrorBodyResponse,
@@ -218,8 +256,17 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     )]
     struct ApiDoc;
 
+    let admin_only = Router::new()
+        .route("/v1/profiles", post(profile::post_profile))
+        .route(
+            "/v1/profiles/access_tokens",
+            post(profile::post_profile_access_token),
+        )
+        .layer(middleware::from_fn(auth));
+
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
+        .merge(admin_only)
         .route("/", get(root))
         .route("/v1/bids", post(bid::bid))
         .route("/v1/bids/:bid_id", get(bid::bid_status))
@@ -230,10 +277,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
             post(opportunity::opportunity_bid),
         )
         .route("/v1/ws", get(ws::ws_route_handler))
-        .route("/v1/profiles", post(profile::post_profile))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
-        .layer(middleware::from_fn_with_state(store.clone(), auth))
+        .layer(middleware::from_extractor::<Auth>())
         .with_state(store);
 
     let listener = tokio::net::TcpListener::bind(&run_options.server.listen_addr)

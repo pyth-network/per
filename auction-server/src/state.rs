@@ -2,7 +2,10 @@ use {
     crate::{
         api::{
             opportunity::EIP712Domain,
-            profile as ApiProfile,
+            profile::{
+                self as ApiProfile,
+                ProfileId,
+            },
             ws::{
                 UpdateEvent,
                 WsState,
@@ -17,6 +20,10 @@ use {
         models,
     },
     axum::Json,
+    base64::{
+        engine::general_purpose::URL_SAFE_NO_PAD,
+        Engine,
+    },
     email_address::EmailAddress,
     ethers::{
         providers::{
@@ -30,6 +37,11 @@ use {
             H256,
             U256,
         },
+    },
+    rand::{
+        rngs::StdRng,
+        RngCore,
+        SeedableRng,
     },
     serde::{
         Deserialize,
@@ -72,6 +84,7 @@ use {
 
 pub type PermissionKey = Bytes;
 pub type BidAmount = U256;
+pub type GetOrCreate<T> = (T, bool);
 
 #[derive(Clone, Debug)]
 pub struct SimulatedBid {
@@ -734,5 +747,63 @@ impl Store {
             created_at: profile.created_at,
             updated_at: profile.updated_at,
         })
+    }
+
+    fn generate_url_safe_token(&self) -> anyhow::Result<String> {
+        let mut rng = StdRng::from_entropy();
+        let mut bytes = [0u8; 32];
+        rng.try_fill_bytes(&mut bytes)?;
+        Ok(URL_SAFE_NO_PAD.encode(bytes))
+    }
+
+    pub async fn get_or_create_access_token(
+        &self,
+        profile_id: ProfileId,
+    ) -> Result<GetOrCreate<models::AccessToken>, RestError> {
+        let generated_token = self.generate_url_safe_token().map_err(|e| {
+            tracing::error!("Failed to generate access token: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        let result = sqlx::query!(
+            "INSERT INTO access_token (profile_id, token)
+        SELECT $1, $2
+        WHERE NOT EXISTS (
+            SELECT token
+            FROM access_token
+            WHERE profile_id = $1 AND revoked_at = NULL
+        );",
+            profile_id,
+            generated_token
+        )
+        .execute(&self.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB: Failed to create access token: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        let token = sqlx::query!(
+            "SELECT * FROM access_token
+        WHERE profile_id = $1 AND revoked_at is NULL;",
+            profile_id,
+        )
+        .fetch_one(&self.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB: Failed to fetch access token: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        Ok((
+            models::AccessToken {
+                token:      token.token,
+                profile_id: token.profile_id,
+                created_at: token.created_at,
+                updated_at: token.updated_at,
+                revoked_at: token.revoked_at,
+            },
+            result.rows_affected() > 0,
+        ))
     }
 }
