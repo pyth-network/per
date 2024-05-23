@@ -1,6 +1,7 @@
 CREATE TABLE access_token
 (
-    token      VARCHAR(512) PRIMARY KEY,
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    token      VARCHAR(512) UNIQUE NOT NULL,
     profile_id UUID         NOT NULL REFERENCES profile(id) ON DELETE CASCADE,
     revoked_at TIMESTAMP,
     created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,

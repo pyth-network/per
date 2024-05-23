@@ -2,10 +2,7 @@ use {
     crate::{
         api::{
             opportunity::EIP712Domain,
-            profile::{
-                self as ApiProfile,
-                ProfileId,
-            },
+            profile as ApiProfile,
             ws::{
                 UpdateEvent,
                 WsState,
@@ -742,9 +739,9 @@ impl Store {
         })?;
 
         Ok(models::Profile {
-            id: profile.id,
-            name: profile.name,
-            email,
+            id:         profile.id,
+            name:       profile.name,
+            email:      models::WrappedEmailAddress::new(email),
             created_at: profile.created_at,
             updated_at: profile.updated_at,
         })
@@ -759,7 +756,7 @@ impl Store {
 
     pub async fn get_or_create_access_token(
         &self,
-        profile_id: ProfileId,
+        profile_id: models::ProfileId,
     ) -> Result<GetOrCreate<models::AccessToken>, RestError> {
         let generated_token = self.generate_url_safe_token().map_err(|e| {
             tracing::error!("Failed to generate access token: {}", e);
@@ -770,9 +767,9 @@ impl Store {
             "INSERT INTO access_token (profile_id, token)
         SELECT $1, $2
         WHERE NOT EXISTS (
-            SELECT token
+            SELECT id
             FROM access_token
-            WHERE profile_id = $1 AND revoked_at = NULL
+            WHERE profile_id = $1 AND revoked_at is NULL
         );",
             profile_id,
             generated_token
@@ -784,7 +781,8 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
-        let token = sqlx::query!(
+        let token = sqlx::query_as!(
+            models::AccessToken,
             "SELECT * FROM access_token
         WHERE profile_id = $1 AND revoked_at is NULL;",
             profile_id,
@@ -796,15 +794,50 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
-        Ok((
-            models::AccessToken {
-                token:      token.token,
-                profile_id: token.profile_id,
-                created_at: token.created_at,
-                updated_at: token.updated_at,
-                revoked_at: token.revoked_at,
-            },
-            result.rows_affected() > 0,
-        ))
+        Ok((token, result.rows_affected() > 0))
+    }
+
+    pub async fn revoke_access_token(&self, token_id: models::TokenId) -> Result<(), RestError> {
+        sqlx::query!(
+            "UPDATE access_token
+        SET revoked_at = now()
+        WHERE id = $1 AND revoked_at is NULL;",
+            token_id
+        )
+        .execute(&self.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB: Failed to revoke access token: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+        Ok(())
+    }
+
+    pub async fn get_profile_by_token(
+        &self,
+        token: &str,
+    ) -> Result<(models::TokenId, models::Profile), RestError> {
+        let token = sqlx::query_as!(
+            models::AccessToken,
+            "SELECT * FROM access_token WHERE token = $1 AND revoked_at is NULL;",
+            token
+        )
+        .fetch_one(&self.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB: Failed to fetch token by token: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        let profile: models::Profile = sqlx::query_as("SELECT * FROM profile WHERE id = $1")
+            .bind(token.profile_id)
+            .fetch_one(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch profile by token: {}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+
+        Ok((token.id, profile))
     }
 }

@@ -5,6 +5,7 @@ use {
             ErrorBodyResponse,
             RestError,
         },
+        models::ProfileId,
         state::Store,
     },
     axum::{
@@ -21,10 +22,7 @@ use {
         ToResponse,
         ToSchema,
     },
-    uuid::Uuid,
 };
-
-pub type ProfileId = Uuid;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct CreateProfile {
@@ -66,7 +64,10 @@ pub struct AccessToken {
 /// Create a new profile.
 ///
 /// Returns the created profile object.
-#[utoipa::path(post, path = "/v1/profiles", request_body = CreateProfile, responses(
+#[utoipa::path(post, path = "/v1/profiles",
+security(
+    ("bearerAuth" = []),
+),request_body = CreateProfile, responses(
 (status = 200, description = "The created profile", body = Profile),
 (status = 400, response = ErrorBodyResponse),
 ),)]
@@ -79,14 +80,17 @@ pub async fn post_profile(
     Ok(Json(Profile {
         id:    profile.id,
         name:  profile.name,
-        email: profile.email,
+        email: profile.email.value,
     }))
 }
 
 /// Create a new profile access token if no valid token exists.
 ///
 /// Returns the created access token object.
-#[utoipa::path(get, path = "/v1/profiles/access_tokens", request_body = CreateAccessToken, responses(
+#[utoipa::path(post, path = "/v1/profiles/access_tokens",
+security(
+    ("bearerAuth" = []),
+),request_body = CreateAccessToken, responses(
 (status = 200, description = "The access token for the profile", body = AccessToken),
 (status = 400, response = ErrorBodyResponse),
 ),)]
@@ -100,4 +104,25 @@ pub async fn post_profile_access_token(
     Ok(Json(AccessToken {
         token: access_token.token,
     }))
+}
+
+/// Revoke the authenticated profile access token.
+///
+/// Returns empty response.
+#[utoipa::path(delete, path = "/v1/profiles/access_tokens",
+security(
+    ("bearerAuth" = []),
+),
+request_body = CreateAccessToken, responses(
+(status = 200, description = "The token successfully revoked"),
+(status = 400, response = ErrorBodyResponse),
+),)]
+pub async fn delete_profile_access_token(
+    auth: Auth,
+    State(store): State<Arc<Store>>,
+) -> Result<(), RestError> {
+    match auth.token_id {
+        Some(token_id) => store.revoke_access_token(token_id).await,
+        None => Ok(()),
+    }
 }

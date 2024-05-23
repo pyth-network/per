@@ -26,6 +26,7 @@ use {
             ChainId,
             RunOptions,
         },
+        models,
         opportunity_adapter::OpportunityBid,
         server::{
             EXIT_CHECK_INTERVAL,
@@ -58,6 +59,7 @@ use {
             Response,
         },
         routing::{
+            delete,
             get,
             post,
         },
@@ -83,7 +85,13 @@ use {
     },
     tower_http::cors::CorsLayer,
     utoipa::{
+        openapi::security::{
+            Http,
+            HttpAuthScheme,
+            SecurityScheme,
+        },
         IntoParams,
+        Modify,
         OpenApi,
         ToResponse,
         ToSchema,
@@ -175,8 +183,9 @@ pub async fn live() -> Response {
 }
 
 pub struct Auth {
-    profile:  Option<Profile>,
-    is_admin: bool,
+    pub token_id: Option<models::TokenId>,
+    pub profile:  Option<models::Profile>,
+    pub is_admin: bool,
 }
 
 #[async_trait]
@@ -191,16 +200,36 @@ where
         match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
             Ok(token) => {
                 let state = Arc::from_ref(state);
-                let token = token.0 .0.token();
-                Ok(Self {
-                    profile:  None,
-                    is_admin: state.secret_key == token,
-                })
+                let token: &str = token.0 .0.token();
+
+                let is_admin = state.secret_key == token;
+                if is_admin {
+                    return Ok(Self {
+                        token_id: None,
+                        profile: None,
+                        is_admin,
+                    });
+                }
+
+                match state.get_profile_by_token(token).await {
+                    Ok((token_id, profile)) => Ok(Self {
+                        token_id: Some(token_id),
+                        profile: Some(profile),
+                        is_admin,
+                    }),
+                    Err(_) => Err(StatusCode::UNAUTHORIZED),
+                }
             }
-            Err(_) => Ok(Self {
-                profile:  None,
-                is_admin: false,
-            }),
+            Err(e) => {
+                if e.is_missing() {
+                    return Ok(Self {
+                        token_id: None,
+                        profile:  None,
+                        is_admin: false,
+                    });
+                }
+                Err(StatusCode::UNAUTHORIZED)
+            }
         }
     }
 }
@@ -212,12 +241,34 @@ async fn admin_middleware(auth: Auth, req: extract::Request, next: middleware::N
     next.run(req).await
 }
 
+async fn require_login_middleware(
+    auth: Auth,
+    req: extract::Request,
+    next: middleware::Next,
+) -> Response {
+    if auth.token_id.is_none() {
+        return (StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+    next.run(req).await
+}
+
 #[macro_export]
 macro_rules! admin_only {
     ($state:expr, $route:expr) => {
         $route.layer(middleware::from_fn_with_state(
             $state.clone(),
             admin_middleware,
+        ))
+    };
+}
+
+// Admin secret key is not considered as logged in user
+#[macro_export]
+macro_rules! login_required {
+    ($state:expr, $route:expr) => {
+        $route.layer(middleware::from_fn_with_state(
+            $state.clone(),
+            require_login_middleware,
         ))
     };
 }
@@ -234,6 +285,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     opportunity::get_opportunities,
     profile::post_profile,
     profile::post_profile_access_token,
+    profile::delete_profile_access_token,
     ),
     components(
     schemas(
@@ -270,9 +322,22 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     tags(
     (name = "Express Relay Auction Server", description = "Auction Server handles all the necessary communications\
     between searchers and protocols. It conducts the auctions and submits the winning bids on chain.")
-    )
+    ),
+    modifiers(&SecurityAddon)
     )]
     struct ApiDoc;
+
+    struct SecurityAddon;
+
+    impl Modify for SecurityAddon {
+        fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+            let components = openapi.components.as_mut().unwrap(); // we can unwrap safely since there already is components registered.
+            components.add_security_scheme(
+                "bearerAuth",
+                SecurityScheme::Http(Http::new(HttpAuthScheme::Bearer)),
+            )
+        }
+    }
 
     let bid_routes = Router::new()
         .route("/", post(bid::bid))
@@ -286,7 +351,12 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .route(
             "/access_tokens",
             admin_only!(store, post(profile::post_profile_access_token)),
+        )
+        .route(
+            "/access_tokens",
+            login_required!(store, delete(profile::delete_profile_access_token)),
         );
+
 
     let v1_routes = Router::new().nest(
         "/v1",
