@@ -5,7 +5,10 @@ use {
             ChainId,
             EthereumConfig,
         },
-        models::Auction,
+        models::{
+            self,
+            Auction,
+        },
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -537,6 +540,7 @@ pub async fn handle_bid(
     store: Arc<Store>,
     bid: Bid,
     initiation_time: OffsetDateTime,
+    profile_id: Option<models::ProfileId>,
 ) -> result::Result<Uuid, RestError> {
     let chain_store = store
         .chains
@@ -588,6 +592,7 @@ pub async fn handle_bid(
         chain_id: bid.chain_id.clone(),
         status: BidStatus::Pending,
         initiation_time,
+        profile_id,
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)

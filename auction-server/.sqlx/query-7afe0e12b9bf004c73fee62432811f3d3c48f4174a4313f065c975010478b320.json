@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM access_token\n        WHERE profile_id = $1 AND revoked_at is NULL;",
+  "query": "SELECT * FROM access_token WHERE revoked_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -35,9 +35,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -48,5 +46,5 @@
       false
     ]
   },
-  "hash": "9a00b70193a09b2a6d3968a77c8cc5446d8c23a0c938a28f082f79ac69deba23"
+  "hash": "7afe0e12b9bf004c73fee62432811f3d3c48f4174a4313f065c975010478b320"
 }

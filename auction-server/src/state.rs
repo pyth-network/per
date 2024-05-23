@@ -93,6 +93,7 @@ pub struct SimulatedBid {
     pub chain_id:        ChainId,
     pub status:          BidStatus,
     pub initiation_time: OffsetDateTime,
+    pub profile_id:      Option<models::ProfileId>,
 }
 
 pub type UnixTimestampMicros = i128;
@@ -276,6 +277,7 @@ pub struct Store {
     pub auction_lock:       Mutex<HashMap<AuctionKey, AuctionLock>>,
     pub submitted_auctions: RwLock<HashMap<ChainId, Vec<models::Auction>>>,
     pub secret_key:         String,
+    pub access_tokens:      RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
 }
 
 impl SimulatedBid {
@@ -457,7 +459,7 @@ impl Store {
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
-        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time, profile_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
         bid.permission_key.to_vec(),
@@ -467,6 +469,7 @@ impl Store {
         BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
         bid.status as _,
         PrimitiveDateTime::new(bid.initiation_time.date(), bid.initiation_time.time()),
+        bid.profile_id,
         )
             .execute(&self.db)
             .await.map_err(|e| {
@@ -754,6 +757,20 @@ impl Store {
         Ok(URL_SAFE_NO_PAD.encode(bytes))
     }
 
+    pub async fn get_profile_by_id(
+        &self,
+        id: models::ProfileId,
+    ) -> Result<models::Profile, RestError> {
+        sqlx::query_as("SELECT * FROM profile WHERE id = $1")
+            .bind(id)
+            .fetch_one(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch profile: {}", e);
+                RestError::TemporarilyUnavailable
+            })
+    }
+
     pub async fn get_or_create_access_token(
         &self,
         profile_id: models::ProfileId,
@@ -794,15 +811,23 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
+        let profile = self.get_profile_by_id(profile_id).await?;
+        self.access_tokens
+            .write()
+            .await
+            .insert(token.token.clone(), profile);
         Ok((token, result.rows_affected() > 0))
     }
 
-    pub async fn revoke_access_token(&self, token_id: models::TokenId) -> Result<(), RestError> {
+    pub async fn revoke_access_token(
+        &self,
+        token: models::AccessTokenToken,
+    ) -> Result<(), RestError> {
         sqlx::query!(
             "UPDATE access_token
         SET revoked_at = now()
-        WHERE id = $1 AND revoked_at is NULL;",
-            token_id
+        WHERE token = $1 AND revoked_at is NULL;",
+            token
         )
         .execute(&self.db)
         .await
@@ -810,34 +835,20 @@ impl Store {
             tracing::error!("DB: Failed to revoke access token: {}", e);
             RestError::TemporarilyUnavailable
         })?;
+
+        self.access_tokens.write().await.remove(&token);
         Ok(())
     }
 
     pub async fn get_profile_by_token(
         &self,
-        token: &str,
-    ) -> Result<(models::TokenId, models::Profile), RestError> {
-        let token = sqlx::query_as!(
-            models::AccessToken,
-            "SELECT * FROM access_token WHERE token = $1 AND revoked_at is NULL;",
-            token
-        )
-        .fetch_one(&self.db)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB: Failed to fetch token by token: {}", e);
-            RestError::TemporarilyUnavailable
-        })?;
-
-        let profile: models::Profile = sqlx::query_as("SELECT * FROM profile WHERE id = $1")
-            .bind(token.profile_id)
-            .fetch_one(&self.db)
+        token: &models::AccessTokenToken,
+    ) -> Result<models::Profile, RestError> {
+        self.access_tokens
+            .read()
             .await
-            .map_err(|e| {
-                tracing::error!("DB: Failed to fetch profile by token: {}", e);
-                RestError::TemporarilyUnavailable
-            })?;
-
-        Ok((token.id, profile))
+            .get(token)
+            .cloned()
+            .ok_or(RestError::InvalidToken)
     }
 }

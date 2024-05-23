@@ -13,6 +13,7 @@ use {
             Config,
             RunOptions,
         },
+        models,
         opportunity_adapter::{
             get_eip_712_domain,
             get_weth_address,
@@ -40,7 +41,10 @@ use {
         future::join_all,
         Future,
     },
-    sqlx::postgres::PgPoolOptions,
+    sqlx::{
+        postgres::PgPoolOptions,
+        PgPool,
+    },
     std::{
         collections::HashMap,
         sync::{
@@ -53,7 +57,10 @@ use {
         },
         time::Duration,
     },
-    tokio::time::sleep,
+    tokio::{
+        sync::RwLock,
+        time::sleep,
+    },
     tokio_util::task::TaskTracker,
 };
 
@@ -81,6 +88,34 @@ where
             }
         }
     }
+}
+
+async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, models::Profile> {
+    let access_tokens = sqlx::query_as!(
+        models::AccessToken,
+        "SELECT * FROM access_token WHERE revoked_at IS NULL",
+    )
+    .fetch_all(db)
+    .await
+    .expect("Failed to fetch access tokens from database");
+    let profile_ids: Vec<models::ProfileId> =
+        access_tokens.iter().map(|token| token.profile_id).collect();
+    let profiles: Vec<models::Profile> = sqlx::query_as("SELECT * FROM profile WHERE id = ANY($1)")
+        .bind(profile_ids)
+        .fetch_all(db)
+        .await
+        .expect("Failed to fetch profiles from database");
+
+    access_tokens
+        .into_iter()
+        .map(|token| {
+            let profile = profiles
+                .iter()
+                .find(|profile| profile.id == token.profile_id)
+                .expect("Profile not found");
+            (token.token, profile.clone())
+        })
+        .collect()
 }
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
@@ -169,6 +204,8 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         .await
         .expect("Server should start with a valid database connection.");
     let task_tracker = TaskTracker::new();
+
+    let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
         db:                 pool,
         bids:               Default::default(),
@@ -185,6 +222,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         auction_lock:       Default::default(),
         submitted_auctions: Default::default(),
         secret_key:         run_options.secret_key.clone(),
+        access_tokens:      RwLock::new(access_tokens),
     });
 
     tokio::join!(

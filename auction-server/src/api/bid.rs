@@ -1,4 +1,5 @@
 use {
+    super::Auth,
     crate::{
         api::{
             ErrorBodyResponse,
@@ -8,6 +9,7 @@ use {
             handle_bid,
             Bid,
         },
+        models,
         state::{
             BidId,
             BidStatus,
@@ -52,14 +54,19 @@ pub struct BidResult {
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn bid(
+    auth: Auth,
     State(store): State<Arc<Store>>,
     Json(bid): Json<Bid>,
 ) -> Result<Json<BidResult>, RestError> {
-    process_bid(store, bid).await
+    process_bid(store, bid, auth.profile.map(|p| p.id)).await
 }
 
-pub async fn process_bid(store: Arc<Store>, bid: Bid) -> Result<Json<BidResult>, RestError> {
-    match handle_bid(store, bid, OffsetDateTime::now_utc()).await {
+pub async fn process_bid(
+    store: Arc<Store>,
+    bid: Bid,
+    profile_id: Option<models::ProfileId>,
+) -> Result<Json<BidResult>, RestError> {
+    match handle_bid(store, bid, OffsetDateTime::now_utc(), profile_id).await {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),
             id,

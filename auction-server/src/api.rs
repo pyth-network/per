@@ -123,6 +123,8 @@ pub enum RestError {
     BidNotFound,
     /// Internal error occurred during processing the request
     TemporarilyUnavailable,
+    /// Invalid auth token
+    InvalidToken,
 }
 
 impl RestError {
@@ -155,6 +157,10 @@ impl RestError {
                 StatusCode::SERVICE_UNAVAILABLE,
                 "This service is temporarily unavailable".to_string(),
             ),
+            RestError::InvalidToken => (
+                StatusCode::UNAUTHORIZED,
+                "Invalid authorization token".to_string(),
+            ),
         }
     }
 }
@@ -183,7 +189,7 @@ pub async fn live() -> Response {
 }
 
 pub struct Auth {
-    pub token_id: Option<models::TokenId>,
+    pub token:    Option<models::AccessTokenToken>,
     pub profile:  Option<models::Profile>,
     pub is_admin: bool,
 }
@@ -194,41 +200,41 @@ where
     Arc<Store>: FromRef<S>,
     S: Send + Sync,
 {
-    type Rejection = StatusCode;
+    type Rejection = RestError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
             Ok(token) => {
                 let state = Arc::from_ref(state);
-                let token: &str = token.0 .0.token();
+                let token: models::AccessTokenToken = token.0 .0.token().to_string();
 
                 let is_admin = state.secret_key == token;
                 if is_admin {
                     return Ok(Self {
-                        token_id: None,
+                        token: None,
                         profile: None,
                         is_admin,
                     });
                 }
 
-                match state.get_profile_by_token(token).await {
-                    Ok((token_id, profile)) => Ok(Self {
-                        token_id: Some(token_id),
+                match state.get_profile_by_token(&token).await {
+                    Ok(profile) => Ok(Self {
+                        token: Some(token),
                         profile: Some(profile),
                         is_admin,
                     }),
-                    Err(_) => Err(StatusCode::UNAUTHORIZED),
+                    Err(e) => Err(e),
                 }
             }
             Err(e) => {
                 if e.is_missing() {
                     return Ok(Self {
-                        token_id: None,
+                        token:    None,
                         profile:  None,
                         is_admin: false,
                     });
                 }
-                Err(StatusCode::UNAUTHORIZED)
+                Err(RestError::InvalidToken)
             }
         }
     }
@@ -246,7 +252,7 @@ async fn require_login_middleware(
     req: extract::Request,
     next: middleware::Next,
 ) -> Response {
-    if auth.token_id.is_none() {
+    if auth.profile.is_none() {
         return (StatusCode::FORBIDDEN, "Forbidden").into_response();
     }
     next.run(req).await

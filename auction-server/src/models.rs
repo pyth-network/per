@@ -54,11 +54,12 @@ pub struct Profile {
 }
 
 pub type TokenId = Uuid;
+pub type AccessTokenToken = String;
 #[derive(Clone)]
 pub struct AccessToken {
     pub id: TokenId,
 
-    pub token:      String,
+    pub token:      AccessTokenToken,
     pub profile_id: ProfileId,
     pub revoked_at: Option<PrimitiveDateTime>,
 

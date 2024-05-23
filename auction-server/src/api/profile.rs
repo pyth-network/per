@@ -121,8 +121,8 @@ pub async fn delete_profile_access_token(
     auth: Auth,
     State(store): State<Arc<Store>>,
 ) -> Result<(), RestError> {
-    match auth.token_id {
-        Some(token_id) => store.revoke_access_token(token_id).await,
+    match auth.token {
+        Some(token) => store.revoke_access_token(token).await,
         None => Ok(()),
     }
 }

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE access_token\n        SET revoked_at = now()\n        WHERE token = $1 AND revoked_at is NULL;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f8670afe054ced9e06591ce4a899db3683c825a4c649903eba78b1492504deb4"
+}

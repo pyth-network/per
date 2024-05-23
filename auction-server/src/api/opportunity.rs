@@ -1,4 +1,5 @@
 use {
+    super::Auth,
     crate::{
         api::{
             bid::BidResult,
@@ -8,6 +9,7 @@ use {
             RestError,
         },
         config::ChainId,
+        models,
         opportunity_adapter::{
             handle_opportunity_bid,
             verify_opportunity,
@@ -216,23 +218,32 @@ params(("opportunity_id" = String, description = "Opportunity id to bid on")), r
 (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn opportunity_bid(
+    auth: Auth,
     State(store): State<Arc<Store>>,
     Path(opportunity_id): Path<OpportunityId>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
-    process_opportunity_bid(store, opportunity_id, &opportunity_bid).await
+    process_opportunity_bid(
+        store,
+        opportunity_id,
+        &opportunity_bid,
+        auth.profile.map(|p| p.id),
+    )
+    .await
 }
 
 pub async fn process_opportunity_bid(
     store: Arc<Store>,
     opportunity_id: OpportunityId,
     opportunity_bid: &OpportunityBid,
+    profile_id: Option<models::ProfileId>,
 ) -> Result<Json<BidResult>, RestError> {
     match handle_opportunity_bid(
         store,
         opportunity_id,
         opportunity_bid,
         OffsetDateTime::now_utc(),
+        profile_id,
     )
     .await
     {
