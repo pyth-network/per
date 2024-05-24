@@ -248,7 +248,7 @@ fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDate
 }
 
 async fn conclude_submitted_auction(store: Arc<Store>, auction: Auction) -> Result<()> {
-    if let Some(tx_hash) = auction.tx_hash {
+    if let Some(tx_hash) = auction.tx_hash.0 {
         let chain_store = store
             .chains
             .get(&auction.chain_id)

@@ -347,6 +347,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
 
     let bid_routes = Router::new()
         .route("/", post(bid::bid))
+        .route("/", login_required!(store, get(bid::get_bids_by_time)))
         .route("/:bid_id", get(bid::bid_status));
     let opportunity_routes = Router::new()
         .route("/", post(opportunity::post_opportunity))
