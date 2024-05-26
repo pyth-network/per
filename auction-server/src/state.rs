@@ -85,16 +85,37 @@ pub type PermissionKey = Bytes;
 pub type BidAmount = U256;
 pub type GetOrCreate<T> = (T, bool);
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
+#[schema(title = "BidResponse")]
 pub struct SimulatedBid {
+    /// The unique id for bid.
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub id:              BidId,
+    /// The contract address to call.
+    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: Address,
+    /// Calldata for the contract call.
+    #[schema(example = "0xdeadbeef", value_type = String)]
     pub target_calldata: Bytes,
+    /// Amount of bid in wei.
+    #[schema(example = "10", value_type = String)]
+    #[serde(with = "crate::serde::u256")]
     pub bid_amount:      BidAmount,
+    /// The permission key for bid.
+    #[schema(example = "0xdeadbeef", value_type = String)]
     pub permission_key:  PermissionKey,
+    /// The chain id for bid.
+    #[schema(example = "op_sepolia", value_type = String)]
     pub chain_id:        ChainId,
+    /// The latest status for bid.
+    #[schema(example = "op_sepolia", value_type = BidStatus)]
     pub status:          BidStatus,
+    /// The time server received the bid formatted in rfc3339.
+    #[schema(example = "2024-05-23T21:26:57.329954Z", value_type = String)]
+    #[serde(with = "time::serde::rfc3339")]
     pub initiation_time: OffsetDateTime,
+    /// The profile id for the bid owner.
+    #[schema(example = "", value_type = String)]
     pub profile_id:      Option<models::ProfileId>,
 }
 
@@ -922,44 +943,51 @@ impl Store {
             .ok_or(RestError::InvalidToken)
     }
 
-    pub async fn get_bids_by_time(
+    async fn get_bids_by_time(
         &self,
-        _profile_id: models::ProfileId,
+        profile_id: models::ProfileId,
+        initiation_time: Option<OffsetDateTime>,
+    ) -> Result<Vec<models::Bid>, RestError> {
+        let select = "SELECT * FROM bid WHERE profile_id = $1";
+        let order_by = "ORDER BY initiation_time ASC LIMIT 20";
+        let query_with_time = format!("{} AND initiation_time >= $2 {}", select, order_by);
+        let query_without_time = format!("{} {}", select, order_by);
+
+        let query = match initiation_time {
+            Some(initiation_time) => sqlx::query_as(query_with_time.as_str())
+                .bind(profile_id)
+                .bind(initiation_time),
+            None => sqlx::query_as(query_without_time.as_str()).bind(profile_id),
+        };
+        query.fetch_all(&self.db).await.map_err(|e| {
+            tracing::error!("DB: Failed to fetch bids: {}", e);
+            RestError::TemporarilyUnavailable
+        })
+    }
+
+    async fn get_auctions_by_bids(
+        &self,
+        bids: &[models::Bid],
+    ) -> Result<Vec<models::Auction>, RestError> {
+        let auction_ids: Vec<models::AuctionId> =
+            bids.iter().filter_map(|bid| bid.auction_id).collect();
+        sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
+            .bind(auction_ids)
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch auctions: {}", e);
+                RestError::TemporarilyUnavailable
+            })
+    }
+
+    pub async fn get_simulated_bids_by_time(
+        &self,
+        profile_id: models::ProfileId,
         initiation_time: Option<OffsetDateTime>,
     ) -> Result<Vec<SimulatedBid>, RestError> {
-        let bids: Vec<models::Bid> = match initiation_time {
-            Some(initiation_time) => {
-                sqlx::query_as(
-                    "SELECT * FROM bid WHERE initiation_time >= $1 ORDER BY initiation_time ASC LIMIT 20",
-                ).bind(initiation_time)
-                .fetch_all(&self.db)
-                .await.map_err(|e| {
-                    tracing::error!("DB: Failed to fetch bids: {}", e);
-                    RestError::TemporarilyUnavailable
-                })?
-            }
-            None => {
-                sqlx::query_as("SELECT * FROM bid ORDER BY initiation_time ASC LIMIT 20")
-                    .bind(initiation_time)
-                    .fetch_all(&self.db)
-                    .await
-                    .map_err(|e| {
-                        tracing::error!("DB: Failed to fetch bids: {}", e);
-                        RestError::TemporarilyUnavailable
-                    })?
-            }
-        };
-        let auctions_ids: Vec<models::AuctionId> =
-            bids.iter().filter_map(|bid| bid.auction_id).collect();
-        let auctions: Vec<models::Auction> =
-            sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
-                .bind(auctions_ids)
-                .fetch_all(&self.db)
-                .await
-                .map_err(|e| {
-                    tracing::error!("DB: Failed to fetch auctions: {}", e);
-                    RestError::TemporarilyUnavailable
-                })?;
+        let bids = self.get_bids_by_time(profile_id, initiation_time).await?;
+        let auctions = self.get_auctions_by_bids(&bids).await?;
 
         Ok(bids
             .into_iter()

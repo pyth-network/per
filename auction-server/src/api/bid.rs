@@ -98,24 +98,26 @@ pub async fn bid_status(
 }
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
+#[schema(title = "BidsResponse")]
 pub struct SimulatedBids {
     pub items: Vec<SimulatedBid>,
-    pub total: usize,
 }
 
 #[derive(Serialize, Deserialize, IntoParams)]
 pub struct GetBidsByTimeQueryParams {
-    #[param(example="The time to query the bids from. It's equal to the time the bid was received to the server.", value_type = Option <String>)]
+    #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option <String>)]
     pub initiation_time: Option<String>,
 }
 
-/// Return maximum of 20 bids which were submitted after a specific time.
+/// Returns at most 20 bids which were submitted after a specific time.
 /// If no time is provided, the server will return the first bids.
 #[utoipa::path(get, path = "/v1/bids",
+    security(
+        ("bearerAuth" = []),
+    ),
     responses(
-    (status = 200, description = "Latest status of the bid", body = BidStatus),
+    (status = 200, description = "Paginated list of bids for the specified query", body = SimulatedBids),
     (status = 400, response = ErrorBodyResponse),
-    (status = 404, description = "Bid was not found", body = ErrorBodyResponse),
 ),  params(GetBidsByTimeQueryParams),
 )]
 pub async fn get_bids_by_time(
@@ -133,10 +135,11 @@ pub async fn get_bids_by_time(
                 }
                 None => None,
             };
-            let bids = store.get_bids_by_time(profile.id, initiation_time).await?;
+            let bids = store
+                .get_simulated_bids_by_time(profile.id, initiation_time)
+                .await?;
             Ok(Json(SimulatedBids {
                 items: bids.clone(),
-                total: bids.len(),
             }))
         }
         None => {

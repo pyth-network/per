@@ -1,7 +1,10 @@
 use {
     crate::{
         api::{
-            bid::BidResult,
+            bid::{
+                BidResult,
+                SimulatedBids,
+            },
             opportunity::{
                 EIP712Domain,
                 OpportunityParamsWithMetadata,
@@ -37,6 +40,7 @@ use {
             BidStatusWithId,
             OpportunityParams,
             OpportunityParamsV1,
+            SimulatedBid,
             Store,
             TokenAmount,
         },
@@ -286,6 +290,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     paths(
     bid::bid,
     bid::bid_status,
+    bid::get_bids_by_time,
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
@@ -300,13 +305,14 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     BidStatus,
     BidStatusWithId,
     BidResult,
+    SimulatedBid,
+    SimulatedBids,
     EIP712Domain,
     OpportunityParamsV1,
     OpportunityBid,
     OpportunityParams,
     OpportunityParamsWithMetadata,
     TokenAmount,
-    BidResult,
     ErrorBodyResponse,
     ClientRequest,
     ClientMessage,
@@ -323,6 +329,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     OpportunityParamsWithMetadata,
     BidResult,
     Profile,
+    SimulatedBids,
     ),
     ),
     tags(
