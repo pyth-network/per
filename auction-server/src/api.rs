@@ -210,7 +210,7 @@ where
         match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
             Ok(token) => {
                 let state = Arc::from_ref(state);
-                let token: models::AccessTokenToken = token.0 .0.token().to_string();
+                let token: models::AccessTokenToken = token.token().to_string();
 
                 let is_admin = state.secret_key == token;
                 if is_admin {
@@ -257,7 +257,7 @@ async fn require_login_middleware(
     next: middleware::Next,
 ) -> Response {
     if auth.profile.is_none() {
-        return (StatusCode::FORBIDDEN, "Forbidden").into_response();
+        return (StatusCode::UNAUTHORIZED, "Forbidden").into_response();
     }
     next.run(req).await
 }
