@@ -56,7 +56,6 @@ use {
             BigDecimal,
         },
         Postgres,
-        Row,
         TypeInfo,
     },
     std::{
