@@ -16,18 +16,18 @@ use {
 };
 
 #[derive(Clone)]
-pub struct NullableH256(pub Option<H256>);
+pub struct TxHash(pub Option<H256>);
 
-impl From<Option<Vec<u8>>> for NullableH256 {
+impl From<Option<Vec<u8>>> for TxHash {
     fn from(value: Option<Vec<u8>>) -> Self {
         match value {
-            Some(value) => NullableH256(Some(H256::from_slice(value.as_slice()))),
-            None => NullableH256(None),
+            Some(value) => TxHash(Some(H256::from_slice(value.as_slice()))),
+            None => TxHash(None),
         }
     }
 }
 
-impl Deref for NullableH256 {
+impl Deref for TxHash {
     type Target = Option<H256>;
 
     fn deref(&self) -> &Self::Target {
@@ -44,29 +44,21 @@ pub struct Auction {
     pub permission_key:      Vec<u8>,
     pub chain_id:            String,
     #[sqlx(try_from = "Option<Vec<u8>>")]
-    pub tx_hash:             NullableH256,
+    pub tx_hash:             TxHash,
     pub bid_collection_time: Option<PrimitiveDateTime>,
     pub submission_time:     Option<PrimitiveDateTime>,
 }
 
 
 #[derive(Clone)]
-pub struct WrappedEmailAddress {
-    pub value: email_address::EmailAddress,
-}
+pub struct EmailAddress(pub email_address::EmailAddress);
 
-impl WrappedEmailAddress {
-    pub fn new(value: email_address::EmailAddress) -> Self {
-        WrappedEmailAddress { value }
-    }
-}
-
-impl TryFrom<String> for WrappedEmailAddress {
+impl TryFrom<String> for EmailAddress {
     type Error = email_address::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let value = email_address::EmailAddress::from_str(value.as_str())?;
-        Ok(WrappedEmailAddress::new(value))
+        Ok(EmailAddress(value))
     }
 }
 
@@ -76,7 +68,7 @@ pub struct Profile {
     pub id:    ProfileId,
     pub name:  String,
     #[sqlx(try_from = "String")]
-    pub email: WrappedEmailAddress,
+    pub email: EmailAddress,
 
     pub created_at: PrimitiveDateTime,
     pub updated_at: PrimitiveDateTime,

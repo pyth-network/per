@@ -9,7 +9,6 @@ use {
             handle_bid,
             Bid,
         },
-        models,
         state::{
             BidId,
             BidStatus,
@@ -62,15 +61,15 @@ pub async fn bid(
     State(store): State<Arc<Store>>,
     Json(bid): Json<Bid>,
 ) -> Result<Json<BidResult>, RestError> {
-    process_bid(store, bid, auth.profile.map(|p| p.id)).await
+    process_bid(store, bid, auth).await
 }
 
 pub async fn process_bid(
     store: Arc<Store>,
     bid: Bid,
-    profile_id: Option<models::ProfileId>,
+    auth: Auth,
 ) -> Result<Json<BidResult>, RestError> {
-    match handle_bid(store, bid, OffsetDateTime::now_utc(), profile_id).await {
+    match handle_bid(store, bid, OffsetDateTime::now_utc(), auth).await {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),
             id,
@@ -105,8 +104,8 @@ pub struct SimulatedBids {
 
 #[derive(Serialize, Deserialize, IntoParams)]
 pub struct GetBidsByTimeQueryParams {
-    #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option <String>)]
-    pub initiation_time: Option<String>,
+    #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
+    pub from_time: Option<String>,
 }
 
 /// Returns at most 20 bids which were submitted after a specific time.
@@ -125,9 +124,9 @@ pub async fn get_bids_by_time(
     State(store): State<Arc<Store>>,
     query: Query<GetBidsByTimeQueryParams>,
 ) -> Result<Json<SimulatedBids>, RestError> {
-    match auth.profile {
-        Some(profile) => {
-            let initiation_time = match query.initiation_time.clone() {
+    match auth {
+        Auth::Authorized(_, profile) => {
+            let from_time = match query.from_time.clone() {
                 Some(time) => {
                     Some(OffsetDateTime::parse(time.as_str(), &Rfc3339).map_err(|_| {
                         RestError::BadParameters("Invalid initiation time".to_string())
@@ -136,13 +135,11 @@ pub async fn get_bids_by_time(
                 None => None,
             };
             let bids = store
-                .get_simulated_bids_by_time(profile.id, initiation_time)
+                .get_simulated_bids_by_time(profile.id, from_time)
                 .await?;
-            Ok(Json(SimulatedBids {
-                items: bids.clone(),
-            }))
+            Ok(Json(SimulatedBids { items: bids }))
         }
-        None => {
+        _ => {
             tracing::error!("Unauthorized access to get_bids_by_time");
             Err(RestError::TemporarilyUnavailable)
         }

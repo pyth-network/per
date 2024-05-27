@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO access_token (id, profile_id, token)\n        SELECT $1, $2, $3\n        WHERE NOT EXISTS (\n            SELECT id\n            FROM access_token\n            WHERE profile_id = $1 AND revoked_at is NULL\n        );",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fafbeb83900b2972c34faaeaf158c6c1f28e79250cdf3a46583aea329d773e01"
+}

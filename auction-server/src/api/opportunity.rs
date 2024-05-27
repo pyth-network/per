@@ -9,7 +9,6 @@ use {
             RestError,
         },
         config::ChainId,
-        models,
         opportunity_adapter::{
             handle_opportunity_bid,
             verify_opportunity,
@@ -223,27 +222,21 @@ pub async fn opportunity_bid(
     Path(opportunity_id): Path<OpportunityId>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
-    process_opportunity_bid(
-        store,
-        opportunity_id,
-        &opportunity_bid,
-        auth.profile.map(|p| p.id),
-    )
-    .await
+    process_opportunity_bid(store, opportunity_id, &opportunity_bid, auth).await
 }
 
 pub async fn process_opportunity_bid(
     store: Arc<Store>,
     opportunity_id: OpportunityId,
     opportunity_bid: &OpportunityBid,
-    profile_id: Option<models::ProfileId>,
+    auth: Auth,
 ) -> Result<Json<BidResult>, RestError> {
     match handle_opportunity_bid(
         store,
         opportunity_id,
         opportunity_bid,
         OffsetDateTime::now_utc(),
-        profile_id,
+        auth,
     )
     .await
     {

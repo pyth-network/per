@@ -1,14 +1,14 @@
 use {
     crate::{
-        api::RestError,
+        api::{
+            Auth,
+            RestError,
+        },
         config::{
             ChainId,
             EthereumConfig,
         },
-        models::{
-            self,
-            Auction,
-        },
+        models,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -247,7 +247,7 @@ fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDate
         .any(|bid| bid_collection_time - bid.initiation_time > AUCTION_MINIMUM_LIFETIME)
 }
 
-async fn conclude_submitted_auction(store: Arc<Store>, auction: Auction) -> Result<()> {
+async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction) -> Result<()> {
     if let Some(tx_hash) = auction.tx_hash.0 {
         let chain_store = store
             .chains
@@ -540,7 +540,7 @@ pub async fn handle_bid(
     store: Arc<Store>,
     bid: Bid,
     initiation_time: OffsetDateTime,
-    profile_id: Option<models::ProfileId>,
+    auth: Auth,
 ) -> result::Result<Uuid, RestError> {
     let chain_store = store
         .chains
@@ -592,7 +592,10 @@ pub async fn handle_bid(
         chain_id: bid.chain_id.clone(),
         status: BidStatus::Pending,
         initiation_time,
-        profile_id,
+        profile_id: match auth {
+            Auth::Authorized(_, profile) => Some(profile.id),
+            _ => None,
+        },
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)

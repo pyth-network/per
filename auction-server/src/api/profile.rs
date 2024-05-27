@@ -26,30 +26,30 @@ use {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct CreateProfile {
-    /// name of the profile to create
+    /// The name of the profile to create
     #[schema(example = "John Doe", value_type = String)]
     pub name:  String,
-    /// email of the profile to create
+    /// The email of the profile to create
     #[schema(example = "example@example.com", value_type = String)]
     pub email: String,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct Profile {
-    /// name of the profile to create
+    /// The id of the profile
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     id:    ProfileId,
-    /// name of the profile to create
+    /// The name of the profile
     #[schema(example = "John Doe", value_type = String)]
     name:  String,
-    /// name of the profile to create
+    /// The email of the profile
     #[schema(example = "example@example.com", value_type = String)]
     email: EmailAddress,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct CreateAccessToken {
-    /// The token for later use
+    /// The id of the profile to create token for
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     profile_id: ProfileId,
 }
@@ -72,7 +72,6 @@ security(
 (status = 400, response = ErrorBodyResponse),
 ),)]
 pub async fn post_profile(
-    _auth: Auth,
     State(store): State<Arc<Store>>,
     Json(versioned_params): Json<CreateProfile>,
 ) -> Result<Json<Profile>, RestError> {
@@ -80,7 +79,7 @@ pub async fn post_profile(
     Ok(Json(Profile {
         id:    profile.id,
         name:  profile.name,
-        email: profile.email.value,
+        email: profile.email.0,
     }))
 }
 
@@ -113,7 +112,7 @@ pub async fn post_profile_access_token(
 security(
     ("bearerAuth" = []),
 ),
-request_body = CreateAccessToken, responses(
+responses(
 (status = 200, description = "The token successfully revoked"),
 (status = 400, response = ErrorBodyResponse),
 ),)]
@@ -121,8 +120,8 @@ pub async fn delete_profile_access_token(
     auth: Auth,
     State(store): State<Arc<Store>>,
 ) -> Result<(), RestError> {
-    match auth.token {
-        Some(token) => store.revoke_access_token(token).await,
-        None => Ok(()),
+    match auth {
+        Auth::Authorized(token, _) => store.revoke_access_token(&token).await,
+        _ => Ok(()),
     }
 }

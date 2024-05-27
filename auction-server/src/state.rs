@@ -21,7 +21,6 @@ use {
         engine::general_purpose::URL_SAFE_NO_PAD,
         Engine,
     },
-    email_address::EmailAddress,
     ethers::{
         providers::{
             Http,
@@ -35,11 +34,7 @@ use {
             U256,
         },
     },
-    rand::{
-        rngs::StdRng,
-        RngCore,
-        SeedableRng,
-    },
+    rand::Rng,
     serde::{
         Deserialize,
         Serialize,
@@ -459,7 +454,7 @@ impl Store {
             conclusion_time: None,
             permission_key: permission_key.to_vec(),
             chain_id,
-            tx_hash: models::NullableH256(None),
+            tx_hash: models::TxHash(None),
             bid_collection_time: Some(PrimitiveDateTime::new(
                 bid_collection_time.date(),
                 bid_collection_time.time(),
@@ -484,7 +479,7 @@ impl Store {
         mut auction: models::Auction,
         transaction_hash: H256,
     ) -> anyhow::Result<models::Auction> {
-        auction.tx_hash = models::NullableH256(Some(transaction_hash));
+        auction.tx_hash = models::TxHash(Some(transaction_hash));
         let now = OffsetDateTime::now_utc();
         auction.submission_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
         sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
@@ -813,11 +808,12 @@ impl Store {
         &self,
         create_profile: ApiProfile::CreateProfile,
     ) -> Result<models::Profile, RestError> {
-        let profile = sqlx::query!(
-            "INSERT INTO profile (name, email) VALUES ($1, $2) RETURNING id, name, email, created_at, updated_at",
-            create_profile.name,
-            create_profile.email.to_string(),
-        ).fetch_one(&self.db).await
+        let id = Uuid::new_v4();
+        let profile: models::Profile = sqlx::query_as(
+            "INSERT INTO profile (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, created_at, updated_at",
+        ).bind(id)
+        .bind(create_profile.name)
+        .bind(create_profile.email.to_string()).fetch_one(&self.db).await
         .map_err(|e| {
             if let Some(true) = e.as_database_error().map(|e| e.is_unique_violation()) {
                 return RestError::BadParameters("Profile with this email already exists".to_string());
@@ -825,25 +821,12 @@ impl Store {
             tracing::error!("DB: Failed to insert profile: {}", e);
             RestError::TemporarilyUnavailable
         })?;
-
-        let email = EmailAddress::from_str(&profile.email).map_err(|e| {
-            tracing::error!("DB: Failed to fetch profile email: {}", e);
-            RestError::TemporarilyUnavailable
-        })?;
-
-        Ok(models::Profile {
-            id:         profile.id,
-            name:       profile.name,
-            email:      models::WrappedEmailAddress::new(email),
-            created_at: profile.created_at,
-            updated_at: profile.updated_at,
-        })
+        Ok(profile)
     }
 
     fn generate_url_safe_token(&self) -> anyhow::Result<String> {
-        let mut rng = StdRng::from_entropy();
-        let mut bytes = [0u8; 32];
-        rng.try_fill_bytes(&mut bytes)?;
+        let mut rng = rand::thread_rng();
+        let bytes: [u8; 32] = rng.gen();
         Ok(URL_SAFE_NO_PAD.encode(bytes))
     }
 
@@ -870,14 +853,16 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
+        let id = Uuid::new_v4();
         let result = sqlx::query!(
-            "INSERT INTO access_token (profile_id, token)
-        SELECT $1, $2
+            "INSERT INTO access_token (id, profile_id, token)
+        SELECT $1, $2, $3
         WHERE NOT EXISTS (
             SELECT id
             FROM access_token
-            WHERE profile_id = $1 AND revoked_at is NULL
+            WHERE profile_id = $2 AND revoked_at is NULL
         );",
+            id,
             profile_id,
             generated_token
         )
@@ -911,7 +896,7 @@ impl Store {
 
     pub async fn revoke_access_token(
         &self,
-        token: models::AccessTokenToken,
+        token: &models::AccessTokenToken,
     ) -> Result<(), RestError> {
         sqlx::query!(
             "UPDATE access_token
@@ -926,7 +911,7 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
-        self.access_tokens.write().await.remove(&token);
+        self.access_tokens.write().await.remove(token);
         Ok(())
     }
 
@@ -945,17 +930,17 @@ impl Store {
     async fn get_bids_by_time(
         &self,
         profile_id: models::ProfileId,
-        initiation_time: Option<OffsetDateTime>,
+        from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<models::Bid>, RestError> {
         let select = "SELECT * FROM bid WHERE profile_id = $1";
         let order_by = "ORDER BY initiation_time ASC LIMIT 20";
         let query_with_time = format!("{} AND initiation_time >= $2 {}", select, order_by);
         let query_without_time = format!("{} {}", select, order_by);
 
-        let query = match initiation_time {
-            Some(initiation_time) => sqlx::query_as(query_with_time.as_str())
+        let query = match from_time {
+            Some(from_time) => sqlx::query_as(query_with_time.as_str())
                 .bind(profile_id)
-                .bind(initiation_time),
+                .bind(from_time),
             None => sqlx::query_as(query_without_time.as_str()).bind(profile_id),
         };
         query.fetch_all(&self.db).await.map_err(|e| {
@@ -983,9 +968,9 @@ impl Store {
     pub async fn get_simulated_bids_by_time(
         &self,
         profile_id: models::ProfileId,
-        initiation_time: Option<OffsetDateTime>,
+        from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<SimulatedBid>, RestError> {
-        let bids = self.get_bids_by_time(profile_id, initiation_time).await?;
+        let bids = self.get_bids_by_time(profile_id, from_time).await?;
         let auctions = self.get_auctions_by_bids(&bids).await?;
 
         Ok(bids

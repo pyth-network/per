@@ -1,8 +1,6 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 CREATE TABLE profile
 (
-    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    id         UUID         PRIMARY KEY,
     name       VARCHAR(255) NOT NULL,
     email      VARCHAR(255) NOT NULL UNIQUE,
     created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,

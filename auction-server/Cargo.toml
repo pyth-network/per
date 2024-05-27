@@ -21,6 +21,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
 async-stream = "0.3.5"
 utoipa = { version = "4.2.3", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "7.0.1", features = ["axum"] }
+utoipa-redoc = { version = "4", features = ["axum"] }
 serde_yaml = "0.9.25"
 ethers      = { version = "2.0.14", features = ["ws"] }
 axum-macros = "0.4.0"

@@ -2,6 +2,7 @@ use {
     crate::{
         api::{
             opportunity::EIP712Domain,
+            Auth,
             RestError,
         },
         auction::{
@@ -11,7 +12,6 @@ use {
             MulticallData,
             MulticallReturn,
         },
-        models,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -497,7 +497,7 @@ pub async fn handle_opportunity_bid(
     opportunity_id: OpportunityId,
     opportunity_bid: &OpportunityBid,
     initiation_time: OffsetDateTime,
-    profile_id: Option<models::ProfileId>,
+    auth: Auth,
 ) -> result::Result<Uuid, RestError> {
     let opportunities = store
         .opportunity_store
@@ -534,7 +534,7 @@ pub async fn handle_opportunity_bid(
             amount:          opportunity_bid.amount,
         },
         initiation_time,
-        profile_id,
+        auth,
     )
     .await
     {

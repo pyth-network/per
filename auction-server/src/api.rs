@@ -9,12 +9,6 @@ use {
                 EIP712Domain,
                 OpportunityParamsWithMetadata,
             },
-            profile::{
-                AccessToken,
-                CreateAccessToken,
-                CreateProfile,
-                Profile,
-            },
             ws::{
                 APIResponse,
                 ClientMessage,
@@ -99,6 +93,10 @@ use {
         OpenApi,
         ToResponse,
         ToSchema,
+    },
+    utoipa_redoc::{
+        Redoc,
+        Servable,
     },
     utoipa_swagger_ui::SwaggerUi,
 };
@@ -192,21 +190,21 @@ pub async fn live() -> Response {
     (StatusCode::OK, "OK").into_response()
 }
 
-pub struct Auth {
-    pub token:    Option<models::AccessTokenToken>,
-    pub profile:  Option<models::Profile>,
-    pub is_admin: bool,
+#[derive(Clone)]
+pub enum Auth {
+    Admin,
+    Authorized(models::AccessTokenToken, models::Profile),
+    Unauthorized,
 }
 
 #[async_trait]
-impl<S> FromRequestParts<S> for Auth
-where
-    Arc<Store>: FromRef<S>,
-    S: Send + Sync,
-{
+impl FromRequestParts<Arc<Store>> for Auth {
     type Rejection = RestError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Arc<Store>,
+    ) -> Result<Self, Self::Rejection> {
         match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
             Ok(token) => {
                 let state = Arc::from_ref(state);
@@ -214,29 +212,17 @@ where
 
                 let is_admin = state.secret_key == token;
                 if is_admin {
-                    return Ok(Self {
-                        token: None,
-                        profile: None,
-                        is_admin,
-                    });
+                    return Ok(Auth::Admin);
                 }
 
                 match state.get_profile_by_token(&token).await {
-                    Ok(profile) => Ok(Self {
-                        token: Some(token),
-                        profile: Some(profile),
-                        is_admin,
-                    }),
+                    Ok(profile) => Ok(Auth::Authorized(token, profile)),
                     Err(e) => Err(e),
                 }
             }
             Err(e) => {
                 if e.is_missing() {
-                    return Ok(Self {
-                        token:    None,
-                        profile:  None,
-                        is_admin: false,
-                    });
+                    return Ok(Auth::Unauthorized);
                 }
                 Err(RestError::InvalidToken)
             }
@@ -245,10 +231,10 @@ where
 }
 
 async fn admin_middleware(auth: Auth, req: extract::Request, next: middleware::Next) -> Response {
-    if !auth.is_admin {
-        return (StatusCode::FORBIDDEN, "Forbidden").into_response();
+    match auth {
+        Auth::Admin => next.run(req).await,
+        _ => (StatusCode::FORBIDDEN, "Forbidden").into_response(),
     }
-    next.run(req).await
 }
 
 async fn require_login_middleware(
@@ -256,10 +242,10 @@ async fn require_login_middleware(
     req: extract::Request,
     next: middleware::Next,
 ) -> Response {
-    if auth.profile.is_none() {
-        return (StatusCode::UNAUTHORIZED, "Forbidden").into_response();
+    match auth {
+        Auth::Authorized(_, _) => next.run(req).await,
+        _ => (StatusCode::UNAUTHORIZED, "Forbidden").into_response(),
     }
-    next.run(req).await
 }
 
 #[macro_export]
@@ -294,8 +280,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
-    profile::post_profile,
-    profile::post_profile_access_token,
     profile::delete_profile_access_token,
     ),
     components(
@@ -319,16 +303,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ServerResultMessage,
     ServerUpdateResponse,
     ServerResultResponse,
-    Profile,
-    CreateProfile,
-    CreateAccessToken,
-    AccessToken,
     ),
     responses(
     ErrorBodyResponse,
     OpportunityParamsWithMetadata,
     BidResult,
-    Profile,
     SimulatedBids,
     ),
     ),
@@ -344,7 +323,10 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
 
     impl Modify for SecurityAddon {
         fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
-            let components = openapi.components.as_mut().unwrap(); // we can unwrap safely since there already is components registered.
+            let components = openapi
+                .components
+                .as_mut()
+                .expect("Should have component since it is already registered.");
             components.add_security_scheme(
                 "bearerAuth",
                 SecurityScheme::Http(Http::new(HttpAuthScheme::Bearer)),
@@ -383,6 +365,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
 
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
+        .merge(Redoc::with_url("/redoc", ApiDoc::openapi()))
         .merge(v1_routes)
         .route("/", get(root))
         .route("/live", get(live))

@@ -232,7 +232,7 @@ impl Subscriber {
                 ).await
             },
             _  = self.ping_interval.tick() => {
-                if let Some(token) = self.auth.token.clone() {
+                if let Auth::Authorized(token, _) = self.auth.clone() {
                     if self.store.get_profile_by_token(&token).await.is_err() {
                         return Err(anyhow!("Invalid token. Closing connection."));
                     }
@@ -347,13 +347,7 @@ impl Subscriber {
                         ok_response
                     }
                     ClientMessage::PostBid { bid } => {
-                        match process_bid(
-                            self.store.clone(),
-                            bid,
-                            self.auth.profile.clone().map(|p| p.id),
-                        )
-                        .await
-                        {
+                        match process_bid(self.store.clone(), bid, self.auth.clone()).await {
                             Ok(bid_result) => {
                                 self.bid_ids.insert(bid_result.id);
                                 ServerResultResponse {
@@ -377,7 +371,7 @@ impl Subscriber {
                             self.store.clone(),
                             opportunity_id,
                             &opportunity_bid,
-                            self.auth.profile.clone().map(|p| p.id),
+                            self.auth.clone(),
                         )
                         .await
                         {
