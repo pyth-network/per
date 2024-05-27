@@ -353,7 +353,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
             login_required!(store, delete(profile::delete_profile_access_token)),
         );
 
-
     let v1_routes = Router::new().nest(
         "/v1",
         Router::new()
