@@ -27,7 +27,7 @@ use {
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct CreateProfile {
     /// The name of the profile to create
-    #[schema(example = "John Doe", value_type = String)]
+    #[schema(example = "John Doe")]
     pub name:  String,
     /// The email of the profile to create
     #[schema(example = "example@example.com", value_type = String)]
@@ -40,7 +40,7 @@ pub struct Profile {
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     id:    ProfileId,
     /// The name of the profile
-    #[schema(example = "John Doe", value_type = String)]
+    #[schema(example = "John Doe")]
     name:  String,
     /// The email of the profile
     #[schema(example = "example@example.com", value_type = String)]
@@ -57,7 +57,7 @@ pub struct CreateAccessToken {
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct AccessToken {
     /// The token for later use
-    #[schema(example = "accesstoken", value_type = String)]
+    #[schema(example = "_q9zUYP-tQg8F7kQi2Rfl5c6sSy7xcc2yWh2H-nI-iI", value_type = String)]
     token: String,
 }
 
@@ -73,9 +73,9 @@ security(
 ),)]
 pub async fn post_profile(
     State(store): State<Arc<Store>>,
-    Json(versioned_params): Json<CreateProfile>,
+    Json(params): Json<CreateProfile>,
 ) -> Result<Json<Profile>, RestError> {
-    let profile = store.create_profile(versioned_params.clone()).await?;
+    let profile = store.create_profile(params.clone()).await?;
     Ok(Json(Profile {
         id:    profile.id,
         name:  profile.name,
@@ -95,11 +95,9 @@ security(
 ),)]
 pub async fn post_profile_access_token(
     State(store): State<Arc<Store>>,
-    Json(versioned_params): Json<CreateAccessToken>,
+    Json(params): Json<CreateAccessToken>,
 ) -> Result<Json<AccessToken>, RestError> {
-    let (access_token, _) = store
-        .get_or_create_access_token(versioned_params.profile_id)
-        .await?;
+    let (access_token, _) = store.get_or_create_access_token(params.profile_id).await?;
     Ok(Json(AccessToken {
         token: access_token.token,
     }))
