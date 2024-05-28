@@ -79,7 +79,7 @@ local_resource(
 
 local_resource(
     "auction-server",
-    serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --relayer-private-key $RELAYER_PRIVATE_KEY",
+    serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --relayer-private-key $RELAYER_PRIVATE_KEY --secret-key $SECRET_KEY",
     serve_dir="auction-server",
     resource_deps=["create-configs"],
     readiness_probe=probe(period_secs=5, http_get=http_get_action(port=9000)),

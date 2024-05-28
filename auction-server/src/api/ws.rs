@@ -1,4 +1,5 @@
 use {
+    super::Auth,
     crate::{
         api::{
             bid::{
@@ -139,18 +140,19 @@ pub struct ServerResultResponse {
 }
 
 pub async fn ws_route_handler(
+    auth: Auth,
     ws: WebSocketUpgrade,
     State(store): State<Arc<Store>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| websocket_handler(socket, store))
+    ws.on_upgrade(move |socket| websocket_handler(socket, store, auth))
 }
 
-async fn websocket_handler(stream: WebSocket, state: Arc<Store>) {
+async fn websocket_handler(stream: WebSocket, state: Arc<Store>, auth: Auth) {
     let ws_state = &state.ws;
     let id = ws_state.subscriber_counter.fetch_add(1, Ordering::SeqCst);
     let (sender, receiver) = stream.split();
     let new_receiver = ws_state.broadcast_receiver.resubscribe();
-    let mut subscriber = Subscriber::new(id, state, new_receiver, receiver, sender);
+    let mut subscriber = Subscriber::new(id, state, new_receiver, receiver, sender, auth);
     subscriber.run().await;
 }
 
@@ -176,6 +178,7 @@ pub struct Subscriber {
     ping_interval:       tokio::time::Interval,
     exit_check_interval: tokio::time::Interval,
     responded_to_ping:   bool,
+    auth:                Auth,
 }
 
 const PING_INTERVAL_DURATION: Duration = Duration::from_secs(30);
@@ -187,6 +190,7 @@ impl Subscriber {
         notify_receiver: broadcast::Receiver<UpdateEvent>,
         receiver: SplitStream<WebSocket>,
         sender: SplitSink<WebSocket, Message>,
+        auth: Auth,
     ) -> Self {
         Self {
             id,
@@ -200,6 +204,7 @@ impl Subscriber {
             ping_interval: tokio::time::interval(PING_INTERVAL_DURATION),
             exit_check_interval: tokio::time::interval(EXIT_CHECK_INTERVAL),
             responded_to_ping: true, // We start with true so we don't close the connection immediately
+            auth,
         }
     }
 
@@ -227,6 +232,11 @@ impl Subscriber {
                 ).await
             },
             _  = self.ping_interval.tick() => {
+                if let Auth::Authorized(token, _) = self.auth.clone() {
+                    if self.store.get_profile_by_token(&token).await.is_err() {
+                        return Err(anyhow!("Invalid token. Closing connection."));
+                    }
+                }
                 if !self.responded_to_ping {
                     return Err(anyhow!("Subscriber did not respond to ping. Closing connection."));
                 }
@@ -337,7 +347,7 @@ impl Subscriber {
                         ok_response
                     }
                     ClientMessage::PostBid { bid } => {
-                        match process_bid(self.store.clone(), bid).await {
+                        match process_bid(self.store.clone(), bid, self.auth.clone()).await {
                             Ok(bid_result) => {
                                 self.bid_ids.insert(bid_result.id);
                                 ServerResultResponse {
@@ -361,6 +371,7 @@ impl Subscriber {
                             self.store.clone(),
                             opportunity_id,
                             &opportunity_bid,
+                            self.auth.clone(),
                         )
                         .await
                         {

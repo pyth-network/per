@@ -1,4 +1,5 @@
 use {
+    super::Auth,
     crate::{
         api::{
             ErrorBodyResponse,
@@ -11,12 +12,14 @@ use {
         state::{
             BidId,
             BidStatus,
+            SimulatedBid,
             Store,
         },
     },
     axum::{
         extract::{
             Path,
+            Query,
             State,
         },
         Json,
@@ -27,7 +30,9 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::sync::Arc,
+    time::format_description::well_known::Rfc3339,
     utoipa::{
+        IntoParams,
         ToResponse,
         ToSchema,
     },
@@ -52,14 +57,19 @@ pub struct BidResult {
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn bid(
+    auth: Auth,
     State(store): State<Arc<Store>>,
     Json(bid): Json<Bid>,
 ) -> Result<Json<BidResult>, RestError> {
-    process_bid(store, bid).await
+    process_bid(store, bid, auth).await
 }
 
-pub async fn process_bid(store: Arc<Store>, bid: Bid) -> Result<Json<BidResult>, RestError> {
-    match handle_bid(store, bid, OffsetDateTime::now_utc()).await {
+pub async fn process_bid(
+    store: Arc<Store>,
+    bid: Bid,
+    auth: Auth,
+) -> Result<Json<BidResult>, RestError> {
+    match handle_bid(store, bid, OffsetDateTime::now_utc(), auth).await {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),
             id,
@@ -84,4 +94,54 @@ pub async fn bid_status(
     let status_json = store.get_bid_status(bid_id).await?;
 
     Ok(status_json)
+}
+
+#[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
+#[schema(title = "BidsResponse")]
+pub struct SimulatedBids {
+    pub items: Vec<SimulatedBid>,
+}
+
+#[derive(Serialize, Deserialize, IntoParams)]
+pub struct GetBidsByTimeQueryParams {
+    #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
+    pub from_time: Option<String>,
+}
+
+/// Returns at most 20 bids which were submitted after a specific time.
+/// If no time is provided, the server will return the first bids.
+#[utoipa::path(get, path = "/v1/bids",
+    security(
+        ("bearerAuth" = []),
+    ),
+    responses(
+    (status = 200, description = "Paginated list of bids for the specified query", body = SimulatedBids),
+    (status = 400, response = ErrorBodyResponse),
+),  params(GetBidsByTimeQueryParams),
+)]
+pub async fn get_bids_by_time(
+    auth: Auth,
+    State(store): State<Arc<Store>>,
+    query: Query<GetBidsByTimeQueryParams>,
+) -> Result<Json<SimulatedBids>, RestError> {
+    match auth {
+        Auth::Authorized(_, profile) => {
+            let from_time = match query.from_time.clone() {
+                Some(time) => {
+                    Some(OffsetDateTime::parse(time.as_str(), &Rfc3339).map_err(|_| {
+                        RestError::BadParameters("Invalid initiation time".to_string())
+                    })?)
+                }
+                None => None,
+            };
+            let bids = store
+                .get_simulated_bids_by_time(profile.id, from_time)
+                .await?;
+            Ok(Json(SimulatedBids { items: bids }))
+        }
+        _ => {
+            tracing::error!("Unauthorized access to get_bids_by_time");
+            Err(RestError::TemporarilyUnavailable)
+        }
+    }
 }

@@ -2,6 +2,7 @@ use {
     crate::{
         api::{
             opportunity::EIP712Domain,
+            profile as ApiProfile,
             ws::{
                 UpdateEvent,
                 WsState,
@@ -16,6 +17,10 @@ use {
         models,
     },
     axum::Json,
+    base64::{
+        engine::general_purpose::URL_SAFE_NO_PAD,
+        Engine,
+    },
     ethers::{
         providers::{
             Http,
@@ -29,6 +34,7 @@ use {
             U256,
         },
     },
+    rand::Rng,
     serde::{
         Deserialize,
         Serialize,
@@ -55,6 +61,7 @@ use {
         str::FromStr,
         sync::Arc,
     },
+    time::UtcOffset,
     tokio::sync::{
         broadcast,
         Mutex,
@@ -70,17 +77,40 @@ use {
 
 pub type PermissionKey = Bytes;
 pub type BidAmount = U256;
+pub type GetOrCreate<T> = (T, bool);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
+#[schema(title = "BidResponse")]
 pub struct SimulatedBid {
+    /// The unique id for bid.
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub id:              BidId,
+    /// The contract address to call.
+    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: Address,
+    /// Calldata for the contract call.
+    #[schema(example = "0xdeadbeef", value_type = String)]
     pub target_calldata: Bytes,
+    /// Amount of bid in wei.
+    #[schema(example = "10", value_type = String)]
+    #[serde(with = "crate::serde::u256")]
     pub bid_amount:      BidAmount,
+    /// The permission key for bid.
+    #[schema(example = "0xdeadbeef", value_type = String)]
     pub permission_key:  PermissionKey,
+    /// The chain id for bid.
+    #[schema(example = "op_sepolia", value_type = String)]
     pub chain_id:        ChainId,
+    /// The latest status for bid.
+    #[schema(example = "op_sepolia", value_type = BidStatus)]
     pub status:          BidStatus,
+    /// The time server received the bid formatted in rfc3339.
+    #[schema(example = "2024-05-23T21:26:57.329954Z", value_type = String)]
+    #[serde(with = "time::serde::rfc3339")]
     pub initiation_time: OffsetDateTime,
+    /// The profile id for the bid owner.
+    #[schema(example = "", value_type = String)]
+    pub profile_id:      Option<models::ProfileId>,
 }
 
 pub type UnixTimestampMicros = i128;
@@ -263,11 +293,81 @@ pub struct Store {
     pub task_tracker:       TaskTracker,
     pub auction_lock:       Mutex<HashMap<AuctionKey, AuctionLock>>,
     pub submitted_auctions: RwLock<HashMap<ChainId, Vec<models::Auction>>>,
+    pub secret_key:         String,
+    pub access_tokens:      RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
 }
 
 impl SimulatedBid {
     pub fn get_auction_key(&self) -> AuctionKey {
         (self.permission_key.clone(), self.chain_id.clone())
+    }
+}
+
+impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatus {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        (bid, auction): (models::Bid, Option<models::Auction>),
+    ) -> Result<Self, Self::Error> {
+        if !bid.is_for_auction(&auction) {
+            return Err(anyhow::anyhow!("Bid is not for the given auction"));
+        }
+        if bid.status == models::BidStatus::Pending {
+            Ok(BidStatus::Pending)
+        } else {
+            let result = match auction {
+                Some(auction) => auction.tx_hash.0,
+                None => None,
+            };
+            let index = bid.bundle_index;
+            if bid.status == models::BidStatus::Lost {
+                Ok(BidStatus::Lost {
+                    result,
+                    index: index.0,
+                })
+            } else {
+                if result.is_none() || index.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Won or submitted bid must have a transaction hash and index"
+                    ));
+                }
+                let result = result.unwrap();
+                let index = index.unwrap();
+                if bid.status == models::BidStatus::Won {
+                    Ok(BidStatus::Won { result, index })
+                } else if bid.status == models::BidStatus::Submitted {
+                    Ok(BidStatus::Submitted { result, index })
+                } else {
+                    Err(anyhow::anyhow!("Invalid bid status".to_string()))
+                }
+            }
+        }
+    }
+}
+
+impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBid {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        (bid, auction): (models::Bid, Option<models::Auction>),
+    ) -> Result<Self, Self::Error> {
+        if !bid.is_for_auction(&auction) {
+            return Err(anyhow::anyhow!("Bid is not for the given auction"));
+        }
+        let bid_amount = BidAmount::from_dec_str(bid.bid_amount.to_string().as_str())
+            .map_err(|e| anyhow::anyhow!(e))?;
+        let bid_with_auction = (bid.clone(), auction);
+        Ok(SimulatedBid {
+            id: bid.id,
+            target_contract: Address::from_slice(&bid.target_contract),
+            target_calldata: Bytes::from(bid.target_calldata),
+            bid_amount,
+            permission_key: Bytes::from(bid.permission_key),
+            chain_id: bid.chain_id,
+            status: bid_with_auction.try_into()?,
+            initiation_time: bid.initiation_time.assume_offset(UtcOffset::UTC),
+            profile_id: bid.profile_id,
+        })
     }
 }
 
@@ -354,7 +454,7 @@ impl Store {
             conclusion_time: None,
             permission_key: permission_key.to_vec(),
             chain_id,
-            tx_hash: None,
+            tx_hash: models::TxHash(None),
             bid_collection_time: Some(PrimitiveDateTime::new(
                 bid_collection_time.date(),
                 bid_collection_time.time(),
@@ -379,7 +479,7 @@ impl Store {
         mut auction: models::Auction,
         transaction_hash: H256,
     ) -> anyhow::Result<models::Auction> {
-        auction.tx_hash = Some(transaction_hash);
+        auction.tx_hash = models::TxHash(Some(transaction_hash));
         let now = OffsetDateTime::now_utc();
         auction.submission_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
         sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
@@ -444,7 +544,7 @@ impl Store {
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
-        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time, profile_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
         bid.permission_key.to_vec(),
@@ -454,6 +554,7 @@ impl Store {
         BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
         bid.status as _,
         PrimitiveDateTime::new(bid.initiation_time.date(), bid.initiation_time.time()),
+        bid.profile_id,
         )
             .execute(&self.db)
             .await.map_err(|e| {
@@ -543,7 +644,7 @@ impl Store {
                 auction.chain_id.clone(),
             ))
             .await;
-        match auction.tx_hash {
+        match auction.tx_hash.0 {
             Some(tx_hash) => bids
                 .into_iter()
                 .filter(|bid| match bid.status {
@@ -701,5 +802,193 @@ impl Store {
                 mutex_gaurd.remove(key);
             }
         }
+    }
+
+    pub async fn create_profile(
+        &self,
+        create_profile: ApiProfile::CreateProfile,
+    ) -> Result<models::Profile, RestError> {
+        let id = Uuid::new_v4();
+        let profile: models::Profile = sqlx::query_as(
+            "INSERT INTO profile (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, created_at, updated_at",
+        ).bind(id)
+        .bind(create_profile.name)
+        .bind(create_profile.email.to_string()).fetch_one(&self.db).await
+        .map_err(|e| {
+            if let Some(true) = e.as_database_error().map(|e| e.is_unique_violation()) {
+                return RestError::BadParameters("Profile with this email already exists".to_string());
+            }
+            tracing::error!("DB: Failed to insert profile: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+        Ok(profile)
+    }
+
+    fn generate_url_safe_token(&self) -> anyhow::Result<String> {
+        let mut rng = rand::thread_rng();
+        let bytes: [u8; 32] = rng.gen();
+        Ok(URL_SAFE_NO_PAD.encode(bytes))
+    }
+
+    pub async fn get_profile_by_id(
+        &self,
+        id: models::ProfileId,
+    ) -> Result<models::Profile, RestError> {
+        sqlx::query_as("SELECT * FROM profile WHERE id = $1")
+            .bind(id)
+            .fetch_one(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch profile: {}", e);
+                RestError::TemporarilyUnavailable
+            })
+    }
+
+    pub async fn get_or_create_access_token(
+        &self,
+        profile_id: models::ProfileId,
+    ) -> Result<GetOrCreate<models::AccessToken>, RestError> {
+        let generated_token = self.generate_url_safe_token().map_err(|e| {
+            tracing::error!("Failed to generate access token: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        let id = Uuid::new_v4();
+        let result = sqlx::query!(
+            "INSERT INTO access_token (id, profile_id, token)
+        SELECT $1, $2, $3
+        WHERE NOT EXISTS (
+            SELECT id
+            FROM access_token
+            WHERE profile_id = $2 AND revoked_at is NULL
+        );",
+            id,
+            profile_id,
+            generated_token
+        )
+        .execute(&self.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB: Failed to create access token: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        let token = sqlx::query_as!(
+            models::AccessToken,
+            "SELECT * FROM access_token
+        WHERE profile_id = $1 AND revoked_at is NULL;",
+            profile_id,
+        )
+        .fetch_one(&self.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB: Failed to fetch access token: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        let profile = self.get_profile_by_id(profile_id).await?;
+        self.access_tokens
+            .write()
+            .await
+            .insert(token.token.clone(), profile);
+        Ok((token, result.rows_affected() > 0))
+    }
+
+    pub async fn revoke_access_token(
+        &self,
+        token: &models::AccessTokenToken,
+    ) -> Result<(), RestError> {
+        sqlx::query!(
+            "UPDATE access_token
+        SET revoked_at = now()
+        WHERE token = $1 AND revoked_at is NULL;",
+            token
+        )
+        .execute(&self.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB: Failed to revoke access token: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        self.access_tokens.write().await.remove(token);
+        Ok(())
+    }
+
+    pub async fn get_profile_by_token(
+        &self,
+        token: &models::AccessTokenToken,
+    ) -> Result<models::Profile, RestError> {
+        self.access_tokens
+            .read()
+            .await
+            .get(token)
+            .cloned()
+            .ok_or(RestError::InvalidToken)
+    }
+
+    async fn get_bids_by_time(
+        &self,
+        profile_id: models::ProfileId,
+        from_time: Option<OffsetDateTime>,
+    ) -> Result<Vec<models::Bid>, RestError> {
+        let select = "SELECT * FROM bid WHERE profile_id = $1";
+        let order_by = "ORDER BY initiation_time ASC LIMIT 20";
+        let query_with_time = format!("{} AND initiation_time >= $2 {}", select, order_by);
+        let query_without_time = format!("{} {}", select, order_by);
+
+        let query = match from_time {
+            Some(from_time) => sqlx::query_as(query_with_time.as_str())
+                .bind(profile_id)
+                .bind(from_time),
+            None => sqlx::query_as(query_without_time.as_str()).bind(profile_id),
+        };
+        query.fetch_all(&self.db).await.map_err(|e| {
+            tracing::error!("DB: Failed to fetch bids: {}", e);
+            RestError::TemporarilyUnavailable
+        })
+    }
+
+    async fn get_auctions_by_bids(
+        &self,
+        bids: &[models::Bid],
+    ) -> Result<Vec<models::Auction>, RestError> {
+        let auction_ids: Vec<models::AuctionId> =
+            bids.iter().filter_map(|bid| bid.auction_id).collect();
+        sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
+            .bind(auction_ids)
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch auctions: {}", e);
+                RestError::TemporarilyUnavailable
+            })
+    }
+
+    pub async fn get_simulated_bids_by_time(
+        &self,
+        profile_id: models::ProfileId,
+        from_time: Option<OffsetDateTime>,
+    ) -> Result<Vec<SimulatedBid>, RestError> {
+        let bids = self.get_bids_by_time(profile_id, from_time).await?;
+        let auctions = self.get_auctions_by_bids(&bids).await?;
+
+        Ok(bids
+            .into_iter()
+            .filter_map(|b| {
+                let auction = match b.auction_id {
+                    Some(auction_id) => auctions.clone().into_iter().find(|a| a.id == auction_id),
+                    None => None,
+                };
+                let result: anyhow::Result<SimulatedBid> = (b, auction).try_into();
+                match result {
+                    Ok(bid) => Some(bid),
+                    Err(e) => {
+                        tracing::error!("Failed to convert bid to SimulatedBid: {}", e);
+                        None
+                    }
+                }
+            })
+            .collect())
     }
 }

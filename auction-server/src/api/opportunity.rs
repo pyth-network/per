@@ -1,4 +1,5 @@
 use {
+    super::Auth,
     crate::{
         api::{
             bid::BidResult,
@@ -216,23 +217,26 @@ params(("opportunity_id" = String, description = "Opportunity id to bid on")), r
 (status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn opportunity_bid(
+    auth: Auth,
     State(store): State<Arc<Store>>,
     Path(opportunity_id): Path<OpportunityId>,
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
-    process_opportunity_bid(store, opportunity_id, &opportunity_bid).await
+    process_opportunity_bid(store, opportunity_id, &opportunity_bid, auth).await
 }
 
 pub async fn process_opportunity_bid(
     store: Arc<Store>,
     opportunity_id: OpportunityId,
     opportunity_bid: &OpportunityBid,
+    auth: Auth,
 ) -> Result<Json<BidResult>, RestError> {
     match handle_opportunity_bid(
         store,
         opportunity_id,
         opportunity_bid,
         OffsetDateTime::now_utc(),
+        auth,
     )
     .await
     {

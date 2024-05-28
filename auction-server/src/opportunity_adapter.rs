@@ -2,6 +2,7 @@ use {
     crate::{
         api::{
             opportunity::EIP712Domain,
+            Auth,
             RestError,
         },
         auction::{
@@ -496,6 +497,7 @@ pub async fn handle_opportunity_bid(
     opportunity_id: OpportunityId,
     opportunity_bid: &OpportunityBid,
     initiation_time: OffsetDateTime,
+    auth: Auth,
 ) -> result::Result<Uuid, RestError> {
     let opportunities = store
         .opportunity_store
@@ -532,6 +534,7 @@ pub async fn handle_opportunity_bid(
             amount:          opportunity_bid.amount,
         },
         initiation_time,
+        auth,
     )
     .await
     {

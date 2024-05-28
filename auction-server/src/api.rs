@@ -1,7 +1,10 @@
 use {
     crate::{
         api::{
-            bid::BidResult,
+            bid::{
+                BidResult,
+                SimulatedBids,
+            },
             opportunity::{
                 EIP712Domain,
                 OpportunityParamsWithMetadata,
@@ -20,6 +23,7 @@ use {
             ChainId,
             RunOptions,
         },
+        models,
         opportunity_adapter::OpportunityBid,
         server::{
             EXIT_CHECK_INTERVAL,
@@ -30,23 +34,42 @@ use {
             BidStatusWithId,
             OpportunityParams,
             OpportunityParamsV1,
+            SimulatedBid,
             Store,
             TokenAmount,
         },
     },
     anyhow::Result,
     axum::{
-        http::StatusCode,
+        async_trait,
+        extract::{
+            self,
+            FromRef,
+            FromRequestParts,
+        },
+        http::{
+            request::Parts,
+            StatusCode,
+        },
+        middleware,
         response::{
             IntoResponse,
             Response,
         },
         routing::{
+            delete,
             get,
             post,
         },
         Json,
         Router,
+    },
+    axum_extra::{
+        headers::{
+            authorization::Bearer,
+            Authorization,
+        },
+        TypedHeader,
     },
     clap::crate_version,
     ethers::types::Bytes,
@@ -60,10 +83,20 @@ use {
     },
     tower_http::cors::CorsLayer,
     utoipa::{
+        openapi::security::{
+            Http,
+            HttpAuthScheme,
+            SecurityScheme,
+        },
         IntoParams,
+        Modify,
         OpenApi,
         ToResponse,
         ToSchema,
+    },
+    utoipa_redoc::{
+        Redoc,
+        Servable,
     },
     utoipa_swagger_ui::SwaggerUi,
 };
@@ -74,6 +107,7 @@ async fn root() -> String {
 
 mod bid;
 pub(crate) mod opportunity;
+pub mod profile;
 pub(crate) mod ws;
 
 pub enum RestError {
@@ -91,6 +125,8 @@ pub enum RestError {
     BidNotFound,
     /// Internal error occurred during processing the request
     TemporarilyUnavailable,
+    /// Invalid auth token
+    InvalidToken,
 }
 
 impl RestError {
@@ -123,6 +159,10 @@ impl RestError {
                 StatusCode::SERVICE_UNAVAILABLE,
                 "This service is temporarily unavailable".to_string(),
             ),
+            RestError::InvalidToken => (
+                StatusCode::UNAUTHORIZED,
+                "Invalid authorization token".to_string(),
+            ),
         }
     }
 }
@@ -150,6 +190,85 @@ pub async fn live() -> Response {
     (StatusCode::OK, "OK").into_response()
 }
 
+#[derive(Clone)]
+pub enum Auth {
+    Admin,
+    Authorized(models::AccessTokenToken, models::Profile),
+    Unauthorized,
+}
+
+#[async_trait]
+impl FromRequestParts<Arc<Store>> for Auth {
+    type Rejection = RestError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Arc<Store>,
+    ) -> Result<Self, Self::Rejection> {
+        match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
+            Ok(token) => {
+                let state = Arc::from_ref(state);
+                let token: models::AccessTokenToken = token.token().to_string();
+
+                let is_admin = state.secret_key == token;
+                if is_admin {
+                    return Ok(Auth::Admin);
+                }
+
+                match state.get_profile_by_token(&token).await {
+                    Ok(profile) => Ok(Auth::Authorized(token, profile)),
+                    Err(e) => Err(e),
+                }
+            }
+            Err(e) => {
+                if e.is_missing() {
+                    return Ok(Auth::Unauthorized);
+                }
+                Err(RestError::InvalidToken)
+            }
+        }
+    }
+}
+
+async fn admin_middleware(auth: Auth, req: extract::Request, next: middleware::Next) -> Response {
+    match auth {
+        Auth::Admin => next.run(req).await,
+        _ => (StatusCode::FORBIDDEN, "Forbidden").into_response(),
+    }
+}
+
+async fn require_login_middleware(
+    auth: Auth,
+    req: extract::Request,
+    next: middleware::Next,
+) -> Response {
+    match auth {
+        Auth::Authorized(_, _) => next.run(req).await,
+        _ => (StatusCode::UNAUTHORIZED, "Forbidden").into_response(),
+    }
+}
+
+#[macro_export]
+macro_rules! admin_only {
+    ($state:expr, $route:expr) => {
+        $route.layer(middleware::from_fn_with_state(
+            $state.clone(),
+            admin_middleware,
+        ))
+    };
+}
+
+// Admin secret key is not considered as logged in user
+#[macro_export]
+macro_rules! login_required {
+    ($state:expr, $route:expr) => {
+        $route.layer(middleware::from_fn_with_state(
+            $state.clone(),
+            require_login_middleware,
+        ))
+    };
+}
+
 pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
@@ -157,9 +276,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     paths(
     bid::bid,
     bid::bid_status,
+    bid::get_bids_by_time,
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
+    profile::delete_profile_access_token,
     ),
     components(
     schemas(
@@ -168,51 +289,95 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     BidStatus,
     BidStatusWithId,
     BidResult,
+    SimulatedBid,
+    SimulatedBids,
     EIP712Domain,
     OpportunityParamsV1,
     OpportunityBid,
     OpportunityParams,
     OpportunityParamsWithMetadata,
     TokenAmount,
-    BidResult,
     ErrorBodyResponse,
     ClientRequest,
     ClientMessage,
     ServerResultMessage,
     ServerUpdateResponse,
-    ServerResultResponse
+    ServerResultResponse,
     ),
     responses(
     ErrorBodyResponse,
     OpportunityParamsWithMetadata,
-    BidResult
+    BidResult,
+    SimulatedBids,
     ),
     ),
     tags(
     (name = "Express Relay Auction Server", description = "Auction Server handles all the necessary communications\
     between searchers and protocols. It conducts the auctions and submits the winning bids on chain.")
-    )
+    ),
+    modifiers(&SecurityAddon)
     )]
     struct ApiDoc;
 
+    struct SecurityAddon;
+
+    impl Modify for SecurityAddon {
+        fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+            let components = openapi
+                .components
+                .as_mut()
+                .expect("Should have component since it is already registered.");
+            components.add_security_scheme(
+                "bearerAuth",
+                SecurityScheme::Http(Http::new(HttpAuthScheme::Bearer)),
+            )
+        }
+    }
+
+    let bid_routes = Router::new()
+        .route("/", post(bid::bid))
+        .route("/", login_required!(store, get(bid::get_bids_by_time)))
+        .route("/:bid_id", get(bid::bid_status));
+    let opportunity_routes = Router::new()
+        .route("/", post(opportunity::post_opportunity))
+        .route("/", get(opportunity::get_opportunities))
+        .route("/:opportunity_id/bids", post(opportunity::opportunity_bid));
+    let profile_routes = Router::new()
+        .route("/", admin_only!(store, post(profile::post_profile)))
+        .route(
+            "/access_tokens",
+            admin_only!(store, post(profile::post_profile_access_token)),
+        )
+        .route(
+            "/access_tokens",
+            login_required!(store, delete(profile::delete_profile_access_token)),
+        );
+
+    let v1_routes = Router::new().nest(
+        "/v1",
+        Router::new()
+            .nest("/bids", bid_routes)
+            .nest("/opportunities", opportunity_routes)
+            .nest("/profiles", profile_routes)
+            .route("/ws", get(ws::ws_route_handler)),
+    );
+
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
+        .merge(Redoc::with_url("/redoc", ApiDoc::openapi()))
+        .merge(v1_routes)
         .route("/", get(root))
-        .route("/v1/bids", post(bid::bid))
-        .route("/v1/bids/:bid_id", get(bid::bid_status))
-        .route("/v1/opportunities", post(opportunity::post_opportunity))
-        .route("/v1/opportunities", get(opportunity::get_opportunities))
-        .route(
-            "/v1/opportunities/:opportunity_id/bids",
-            post(opportunity::opportunity_bid),
-        )
-        .route("/v1/ws", get(ws::ws_route_handler))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
+        .layer(middleware::from_extractor_with_state::<Auth, Arc<Store>>(
+            store.clone(),
+        ))
         .with_state(store);
 
-    axum::Server::bind(&run_options.server.listen_addr)
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(&run_options.server.listen_addr)
+        .await
+        .unwrap();
+    axum::serve(listener, app)
         .with_graceful_shutdown(async {
             while !SHOULD_EXIT.load(Ordering::Acquire) {
                 tokio::time::sleep(EXIT_CHECK_INTERVAL).await;
