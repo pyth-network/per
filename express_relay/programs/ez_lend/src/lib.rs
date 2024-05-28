@@ -226,7 +226,7 @@ pub struct Liquidate<'info> {
         bump,
         seeds::program = EXPRESS_RELAY_PROGRAM_ID
     )]
-    pub permission: Account<'info, PermissionMetadata>,
+    pub permission: AccountLoader<'info, PermissionMetadata>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }

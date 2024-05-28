@@ -6,4 +6,8 @@ pub enum OpportunityAdapterError {
     NoTokenChecking,
     #[msg("Token expectation not met")]
     TokenExpectationNotMet,
+    #[msg("Signature expired")]
+    SignatureExpired,
+    #[msg("Signature verification failed")]
+    SignatureVerificationFailed,
 }

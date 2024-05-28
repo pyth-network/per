@@ -22,12 +22,12 @@ async fn test_permission_depermission() {
     let split_protocol_default: u64 = 2000;
     let split_relayer: u64 = 1000;
 
-    let searcher_lamports = 2_000_000_000;
+    let searcher_lamports = 20_000_000_000;
 
     program_test.add_account(
         payer.pubkey(),
         Account {
-            lamports: 1_000_000_000,
+            lamports: 10_000_000_000,
             ..Account::default()
         },
     );
@@ -41,7 +41,7 @@ async fn test_permission_depermission() {
     program_test.add_account(
         relayer_signer.pubkey(),
         Account {
-            lamports: 1_000_000_000,
+            lamports: 30_000_000_000,
             ..Account::default()
         },
     );
@@ -50,15 +50,13 @@ async fn test_permission_depermission() {
 
     initialize(&mut program_context, payer, admin, relayer_signer.pubkey(), relayer_fee_receiver, split_protocol_default, split_relayer).await;
 
-    let permission_id: [u8; 32] = [0; 32];
+    let permission_id: [u8; 32] = [255; 32];
     let bid_id: [u8; 16] = [0; 16];
     // NOTE: bid needs to be large enough to avoid running into insufficient rent errors
     let bid_amount = 100_000_000;
     // TODO: replace with another program's id?
     let protocol = express_relay::id();
     let permission = Pubkey::find_program_address(&[SEED_PERMISSION, &protocol.to_bytes(), &permission_id], &express_relay::id()).0;
-
-    let send_sol_ix = system_instruction::transfer(&searcher.pubkey(), &permission, bid_amount);
 
     let (permission_balance, relayer_fee_receiver_balance, protocol_balance) = express_relay_tx(
         &mut program_context,
@@ -67,8 +65,7 @@ async fn test_permission_depermission() {
         protocol,
         permission_id.into(),
         bid_id,
-        bid_amount,
-        send_sol_ix
+        bid_amount
     ).await;
 
     let expected_fees_protocol = 20_000_000;

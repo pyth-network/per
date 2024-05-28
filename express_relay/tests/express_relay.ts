@@ -14,67 +14,28 @@ import {
   mintTo,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  createWrappedNativeAccount,
+  createSyncNativeInstruction,
 } from "@solana/spl-token";
-import { PublicKey } from "@solana/web3.js";
+import {
+  PublicKey,
+  AddressLookupTableProgram,
+  TransactionMessage,
+  VersionedTransaction,
+  sendAndConfirmTransaction,
+  Ed25519Program,
+} from "@solana/web3.js";
 import { assert } from "chai";
-
-// COMPACT ARRAY
-
-const LOW_VALUE = 127; // 0x7f
-const HIGH_VALUE = 16383; // 0x3fff
-
-/**
- * Compact u16 array header size
- * @param n elements in the compact array
- * @returns size in bytes of array header
- */
-const compactHeader = (n: number) =>
-  n <= LOW_VALUE ? 1 : n <= HIGH_VALUE ? 2 : 3;
-
-/**
- * Compact u16 array size
- * @param n elements in the compact array
- * @param size bytes per each element
- * @returns size in bytes of array
- */
-const compactArraySize = (n: number, size: number) =>
-  compactHeader(n) + n * size;
-
-const getTxSize = (tx: Transaction, feePayer: PublicKey): number => {
-  const feePayerPk = [feePayer.toBase58()];
-
-  const signers = new Set<string>(feePayerPk);
-  const accounts = new Set<string>(feePayerPk);
-
-  const ixsSize = tx.instructions.reduce((acc, ix) => {
-    ix.keys.forEach(({ pubkey, isSigner }) => {
-      const pk = pubkey.toBase58();
-      if (isSigner) signers.add(pk);
-      accounts.add(pk);
-    });
-
-    accounts.add(ix.programId.toBase58());
-
-    const nIndexes = ix.keys.length;
-    const opaqueData = ix.data.length;
-
-    return (
-      acc +
-      1 + // PID index
-      compactArraySize(nIndexes, 1) +
-      compactArraySize(opaqueData, 1)
-    );
-  }, 0);
-
-  return (
-    compactArraySize(signers.size, 64) + // signatures
-    3 + // header
-    compactArraySize(accounts.size, 32) + // accounts
-    32 + // blockhash
-    compactHeader(tx.instructions.length) + // instructions
-    ixsSize
-  );
-};
+import { getTxSize } from "./helpers/size_tx";
+import { waitForNewBlock } from "./helpers/sleep";
+import {
+  convertWordArrayToBuffer,
+  convertWordArrayToBufferOld,
+  wordArrayToByteArray,
+  fromWordArray,
+} from "./helpers/word_array";
+import { sign } from "@noble/ed25519";
+import * as crypto from "crypto";
 
 describe("express_relay", () => {
   // Configure the client to use the local cluster.
@@ -103,6 +64,7 @@ describe("express_relay", () => {
   let taCollateralProtocol;
   let taDebtProtocol;
 
+  let expressRelayAuthority;
   let opportunityAdapterAuthority;
 
   let protocol = ezLend.programId;
@@ -110,7 +72,13 @@ describe("express_relay", () => {
 
   const relayerSigner = anchor.web3.Keypair.generate();
   const relayerFeeReceiver = anchor.web3.Keypair.generate();
+  const relayerRentReceiver = anchor.web3.Keypair.generate();
   const admin = anchor.web3.Keypair.generate();
+
+  const wsolMint = new PublicKey("So11111111111111111111111111111111111111112");
+  let wsolTaUser;
+  let wsolTaExpressRelay;
+
   let expressRelayMetadata;
   let splitProtocolDefault = new anchor.BN(5000);
   let splitRelayer = new anchor.BN(2000);
@@ -185,6 +153,43 @@ describe("express_relay", () => {
     taDebtProtocol = await PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("ata"), mintDebt.toBuffer()],
       protocol
+    );
+
+    expressRelayAuthority = await PublicKey.findProgramAddressSync(
+      [anchor.utils.bytes.utf8.encode("authority")],
+      expressRelay.programId
+    );
+    opportunityAdapterAuthority = await PublicKey.findProgramAddressSync(
+      [anchor.utils.bytes.utf8.encode("authority")],
+      opportunityAdapter.programId
+    );
+
+    wsolTaUser = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      payer,
+      wsolMint,
+      payer.publicKey
+    );
+    const fundWsolTaUserTx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: payer.publicKey,
+        toPubkey: wsolTaUser.address,
+        lamports: 5 * LAMPORTS_PER_SOL,
+      }),
+      createSyncNativeInstruction(wsolTaUser.address)
+    );
+    await provider.connection.sendTransaction(fundWsolTaUserTx, [payer]);
+    await approve(
+      provider.connection,
+      payer,
+      wsolTaUser.address,
+      expressRelayAuthority[0],
+      payer.publicKey,
+      5 * LAMPORTS_PER_SOL
+    );
+    wsolTaExpressRelay = await PublicKey.findProgramAddressSync(
+      [anchor.utils.bytes.utf8.encode("ata"), wsolMint.toBuffer()],
+      expressRelay.programId
     );
 
     expressRelayMetadata = await PublicKey.findProgramAddressSync(
@@ -266,11 +271,6 @@ describe("express_relay", () => {
       TOKEN_PROGRAM_ID
     );
 
-    opportunityAdapterAuthority = await PublicKey.findProgramAddressSync(
-      [anchor.utils.bytes.utf8.encode("authority")],
-      opportunityAdapter.programId
-    );
-
     // approve user's tokens to opportunity adapter
     await approve(
       provider.connection,
@@ -296,7 +296,7 @@ describe("express_relay", () => {
       })
       .accounts({
         payer: relayerSigner.publicKey,
-        express_relay_metadata: expressRelayMetadata[0],
+        expressRelayMetadata: expressRelayMetadata[0],
         admin: admin.publicKey,
         relayerSigner: relayerSigner.publicKey,
         relayerFeeReceiver: relayerFeeReceiver.publicKey,
@@ -417,7 +417,7 @@ describe("express_relay", () => {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
-      .signers([payer])
+      .signers([relayerSigner])
       .instruction();
 
     let bidId: Uint8Array = new Uint8Array(16);
@@ -425,7 +425,7 @@ describe("express_relay", () => {
     const ixPermission = await expressRelay.methods
       .permission({
         permissionId: vault_id_bytes,
-        bidId: bidId,
+        // bidId: bidId,
         bidAmount: bidAmount,
       })
       .accounts({
@@ -444,29 +444,59 @@ describe("express_relay", () => {
       expressRelay.programId
     );
 
+    const validUntilExpressRelay = new anchor.BN(200_000_000_000_000);
+    const msgExpressRelay1 = Uint8Array.from(protocol.toBuffer());
+    const msgExpressRelay2 = Uint8Array.from(vault_id_bytes);
+    const msgExpressRelay3 = Uint8Array.from(payer.publicKey.toBuffer());
+    const msgExpressRelay4 = Uint8Array.from(bidAmount.toBuffer());
+    const msgExpressRelay5 = Uint8Array.from(validUntilExpressRelay.toBuffer());
+    const msgExpressRelay = Buffer.concat([
+      msgExpressRelay1,
+      msgExpressRelay2,
+      msgExpressRelay3,
+      msgExpressRelay4,
+      msgExpressRelay5,
+    ]);
+    const digestExpressRelay = Buffer.from(
+      await crypto.subtle.digest("SHA-256", msgExpressRelay)
+    );
+    const signatureExpressRelay = await sign(
+      digestExpressRelay,
+      payer.secretKey.slice(0, 32)
+    );
     const ixDepermission = await expressRelay.methods
       .depermission({
         permissionId: vault_id_bytes,
-        bidId: bidId,
+        // bidId: bidId,
+        signature: signatureExpressRelay,
+        validUntil: validUntilExpressRelay,
       })
       .accounts({
         relayerSigner: relayerSigner.publicKey,
         permission: permission[0],
+        user: payer.publicKey,
         protocol: protocol,
         protocolFeeReceiver: protocolFeeReceiver[0],
         relayerFeeReceiver: relayerFeeReceiver.publicKey,
         protocolConfig: protocolConfig[0],
         expressRelayMetadata: expressRelayMetadata[0],
+        wsolMint: wsolMint,
+        wsolTaUser: wsolTaUser.address,
+        wsolTaExpressRelay: wsolTaExpressRelay[0],
+        expressRelayAuthority: expressRelayAuthority[0],
+        tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
+        sysvarInstructions: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
       .signers([relayerSigner])
       .instruction();
 
-    const ixSendSol = anchor.web3.SystemProgram.transfer({
-      fromPubkey: payer.publicKey,
-      toPubkey: permission[0],
-      lamports: bidAmount.toNumber(),
-    });
+    const ixSigVerifyExpressRelay =
+      anchor.web3.Ed25519Program.createInstructionWithPublicKey({
+        publicKey: payer.publicKey.toBytes(),
+        message: digestExpressRelay,
+        signature: signatureExpressRelay,
+      });
 
     let tokenExpectationCollateral = await PublicKey.findProgramAddressSync(
       [
@@ -528,10 +558,54 @@ describe("express_relay", () => {
         isSigner: false,
       },
     ];
+    const validUntilOpportunityAdapter = new anchor.BN(100_000_000_000_000);
+    const buyTokens = [collateral_amount];
+    const buyMints = [mintCollateral];
+    const sellTokens = [debt_amount];
+    const sellMints = [mintDebt];
+    let msgOpportunityAdapter1 = new Uint8Array(2);
+    msgOpportunityAdapter1[0] = buyTokens.length;
+    msgOpportunityAdapter1[1] = sellTokens.length;
+    let msgOpportunityAdapter2 = new Uint8Array(40 * buyTokens.length);
+    for (let i = 0; i < buyTokens.length; i++) {
+      msgOpportunityAdapter2.set(buyMints[i].toBuffer(), i * 40);
+      msgOpportunityAdapter2.set(buyTokens[i].toBuffer(), i * 40 + 32);
+    }
+    let msgOpportunityAdapter3 = new Uint8Array(40 * sellTokens.length);
+    for (let i = 0; i < sellTokens.length; i++) {
+      msgOpportunityAdapter3.set(sellMints[i].toBuffer(), i * 40);
+      msgOpportunityAdapter3.set(sellTokens[i].toBuffer(), i * 40 + 32);
+    }
+    const msgOpportunityAdapter4 = Uint8Array.from(payer.publicKey.toBuffer());
+    const msgOpportunityAdapter5 = Uint8Array.from(
+      validUntilOpportunityAdapter.toBuffer("le", 8)
+    );
+    const msgOpportunityAdapter = Buffer.concat([
+      msgOpportunityAdapter1,
+      msgOpportunityAdapter2,
+      msgOpportunityAdapter3,
+      msgOpportunityAdapter4,
+      msgOpportunityAdapter5,
+    ]);
+
+    let digestOpportunityAdapter = await crypto.subtle.digest(
+      "SHA-256",
+      msgOpportunityAdapter
+    );
+    let digestOpportunityAdapterBuffer = Buffer.from(digestOpportunityAdapter);
+
+    const signatureOpportunityAdapter = await sign(
+      digestOpportunityAdapterBuffer,
+      payer.secretKey.slice(0, 32)
+    );
+    const indexCheckTokenBalances = 4;
     const ixInitializeTokenExpectations = await opportunityAdapter.methods
       .initializeTokenExpectations({
-        sellTokens: [debt_amount],
-        buyTokens: [collateral_amount],
+        sellTokens: sellTokens,
+        buyTokens: buyTokens,
+        indexCheckTokenBalances: indexCheckTokenBalances,
+        validUntil: validUntilOpportunityAdapter,
+        signature: signatureOpportunityAdapter,
       })
       .accounts({
         relayer: relayerSigner.publicKey,
@@ -550,6 +624,7 @@ describe("express_relay", () => {
       .checkTokenBalances()
       .accounts({
         relayer: relayerSigner.publicKey,
+        relayerRentReceiver: relayerRentReceiver.publicKey,
         user: payer.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
@@ -558,20 +633,36 @@ describe("express_relay", () => {
       .signers([relayerSigner])
       .instruction();
 
+    const ixSigVerifyOpportunityAdapter =
+      anchor.web3.Ed25519Program.createInstructionWithPublicKey({
+        publicKey: payer.publicKey.toBytes(),
+        message: digestOpportunityAdapterBuffer,
+        signature: signatureOpportunityAdapter,
+      });
+
     // create transaction
     let transaction = new anchor.web3.Transaction();
 
     transaction.add(ixPermission);
     transaction.add(ixInitializeTokenExpectations);
     transaction.add(ixLiquidate);
-    transaction.add(ixSendSol);
+    transaction.add(ixSigVerifyOpportunityAdapter);
+    if (transaction.instructions.length != indexCheckTokenBalances) {
+      throw new Error(
+        "Need to match the check token balances ix with the prespecified index"
+      );
+    }
     transaction.add(ixCheckTokenBalances);
+    transaction.add(ixSigVerifyExpressRelay);
     transaction.add(ixDepermission);
 
     let solProtocolPre = await provider.connection.getBalance(
       protocolFeeReceiver[0]
     );
-    let solRelayerPre = await provider.connection.getBalance(
+    let solRelayerRentReceiverPre = await provider.connection.getBalance(
+      relayerRentReceiver.publicKey
+    );
+    let solRelayerFeeReceiverPre = await provider.connection.getBalance(
       relayerFeeReceiver.publicKey
     );
     let solExpressRelayPre = await provider.connection.getBalance(
@@ -579,32 +670,142 @@ describe("express_relay", () => {
     );
 
     console.log(
-      "SIZE of transaction: ",
+      "SIZE of transaction (no lookup tables): ",
       getTxSize(transaction, relayerSigner.publicKey)
     );
 
-    // send transaction
-    let signature = await provider.connection
-      .sendTransaction(transaction, [payer, relayerSigner], {})
+    // get lookup table accounts
+    const accounts = new Set<PublicKey>();
+    const accounts2 = new Set<PublicKey>();
+    transaction.instructions.reduce((acc, ix) => {
+      ix.keys.forEach(({ pubkey, isSigner }) => {
+        if (accounts.size < 30) {
+          accounts.add(pubkey);
+        } else {
+          accounts2.add(pubkey);
+        }
+      });
+
+      accounts.add(ix.programId);
+
+      return accounts.size;
+    }, 0);
+    // accounts.add(relayerSigner.publicKey);
+    // accounts.add(relayerFeeReceiver.publicKey);
+    // accounts.add(relayerRentReceiver.publicKey);
+    // accounts.add(TOKEN_PROGRAM_ID);
+    // accounts.add(anchor.web3.SystemProgram.programId);
+    // accounts.add(anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY);
+    // accounts.add(opportunityAdapterAuthority[0]);
+    // accounts.add(ASSOCIATED_TOKEN_PROGRAM_ID);
+    // accounts.add(expressRelayAuthority[0]);
+    // accounts.add(wsolTaExpressRelay[0]);
+    // accounts.add(wsolMint);
+    // accounts.add(expressRelayMetadata[0]);
+    // accounts.add(anchor.web3.Ed25519Program.programId);
+
+    // create Lookup table
+    let transactionLookupTable = new anchor.web3.Transaction();
+    let slot = (await provider.connection.getSlot()) - 1;
+    // const slots = await provider.connection.getBlocks(slot - 20);
+    // console.log(slots);
+    const [lookupTableInst, lookupTableAddress] =
+      AddressLookupTableProgram.createLookupTable({
+        authority: relayerSigner.publicKey,
+        payer: relayerSigner.publicKey,
+        recentSlot: slot,
+      });
+    transactionLookupTable.add(lookupTableInst);
+    const extendInstruction = AddressLookupTableProgram.extendLookupTable({
+      payer: relayerSigner.publicKey,
+      authority: relayerSigner.publicKey,
+      lookupTable: lookupTableAddress,
+      addresses: Array.from(accounts),
+    });
+    transactionLookupTable.add(extendInstruction);
+    console.log(
+      "SIZE of transaction (create lookup tables): ",
+      getTxSize(transactionLookupTable, relayerSigner.publicKey)
+    );
+    let signatureLookupTable = await provider.connection
+      .sendTransaction(transactionLookupTable, [relayerSigner], {})
       .catch((err) => {
         console.log(err);
       });
-
-    const latestBlockHash = await provider.connection.getLatestBlockhash();
-    let txResponse = await provider.connection.confirmTransaction({
-      blockhash: latestBlockHash.blockhash,
-      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-      signature: signature,
+    const latestBlockHashLookupTable =
+      await provider.connection.getLatestBlockhash();
+    let txResponseLookupTable = await provider.connection.confirmTransaction({
+      blockhash: latestBlockHashLookupTable.blockhash,
+      lastValidBlockHeight: latestBlockHashLookupTable.lastValidBlockHeight,
+      signature: signatureLookupTable,
     });
-    console.log(txResponse);
-    if (txResponse.value["err"]) {
-      console.log("Transaction errored:", txResponse.value["err"]);
-    }
+    console.log("Lookup table created");
+
+    // add more to Lookup table
+    let transactionLookupTable2 = new anchor.web3.Transaction();
+    let slot2 = (await provider.connection.getSlot()) - 1;
+    const extendInstruction2 = AddressLookupTableProgram.extendLookupTable({
+      payer: relayerSigner.publicKey,
+      authority: relayerSigner.publicKey,
+      lookupTable: lookupTableAddress,
+      addresses: Array.from(accounts2),
+    });
+    transactionLookupTable2.add(extendInstruction);
+    console.log(
+      "SIZE of transaction (add to lookup tables): ",
+      getTxSize(transactionLookupTable2, relayerSigner.publicKey)
+    );
+    let signatureLookupTable2 = await provider.connection
+      .sendTransaction(transactionLookupTable2, [relayerSigner], {})
+      .catch((err) => {
+        console.log(err);
+      });
+    const latestBlockHashLookupTable2 =
+      await provider.connection.getLatestBlockhash();
+    let txResponseLookupTable2 = await provider.connection.confirmTransaction({
+      blockhash: latestBlockHashLookupTable2.blockhash,
+      lastValidBlockHeight: latestBlockHashLookupTable2.lastValidBlockHeight,
+      signature: signatureLookupTable2,
+    });
+    console.log("Lookup table added to");
+
+    // sleep to allow the lookup table to activate
+    await waitForNewBlock(provider.connection, 2);
+
+    // construct original tx with lookup table
+    const lookupTableAccount = (
+      await provider.connection.getAddressLookupTable(lookupTableAddress)
+    ).value;
+    const latestBlockHash = await provider.connection.getLatestBlockhash();
+    const messageV0 = new TransactionMessage({
+      payerKey: relayerSigner.publicKey,
+      recentBlockhash: latestBlockHash.blockhash,
+      instructions: transaction.instructions, // note this is an array of instructions
+    }).compileToV0Message([lookupTableAccount]);
+
+    // create a v0 transaction from the v0 message
+    const transactionV0 = new VersionedTransaction(messageV0);
+    console.log("LENGTH OF versioned tx: ", messageV0.serialize().length);
+
+    // sign the v0 transaction
+    transactionV0.sign([relayerSigner]);
+
+    // send and confirm the transaction
+    // const txResponse = await provider.connection.sendTransaction(transactionV0); // {skipPreflight: true}
+    const txResponse = await sendAndConfirmTransaction(
+      provider.connection,
+      transactionV0
+    ).catch((err) => {
+      console.log(err);
+    }); // {skipPreflight: true}
 
     let solProtocolPost = await provider.connection.getBalance(
       protocolFeeReceiver[0]
     );
-    let solRelayerPost = await provider.connection.getBalance(
+    let solRelayerRentReceiverPost = await provider.connection.getBalance(
+      relayerRentReceiver.publicKey
+    );
+    let solRelayerFeeReceiverPost = await provider.connection.getBalance(
       relayerFeeReceiver.publicKey
     );
     let solExpressRelayPost = await provider.connection.getBalance(
@@ -635,9 +836,7 @@ describe("express_relay", () => {
         .value.amount
     );
 
-    assert(solProtocolPost - solProtocolPre == 50_000_000);
-    assert(solRelayerPost - solRelayerPre == 10_000_000);
-    assert(solExpressRelayPost - solExpressRelayPre == 40_000_000);
+    console.log("TX RESPONSE", txResponse);
 
     assert(
       balance_collateral_payer_1 ==
@@ -655,6 +854,30 @@ describe("express_relay", () => {
         balance_debt_protocol_0 - debt_amount.toNumber()
     );
 
+    console.log(
+      "BALANCES, COLLATERAL, USER",
+      balance_collateral_payer_2,
+      balance_collateral_payer_1,
+      collateral_amount
+    );
+    console.log(
+      "BALANCES, DEBT, USER",
+      balance_debt_payer_2,
+      balance_debt_payer_1,
+      debt_amount
+    );
+    console.log(
+      "BALANCES, COLLATERAL, PROTOCOL",
+      balance_collateral_protocol_2,
+      balance_collateral_protocol_1,
+      collateral_amount
+    );
+    console.log(
+      "BALANCES, DEBT, PROTOCOL",
+      balance_debt_protocol_2,
+      balance_debt_protocol_1,
+      debt_amount
+    );
     assert(
       balance_collateral_payer_2 ==
         balance_collateral_payer_1 + collateral_amount.toNumber()

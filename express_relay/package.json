@@ -5,8 +5,10 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.0",
+    "@noble/ed25519": "^1.6.0",
     "@solana/spl-token": "^0.4.6",
-    "bn.js": "^5.2.1"
+    "bn.js": "^5.2.1",
+    "crypto": "^1.0.1"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",

@@ -4,16 +4,110 @@ pub mod utils;
 
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_lang::solana_program::sysvar::instructions as tx_instructions;
-use solana_program::{serialize_utils::read_u16, sysvar::instructions::{load_current_index_checked, load_instruction_at_checked}};
+use solana_program::{hash, clock::Clock, serialize_utils::read_u16, sysvar::instructions::{load_current_index_checked, load_instruction_at_checked}};
 use anchor_syn::codegen::program::common::sighash;
+use anchor_spl::token::{self, TokenAccount, Token, Mint, Transfer as SplTransfer, CloseAccount};
 use crate::{
     error::ExpressRelayError,
     state::*,
     utils::*,
 };
 use opportunity_adapter::ID as OPPORTUNITY_ADAPTER_PROGRAM_ID;
+use std::str::FromStr;
 
 declare_id!("AJ9QckBqWJdz5RAxpMi2P83q6R7y5xZ2yFxCAYr3bg3N");
+
+#[inline(never)]
+pub fn handle_wsol_transfer<'info>(
+    wsol_ta_user: &Account<'info, TokenAccount>,
+    wsol_ta_express_relay: &Account<'info, TokenAccount>,
+    express_relay_authority: &AccountLoader<'info, Authority>,
+    token_program: &Program<'info, Token>,
+    bump_express_relay_authority: u8,
+    permission: &AccountLoader<'info, PermissionMetadata>,
+    wsol_mint: &Account<'info, Mint>,
+    bump_wsol_ta_express_relay: u8,
+) -> Result<()> {
+    let permission_data = permission.load()?;
+
+    // wrapped sol transfer
+    let cpi_accounts_transfer = SplTransfer {
+        from: wsol_ta_user.to_account_info().clone(),
+        to: wsol_ta_express_relay.to_account_info().clone(),
+        authority: express_relay_authority.to_account_info().clone(),
+    };
+    let cpi_program_transfer = token_program.to_account_info();
+    token::transfer(
+        CpiContext::new_with_signer(
+            cpi_program_transfer,
+            cpi_accounts_transfer,
+            &[
+                &[
+                    SEED_AUTHORITY,
+                    &[bump_express_relay_authority]
+                ]
+            ]
+        ),
+        permission_data.bid_amount
+    )?;
+    // close wsol_ta_express_relay to get the SOL
+    let cpi_accounts_close = CloseAccount {
+        account: wsol_ta_express_relay.to_account_info().clone(),
+        destination: permission.to_account_info().clone(),
+        authority: wsol_ta_express_relay.to_account_info().clone(),
+    };
+    let cpi_program_close = token_program.to_account_info();
+    token::close_account(
+        CpiContext::new_with_signer(
+            cpi_program_close,
+            cpi_accounts_close,
+            &[
+                &[
+                    b"ata",
+                    wsol_mint.key().as_ref(),
+                    &[bump_wsol_ta_express_relay]
+                ]
+            ]
+        )
+    )?;
+
+    Ok(())
+}
+
+#[inline(never)]
+pub fn validate_signature(
+    sysvar_ixs: &UncheckedAccount,
+    bid_amount: u64,
+    data: DepermissionArgs,
+    protocol_key: Pubkey,
+    user_key: Pubkey,
+) -> Result<()> {
+    let permission_id = data.permission_id;
+    let valid_until = data.valid_until;
+
+    let timestamp = Clock::get()?.unix_timestamp as u64;
+    msg!("DATA RN {:?}", data);
+    // TODO: uncomment and fix this
+    if timestamp > valid_until {
+        return err!(ExpressRelayError::SignatureExpired)
+    }
+
+    let index_depermission = load_current_index_checked(sysvar_ixs)?;
+    let ix = load_instruction_at_checked((index_depermission-1) as usize, sysvar_ixs)?;
+
+    let mut msg_vec = [0; 32+32+32+8+8];
+    msg_vec[..32].copy_from_slice(&protocol_key.to_bytes());
+    msg_vec[32..64].copy_from_slice(&permission_id);
+    msg_vec[64..96].copy_from_slice(&user_key.to_bytes());
+    msg_vec[96..104].copy_from_slice(&bid_amount.to_le_bytes());
+    msg_vec[104..112].copy_from_slice(&valid_until.to_le_bytes());
+    // TODO: uncomment and fix this
+    let msg: &[u8] = &msg_vec;
+    let digest = hash::hashv(&[msg]);
+    // verify_ed25519_ix(&ix, &user_key.to_bytes(), digest.as_ref(), &data.signature)?;
+
+    Ok(())
+}
 
 #[program]
 pub mod express_relay {
@@ -23,19 +117,22 @@ pub mod express_relay {
         validate_fee_split(data.split_protocol_default)?;
         validate_fee_split(data.split_relayer)?;
 
-        ctx.accounts.express_relay_metadata.bump = ctx.bumps.express_relay_metadata;
-        ctx.accounts.express_relay_metadata.admin = *ctx.accounts.admin.key;
-        ctx.accounts.express_relay_metadata.relayer_signer = *ctx.accounts.relayer_signer.key;
-        ctx.accounts.express_relay_metadata.relayer_fee_receiver = *ctx.accounts.relayer_fee_receiver.key;
-        ctx.accounts.express_relay_metadata.split_protocol_default = data.split_protocol_default;
-        ctx.accounts.express_relay_metadata.split_relayer = data.split_relayer;
+        let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata.load_init()?;
+        // ctx.accounts.express_relay_metadata.bump = ctx.bumps.express_relay_metadata;
+        express_relay_metadata_data.admin = *ctx.accounts.admin.key;
+        express_relay_metadata_data.relayer_signer = *ctx.accounts.relayer_signer.key;
+        express_relay_metadata_data.relayer_fee_receiver = *ctx.accounts.relayer_fee_receiver.key;
+        express_relay_metadata_data.split_protocol_default = data.split_protocol_default;
+        express_relay_metadata_data.split_relayer = data.split_relayer;
 
         Ok(())
     }
 
     pub fn set_relayer(ctx: Context<SetRelayer>, _data: SetRelayerArgs) -> Result<()> {
-        ctx.accounts.express_relay_metadata.relayer_signer = *ctx.accounts.relayer_signer.key;
-        ctx.accounts.express_relay_metadata.relayer_fee_receiver = *ctx.accounts.relayer_fee_receiver.key;
+        let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata.load_mut()?;
+
+        express_relay_metadata_data.relayer_signer = *ctx.accounts.relayer_signer.key;
+        express_relay_metadata_data.relayer_fee_receiver = *ctx.accounts.relayer_fee_receiver.key;
 
         Ok(())
     }
@@ -44,8 +141,10 @@ pub mod express_relay {
         validate_fee_split(data.split_protocol_default)?;
         validate_fee_split(data.split_relayer)?;
 
-        ctx.accounts.express_relay_metadata.split_protocol_default = data.split_protocol_default;
-        ctx.accounts.express_relay_metadata.split_relayer = data.split_relayer;
+        let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata.load_mut()?;
+
+        express_relay_metadata_data.split_protocol_default = data.split_protocol_default;
+        express_relay_metadata_data.split_relayer = data.split_relayer;
 
         Ok(())
     }
@@ -63,7 +162,7 @@ pub mod express_relay {
         let permission = &ctx.accounts.permission;
         let sysvar_ixs = &ctx.accounts.sysvar_instructions;
 
-        // check that current permissioning ix is first
+        // check that current permissioning ix is first (TODO: this may be only relevant if we are checking no relayer_signer in future ixs)
         let index_permission = load_current_index_checked(sysvar_ixs)?;
         if index_permission != 0 {
             return err!(ExpressRelayError::PermissioningOutOfOrder)
@@ -75,12 +174,13 @@ pub mod express_relay {
         let last_ix_index = num_instructions - 1;
         for index in 1..last_ix_index {
             let ix = load_instruction_at_checked(index as usize, sysvar_ixs)?;
-            // only opportunity adapter allowed to use relayer signer as an account
-            if ix.program_id != OPPORTUNITY_ADAPTER_PROGRAM_ID {
-                if ix.accounts.iter().any(|acc| acc.pubkey == *relayer_signer.key) {
-                    return err!(ExpressRelayError::RelayerSignerUsedElsewhere)
-                }
-            }
+            // TODO: we are going to have to figure out security here, preventing relayer_signer from signing for bad ixs
+            // // only opportunity adapter allowed to use relayer signer as an account
+            // if ix.program_id != OPPORTUNITY_ADAPTER_PROGRAM_ID {
+            //     if ix.accounts.iter().any(|acc| acc.pubkey == *relayer_signer.key) {
+            //         return err!(ExpressRelayError::RelayerSignerUsedElsewhere)
+            //     }
+            // }
         }
 
         // check that last instruction is depermission, with matching permission pda
@@ -96,24 +196,52 @@ pub mod express_relay {
             return err!(ExpressRelayError::PermissioningOutOfOrder)
         }
 
-        let permission = &mut ctx.accounts.permission;
-        permission.bump = ctx.bumps.permission;
-        permission.balance = permission.to_account_info().lamports();
-        permission.bid_amount = data.bid_amount;
+        let permission_data = &mut permission.load_init()?;
+        // permission.bump = ctx.bumps.permission;
+        permission_data.balance = permission.to_account_info().lamports();
+        permission_data.bid_amount = data.bid_amount;
 
         Ok(())
     }
 
-    pub fn depermission(ctx: Context<Depermission>, _data: DepermissionArgs) -> Result<()> {
+    pub fn depermission(ctx: Context<Depermission>, data: DepermissionArgs) -> Result<()> {
+        let relayer_signer = &ctx.accounts.relayer_signer;
         let permission = &ctx.accounts.permission;
         let protocol_config = &ctx.accounts.protocol_config;
         let express_relay_metadata = &ctx.accounts.express_relay_metadata;
         let protocol_fee_receiver = &ctx.accounts.protocol_fee_receiver;
         let relayer_fee_receiver = &ctx.accounts.relayer_fee_receiver;
 
-        if permission.to_account_info().lamports() < permission.balance.saturating_add(permission.bid_amount) {
-            return err!(ExpressRelayError::BidNotMet)
-        }
+        let wsol_mint = &ctx.accounts.wsol_mint;
+        let wsol_ta_user = &ctx.accounts.wsol_ta_user;
+        let wsol_ta_express_relay = &ctx.accounts.wsol_ta_express_relay;
+        let express_relay_authority = &ctx.accounts.express_relay_authority;
+        let token_program = &ctx.accounts.token_program;
+        let sysvar_ixs = &ctx.accounts.sysvar_instructions;
+
+        let permission_data = permission.load()?;
+
+        // signature verification
+        validate_signature(sysvar_ixs, permission_data.bid_amount, data, ctx.accounts.protocol.key(), ctx.accounts.user.key())?;
+
+        let rent_owed_relayer_signer = wsol_ta_express_relay.to_account_info().lamports();
+
+        handle_wsol_transfer(
+            wsol_ta_user,
+            wsol_ta_express_relay,
+            express_relay_authority,
+            token_program,
+            ctx.bumps.express_relay_authority,
+            permission,
+            wsol_mint,
+            ctx.bumps.wsol_ta_express_relay
+        )?;
+
+        // if permission.to_account_info().lamports() < permission.balance.saturating_add(permission.bid_amount) {
+        //     return err!(ExpressRelayError::BidNotMet)
+        // }
+
+        let express_relay_metadata_data = express_relay_metadata.load()?;
 
         let split_protocol: u64;
         let protocol_config_account_info = protocol_config.to_account_info();
@@ -122,22 +250,23 @@ pub mod express_relay {
             let protocol_config_data = ConfigProtocol::try_deserialize(account_data)?;
             split_protocol = protocol_config_data.split;
         } else {
-            split_protocol = express_relay_metadata.split_protocol_default;
+            split_protocol = express_relay_metadata_data.split_protocol_default;
         }
 
-        let fee_protocol = permission.bid_amount * split_protocol / FEE_SPLIT_PRECISION;
-        if fee_protocol > permission.bid_amount {
+        let fee_protocol = permission_data.bid_amount * split_protocol / FEE_SPLIT_PRECISION;
+        if fee_protocol > permission_data.bid_amount {
             return err!(ExpressRelayError::FeesTooHigh);
         }
-        let fee_relayer = permission.bid_amount.saturating_sub(fee_protocol) * express_relay_metadata.split_relayer / FEE_SPLIT_PRECISION;
-        if fee_relayer.checked_add(fee_protocol).unwrap() > permission.bid_amount {
+        let fee_relayer = permission_data.bid_amount.saturating_sub(fee_protocol) * express_relay_metadata_data.split_relayer / FEE_SPLIT_PRECISION;
+        if fee_relayer.checked_add(fee_protocol).unwrap() > permission_data.bid_amount {
             return err!(ExpressRelayError::FeesTooHigh);
         }
 
+        transfer_lamports(&permission.to_account_info(), &relayer_signer.to_account_info(), rent_owed_relayer_signer)?;
         transfer_lamports(&permission.to_account_info(), &protocol_fee_receiver.to_account_info(), fee_protocol)?;
         transfer_lamports(&permission.to_account_info(), &relayer_fee_receiver.to_account_info(), fee_relayer)?;
         // send the remaining balance from the bid to the express relay metadata account
-        transfer_lamports(&permission.to_account_info(), &express_relay_metadata.to_account_info(), permission.bid_amount.saturating_sub(fee_protocol).saturating_sub(fee_relayer))?;
+        transfer_lamports(&permission.to_account_info(), &express_relay_metadata.to_account_info(), permission_data.bid_amount.saturating_sub(fee_protocol).saturating_sub(fee_relayer))?;
 
         Ok(())
     }
@@ -161,7 +290,7 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(init, payer = payer, space = RESERVE_EXPRESS_RELAY_METADATA, seeds = [SEED_METADATA], bump)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+    pub express_relay_metadata: AccountLoader<'info, ExpressRelayMetadata>,
     /// CHECK: this is just the PK for the admin to sign from
     pub admin: UncheckedAccount<'info>,
     /// CHECK: this is just the PK for the relayer to sign from
@@ -178,8 +307,8 @@ pub struct SetRelayerArgs {}
 pub struct SetRelayer<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
-    #[account(mut, seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = admin)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
+    pub express_relay_metadata: AccountLoader<'info, ExpressRelayMetadata>,
     /// CHECK: this is just the PK for the relayer to sign from
     pub relayer_signer: UncheckedAccount<'info>,
     /// CHECK: this is just a PK for the relayer to receive fees at
@@ -196,8 +325,8 @@ pub struct SetSplitsArgs {
 pub struct SetSplits<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
-    #[account(mut, seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = admin)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
+    pub express_relay_metadata: AccountLoader<'info, ExpressRelayMetadata>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
@@ -211,8 +340,8 @@ pub struct SetProtocolSplit<'info> {
     pub admin: Signer<'info>,
     #[account(init_if_needed, payer = admin, space = RESERVE_EXPRESS_RELAY_CONFIG_PROTOCOL, seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]
     pub protocol_config: Account<'info, ConfigProtocol>,
-    #[account(seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = admin)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+    #[account(seeds = [SEED_METADATA], bump, has_one = admin)]
+    pub express_relay_metadata: AccountLoader<'info, ExpressRelayMetadata>,
     /// CHECK: this is just the protocol fee receiver PK
     pub protocol: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
@@ -232,11 +361,11 @@ pub struct Permission<'info> {
     #[account(mut)]
     pub relayer_signer: Signer<'info>,
     #[account(init, payer = relayer_signer, space = RESERVE_PERMISSION, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump)]
-    pub permission: Account<'info, PermissionMetadata>,
+    pub permission: AccountLoader<'info, PermissionMetadata>,
     /// CHECK: this is just the protocol fee receiver PK
     pub protocol: UncheckedAccount<'info>,
-    #[account(seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = relayer_signer)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+    #[account(seeds = [SEED_METADATA], bump, has_one = relayer_signer)]
+    pub express_relay_metadata: AccountLoader<'info, ExpressRelayMetadata>,
     pub system_program: Program<'info, System>,
     // TODO: https://github.com/solana-labs/solana/issues/22911
     /// CHECK: this is the sysvar instructions account
@@ -247,7 +376,8 @@ pub struct Permission<'info> {
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct DepermissionArgs {
     pub permission_id: [u8; 32],
-    // pub bid_id: [u8; 16],
+    pub signature: [u8; 64],
+    pub valid_until: u64,
 }
 
 #[derive(Accounts)]
@@ -257,7 +387,9 @@ pub struct Depermission<'info> {
     pub relayer_signer: Signer<'info>,
     // TODO: upon close, should send funds to the program as opposed to the relayer signer--o/w relayer will get all "fat-fingered" fees
     #[account(mut, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump, close = relayer_signer)]
-    pub permission: Account<'info, PermissionMetadata>,
+    pub permission: AccountLoader<'info, PermissionMetadata>,
+    /// CHECK: this is just the user account
+    pub user: UncheckedAccount<'info>,
     /// CHECK: this is just the protocol program address
     pub protocol: UncheckedAccount<'info>,
     /// CHECK: don't care what this PDA looks like
@@ -274,7 +406,26 @@ pub struct Depermission<'info> {
     /// CHECK: this cannot be checked against ConfigProtocol bc it may not be initialized bc anchor :(
     #[account(seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]
     pub protocol_config: UncheckedAccount<'info>,
-    #[account(mut, seeds = [SEED_METADATA], bump = express_relay_metadata.bump, has_one = relayer_signer, has_one = relayer_fee_receiver)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer, has_one = relayer_fee_receiver)]
+    pub express_relay_metadata: AccountLoader<'info, ExpressRelayMetadata>,
+    #[account(constraint = wsol_mint.key() == Pubkey::from_str("So11111111111111111111111111111111111111112").unwrap())]
+    pub wsol_mint: Box<Account<'info, Mint>>,
+    #[account(mut, token::mint = wsol_mint, token::authority = user)]
+    pub wsol_ta_user: Box<Account<'info, TokenAccount>>,
+    #[account(
+        init,
+        payer = relayer_signer,
+        seeds = [b"ata", wsol_mint.key().as_ref()],
+        bump,
+        token::mint = wsol_mint,
+        token::authority = wsol_ta_express_relay
+    )]
+    pub wsol_ta_express_relay: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = relayer_signer, space = 8+RESERVE_AUTHORITY, seeds = [SEED_AUTHORITY], bump)]
+    pub express_relay_authority: AccountLoader<'info, Authority>,
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    /// CHECK: this is the sysvar instructions account
+    #[account(address = tx_instructions::ID)]
+    pub sysvar_instructions: UncheckedAccount<'info>,
 }

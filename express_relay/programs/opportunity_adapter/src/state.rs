@@ -15,3 +15,8 @@ pub const SEED_AUTHORITY: &[u8] = b"authority";
 #[account]
 #[derive(Default)]
 pub struct Authority {}
+
+pub struct TokenAmount {
+    pub mint: Pubkey,
+    pub amount: u64,
+}

@@ -1,28 +1,8 @@
 use anchor_lang::prelude::*;
 use solana_program::instruction::Instruction;
 use solana_program::ed25519_program::ID as ED25519_ID;
-use crate::{
-    error::ExpressRelayError,
-    state::FEE_SPLIT_PRECISION,
-};
+use crate::error::OpportunityAdapterError;
 use std::convert::TryInto;
-
-pub fn validate_fee_split(split: u64) -> Result<()> {
-    if split > FEE_SPLIT_PRECISION {
-        return err!(ExpressRelayError::InvalidFeeSplits);
-    }
-    Ok(())
-}
-
-pub fn transfer_lamports(
-    from: &AccountInfo,
-    to: &AccountInfo,
-    amount: u64,
-) -> Result<()> {
-    **from.try_borrow_mut_lamports()? -= amount;
-    **to.try_borrow_mut_lamports()? += amount;
-    Ok(())
-}
 
 /// Verify Ed25519Program instruction fields
 pub fn verify_ed25519_ix(ix: &Instruction, pubkey: &[u8], msg: &[u8], sig: &[u8]) -> Result<()> {
@@ -30,7 +10,7 @@ pub fn verify_ed25519_ix(ix: &Instruction, pubkey: &[u8], msg: &[u8], sig: &[u8]
         ix.accounts.len()   != 0                            ||  // With no context accounts
         ix.data.len()       != (16 + 64 + 32 + msg.len())       // And data of this size
     {
-        return err!(ExpressRelayError::SignatureVerificationFailed);    // Otherwise, we can already throw err
+        return err!(OpportunityAdapterError::SignatureVerificationFailed);    // Otherwise, we can already throw err
     }
 
     check_ed25519_data(&ix.data, pubkey, msg, sig)?;            // If that's not the case, check data
@@ -60,7 +40,6 @@ pub fn check_ed25519_data(data: &[u8], pubkey: &[u8], msg: &[u8], sig: &[u8]) ->
     let data_msg                        = &data[112..];      // Bytes 112..end
 
     // Expected values
-
     let exp_public_key_offset:      u16 = 16; // 2*u8 + 7*u16
     let exp_signature_offset:       u16 = exp_public_key_offset + pubkey.len() as u16;
     let exp_message_data_offset:    u16 = exp_signature_offset + sig.len() as u16;
@@ -80,7 +59,7 @@ pub fn check_ed25519_data(data: &[u8], pubkey: &[u8], msg: &[u8], sig: &[u8]) ->
         message_data_size               != &exp_message_data_size.to_le_bytes()     ||
         message_instruction_index       != &u16::MAX.to_le_bytes()
     {
-        return err!(ExpressRelayError::SignatureVerificationFailed);
+        return err!(OpportunityAdapterError::SignatureVerificationFailed);
     }
 
     // Arguments
@@ -88,7 +67,7 @@ pub fn check_ed25519_data(data: &[u8], pubkey: &[u8], msg: &[u8], sig: &[u8]) ->
         data_msg    != msg      ||
         data_sig    != sig
     {
-        return err!(ExpressRelayError::SignatureVerificationFailed);
+        return err!(OpportunityAdapterError::SignatureVerificationFailed);
     }
 
     Ok(())

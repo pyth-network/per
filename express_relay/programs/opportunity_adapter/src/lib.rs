@@ -1,27 +1,71 @@
 pub mod error;
 pub mod state;
+pub mod utils;
 
 use borsh::{BorshSerialize, BorshDeserialize};
 use anchor_lang::prelude::*;
 use anchor_lang::{solana_program::sysvar::instructions as tx_instructions, system_program::{create_account, CreateAccount}, AccountsClose};
-use solana_program::{serialize_utils::read_u16, sysvar::instructions::{load_current_index_checked, load_instruction_at_checked}, borsh1::try_from_slice_unchecked};
+use solana_program::{hash, sysvar::instructions::{load_current_index_checked, load_instruction_at_checked}};
 use anchor_syn::codegen::program::common::sighash;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer, InitializeAccount};
+use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer};
 use anchor_spl::associated_token::{AssociatedToken, Create, create};
 
 use crate::{
     error::OpportunityAdapterError,
     state::*,
+    utils::*,
 };
 
 declare_id!("Gn4yXmex2gAWUHJcFHy6iUkwPurka6uJMGPfzeZbKFFD");
 
-// TODO: validate user signature--gotta use that signature verification program in a separate ix...
+#[inline(never)]
+pub fn validate_signature(
+    index: usize,
+    sysvar_ixs: &UncheckedAccount,
+    valid_until: u64,
+    buy_tokens: Vec<TokenAmount>,
+    sell_tokens: Vec<TokenAmount>,
+    user_key: Pubkey,
+    signature: [u8; 64]
+) -> Result<()> {
+    let n_buy_tokens = buy_tokens.len();
+    let n_sell_tokens = sell_tokens.len();
+
+    let n_buy_tokens_u8 = n_buy_tokens as u8;
+    let n_sell_tokens_u8 = n_sell_tokens as u8;
+
+    let timestamp = Clock::get()?.unix_timestamp as u64;
+
+    if timestamp > valid_until {
+        return err!(OpportunityAdapterError::SignatureExpired);
+    }
+
+    let ix = load_instruction_at_checked(index as usize, sysvar_ixs)?;
+
+    let mut msg_vec = Vec::new();
+    msg_vec.push(n_buy_tokens_u8);
+    msg_vec.push(n_sell_tokens_u8);
+    for buy_token in buy_tokens.iter() {
+        msg_vec.extend_from_slice(&buy_token.mint.to_bytes());
+        msg_vec.extend_from_slice(&buy_token.amount.to_le_bytes());
+    }
+    for sell_token in sell_tokens.iter() {
+        msg_vec.extend_from_slice(&sell_token.mint.to_bytes());
+        msg_vec.extend_from_slice(&sell_token.amount.to_le_bytes());
+    }
+    msg_vec.extend_from_slice(&user_key.to_bytes());
+    msg_vec.extend_from_slice(&valid_until.to_le_bytes());
+
+    let msg: &[u8] = &msg_vec;
+    let digest = hash::hashv(&[msg]);
+    verify_ed25519_ix(&ix, &user_key.to_bytes(), digest.as_ref(), &signature)?;
+
+    Ok(())
+}
 
 #[program]
 pub mod opportunity_adapter {
     use anchor_lang::Discriminator;
-    use anchor_spl::associated_token;
 
     use super::*;
 
@@ -36,12 +80,12 @@ pub mod opportunity_adapter {
         let remaining_accounts = ctx.remaining_accounts;
 
         let index_init_token_expectations = load_current_index_checked(sysvar_ixs)?;
-        // check that the (index_init_token_expectations)th instruction from the last matches check
-        let num_instructions = read_u16(&mut 0, &sysvar_ixs.data.borrow()).map_err(|_| ProgramError::InvalidInstructionData)?;
-        // TODO: do we need to do a checked_sub/saturating_sub here?
-        let ix_index = num_instructions - 1 - index_init_token_expectations;
 
-        let ix_check_token_balances = load_instruction_at_checked(ix_index as usize, sysvar_ixs)?;
+        // check that the (index_check_token_balances)th instruction matches check
+        let index_check_token_balances = data.index_check_token_balances;
+        assert!(index_check_token_balances > index_init_token_expectations);
+
+        let ix_check_token_balances = load_instruction_at_checked(index_check_token_balances as usize, sysvar_ixs)?;
         let program_equal = ix_check_token_balances.program_id == *ctx.program_id;
         let matching_discriminator = ix_check_token_balances.data[0..8] == sighash("global", "check_token_balances");
 
@@ -51,12 +95,15 @@ pub mod opportunity_adapter {
 
         let sell_tokens = data.sell_tokens;
         let buy_tokens = data.buy_tokens;
+        let mut sell_token_amounts: Vec<TokenAmount> = sell_tokens.iter().map(|x| TokenAmount { mint: Pubkey::default(), amount: *x }).collect();
+        let mut buy_token_amounts: Vec<TokenAmount> = buy_tokens.iter().map(|x| TokenAmount { mint: Pubkey::default(), amount: *x }).collect();
+
         let n_sell_tokens = sell_tokens.len();
         let expected_changes: Vec<u64> = sell_tokens.iter().chain(buy_tokens.iter()).map(|x| *x).collect();
         assert_eq!(expected_changes.len() * 4, remaining_accounts.len());
 
         // TODO: make this offset determination programmatic in the future
-        let offset_accounts_check_token_balances: usize = 4;
+        let offset_accounts_check_token_balances: usize = 5;
         assert_eq!(remaining_accounts.len() + offset_accounts_check_token_balances, ix_check_token_balances.accounts.len());
 
         for (i, expected_change) in expected_changes.iter().enumerate() {
@@ -160,6 +207,8 @@ pub mod opportunity_adapter {
 
             let tokens = ta_user_data.amount;
             if i < n_sell_tokens {
+                sell_token_amounts[i].mint = mint_acc.key();
+
                 // transfer tokens to the relayer ata
                 let cpi_accounts = SplTransfer {
                     from: ta_user_acc.clone(),
@@ -184,6 +233,8 @@ pub mod opportunity_adapter {
 
                 token_expectation_data.balance_post_expected = token_expectation_data.balance_post_expected.checked_sub(*expected_change).unwrap();
             } else {
+                buy_token_amounts[i - n_sell_tokens].mint = mint_acc.key();
+
                 token_expectation_data.balance_post_expected = token_expectation_data.balance_post_expected.checked_add(*expected_change).unwrap();
             }
 
@@ -191,11 +242,23 @@ pub mod opportunity_adapter {
             token_expectation_data_with_discriminator.serialize(&mut *token_expectation_acc.data.borrow_mut())?;
         }
 
+        // check that the instruction prior to checking token balances is signature validation
+        validate_signature(
+            (index_check_token_balances-1) as usize,
+            sysvar_ixs,
+            data.valid_until,
+            buy_token_amounts,
+            sell_token_amounts,
+            user.key(),
+            data.signature
+        )?;
+
         Ok(())
     }
 
     pub fn check_token_balances<'info>(ctx: Context<'_, '_, 'info, 'info, CheckTokenBalances<'info>>) -> Result<()> {
         let relayer = &ctx.accounts.relayer;
+        let relayer_rent_receiver = &ctx.accounts.relayer_rent_receiver;
         let token_program = &ctx.accounts.token_program;
 
         let remaining_accounts = ctx.remaining_accounts;
@@ -216,7 +279,6 @@ pub mod opportunity_adapter {
                 return err!(OpportunityAdapterError::TokenExpectationNotMet);
             }
 
-            // TODO: transfer tokens to the user
             let cpi_accounts = SplTransfer {
                 from: ta_relayer_acc.clone(),
                 to: ta_user_acc.clone(),
@@ -232,7 +294,7 @@ pub mod opportunity_adapter {
 
             // close the token_expectation account
             let token_expectation_acc_to_close: Account<TokenExpectation> = Account::try_from(token_expectation_acc)?;
-            let _ = token_expectation_acc_to_close.close(relayer.to_account_info());
+            let _ = token_expectation_acc_to_close.close(relayer_rent_receiver.to_account_info());
         }
 
         Ok(())
@@ -242,7 +304,10 @@ pub mod opportunity_adapter {
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Debug)]
 pub struct InitializeTokenExpectationsArgs {
     pub sell_tokens: Vec<u64>,
-    pub buy_tokens: Vec<u64>
+    pub buy_tokens: Vec<u64>,
+    pub index_check_token_balances: u16,
+    pub valid_until: u64,
+    pub signature: [u8; 64],
 }
 
 #[derive(Accounts)]
@@ -266,6 +331,10 @@ pub struct InitializeTokenExpectations<'info> {
 pub struct CheckTokenBalances<'info> {
     #[account(mut)]
     pub relayer: Signer<'info>,
+    // TODO: the issue that makes this account necessary: https://github.com/solana-labs/solana/issues/9711
+    /// CHECK: this is just a PK where the relayer receives fees
+    #[account(mut)]
+    pub relayer_rent_receiver: UncheckedAccount<'info>,
     /// CHECK: this is just the PK of the user
     pub user: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
