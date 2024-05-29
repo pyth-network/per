@@ -194,29 +194,29 @@ pub struct LiquidateArgs {
 #[instruction(data: LiquidateArgs)]
 pub struct Liquidate<'info> {
     #[account(mut, seeds = [b"vault".as_ref(), &data.vault_id], bump = vault.bump)]
-    pub vault: Account<'info, Vault>,
+    pub vault: Box<Account<'info, Vault>>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    pub collateral_mint: Account<'info, Mint>,
-    pub debt_mint: Account<'info, Mint>,
+    pub collateral_mint: Box<Account<'info, Mint>>,
+    pub debt_mint: Box<Account<'info, Mint>>,
     #[account(mut, token::mint = collateral_mint, token::authority = payer)]
-    pub collateral_ata_payer: Account<'info, TokenAccount>,
+    pub collateral_ata_payer: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         seeds = [b"ata", collateral_mint.key().as_ref()],
         bump,
         token::mint = collateral_mint
     )]
-    pub collateral_ta_program: Account<'info, TokenAccount>,
+    pub collateral_ta_program: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = debt_mint, token::authority = payer)]
-    pub debt_ata_payer: Account<'info, TokenAccount>,
+    pub debt_ata_payer: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         seeds = [b"ata", debt_mint.key().as_ref()],
         bump,
         token::mint = debt_mint
     )]
-    pub debt_ta_program: Account<'info, TokenAccount>,
+    pub debt_ta_program: Box<Account<'info, TokenAccount>>,
     #[account(
         seeds = [
             SEED_PERMISSION,

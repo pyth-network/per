@@ -12,8 +12,6 @@ pub const SEED_PERMISSION: &[u8] = b"permission";
 pub struct PermissionMetadata {
     pub balance: u64,
     pub bid_amount: u64,
-    // pub bump: u8,
-    // pub _padding: [u8; 7],
 }
 
 pub const RESERVE_EXPRESS_RELAY_METADATA: usize = 200;
@@ -27,8 +25,6 @@ pub struct ExpressRelayMetadata {
     pub relayer_fee_receiver: Pubkey,
     pub split_protocol_default: u64,
     pub split_relayer: u64,
-    // pub bump: u8,
-    // pub _padding: [u8; 7],
 }
 
 pub const RESERVE_EXPRESS_RELAY_CONFIG_PROTOCOL: usize = 200;

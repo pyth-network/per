@@ -640,21 +640,61 @@ describe("express_relay", () => {
         signature: signatureOpportunityAdapter,
       });
 
+    console.log("LENGTH OF IXS' DATA");
+    const bytesDataPermission = ixPermission.data.length;
+    const bytesDataInitializeTokenExpectations =
+      ixInitializeTokenExpectations.data.length;
+    const bytesDataLiquidate = ixLiquidate.data.length;
+    const bytesDataSigVerifyOpportunityAdapter =
+      ixSigVerifyOpportunityAdapter.data.length;
+    const bytesDataCheckTokenBalances = ixCheckTokenBalances.data.length;
+    const bytesDataSigVerifyExpressRelay = ixSigVerifyExpressRelay.data.length;
+    const bytesDataDepermission = ixDepermission.data.length;
+    console.log("Permission: ", bytesDataPermission);
+    console.log(
+      "InitializeTokenExpectations: ",
+      bytesDataInitializeTokenExpectations
+    );
+    console.log("Liquidate: ", bytesDataLiquidate);
+    console.log(
+      "SigVerifyOpportunityAdapter: ",
+      bytesDataSigVerifyOpportunityAdapter
+    );
+    console.log("CheckTokenBalances: ", bytesDataCheckTokenBalances);
+    console.log("SigVerifyExpressRelay: ", bytesDataSigVerifyExpressRelay);
+    console.log("Depermission: ", bytesDataDepermission);
+    console.log(
+      "Total: ",
+      bytesDataPermission +
+        bytesDataInitializeTokenExpectations +
+        bytesDataLiquidate +
+        bytesDataSigVerifyOpportunityAdapter +
+        bytesDataCheckTokenBalances +
+        bytesDataSigVerifyExpressRelay +
+        bytesDataDepermission
+    );
+
     // create transaction
     let transaction = new anchor.web3.Transaction();
 
-    transaction.add(ixPermission);
-    transaction.add(ixInitializeTokenExpectations);
-    transaction.add(ixLiquidate);
-    transaction.add(ixSigVerifyOpportunityAdapter);
+    transaction.add(ixPermission); // 48, 40 + 8
+    transaction.add(ixInitializeTokenExpectations); // 56, variable (98 w 1 buy/1 sell) + 8
+    transaction.add(ixLiquidate); // 88, 32 + 8
+    transaction.add(ixSigVerifyOpportunityAdapter); // 0, 136 + 8
     if (transaction.instructions.length != indexCheckTokenBalances) {
       throw new Error(
         "Need to match the check token balances ix with the prespecified index"
       );
     }
-    transaction.add(ixCheckTokenBalances);
-    transaction.add(ixSigVerifyExpressRelay);
-    transaction.add(ixDepermission);
+    transaction.add(ixCheckTokenBalances); // 40, 0 + 8
+    transaction.add(ixSigVerifyExpressRelay); // 0, 136 + 8
+    transaction.add(ixDepermission); // 120, 104 + 8
+
+    console.log("DATA FOR DEPERMISSION");
+    console.log(vault_id_bytes);
+    console.log(signatureExpressRelay);
+    console.log(validUntilExpressRelay.toNumber());
+    console.log(ixDepermission.data);
 
     let solProtocolPre = await provider.connection.getBalance(
       protocolFeeReceiver[0]
@@ -703,6 +743,8 @@ describe("express_relay", () => {
     // accounts.add(wsolMint);
     // accounts.add(expressRelayMetadata[0]);
     // accounts.add(anchor.web3.Ed25519Program.programId);
+    console.log("LENGTH OF ACCOUNTS: ", accounts.size);
+    console.log("LENGTH OF ACCOUNTS2: ", accounts2.size);
 
     // create Lookup table
     let transactionLookupTable = new anchor.web3.Transaction();

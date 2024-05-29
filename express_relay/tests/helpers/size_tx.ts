@@ -40,13 +40,9 @@ export const getTxSize = (tx: Transaction, feePayer: PublicKey): number => {
     const nIndexes = ix.keys.length;
     const opaqueData = ix.data.length;
 
-    console.log(
-      acc,
-      nIndexes,
-      compactArraySize(nIndexes, 1),
-      opaqueData,
-      compactArraySize(opaqueData, 1)
-    );
+    console.log("n accounts in ix: ", nIndexes);
+    console.log("length of data in ix: ", opaqueData);
+    console.log("");
     return (
       acc +
       1 + // PID index

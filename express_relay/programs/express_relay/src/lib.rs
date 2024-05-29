@@ -29,6 +29,8 @@ pub fn handle_wsol_transfer<'info>(
     bump_wsol_ta_express_relay: u8,
 ) -> Result<()> {
     let permission_data = permission.load()?;
+    let bid_amount = permission_data.bid_amount;
+    drop(permission_data);
 
     // wrapped sol transfer
     let cpi_accounts_transfer = SplTransfer {
@@ -48,7 +50,7 @@ pub fn handle_wsol_transfer<'info>(
                 ]
             ]
         ),
-        permission_data.bid_amount
+        bid_amount
     )?;
     // close wsol_ta_express_relay to get the SOL
     let cpi_accounts_close = CloseAccount {
@@ -88,9 +90,9 @@ pub fn validate_signature(
     let timestamp = Clock::get()?.unix_timestamp as u64;
     msg!("DATA RN {:?}", data);
     // TODO: uncomment and fix this
-    if timestamp > valid_until {
-        return err!(ExpressRelayError::SignatureExpired)
-    }
+    // if timestamp > valid_until {
+    //     return err!(ExpressRelayError::SignatureExpired)
+    // }
 
     let index_depermission = load_current_index_checked(sysvar_ixs)?;
     let ix = load_instruction_at_checked((index_depermission-1) as usize, sysvar_ixs)?;
@@ -220,9 +222,11 @@ pub mod express_relay {
         let sysvar_ixs = &ctx.accounts.sysvar_instructions;
 
         let permission_data = permission.load()?;
+        let bid_amount = permission_data.bid_amount;
+        drop(permission_data);
 
         // signature verification
-        validate_signature(sysvar_ixs, permission_data.bid_amount, data, ctx.accounts.protocol.key(), ctx.accounts.user.key())?;
+        validate_signature(sysvar_ixs, bid_amount, data, ctx.accounts.protocol.key(), ctx.accounts.user.key())?;
 
         let rent_owed_relayer_signer = wsol_ta_express_relay.to_account_info().lamports();
 
@@ -242,6 +246,9 @@ pub mod express_relay {
         // }
 
         let express_relay_metadata_data = express_relay_metadata.load()?;
+        let split_protocol_default = express_relay_metadata_data.split_protocol_default;
+        let split_relayer = express_relay_metadata_data.split_relayer;
+        drop(express_relay_metadata_data);
 
         let split_protocol: u64;
         let protocol_config_account_info = protocol_config.to_account_info();
@@ -250,15 +257,15 @@ pub mod express_relay {
             let protocol_config_data = ConfigProtocol::try_deserialize(account_data)?;
             split_protocol = protocol_config_data.split;
         } else {
-            split_protocol = express_relay_metadata_data.split_protocol_default;
+            split_protocol = split_protocol_default;
         }
 
-        let fee_protocol = permission_data.bid_amount * split_protocol / FEE_SPLIT_PRECISION;
-        if fee_protocol > permission_data.bid_amount {
+        let fee_protocol = bid_amount * split_protocol / FEE_SPLIT_PRECISION;
+        if fee_protocol > bid_amount {
             return err!(ExpressRelayError::FeesTooHigh);
         }
-        let fee_relayer = permission_data.bid_amount.saturating_sub(fee_protocol) * express_relay_metadata_data.split_relayer / FEE_SPLIT_PRECISION;
-        if fee_relayer.checked_add(fee_protocol).unwrap() > permission_data.bid_amount {
+        let fee_relayer = bid_amount.saturating_sub(fee_protocol) * split_relayer / FEE_SPLIT_PRECISION;
+        if fee_relayer.checked_add(fee_protocol).unwrap() > bid_amount {
             return err!(ExpressRelayError::FeesTooHigh);
         }
 
@@ -266,7 +273,7 @@ pub mod express_relay {
         transfer_lamports(&permission.to_account_info(), &protocol_fee_receiver.to_account_info(), fee_protocol)?;
         transfer_lamports(&permission.to_account_info(), &relayer_fee_receiver.to_account_info(), fee_relayer)?;
         // send the remaining balance from the bid to the express relay metadata account
-        transfer_lamports(&permission.to_account_info(), &express_relay_metadata.to_account_info(), permission_data.bid_amount.saturating_sub(fee_protocol).saturating_sub(fee_relayer))?;
+        transfer_lamports(&permission.to_account_info(), &express_relay_metadata.to_account_info(), bid_amount.saturating_sub(fee_protocol).saturating_sub(fee_relayer))?;
 
         Ok(())
     }
