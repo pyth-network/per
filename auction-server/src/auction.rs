@@ -8,6 +8,7 @@ use {
             ChainId,
             EthereumConfig,
         },
+        gas_oracle::EthProviderOracle,
         models,
         server::{
             EXIT_CHECK_INTERVAL,
@@ -36,6 +37,7 @@ use {
             FunctionCall,
         },
         middleware::{
+            gas_oracle::GasOracleMiddleware,
             transformer::{
                 Transformer,
                 TransformerError,
@@ -94,7 +96,10 @@ abigen!(
 );
 pub type ExpressRelayContract = ExpressRelay<Provider<Http>>;
 pub type SignableProvider = TransformerMiddleware<
-    NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    GasOracleMiddleware<
+        NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
+        EthProviderOracle<Provider<Http>>,
+    >,
     LegacyTxTransformer,
 >;
 pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
@@ -261,6 +266,7 @@ async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction)
             .map_err(|e| anyhow!("Failed to get transaction receipt: {:?}", e))?;
 
         if let Some(receipt) = receipt {
+            println!("{:?}", receipt.effective_gas_price);
             let decoded_logs = decode_logs_for_receipt(&receipt);
             let auction = store
                 .conclude_auction(auction)
@@ -447,9 +453,12 @@ pub fn get_express_relay_contract(
 ) -> SignableExpressRelayContract {
     let transformer = LegacyTxTransformer { use_legacy_tx };
     let client = Arc::new(TransformerMiddleware::new(
-        NonceManagerMiddleware::new(
-            SignerMiddleware::new(provider, relayer.clone().with_chain_id(network_id)),
-            relayer.address(),
+        GasOracleMiddleware::new(
+            NonceManagerMiddleware::new(
+                SignerMiddleware::new(provider.clone(), relayer.clone().with_chain_id(network_id)),
+                relayer.address(),
+            ),
+            EthProviderOracle::new(provider),
         ),
         transformer,
     ));
