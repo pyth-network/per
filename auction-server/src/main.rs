@@ -9,6 +9,7 @@ use {
 mod api;
 mod auction;
 mod config;
+mod gas_oracle;
 mod models;
 mod opportunity_adapter;
 mod serde;
