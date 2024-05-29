@@ -266,7 +266,6 @@ async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction)
             .map_err(|e| anyhow!("Failed to get transaction receipt: {:?}", e))?;
 
         if let Some(receipt) = receipt {
-            println!("{:?}", receipt.effective_gas_price);
             let decoded_logs = decode_logs_for_receipt(&receipt);
             let auction = store
                 .conclude_auction(auction)
