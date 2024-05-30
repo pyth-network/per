@@ -4,7 +4,7 @@ pub const FEE_SPLIT_PRECISION: u64 = 10_000;
 
 pub const SEED_EXPRESS_RELAY_FEES: &[u8] = b"express_relay_fees";
 
-pub const RESERVE_PERMISSION: usize = 200;
+pub const RESERVE_PERMISSION: usize = 8+16;
 pub const SEED_PERMISSION: &[u8] = b"permission";
 
 #[account(zero_copy)]
@@ -14,7 +14,7 @@ pub struct PermissionMetadata {
     pub bid_amount: u64,
 }
 
-pub const RESERVE_EXPRESS_RELAY_METADATA: usize = 200;
+pub const RESERVE_EXPRESS_RELAY_METADATA: usize = 8+112;
 pub const SEED_METADATA: &[u8] = b"metadata";
 
 #[account(zero_copy)]
@@ -27,7 +27,7 @@ pub struct ExpressRelayMetadata {
     pub split_relayer: u64,
 }
 
-pub const RESERVE_EXPRESS_RELAY_CONFIG_PROTOCOL: usize = 200;
+pub const RESERVE_EXPRESS_RELAY_CONFIG_PROTOCOL: usize = 8+8;
 pub const SEED_CONFIG_PROTOCOL: &[u8] = b"config_protocol";
 
 #[account]
@@ -36,7 +36,7 @@ pub struct ConfigProtocol {
     pub split: u64,
 }
 
-pub const RESERVE_AUTHORITY: usize = 100;
+pub const RESERVE_AUTHORITY: usize = 8+0;
 pub const SEED_AUTHORITY: &[u8] = b"authority";
 
 #[account(zero_copy)]

@@ -168,11 +168,11 @@ pub async fn express_relay_tx(
         program_id: express_relay::id(),
         data:
         express_relay::instruction::Permission {
-            data: PermissionArgs {
+            data: Box::new(PermissionArgs {
                 permission_id: permission_id.clone(),
                 // bid_id: bid_id.clone(),
                 bid_amount: bid_amount.clone(),
-            }
+            })
         }.data(),
         accounts: Permission {
             relayer_signer: relayer_signer.pubkey(),

@@ -448,8 +448,17 @@ describe("express_relay", () => {
     const msgExpressRelay1 = Uint8Array.from(protocol.toBuffer());
     const msgExpressRelay2 = Uint8Array.from(vault_id_bytes);
     const msgExpressRelay3 = Uint8Array.from(payer.publicKey.toBuffer());
-    const msgExpressRelay4 = Uint8Array.from(bidAmount.toBuffer());
-    const msgExpressRelay5 = Uint8Array.from(validUntilExpressRelay.toBuffer());
+    const msgExpressRelay4 = Uint8Array.from(
+      bidAmount.toArrayLike(Buffer, "le", 8)
+    );
+    const msgExpressRelay5 = Uint8Array.from(
+      validUntilExpressRelay.toArrayLike(Buffer, "le", 8)
+    );
+    console.log(msgExpressRelay1);
+    console.log(msgExpressRelay2);
+    console.log(msgExpressRelay3);
+    console.log(msgExpressRelay4);
+    console.log(msgExpressRelay5);
     const msgExpressRelay = Buffer.concat([
       msgExpressRelay1,
       msgExpressRelay2,
@@ -692,6 +701,8 @@ describe("express_relay", () => {
 
     console.log("DATA FOR DEPERMISSION");
     console.log(vault_id_bytes);
+    console.log(msgExpressRelay);
+    console.log("DIGEST EXPRESS RELAY", digestExpressRelay);
     console.log(signatureExpressRelay);
     console.log(validUntilExpressRelay.toNumber());
     console.log(ixDepermission.data);
@@ -721,28 +732,15 @@ describe("express_relay", () => {
       ix.keys.forEach(({ pubkey, isSigner }) => {
         if (accounts.size < 30) {
           accounts.add(pubkey);
-        } else {
+        } else if (!accounts.has(pubkey)) {
           accounts2.add(pubkey);
         }
       });
 
-      accounts.add(ix.programId);
+      accounts2.add(ix.programId);
 
       return accounts.size;
     }, 0);
-    // accounts.add(relayerSigner.publicKey);
-    // accounts.add(relayerFeeReceiver.publicKey);
-    // accounts.add(relayerRentReceiver.publicKey);
-    // accounts.add(TOKEN_PROGRAM_ID);
-    // accounts.add(anchor.web3.SystemProgram.programId);
-    // accounts.add(anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY);
-    // accounts.add(opportunityAdapterAuthority[0]);
-    // accounts.add(ASSOCIATED_TOKEN_PROGRAM_ID);
-    // accounts.add(expressRelayAuthority[0]);
-    // accounts.add(wsolTaExpressRelay[0]);
-    // accounts.add(wsolMint);
-    // accounts.add(expressRelayMetadata[0]);
-    // accounts.add(anchor.web3.Ed25519Program.programId);
     console.log("LENGTH OF ACCOUNTS: ", accounts.size);
     console.log("LENGTH OF ACCOUNTS2: ", accounts2.size);
 
@@ -792,7 +790,7 @@ describe("express_relay", () => {
       lookupTable: lookupTableAddress,
       addresses: Array.from(accounts2),
     });
-    transactionLookupTable2.add(extendInstruction);
+    transactionLookupTable2.add(extendInstruction2);
     console.log(
       "SIZE of transaction (add to lookup tables): ",
       getTxSize(transactionLookupTable2, relayerSigner.publicKey)
@@ -827,6 +825,14 @@ describe("express_relay", () => {
 
     // create a v0 transaction from the v0 message
     const transactionV0 = new VersionedTransaction(messageV0);
+    console.log(
+      "JSON Stringified tx (legacy) object: ",
+      JSON.stringify(transaction)
+    );
+    console.log(
+      "JSON Stringified tx (V0) object: ",
+      JSON.stringify(transactionV0)
+    );
     console.log("LENGTH OF versioned tx: ", messageV0.serialize().length);
 
     // sign the v0 transaction

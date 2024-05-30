@@ -13,6 +13,7 @@ use crate::{
     utils::*,
 };
 use opportunity_adapter::ID as OPPORTUNITY_ADAPTER_PROGRAM_ID;
+use core::time;
 use std::str::FromStr;
 
 declare_id!("AJ9QckBqWJdz5RAxpMi2P83q6R7y5xZ2yFxCAYr3bg3N");
@@ -28,16 +29,28 @@ pub fn handle_wsol_transfer<'info>(
     wsol_mint: &Account<'info, Mint>,
     bump_wsol_ta_express_relay: u8,
 ) -> Result<()> {
+    msg!("GOT TO HANDLE WSOL 1");
     let permission_data = permission.load()?;
+    msg!("GOT TO HANDLE WSOL 2");
     let bid_amount = permission_data.bid_amount;
     drop(permission_data);
+    msg!("bid amount {:p}", &bid_amount);
 
+    msg!("GOT TO HANDLE WSOL 3");
     // wrapped sol transfer
+    msg!("wsol_ta_user {:p}", wsol_ta_user);
+    msg!("wsol_ta_user cloned {:p}", &(wsol_ta_user.to_account_info().clone()));
+    msg!("wsol_ta_express_relay {:p}", wsol_ta_express_relay);
+    msg!("wsol_ta_express_relay cloned {:p}", &(wsol_ta_express_relay.to_account_info().clone()));
+    msg!("wsol_ta_express_relay acc info {:p}", &(wsol_ta_express_relay.to_account_info()));
+    msg!("express_relay_authority {:p}", express_relay_authority);
+    msg!("express_relay_authority cloned {:p}", &(express_relay_authority.to_account_info().clone()));
     let cpi_accounts_transfer = SplTransfer {
         from: wsol_ta_user.to_account_info().clone(),
         to: wsol_ta_express_relay.to_account_info().clone(),
         authority: express_relay_authority.to_account_info().clone(),
     };
+    msg!("GOT TO HANDLE WSOL 4");
     let cpi_program_transfer = token_program.to_account_info();
     token::transfer(
         CpiContext::new_with_signer(
@@ -52,6 +65,7 @@ pub fn handle_wsol_transfer<'info>(
         ),
         bid_amount
     )?;
+    msg!("GOT TO HANDLE WSOL 5");
     // close wsol_ta_express_relay to get the SOL
     let cpi_accounts_close = CloseAccount {
         account: wsol_ta_express_relay.to_account_info().clone(),
@@ -89,24 +103,42 @@ pub fn validate_signature(
 
     let timestamp = Clock::get()?.unix_timestamp as u64;
     msg!("DATA RN {:?}", data);
-    // TODO: uncomment and fix this
-    // if timestamp > valid_until {
-    //     return err!(ExpressRelayError::SignatureExpired)
-    // }
+    if timestamp > valid_until {
+        return err!(ExpressRelayError::SignatureExpired)
+    }
 
+    msg!("DATA {:p}", &data);
+    msg!("TIMESTAMP {:p}", &timestamp);
+
+    msg!("starting to load current index");
     let index_depermission = load_current_index_checked(sysvar_ixs)?;
+    msg!("index deperm {:p}", &index_depermission);
     let ix = load_instruction_at_checked((index_depermission-1) as usize, sysvar_ixs)?;
+    msg!("made ix");
 
     let mut msg_vec = [0; 32+32+32+8+8];
+    msg!("instantiated msg_vec");
     msg_vec[..32].copy_from_slice(&protocol_key.to_bytes());
     msg_vec[32..64].copy_from_slice(&permission_id);
     msg_vec[64..96].copy_from_slice(&user_key.to_bytes());
     msg_vec[96..104].copy_from_slice(&bid_amount.to_le_bytes());
     msg_vec[104..112].copy_from_slice(&valid_until.to_le_bytes());
+    msg!("copied to msg_vec");
     // TODO: uncomment and fix this
     let msg: &[u8] = &msg_vec;
-    let digest = hash::hashv(&[msg]);
-    // verify_ed25519_ix(&ix, &user_key.to_bytes(), digest.as_ref(), &data.signature)?;
+    msg!("msg {:?}", msg);
+    let digest = hash::hash(msg);
+    msg!("protocol_key {:?}", protocol_key.to_bytes());
+    msg!("permission_id {:?}", permission_id);
+    msg!("user_key {:?}", user_key.to_bytes());
+    msg!("bid_amount {:?}", bid_amount.to_le_bytes());
+    msg!("valid_until {:?}", valid_until.to_le_bytes());
+
+    msg!("digest {:?}", digest.as_ref());
+    msg!("hashed msg");
+    verify_ed25519_ix(&ix, &user_key.to_bytes(), digest.as_ref(), &data.signature)?;
+
+    msg!("Finished validation of signature");
 
     Ok(())
 }
@@ -159,7 +191,7 @@ pub mod express_relay {
         Ok(())
     }
 
-    pub fn permission(ctx: Context<Permission>, data: PermissionArgs) -> Result<()> {
+    pub fn permission(ctx: Context<Permission>, data: Box<PermissionArgs>) -> Result<()> {
         let relayer_signer = &ctx.accounts.relayer_signer;
         let permission = &ctx.accounts.permission;
         let sysvar_ixs = &ctx.accounts.sysvar_instructions;
@@ -202,34 +234,65 @@ pub mod express_relay {
         // permission.bump = ctx.bumps.permission;
         permission_data.balance = permission.to_account_info().lamports();
         permission_data.bid_amount = data.bid_amount;
+        msg!("permission_data {:p}", permission_data);
 
         Ok(())
     }
 
     pub fn depermission(ctx: Context<Depermission>, data: DepermissionArgs) -> Result<()> {
+        let check_space = [0u8; 1000];
+        msg!("check_space {:p}", &check_space);
+
         let relayer_signer = &ctx.accounts.relayer_signer;
+        msg!("relayer signer {:p}", relayer_signer);
         let permission = &ctx.accounts.permission;
+        msg!("permission {:p}", permission);
         let protocol_config = &ctx.accounts.protocol_config;
+        msg!("protocol_config {:p}", protocol_config);
         let express_relay_metadata = &ctx.accounts.express_relay_metadata;
+        msg!("express_relay_metadata {:p}", express_relay_metadata);
         let protocol_fee_receiver = &ctx.accounts.protocol_fee_receiver;
+        msg!("protocol_fee_receiver {:p}", protocol_fee_receiver);
         let relayer_fee_receiver = &ctx.accounts.relayer_fee_receiver;
+        msg!("relayer_fee_receiver {:p}", relayer_fee_receiver);
 
         let wsol_mint = &ctx.accounts.wsol_mint;
+        msg!("wsol_mint {:p}", wsol_mint);
         let wsol_ta_user = &ctx.accounts.wsol_ta_user;
+        msg!("wsol_ta_user {:p}", wsol_ta_user);
         let wsol_ta_express_relay = &ctx.accounts.wsol_ta_express_relay;
+        msg!("wsol_ta_express_relay {:p}", wsol_ta_express_relay);
         let express_relay_authority = &ctx.accounts.express_relay_authority;
+        msg!("express_relay_authority {:p}", express_relay_authority);
         let token_program = &ctx.accounts.token_program;
+        msg!("token_program {:p}", token_program);
         let sysvar_ixs = &ctx.accounts.sysvar_instructions;
+        msg!("sysvar_ixs {:p}", sysvar_ixs);
+
+        let j: u8 = 0;
+        msg!("j! {:p}", &j);
+        let j2: u8 = 1;
+        msg!("j2! {:p}", &j2);
+
+        msg!("ix data {:p}", &data);
+        msg!("ctx {:p}", &ctx);
 
         let permission_data = permission.load()?;
+        msg!("permission data {:p}", &permission_data);
         let bid_amount = permission_data.bid_amount;
         drop(permission_data);
+
+        let express_relay_metadata_data = express_relay_metadata.load()?;
+        let split_protocol_default = express_relay_metadata_data.split_protocol_default;
+        let split_relayer = express_relay_metadata_data.split_relayer;
+        drop(express_relay_metadata_data);
 
         // signature verification
         validate_signature(sysvar_ixs, bid_amount, data, ctx.accounts.protocol.key(), ctx.accounts.user.key())?;
 
         let rent_owed_relayer_signer = wsol_ta_express_relay.to_account_info().lamports();
 
+        msg!("CHECK 1");
         handle_wsol_transfer(
             wsol_ta_user,
             wsol_ta_express_relay,
@@ -245,11 +308,7 @@ pub mod express_relay {
         //     return err!(ExpressRelayError::BidNotMet)
         // }
 
-        let express_relay_metadata_data = express_relay_metadata.load()?;
-        let split_protocol_default = express_relay_metadata_data.split_protocol_default;
-        let split_relayer = express_relay_metadata_data.split_relayer;
-        drop(express_relay_metadata_data);
-
+        msg!("CHECK 2");
         let split_protocol: u64;
         let protocol_config_account_info = protocol_config.to_account_info();
         if protocol_config_account_info.data_len() > 0 {
@@ -268,6 +327,7 @@ pub mod express_relay {
         if fee_relayer.checked_add(fee_protocol).unwrap() > bid_amount {
             return err!(ExpressRelayError::FeesTooHigh);
         }
+        msg!("CHECK 3");
 
         transfer_lamports(&permission.to_account_info(), &relayer_signer.to_account_info(), rent_owed_relayer_signer)?;
         transfer_lamports(&permission.to_account_info(), &protocol_fee_receiver.to_account_info(), fee_protocol)?;
@@ -367,7 +427,13 @@ pub struct PermissionArgs {
 pub struct Permission<'info> {
     #[account(mut)]
     pub relayer_signer: Signer<'info>,
-    #[account(init, payer = relayer_signer, space = RESERVE_PERMISSION, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump)]
+    #[account(
+        init,
+        payer = relayer_signer,
+        space = RESERVE_PERMISSION,
+        seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id],
+        bump
+    )]
     pub permission: AccountLoader<'info, PermissionMetadata>,
     /// CHECK: this is just the protocol fee receiver PK
     pub protocol: UncheckedAccount<'info>,
@@ -385,15 +451,21 @@ pub struct DepermissionArgs {
     pub permission_id: [u8; 32],
     pub signature: [u8; 64],
     pub valid_until: u64,
+    // TODO: protect against replay attacks
 }
 
 #[derive(Accounts)]
-#[instruction(data: DepermissionArgs)]
+// #[instruction(data: DepermissionArgs)]
 pub struct Depermission<'info> {
     #[account(mut)]
     pub relayer_signer: Signer<'info>,
     // TODO: upon close, should send funds to the program as opposed to the relayer signer--o/w relayer will get all "fat-fingered" fees
-    #[account(mut, seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id], bump, close = relayer_signer)]
+    // TODO: need to do the pda validation
+    // seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id],
+    // bump,
+    #[account(
+        mut,
+        close = relayer_signer)]
     pub permission: AccountLoader<'info, PermissionMetadata>,
     /// CHECK: this is just the user account
     pub user: UncheckedAccount<'info>,
