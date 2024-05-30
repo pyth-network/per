@@ -2,11 +2,11 @@ use anchor_lang::{prelude::*, system_program};
 use anchor_spl::{associated_token::get_associated_token_address, token};
 use spl_associated_token_account::instruction::create_associated_token_account;
 use solana_program_test::ProgramTestContext;
-use solana_sdk::{account::Account, instruction::Instruction, signature::Keypair, transaction::Transaction, signer::Signer, sysvar::instructions::id as sysvar_instructions_id};
+use solana_sdk::{account::Account, ed25519_instruction, instruction::Instruction, signature::Keypair, signer::Signer, sysvar::instructions::id as sysvar_instructions_id, transaction::Transaction};
 use anchor_lang::{ToAccountMetas, InstructionData};
-use express_relay::{state::{SEED_METADATA, SEED_CONFIG_PROTOCOL, SEED_PERMISSION, SEED_EXPRESS_RELAY_FEES, SEED_AUTHORITY, ExpressRelayMetadata}, InitializeArgs, SetRelayerArgs, SetSplitsArgs, PermissionArgs, DepermissionArgs, accounts::{Initialize, SetRelayer, SetSplits, Permission, Depermission}};
+use express_relay::{state::{SEED_METADATA, SEED_CONFIG_PROTOCOL, SEED_PERMISSION, SEED_EXPRESS_RELAY_FEES, SEED_AUTHORITY, SEED_SIGNATURE_ACCOUNTING, ExpressRelayMetadata}, InitializeArgs, SetRelayerArgs, SetSplitsArgs, PermissionArgs, DepermissionArgs, accounts::{Initialize, SetRelayer, SetSplits, Permission, Depermission}};
 use std::str::FromStr;
-use solana_program::system_instruction;
+use solana_program::{hash, system_instruction, ed25519_program};
 use spl_token::instruction::{approve, sync_native};
 
 pub async fn initialize(program_context: &mut ProgramTestContext, payer: Keypair, admin: Pubkey, relayer_signer: Pubkey, relayer_fee_receiver: Pubkey, split_protocol_default: u64, split_relayer: u64) -> Account {
@@ -162,17 +162,28 @@ pub async fn express_relay_tx(
     msg[64..96].copy_from_slice(&searcher_payer.pubkey().key().to_bytes());
     msg[96..104].copy_from_slice(&bid_amount.to_le_bytes());
     msg[104..].copy_from_slice(&valid_until.to_le_bytes());
-    let signature: [u8; 64] = searcher_payer.sign_message(&msg).as_ref().try_into().unwrap();
+    let digest = hash::hash(&msg);
+    let signature: [u8; 64] = searcher_payer.sign_message(digest.as_ref()).as_ref().try_into().unwrap();
+
+    let signature_accounting = Pubkey::find_program_address(
+        &[
+            SEED_SIGNATURE_ACCOUNTING,
+            &signature[..32],
+            &signature[32..]
+        ], &express_relay::id()).0;
 
     let permission_ix = Instruction {
         program_id: express_relay::id(),
         data:
         express_relay::instruction::Permission {
-            data: Box::new(PermissionArgs {
-                permission_id: permission_id.clone(),
-                // bid_id: bid_id.clone(),
-                bid_amount: bid_amount.clone(),
-            })
+            data:
+                Box::new(
+                    PermissionArgs {
+                        permission_id: permission_id.clone(),
+                        // bid_id: bid_id.clone(),
+                        bid_amount: bid_amount.clone(),
+                    }
+                )
         }.data(),
         accounts: Permission {
             relayer_signer: relayer_signer.pubkey(),
@@ -242,22 +253,23 @@ pub async fn express_relay_tx(
     print!("valid until before the ix: {:?}", valid_until);
     print!("signature before the ix: {:?}", signature);
     print!("DOING THIS {:?}", express_relay::instruction::Depermission {
-        data: DepermissionArgs {
+        data: Box::new(DepermissionArgs {
             permission_id,
             valid_until,
             signature
-        }
+        })
     }.data());
 
     let depermission_ix = Instruction {
         program_id: express_relay::id(),
         data:
         express_relay::instruction::Depermission {
-            data: DepermissionArgs {
+            data: Box::new(
+                DepermissionArgs {
                 permission_id,
                 valid_until,
                 signature
-            }
+            })
         }.data(),
         accounts: Depermission {
             relayer_signer: relayer_signer.pubkey(),
@@ -272,6 +284,7 @@ pub async fn express_relay_tx(
             wsol_ta_user: wsol_ta_user,
             wsol_ta_express_relay: wsol_ta_express_relay,
             express_relay_authority: express_relay_authority,
+            signature_accounting: signature_accounting,
             token_program: token::ID,
             system_program: system_program::ID,
             sysvar_instructions: sysvar_instructions_id(),
@@ -279,12 +292,36 @@ pub async fn express_relay_tx(
         .to_account_metas(None),
     };
 
-    print!("                                                                                                         ");
-    print!("INSTRUCTION DEPERMISSION: {:?}", depermission_ix);
+    // TODO: use a library to construct this
+    // let sigver_ix = ed25519_instruction::new_ed25519_instruction(
+    //     searcher_payer,
+    //     &digest,
+    // );
+    let mut data_ix_sigver: [u8; 112 + 32] = [0; 112 + 32];
+    data_ix_sigver[..1].copy_from_slice(&[1u8]);
+    data_ix_sigver[1..2].copy_from_slice(&[0u8]);
+    data_ix_sigver[2..4].copy_from_slice(&[48u8, 0u8]);
+    data_ix_sigver[4..6].copy_from_slice(&[255u8, 255u8]);
+    data_ix_sigver[6..8].copy_from_slice(&[16u8, 0u8]);
+    data_ix_sigver[8..10].copy_from_slice(&[255u8, 255u8]);
+    data_ix_sigver[10..12].copy_from_slice(&[112u8, 0u8]);
+    data_ix_sigver[12..14].copy_from_slice(&[32u8, 0u8]);
+    data_ix_sigver[14..16].copy_from_slice(&[255u8, 255u8]);
+
+    data_ix_sigver[16..48].copy_from_slice(&searcher_payer.pubkey().to_bytes());
+    data_ix_sigver[48..112].copy_from_slice(&signature);
+    data_ix_sigver[112..].copy_from_slice(digest.as_ref());
+
+    let sigver_ix = Instruction {
+        program_id: ed25519_program::id(),
+        data: data_ix_sigver.into(),
+        accounts: vec![]
+    };
 
     let mut tx = Transaction::new_with_payer(
         &[
             permission_ix,
+            sigver_ix,
             depermission_ix
         ],
         Some(&relayer_signer.pubkey()));

@@ -42,3 +42,10 @@ pub const SEED_AUTHORITY: &[u8] = b"authority";
 #[account(zero_copy)]
 #[derive(Default)]
 pub struct Authority {}
+
+pub const RESERVE_SIGNATURE_ACCOUNTING: usize = 8+0;
+pub const SEED_SIGNATURE_ACCOUNTING: &[u8] = b"signature_accounting";
+
+#[account(zero_copy)]
+#[derive(Default)]
+pub struct SignatureAccounting {}

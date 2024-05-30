@@ -94,7 +94,7 @@ pub fn handle_wsol_transfer<'info>(
 pub fn validate_signature(
     sysvar_ixs: &UncheckedAccount,
     bid_amount: u64,
-    data: DepermissionArgs,
+    data: Box<DepermissionArgs>,
     protocol_key: Pubkey,
     user_key: Pubkey,
 ) -> Result<()> {
@@ -124,7 +124,6 @@ pub fn validate_signature(
     msg_vec[96..104].copy_from_slice(&bid_amount.to_le_bytes());
     msg_vec[104..112].copy_from_slice(&valid_until.to_le_bytes());
     msg!("copied to msg_vec");
-    // TODO: uncomment and fix this
     let msg: &[u8] = &msg_vec;
     msg!("msg {:?}", msg);
     let digest = hash::hash(msg);
@@ -209,6 +208,7 @@ pub mod express_relay {
         for index in 1..last_ix_index {
             let ix = load_instruction_at_checked(index as usize, sysvar_ixs)?;
             // TODO: we are going to have to figure out security here, preventing relayer_signer from signing for bad ixs
+            // other than maintaining a sanctioned pubkey list? maybe instead just have a whitelist of programs that relayer signer can be in?
             // // only opportunity adapter allowed to use relayer signer as an account
             // if ix.program_id != OPPORTUNITY_ADAPTER_PROGRAM_ID {
             //     if ix.accounts.iter().any(|acc| acc.pubkey == *relayer_signer.key) {
@@ -239,7 +239,7 @@ pub mod express_relay {
         Ok(())
     }
 
-    pub fn depermission(ctx: Context<Depermission>, data: DepermissionArgs) -> Result<()> {
+    pub fn depermission(ctx: Context<Depermission>, data: Box<DepermissionArgs>) -> Result<()> {
         let check_space = [0u8; 1000];
         msg!("check_space {:p}", &check_space);
 
@@ -264,6 +264,7 @@ pub mod express_relay {
         msg!("wsol_ta_express_relay {:p}", wsol_ta_express_relay);
         let express_relay_authority = &ctx.accounts.express_relay_authority;
         msg!("express_relay_authority {:p}", express_relay_authority);
+        let signature_accounting = &ctx.accounts.signature_accounting;
         let token_program = &ctx.accounts.token_program;
         msg!("token_program {:p}", token_program);
         let sysvar_ixs = &ctx.accounts.sysvar_instructions;
@@ -423,7 +424,7 @@ pub struct PermissionArgs {
 }
 
 #[derive(Accounts)]
-#[instruction(data: PermissionArgs)]
+#[instruction(data: Box<PermissionArgs>)]
 pub struct Permission<'info> {
     #[account(mut)]
     pub relayer_signer: Signer<'info>,
@@ -451,20 +452,18 @@ pub struct DepermissionArgs {
     pub permission_id: [u8; 32],
     pub signature: [u8; 64],
     pub valid_until: u64,
-    // TODO: protect against replay attacks
 }
 
 #[derive(Accounts)]
-// #[instruction(data: DepermissionArgs)]
+#[instruction(data: Box<DepermissionArgs>)]
 pub struct Depermission<'info> {
     #[account(mut)]
     pub relayer_signer: Signer<'info>,
     // TODO: upon close, should send funds to the program as opposed to the relayer signer--o/w relayer will get all "fat-fingered" fees
-    // TODO: need to do the pda validation
-    // seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id],
-    // bump,
     #[account(
         mut,
+        seeds = [SEED_PERMISSION, protocol.key().as_ref(), &data.permission_id],
+        bump,
         close = relayer_signer)]
     pub permission: AccountLoader<'info, PermissionMetadata>,
     /// CHECK: this is just the user account
@@ -500,8 +499,10 @@ pub struct Depermission<'info> {
         token::authority = wsol_ta_express_relay
     )]
     pub wsol_ta_express_relay: Box<Account<'info, TokenAccount>>,
-    #[account(init_if_needed, payer = relayer_signer, space = 8+RESERVE_AUTHORITY, seeds = [SEED_AUTHORITY], bump)]
+    #[account(init_if_needed, payer = relayer_signer, space = RESERVE_AUTHORITY, seeds = [SEED_AUTHORITY], bump)]
     pub express_relay_authority: AccountLoader<'info, Authority>,
+    #[account(init, payer = relayer_signer, space = RESERVE_SIGNATURE_ACCOUNTING, seeds = [SEED_SIGNATURE_ACCOUNTING, &data.signature[..32], &data.signature[32..]], bump)]
+    pub signature_accounting: AccountLoader<'info, SignatureAccounting>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     /// CHECK: this is the sysvar instructions account

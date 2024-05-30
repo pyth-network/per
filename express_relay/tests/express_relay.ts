@@ -473,6 +473,18 @@ describe("express_relay", () => {
       digestExpressRelay,
       payer.secretKey.slice(0, 32)
     );
+    const signatureExpressRelayFirst32 = signatureExpressRelay.slice(0, 32);
+    const signatureExpressRelayLast32 = signatureExpressRelay.slice(32, 64);
+    let signatureAccountingExpressRelay =
+      await PublicKey.findProgramAddressSync(
+        [
+          anchor.utils.bytes.utf8.encode("signature_accounting"),
+          signatureExpressRelayFirst32,
+          signatureExpressRelayLast32,
+        ],
+        expressRelay.programId
+      );
+
     const ixDepermission = await expressRelay.methods
       .depermission({
         permissionId: vault_id_bytes,
@@ -493,6 +505,7 @@ describe("express_relay", () => {
         wsolTaUser: wsolTaUser.address,
         wsolTaExpressRelay: wsolTaExpressRelay[0],
         expressRelayAuthority: expressRelayAuthority[0],
+        signatureAccounting: signatureAccountingExpressRelay[0],
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
         sysvarInstructions: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
@@ -506,6 +519,16 @@ describe("express_relay", () => {
         message: digestExpressRelay,
         signature: signatureExpressRelay,
       });
+
+    console.log("DATA FOR EXPRESS RELAY SIG VER");
+    console.log(ixSigVerifyExpressRelay.data);
+    console.log(ixSigVerifyExpressRelay.data.length);
+    console.log(digestExpressRelay);
+    console.log(digestExpressRelay.length);
+    console.log(signatureExpressRelay);
+    console.log(signatureExpressRelay.length);
+    console.log(payer.publicKey.toBytes());
+    console.log(payer.publicKey.toBytes().length);
 
     let tokenExpectationCollateral = await PublicKey.findProgramAddressSync(
       [
@@ -607,6 +630,21 @@ describe("express_relay", () => {
       digestOpportunityAdapterBuffer,
       payer.secretKey.slice(0, 32)
     );
+    const signatureOpportunityAdapterFirst32 =
+      signatureOpportunityAdapter.slice(0, 32);
+    const signatureOpportnityAdapterLast32 = signatureOpportunityAdapter.slice(
+      32,
+      64
+    );
+    let signatureAccountingOpportunityAdapter =
+      await PublicKey.findProgramAddressSync(
+        [
+          anchor.utils.bytes.utf8.encode("signature_accounting"),
+          signatureOpportunityAdapterFirst32,
+          signatureOpportnityAdapterLast32,
+        ],
+        opportunityAdapter.programId
+      );
     const indexCheckTokenBalances = 4;
     const ixInitializeTokenExpectations = await opportunityAdapter.methods
       .initializeTokenExpectations({
@@ -620,6 +658,7 @@ describe("express_relay", () => {
         relayer: relayerSigner.publicKey,
         user: payer.publicKey,
         opportunityAdapterAuthority: opportunityAdapterAuthority[0],
+        signatureAccounting: signatureAccountingOpportunityAdapter[0],
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,

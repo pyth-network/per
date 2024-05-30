@@ -80,6 +80,7 @@ pub fn check_ed25519_data(data: &[u8], pubkey: &[u8], msg: &[u8], sig: &[u8]) ->
         message_data_size               != &exp_message_data_size.to_le_bytes()     ||
         message_instruction_index       != &u16::MAX.to_le_bytes()
     {
+        msg!("Failed 2");
         return err!(ExpressRelayError::SignatureVerificationFailed);
     }
 
@@ -88,6 +89,7 @@ pub fn check_ed25519_data(data: &[u8], pubkey: &[u8], msg: &[u8], sig: &[u8]) ->
         data_msg    != msg      ||
         data_sig    != sig
     {
+        msg!("failed 3");
         return err!(ExpressRelayError::SignatureVerificationFailed);
     }
 

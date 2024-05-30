@@ -311,14 +311,16 @@ pub struct InitializeTokenExpectationsArgs {
 }
 
 #[derive(Accounts)]
+#[instruction(data: InitializeTokenExpectationsArgs)]
 pub struct InitializeTokenExpectations<'info> {
     #[account(mut)]
     pub relayer: Signer<'info>,
     /// CHECK: this is just the PK of the user
     pub user: UncheckedAccount<'info>,
-    #[account(init_if_needed, payer = relayer, space = 8+RESERVE_AUTHORITY, seeds = [SEED_AUTHORITY], bump)]
+    #[account(init_if_needed, payer = relayer, space = RESERVE_AUTHORITY, seeds = [SEED_AUTHORITY], bump)]
     pub opportunity_adapter_authority: Account<'info, Authority>,
-    // TODO: can we get rid of token_program
+    #[account(init, payer = relayer, space = RESERVE_SIGNATURE_ACCOUNTING, seeds = [SEED_SIGNATURE_ACCOUNTING, &data.signature[..32], &data.signature[32..]], bump)]
+    pub signature_accounting: Account<'info, SignatureAccounting>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -332,7 +334,8 @@ pub struct CheckTokenBalances<'info> {
     #[account(mut)]
     pub relayer: Signer<'info>,
     // TODO: the issue that makes this account necessary: https://github.com/solana-labs/solana/issues/9711
-    /// CHECK: this is just a PK where the relayer receives fees
+    // TODO: do we need a separate relayer_rent_receiver? why can't we send rent right back to the relayer signer?
+    /// CHECK: this is just a PK where the relayer receives fees.
     #[account(mut)]
     pub relayer_rent_receiver: UncheckedAccount<'info>,
     /// CHECK: this is just the PK of the user
