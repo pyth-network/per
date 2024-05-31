@@ -10,13 +10,13 @@ mod api;
 mod auction;
 mod config;
 mod gas_oracle;
+mod metrics_api;
 mod models;
 mod opportunity_adapter;
 mod serde;
 mod server;
 mod state;
 mod token_spoof;
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
