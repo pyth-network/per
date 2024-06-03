@@ -42,6 +42,7 @@ use {
         Future,
     },
     sqlx::{
+        migrate,
         postgres::PgPoolOptions,
         PgPool,
     },
@@ -203,6 +204,10 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         .connect(&run_options.server.database_url)
         .await
         .expect("Server should start with a valid database connection.");
+    migrate!("./migrations")
+        .run(&pool)
+        .await
+        .map_err(|err| anyhow!("Failed to run migrations: {:?}", err))?;
     let task_tracker = TaskTracker::new();
 
     let access_tokens = fetch_access_tokens(&pool).await;
