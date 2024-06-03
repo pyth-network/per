@@ -1,7 +1,6 @@
 //! Metrics Server
 //!
 //! This server serves metrics over /metrics in OpenMetrics format.
-
 use {
     crate::{
         config::RunOptions,
@@ -22,6 +21,7 @@ use {
         Arc,
     },
 };
+
 
 pub async fn start_metrics(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
     tracing::info!("Starting Metrics Server...");

@@ -40,6 +40,7 @@ use {
         },
         response::IntoResponse,
     },
+    axum_prometheus::metrics,
     futures::{
         stream::{
             SplitSink,
@@ -48,6 +49,7 @@ use {
         SinkExt,
         StreamExt,
     },
+    per_metrics::record_metrics,
     serde::{
         Deserialize,
         Serialize,
@@ -255,6 +257,7 @@ impl Subscriber {
         }
     }
 
+    #[record_metrics(category = "ws")]
     async fn handle_update(&mut self, event: UpdateEvent) -> Result<()> {
         match event.clone() {
             UpdateEvent::NewOpportunity(opportunity) => {
@@ -280,6 +283,7 @@ impl Subscriber {
         Ok(())
     }
 
+    #[record_metrics(category = "ws")]
     async fn handle_client_message(&mut self, message: Message) -> Result<()> {
         let maybe_client_message = match message {
             Message::Close(_) => {
