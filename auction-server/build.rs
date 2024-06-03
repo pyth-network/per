@@ -6,6 +6,7 @@ fn main() {
         forge build --via-ir
     "#;
     println!("cargo:rerun-if-changed=../per_multicall");
+    println!("cargo:rerun-if-changed=migrations");
 
     // Build the contracts and generate the ABIs. This is required for abigen! macro expansions to work.
     let output = Command::new("sh")
