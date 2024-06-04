@@ -29,12 +29,10 @@ use {
     anyhow::anyhow,
     axum_prometheus::{
         metrics_exporter_prometheus::{
-            Matcher,
             PrometheusBuilder,
             PrometheusHandle,
         },
         utils::SECONDS_DURATION_BUCKETS,
-        AXUM_HTTP_REQUESTS_DURATION_SECONDS,
     },
     ethers::{
         prelude::{
@@ -131,10 +129,7 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
 
 pub fn setup_metrics_recorder() -> PrometheusHandle {
     PrometheusBuilder::new()
-        .set_buckets_for_metric(
-            Matcher::Full(AXUM_HTTP_REQUESTS_DURATION_SECONDS.to_string()),
-            SECONDS_DURATION_BUCKETS,
-        )
+        .set_buckets(SECONDS_DURATION_BUCKETS)
         .unwrap()
         .install_recorder()
         .unwrap()

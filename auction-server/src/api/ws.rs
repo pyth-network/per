@@ -185,6 +185,13 @@ pub struct Subscriber {
 
 const PING_INTERVAL_DURATION: Duration = Duration::from_secs(30);
 
+fn ok_response(id: String) -> ServerResultResponse {
+    ServerResultResponse {
+        id:     Some(id),
+        result: ServerResultMessage::Success(None),
+    }
+}
+
 impl Subscriber {
     pub fn new(
         id: SubscriberId,
@@ -257,47 +264,150 @@ impl Subscriber {
         }
     }
 
-    #[record_metrics(category = "ws")]
-    async fn handle_update(&mut self, event: UpdateEvent) -> Result<()> {
-        match event.clone() {
-            UpdateEvent::NewOpportunity(opportunity) => {
-                if !self.chain_ids.contains(opportunity.get_chain_id()) {
-                    // Irrelevant update
-                    return Ok(());
-                }
-                let message =
-                    serde_json::to_string(&ServerUpdateResponse::NewOpportunity { opportunity })?;
-                self.sender.send(message.into()).await?;
-            }
-            UpdateEvent::BidStatusUpdate(status) => {
-                if !self.bid_ids.contains(&status.id) {
-                    // Irrelevant update
-                    return Ok(());
-                }
-                let message =
-                    serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { status })?;
-                self.sender.send(message.into()).await?;
-            }
+    #[record_metrics(category = "ws_call")]
+    async fn handle_new_opportunity(
+        &mut self,
+        opportunity: OpportunityParamsWithMetadata,
+    ) -> Result<()> {
+        if !self.chain_ids.contains(opportunity.get_chain_id()) {
+            // Irrelevant update
+            return Ok(());
         }
-
+        let message = serde_json::to_string(&ServerUpdateResponse::NewOpportunity { opportunity })?;
+        self.sender.send(message.into()).await?;
         Ok(())
     }
 
-    #[record_metrics(category = "ws")]
+    #[record_metrics(category = "ws_call")]
+    async fn handle_bid_status_update(&mut self, status: BidStatusWithId) -> Result<()> {
+        if !self.bid_ids.contains(&status.id) {
+            // Irrelevant update
+            return Ok(());
+        }
+        let message = serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { status })?;
+        self.sender.send(message.into()).await?;
+        Ok(())
+    }
+
+    async fn handle_update(&mut self, event: UpdateEvent) -> Result<()> {
+        match event.clone() {
+            UpdateEvent::NewOpportunity(opportunity) => {
+                self.handle_new_opportunity(opportunity).await
+            }
+            UpdateEvent::BidStatusUpdate(status) => self.handle_bid_status_update(status).await,
+        }
+    }
+
+    #[record_metrics(category = "ws_call")]
+    async fn handle_subscribe(
+        &mut self,
+        id: String,
+        chain_ids: Vec<String>,
+    ) -> Result<ServerResultResponse, ServerResultResponse> {
+        let available_chain_ids: Vec<&ChainId> = self.store.chains.keys().collect();
+        let not_found_chain_ids: Vec<&ChainId> = chain_ids
+            .iter()
+            .filter(|chain_id| !available_chain_ids.contains(chain_id))
+            .collect();
+
+        // If there is a single chain id that is not found, we don't subscribe to any of the
+        // asked correct chain ids and return an error to be more explicit and clear.
+        if !not_found_chain_ids.is_empty() {
+            Err(ServerResultResponse {
+                id:     Some(id),
+                result: ServerResultMessage::Err(format!(
+                    "Chain id(s) with id(s) {:?} not found",
+                    not_found_chain_ids
+                )),
+            })
+        } else {
+            self.chain_ids.extend(chain_ids);
+            Ok(ok_response(id))
+        }
+    }
+
+    #[record_metrics(category = "ws_call")]
+    async fn handle_unsubscribe(
+        &mut self,
+        id: String,
+        chain_ids: Vec<String>,
+    ) -> Result<ServerResultResponse, ServerResultResponse> {
+        self.chain_ids
+            .retain(|chain_id| !chain_ids.contains(chain_id));
+        Ok(ok_response(id))
+    }
+
+    #[record_metrics(category = "ws_call")]
+    async fn handle_post_bid(
+        &mut self,
+        id: String,
+        bid: Bid,
+    ) -> Result<ServerResultResponse, ServerResultResponse> {
+        match process_bid(self.store.clone(), bid, self.auth.clone()).await {
+            Ok(bid_result) => {
+                self.bid_ids.insert(bid_result.id);
+                Ok(ServerResultResponse {
+                    id:     Some(id.clone()),
+                    result: ServerResultMessage::Success(Some(APIResponse::BidResult(
+                        bid_result.0,
+                    ))),
+                })
+            }
+            Err(e) => Err(ServerResultResponse {
+                id:     Some(id),
+                result: ServerResultMessage::Err(e.to_status_and_message().1),
+            }),
+        }
+    }
+
+    #[record_metrics(category = "ws_call")]
+    async fn handle_post_opportunity_bid(
+        &mut self,
+        id: String,
+        opportunity_bid: OpportunityBid,
+        opportunity_id: OpportunityId,
+    ) -> Result<ServerResultResponse, ServerResultResponse> {
+        match process_opportunity_bid(
+            self.store.clone(),
+            opportunity_id,
+            &opportunity_bid,
+            self.auth.clone(),
+        )
+        .await
+        {
+            Ok(bid_result) => {
+                self.bid_ids.insert(bid_result.id);
+                Ok(ServerResultResponse {
+                    id:     Some(id.clone()),
+                    result: ServerResultMessage::Success(Some(APIResponse::BidResult(
+                        bid_result.0,
+                    ))),
+                })
+            }
+            Err(e) => Err(ServerResultResponse {
+                id:     Some(id),
+                result: ServerResultMessage::Err(e.to_status_and_message().1),
+            }),
+        }
+    }
+
+    #[record_metrics(category = "ws_call")]
+    async fn handle_close(&mut self) -> Result<()> {
+        // Closing the connection. We don't remove it from the subscribers
+        // list, instead when the Subscriber struct is dropped the channel
+        // to subscribers list will be closed and it will eventually get
+        // removed.
+        // Send the close message to gracefully shut down the connection
+        // Otherwise the client might get an abnormal Websocket closure
+        // error.
+        self.sender.close().await?;
+        self.closed = true;
+        Ok(())
+    }
+
     async fn handle_client_message(&mut self, message: Message) -> Result<()> {
         let maybe_client_message = match message {
-            Message::Close(_) => {
-                // Closing the connection. We don't remove it from the subscribers
-                // list, instead when the Subscriber struct is dropped the channel
-                // to subscribers list will be closed and it will eventually get
-                // removed.
-                // Send the close message to gracefully shut down the connection
-                // Otherwise the client might get an abnormal Websocket closure
-                // error.
-                self.sender.close().await?;
-                self.closed = true;
-                return Ok(());
-            }
+            Message::Close(_) => return self.handle_close().await,
             Message::Text(text) => serde_json::from_str::<ClientRequest>(&text),
             Message::Binary(data) => serde_json::from_slice::<ClientRequest>(&data),
             Message::Ping(_) => {
@@ -311,95 +421,37 @@ impl Subscriber {
         };
 
         let response = match maybe_client_message {
-            Err(e) => ServerResultResponse {
+            Err(e) => Err(ServerResultResponse {
                 id:     None,
                 result: ServerResultMessage::Err(e.to_string()),
-            },
-
-            Ok(ClientRequest { msg, id }) => {
-                let ok_response = ServerResultResponse {
-                    id:     Some(id.clone()),
-                    result: ServerResultMessage::Success(None),
-                };
-                match msg {
-                    ClientMessage::Subscribe { chain_ids } => {
-                        let available_chain_ids: Vec<&ChainId> = self.store.chains.keys().collect();
-
-                        let not_found_chain_ids: Vec<&ChainId> = chain_ids
-                            .iter()
-                            .filter(|chain_id| !available_chain_ids.contains(chain_id))
-                            .collect();
-
-                        // If there is a single chain id that is not found, we don't subscribe to any of the
-                        // asked correct chain ids and return an error to be more explicit and clear.
-                        if !not_found_chain_ids.is_empty() {
-                            ServerResultResponse {
-                                id:     Some(id),
-                                result: ServerResultMessage::Err(format!(
-                                    "Chain id(s) with id(s) {:?} not found",
-                                    not_found_chain_ids
-                                )),
-                            }
-                        } else {
-                            self.chain_ids.extend(chain_ids);
-                            ok_response
-                        }
-                    }
-                    ClientMessage::Unsubscribe { chain_ids } => {
-                        self.chain_ids
-                            .retain(|chain_id| !chain_ids.contains(chain_id));
-                        ok_response
-                    }
-                    ClientMessage::PostBid { bid } => {
-                        match process_bid(self.store.clone(), bid, self.auth.clone()).await {
-                            Ok(bid_result) => {
-                                self.bid_ids.insert(bid_result.id);
-                                ServerResultResponse {
-                                    id:     Some(id.clone()),
-                                    result: ServerResultMessage::Success(Some(
-                                        APIResponse::BidResult(bid_result.0),
-                                    )),
-                                }
-                            }
-                            Err(e) => ServerResultResponse {
-                                id:     Some(id),
-                                result: ServerResultMessage::Err(e.to_status_and_message().1),
-                            },
-                        }
-                    }
-                    ClientMessage::PostOpportunityBid {
-                        opportunity_bid,
-                        opportunity_id,
-                    } => {
-                        match process_opportunity_bid(
-                            self.store.clone(),
-                            opportunity_id,
-                            &opportunity_bid,
-                            self.auth.clone(),
-                        )
-                        .await
-                        {
-                            Ok(bid_result) => {
-                                self.bid_ids.insert(bid_result.id);
-                                ServerResultResponse {
-                                    id:     Some(id.clone()),
-                                    result: ServerResultMessage::Success(Some(
-                                        APIResponse::BidResult(bid_result.0),
-                                    )),
-                                }
-                            }
-                            Err(e) => ServerResultResponse {
-                                id:     Some(id),
-                                result: ServerResultMessage::Err(e.to_status_and_message().1),
-                            },
-                        }
-                    }
+            }),
+            Ok(ClientRequest { msg, id }) => match msg {
+                ClientMessage::Subscribe { chain_ids } => {
+                    self.handle_subscribe(id, chain_ids).await
                 }
-            }
+                ClientMessage::Unsubscribe { chain_ids } => {
+                    self.handle_unsubscribe(id, chain_ids).await
+                }
+                ClientMessage::PostBid { bid } => self.handle_post_bid(id, bid).await,
+                ClientMessage::PostOpportunityBid {
+                    opportunity_bid,
+                    opportunity_id,
+                } => {
+                    self.handle_post_opportunity_bid(id, opportunity_bid, opportunity_id)
+                        .await
+                }
+            },
         };
+
+        let response = match response {
+            Ok(response) => response,
+            Err(response) => response,
+        };
+
         self.sender
             .send(serde_json::to_string(&response)?.into())
             .await?;
+
         Ok(())
     }
 }
