@@ -22,8 +22,6 @@ use {
     },
 };
 
-// let args = parse_macro_input!(args as Args);
-
 struct Args {
     category: String,
 }
