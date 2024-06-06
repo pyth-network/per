@@ -1,4 +1,3 @@
-workspace = { members = ["per_metrics"] }
 [package]
 name = "auction-server"
 version = "0.8.0"
@@ -34,4 +33,3 @@ rand = "0.8.5"
 base64 = "0.22.1"
 time = { version = "0.3.36", features = ["serde"] }
 axum-prometheus = "0.6.1"
-per_metrics = { path = "./per_metrics" }

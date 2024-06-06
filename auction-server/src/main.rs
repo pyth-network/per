@@ -1,18 +1,30 @@
 use {
     anyhow::Result,
     clap::Parser,
+    per_metrics::{
+        is_metrics,
+        MetricsLayer,
+    },
     server::start_server,
     std::io::IsTerminal,
-    tracing_subscriber::filter::LevelFilter,
+    tracing_subscriber::{
+        filter::{
+            self,
+            LevelFilter,
+        },
+        layer::SubscriberExt,
+        util::SubscriberInitExt,
+        Layer,
+    },
 };
 
 mod api;
 mod auction;
 mod config;
 mod gas_oracle;
-mod metrics_api;
 mod models;
 mod opportunity_adapter;
+mod per_metrics;
 mod serde;
 mod server;
 mod state;
@@ -22,22 +34,34 @@ mod token_spoof;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize a Tracing Subscriber
-    let fmt_builder = tracing_subscriber::fmt()
+    let log_layer = tracing_subscriber::fmt::layer()
         .with_file(false)
         .with_line_number(true)
         .with_thread_ids(true)
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
-        )
+        .with_target(true)
         .with_ansi(std::io::stderr().is_terminal());
 
-    // Use the compact formatter if we're in a terminal, otherwise use the JSON formatter.
+    let registry = tracing_subscriber::registry()
+        .with(MetricsLayer.with_filter(filter::filter_fn(is_metrics)));
+
     if std::io::stderr().is_terminal() {
-        tracing::subscriber::set_global_default(fmt_builder.compact().finish())?;
+        registry
+            .with(
+                log_layer
+                    .compact()
+                    .with_filter(LevelFilter::INFO)
+                    .with_filter(filter::filter_fn(|metadata| !is_metrics(metadata))),
+            )
+            .init();
     } else {
-        tracing::subscriber::set_global_default(fmt_builder.json().finish())?;
+        registry
+            .with(
+                log_layer
+                    .json()
+                    .with_filter(LevelFilter::INFO)
+                    .with_filter(filter::filter_fn(|metadata| !is_metrics(metadata))),
+            )
+            .init();
     }
 
     // Parse the command line arguments with StructOpt, will exit automatically on `--help` or

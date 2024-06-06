@@ -214,7 +214,6 @@ dependencies = [
  "email_address",
  "ethers",
  "futures",
- "per_metrics",
  "rand",
  "serde",
  "serde_json",
@@ -2811,16 +2810,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412"
 dependencies = [
  "base64ct",
-]
-
-[[package]]
-name = "per_metrics"
-version = "0.1.0"
-dependencies = [
- "axum-prometheus",
- "proc-macro2",
- "quote",
- "syn 2.0.66",
 ]
 
 [[package]]

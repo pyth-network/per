@@ -13,13 +13,13 @@ use {
             Config,
             RunOptions,
         },
-        metrics_api,
         models,
         opportunity_adapter::{
             get_eip_712_domain,
             get_weth_address,
             run_verification_loop,
         },
+        per_metrics,
         state::{
             ChainStore,
             OpportunityStore,
@@ -274,7 +274,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             run_options.clone(),
             store.clone()
         )),
-        fault_tolerant_handler("start metrics".to_string(), || metrics_api::start_metrics(
+        fault_tolerant_handler("start metrics".to_string(), || per_metrics::start_metrics(
             run_options.clone(),
             store.clone()
         )),

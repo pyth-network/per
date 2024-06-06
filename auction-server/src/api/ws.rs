@@ -40,7 +40,6 @@ use {
         },
         response::IntoResponse,
     },
-    axum_prometheus::metrics,
     futures::{
         stream::{
             SplitSink,
@@ -49,7 +48,6 @@ use {
         SinkExt,
         StreamExt,
     },
-    per_metrics::record_metrics,
     serde::{
         Deserialize,
         Serialize,
@@ -66,6 +64,7 @@ use {
         time::Duration,
     },
     tokio::sync::broadcast,
+    tracing::instrument,
     utoipa::ToSchema,
 };
 
@@ -264,11 +263,11 @@ impl Subscriber {
         }
     }
 
-    #[record_metrics(category = "ws_call")]
     async fn handle_new_opportunity(
         &mut self,
         opportunity: OpportunityParamsWithMetadata,
     ) -> Result<()> {
+        tracing::Span::current().record("name", "new_opportunity");
         if !self.chain_ids.contains(opportunity.get_chain_id()) {
             // Irrelevant update
             return Ok(());
@@ -278,8 +277,8 @@ impl Subscriber {
         Ok(())
     }
 
-    #[record_metrics(category = "ws_call")]
     async fn handle_bid_status_update(&mut self, status: BidStatusWithId) -> Result<()> {
+        tracing::Span::current().record("name", "bid_status_update");
         if !self.bid_ids.contains(&status.id) {
             // Irrelevant update
             return Ok(());
@@ -289,27 +288,41 @@ impl Subscriber {
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(category = "ws_update", result, name),
+        skip_all
+    )]
     async fn handle_update(&mut self, event: UpdateEvent) -> Result<()> {
-        match event.clone() {
+        let result = match event.clone() {
             UpdateEvent::NewOpportunity(opportunity) => {
                 self.handle_new_opportunity(opportunity).await
             }
             UpdateEvent::BidStatusUpdate(status) => self.handle_bid_status_update(status).await,
+        };
+        match result {
+            Ok(result) => {
+                tracing::Span::current().record("result", "success");
+                Ok(result)
+            }
+            Err(e) => {
+                tracing::Span::current().record("result", "error");
+                Err(e)
+            }
         }
     }
 
-    #[record_metrics(category = "ws_call")]
     async fn handle_subscribe(
         &mut self,
         id: String,
         chain_ids: Vec<String>,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
+        tracing::Span::current().record("name", "handle_subscribe");
         let available_chain_ids: Vec<&ChainId> = self.store.chains.keys().collect();
         let not_found_chain_ids: Vec<&ChainId> = chain_ids
             .iter()
             .filter(|chain_id| !available_chain_ids.contains(chain_id))
             .collect();
-
         // If there is a single chain id that is not found, we don't subscribe to any of the
         // asked correct chain ids and return an error to be more explicit and clear.
         if !not_found_chain_ids.is_empty() {
@@ -326,23 +339,23 @@ impl Subscriber {
         }
     }
 
-    #[record_metrics(category = "ws_call")]
     async fn handle_unsubscribe(
         &mut self,
         id: String,
         chain_ids: Vec<String>,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
+        tracing::Span::current().record("name", "unsubscribe");
         self.chain_ids
             .retain(|chain_id| !chain_ids.contains(chain_id));
         Ok(ok_response(id))
     }
 
-    #[record_metrics(category = "ws_call")]
     async fn handle_post_bid(
         &mut self,
         id: String,
         bid: Bid,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
+        tracing::Span::current().record("name", "post_bid");
         match process_bid(self.store.clone(), bid, self.auth.clone()).await {
             Ok(bid_result) => {
                 self.bid_ids.insert(bid_result.id);
@@ -360,13 +373,13 @@ impl Subscriber {
         }
     }
 
-    #[record_metrics(category = "ws_call")]
     async fn handle_post_opportunity_bid(
         &mut self,
         id: String,
         opportunity_bid: OpportunityBid,
         opportunity_id: OpportunityId,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
+        tracing::Span::current().record("name", "post_opportunity_bid");
         match process_opportunity_bid(
             self.store.clone(),
             opportunity_id,
@@ -391,30 +404,38 @@ impl Subscriber {
         }
     }
 
-    #[record_metrics(category = "ws_call")]
-    async fn handle_close(&mut self) -> Result<()> {
-        // Closing the connection. We don't remove it from the subscribers
-        // list, instead when the Subscriber struct is dropped the channel
-        // to subscribers list will be closed and it will eventually get
-        // removed.
-        // Send the close message to gracefully shut down the connection
-        // Otherwise the client might get an abnormal Websocket closure
-        // error.
-        self.sender.close().await?;
-        self.closed = true;
-        Ok(())
-    }
-
+    #[instrument(
+        target = "metrics",
+        fields(category = "ws_client_message", result, name),
+        skip_all
+    )]
     async fn handle_client_message(&mut self, message: Message) -> Result<()> {
         let maybe_client_message = match message {
-            Message::Close(_) => return self.handle_close().await,
+            Message::Close(_) => {
+                // Closing the connection. We don't remove it from the subscribers
+                // list, instead when the Subscriber struct is dropped the channel
+                // to subscribers list will be closed and it will eventually get
+                // removed.
+                // Send the close message to gracefully shut down the connection
+                // Otherwise the client might get an abnormal Websocket closure
+                // error.
+                tracing::Span::current().record("name", "close");
+                if let Err(e) = self.sender.close().await {
+                    tracing::Span::current().record("result", "error");
+                    return Err(e.into());
+                }
+                self.closed = true;
+                return Ok(());
+            }
             Message::Text(text) => serde_json::from_str::<ClientRequest>(&text),
             Message::Binary(data) => serde_json::from_slice::<ClientRequest>(&data),
             Message::Ping(_) => {
                 // Axum will send Pong automatically
+                tracing::Span::current().record("name", "ping");
                 return Ok(());
             }
             Message::Pong(_) => {
+                tracing::Span::current().record("name", "pong");
                 self.responded_to_ping = true;
                 return Ok(());
             }
@@ -444,8 +465,14 @@ impl Subscriber {
         };
 
         let response = match response {
-            Ok(response) => response,
-            Err(response) => response,
+            Ok(response) => {
+                tracing::Span::current().record("result", "success");
+                response
+            }
+            Err(response) => {
+                tracing::Span::current().record("result", "error");
+                response
+            }
         };
 
         self.sender
