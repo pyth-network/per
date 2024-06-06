@@ -366,7 +366,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
         .with_metrics_from_fn(|| store.metrics_recorder.clone())
         .build_pair();
-    // let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .merge(Redoc::with_url("/redoc", ApiDoc::openapi()))
@@ -380,9 +379,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .layer(prometheus_layer)
         .with_state(store);
 
-    let listener = tokio::net::TcpListener::bind(&run_options.server.listen_addr)
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&run_options.server.listen_addr).await?;
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
             while !SHOULD_EXIT.load(Ordering::Acquire) {

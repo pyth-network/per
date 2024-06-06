@@ -127,12 +127,12 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
         .collect()
 }
 
-pub fn setup_metrics_recorder() -> PrometheusHandle {
+pub fn setup_metrics_recorder() -> anyhow::Result<PrometheusHandle> {
     PrometheusBuilder::new()
         .set_buckets(SECONDS_DURATION_BUCKETS)
         .unwrap()
         .install_recorder()
-        .unwrap()
+        .map_err(|err| anyhow!("Failed to set up metrics recorder: {:?}", err))
 }
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
@@ -254,7 +254,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         submitted_auctions: Default::default(),
         secret_key:         run_options.secret_key.clone(),
         access_tokens:      RwLock::new(access_tokens),
-        metrics_recorder:   setup_metrics_recorder(),
+        metrics_recorder:   setup_metrics_recorder()?,
     });
 
     tokio::join!(

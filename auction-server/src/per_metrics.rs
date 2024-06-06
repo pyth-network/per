@@ -157,9 +157,7 @@ pub async fn start_metrics(run_options: RunOptions, store: Arc<Store>) -> Result
     let app = Router::new();
     let app = app.route("/metrics", get(|| async move { metric_handle.render() }));
 
-    let listener = tokio::net::TcpListener::bind(&run_options.server.metrics_addr)
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&run_options.server.metrics_addr).await?;
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
             while !SHOULD_EXIT.load(Ordering::Acquire) {
