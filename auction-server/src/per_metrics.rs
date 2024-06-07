@@ -101,7 +101,6 @@ where
         id: &tracing::span::Id,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        println!("on_new_span {:?}", attrs.metadata());
         match ctx.span(id) {
             Some(span) => {
                 let mut data = MetricsLayerData::new(span.metadata().name().to_string());
