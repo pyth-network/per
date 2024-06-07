@@ -7,6 +7,7 @@ use {
         auction::{
             get_express_relay_contract,
             run_submission_loop,
+            run_tracker_loop,
         },
         config::{
             ChainId,
@@ -261,6 +262,15 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                 )
             });
             join_all(submission_loops).await;
+        },
+        async {
+            let tracker_loops = store.chains.keys().map(|chain_id| {
+                fault_tolerant_handler(
+                    format!("tracker loop for chain {}", chain_id.clone()),
+                    || run_tracker_loop(store.clone(), chain_id.clone()),
+                )
+            });
+            join_all(tracker_loops).await;
         },
         fault_tolerant_handler("verification loop".to_string(), || run_verification_loop(
             store.clone()

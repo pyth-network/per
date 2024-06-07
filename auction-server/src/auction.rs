@@ -28,6 +28,7 @@ use {
         anyhow,
         Result,
     },
+    axum_prometheus::metrics,
     ethers::{
         abi,
         contract::{
@@ -594,4 +595,49 @@ pub async fn handle_bid(
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)
+}
+
+/// Run an infinite loop to track metrics for monitoring like balance of wallets
+///
+/// # Arguments
+///
+/// * `store`: server store
+pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
+    tracing::info!("Starting tracker...");
+    let chain_store = store
+        .chains
+        .get(&chain_id)
+        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+
+    let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+
+    // this should be replaced by a subscription to the chain and trigger on new blocks
+    let mut submission_interval = tokio::time::interval(Duration::from_secs(10));
+    while !SHOULD_EXIT.load(Ordering::Acquire) {
+        tokio::select! {
+            _ = submission_interval.tick() => {
+                match chain_store.provider.get_balance(store.relayer.address(), None).await {
+                    Ok(r) => {
+                        // This conversion to u128 is fine as the total balance will never cross the limits
+                        // of u128 practically.
+                        // The f64 conversion is made to be able to serve metrics within the constraints of Prometheus.
+                        // The balance is in wei, so we need to divide by 1e18 to convert it to eth.
+                        let balance = r.as_u128() as f64 / 1e18;
+                        let label = [
+                            ("chain_id", chain_id.clone()),
+                            ("address", format!("{:?}", store.relayer.address())),
+                        ];
+                        metrics::gauge!("relayer_balance", &label).set(balance);
+                    }
+                    Err(e) => {
+                        tracing::error!("Error while getting balance. error: {:?}", e);
+                    }
+                };
+            }
+            _ = exit_check_interval.tick() => {
+            }
+        }
+    }
+    tracing::info!("Shutting down tracker...");
+    Ok(())
 }
