@@ -64,7 +64,10 @@ use {
         time::Duration,
     },
     tokio::sync::broadcast,
-    tracing::instrument,
+    tracing::{
+        instrument,
+        Instrument,
+    },
     utoipa::ToSchema,
 };
 
@@ -290,26 +293,24 @@ impl Subscriber {
 
     #[instrument(
         target = "metrics",
-        fields(category = "ws_update", result, name),
+        fields(category = "ws_update", result = "success", name),
         skip_all
     )]
     async fn handle_update(&mut self, event: UpdateEvent) -> Result<()> {
         let result = match event.clone() {
             UpdateEvent::NewOpportunity(opportunity) => {
+                tracing::Span::current().record("name", "new_opportunity");
                 self.handle_new_opportunity(opportunity).await
             }
-            UpdateEvent::BidStatusUpdate(status) => self.handle_bid_status_update(status).await,
+            UpdateEvent::BidStatusUpdate(status) => {
+                tracing::Span::current().record("name", "bid_status_update");
+                self.handle_bid_status_update(status).await
+            }
         };
-        match result {
-            Ok(result) => {
-                tracing::Span::current().record("result", "success");
-                Ok(result)
-            }
-            Err(e) => {
-                tracing::Span::current().record("result", "error");
-                Err(e)
-            }
+        if result.is_err() {
+            tracing::Span::current().record("result", "error");
         }
+        result
     }
 
     async fn handle_subscribe(
@@ -373,6 +374,7 @@ impl Subscriber {
         }
     }
 
+    #[instrument(skip_all)]
     async fn handle_post_opportunity_bid(
         &mut self,
         id: String,
@@ -406,7 +408,7 @@ impl Subscriber {
 
     #[instrument(
         target = "metrics",
-        fields(category = "ws_client_message", result, name),
+        fields(category = "ws_client_message", result = "success", name),
         skip_all
     )]
     async fn handle_client_message(&mut self, message: Message) -> Result<()> {
@@ -448,35 +450,35 @@ impl Subscriber {
             }),
             Ok(ClientRequest { msg, id }) => match msg {
                 ClientMessage::Subscribe { chain_ids } => {
+                    tracing::Span::current().record("name", "subscribe");
                     self.handle_subscribe(id, chain_ids).await
                 }
                 ClientMessage::Unsubscribe { chain_ids } => {
+                    tracing::Span::current().record("name", "unsubscribe");
                     self.handle_unsubscribe(id, chain_ids).await
                 }
-                ClientMessage::PostBid { bid } => self.handle_post_bid(id, bid).await,
+                ClientMessage::PostBid { bid } => {
+                    tracing::Span::current().record("name", "post_bid");
+                    self.handle_post_bid(id, bid).await
+                }
                 ClientMessage::PostOpportunityBid {
                     opportunity_bid,
                     opportunity_id,
                 } => {
+                    tracing::Span::current().record("name", "post_opportunity_bid");
                     self.handle_post_opportunity_bid(id, opportunity_bid, opportunity_id)
+                        .in_current_span()
                         .await
                 }
             },
         };
 
-        let response = match response {
-            Ok(response) => {
-                tracing::Span::current().record("result", "success");
-                response
-            }
-            Err(response) => {
-                tracing::Span::current().record("result", "error");
-                response
-            }
-        };
+        if response.is_err() {
+            tracing::Span::current().record("result", "error");
+        }
 
         self.sender
-            .send(serde_json::to_string(&response)?.into())
+            .send(serde_json::to_string(&response.unwrap_or_else(|e| e))?.into())
             .await?;
 
         Ok(())

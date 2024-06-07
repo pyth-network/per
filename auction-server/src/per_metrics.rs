@@ -71,7 +71,7 @@ impl Default for MetricsLayerData {
         MetricsLayerData {
             category:   "unknown".to_string(),
             started_at: Instant::now(),
-            result:     "success".to_string(),
+            result:     "unknown".to_string(),
             name:       "unknown".to_string(),
         }
     }
@@ -101,11 +101,12 @@ where
         id: &tracing::span::Id,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
+        println!("on_new_span {:?}", attrs.metadata());
         match ctx.span(id) {
             Some(span) => {
                 let mut data = MetricsLayerData::new(span.metadata().name().to_string());
                 attrs.record(&mut data);
-                span.extensions_mut().replace(data.clone());
+                span.extensions_mut().replace(data);
             }
             None => tracing::error!("span not found: {:?}", id),
         }
