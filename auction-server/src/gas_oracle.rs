@@ -95,12 +95,15 @@ fn estimate_priority_fee(rewards: Vec<Vec<U256>>) -> U256 {
 
     // A copy of the same vector is created for convenience to calculate percentage change
     // between subsequent fee values.
-    let mut rewards_copy = rewards.clone();
-    rewards_copy.rotate_left(1);
+    let rotated_rewards = {
+        let mut rewards = rewards.clone();
+        rewards.rotate_left(1);
+        rewards
+    };
 
     let mut percentage_change: Vec<I256> = rewards
         .iter()
-        .zip(rewards_copy.iter())
+        .zip(rotated_rewards.iter())
         .map(|(a, b)| {
             let a = I256::try_from(*a).expect("priority fee overflow");
             let b = I256::try_from(*b).expect("priority fee overflow");
