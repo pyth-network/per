@@ -64,6 +64,10 @@ use {
         time::Duration,
     },
     tokio::sync::broadcast,
+    tracing::{
+        instrument,
+        Instrument,
+    },
     utoipa::ToSchema,
 };
 
@@ -183,6 +187,13 @@ pub struct Subscriber {
 
 const PING_INTERVAL_DURATION: Duration = Duration::from_secs(30);
 
+fn ok_response(id: String) -> ServerResultResponse {
+    ServerResultResponse {
+        id:     Some(id),
+        result: ServerResultMessage::Success(None),
+    }
+}
+
 impl Subscriber {
     pub fn new(
         id: SubscriberId,
@@ -255,31 +266,151 @@ impl Subscriber {
         }
     }
 
-    async fn handle_update(&mut self, event: UpdateEvent) -> Result<()> {
-        match event.clone() {
-            UpdateEvent::NewOpportunity(opportunity) => {
-                if !self.chain_ids.contains(opportunity.get_chain_id()) {
-                    // Irrelevant update
-                    return Ok(());
-                }
-                let message =
-                    serde_json::to_string(&ServerUpdateResponse::NewOpportunity { opportunity })?;
-                self.sender.send(message.into()).await?;
-            }
-            UpdateEvent::BidStatusUpdate(status) => {
-                if !self.bid_ids.contains(&status.id) {
-                    // Irrelevant update
-                    return Ok(());
-                }
-                let message =
-                    serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { status })?;
-                self.sender.send(message.into()).await?;
-            }
+    async fn handle_new_opportunity(
+        &mut self,
+        opportunity: OpportunityParamsWithMetadata,
+    ) -> Result<()> {
+        tracing::Span::current().record("name", "new_opportunity");
+        if !self.chain_ids.contains(opportunity.get_chain_id()) {
+            // Irrelevant update
+            return Ok(());
         }
-
+        let message = serde_json::to_string(&ServerUpdateResponse::NewOpportunity { opportunity })?;
+        self.sender.send(message.into()).await?;
         Ok(())
     }
 
+    async fn handle_bid_status_update(&mut self, status: BidStatusWithId) -> Result<()> {
+        tracing::Span::current().record("name", "bid_status_update");
+        if !self.bid_ids.contains(&status.id) {
+            // Irrelevant update
+            return Ok(());
+        }
+        let message = serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { status })?;
+        self.sender.send(message.into()).await?;
+        Ok(())
+    }
+
+    #[instrument(
+        target = "metrics",
+        fields(category = "ws_update", result = "success", name),
+        skip_all
+    )]
+    async fn handle_update(&mut self, event: UpdateEvent) -> Result<()> {
+        let result = match event.clone() {
+            UpdateEvent::NewOpportunity(opportunity) => {
+                tracing::Span::current().record("name", "new_opportunity");
+                self.handle_new_opportunity(opportunity).await
+            }
+            UpdateEvent::BidStatusUpdate(status) => {
+                tracing::Span::current().record("name", "bid_status_update");
+                self.handle_bid_status_update(status).await
+            }
+        };
+        if result.is_err() {
+            tracing::Span::current().record("result", "error");
+        }
+        result
+    }
+
+    async fn handle_subscribe(
+        &mut self,
+        id: String,
+        chain_ids: Vec<String>,
+    ) -> Result<ServerResultResponse, ServerResultResponse> {
+        tracing::Span::current().record("name", "handle_subscribe");
+        let available_chain_ids: Vec<&ChainId> = self.store.chains.keys().collect();
+        let not_found_chain_ids: Vec<&ChainId> = chain_ids
+            .iter()
+            .filter(|chain_id| !available_chain_ids.contains(chain_id))
+            .collect();
+        // If there is a single chain id that is not found, we don't subscribe to any of the
+        // asked correct chain ids and return an error to be more explicit and clear.
+        if !not_found_chain_ids.is_empty() {
+            Err(ServerResultResponse {
+                id:     Some(id),
+                result: ServerResultMessage::Err(format!(
+                    "Chain id(s) with id(s) {:?} not found",
+                    not_found_chain_ids
+                )),
+            })
+        } else {
+            self.chain_ids.extend(chain_ids);
+            Ok(ok_response(id))
+        }
+    }
+
+    async fn handle_unsubscribe(
+        &mut self,
+        id: String,
+        chain_ids: Vec<String>,
+    ) -> Result<ServerResultResponse, ServerResultResponse> {
+        tracing::Span::current().record("name", "unsubscribe");
+        self.chain_ids
+            .retain(|chain_id| !chain_ids.contains(chain_id));
+        Ok(ok_response(id))
+    }
+
+    async fn handle_post_bid(
+        &mut self,
+        id: String,
+        bid: Bid,
+    ) -> Result<ServerResultResponse, ServerResultResponse> {
+        tracing::Span::current().record("name", "post_bid");
+        match process_bid(self.store.clone(), bid, self.auth.clone()).await {
+            Ok(bid_result) => {
+                self.bid_ids.insert(bid_result.id);
+                Ok(ServerResultResponse {
+                    id:     Some(id.clone()),
+                    result: ServerResultMessage::Success(Some(APIResponse::BidResult(
+                        bid_result.0,
+                    ))),
+                })
+            }
+            Err(e) => Err(ServerResultResponse {
+                id:     Some(id),
+                result: ServerResultMessage::Err(e.to_status_and_message().1),
+            }),
+        }
+    }
+
+    #[instrument(skip_all)]
+    async fn handle_post_opportunity_bid(
+        &mut self,
+        id: String,
+        opportunity_bid: OpportunityBid,
+        opportunity_id: OpportunityId,
+    ) -> Result<ServerResultResponse, ServerResultResponse> {
+        tracing::Span::current().record("name", "post_opportunity_bid");
+        match process_opportunity_bid(
+            self.store.clone(),
+            opportunity_id,
+            &opportunity_bid,
+            self.auth.clone(),
+        )
+        .await
+        {
+            Ok(bid_result) => {
+                self.bid_ids.insert(bid_result.id);
+                Ok(ServerResultResponse {
+                    id:     Some(id.clone()),
+                    result: ServerResultMessage::Success(Some(APIResponse::BidResult(
+                        bid_result.0,
+                    ))),
+                })
+            }
+            Err(e) => Err(ServerResultResponse {
+                id:     Some(id),
+                result: ServerResultMessage::Err(e.to_status_and_message().1),
+            }),
+        }
+    }
+
+    #[instrument(
+        target = "metrics",
+        fields(category = "ws_client_message", result = "success", name),
+        skip_all
+    )]
     async fn handle_client_message(&mut self, message: Message) -> Result<()> {
         let maybe_client_message = match message {
             Message::Close(_) => {
@@ -290,7 +421,11 @@ impl Subscriber {
                 // Send the close message to gracefully shut down the connection
                 // Otherwise the client might get an abnormal Websocket closure
                 // error.
-                self.sender.close().await?;
+                tracing::Span::current().record("name", "close");
+                if let Err(e) = self.sender.close().await {
+                    tracing::Span::current().record("result", "error");
+                    return Err(e.into());
+                }
                 self.closed = true;
                 return Ok(());
             }
@@ -298,104 +433,54 @@ impl Subscriber {
             Message::Binary(data) => serde_json::from_slice::<ClientRequest>(&data),
             Message::Ping(_) => {
                 // Axum will send Pong automatically
+                tracing::Span::current().record("name", "ping");
                 return Ok(());
             }
             Message::Pong(_) => {
+                tracing::Span::current().record("name", "pong");
                 self.responded_to_ping = true;
                 return Ok(());
             }
         };
 
         let response = match maybe_client_message {
-            Err(e) => ServerResultResponse {
+            Err(e) => Err(ServerResultResponse {
                 id:     None,
                 result: ServerResultMessage::Err(e.to_string()),
-            },
-
-            Ok(ClientRequest { msg, id }) => {
-                let ok_response = ServerResultResponse {
-                    id:     Some(id.clone()),
-                    result: ServerResultMessage::Success(None),
-                };
-                match msg {
-                    ClientMessage::Subscribe { chain_ids } => {
-                        let available_chain_ids: Vec<&ChainId> = self.store.chains.keys().collect();
-
-                        let not_found_chain_ids: Vec<&ChainId> = chain_ids
-                            .iter()
-                            .filter(|chain_id| !available_chain_ids.contains(chain_id))
-                            .collect();
-
-                        // If there is a single chain id that is not found, we don't subscribe to any of the
-                        // asked correct chain ids and return an error to be more explicit and clear.
-                        if !not_found_chain_ids.is_empty() {
-                            ServerResultResponse {
-                                id:     Some(id),
-                                result: ServerResultMessage::Err(format!(
-                                    "Chain id(s) with id(s) {:?} not found",
-                                    not_found_chain_ids
-                                )),
-                            }
-                        } else {
-                            self.chain_ids.extend(chain_ids);
-                            ok_response
-                        }
-                    }
-                    ClientMessage::Unsubscribe { chain_ids } => {
-                        self.chain_ids
-                            .retain(|chain_id| !chain_ids.contains(chain_id));
-                        ok_response
-                    }
-                    ClientMessage::PostBid { bid } => {
-                        match process_bid(self.store.clone(), bid, self.auth.clone()).await {
-                            Ok(bid_result) => {
-                                self.bid_ids.insert(bid_result.id);
-                                ServerResultResponse {
-                                    id:     Some(id.clone()),
-                                    result: ServerResultMessage::Success(Some(
-                                        APIResponse::BidResult(bid_result.0),
-                                    )),
-                                }
-                            }
-                            Err(e) => ServerResultResponse {
-                                id:     Some(id),
-                                result: ServerResultMessage::Err(e.to_status_and_message().1),
-                            },
-                        }
-                    }
-                    ClientMessage::PostOpportunityBid {
-                        opportunity_bid,
-                        opportunity_id,
-                    } => {
-                        match process_opportunity_bid(
-                            self.store.clone(),
-                            opportunity_id,
-                            &opportunity_bid,
-                            self.auth.clone(),
-                        )
-                        .await
-                        {
-                            Ok(bid_result) => {
-                                self.bid_ids.insert(bid_result.id);
-                                ServerResultResponse {
-                                    id:     Some(id.clone()),
-                                    result: ServerResultMessage::Success(Some(
-                                        APIResponse::BidResult(bid_result.0),
-                                    )),
-                                }
-                            }
-                            Err(e) => ServerResultResponse {
-                                id:     Some(id),
-                                result: ServerResultMessage::Err(e.to_status_and_message().1),
-                            },
-                        }
-                    }
+            }),
+            Ok(ClientRequest { msg, id }) => match msg {
+                ClientMessage::Subscribe { chain_ids } => {
+                    tracing::Span::current().record("name", "subscribe");
+                    self.handle_subscribe(id, chain_ids).await
                 }
-            }
+                ClientMessage::Unsubscribe { chain_ids } => {
+                    tracing::Span::current().record("name", "unsubscribe");
+                    self.handle_unsubscribe(id, chain_ids).await
+                }
+                ClientMessage::PostBid { bid } => {
+                    tracing::Span::current().record("name", "post_bid");
+                    self.handle_post_bid(id, bid).await
+                }
+                ClientMessage::PostOpportunityBid {
+                    opportunity_bid,
+                    opportunity_id,
+                } => {
+                    tracing::Span::current().record("name", "post_opportunity_bid");
+                    self.handle_post_opportunity_bid(id, opportunity_bid, opportunity_id)
+                        .in_current_span()
+                        .await
+                }
+            },
         };
+
+        if response.is_err() {
+            tracing::Span::current().record("result", "error");
+        }
+
         self.sender
-            .send(serde_json::to_string(&response)?.into())
+            .send(serde_json::to_string(&response.unwrap_or_else(|e| e))?.into())
             .await?;
+
         Ok(())
     }
 }

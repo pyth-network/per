@@ -71,6 +71,7 @@ use {
         },
         TypedHeader,
     },
+    axum_prometheus::PrometheusMetricLayerBuilder,
     clap::crate_version,
     ethers::types::Bytes,
     serde::{
@@ -362,6 +363,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
             .route("/ws", get(ws::ws_route_handler)),
     );
 
+    let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
+        .with_metrics_from_fn(|| store.metrics_recorder.clone())
+        .build_pair();
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
         .merge(Redoc::with_url("/redoc", ApiDoc::openapi()))
@@ -372,11 +376,10 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .layer(middleware::from_extractor_with_state::<Auth, Arc<Store>>(
             store.clone(),
         ))
+        .layer(prometheus_layer)
         .with_state(store);
 
-    let listener = tokio::net::TcpListener::bind(&run_options.server.listen_addr)
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&run_options.server.listen_addr).await?;
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
             while !SHOULD_EXIT.load(Ordering::Acquire) {

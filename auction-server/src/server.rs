@@ -19,6 +19,7 @@ use {
             get_weth_address,
             run_verification_loop,
         },
+        per_metrics,
         state::{
             ChainStore,
             OpportunityStore,
@@ -26,6 +27,13 @@ use {
         },
     },
     anyhow::anyhow,
+    axum_prometheus::{
+        metrics_exporter_prometheus::{
+            PrometheusBuilder,
+            PrometheusHandle,
+        },
+        utils::SECONDS_DURATION_BUCKETS,
+    },
     ethers::{
         prelude::{
             LocalWallet,
@@ -117,6 +125,14 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
             (token.token, profile.clone())
         })
         .collect()
+}
+
+pub fn setup_metrics_recorder() -> anyhow::Result<PrometheusHandle> {
+    PrometheusBuilder::new()
+        .set_buckets(SECONDS_DURATION_BUCKETS)
+        .unwrap()
+        .install_recorder()
+        .map_err(|err| anyhow!("Failed to set up metrics recorder: {:?}", err))
 }
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
@@ -238,6 +254,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         submitted_auctions: Default::default(),
         secret_key:         run_options.secret_key.clone(),
         access_tokens:      RwLock::new(access_tokens),
+        metrics_recorder:   setup_metrics_recorder()?,
     });
 
     tokio::join!(
@@ -254,6 +271,10 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             store.clone()
         )),
         fault_tolerant_handler("start api".to_string(), || api::start_api(
+            run_options.clone(),
+            store.clone()
+        )),
+        fault_tolerant_handler("start metrics".to_string(), || per_metrics::start_metrics(
             run_options.clone(),
             store.clone()
         )),

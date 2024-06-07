@@ -1,5 +1,4 @@
 use {
-    email_address,
     ethers::types::H256,
     sqlx::{
         prelude::FromRow,

@@ -17,6 +17,7 @@ use {
         models,
     },
     axum::Json,
+    axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
         engine::general_purpose::URL_SAFE_NO_PAD,
         Engine,
@@ -295,6 +296,7 @@ pub struct Store {
     pub submitted_auctions: RwLock<HashMap<ChainId, Vec<models::Auction>>>,
     pub secret_key:         String,
     pub access_tokens:      RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
+    pub metrics_recorder:   PrometheusHandle,
 }
 
 impl SimulatedBid {
