@@ -22,6 +22,7 @@ use {
             SimulatedBid,
             Store,
         },
+        traced_client::TracedClient,
     },
     anyhow::{
         anyhow,
@@ -47,7 +48,6 @@ use {
             TransformerMiddleware,
         },
         providers::{
-            Http,
             Middleware,
             Provider,
             Ws,
@@ -94,28 +94,15 @@ abigen!(
     ExpressRelay,
     "../per_multicall/out/ExpressRelay.sol/ExpressRelay.json"
 );
-pub type ExpressRelayContract = ExpressRelay<Provider<Http>>;
+pub type ExpressRelayContract = ExpressRelay<Provider<TracedClient>>;
 pub type SignableProvider = TransformerMiddleware<
     GasOracleMiddleware<
-        NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
-        EthProviderOracle<Provider<Http>>,
+        NonceManagerMiddleware<SignerMiddleware<Provider<TracedClient>, LocalWallet>>,
+        EthProviderOracle<Provider<TracedClient>>,
     >,
     LegacyTxTransformer,
 >;
 pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
-
-impl TryFrom<EthereumConfig> for Provider<Http> {
-    type Error = anyhow::Error;
-    fn try_from(config: EthereumConfig) -> Result<Self, Self::Error> {
-        Provider::<Http>::try_from(config.geth_rpc_addr.clone()).map_err(|err| {
-            anyhow!(
-                "Failed to connect to {rpc_addr}: {:?}",
-                err,
-                rpc_addr = config.geth_rpc_addr
-            )
-        })
-    }
-}
 
 impl From<([u8; 16], H160, Bytes, U256)> for MulticallData {
     fn from(x: ([u8; 16], H160, Bytes, U256)) -> Self {
@@ -130,11 +117,11 @@ impl From<([u8; 16], H160, Bytes, U256)> for MulticallData {
 
 pub fn get_simulation_call(
     relayer: Address,
-    provider: Provider<Http>,
+    provider: Provider<TracedClient>,
     chain_config: EthereumConfig,
     permission_key: Bytes,
     multicall_data: Vec<MulticallData>,
-) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
+) -> FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
     let express_relay_contract =
         ExpressRelayContract::new(chain_config.express_relay_contract, client);
@@ -195,7 +182,7 @@ async fn get_winner_bids(
     permission_key: Bytes,
     store: Arc<Store>,
     chain_store: &ChainStore,
-) -> Result<Vec<SimulatedBid>, ContractError<Provider<Http>>> {
+) -> Result<Vec<SimulatedBid>, ContractError<Provider<TracedClient>>> {
     // TODO How we want to perform simulation, pruning, and determination
     if bids.is_empty() {
         return Ok(vec![]);
@@ -445,7 +432,7 @@ async fn submit_auction(store: Arc<Store>, permission_key: Bytes, chain_id: Stri
 
 pub fn get_express_relay_contract(
     address: Address,
-    provider: Provider<Http>,
+    provider: Provider<TracedClient>,
     relayer: LocalWallet,
     use_legacy_tx: bool,
     network_id: u64,

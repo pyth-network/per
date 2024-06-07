@@ -15,6 +15,7 @@ use {
             EthereumConfig,
         },
         models,
+        traced_client::TracedClient,
     },
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
@@ -23,10 +24,7 @@ use {
         Engine,
     },
     ethers::{
-        providers::{
-            Http,
-            Provider,
-        },
+        providers::Provider,
         signers::LocalWallet,
         types::{
             Address,
@@ -182,7 +180,7 @@ pub enum SpoofInfo {
 }
 
 pub struct ChainStore {
-    pub provider:               Provider<Http>,
+    pub provider:               Provider<TracedClient>,
     pub network_id:             u64,
     pub config:                 EthereumConfig,
     pub weth:                   Address,
