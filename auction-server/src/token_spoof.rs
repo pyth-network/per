@@ -12,6 +12,7 @@ use {
     crate::{
         opportunity_adapter::ERC20,
         state::SpoofInfo,
+        traced_client::TracedClient,
     },
     anyhow::anyhow,
     ethers::{
@@ -26,7 +27,6 @@ use {
             H256,
             U256,
         },
-        providers::Http,
         utils::keccak256,
     },
     std::sync::Arc,
@@ -80,7 +80,7 @@ const MAX_SLOT_FOR_BRUTEFORCE: i32 = 32;
 /// * `client`: Client to interact with the blockchain
 async fn find_spoof_balance_slot(
     token: Address,
-    client: Arc<Provider<Http>>,
+    client: Arc<Provider<TracedClient>>,
 ) -> anyhow::Result<U256> {
     let contract = ERC20::new(token, client.clone());
     let fake_owner = LocalWallet::new(&mut rand::thread_rng());
@@ -110,7 +110,7 @@ async fn find_spoof_balance_slot(
 /// * `client`: Client to interact with the blockchain
 async fn find_spoof_allowance_slot(
     token: Address,
-    client: Arc<Provider<Http>>,
+    client: Arc<Provider<TracedClient>>,
 ) -> anyhow::Result<U256> {
     let contract = ERC20::new(token, client.clone());
     let fake_owner = LocalWallet::new(&mut rand::thread_rng());
@@ -146,7 +146,7 @@ async fn find_spoof_allowance_slot(
 /// * `client`: Client to interact with the blockchain
 pub async fn find_spoof_info(
     token: Address,
-    client: Arc<Provider<Http>>,
+    client: Arc<Provider<TracedClient>>,
 ) -> anyhow::Result<SpoofInfo> {
     let balance_slot = find_spoof_balance_slot(token, client.clone()).await?;
     let allowance_slot = find_spoof_allowance_slot(token, client.clone()).await?;

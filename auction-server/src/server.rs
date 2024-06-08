@@ -7,6 +7,7 @@ use {
         auction::{
             get_express_relay_contract,
             run_submission_loop,
+            run_tracker_loop,
         },
         config::{
             ChainId,
@@ -25,6 +26,7 @@ use {
             OpportunityStore,
             Store,
         },
+        traced_client::TracedClient,
     },
     anyhow::anyhow,
     axum_prometheus::{
@@ -35,14 +37,8 @@ use {
         utils::SECONDS_DURATION_BUCKETS,
     },
     ethers::{
-        prelude::{
-            LocalWallet,
-            Provider,
-        },
-        providers::{
-            Http,
-            Middleware,
-        },
+        prelude::LocalWallet,
+        providers::Middleware,
         signers::Signer,
     },
     futures::{
@@ -160,15 +156,15 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let (chain_id, chain_config, wallet) =
                 (chain_id.clone(), chain_config.clone(), wallet.clone());
             async move {
-                let mut provider = Provider::<Http>::try_from(chain_config.geth_rpc_addr.clone())
+                let mut provider = TracedClient::new(chain_id.clone(), &chain_config.geth_rpc_addr)
                     .map_err(|err| {
-                    anyhow!(
-                        "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
-                        err,
-                        chain_id = chain_id,
-                        rpc_addr = chain_config.geth_rpc_addr
-                    )
-                })?;
+                        anyhow!(
+                            "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
+                            err,
+                            chain_id = chain_id,
+                            rpc_addr = chain_config.geth_rpc_addr
+                        )
+                    })?;
                 provider.set_interval(Duration::from_secs(chain_config.poll_interval));
 
                 let id = provider.get_chainid().await?.as_u64();
@@ -266,6 +262,15 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                 )
             });
             join_all(submission_loops).await;
+        },
+        async {
+            let tracker_loops = store.chains.keys().map(|chain_id| {
+                fault_tolerant_handler(
+                    format!("tracker loop for chain {}", chain_id.clone()),
+                    || run_tracker_loop(store.clone(), chain_id.clone()),
+                )
+            });
+            join_all(tracker_loops).await;
         },
         fault_tolerant_handler("verification loop".to_string(), || run_verification_loop(
             store.clone()

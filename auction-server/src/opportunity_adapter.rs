@@ -28,6 +28,7 @@ use {
             UnixTimestampMicros,
         },
         token_spoof,
+        traced_client::TracedClient,
     },
     anyhow::{
         anyhow,
@@ -44,7 +45,6 @@ use {
             rand,
         },
         providers::{
-            Http,
             Provider,
             RawCall,
         },
@@ -101,7 +101,7 @@ pub enum VerificationResult {
 
 pub async fn get_weth_address(
     adapter_contract: Address,
-    provider: Provider<Http>,
+    provider: Provider<TracedClient>,
 ) -> Result<Address> {
     let adapter = OpportunityAdapter::new(adapter_contract, Arc::new(provider));
     adapter
@@ -556,7 +556,7 @@ pub async fn handle_opportunity_bid(
 }
 
 pub async fn get_eip_712_domain(
-    provider: Provider<Http>,
+    provider: Provider<TracedClient>,
     contract_address: Address,
 ) -> anyhow::Result<EIP712Domain> {
     let client = Arc::new(provider);

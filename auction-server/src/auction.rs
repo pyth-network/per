@@ -22,11 +22,13 @@ use {
             SimulatedBid,
             Store,
         },
+        traced_client::TracedClient,
     },
     anyhow::{
         anyhow,
         Result,
     },
+    axum_prometheus::metrics,
     ethers::{
         abi,
         contract::{
@@ -47,7 +49,6 @@ use {
             TransformerMiddleware,
         },
         providers::{
-            Http,
             Middleware,
             Provider,
             Ws,
@@ -94,28 +95,15 @@ abigen!(
     ExpressRelay,
     "../per_multicall/out/ExpressRelay.sol/ExpressRelay.json"
 );
-pub type ExpressRelayContract = ExpressRelay<Provider<Http>>;
+pub type ExpressRelayContract = ExpressRelay<Provider<TracedClient>>;
 pub type SignableProvider = TransformerMiddleware<
     GasOracleMiddleware<
-        NonceManagerMiddleware<SignerMiddleware<Provider<Http>, LocalWallet>>,
-        EthProviderOracle<Provider<Http>>,
+        NonceManagerMiddleware<SignerMiddleware<Provider<TracedClient>, LocalWallet>>,
+        EthProviderOracle<Provider<TracedClient>>,
     >,
     LegacyTxTransformer,
 >;
 pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
-
-impl TryFrom<EthereumConfig> for Provider<Http> {
-    type Error = anyhow::Error;
-    fn try_from(config: EthereumConfig) -> Result<Self, Self::Error> {
-        Provider::<Http>::try_from(config.geth_rpc_addr.clone()).map_err(|err| {
-            anyhow!(
-                "Failed to connect to {rpc_addr}: {:?}",
-                err,
-                rpc_addr = config.geth_rpc_addr
-            )
-        })
-    }
-}
 
 impl From<([u8; 16], H160, Bytes, U256)> for MulticallData {
     fn from(x: ([u8; 16], H160, Bytes, U256)) -> Self {
@@ -130,11 +118,11 @@ impl From<([u8; 16], H160, Bytes, U256)> for MulticallData {
 
 pub fn get_simulation_call(
     relayer: Address,
-    provider: Provider<Http>,
+    provider: Provider<TracedClient>,
     chain_config: EthereumConfig,
     permission_key: Bytes,
     multicall_data: Vec<MulticallData>,
-) -> FunctionCall<Arc<Provider<Http>>, Provider<Http>, Vec<MulticallStatus>> {
+) -> FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
     let express_relay_contract =
         ExpressRelayContract::new(chain_config.express_relay_contract, client);
@@ -195,7 +183,7 @@ async fn get_winner_bids(
     permission_key: Bytes,
     store: Arc<Store>,
     chain_store: &ChainStore,
-) -> Result<Vec<SimulatedBid>, ContractError<Provider<Http>>> {
+) -> Result<Vec<SimulatedBid>, ContractError<Provider<TracedClient>>> {
     // TODO How we want to perform simulation, pruning, and determination
     if bids.is_empty() {
         return Ok(vec![]);
@@ -445,7 +433,7 @@ async fn submit_auction(store: Arc<Store>, permission_key: Bytes, chain_id: Stri
 
 pub fn get_express_relay_contract(
     address: Address,
-    provider: Provider<Http>,
+    provider: Provider<TracedClient>,
     relayer: LocalWallet,
     use_legacy_tx: bool,
     network_id: u64,
@@ -493,7 +481,7 @@ async fn get_ws_provider(store: Arc<Store>, chain_id: String) -> Result<Provider
 }
 
 pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
-    tracing::info!("Starting transaction submitter...");
+    tracing::info!(chain_id = chain_id, "Starting transaction submitter...");
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
     let ws_provider = get_ws_provider(store.clone(), chain_id.clone()).await?;
@@ -607,4 +595,44 @@ pub async fn handle_bid(
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)
+}
+
+pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
+    tracing::info!(chain_id = chain_id, "Starting tracker...");
+    let chain_store = store
+        .chains
+        .get(&chain_id)
+        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+
+    let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+
+    // this should be replaced by a subscription to the chain and trigger on new blocks
+    let mut submission_interval = tokio::time::interval(Duration::from_secs(10));
+    while !SHOULD_EXIT.load(Ordering::Acquire) {
+        tokio::select! {
+            _ = submission_interval.tick() => {
+                match chain_store.provider.get_balance(store.relayer.address(), None).await {
+                    Ok(r) => {
+                        // This conversion to u128 is fine as the total balance will never cross the limits
+                        // of u128 practically.
+                        // The f64 conversion is made to be able to serve metrics within the constraints of Prometheus.
+                        // The balance is in wei, so we need to divide by 1e18 to convert it to eth.
+                        let balance = r.as_u128() as f64 / 1e18;
+                        let label = [
+                            ("chain_id", chain_id.clone()),
+                            ("address", format!("{:?}", store.relayer.address())),
+                        ];
+                        metrics::gauge!("relayer_balance", &label).set(balance);
+                    }
+                    Err(e) => {
+                        tracing::error!("Error while getting balance. error: {:?}", e);
+                    }
+                };
+            }
+            _ = exit_check_interval.tick() => {
+            }
+        }
+    }
+    tracing::info!("Shutting down tracker...");
+    Ok(())
 }

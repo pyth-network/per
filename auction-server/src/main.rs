@@ -29,6 +29,7 @@ mod serde;
 mod server;
 mod state;
 mod token_spoof;
+mod traced_client;
 
 
 #[tokio::main]
