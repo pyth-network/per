@@ -481,7 +481,7 @@ async fn get_ws_provider(store: Arc<Store>, chain_id: String) -> Result<Provider
 }
 
 pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
-    tracing::info!("Starting transaction submitter...");
+    tracing::info!(chain_id = chain_id, "Starting transaction submitter...");
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
     let ws_provider = get_ws_provider(store.clone(), chain_id.clone()).await?;
@@ -597,13 +597,8 @@ pub async fn handle_bid(
     Ok(bid_id)
 }
 
-/// Run an infinite loop to track metrics for monitoring like balance of wallets
-///
-/// # Arguments
-///
-/// * `store`: server store
 pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
-    tracing::info!("Starting tracker...");
+    tracing::info!(chain_id = chain_id, "Starting tracker...");
     let chain_store = store
         .chains
         .get(&chain_id)
