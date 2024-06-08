@@ -14,6 +14,16 @@ $ npm install
 $ forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit
 $ forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commit
 $ forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
+$ forge install Uniswap/permit2@0x000000000022D473030F116dDEE9F6B43aC78BA3 --no-git --no-commit
+```
+
+## Build Permit2
+
+Since Permit2 contract compiles with a different solc version not compatible with the rest of the repo, we build it
+using another foundry profile:
+
+```shell
+FOUNDRY_PROFILE=permit2 forge build --via-ir
 ```
 
 ## Repo contracts

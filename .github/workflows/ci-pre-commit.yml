@@ -40,6 +40,9 @@ jobs:
       - name: Install forge dependencies 3
         working-directory: per_multicall
         run: forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
+      - name: Install forge dependencies 4
+        working-directory: per_multicall
+        run: forge install Uniswap/permit2@0x000000000022D473030F116dDEE9F6B43aC78BA3 --no-git --no-commit
       - uses: pre-commit/action@v3.0.0
         if: ${{ github.event_name == 'pull_request' }}
         with:
