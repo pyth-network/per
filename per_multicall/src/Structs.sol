@@ -1,6 +1,8 @@
 // Copyright (C) 2024 Lavra Holdings Limited - All Rights Reserved
 pragma solidity ^0.8.13;
 
+import "permit2/interfaces/ISignatureTransfer.sol";
+
 struct OracleState {
     uint256 price;
     uint256 timestamp;
@@ -36,7 +38,7 @@ struct MulticallStatus {
 }
 
 struct ExecutionParams {
-    TokenAmount[] sellTokens;
+    ISignatureTransfer.PermitBatchTransferFrom permit;
     TokenAmount[] buyTokens;
     address executor;
     address targetContract;

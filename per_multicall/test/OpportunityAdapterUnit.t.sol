@@ -12,28 +12,76 @@ import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/MyToken.sol";
 import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 import "./helpers/OpportunityAdapterHarness.sol";
+import "permit2/interfaces/ISignatureTransfer.sol";
+import "./PermitSignature.sol";
 
-contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
+contract OpportunityAdapterUnitTest is
+    Test,
+    OpportunityAdapterSignature,
+    PermitSignature
+{
     OpportunityAdapterHarness opportunityAdapter;
     MyToken myToken;
 
     function setUp() public {
         opportunityAdapter = new OpportunityAdapterHarness();
+        deployCodeTo("Permit2.sol", PERMIT2);
         myToken = new MyToken("SellToken", "ST");
+    }
+
+    function makePermitFromSellTokens(
+        TokenAmount[] memory sellTokens,
+        uint256 privateKey
+    )
+        public
+        returns (
+            ISignatureTransfer.PermitBatchTransferFrom memory permit,
+            bytes memory signature
+        )
+    {
+        ISignatureTransfer.TokenPermissions[]
+            memory permitted = new ISignatureTransfer.TokenPermissions[](
+                sellTokens.length
+            );
+        for (uint i = 0; i < sellTokens.length; i++) {
+            permitted[i] = ISignatureTransfer.TokenPermissions({
+                token: sellTokens[i].token,
+                amount: sellTokens[i].amount
+            });
+        }
+        permit = ISignatureTransfer.PermitBatchTransferFrom({
+            permitted: permitted,
+            nonce: 1000,
+            deadline: block.timestamp + 1000
+        });
+        signature = getPermitBatchTransferSignature(
+            permit,
+            privateKey,
+            address(opportunityAdapter),
+            EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
+        );
     }
 
     function testPrepareSellTokensRevokeAllowances(uint256 tokenAmount) public {
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
         sellTokens[0] = TokenAmount(address(myToken), tokenAmount);
-        address executor = makeAddr("executor");
+        (address executor, uint256 executorPrivateKey) = makeAddrAndKey(
+            "executor"
+        );
         myToken.mint(executor, tokenAmount);
         vm.prank(executor);
-        myToken.approve(address(opportunityAdapter), tokenAmount);
+        myToken.approve(PERMIT2, tokenAmount);
+        (
+            ISignatureTransfer.PermitBatchTransferFrom memory permit,
+            bytes memory signature
+        ) = makePermitFromSellTokens(sellTokens, executorPrivateKey);
+        console.logBytes(signature);
         address targetContract = makeAddr("targetContract");
         opportunityAdapter.exposed_prepareSellTokens(
-            sellTokens,
+            permit,
             executor,
-            targetContract
+            targetContract,
+            signature
         );
         assertEq(myToken.balanceOf(address(opportunityAdapter)), tokenAmount);
         assertEq(
@@ -42,7 +90,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         );
         assertEq(myToken.balanceOf(executor), 0);
 
-        opportunityAdapter.exposed_revokeAllowances(sellTokens, targetContract);
+        opportunityAdapter.exposed_revokeAllowances(permit, targetContract);
         assertEq(
             myToken.allowance(address(opportunityAdapter), targetContract),
             0

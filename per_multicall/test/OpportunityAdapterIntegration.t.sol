@@ -11,6 +11,8 @@ import "../src/OpportunityAdapter.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/MyToken.sol";
 import "./helpers/Signatures/OpportunityAdapterSignature.sol";
+import "permit2/interfaces/ISignatureTransfer.sol";
+import {PermitSignature, EIP712Domain} from "./PermitSignature.sol";
 
 contract MockTarget {
     error BadCall();
@@ -53,7 +55,8 @@ contract InvalidMagicOpportunityAdapter is
 
 contract OpportunityAdapterIntegrationTest is
     Test,
-    OpportunityAdapterSignature
+    OpportunityAdapterSignature,
+    PermitSignature
 {
     MockTarget mockTarget;
     OpportunityAdapterUpgradable opportunityAdapter;
@@ -84,8 +87,13 @@ contract OpportunityAdapterIntegrationTest is
         );
     }
 
+    function setUpPermit2() internal {
+        deployCodeTo("Permit2.sol", PERMIT2);
+    }
+
     function setUp() public {
         setUpTokens();
+        setUpPermit2();
         setUpOpportunityAdapter();
         mockTarget = new MockTarget();
     }
@@ -104,9 +112,26 @@ contract OpportunityAdapterIntegrationTest is
         public
         returns (ExecutionParams memory executionParams, bytes memory signature)
     {
+        ISignatureTransfer.TokenPermissions[]
+            memory permitted = new ISignatureTransfer.TokenPermissions[](
+                sellTokens.length
+            );
+        for (uint i = 0; i < sellTokens.length; i++) {
+            permitted[i] = ISignatureTransfer.TokenPermissions(
+                sellTokens[i].token,
+                sellTokens[i].amount
+            );
+        }
+
+        ISignatureTransfer.PermitBatchTransferFrom memory permit = ISignatureTransfer
+            .PermitBatchTransferFrom(
+                permitted,
+                0, // TODO: fill in the nonce
+                validUntil
+            );
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         executionParams = ExecutionParams(
-            sellTokens,
+            permit,
             buyTokens,
             executor,
             address(mockTarget),
@@ -115,10 +140,11 @@ contract OpportunityAdapterIntegrationTest is
             validUntil,
             bid
         );
-        signature = createOpportunityAdapterSignature(
-            opportunityAdapter,
-            executionParams,
-            executorSk
+        signature = getPermitBatchTransferSignature(
+            permit,
+            executorSk,
+            address(opportunityAdapter),
+            EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
         );
     }
 
@@ -169,23 +195,25 @@ contract OpportunityAdapterIntegrationTest is
             );
         vm.prank(opportunityAdapter.getExpressRelay());
         // callvalue is 1 wei, but executor has not deposited/approved any WETH
-        vm.expectRevert(WethTransferFromFailed.selector);
+        vm.expectRevert(InsufficientWethForTargetCallValue.selector);
         opportunityAdapter.executeOpportunity(executionParams, signature);
     }
 
     function testRevertWhenInsufficientWethToTransferForBid() public {
         address executor = makeAddr("executor");
+        TokenAmount[] memory sellTokens = new TokenAmount[](1);
+        uint256 callValue = 123;
+        uint256 bid = 100;
+        sellTokens[0] = TokenAmount(address(weth), callValue);
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.doNothing.selector
         );
-        uint256 callValue = 123;
-        uint256 bid = 100;
         (
             ExecutionParams memory executionParams,
             bytes memory signature
         ) = createExecutionParamsAndSignature(
-                noTokens,
+                sellTokens,
                 noTokens,
                 targetCalldata,
                 callValue,
@@ -195,21 +223,24 @@ contract OpportunityAdapterIntegrationTest is
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
         weth.deposit{value: callValue}();
-        weth.approve(address(opportunityAdapter), callValue);
+        weth.approve(PERMIT2, callValue);
         vm.stopPrank();
         vm.prank(opportunityAdapter.getExpressRelay());
         // callvalue is 123 wei, and executor has approved 123 wei so the call should succeed but adapter does not have
         // 100 more wei to return the bid
         vm.expectCall(address(mockTarget), callValue, targetCalldata);
-        vm.expectRevert(WethTransferFromFailed.selector);
+        vm.expectRevert(InsufficientEthToSettleBid.selector);
         opportunityAdapter.executeOpportunity(executionParams, signature);
     }
 
     function testExecutionWithBidAndCallValue() public {
         address executor = makeAddr("executor");
-        TokenAmount[] memory sellTokens = new TokenAmount[](1);
+        TokenAmount[] memory sellTokens = new TokenAmount[](2);
         uint256 sellTokenAmount = 1000;
+        uint256 callValue = 123;
+        uint256 bid = 100;
         sellTokens[0] = TokenAmount(address(sellToken), sellTokenAmount);
+        sellTokens[1] = TokenAmount(address(weth), callValue + bid);
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         uint256 buyTokenAmount = 100;
         buyTokens[0] = TokenAmount(address(buyToken), buyTokenAmount);
@@ -221,8 +252,6 @@ contract OpportunityAdapterIntegrationTest is
             address(buyToken),
             buyTokenAmount
         );
-        uint256 callValue = 123;
-        uint256 bid = 100;
         (
             ExecutionParams memory executionParams,
             bytes memory signature
@@ -243,8 +272,8 @@ contract OpportunityAdapterIntegrationTest is
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
         weth.deposit{value: (callValue + bid)}();
-        weth.approve(address(opportunityAdapter), (callValue + bid));
-        sellToken.approve(address(opportunityAdapter), sellTokenAmount);
+        weth.approve(PERMIT2, (callValue + bid));
+        sellToken.approve(PERMIT2, sellTokenAmount);
         vm.stopPrank();
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectCall(address(mockTarget), callValue, targetCalldata);
@@ -342,6 +371,7 @@ contract OpportunityAdapterIntegrationTest is
         opportunityAdapter.executeOpportunity(executionParams, signature);
     }
 
+    // TODO: we can remove this test since it is testing Permit2 and not our own contracts anymore
     function testRevertWhenSignatureReused() public {
         (
             ExecutionParams memory executionParams,
@@ -349,7 +379,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createDummyExecutionParams(false);
         vm.startPrank(opportunityAdapter.getExpressRelay());
         opportunityAdapter.executeOpportunity(executionParams, signature);
-        vm.expectRevert(SignatureAlreadyUsed.selector);
+        vm.expectRevert();
         opportunityAdapter.executeOpportunity(executionParams, signature);
         vm.stopPrank();
     }
@@ -417,6 +447,7 @@ contract OpportunityAdapterIntegrationTest is
         _testRevertWithDuplicateTokens(noTokens, duplicateTokens);
     }
 
+    // TODO: we can remove this test since it is testing Permit2 and not our own contracts anymore
     function testRevertWhenExpired() public {
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
@@ -435,7 +466,7 @@ contract OpportunityAdapterIntegrationTest is
             );
         vm.warp(block.timestamp + 2);
         vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectRevert(ExpiredSignature.selector);
+        vm.expectRevert();
         opportunityAdapter.executeOpportunity(executionParams, signature);
     }
 

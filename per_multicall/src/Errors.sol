@@ -16,9 +16,6 @@ error ExpiredSignature();
 // Signature: 0x900bb2c9
 error SignatureAlreadyUsed();
 
-// Signature: 0xd461d1de
-error WethTransferFromFailed();
-
 // Signature: 0x464e3f6a
 error DuplicateToken();
 
@@ -36,6 +33,12 @@ error TargetCallFailed(bytes returnData);
 
 // Signature: 0x4af147aa
 error InsufficientTokenReceived();
+
+// Signature: 0x9caaa1d7
+error InsufficientEthToSettleBid();
+
+// Signature: 0x5e520cd4
+error InsufficientWethForTargetCallValue();
 
 // Signature: 0x4be6321b
 error InvalidSignatureLength();
