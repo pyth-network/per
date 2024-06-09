@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "./Structs.sol";
-import "./SigVerify.sol";
 import "./ExpressRelay.sol";
 import "./WETH9.sol";
 
@@ -11,18 +10,20 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 
-abstract contract OpportunityAdapter is SigVerify {
+abstract contract OpportunityAdapter {
     using SafeERC20 for IERC20;
 
     address _admin;
     address _expressRelay;
     address _weth;
-    string constant _EXECUTION_PARAMS_TYPE =
-        "ExecutionParams(TokenAmount[] sellTokens,TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 validUntil,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
+    string constant _OPPORTUNITY_WITNESS_TYPE =
+        "OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
     string constant _TOKEN_AMOUNT_TYPE =
         "TokenAmount(address token,uint256 amount)";
-    string constant _DOMAIN_NAME = "OpportunityAdapter";
-    string constant _DOMAIN_VERSION = "1";
+
+    string constant WITNESS_TYPE_STRING =
+        "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
+
     ISignatureTransfer constant PERMIT2 =
         ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
@@ -41,7 +42,6 @@ abstract contract OpportunityAdapter is SigVerify {
         _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
-        __EIP712_init(_DOMAIN_NAME, _DOMAIN_VERSION);
     }
 
     /**
@@ -97,18 +97,18 @@ abstract contract OpportunityAdapter is SigVerify {
         return keccak256(abi.encodePacked(hashedTokens));
     }
 
-    function hash(ExecutionParams memory params) public pure returns (bytes32) {
+    function hash(
+        OpportunityWitness memory params
+    ) public pure returns (bytes32) {
         return
             keccak256(
                 abi.encode(
-                    keccak256(bytes(_EXECUTION_PARAMS_TYPE)),
-                    //                    hash(params.permit), TODO
+                    keccak256(bytes(_OPPORTUNITY_WITNESS_TYPE)),
                     hash(params.buyTokens),
                     params.executor,
                     params.targetContract,
                     keccak256(params.targetCalldata),
                     params.targetCallValue,
-                    params.validUntil,
                     params.bidAmount
                 )
             );
@@ -121,16 +121,8 @@ abstract contract OpportunityAdapter is SigVerify {
         if (msg.sender != _expressRelay) {
             revert Unauthorized();
         }
-
-        //        verifyCalldata(
-        //            hash(params),
-        //            params.executor,
-        //            signature,
-        //            params.validUntil
-        //        );
-
         _checkDuplicateTokens(params.permit.permitted);
-        _checkDuplicateTokens(params.buyTokens);
+        _checkDuplicateTokens(params.witness.buyTokens);
     }
 
     function _checkDuplicateTokens(
@@ -159,8 +151,7 @@ abstract contract OpportunityAdapter is SigVerify {
 
     function _prepareSellTokens(
         ISignatureTransfer.PermitBatchTransferFrom calldata permit,
-        address executor,
-        address targetContract,
+        OpportunityWitness calldata witness,
         bytes calldata signature
     ) internal {
         ISignatureTransfer.SignatureTransferDetails[]
@@ -174,12 +165,14 @@ abstract contract OpportunityAdapter is SigVerify {
                 to: address(this),
                 requestedAmount: amount
             });
-            token.approve(targetContract, amount);
+            token.approve(witness.targetContract, amount);
         }
-        PERMIT2.permitTransferFrom(
+        PERMIT2.permitWitnessTransferFrom(
             permit,
             transferDetails,
-            executor,
+            witness.executor,
+            hash(witness),
+            WITNESS_TYPE_STRING,
             signature
         );
     }
@@ -257,33 +250,27 @@ abstract contract OpportunityAdapter is SigVerify {
         // get balances of buy tokens before transferring sell tokens since there might be overlaps
         uint256[]
             memory buyTokensBalancesBeforeCall = _getContractTokenBalances(
-                params.buyTokens
+                params.witness.buyTokens
             );
-        _prepareSellTokens(
-            params.permit,
-            params.executor,
-            params.targetContract,
-            signature
-        );
-        if (params.targetCallValue > 0) {
+        _prepareSellTokens(params.permit, params.witness, signature);
+        if (params.witness.targetCallValue > 0) {
             WETH9 weth = _getWethContract();
-            try weth.withdraw(params.targetCallValue) {} catch {
+            try weth.withdraw(params.witness.targetCallValue) {} catch {
                 revert InsufficientWethForTargetCallValue();
             }
         }
         _callTargetContract(
-            params.targetContract,
-            params.targetCalldata,
-            params.targetCallValue
+            params.witness.targetContract,
+            params.witness.targetCalldata,
+            params.witness.targetCallValue
         );
-        _revokeAllowances(params.permit, params.targetContract);
+        _revokeAllowances(params.permit, params.witness.targetContract);
         _validateAndTransferBuyTokens(
-            params.buyTokens,
-            params.executor,
+            params.witness.buyTokens,
+            params.witness.executor,
             buyTokensBalancesBeforeCall
         );
-        _settleBid(params.executor, params.bidAmount);
-        _useSignature(signature);
+        _settleBid(params.witness.executor, params.witness.bidAmount);
     }
 
     // necessary to receive ETH from WETH contract using withdraw

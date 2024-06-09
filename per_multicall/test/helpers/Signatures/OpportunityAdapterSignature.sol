@@ -17,7 +17,7 @@ contract OpportunityAdapterSignature is Signature {
         ExecutionParams memory executionParams,
         uint256 executorSk
     ) public view returns (bytes memory) {
-        bytes32 hashedData = opportunityAdapter.hash(executionParams);
+        bytes32 hashedData = opportunityAdapter.hash(executionParams.witness);
         bytes32 domainSeparator = _domainSeparatorV4(
             address(opportunityAdapter),
             _NAME,

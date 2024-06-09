@@ -2,17 +2,16 @@
 pragma solidity ^0.8.13;
 
 import {OpportunityAdapter} from "../../src/OpportunityAdapter.sol";
-import {TokenAmount} from "../../src/Structs.sol";
+import {TokenAmount, OpportunityWitness} from "../../src/Structs.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 
 contract OpportunityAdapterHarness is OpportunityAdapter {
     function exposed_prepareSellTokens(
         ISignatureTransfer.PermitBatchTransferFrom calldata permit,
-        address executor,
-        address targetContract,
+        OpportunityWitness calldata witness,
         bytes calldata signature
     ) public {
-        _prepareSellTokens(permit, executor, targetContract, signature);
+        _prepareSellTokens(permit, witness, signature);
     }
 
     function exposed_revokeAllowances(

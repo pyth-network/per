@@ -28,6 +28,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         setUpContracts();
         setUpTokensAndOracle();
         setUpVaults();
+        setUpPermit2();
         fundSearcherWallets();
     }
 
@@ -635,7 +636,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = false;
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
-            InvalidSignature.selector
+            bytes4(keccak256("InvalidSigner()"))
         );
         expectMulticallIssuedEmit(
             permission,
@@ -700,7 +701,8 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             memory expectedMulticallStatuses = new MulticallStatus[](1);
         expectedMulticallStatuses[0].externalSuccess = false;
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
-            ExpiredSignature.selector
+            bytes4(keccak256("SignatureExpired(uint256)")),
+            bidInfos[0].validUntil
         );
         expectMulticallIssuedEmit(
             permission,

@@ -31,6 +31,7 @@ import "./helpers/MulticallHelpers.sol";
 import "./helpers/ExpressRelayHarness.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/ExpressRelayUpgradable.sol";
+import "./PermitSignature.sol";
 
 import "../src/ExpressRelayEvents.sol";
 import "../src/ExpressRelayGovernanceEvents.sol";
@@ -51,7 +52,8 @@ contract ExpressRelayTestSetup is
     PriceHelpers,
     MulticallHelpers,
     ExpressRelayEvents,
-    ExpressRelayGovernanceEvents
+    ExpressRelayGovernanceEvents,
+    PermitSignature
 {
     TokenVault public tokenVault;
     SearcherVault public searcherA;
@@ -446,37 +448,31 @@ contract ExpressRelayTestSetup is
 
         for (uint256 i = 0; i < searchers.length; i++) {
             address searcher = searchers[i];
-
-            // mint tokens to searcher wallet so it can liquidate vaults
-            MyToken(tokensDebt[0]).mint(address(searcher), amountsDebt[0]);
-            MyToken(tokensDebt[1]).mint(address(searcher), amountsDebt[1]);
-
             vm.startPrank(searcher, searcher);
-
-            // create allowance for opportunity adapter
-            if (tokensDebt[0] == tokensDebt[1]) {
-                MyToken(tokensDebt[0]).approve(
-                    address(opportunityAdapter),
-                    amountsDebt[0] + amountsDebt[1]
-                );
-            } else {
-                MyToken(tokensDebt[0]).approve(
-                    address(opportunityAdapter),
-                    amountsDebt[0]
-                );
-                MyToken(tokensDebt[1]).approve(
-                    address(opportunityAdapter),
-                    amountsDebt[1]
-                );
-            }
-
             // deposit eth into the weth contract
             vm.deal(searcher, (i + 1) * 100 ether);
             weth.deposit{value: (i + 1) * 100 ether}();
-
             // create allowance for opportunity adapter (weth)
-            weth.approve(address(opportunityAdapter), (i + 1) * 100 ether);
-
+            weth.approve(PERMIT2, (i + 1) * 100 ether);
+            vm.stopPrank();
+        }
+        // two separate loops to avoid stack too deep error
+        for (uint256 i = 0; i < searchers.length; i++) {
+            address searcher = searchers[i];
+            // mint tokens to searcher wallet so it can liquidate vaults
+            MyToken(tokensDebt[0]).mint(address(searcher), amountsDebt[0]);
+            MyToken(tokensDebt[1]).mint(address(searcher), amountsDebt[1]);
+            vm.startPrank(searcher, searcher);
+            // create allowance for opportunity adapter
+            if (tokensDebt[0] == tokensDebt[1]) {
+                MyToken(tokensDebt[0]).approve(
+                    PERMIT2,
+                    amountsDebt[0] + amountsDebt[1]
+                );
+            } else {
+                MyToken(tokensDebt[0]).approve(PERMIT2, amountsDebt[0]);
+                MyToken(tokensDebt[1]).approve(PERMIT2, amountsDebt[1]);
+            }
             vm.stopPrank();
         }
 
@@ -584,24 +580,48 @@ contract ExpressRelayTestSetup is
 
         data = new bytes[](bidInfos.length);
         for (uint i = 0; i < bidInfos.length; i++) {
-            // create liquidation call params struct
-            ExecutionParams memory executionParams = ExecutionParams(
-                sellTokens,
+            ISignatureTransfer.TokenPermissions[]
+                memory permitted = new ISignatureTransfer.TokenPermissions[](
+                    sellTokens.length + 1
+                );
+            for (uint j = 0; j < sellTokens.length; j++) {
+                permitted[j] = ISignatureTransfer.TokenPermissions(
+                    sellTokens[j].token,
+                    sellTokens[j].amount
+                );
+            }
+            permitted[sellTokens.length] = ISignatureTransfer.TokenPermissions(
+                address(weth),
+                bidInfos[i].bid
+            );
+
+            ISignatureTransfer.PermitBatchTransferFrom memory permit = ISignatureTransfer
+                .PermitBatchTransferFrom(
+                    permitted,
+                    0, // TODO: fill in the nonce
+                    bidInfos[i].validUntil
+                );
+            OpportunityWitness memory witness = OpportunityWitness(
                 buyTokens,
                 bidInfos[i].executor,
                 contractAddress,
                 calldataVault,
                 value,
-                bidInfos[i].validUntil,
                 bidInfos[i].bid
             );
-
-            bytes memory signature = opportunityAdapterSignatureContract
-                .createOpportunityAdapterSignature(
-                    opportunityAdapter,
-                    executionParams,
-                    bidInfos[i].executorSk
-                );
+            // create liquidation call params struct
+            ExecutionParams memory executionParams = ExecutionParams(
+                permit,
+                witness
+            );
+            bytes memory signature = getPermitBatchWitnessSignature(
+                permit,
+                bidInfos[i].executorSk,
+                FULL_WITNESS_BATCH_TYPEHASH,
+                opportunityAdapter.hash(witness),
+                address(opportunityAdapter),
+                EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
+            );
             data[i] = abi.encodeWithSelector(
                 opportunityAdapter.executeOpportunity.selector,
                 executionParams,

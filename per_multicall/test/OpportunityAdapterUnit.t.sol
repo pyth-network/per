@@ -25,12 +25,13 @@ contract OpportunityAdapterUnitTest is
 
     function setUp() public {
         opportunityAdapter = new OpportunityAdapterHarness();
-        deployCodeTo("Permit2.sol", PERMIT2);
+        setUpPermit2();
         myToken = new MyToken("SellToken", "ST");
     }
 
     function makePermitFromSellTokens(
         TokenAmount[] memory sellTokens,
+        OpportunityWitness memory witness,
         uint256 privateKey
     )
         public
@@ -54,9 +55,11 @@ contract OpportunityAdapterUnitTest is
             nonce: 1000,
             deadline: block.timestamp + 1000
         });
-        signature = getPermitBatchTransferSignature(
+        signature = getPermitBatchWitnessSignature(
             permit,
             privateKey,
+            FULL_WITNESS_BATCH_TYPEHASH,
+            opportunityAdapter.hash(witness),
             address(opportunityAdapter),
             EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
         );
@@ -71,16 +74,26 @@ contract OpportunityAdapterUnitTest is
         myToken.mint(executor, tokenAmount);
         vm.prank(executor);
         myToken.approve(PERMIT2, tokenAmount);
+
+        TokenAmount[] memory noTokens = new TokenAmount[](0);
+        OpportunityWitness memory witness = OpportunityWitness({
+            buyTokens: noTokens,
+            executor: executor,
+            targetContract: makeAddr("targetContract"),
+            targetCalldata: "0x",
+            targetCallValue: 0,
+            bidAmount: 0
+        });
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
             bytes memory signature
-        ) = makePermitFromSellTokens(sellTokens, executorPrivateKey);
+        ) = makePermitFromSellTokens(sellTokens, witness, executorPrivateKey);
         console.logBytes(signature);
         address targetContract = makeAddr("targetContract");
+
         opportunityAdapter.exposed_prepareSellTokens(
             permit,
-            executor,
-            targetContract,
+            witness,
             signature
         );
         assertEq(myToken.balanceOf(address(opportunityAdapter)), tokenAmount);

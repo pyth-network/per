@@ -37,13 +37,16 @@ struct MulticallStatus {
     string multicallRevertReason;
 }
 
-struct ExecutionParams {
-    ISignatureTransfer.PermitBatchTransferFrom permit;
+struct OpportunityWitness {
     TokenAmount[] buyTokens;
     address executor;
     address targetContract;
     bytes targetCalldata;
     uint256 targetCallValue;
-    uint256 validUntil;
     uint256 bidAmount;
+}
+
+struct ExecutionParams {
+    ISignatureTransfer.PermitBatchTransferFrom permit;
+    OpportunityWitness witness;
 }

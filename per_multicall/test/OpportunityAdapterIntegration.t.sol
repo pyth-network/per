@@ -87,10 +87,6 @@ contract OpportunityAdapterIntegrationTest is
         );
     }
 
-    function setUpPermit2() internal {
-        deployCodeTo("Permit2.sol", PERMIT2);
-    }
-
     function setUp() public {
         setUpTokens();
         setUpPermit2();
@@ -130,19 +126,20 @@ contract OpportunityAdapterIntegrationTest is
                 validUntil
             );
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
-        executionParams = ExecutionParams(
-            permit,
+        OpportunityWitness memory witness = OpportunityWitness(
             buyTokens,
             executor,
             address(mockTarget),
             data,
             value,
-            validUntil,
             bid
         );
-        signature = getPermitBatchTransferSignature(
+        executionParams = ExecutionParams(permit, witness);
+        signature = getPermitBatchWitnessSignature(
             permit,
             executorSk,
+            FULL_WITNESS_BATCH_TYPEHASH,
+            opportunityAdapter.hash(witness),
             address(opportunityAdapter),
             EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
         );
