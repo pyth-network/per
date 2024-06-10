@@ -12,28 +12,105 @@ import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/MyToken.sol";
 import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 import "./helpers/OpportunityAdapterHarness.sol";
+import "permit2/interfaces/ISignatureTransfer.sol";
+import "./PermitSignature.sol";
 
-contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
+contract OpportunityAdapterUnitTest is
+    Test,
+    OpportunityAdapterSignature,
+    PermitSignature
+{
     OpportunityAdapterHarness opportunityAdapter;
     MyToken myToken;
 
     function setUp() public {
         opportunityAdapter = new OpportunityAdapterHarness();
+        setUpPermit2();
         myToken = new MyToken("SellToken", "ST");
+    }
+
+    function testTypeStrings() public {
+        string memory opportunityWitnessType = opportunityAdapter
+            ._OPPORTUNITY_WITNESS_TYPE();
+        string memory tokenAmountType = opportunityAdapter._TOKEN_AMOUNT_TYPE();
+        // make sure tokenAmountType is at the end of opportunityWitnessType
+        for (uint i = 0; i < bytes(tokenAmountType).length; i++) {
+            assertEq(
+                bytes(opportunityWitnessType)[
+                    i +
+                        bytes(opportunityWitnessType).length -
+                        bytes(tokenAmountType).length
+                ],
+                bytes(tokenAmountType)[i]
+            );
+        }
+    }
+
+    function makePermitFromSellTokens(
+        TokenAmount[] memory sellTokens,
+        ExecutionWitness memory witness,
+        uint256 privateKey
+    )
+        public
+        returns (
+            ISignatureTransfer.PermitBatchTransferFrom memory permit,
+            bytes memory signature
+        )
+    {
+        ISignatureTransfer.TokenPermissions[]
+            memory permitted = new ISignatureTransfer.TokenPermissions[](
+                sellTokens.length
+            );
+        for (uint i = 0; i < sellTokens.length; i++) {
+            permitted[i] = ISignatureTransfer.TokenPermissions({
+                token: sellTokens[i].token,
+                amount: sellTokens[i].amount
+            });
+        }
+        permit = ISignatureTransfer.PermitBatchTransferFrom({
+            permitted: permitted,
+            nonce: 1000,
+            deadline: block.timestamp + 1000
+        });
+        signature = getPermitBatchWitnessSignature(
+            permit,
+            privateKey,
+            FULL_WITNESS_BATCH_TYPEHASH,
+            opportunityAdapter.hash(witness),
+            address(opportunityAdapter),
+            EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
+        );
     }
 
     function testPrepareSellTokensRevokeAllowances(uint256 tokenAmount) public {
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
         sellTokens[0] = TokenAmount(address(myToken), tokenAmount);
-        address executor = makeAddr("executor");
+        (address executor, uint256 executorPrivateKey) = makeAddrAndKey(
+            "executor"
+        );
         myToken.mint(executor, tokenAmount);
         vm.prank(executor);
-        myToken.approve(address(opportunityAdapter), tokenAmount);
+        myToken.approve(PERMIT2, tokenAmount);
+
+        TokenAmount[] memory noTokens = new TokenAmount[](0);
+        ExecutionWitness memory witness = ExecutionWitness({
+            buyTokens: noTokens,
+            executor: executor,
+            targetContract: makeAddr("targetContract"),
+            targetCalldata: "0x",
+            targetCallValue: 0,
+            bidAmount: 0
+        });
+        (
+            ISignatureTransfer.PermitBatchTransferFrom memory permit,
+            bytes memory signature
+        ) = makePermitFromSellTokens(sellTokens, witness, executorPrivateKey);
         address targetContract = makeAddr("targetContract");
+
         opportunityAdapter.exposed_prepareSellTokens(
-            sellTokens,
-            executor,
-            targetContract
+            permit,
+            witness,
+            signature
         );
         assertEq(myToken.balanceOf(address(opportunityAdapter)), tokenAmount);
         assertEq(
@@ -42,7 +119,7 @@ contract OpportunityAdapterUnitTest is Test, OpportunityAdapterSignature {
         );
         assertEq(myToken.balanceOf(executor), 0);
 
-        opportunityAdapter.exposed_revokeAllowances(sellTokens, targetContract);
+        opportunityAdapter.exposed_revokeAllowances(permit, targetContract);
         assertEq(
             myToken.allowance(address(opportunityAdapter), targetContract),
             0

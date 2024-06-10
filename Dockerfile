@@ -25,6 +25,7 @@ WORKDIR /src/per_multicall
 RUN forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit
 RUN forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commit
 RUN forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
+RUN forge install Uniswap/permit2@0x000000000022D473030F116dDEE9F6B43aC78BA3 --no-git --no-commit
 
 # Build auction-server
 WORKDIR /src

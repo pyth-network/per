@@ -2,26 +2,30 @@
 pragma solidity ^0.8.13;
 
 import "./Structs.sol";
-import "./SigVerify.sol";
 import "./ExpressRelay.sol";
 import "./WETH9.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
+import "permit2/interfaces/ISignatureTransfer.sol";
 
-abstract contract OpportunityAdapter is SigVerify {
+abstract contract OpportunityAdapter {
     using SafeERC20 for IERC20;
 
     address _admin;
     address _expressRelay;
     address _weth;
-    string constant _EXECUTION_PARAMS_TYPE =
-        "ExecutionParams(TokenAmount[] sellTokens,TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 validUntil,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
-    string constant _TOKEN_AMOUNT_TYPE =
+    string public constant _OPPORTUNITY_WITNESS_TYPE =
+        "OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
+    string public constant _TOKEN_AMOUNT_TYPE =
         "TokenAmount(address token,uint256 amount)";
-    string constant _DOMAIN_NAME = "OpportunityAdapter";
-    string constant _DOMAIN_VERSION = "1";
+
+    string public constant WITNESS_TYPE_STRING =
+        "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
+
+    ISignatureTransfer constant PERMIT2 =
+        ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
@@ -38,7 +42,6 @@ abstract contract OpportunityAdapter is SigVerify {
         _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
-        __EIP712_init(_DOMAIN_NAME, _DOMAIN_VERSION);
     }
 
     /**
@@ -94,18 +97,18 @@ abstract contract OpportunityAdapter is SigVerify {
         return keccak256(abi.encodePacked(hashedTokens));
     }
 
-    function hash(ExecutionParams memory params) public pure returns (bytes32) {
+    function hash(
+        ExecutionWitness memory params
+    ) public pure returns (bytes32) {
         return
             keccak256(
                 abi.encode(
-                    keccak256(bytes(_EXECUTION_PARAMS_TYPE)),
-                    hash(params.sellTokens),
+                    keccak256(bytes(_OPPORTUNITY_WITNESS_TYPE)),
                     hash(params.buyTokens),
                     params.executor,
                     params.targetContract,
                     keccak256(params.targetCalldata),
                     params.targetCallValue,
-                    params.validUntil,
                     params.bidAmount
                 )
             );
@@ -118,16 +121,8 @@ abstract contract OpportunityAdapter is SigVerify {
         if (msg.sender != _expressRelay) {
             revert Unauthorized();
         }
-
-        verifyCalldata(
-            hash(params),
-            params.executor,
-            signature,
-            params.validUntil
-        );
-
-        _checkDuplicateTokens(params.sellTokens);
-        _checkDuplicateTokens(params.buyTokens);
+        _checkDuplicateTokens(params.permit.permitted);
+        _checkDuplicateTokens(params.witness.buyTokens);
     }
 
     function _checkDuplicateTokens(
@@ -142,48 +137,67 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
-    function _prepareSellTokens(
-        TokenAmount[] calldata sellTokens,
-        address executor,
-        address targetContract
-    ) internal {
-        for (uint i = 0; i < sellTokens.length; i++) {
-            IERC20 token = IERC20(sellTokens[i].token);
-            token.safeTransferFrom(
-                executor,
-                address(this),
-                sellTokens[i].amount
-            );
-            token.approve(targetContract, sellTokens[i].amount);
+    function _checkDuplicateTokens(
+        ISignatureTransfer.TokenPermissions[] calldata tokens
+    ) internal pure {
+        for (uint i = 0; i < tokens.length; i++) {
+            for (uint j = i + 1; j < tokens.length; j++) {
+                if (tokens[i].token == tokens[j].token) {
+                    revert DuplicateToken();
+                }
+            }
         }
     }
 
+    function _prepareSellTokens(
+        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
+        ExecutionWitness calldata witness,
+        bytes calldata signature
+    ) internal {
+        ISignatureTransfer.SignatureTransferDetails[]
+            memory transferDetails = new ISignatureTransfer.SignatureTransferDetails[](
+                permit.permitted.length
+            );
+        for (uint i = 0; i < permit.permitted.length; i++) {
+            uint256 amount = permit.permitted[i].amount;
+            IERC20 token = IERC20(permit.permitted[i].token);
+            transferDetails[i] = ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: amount
+            });
+            token.approve(witness.targetContract, amount);
+        }
+        PERMIT2.permitWitnessTransferFrom(
+            permit,
+            transferDetails,
+            witness.executor,
+            hash(witness),
+            WITNESS_TYPE_STRING,
+            signature
+        );
+    }
+
     function _revokeAllowances(
-        TokenAmount[] calldata sellTokens,
+        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
         address targetContract
     ) internal {
-        for (uint i = 0; i < sellTokens.length; i++) {
-            IERC20 token = IERC20(sellTokens[i].token);
+        for (uint i = 0; i < permit.permitted.length; i++) {
+            IERC20 token = IERC20(permit.permitted[i].token);
             token.approve(targetContract, 0);
         }
     }
 
-    function _transferFromAndUnwrapWeth(
-        address source,
-        uint256 amount
-    ) internal {
-        WETH9 weth = _getWethContract();
-        try weth.transferFrom(source, address(this), amount) {} catch {
-            revert WethTransferFromFailed();
-        }
-        weth.withdraw(amount);
-    }
-
     function _settleBid(address executor, uint256 bidAmount) internal {
-        if (bidAmount > 0) {
-            _transferFromAndUnwrapWeth(executor, bidAmount);
-            payable(getExpressRelay()).transfer(bidAmount);
+        if (bidAmount == 0) return;
+        WETH9 weth = _getWethContract();
+        uint256 balance = address(this).balance;
+        if (balance < bidAmount) {
+            // withdraw from WETH if necessary to pay the bid
+            try weth.withdraw(bidAmount - balance) {} catch {
+                revert InsufficientEthToSettleBid();
+            }
         }
+        payable(getExpressRelay()).transfer(bidAmount);
     }
 
     function _callTargetContract(
@@ -227,37 +241,56 @@ abstract contract OpportunityAdapter is SigVerify {
         }
     }
 
+    function _getEthAndWethBalances() internal view returns (uint256, uint256) {
+        return (
+            address(this).balance,
+            _getWethContract().balanceOf(address(this))
+        );
+    }
+
     function executeOpportunity(
         ExecutionParams calldata params,
-        bytes memory signature
+        bytes calldata signature
     ) public payable {
         _verifyParams(params, signature);
+        (
+            uint256 ethBalanceBeforeCall,
+            uint256 wethBalanceBeforeCall
+        ) = _getEthAndWethBalances();
         // get balances of buy tokens before transferring sell tokens since there might be overlaps
         uint256[]
             memory buyTokensBalancesBeforeCall = _getContractTokenBalances(
-                params.buyTokens
+                params.witness.buyTokens
             );
-        _prepareSellTokens(
-            params.sellTokens,
-            params.executor,
-            params.targetContract
-        );
-        if (params.targetCallValue > 0) {
-            _transferFromAndUnwrapWeth(params.executor, params.targetCallValue);
+        _prepareSellTokens(params.permit, params.witness, signature);
+        if (params.witness.targetCallValue > 0) {
+            WETH9 weth = _getWethContract();
+            try weth.withdraw(params.witness.targetCallValue) {} catch {
+                revert InsufficientWethForTargetCallValue();
+            }
         }
         _callTargetContract(
-            params.targetContract,
-            params.targetCalldata,
-            params.targetCallValue
+            params.witness.targetContract,
+            params.witness.targetCalldata,
+            params.witness.targetCallValue
         );
-        _revokeAllowances(params.sellTokens, params.targetContract);
+        _revokeAllowances(params.permit, params.witness.targetContract);
         _validateAndTransferBuyTokens(
-            params.buyTokens,
-            params.executor,
+            params.witness.buyTokens,
+            params.witness.executor,
             buyTokensBalancesBeforeCall
         );
-        _settleBid(params.executor, params.bidAmount);
-        _useSignature(signature);
+        _settleBid(params.witness.executor, params.witness.bidAmount);
+        (
+            uint256 ethBalanceAfterCall,
+            uint256 wethBalanceAfterCall
+        ) = _getEthAndWethBalances();
+        if (
+            ethBalanceAfterCall < ethBalanceBeforeCall ||
+            wethBalanceAfterCall < wethBalanceBeforeCall
+        ) {
+            revert EthOrWethBalanceDecreased();
+        }
     }
 
     // necessary to receive ETH from WETH contract using withdraw
