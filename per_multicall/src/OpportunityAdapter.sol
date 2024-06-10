@@ -192,6 +192,7 @@ abstract contract OpportunityAdapter {
             WETH9 weth = _getWethContract();
             uint256 balance = address(this).balance;
             if (balance < bidAmount) {
+                // withdraw from WETH if necessary to pay the bid
                 if (weth.balanceOf(address(this)) < bidAmount - balance) {
                     revert InsufficientEthToSettleBid();
                 }

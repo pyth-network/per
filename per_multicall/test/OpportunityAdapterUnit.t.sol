@@ -88,7 +88,6 @@ contract OpportunityAdapterUnitTest is
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
             bytes memory signature
         ) = makePermitFromSellTokens(sellTokens, witness, executorPrivateKey);
-        console.logBytes(signature);
         address targetContract = makeAddr("targetContract");
 
         opportunityAdapter.exposed_prepareSellTokens(

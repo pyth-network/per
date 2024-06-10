@@ -376,7 +376,9 @@ contract OpportunityAdapterIntegrationTest is
         ) = createDummyExecutionParams(false);
         vm.startPrank(opportunityAdapter.getExpressRelay());
         opportunityAdapter.executeOpportunity(executionParams, signature);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(bytes4(keccak256("InvalidNonce()")))
+        );
         opportunityAdapter.executeOpportunity(executionParams, signature);
         vm.stopPrank();
     }
@@ -463,7 +465,12 @@ contract OpportunityAdapterIntegrationTest is
             );
         vm.warp(block.timestamp + 2);
         vm.prank(opportunityAdapter.getExpressRelay());
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("SignatureExpired(uint256)")),
+                executionParams.permit.deadline
+            )
+        );
         opportunityAdapter.executeOpportunity(executionParams, signature);
     }
 
