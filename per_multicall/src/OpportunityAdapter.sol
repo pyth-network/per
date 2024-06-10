@@ -188,18 +188,16 @@ abstract contract OpportunityAdapter {
     }
 
     function _settleBid(address executor, uint256 bidAmount) internal {
-        if (bidAmount > 0) {
-            WETH9 weth = _getWethContract();
-            uint256 balance = address(this).balance;
-            if (balance < bidAmount) {
-                // withdraw from WETH if necessary to pay the bid
-                if (weth.balanceOf(address(this)) < bidAmount - balance) {
-                    revert InsufficientEthToSettleBid();
-                }
-                weth.withdraw(bidAmount - balance);
+        if (bidAmount == 0) return;
+        WETH9 weth = _getWethContract();
+        uint256 balance = address(this).balance;
+        if (balance < bidAmount) {
+            // withdraw from WETH if necessary to pay the bid
+            try weth.withdraw(bidAmount - balance) {} catch {
+                revert InsufficientEthToSettleBid();
             }
-            payable(getExpressRelay()).transfer(bidAmount);
         }
+        payable(getExpressRelay()).transfer(bidAmount);
     }
 
     function _callTargetContract(
