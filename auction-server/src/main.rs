@@ -25,12 +25,11 @@ mod gas_oracle;
 mod models;
 mod opportunity_adapter;
 mod per_metrics;
+mod rpc_client;
 mod serde;
 mod server;
 mod state;
 mod token_spoof;
-mod traced_client;
-
 
 #[tokio::main]
 async fn main() -> Result<()> {

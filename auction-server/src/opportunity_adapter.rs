@@ -12,6 +12,7 @@ use {
             MulticallData,
             MulticallReturn,
         },
+        rpc_client::RPCClient,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -28,7 +29,6 @@ use {
             UnixTimestampMicros,
         },
         token_spoof,
-        traced_client::TracedClient,
     },
     anyhow::{
         anyhow,
@@ -102,7 +102,7 @@ pub enum VerificationResult {
 
 pub async fn get_weth_address(
     adapter_contract: Address,
-    provider: Provider<TracedClient>,
+    provider: Provider<RPCClient>,
 ) -> Result<Address> {
     let adapter = OpportunityAdapter::new(adapter_contract, Arc::new(provider));
     adapter
@@ -613,4 +613,26 @@ pub async fn handle_opportunity_bid(
             _ => Err(e),
         },
     }
+}
+
+pub async fn get_eip_712_domain(
+    provider: Provider<RPCClient>,
+    contract_address: Address,
+) -> anyhow::Result<EIP712Domain> {
+    let client = Arc::new(provider);
+    let opportunity_adapter = OpportunityAdapter::new(contract_address, client);
+    let call = opportunity_adapter.eip_712_domain();
+
+    let result = call.await.map_err(|e| {
+        anyhow!(
+            "Error calling opportunity adapter for signature metadata: {:?}",
+            e
+        )
+    })?;
+    Ok(EIP712Domain {
+        name:               result.1,
+        version:            result.2,
+        chain_id:           result.3,
+        verifying_contract: result.4,
+    })
 }

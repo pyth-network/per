@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "auction-server"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -219,6 +219,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sqlx",
+ "thiserror",
  "time",
  "tokio",
  "tokio-stream",
