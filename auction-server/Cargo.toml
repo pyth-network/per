@@ -1,6 +1,6 @@
 [package]
 name = "auction-server"
-version = "0.8.2"
+version = "0.8.1"
 edition = "2021"
 license-file = "license.txt"
 
@@ -33,4 +33,3 @@ rand = "0.8.5"
 base64 = "0.22.1"
 time = { version = "0.3.36", features = ["serde"] }
 axum-prometheus = "0.6.1"
-thiserror = "1.0.61"

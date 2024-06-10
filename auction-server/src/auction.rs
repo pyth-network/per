@@ -10,7 +10,6 @@ use {
         },
         gas_oracle::EthProviderOracle,
         models,
-        rpc_client::RPCClient,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -23,6 +22,7 @@ use {
             SimulatedBid,
             Store,
         },
+        traced_client::TracedClient,
     },
     anyhow::{
         anyhow,
@@ -95,11 +95,11 @@ abigen!(
     ExpressRelay,
     "../per_multicall/out/ExpressRelay.sol/ExpressRelay.json"
 );
-pub type ExpressRelayContract = ExpressRelay<Provider<RPCClient>>;
+pub type ExpressRelayContract = ExpressRelay<Provider<TracedClient>>;
 pub type SignableProvider = TransformerMiddleware<
     GasOracleMiddleware<
-        NonceManagerMiddleware<SignerMiddleware<Provider<RPCClient>, LocalWallet>>,
-        EthProviderOracle<Provider<RPCClient>>,
+        NonceManagerMiddleware<SignerMiddleware<Provider<TracedClient>, LocalWallet>>,
+        EthProviderOracle<Provider<TracedClient>>,
     >,
     LegacyTxTransformer,
 >;
@@ -118,11 +118,11 @@ impl From<([u8; 16], H160, Bytes, U256)> for MulticallData {
 
 pub fn get_simulation_call(
     relayer: Address,
-    provider: Provider<RPCClient>,
+    provider: Provider<TracedClient>,
     chain_config: EthereumConfig,
     permission_key: Bytes,
     multicall_data: Vec<MulticallData>,
-) -> FunctionCall<Arc<Provider<RPCClient>>, Provider<RPCClient>, Vec<MulticallStatus>> {
+) -> FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
     let express_relay_contract =
         ExpressRelayContract::new(chain_config.express_relay_contract, client);
@@ -183,7 +183,7 @@ async fn get_winner_bids(
     permission_key: Bytes,
     store: Arc<Store>,
     chain_store: &ChainStore,
-) -> Result<Vec<SimulatedBid>, ContractError<Provider<RPCClient>>> {
+) -> Result<Vec<SimulatedBid>, ContractError<Provider<TracedClient>>> {
     // TODO How we want to perform simulation, pruning, and determination
     if bids.is_empty() {
         return Ok(vec![]);
@@ -433,7 +433,7 @@ async fn submit_auction(store: Arc<Store>, permission_key: Bytes, chain_id: Stri
 
 pub fn get_express_relay_contract(
     address: Address,
-    provider: Provider<RPCClient>,
+    provider: Provider<TracedClient>,
     relayer: LocalWallet,
     use_legacy_tx: bool,
     network_id: u64,

@@ -21,12 +21,12 @@ use {
             run_verification_loop,
         },
         per_metrics,
-        rpc_client::RPCClient,
         state::{
             ChainStore,
             OpportunityStore,
             Store,
         },
+        traced_client::TracedClient,
     },
     anyhow::anyhow,
     axum_prometheus::{
@@ -156,7 +156,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let (chain_id, chain_config, wallet) =
                 (chain_id.clone(), chain_config.clone(), wallet.clone());
             async move {
-                let mut provider = RPCClient::new(chain_id.clone(), &chain_config.geth_rpc_addr)
+                let mut provider = TracedClient::new(chain_id.clone(), &chain_config.geth_rpc_addr)
                     .map_err(|err| {
                         anyhow!(
                             "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",

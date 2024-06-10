@@ -15,7 +15,7 @@ use {
             EthereumConfig,
         },
         models,
-        rpc_client::RPCClient,
+        traced_client::TracedClient,
     },
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
@@ -180,7 +180,7 @@ pub enum SpoofInfo {
 }
 
 pub struct ChainStore {
-    pub provider:               Provider<RPCClient>,
+    pub provider:               Provider<TracedClient>,
     pub network_id:             u64,
     pub config:                 EthereumConfig,
     pub weth:                   Address,

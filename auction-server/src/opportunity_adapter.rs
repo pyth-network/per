@@ -12,7 +12,6 @@ use {
             MulticallData,
             MulticallReturn,
         },
-        rpc_client::RPCClient,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -29,6 +28,7 @@ use {
             UnixTimestampMicros,
         },
         token_spoof,
+        traced_client::TracedClient,
     },
     anyhow::{
         anyhow,
@@ -102,7 +102,7 @@ pub enum VerificationResult {
 
 pub async fn get_weth_address(
     adapter_contract: Address,
-    provider: Provider<RPCClient>,
+    provider: Provider<TracedClient>,
 ) -> Result<Address> {
     let adapter = OpportunityAdapter::new(adapter_contract, Arc::new(provider));
     adapter
@@ -616,7 +616,7 @@ pub async fn handle_opportunity_bid(
 }
 
 pub async fn get_eip_712_domain(
-    provider: Provider<RPCClient>,
+    provider: Provider<TracedClient>,
     contract_address: Address,
 ) -> anyhow::Result<EIP712Domain> {
     let client = Arc::new(provider);
