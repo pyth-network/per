@@ -29,6 +29,23 @@ contract OpportunityAdapterUnitTest is
         myToken = new MyToken("SellToken", "ST");
     }
 
+    function testTypeStrings() public {
+        string memory opportunityWitnessType = opportunityAdapter
+            ._OPPORTUNITY_WITNESS_TYPE();
+        string memory tokenAmountType = opportunityAdapter._TOKEN_AMOUNT_TYPE();
+        // make sure tokenAmountType is at the end of opportunityWitnessType
+        for (uint i = 0; i < bytes(tokenAmountType).length; i++) {
+            assertEq(
+                bytes(opportunityWitnessType)[
+                    i +
+                        bytes(opportunityWitnessType).length -
+                        bytes(tokenAmountType).length
+                ],
+                bytes(tokenAmountType)[i]
+            );
+        }
+    }
+
     function makePermitFromSellTokens(
         TokenAmount[] memory sellTokens,
         OpportunityWitness memory witness,

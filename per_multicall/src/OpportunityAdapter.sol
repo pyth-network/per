@@ -16,12 +16,12 @@ abstract contract OpportunityAdapter {
     address _admin;
     address _expressRelay;
     address _weth;
-    string constant _OPPORTUNITY_WITNESS_TYPE =
+    string public constant _OPPORTUNITY_WITNESS_TYPE =
         "OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
-    string constant _TOKEN_AMOUNT_TYPE =
+    string public constant _TOKEN_AMOUNT_TYPE =
         "TokenAmount(address token,uint256 amount)";
 
-    string constant WITNESS_TYPE_STRING =
+    string public constant WITNESS_TYPE_STRING =
         "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
 
     ISignatureTransfer constant PERMIT2 =

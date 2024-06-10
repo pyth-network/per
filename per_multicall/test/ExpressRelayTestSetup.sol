@@ -452,7 +452,7 @@ contract ExpressRelayTestSetup is
             // deposit eth into the weth contract
             vm.deal(searcher, (i + 1) * 100 ether);
             weth.deposit{value: (i + 1) * 100 ether}();
-            // create allowance for opportunity adapter (weth)
+            // create allowance for Permit2 (weth)
             weth.approve(PERMIT2, (i + 1) * 100 ether);
             vm.stopPrank();
         }
@@ -463,7 +463,7 @@ contract ExpressRelayTestSetup is
             MyToken(tokensDebt[0]).mint(address(searcher), amountsDebt[0]);
             MyToken(tokensDebt[1]).mint(address(searcher), amountsDebt[1]);
             vm.startPrank(searcher, searcher);
-            // create allowance for opportunity adapter
+            // create allowance for Permit2
             if (tokensDebt[0] == tokensDebt[1]) {
                 MyToken(tokensDebt[0]).approve(
                     PERMIT2,
