@@ -126,7 +126,7 @@ contract OpportunityAdapterIntegrationTest is
                 validUntil
             );
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
-        OpportunityWitness memory witness = OpportunityWitness(
+        ExecutionWitness memory witness = ExecutionWitness(
             buyTokens,
             executor,
             address(mockTarget),
@@ -326,6 +326,52 @@ contract OpportunityAdapterIntegrationTest is
             abi.encodeWithSelector(WETH9.withdraw.selector, 0),
             0
         );
+        opportunityAdapter.executeOpportunity(executionParams, signature);
+    }
+
+    function testRevertWhenEthBalanceDecrease() public {
+        TokenAmount[] memory noTokens = new TokenAmount[](0);
+        bytes memory targetCalldata = abi.encodeWithSelector(
+            mockTarget.doNothing.selector
+        );
+        (
+            ExecutionParams memory executionParams,
+            bytes memory signature
+        ) = createExecutionParamsAndSignature(
+                noTokens,
+                noTokens,
+                targetCalldata,
+                0,
+                1,
+                block.timestamp + 1000
+            );
+        vm.deal(address(opportunityAdapter), 1 ether);
+        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.expectRevert(EthOrWethBalanceDecreased.selector);
+        opportunityAdapter.executeOpportunity(executionParams, signature);
+    }
+
+    function testRevertWhenWethBalanceDecrease() public {
+        TokenAmount[] memory noTokens = new TokenAmount[](0);
+        bytes memory targetCalldata = abi.encodeWithSelector(
+            mockTarget.doNothing.selector
+        );
+        (
+            ExecutionParams memory executionParams,
+            bytes memory signature
+        ) = createExecutionParamsAndSignature(
+                noTokens,
+                noTokens,
+                targetCalldata,
+                1,
+                0,
+                block.timestamp + 1000
+            );
+        vm.deal(address(opportunityAdapter), 1 ether);
+        vm.prank(address(opportunityAdapter));
+        weth.deposit{value: 1 ether}();
+        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.expectRevert(EthOrWethBalanceDecreased.selector);
         opportunityAdapter.executeOpportunity(executionParams, signature);
     }
 

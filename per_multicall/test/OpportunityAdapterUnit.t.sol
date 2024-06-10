@@ -48,7 +48,7 @@ contract OpportunityAdapterUnitTest is
 
     function makePermitFromSellTokens(
         TokenAmount[] memory sellTokens,
-        OpportunityWitness memory witness,
+        ExecutionWitness memory witness,
         uint256 privateKey
     )
         public
@@ -93,7 +93,7 @@ contract OpportunityAdapterUnitTest is
         myToken.approve(PERMIT2, tokenAmount);
 
         TokenAmount[] memory noTokens = new TokenAmount[](0);
-        OpportunityWitness memory witness = OpportunityWitness({
+        ExecutionWitness memory witness = ExecutionWitness({
             buyTokens: noTokens,
             executor: executor,
             targetContract: makeAddr("targetContract"),

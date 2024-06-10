@@ -601,7 +601,7 @@ contract ExpressRelayTestSetup is
                     0, // TODO: fill in the nonce
                     bidInfos[i].validUntil
                 );
-            OpportunityWitness memory witness = OpportunityWitness(
+            ExecutionWitness memory witness = ExecutionWitness(
                 buyTokens,
                 bidInfos[i].executor,
                 contractAddress,

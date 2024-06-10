@@ -19,6 +19,9 @@ error SignatureAlreadyUsed();
 // Signature: 0x464e3f6a
 error DuplicateToken();
 
+// Signature: 0x1979776d
+error EthOrWethBalanceDecreased();
+
 // Signature: 0x729f3230
 error InvalidPERSignature();
 

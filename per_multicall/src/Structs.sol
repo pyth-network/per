@@ -37,7 +37,7 @@ struct MulticallStatus {
     string multicallRevertReason;
 }
 
-struct OpportunityWitness {
+struct ExecutionWitness {
     TokenAmount[] buyTokens;
     address executor;
     address targetContract;
@@ -48,5 +48,5 @@ struct OpportunityWitness {
 
 struct ExecutionParams {
     ISignatureTransfer.PermitBatchTransferFrom permit;
-    OpportunityWitness witness;
+    ExecutionWitness witness;
 }

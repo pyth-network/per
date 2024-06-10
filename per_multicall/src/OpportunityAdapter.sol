@@ -98,7 +98,7 @@ abstract contract OpportunityAdapter {
     }
 
     function hash(
-        OpportunityWitness memory params
+        ExecutionWitness memory params
     ) public pure returns (bytes32) {
         return
             keccak256(
@@ -151,7 +151,7 @@ abstract contract OpportunityAdapter {
 
     function _prepareSellTokens(
         ISignatureTransfer.PermitBatchTransferFrom calldata permit,
-        OpportunityWitness calldata witness,
+        ExecutionWitness calldata witness,
         bytes calldata signature
     ) internal {
         ISignatureTransfer.SignatureTransferDetails[]
@@ -241,11 +241,22 @@ abstract contract OpportunityAdapter {
         }
     }
 
+    function _getEthAndWethBalances() internal view returns (uint256, uint256) {
+        return (
+            address(this).balance,
+            _getWethContract().balanceOf(address(this))
+        );
+    }
+
     function executeOpportunity(
         ExecutionParams calldata params,
         bytes calldata signature
     ) public payable {
         _verifyParams(params, signature);
+        (
+            uint256 ethBalanceBeforeCall,
+            uint256 wethBalanceBeforeCall
+        ) = _getEthAndWethBalances();
         // get balances of buy tokens before transferring sell tokens since there might be overlaps
         uint256[]
             memory buyTokensBalancesBeforeCall = _getContractTokenBalances(
@@ -270,6 +281,16 @@ abstract contract OpportunityAdapter {
             buyTokensBalancesBeforeCall
         );
         _settleBid(params.witness.executor, params.witness.bidAmount);
+        (
+            uint256 ethBalanceAfterCall,
+            uint256 wethBalanceAfterCall
+        ) = _getEthAndWethBalances();
+        if (
+            ethBalanceAfterCall < ethBalanceBeforeCall ||
+            wethBalanceAfterCall < wethBalanceBeforeCall
+        ) {
+            revert EthOrWethBalanceDecreased();
+        }
     }
 
     // necessary to receive ETH from WETH contract using withdraw
