@@ -11,9 +11,9 @@ use {
             Provider,
         },
     },
-    std::{
-        str::FromStr,
-        time::Instant,
+    std::time::{
+        Duration,
+        Instant,
     },
 };
 
@@ -58,8 +58,12 @@ impl JsonRpcClient for TracedClient {
 
 impl TracedClient {
     pub fn new(chain_id: ChainId, url: &str) -> Result<Provider<TracedClient>> {
+        let url = reqwest::Url::parse(url)?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()?;
         Ok(Provider::new(TracedClient {
-            inner: Http::from_str(url)?,
+            inner: Http::new_with_client(url, client),
             chain_id,
         }))
     }
