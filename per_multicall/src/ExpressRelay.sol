@@ -8,13 +8,18 @@ import "./ExpressRelayHelpers.sol";
 import "./ExpressRelayEvents.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
+import "ExcessivelySafeCall/ExcessivelySafeCall.sol";
 
 contract ExpressRelay is
     ExpressRelayHelpers,
     ExpressRelayState,
-    ExpressRelayEvents
+    ExpressRelayEvents,
+    ReentrancyGuard
 {
+    using ExcessivelySafeCall for address;
+
     /**
      * @notice ExpressRelay initializer - Initializes a new ExpressRelay contract with given parameters
      *
@@ -55,6 +60,7 @@ contract ExpressRelay is
         public
         payable
         onlyRelayer
+        nonReentrant
         returns (MulticallStatus[] memory multicallStatuses)
     {
         if (permissionKey.length < 20) {
@@ -105,7 +111,8 @@ contract ExpressRelay is
                     value: feeProtocol
                 }(permissionKey);
             } else {
-                payable(feeReceiver).transfer(feeProtocol);
+                (bool sent, ) = feeReceiver.call{value: feeProtocol}("");
+                require(sent, "Fee transfer to protocol failed");
             }
         }
         state.permissions[keccak256(permissionKey)] = false;
@@ -114,7 +121,8 @@ contract ExpressRelay is
         uint256 feeRelayer = ((totalBid - feeProtocol) *
             state.feeSplitRelayer) / state.feeSplitPrecision;
         if (feeRelayer > 0) {
-            payable(state.relayer).transfer(feeRelayer);
+            (bool sent, ) = state.relayer.call{value: feeRelayer}("");
+            require(sent, "Fee transfer to relayer failed");
         }
     }
 
@@ -133,17 +141,21 @@ contract ExpressRelay is
 
         uint256 balanceInitEth = address(this).balance;
 
-        (bool success, bytes memory result) = multicallData.targetContract.call(
-            multicallData.targetCalldata
-        );
+        (bool success, bytes memory result) = multicallData
+            .targetContract
+            .excessivelySafeCall(
+                gasleft(), // this will automatically forward 63/64 of gas
+                0,
+                32,
+                multicallData.targetCalldata
+            );
 
         if (success) {
             uint256 balanceFinalEth = address(this).balance;
 
             // ensure that this contract was paid at least bid ETH
             require(
-                (balanceFinalEth - balanceInitEth >= multicallData.bidAmount) &&
-                    (balanceFinalEth >= balanceInitEth),
+                (balanceFinalEth - balanceInitEth >= multicallData.bidAmount),
                 "invalid bid"
             );
         }

@@ -9,8 +9,9 @@ import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/Safe
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
+import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
-abstract contract OpportunityAdapter {
+abstract contract OpportunityAdapter is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address _admin;
@@ -165,7 +166,7 @@ abstract contract OpportunityAdapter {
                 to: address(this),
                 requestedAmount: amount
             });
-            token.approve(witness.targetContract, amount);
+            token.forceApprove(witness.targetContract, amount);
         }
         PERMIT2.permitWitnessTransferFrom(
             permit,
@@ -183,7 +184,7 @@ abstract contract OpportunityAdapter {
     ) internal {
         for (uint i = 0; i < permit.permitted.length; i++) {
             IERC20 token = IERC20(permit.permitted[i].token);
-            token.approve(targetContract, 0);
+            token.forceApprove(targetContract, 0);
         }
     }
 
@@ -197,7 +198,8 @@ abstract contract OpportunityAdapter {
                 revert InsufficientEthToSettleBid();
             }
         }
-        payable(getExpressRelay()).transfer(bidAmount);
+        (bool sent, ) = getExpressRelay().call{value: bidAmount}("");
+        require(sent, "Bid transfer to express relay failed");
     }
 
     function _callTargetContract(
@@ -251,7 +253,7 @@ abstract contract OpportunityAdapter {
     function executeOpportunity(
         ExecutionParams calldata params,
         bytes calldata signature
-    ) public payable {
+    ) public payable nonReentrant {
         _verifyParams(params, signature);
         (
             uint256 ethBalanceBeforeCall,
