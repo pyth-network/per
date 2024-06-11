@@ -2,6 +2,7 @@ use {
     crate::{
         api::{
             self,
+            opportunity::EIP712Domain,
             ws,
         },
         auction::{
@@ -16,7 +17,6 @@ use {
         },
         models,
         opportunity_adapter::{
-            get_eip_712_domain,
             get_weth_address,
             run_verification_loop,
         },
@@ -171,16 +171,12 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                 let weth =
                     get_weth_address(chain_config.opportunity_adapter_contract, provider.clone())
                         .await?;
-                let eip_712_domain =
-                    get_eip_712_domain(provider.clone(), chain_config.opportunity_adapter_contract)
-                        .await
-                        .map_err(|err| {
-                            anyhow!(
-                                "Failed to get domain separator for chain({chain_id}): {:?}",
-                                err,
-                                chain_id = chain_id
-                            )
-                        })?;
+                let eip_712_domain = EIP712Domain {
+                    name:               Some("Permit2".to_string()),
+                    version:            None,
+                    chain_id:           Some(id.into()),
+                    verifying_contract: Some(chain_config.permit2_contract),
+                };
 
                 let express_relay_contract = get_express_relay_contract(
                     chain_config.express_relay_contract,

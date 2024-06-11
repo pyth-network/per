@@ -49,7 +49,10 @@ class OpportunityBid(TypedDict):
 
 
 def create_liquidation_transaction(
-    opp: Opportunity, sk_liquidator: str, bid_info: BidInfo
+    opp: Opportunity,
+    sk_liquidator: str,
+    bid_info: BidInfo,
+    spender: str,
 ) -> OpportunityBid:
     """
     Creates a bid for a liquidation opportunity.
@@ -75,6 +78,7 @@ def create_liquidation_transaction(
         bid_info,
         sk_liquidator,
         opp["eip_712_domain"],
+        spender,
     )
 
     opportunity_bid = {

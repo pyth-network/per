@@ -51,18 +51,18 @@ use {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
 pub struct EIP712Domain {
     /// The name parameter for the EIP712 domain.
-    #[schema(example = "OpportunityAdapter", value_type = String)]
-    pub name:               String,
+    #[schema(example = "OpportunityAdapter", value_type = Option<String>)]
+    pub name:               Option<String>,
     /// The version parameter for the EIP712 domain.
-    #[schema(example = "1", value_type = String)]
-    pub version:            String,
+    #[schema(example = "1", value_type = Option<String>)]
+    pub version:            Option<String>,
     /// The network chain id parameter for EIP712 domain.
-    #[schema(example = "31337", value_type=String)]
-    #[serde(with = "crate::serde::u256")]
-    pub chain_id:           U256,
+    #[schema(example = "31337", value_type=Option<String>)]
+    #[serde(with = "crate::serde::nullable_u256")]
+    pub chain_id:           Option<U256>,
     /// The verifying contract address parameter for the EIP712 domain.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub verifying_contract: ethers::abi::Address,
+    pub verifying_contract: Option<ethers::abi::Address>,
 }
 
 /// Similar to OpportunityParams, but with the opportunity id included.

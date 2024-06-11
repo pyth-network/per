@@ -182,7 +182,8 @@ contract ExpressRelayTestSetup is
             relayer,
             relayer,
             address(expressRelay),
-            address(weth)
+            address(weth),
+            PermitSignature.PERMIT2
         );
 
         searcherSignatureContract = new SearcherSignature();

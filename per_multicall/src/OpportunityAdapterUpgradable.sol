@@ -32,17 +32,19 @@ contract OpportunityAdapterUpgradable is
         address owner,
         address admin,
         address expressRelay,
-        address weth
+        address weth,
+        address permit2
     ) public initializer {
         require(owner != address(0), "owner is zero address");
         require(admin != address(0), "admin is zero address");
         require(expressRelay != address(0), "expressRelay is zero address");
         require(weth != address(0), "weth is zero address");
+        require(permit2 != address(0), "permit2 is zero address");
 
         __Ownable_init();
         __UUPSUpgradeable_init();
 
-        OpportunityAdapter._initialize(admin, expressRelay, weth);
+        OpportunityAdapter._initialize(admin, expressRelay, weth, permit2);
 
         // We need to transfer the ownership from deployer to the new owner
         _transferOwnership(owner);

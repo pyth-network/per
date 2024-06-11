@@ -64,6 +64,7 @@ use {
             U256,
         },
     },
+    rand::Rng,
     serde::{
         Deserialize,
         Serialize,
@@ -209,9 +210,15 @@ pub async fn verify_opportunity(
                     .account(token)
                     .store(balance_storage_key, value.into());
 
+                let spender = if token == chain_store.weth {
+                    chain_store.config.opportunity_adapter_contract
+                } else {
+                    chain_store.config.permit2_contract
+                };
+
                 let allowance_storage_key = token_spoof::calculate_allowance_storage_key(
                     fake_wallet.address(),
-                    chain_store.config.opportunity_adapter_contract,
+                    spender,
                     allowance_slot,
                 );
                 let value: [u8; 32] = amount.into();
@@ -237,10 +244,10 @@ pub async fn verify_opportunity(
 impl From<EIP712Domain> for eip712::EIP712Domain {
     fn from(val: EIP712Domain) -> Self {
         eip712::EIP712Domain {
-            name:               Some(val.name),
-            version:            Some(val.version),
-            chain_id:           Some(val.chain_id),
-            verifying_contract: Some(val.verifying_contract),
+            name:               val.name,
+            version:            val.version,
+            chain_id:           val.chain_id,
+            verifying_contract: val.verifying_contract,
             salt:               None,
         }
     }
@@ -250,42 +257,55 @@ impl From<ExecutionParamsWithSignature> for eip712::TypedData {
     fn from(val: ExecutionParamsWithSignature) -> Self {
         let params = val.params;
         let data_type = serde_json::json!({
-            "ExecutionParams": [
-                {"name": "sellTokens", "type": "TokenAmount[]"},
+            "PermitBatchWitnessTransferFrom": [
+                {"name": "permitted", "type": "TokenPermissions[]"},
+                {"name": "spender", "type": "address"},
+                {"name": "nonce", "type": "uint256"},
+                {"name": "deadline", "type": "uint256"},
+                {"name": "witness", "type": "OpportunityWitness"},
+            ],
+            "OpportunityWitness": [
                 {"name": "buyTokens", "type": "TokenAmount[]"},
                 {"name": "executor", "type": "address"},
                 {"name": "targetContract", "type": "address"},
                 {"name": "targetCalldata", "type": "bytes"},
                 {"name": "targetCallValue", "type": "uint256"},
-                {"name": "validUntil", "type": "uint256"},
                 {"name": "bidAmount", "type": "uint256"},
             ],
             "TokenAmount": [
                 {"name": "token", "type": "address"},
                 {"name": "amount", "type": "uint256"},
-            ]
+            ],
+            "TokenPermissions": [
+                {"name": "token", "type": "address"},
+                {"name": "amount", "type": "uint256"},
+            ],
         });
         let data = serde_json::json!({
-            "sellTokens": params.sell_tokens.into_iter().map(|x| serde_json::json!({
+            "permitted": params.permit.permitted.into_iter().map(|x| serde_json::json!({
                 "token": x.token,
                 "amount": x.amount,
             })).collect::<Vec<_>>(),
-            "buyTokens": params.buy_tokens.into_iter().map(|x| serde_json::json!({
-                "token": x.token,
-                "amount": x.amount,
-            })).collect::<Vec<_>>(),
-            "executor": params.executor,
-            "targetContract": params.target_contract,
-            "targetCalldata": params.target_calldata,
-            "targetCallValue": params.target_call_value,
-            "validUntil": params.valid_until,
-            "bidAmount": params.bid_amount,
+            "spender": val.spender,
+            "nonce": params.permit.nonce,
+            "deadline": params.permit.deadline,
+            "witness": serde_json::json!({
+                "buyTokens": params.witness.buy_tokens.into_iter().map(|x| serde_json::json!({
+                    "token": x.token,
+                    "amount": x.amount,
+                })).collect::<Vec<_>>(),
+                "executor": params.witness.executor,
+                "targetContract": params.witness.target_contract,
+                "targetCalldata": params.witness.target_calldata,
+                "targetCallValue": params.witness.target_call_value,
+                "bidAmount": params.witness.bid_amount,
+            }),
         });
         eip712::TypedData {
             domain:       val.eip_712_domain.into(),
             types:        serde_json::from_value(data_type)
                 .expect("Failed to parse data type for eip712 typed data"),
-            primary_type: "ExecutionParams".into(),
+            primary_type: "PermitBatchWitnessTransferFrom".into(),
             message:      serde_json::from_value(data)
                 .expect("Failed to parse data for eip712 typed data"),
         }
@@ -296,6 +316,7 @@ impl From<ExecutionParamsWithSignature> for eip712::TypedData {
 pub struct ExecutionParamsWithSignature {
     params:         ExecutionParams,
     eip_712_domain: EIP712Domain,
+    spender:        Address, // Equal to the opportunity adapter contract
     signature:      Bytes,
 }
 
@@ -309,11 +330,11 @@ fn verify_signature(execution_params: ExecutionParamsWithSignature) -> Result<()
     let signer = signature
         .recover(structured_hash)
         .map_err(|x| anyhow!(x.to_string()))?;
-    let is_matched = signer == params.executor;
+    let is_matched = signer == params.witness.executor;
     is_matched.then_some(()).ok_or_else(|| {
         anyhow!(format!(
             "Invalid signature. Expected signer: {}, Got: {}",
-            params.executor, signer
+            params.witness.executor, signer
         ))
     })
 }
@@ -344,27 +365,39 @@ pub fn make_opportunity_execution_params(
     bid: OpportunityBid,
     chain_store: &ChainStore,
 ) -> ExecutionParamsWithSignature {
+    let mut rng = rand::thread_rng();
+    let random_u256 = U256::from(rng.gen::<[u8; 32]>());
+
     ExecutionParamsWithSignature {
         params:         ExecutionParams {
-            sell_tokens:       opportunity
-                .sell_tokens
-                .into_iter()
-                .map(TokenAmount::from)
-                .collect(),
-            buy_tokens:        opportunity
-                .buy_tokens
-                .into_iter()
-                .map(TokenAmount::from)
-                .collect(),
-            executor:          bid.executor,
-            target_contract:   opportunity.target_contract,
-            target_calldata:   opportunity.target_calldata,
-            target_call_value: opportunity.target_call_value,
-            valid_until:       bid.valid_until,
-            bid_amount:        bid.amount,
+            permit:  PermitBatchTransferFrom {
+                permitted: opportunity
+                    .sell_tokens
+                    .into_iter()
+                    .map(|token| TokenPermissions {
+                        token:  token.token,
+                        amount: token.amount,
+                    })
+                    .collect(),
+                nonce:     random_u256,
+                deadline:  bid.valid_until,
+            },
+            witness: ExecutionWitness {
+                buy_tokens:        opportunity
+                    .buy_tokens
+                    .into_iter()
+                    .map(TokenAmount::from)
+                    .collect(),
+                executor:          bid.executor,
+                target_contract:   opportunity.target_contract,
+                target_calldata:   opportunity.target_calldata,
+                target_call_value: opportunity.target_call_value,
+                bid_amount:        bid.amount,
+            },
         },
         signature:      bid.signature.to_vec().into(),
         eip_712_domain: chain_store.eip_712_domain.clone(),
+        spender:        chain_store.config.opportunity_adapter_contract,
     }
 }
 
@@ -553,26 +586,4 @@ pub async fn handle_opportunity_bid(
             _ => Err(e),
         },
     }
-}
-
-pub async fn get_eip_712_domain(
-    provider: Provider<TracedClient>,
-    contract_address: Address,
-) -> anyhow::Result<EIP712Domain> {
-    let client = Arc::new(provider);
-    let opportunity_adapter = OpportunityAdapter::new(contract_address, client);
-    let call = opportunity_adapter.eip_712_domain();
-
-    let result = call.await.map_err(|e| {
-        anyhow!(
-            "Error calling opportunity adapter for signature metadata: {:?}",
-            e
-        )
-    })?;
-    Ok(EIP712Domain {
-        name:               result.1,
-        version:            result.2,
-        chain_id:           result.3,
-        verifying_contract: result.4,
-    })
 }

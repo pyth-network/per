@@ -52,7 +52,8 @@ contract VaultScript is Script {
         address owner,
         address admin,
         address expressRelay,
-        address wethAddress
+        address wethAddress,
+        address permit2
     ) public returns (address) {
         (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
@@ -63,7 +64,13 @@ contract VaultScript is Script {
         OpportunityAdapterUpgradable opportunityAdapter = OpportunityAdapterUpgradable(
                 payable(proxy)
             );
-        opportunityAdapter.initialize(owner, admin, expressRelay, wethAddress);
+        opportunityAdapter.initialize(
+            owner,
+            admin,
+            expressRelay,
+            wethAddress,
+            permit2
+        );
         vm.stopBroadcast();
         console.log(
             "deployed OpportunityAdapterUpgradable implementation contract at",
@@ -167,9 +174,18 @@ contract VaultScript is Script {
         return address(mockPyth);
     }
 
+    function deployPermit2() public returns (address) {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
+        address permit2 = deployCode("out/Permit2.sol/Permit2.json");
+        vm.stopBroadcast();
+        console.log("deployed permit2 at", permit2);
+        return permit2;
+    }
+
     function deployAll()
         public
-        returns (address, address, address, address, address)
+        returns (address, address, address, address, address, address)
     {
         (address deployer, ) = getDeployer();
         address weth = deployWeth();
@@ -186,16 +202,25 @@ contract VaultScript is Script {
             feeSplitProtocolDefault,
             feeSplitRelayer
         );
+        address permit2 = deployPermit2();
 
         address opportunityAdapter = deployOpportunityAdapter(
             deployer,
             deployer,
             expressRelay,
-            weth
+            weth,
+            permit2
         );
         address mockPyth = deployMockPyth();
         address vault = deployVault(expressRelay, mockPyth, false);
-        return (expressRelay, opportunityAdapter, mockPyth, vault, weth);
+        return (
+            expressRelay,
+            opportunityAdapter,
+            mockPyth,
+            permit2,
+            vault,
+            weth
+        );
     }
 
     /**
@@ -225,12 +250,14 @@ contract VaultScript is Script {
             feeSplitProtocolDefault,
             feeSplitRelayer
         );
+        address permit2 = deployPermit2();
 
         address opportunityAdapter = deployOpportunityAdapter(
             deployer,
             deployer,
             expressRelay,
-            weth
+            weth,
+            permit2
         );
         address vault = deployVault(
             expressRelay,
@@ -346,12 +373,14 @@ contract VaultScript is Script {
         address expressRelay;
         address opportunityAdapter;
         address oracleAddress;
+        address permit2Address;
         address tokenVaultAddress;
         address wethAddress;
         (
             expressRelay,
             opportunityAdapter,
             oracleAddress,
+            permit2Address,
             tokenVaultAddress,
             wethAddress
         ) = deployAll();
@@ -456,6 +485,7 @@ contract VaultScript is Script {
         vm.serializeAddress(obj, "expressRelay", expressRelay);
         vm.serializeAddress(obj, "opportunityAdapter", opportunityAdapter);
         vm.serializeAddress(obj, "oracle", oracleAddress);
+        vm.serializeAddress(obj, "permit2", permit2Address);
 
         vm.serializeAddress(obj, "weth", wethAddress);
 

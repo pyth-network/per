@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "./Structs.sol";
 import "./ExpressRelay.sol";
 import "./WETH9.sol";
+import "forge-std/console.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
@@ -17,6 +18,8 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
     address _admin;
     address _expressRelay;
     address _weth;
+    ISignatureTransfer _permit2;
+
     string public constant _OPPORTUNITY_WITNESS_TYPE =
         "OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
     string public constant _TOKEN_AMOUNT_TYPE =
@@ -24,9 +27,6 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
 
     string public constant WITNESS_TYPE_STRING =
         "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
-
-    ISignatureTransfer constant PERMIT2 =
-        ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
@@ -38,11 +38,13 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
     function _initialize(
         address admin,
         address expressRelay,
-        address weth
+        address weth,
+        address permit2
     ) internal {
         _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
+        _permit2 = ISignatureTransfer(permit2);
     }
 
     /**
@@ -115,10 +117,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
             );
     }
 
-    function _verifyParams(
-        ExecutionParams calldata params,
-        bytes memory signature
-    ) internal view {
+    function _verifyParams(ExecutionParams calldata params) internal view {
         if (msg.sender != _expressRelay) {
             revert Unauthorized();
         }
@@ -168,7 +167,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
             });
             token.forceApprove(witness.targetContract, amount);
         }
-        PERMIT2.permitWitnessTransferFrom(
+        _permit2.permitWitnessTransferFrom(
             permit,
             transferDetails,
             witness.executor,
@@ -254,7 +253,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
         ExecutionParams calldata params,
         bytes calldata signature
     ) public payable nonReentrant {
-        _verifyParams(params, signature);
+        _verifyParams(params);
         (
             uint256 ethBalanceBeforeCall,
             uint256 wethBalanceBeforeCall
@@ -267,9 +266,17 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
         _prepareSellTokens(params.permit, params.witness, signature);
         if (params.witness.targetCallValue > 0) {
             WETH9 weth = _getWethContract();
-            try weth.withdraw(params.witness.targetCallValue) {} catch {
+            uint256 amount = params.witness.targetCallValue;
+            try
+                weth.transferFrom(
+                    params.witness.executor,
+                    address(this),
+                    amount
+                )
+            {} catch {
                 revert InsufficientWethForTargetCallValue();
             }
+            weth.withdraw(amount);
         }
         _callTargetContract(
             params.witness.targetContract,
