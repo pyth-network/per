@@ -12,8 +12,9 @@ import "./SigVerify.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
+import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
-contract SearcherVault is SigVerify {
+contract SearcherVault is SigVerify, ReentrancyGuard {
     event ReceivedETH(address, uint);
 
     address public expressRelay;
@@ -51,7 +52,7 @@ contract SearcherVault is SigVerify {
         uint256 validUntil,
         bytes calldata updateData,
         bytes calldata signatureSearcher
-    ) public payable {
+    ) public payable nonReentrant {
         if (msg.sender != expressRelay && msg.sender != owner) {
             revert Unauthorized();
         }
