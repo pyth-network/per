@@ -142,8 +142,7 @@ contract ExpressRelay is
 
             // ensure that this contract was paid at least bid ETH
             require(
-                (balanceFinalEth - balanceInitEth >= multicallData.bidAmount) &&
-                    (balanceFinalEth >= balanceInitEth),
+                (balanceFinalEth - balanceInitEth >= multicallData.bidAmount),
                 "invalid bid"
             );
         }
