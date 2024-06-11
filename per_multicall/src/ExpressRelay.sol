@@ -144,7 +144,7 @@ contract ExpressRelay is
         (bool success, bytes memory result) = multicallData
             .targetContract
             .excessivelySafeCall(
-                gasleft(),
+                gasleft(), // this will automatically forward 63/64 of gas
                 0,
                 32,
                 multicallData.targetCalldata
