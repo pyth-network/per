@@ -43,6 +43,9 @@ jobs:
       - name: Install forge dependencies 4
         working-directory: per_multicall
         run: forge install Uniswap/permit2@0x000000000022D473030F116dDEE9F6B43aC78BA3 --no-git --no-commit
+      - name: Install forge dependencies 5
+        working-directory: per_multicall
+        run: forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1fcb4e286 --no-git --no-commit
       - uses: pre-commit/action@v3.0.0
         if: ${{ github.event_name == 'pull_request' }}
         with:

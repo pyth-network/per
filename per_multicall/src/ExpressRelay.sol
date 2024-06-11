@@ -9,12 +9,15 @@ import "./ExpressRelayEvents.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
+import "ExcessivelySafeCall/ExcessivelySafeCall.sol";
 
 contract ExpressRelay is
     ExpressRelayHelpers,
     ExpressRelayState,
     ExpressRelayEvents
 {
+    using ExcessivelySafeCall for address;
+
     /**
      * @notice ExpressRelay initializer - Initializes a new ExpressRelay contract with given parameters
      *
@@ -135,9 +138,14 @@ contract ExpressRelay is
 
         uint256 balanceInitEth = address(this).balance;
 
-        (bool success, bytes memory result) = multicallData.targetContract.call(
-            multicallData.targetCalldata
-        );
+        (bool success, bytes memory result) = multicallData
+            .targetContract
+            .excessivelySafeCall(
+                gasleft(),
+                0,
+                32,
+                multicallData.targetCalldata
+            );
 
         if (success) {
             uint256 balanceFinalEth = address(this).balance;
