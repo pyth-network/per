@@ -9,8 +9,9 @@ import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/Safe
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
+import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
-abstract contract OpportunityAdapter {
+abstract contract OpportunityAdapter is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address _admin;
@@ -252,7 +253,7 @@ abstract contract OpportunityAdapter {
     function executeOpportunity(
         ExecutionParams calldata params,
         bytes calldata signature
-    ) public payable {
+    ) public payable nonReentrant {
         _verifyParams(params, signature);
         (
             uint256 ethBalanceBeforeCall,

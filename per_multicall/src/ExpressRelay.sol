@@ -8,13 +8,15 @@ import "./ExpressRelayHelpers.sol";
 import "./ExpressRelayEvents.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 import "ExcessivelySafeCall/ExcessivelySafeCall.sol";
 
 contract ExpressRelay is
     ExpressRelayHelpers,
     ExpressRelayState,
-    ExpressRelayEvents
+    ExpressRelayEvents,
+    ReentrancyGuard
 {
     using ExcessivelySafeCall for address;
 
@@ -58,6 +60,7 @@ contract ExpressRelay is
         public
         payable
         onlyRelayer
+        nonReentrant
         returns (MulticallStatus[] memory multicallStatuses)
     {
         if (permissionKey.length < 20) {
