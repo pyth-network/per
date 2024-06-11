@@ -105,7 +105,8 @@ contract ExpressRelay is
                     value: feeProtocol
                 }(permissionKey);
             } else {
-                payable(feeReceiver).transfer(feeProtocol);
+                (bool sent, ) = feeReceiver.call{value: feeProtocol}("");
+                require(sent, "Fee transfer to protocol failed");
             }
         }
         state.permissions[keccak256(permissionKey)] = false;
@@ -114,7 +115,8 @@ contract ExpressRelay is
         uint256 feeRelayer = ((totalBid - feeProtocol) *
             state.feeSplitRelayer) / state.feeSplitPrecision;
         if (feeRelayer > 0) {
-            payable(state.relayer).transfer(feeRelayer);
+            (bool sent, ) = state.relayer.call{value: feeRelayer}("");
+            require(sent, "Fee transfer to relayer failed");
         }
     }
 

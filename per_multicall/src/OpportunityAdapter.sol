@@ -197,7 +197,8 @@ abstract contract OpportunityAdapter {
                 revert InsufficientEthToSettleBid();
             }
         }
-        payable(getExpressRelay()).transfer(bidAmount);
+        (bool sent, ) = getExpressRelay().call{value: bidAmount}("");
+        require(sent, "Bid transfer to express relay failed");
     }
 
     function _callTargetContract(

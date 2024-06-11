@@ -91,7 +91,8 @@ contract SearcherVault is SigVerify {
             updateDatas
         );
         if (bid > 0) {
-            payable(expressRelay).transfer(bid);
+            (bool sent, ) = expressRelay.call{value: bid}("");
+            require(sent);
         }
 
         // mark signature as used
@@ -102,7 +103,8 @@ contract SearcherVault is SigVerify {
         if (msg.sender != owner) {
             revert Unauthorized();
         }
-        payable(owner).transfer(amount);
+        (bool sent, ) = owner.call{value: amount}("");
+        require(sent, "Withdraw to owner failed");
     }
 
     receive() external payable {
