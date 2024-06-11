@@ -165,7 +165,7 @@ abstract contract OpportunityAdapter {
                 to: address(this),
                 requestedAmount: amount
             });
-            token.approve(witness.targetContract, amount);
+            token.forceApprove(witness.targetContract, amount);
         }
         PERMIT2.permitWitnessTransferFrom(
             permit,
@@ -183,7 +183,7 @@ abstract contract OpportunityAdapter {
     ) internal {
         for (uint i = 0; i < permit.permitted.length; i++) {
             IERC20 token = IERC20(permit.permitted[i].token);
-            token.approve(targetContract, 0);
+            token.forceApprove(targetContract, 0);
         }
     }
 
