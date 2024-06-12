@@ -374,20 +374,20 @@ fn make_permitted_tokens(
             amount: token.amount,
         })
         .collect();
+
+    let extra_weth_amount = bid.amount + opportunity.target_call_value;
     if let Some(weth_position) = permitted_tokens
         .iter()
         .position(|x| x.token == chain_store.weth)
     {
         permitted_tokens[weth_position] = TokenPermissions {
-            amount: permitted_tokens[weth_position].amount
-                + bid.amount
-                + opportunity.target_call_value,
+            amount: permitted_tokens[weth_position].amount + extra_weth_amount,
             ..permitted_tokens[weth_position]
         }
-    } else if bid.amount + opportunity.target_call_value > U256::zero() {
+    } else if extra_weth_amount > U256::zero() {
         permitted_tokens.push(TokenPermissions {
             token:  chain_store.weth,
-            amount: bid.amount + opportunity.target_call_value,
+            amount: extra_weth_amount,
         });
     }
     permitted_tokens
