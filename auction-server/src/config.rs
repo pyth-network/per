@@ -93,6 +93,9 @@ pub struct EthereumConfig {
     /// Address of the opportunity adapter contract to interact with.
     pub opportunity_adapter_contract: Address,
 
+    /// Address of the permit2 contract to interact with.
+    pub permit2_contract: Address,
+
     /// Use the legacy transaction format (for networks without EIP 1559)
     #[serde(default)]
     pub legacy_tx: bool,

@@ -83,7 +83,8 @@ contract OpportunityAdapterIntegrationTest is
             address(this),
             address(this),
             address(this),
-            address(weth)
+            address(weth),
+            PermitSignature.PERMIT2
         );
     }
 

@@ -8,13 +8,13 @@ class TokenAmount(TypedDict):
 
 class EIP712Domain(TypedDict):
     # The name parameter for the EIP712 domain separator.
-    name: str
+    name: str | None
     # The version parameter for the EIP712 domain separator.
-    verion: str
+    verion: str | None
     # The network chain id parameter for the EIP712 domain separator.
-    chain_id: str
+    chain_id: str | None
     # The verifying contract parameter for the EIP712 domain separator.
-    verifying_contract: str
+    verifying_contract: str | None
 
 
 class Opportunity(TypedDict):

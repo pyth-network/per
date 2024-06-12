@@ -12,6 +12,34 @@ solidity_keccak = web3.Web3.solidity_keccak
 class BidInfo(TypedDict):
     bid: int
     valid_until: int
+    nonce: int
+
+
+def _get_permitted_tokens(
+    sell_tokens: list[(str, int)], bid_amount: int, call_value: int, weth_address: str
+) -> list[dict[str, int]]:
+    permitted_tokens = [
+        {
+            "token": token[0],
+            "amount": int(token[1]),
+        }
+        for token in sell_tokens
+    ]
+
+    for token in permitted_tokens:
+        if token["token"] == weth_address:
+            token["amount"] += call_value + bid_amount
+            return permitted_tokens
+
+    if bid_amount + call_value > 0:
+        permitted_tokens.append(
+            {
+                "token": weth_address,
+                "amount": bid_amount + call_value,
+            }
+        )
+
+    return permitted_tokens
 
 
 # Reference https://eips.ethereum.org/EIPS/eip-712
@@ -24,6 +52,8 @@ def construct_signature_executor(
     bid_info: BidInfo,
     secret_key: str,
     eip_712_domain: EIP712Domain,
+    opportunity_adapter_address: str,
+    weth_address: str,
 ) -> SignedMessage:
     """
     Constructs a signature for an executors' bid to submit to the auction server.
@@ -41,26 +71,38 @@ def construct_signature_executor(
     Returns:
         An EIP712 SignedMessage object, representing the liquidator's signature.
     """
-
     executor = Account.from_key(secret_key).address
-    domain_data = {
-        "name": eip_712_domain["name"],
-        "version": eip_712_domain["version"],
-        "chainId": eip_712_domain["chain_id"],
-        "verifyingContract": eip_712_domain["verifying_contract"],
-    }
+    domain_data = {}
+    if eip_712_domain.get("name"):
+        domain_data["name"] = eip_712_domain["name"]
+    if eip_712_domain.get("version"):
+        domain_data["version"] = eip_712_domain["version"]
+    if eip_712_domain.get("chain_id"):
+        domain_data["chainId"] = eip_712_domain["chain_id"]
+    if eip_712_domain.get("verifying_contract"):
+        domain_data["verifyingContract"] = eip_712_domain["verifying_contract"]
+
     message_types = {
-        "ExecutionParams": [
-            {"name": "sellTokens", "type": "TokenAmount[]"},
+        "PermitBatchWitnessTransferFrom": [
+            {"name": "permitted", "type": "TokenPermissions[]"},
+            {"name": "spender", "type": "address"},
+            {"name": "nonce", "type": "uint256"},
+            {"name": "deadline", "type": "uint256"},
+            {"name": "witness", "type": "OpportunityWitness"},
+        ],
+        "OpportunityWitness": [
             {"name": "buyTokens", "type": "TokenAmount[]"},
             {"name": "executor", "type": "address"},
             {"name": "targetContract", "type": "address"},
             {"name": "targetCalldata", "type": "bytes"},
             {"name": "targetCallValue", "type": "uint256"},
-            {"name": "validUntil", "type": "uint256"},
             {"name": "bidAmount", "type": "uint256"},
         ],
         "TokenAmount": [
+            {"name": "token", "type": "address"},
+            {"name": "amount", "type": "uint256"},
+        ],
+        "TokenPermissions": [
             {"name": "token", "type": "address"},
             {"name": "amount", "type": "uint256"},
         ],
@@ -68,26 +110,26 @@ def construct_signature_executor(
 
     # the data to be signed
     message_data = {
-        "sellTokens": [
-            {
-                "token": token[0],
-                "amount": int(token[1]),
-            }
-            for token in sell_tokens
-        ],
-        "buyTokens": [
-            {
-                "token": token[0],
-                "amount": int(token[1]),
-            }
-            for token in buy_tokens
-        ],
-        "executor": executor,
-        "targetContract": address,
-        "targetCalldata": calldata,
-        "targetCallValue": value,
-        "validUntil": bid_info["valid_until"],
-        "bidAmount": bid_info["bid"],
+        "permitted": _get_permitted_tokens(
+            sell_tokens, bid_info["bid"], value, weth_address
+        ),
+        "spender": opportunity_adapter_address,
+        "nonce": bid_info["nonce"],
+        "deadline": bid_info["valid_until"],
+        "witness": {
+            "buyTokens": [
+                {
+                    "token": token[0],
+                    "amount": int(token[1]),
+                }
+                for token in buy_tokens
+            ],
+            "executor": executor,
+            "targetContract": address,
+            "targetCalldata": calldata,
+            "targetCallValue": value,
+            "bidAmount": bid_info["bid"],
+        },
     }
 
     signed_typed_data = Account.sign_typed_data(

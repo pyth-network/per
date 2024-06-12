@@ -24,8 +24,8 @@ contract OpportunityAdapterUnitTest is
     MyToken myToken;
 
     function setUp() public {
-        opportunityAdapter = new OpportunityAdapterHarness();
         setUpPermit2();
+        opportunityAdapter = new OpportunityAdapterHarness(PERMIT2);
         myToken = new MyToken("SellToken", "ST");
     }
 
