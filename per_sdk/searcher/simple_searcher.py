@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import secrets
 import urllib.parse
 from typing import TypedDict
 
@@ -35,6 +36,7 @@ def assess_liquidation_opportunity(
     user_execution_params = {
         "bid": default_bid,
         "valid_until": VALID_UNTIL,
+        "nonce": secrets.randbits(64),
     }
     return user_execution_params
 
@@ -44,6 +46,7 @@ class OpportunityBid(TypedDict):
     permission_key: str
     amount: str
     valid_until: str
+    nonce: str
     executor: str
     signature: str
 
@@ -52,7 +55,8 @@ def create_liquidation_transaction(
     opp: Opportunity,
     sk_liquidator: str,
     bid_info: BidInfo,
-    spender: str,
+    opportunity_adapter_address: str,
+    weth_address: str,
 ) -> OpportunityBid:
     """
     Creates a bid for a liquidation opportunity.
@@ -78,7 +82,8 @@ def create_liquidation_transaction(
         bid_info,
         sk_liquidator,
         opp["eip_712_domain"],
-        spender,
+        opportunity_adapter_address,
+        weth_address,
     )
 
     opportunity_bid = {
@@ -86,6 +91,7 @@ def create_liquidation_transaction(
         "permission_key": opp["permission_key"],
         "amount": str(bid_info["bid"]),
         "valid_until": str(bid_info["valid_until"]),
+        "nonce": str(bid_info["nonce"]),
         "executor": liquidator,
         "signature": bytes(signature_liquidator.signature).hex(),
     }
@@ -119,6 +125,18 @@ async def main():
         type=str,
         required=True,
         help="Liquidation server endpoint to use for fetching opportunities and submitting bids",
+    )
+    parser.add_argument(
+        "--opportunity-adapter-address",
+        type=str,
+        required=True,
+        help="Address of the opportunity adapter contract to use for liquidation opportunities",
+    )
+    parser.add_argument(
+        "--weth-address",
+        type=str,
+        required=True,
+        help="Address of the WETH contract to use for liquidation opportunities",
     )
     args = parser.parse_args()
 
@@ -165,7 +183,11 @@ async def main():
 
             if bid_info is not None:
                 tx = create_liquidation_transaction(
-                    liquidation_opp, sk_liquidator, bid_info
+                    liquidation_opp,
+                    sk_liquidator,
+                    bid_info,
+                    args.opportunity_adapter_address,
+                    args.weth_address,
                 )
 
                 resp = await client.post(

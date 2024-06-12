@@ -111,7 +111,9 @@ searcher_command = (
     + "--private-key $SEARCHER_SK "
     + "--chain-id development "
     + "--verbose "
-    + "--liquidation-server-url http://localhost:9000"
+    + "--liquidation-server-url http://localhost:9000 "
+    + "--opportunity-adapter-address $OPPORTUNITY_ADAPTER "
+    + "--weth-address $WETH"
 )
 local_resource(
     "searcher",

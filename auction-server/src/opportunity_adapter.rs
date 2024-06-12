@@ -112,6 +112,11 @@ pub async fn get_weth_address(
         .map_err(|e| anyhow!("Error getting WETH address from adapter: {:?}", e))
 }
 
+fn generate_random_u256() -> U256 {
+    let mut rng = rand::thread_rng();
+    U256::from(rng.gen::<[u8; 32]>())
+}
+
 /// Verify an opportunity by simulating the execution call and checking the result
 /// Simulation is done by spoofing the balances and allowances of a random executor
 /// Returns Ok(VerificationResult) if the simulation is successful or if the tokens cannot be spoofed
@@ -123,9 +128,11 @@ pub async fn verify_opportunity(
 ) -> Result<VerificationResult> {
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
+
     let fake_bid = OpportunityBid {
         executor:       fake_wallet.address(),
         valid_until:    U256::max_value(),
+        nonce:          generate_random_u256(),
         permission_key: opportunity.permission_key.clone(),
         amount:         U256::zero(),
         signature:      Signature {
@@ -145,7 +152,10 @@ pub async fn verify_opportunity(
         chain_store.config.opportunity_adapter_contract,
         client.clone(),
     )
-    .execute_opportunity(params_with_signature.params, signature.to_vec().into())
+    .execute_opportunity(
+        params_with_signature.params.clone(),
+        signature.to_vec().into(),
+    )
     .calldata()
     .ok_or(anyhow!(
         "Failed to generate calldata for opportunity adapter"
@@ -166,12 +176,7 @@ pub async fn verify_opportunity(
     .tx;
     let mut state = spoof::State::default();
     let token_spoof_info = chain_store.token_spoof_info.read().await.clone();
-    let mut required_tokens = opportunity.sell_tokens.clone();
-
-    required_tokens.push(crate::state::TokenAmount {
-        token:  chain_store.weth,
-        amount: opportunity.target_call_value,
-    });
+    let required_tokens = params_with_signature.params.permit.permitted.clone();
     let mut tokens_map = HashMap::<Address, U256>::new();
     required_tokens.iter().for_each(|token_amount| {
         let amount = tokens_map.entry(token_amount.token).or_insert(U256::zero());
@@ -210,15 +215,9 @@ pub async fn verify_opportunity(
                     .account(token)
                     .store(balance_storage_key, value.into());
 
-                let spender = if token == chain_store.weth {
-                    chain_store.config.opportunity_adapter_contract
-                } else {
-                    chain_store.config.permit2_contract
-                };
-
                 let allowance_storage_key = token_spoof::calculate_allowance_storage_key(
                     fake_wallet.address(),
-                    spender,
+                    chain_store.config.permit2_contract,
                     allowance_slot,
                 );
                 let value: [u8; 32] = amount.into();
@@ -360,26 +359,50 @@ impl From<crate::state::TokenAmount> for TokenAmount {
         }
     }
 }
+
+fn make_permitted_tokens(
+    opportunity: OpportunityParamsV1,
+    bid: OpportunityBid,
+    chain_store: &ChainStore,
+) -> Vec<TokenPermissions> {
+    let mut permitted_tokens: Vec<TokenPermissions> = opportunity
+        .sell_tokens
+        .clone()
+        .into_iter()
+        .map(|token| TokenPermissions {
+            token:  token.token,
+            amount: token.amount,
+        })
+        .collect();
+    if let Some(weth_position) = permitted_tokens
+        .iter()
+        .position(|x| x.token == chain_store.weth)
+    {
+        permitted_tokens[weth_position] = TokenPermissions {
+            amount: permitted_tokens[weth_position].amount
+                + bid.amount
+                + opportunity.target_call_value,
+            ..permitted_tokens[weth_position]
+        }
+    } else if bid.amount + opportunity.target_call_value > U256::zero() {
+        permitted_tokens.push(TokenPermissions {
+            token:  chain_store.weth,
+            amount: bid.amount + opportunity.target_call_value,
+        });
+    }
+    permitted_tokens
+}
+
 pub fn make_opportunity_execution_params(
     opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
     chain_store: &ChainStore,
 ) -> ExecutionParamsWithSignature {
-    let mut rng = rand::thread_rng();
-    let random_u256 = U256::from(rng.gen::<[u8; 32]>());
-
     ExecutionParamsWithSignature {
         params:         ExecutionParams {
             permit:  PermitBatchTransferFrom {
-                permitted: opportunity
-                    .sell_tokens
-                    .into_iter()
-                    .map(|token| TokenPermissions {
-                        token:  token.token,
-                        amount: token.amount,
-                    })
-                    .collect(),
-                nonce:     random_u256,
+                permitted: make_permitted_tokens(opportunity.clone(), bid.clone(), chain_store),
+                nonce:     bid.nonce,
                 deadline:  bid.valid_until,
             },
             witness: ExecutionWitness {
@@ -514,6 +537,10 @@ pub struct OpportunityBid {
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
     pub valid_until:    U256,
+    /// The nonce of the bid permit signature
+    #[schema(example = "123", value_type=String)]
+    #[serde(with = "crate::serde::u256")]
+    pub nonce:          U256,
     /// Executor address
     #[schema(example = "0x5FbDB2315678afecb367f032d93F642f64180aa2", value_type=String)]
     pub executor:       abi::Address,

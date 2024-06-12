@@ -114,7 +114,7 @@ pub struct SimulatedBid {
 
 pub type UnixTimestampMicros = i128;
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct TokenAmount {
     /// Token contract address
     #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", value_type = String)]

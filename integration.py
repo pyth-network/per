@@ -15,6 +15,7 @@ field_mapping = {
     'weth': 'WETH',
     'relayerPrivateKey': 'RELAYER_PRIVATE_KEY',
     'searcherAOwnerSk': 'SEARCHER_SK',
+    'opportunityAdapter': 'OPPORTUNITY_ADAPTER',
 }
 
 

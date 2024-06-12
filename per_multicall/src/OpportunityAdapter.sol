@@ -266,17 +266,9 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
         _prepareSellTokens(params.permit, params.witness, signature);
         if (params.witness.targetCallValue > 0) {
             WETH9 weth = _getWethContract();
-            uint256 amount = params.witness.targetCallValue;
-            try
-                weth.transferFrom(
-                    params.witness.executor,
-                    address(this),
-                    amount
-                )
-            {} catch {
+            try weth.withdraw(params.witness.targetCallValue) {} catch {
                 revert InsufficientWethForTargetCallValue();
             }
-            weth.withdraw(amount);
         }
         _callTargetContract(
             params.witness.targetContract,
