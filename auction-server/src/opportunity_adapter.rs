@@ -614,25 +614,3 @@ pub async fn handle_opportunity_bid(
         },
     }
 }
-
-pub async fn get_eip_712_domain(
-    provider: Provider<TracedClient>,
-    contract_address: Address,
-) -> anyhow::Result<EIP712Domain> {
-    let client = Arc::new(provider);
-    let opportunity_adapter = OpportunityAdapter::new(contract_address, client);
-    let call = opportunity_adapter.eip_712_domain();
-
-    let result = call.await.map_err(|e| {
-        anyhow!(
-            "Error calling opportunity adapter for signature metadata: {:?}",
-            e
-        )
-    })?;
-    Ok(EIP712Domain {
-        name:               result.1,
-        version:            result.2,
-        chain_id:           result.3,
-        verifying_contract: result.4,
-    })
-}
