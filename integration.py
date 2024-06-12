@@ -31,6 +31,7 @@ chains:
   development:
     geth_rpc_addr: {sys.argv[1]}
     geth_ws_addr: {sys.argv[2]}
+    rpc_timeout: 2
     express_relay_contract: {latest_env['expressRelay']}
     opportunity_adapter_contract: {latest_env['opportunityAdapter']}
     permit2_contract: {latest_env['permit2']}

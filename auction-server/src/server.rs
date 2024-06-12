@@ -156,15 +156,19 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let (chain_id, chain_config, wallet) =
                 (chain_id.clone(), chain_config.clone(), wallet.clone());
             async move {
-                let mut provider = TracedClient::new(chain_id.clone(), &chain_config.geth_rpc_addr)
-                    .map_err(|err| {
-                        anyhow!(
-                            "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
-                            err,
-                            chain_id = chain_id,
-                            rpc_addr = chain_config.geth_rpc_addr
-                        )
-                    })?;
+                let mut provider = TracedClient::new(
+                    chain_id.clone(),
+                    &chain_config.geth_rpc_addr,
+                    chain_config.rpc_timeout,
+                )
+                .map_err(|err| {
+                    anyhow!(
+                        "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
+                        err,
+                        chain_id = chain_id,
+                        rpc_addr = chain_config.geth_rpc_addr
+                    )
+                })?;
                 provider.set_interval(Duration::from_secs(chain_config.poll_interval));
 
                 let id = provider.get_chainid().await?.as_u64();
