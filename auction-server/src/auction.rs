@@ -8,7 +8,10 @@ use {
             ChainId,
             EthereumConfig,
         },
-        gas_oracle::EthProviderOracle,
+        gas_oracle::{
+            eip1559_default_estimator,
+            EthProviderOracle,
+        },
         models,
         server::{
             EXIT_CHECK_INTERVAL,
@@ -30,7 +33,10 @@ use {
     },
     axum_prometheus::metrics,
     ethers::{
-        abi,
+        abi::{
+            self,
+            Detokenize,
+        },
         contract::{
             abigen,
             ContractError,
@@ -79,6 +85,7 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::{
+        borrow::Borrow,
         result,
         sync::{
             atomic::Ordering,
@@ -178,6 +185,8 @@ impl From<SimulatedBid> for MulticallData {
     }
 }
 
+const TOTAL_BIDS_PER_AUCTION: usize = 5;
+
 async fn get_winner_bids(
     bids: &[SimulatedBid],
     permission_key: Bytes,
@@ -191,6 +200,7 @@ async fn get_winner_bids(
 
     let mut bids = bids.to_owned();
     bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
+    let bids: Vec<SimulatedBid> = bids.into_iter().take(TOTAL_BIDS_PER_AUCTION).collect();
 
     let simulation_result = get_simulation_call(
         store.relayer.address(),
@@ -205,7 +215,7 @@ async fn get_winner_bids(
         .iter()
         .position(|status| status.external_success)
     {
-        Some(index) => Ok(bids.into_iter().skip(index).collect()),
+        Some(index) => Ok(bids.into_iter().skip(index).take(5).collect()),
         None => Ok(vec![]),
     }
 }
@@ -532,6 +542,57 @@ pub struct Bid {
     pub amount:          BidAmount,
 }
 
+async fn estimate_gas_price(provider: Provider<TracedClient>) -> Result<(U256, U256)> {
+    let base_fee_per_gas = provider
+        .get_block(BlockNumber::Latest)
+        .await?
+        .ok_or_else(|| anyhow!("Latest block not found"))?
+        .base_fee_per_gas
+        .ok_or_else(|| anyhow!("EIP-1559 not activated"))?;
+
+    let fee_history = provider
+        .fee_history(
+            ethers::utils::EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+            BlockNumber::Latest,
+            &[ethers::utils::EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
+        )
+        .await?;
+
+    Ok(eip1559_default_estimator(
+        base_fee_per_gas,
+        fee_history.reward,
+    ))
+}
+
+async fn verify_bid_for_call<B, M, D>(
+    call: FunctionCall<B, M, D>,
+    provider: Provider<TracedClient>,
+    bid_amount: U256,
+    threshold: U256,
+) -> Result<(), RestError>
+where
+    B: Borrow<M>,
+    M: Middleware,
+    D: Detokenize,
+{
+    let estimated_gas = call
+        .estimate_gas()
+        .await
+        .map_err(|_| RestError::TemporarilyUnavailable)?;
+    let (base_fee_per_gas, _) = estimate_gas_price(provider)
+        .await
+        .map_err(|_| RestError::TemporarilyUnavailable)?;
+    let gas_price = base_fee_per_gas * estimated_gas;
+
+    if bid_amount >= gas_price * threshold {
+        Ok(())
+    } else {
+        Err(RestError::BadParameters(
+            "Bid amount is insufficient for gas".to_string(),
+        ))
+    }
+}
+
 pub async fn handle_bid(
     store: Arc<Store>,
     bid: Bid,
@@ -554,6 +615,14 @@ pub async fn handle_bid(
             bid.amount,
         ))],
     );
+
+    verify_bid_for_call(
+        call.clone(),
+        chain_store.provider.clone(),
+        bid.amount,
+        U256::from(TOTAL_BIDS_PER_AUCTION * 2),
+    )
+    .await?;
 
     match call.await {
         Ok(results) => {
