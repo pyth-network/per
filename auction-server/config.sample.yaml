@@ -8,3 +8,6 @@ chains:
     permit2_contract: 0x000000000022D473030F116dDEE9F6B43aC78BA3
     legacy_tx: false
     poll_interval: 1
+    subwallets:
+      - 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+      - 0xdecafdecafdecafdecafdecafdecafdecafdecaf

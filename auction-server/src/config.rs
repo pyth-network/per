@@ -27,6 +27,19 @@ mod server;
 pub enum Options {
     /// Run the auction server service.
     Run(RunOptions),
+    /// Sync the relayer subwallets
+    SyncSubwallets(SubwalletOptions),
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct SubwalletOptions {
+    #[command(flatten)]
+    pub config: ConfigOptions,
+
+    /// A 20-byte (40 char) hex encoded Ethereum private key which is used for relaying the bids.
+    #[arg(long = "relayer-private-key")]
+    #[arg(env = "RELAYER_PRIVATE_KEY")]
+    pub relayer_private_key: String,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -39,6 +52,7 @@ pub struct RunOptions {
     pub config: ConfigOptions,
 
     /// A 20-byte (40 char) hex encoded Ethereum private key which is used for relaying the bids.
+    /// this can be one of the subwallet private keys
     #[arg(long = "relayer-private-key")]
     #[arg(env = "RELAYER_PRIVATE_KEY")]
     pub relayer_private_key: String,
@@ -98,6 +112,9 @@ pub struct EthereumConfig {
 
     /// Address of the permit2 contract to interact with.
     pub permit2_contract: Address,
+
+    /// Subwallets available for relaying bids. Only used in the subwallet sync command.
+    pub subwallets: Option<Vec<Address>>,
 
     /// Use the legacy transaction format (for networks without EIP 1559)
     #[serde(default)]
