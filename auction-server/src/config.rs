@@ -51,11 +51,11 @@ pub struct RunOptions {
     #[command(flatten)]
     pub config: ConfigOptions,
 
-    /// A 20-byte (40 char) hex encoded Ethereum private key which is used for relaying the bids.
-    /// this can be one of the subwallet private keys
-    #[arg(long = "relayer-private-key")]
-    #[arg(env = "RELAYER_PRIVATE_KEY")]
-    pub relayer_private_key: String,
+    /// A 20-byte (40 char) hex encoded Ethereum private key for one of the subwallets
+    /// which can be used for relaying the bids.
+    #[arg(long = "subwallet-private-key")]
+    #[arg(env = "SUBWALLET_PRIVATE_KEY")]
+    pub subwallet_private_key: String,
 
     #[arg(long = "secret-key")]
     #[arg(env = "SECRET_KEY")]

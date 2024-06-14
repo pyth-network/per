@@ -50,7 +50,7 @@ To start an instance of the webserver for local testing, you first need to perfo
 Once you've completed the setup, simply run the following command, using the secret from step (2).
 
 ```bash
-cargo run -- run --relayer-private-key <relayer-private-key-in-hex-format>
+cargo run -- run --subwallet-private-key <subwallet-private-key-in-hex-format>
 ```
 
 This command will start the webservice on `localhost:9000`.
