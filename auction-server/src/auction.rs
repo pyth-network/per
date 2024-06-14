@@ -8,7 +8,6 @@ use {
             ChainId,
             EthereumConfig,
         },
-        gas_oracle::EthProviderOracle,
         models,
         server::{
             EXIT_CHECK_INTERVAL,
@@ -77,6 +76,7 @@ use {
         future::join_all,
         StreamExt,
     },
+    gas_oracle::EthProviderOracle,
     serde::{
         Deserialize,
         Serialize,

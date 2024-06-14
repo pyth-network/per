@@ -1,5 +1,5 @@
 use {
-    axum::async_trait,
+    async_trait::async_trait,
     ethers::{
         prelude::{
             gas_oracle::{

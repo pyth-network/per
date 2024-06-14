@@ -16,7 +16,10 @@ use {
             ContractError,
         },
         core::utils::hex::FromHex,
-        middleware::SignerMiddleware,
+        middleware::{
+            gas_oracle::GasOracleMiddleware,
+            SignerMiddleware,
+        },
         providers::{
             Http,
             Middleware,
@@ -32,6 +35,7 @@ use {
             U256,
         },
     },
+    gas_oracle::EthProviderOracle,
     rand::{
         random,
         seq::SliceRandom,
@@ -53,8 +57,11 @@ abigen!(ERC20, "../per_multicall/out/MyToken.sol/MyToken.json");
 abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
 abigen!(IPyth, "../per_multicall/out/IPyth.sol/IPyth.json");
 
-pub type SignableTokenVaultContract = TokenVault<SignerMiddleware<Provider<Http>, LocalWallet>>;
-
+type SimulatorProvider = GasOracleMiddleware<
+    SignerMiddleware<Provider<Http>, LocalWallet>,
+    EthProviderOracle<Provider<Http>>,
+>;
+pub type SignableTokenVaultContract = TokenVault<SimulatorProvider>;
 #[derive(Clone)]
 struct PythUpdate {
     price: U256,
@@ -66,13 +73,10 @@ struct TokenInfo {
     symbol:   String,
     price_id: String,
     address:  Address,
-    contract: ERC20<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    contract: ERC20<SimulatorProvider>,
 }
 
-async fn get_token_info(
-    token: Address,
-    client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-) -> Result<TokenInfo> {
+async fn get_token_info(token: Address, client: Arc<SimulatorProvider>) -> Result<TokenInfo> {
     let contract = ERC20::new(token, client.clone());
     let symbol = contract.symbol().await?;
     let price_id = contract.name().await?;
@@ -101,10 +105,7 @@ fn parse_update(update: Value) -> Result<PythUpdate> {
     })
 }
 
-async fn setup_client(
-    private_key: String,
-    rpc_address: Url,
-) -> Result<Arc<SignerMiddleware<Provider<Http>, LocalWallet>>> {
+async fn setup_client(private_key: String, rpc_address: Url) -> Result<Arc<SimulatorProvider>> {
     let wallet = private_key
         .parse::<LocalWallet>()
         .map_err(|e| anyhow!("Can not parse private key: {}", e))?;
@@ -118,10 +119,11 @@ async fn setup_client(
     })?;
     provider.set_interval(Duration::from_secs(1));
     let chain_id = provider.get_chainid().await?;
+
     tracing::info!("Connected to chain: {}", chain_id);
-    let client = Arc::new(SignerMiddleware::new(
-        provider,
-        wallet.with_chain_id(chain_id.as_u64()),
+    let client = Arc::new(GasOracleMiddleware::new(
+        SignerMiddleware::new(provider.clone(), wallet.with_chain_id(chain_id.as_u64())),
+        EthProviderOracle::new(provider),
     ));
     Ok(client)
 }
@@ -149,7 +151,7 @@ async fn get_latest_updates(price_endpoint: Url, feed_ids: Vec<String>) -> Resul
 pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
     let options = simulator_options.run_options;
     let client = setup_client(options.private_key, options.rpc_addr).await?;
-    let wallet_address = client.signer().address();
+    let wallet_address = client.inner().signer().address();
     let balance = client.get_balance(wallet_address, None).await?;
     tracing::info!("Wallet balance: {}", balance);
 
@@ -279,11 +281,11 @@ pub async fn create_searcher(searcher_options: SearcherOptions) -> Result<()> {
     let options = searcher_options.run_options;
     let funder_client = setup_client(options.private_key, options.rpc_addr.clone()).await?;
     let client = setup_client(searcher_options.searcher_private_key, options.rpc_addr).await?;
-    let wallet_address = client.signer().address();
+    let wallet_address = client.inner().signer().address();
     let tx = TransactionRequest::new()
         .to(wallet_address)
         .value(U256::exp10(16))
-        .from(funder_client.signer().address());
+        .from(funder_client.inner().signer().address());
     funder_client.send_transaction(tx, None).await?.await?;
     tracing::info!("0.01 ETH sent to searcher wallet");
     for token in options.tokens.iter() {

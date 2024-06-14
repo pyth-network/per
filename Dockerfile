@@ -31,6 +31,7 @@ RUN forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1
 # Build auction-server
 WORKDIR /src
 COPY auction-server auction-server
+COPY gas-oracle gas-oracle
 WORKDIR /src/auction-server
 RUN --mount=type=cache,target=/root/.cargo/registry cargo build --release
 
