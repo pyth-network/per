@@ -54,8 +54,22 @@ cargo run -- run --subwallet-private-key <subwallet-private-key-in-hex-format>
 ```
 
 This command will start the webservice on `localhost:9000`.
+You can check the documentation of the webservice by visiting `http://localhost:9000/docs`.
 
-You can check the documentation of the webservice by visiting `localhost:9000/docs`.
+The webservice will try to export open telemetry traces to `localhost:4317`.
+You can customize the exporter endpoint by setting the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable.
+
+You can run a local all in one jaeger instance to collect these traces by running:
+
+```bash
+docker run --name jaeger \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  -p 16686:16686 \
+  -p 4317:4317 \
+  jaegertracing/all-in-one
+```
+
+And access the jaeger UI at `http://127.0.0.1:16686`.
 
 ## DB & Migrations
 

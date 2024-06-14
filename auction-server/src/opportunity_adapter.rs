@@ -121,6 +121,7 @@ fn generate_random_u256() -> U256 {
 /// Simulation is done by spoofing the balances and allowances of a random executor
 /// Returns Ok(VerificationResult) if the simulation is successful or if the tokens cannot be spoofed
 /// Returns Err if the simulation fails despite spoofing or if any other error occurs
+#[tracing::instrument(skip_all)]
 pub async fn verify_opportunity(
     opportunity: OpportunityParamsV1,
     chain_store: &ChainStore,

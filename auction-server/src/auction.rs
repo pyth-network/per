@@ -156,6 +156,7 @@ impl Transformer for LegacyTxTransformer {
     }
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn submit_bids(
     express_relay_contract: Arc<SignableExpressRelayContract>,
     permission: Bytes,
@@ -189,6 +190,7 @@ impl From<SimulatedBid> for MulticallData {
 // 3. Gas consumption limit will decrease for the bid
 const TOTAL_BIDS_PER_AUCTION: usize = 5;
 
+#[tracing::instrument(skip_all)]
 async fn get_winner_bids(
     bids: &[SimulatedBid],
     permission_key: Bytes,
@@ -434,6 +436,7 @@ async fn submit_auction_for_lock(
     .await
 }
 
+#[tracing::instrument(skip_all)]
 async fn submit_auction(store: Arc<Store>, permission_key: Bytes, chain_id: String) -> Result<()> {
     let key = (permission_key.clone(), chain_id.clone());
     let auction_lock = store.get_auction_lock(key.clone()).await;
@@ -544,7 +547,7 @@ pub struct Bid {
     pub amount:          BidAmount,
 }
 
-// For now we are only supporting the EIP1559 enabled networks
+// For now, we are only supporting the EIP1559 enabled networks
 async fn verify_bid_for_call<B, M, D, G>(
     call: FunctionCall<B, M, D>,
     oracle: G,
@@ -580,6 +583,7 @@ where
 // 1. The bid amount should cover gas fees for all bids included in the submission.
 // 2. Depending on the maximum number of bids in the auction, the transaction size for the bid is limited.
 // 3. Depending on the maximum number of bids in the auction, the gas consumption for the bid is limited.
+#[tracing::instrument(skip_all)]
 pub async fn handle_bid(
     store: Arc<Store>,
     bid: Bid,
