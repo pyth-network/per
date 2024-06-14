@@ -8,10 +8,7 @@ use {
             ChainId,
             EthereumConfig,
         },
-        gas_oracle::{
-            eip1559_default_estimator,
-            EthProviderOracle,
-        },
+        gas_oracle::EthProviderOracle,
         models,
         server::{
             EXIT_CHECK_INTERVAL,
@@ -545,28 +542,6 @@ pub struct Bid {
     #[schema(example = "10", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub amount:          BidAmount,
-}
-
-async fn estimate_gas_price(provider: Provider<TracedClient>) -> Result<(U256, U256)> {
-    let base_fee_per_gas = provider
-        .get_block(BlockNumber::Latest)
-        .await?
-        .ok_or_else(|| anyhow!("Latest block not found"))?
-        .base_fee_per_gas
-        .ok_or_else(|| anyhow!("EIP-1559 not activated"))?;
-
-    let fee_history = provider
-        .fee_history(
-            ethers::utils::EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
-            BlockNumber::Latest,
-            &[ethers::utils::EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
-        )
-        .await?;
-
-    Ok(eip1559_default_estimator(
-        base_fee_per_gas,
-        fee_history.reward,
-    ))
 }
 
 // For now we are only supporting the EIP1559 enabled networks
