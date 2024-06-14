@@ -452,16 +452,16 @@ contract VaultScript is Script {
         // mint token 2 to the vault contract (to allow creation of initial vault with outstanding debt position)
         token2.mint(tokenVaultAddress, qtys[7]);
         // mint token to searchers A and B EOAs
-        token1.mint(address(addressesScript[0]), 200_000_000);
-        token2.mint(address(addressesScript[0]), 200_000_000);
-        token1.mint(address(addressesScript[1]), 300_000_000);
-        token2.mint(address(addressesScript[1]), 300_000_000);
+        token1.mint(address(addressesScript[0]), 20_000_000);
+        token2.mint(address(addressesScript[0]), 20_000_000);
+        token1.mint(address(addressesScript[1]), 30_000_000);
+        token2.mint(address(addressesScript[1]), 30_000_000);
         vm.stopBroadcast();
 
         // searchers A and B approve liquidation adapter to spend their tokens
         vm.startBroadcast(sksScript[0]);
-        IERC20(address(token1)).approve(permit2Address, 100_000_000);
-        IERC20(address(token2)).approve(permit2Address, 100_000_000);
+        IERC20(address(token1)).approve(permit2Address, 199_999_999);
+        IERC20(address(token2)).approve(permit2Address, 199_999_999);
         // deposit ETH to get WETH
         WETH9(payable(wethAddress)).deposit{value: 101 ether}();
         WETH9(payable(wethAddress)).approve(
@@ -470,8 +470,8 @@ contract VaultScript is Script {
         );
         vm.stopBroadcast();
         vm.startBroadcast(sksScript[1]);
-        IERC20(address(token1)).approve(permit2Address, 100_000_000);
-        IERC20(address(token2)).approve(permit2Address, 100_000_000);
+        IERC20(address(token1)).approve(permit2Address, 199_999_999);
+        IERC20(address(token2)).approve(permit2Address, 199_999_999);
         WETH9(payable(wethAddress)).deposit{value: 101 ether}();
         WETH9(payable(wethAddress)).approve(
             permit2Address,
