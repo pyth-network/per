@@ -546,7 +546,7 @@ pub struct Bid {
 }
 
 // For now, we are only supporting the EIP1559 enabled networks
-async fn verify_bid_for_gas_fee<G> (
+async fn verify_bid_for_gas_fee<G>(
     estimated_gas: U256,
     oracle: G,
     bid_amount: U256,
@@ -629,6 +629,7 @@ pub async fn handle_bid(
         U256::from(TOTAL_BIDS_PER_AUCTION * 2),
     )
     .await?;
+    // The transaction body size will be automatically limited when the gas is limited.
     verify_bid_for_gas_limit(
         chain_store,
         estimated_gas,
