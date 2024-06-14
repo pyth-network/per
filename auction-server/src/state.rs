@@ -441,6 +441,7 @@ impl Store {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn init_auction(
         &self,
         permission_key: PermissionKey,
@@ -474,6 +475,7 @@ impl Store {
         Ok(auction)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn submit_auction(
         &self,
         mut auction: models::Auction,
@@ -498,6 +500,7 @@ impl Store {
         Ok(auction)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn conclude_auction(
         &self,
         mut auction: models::Auction,
@@ -541,6 +544,7 @@ impl Store {
             .unwrap_or_default()
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();

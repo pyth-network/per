@@ -78,6 +78,7 @@ const MAX_SLOT_FOR_BRUTEFORCE: i32 = 32;
 ///
 /// * `token`: ERC20 token address
 /// * `client`: Client to interact with the blockchain
+#[tracing::instrument(skip_all)]
 async fn find_spoof_balance_slot(
     token: Address,
     client: Arc<Provider<TracedClient>>,
@@ -108,6 +109,7 @@ async fn find_spoof_balance_slot(
 ///
 /// * `token`: ERC20 token address
 /// * `client`: Client to interact with the blockchain
+#[tracing::instrument(skip_all)]
 async fn find_spoof_allowance_slot(
     token: Address,
     client: Arc<Provider<TracedClient>>,
@@ -144,6 +146,7 @@ async fn find_spoof_allowance_slot(
 ///
 /// * `token`: ERC20 token address
 /// * `client`: Client to interact with the blockchain
+#[tracing::instrument(skip_all, fields(token=%token))]
 pub async fn find_spoof_info(
     token: Address,
     client: Arc<Provider<TracedClient>>,
