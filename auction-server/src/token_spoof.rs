@@ -146,7 +146,7 @@ async fn find_spoof_allowance_slot(
 ///
 /// * `token`: ERC20 token address
 /// * `client`: Client to interact with the blockchain
-#[tracing::instrument(fields(token=%token))]
+#[tracing::instrument(skip_all, fields(token=%token))]
 pub async fn find_spoof_info(
     token: Address,
     client: Arc<Provider<TracedClient>>,

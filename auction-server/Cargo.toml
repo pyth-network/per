@@ -1,6 +1,6 @@
 [package]
 name = "auction-server"
-version = "0.10.0"
+version = "0.9.0"
 edition = "2021"
 license-file = "license.txt"
 
@@ -36,5 +36,5 @@ axum-prometheus = "0.6.1"
 reqwest = { version = "0.11.27" }
 tracing-opentelemetry = "0.24.0"
 opentelemetry = "0.23.0"
-opentelemetry_sdk = { version = "0.23.0" ,features = ["rt-tokio"]}
+opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"]}
 opentelemetry-otlp = { version = "0.16.0" }
