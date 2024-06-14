@@ -31,7 +31,6 @@ use {
     ethers::{
         abi::{
             self,
-            Detokenize,
         },
         contract::{
             abigen,
@@ -83,7 +82,6 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::{
-        borrow::Borrow,
         result,
         sync::{
             atomic::Ordering,
@@ -548,22 +546,15 @@ pub struct Bid {
 }
 
 // For now, we are only supporting the EIP1559 enabled networks
-async fn verify_bid_for_call<B, M, D, G>(
-    call: FunctionCall<B, M, D>,
+async fn verify_bid_for_gas_fee<G> (
+    estimated_gas: U256,
     oracle: G,
     bid_amount: U256,
     threshold: U256,
 ) -> Result<(), RestError>
 where
-    B: Borrow<M>,
-    M: Middleware,
-    D: Detokenize,
     G: GasOracle,
 {
-    let estimated_gas = call
-        .estimate_gas()
-        .await
-        .map_err(|_| RestError::TemporarilyUnavailable)?;
     let (base_fee_per_gas, _) = oracle
         .estimate_eip1559_fees()
         .await
@@ -576,6 +567,21 @@ where
             "Bid amount is insufficient for gas. gas price: {}, threshold: {}",
             gas_price, threshold
         )))
+    }
+}
+
+async fn verify_bid_for_gas_limit(
+    chain_store: &ChainStore,
+    estimated_gas: U256,
+    threshold: U256,
+) -> Result<(), RestError> {
+    if chain_store.gas_limit < estimated_gas * threshold {
+        Err(RestError::BadParameters(format!(
+            "Bid is too large for gas limit. gas limit: {}, threshold: {}",
+            chain_store.gas_limit, threshold
+        )))
+    } else {
+        Ok(())
     }
 }
 
@@ -607,8 +613,13 @@ pub async fn handle_bid(
         ))],
     );
 
-    verify_bid_for_call(
-        call.clone(),
+    let estimated_gas = call
+        .estimate_gas()
+        .await
+        .map_err(|_| RestError::TemporarilyUnavailable)?;
+
+    verify_bid_for_gas_fee(
+        estimated_gas,
         EthProviderOracle::new(chain_store.provider.clone()),
         bid.amount,
         // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
@@ -616,6 +627,12 @@ pub async fn handle_bid(
         // The threshold will be multiplied by two to ensure the bid is beneficial, as well as to allow for estimation errors.
         // For example, if we are unable to submit the bid in the current block.
         U256::from(TOTAL_BIDS_PER_AUCTION * 2),
+    )
+    .await?;
+    verify_bid_for_gas_limit(
+        chain_store,
+        estimated_gas,
+        U256::from(TOTAL_BIDS_PER_AUCTION + 1),
     )
     .await?;
 

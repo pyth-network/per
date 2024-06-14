@@ -44,6 +44,7 @@ use {
         },
         providers::Middleware,
         signers::Signer,
+        types::BlockNumber,
     },
     futures::{
         future::join_all,
@@ -163,6 +164,11 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                 let provider = get_chain_provider(&chain_id, &chain_config)?;
 
                 let id = provider.get_chainid().await?.as_u64();
+                let block = provider
+                    .get_block(BlockNumber::Latest)
+                    .await?
+                    .expect("Failed to get latest block");
+
                 let express_relay_contract = get_express_relay_contract(
                     chain_config.express_relay_contract,
                     provider.clone(),
@@ -180,7 +186,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                     verifying_contract: Some(chain_config.permit2_contract),
                 };
 
-
                 Ok((
                     chain_id.clone(),
                     ChainStore {
@@ -191,6 +196,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         weth,
                         eip_712_domain,
                         express_relay_contract: Arc::new(express_relay_contract),
+                        gas_limit: block.gas_limit,
                     },
                 ))
             }
