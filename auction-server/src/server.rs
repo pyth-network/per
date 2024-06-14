@@ -13,6 +13,7 @@ use {
         config::{
             ChainId,
             Config,
+            EthereumConfig,
             RunOptions,
         },
         models,
@@ -37,7 +38,10 @@ use {
         utils::SECONDS_DURATION_BUCKETS,
     },
     ethers::{
-        prelude::LocalWallet,
+        prelude::{
+            LocalWallet,
+            Provider,
+        },
         providers::Middleware,
         signers::Signer,
     },
@@ -148,30 +152,24 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         )
     })?;
 
-    let wallet = run_options.relayer_private_key.parse::<LocalWallet>()?;
-    tracing::info!("Using wallet address: {}", wallet.address().to_string());
+    let wallet = run_options.subwallet_private_key.parse::<LocalWallet>()?;
+    tracing::info!("Using wallet address: {:?}", wallet.address());
 
     let chain_store: anyhow::Result<HashMap<ChainId, ChainStore>> =
         join_all(config.chains.iter().map(|(chain_id, chain_config)| {
             let (chain_id, chain_config, wallet) =
                 (chain_id.clone(), chain_config.clone(), wallet.clone());
             async move {
-                let mut provider = TracedClient::new(
-                    chain_id.clone(),
-                    &chain_config.geth_rpc_addr,
-                    chain_config.rpc_timeout,
-                )
-                .map_err(|err| {
-                    anyhow!(
-                        "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
-                        err,
-                        chain_id = chain_id,
-                        rpc_addr = chain_config.geth_rpc_addr
-                    )
-                })?;
-                provider.set_interval(Duration::from_secs(chain_config.poll_interval));
+                let provider = get_chain_provider(&chain_id, &chain_config)?;
 
                 let id = provider.get_chainid().await?.as_u64();
+                let express_relay_contract = get_express_relay_contract(
+                    chain_config.express_relay_contract,
+                    provider.clone(),
+                    wallet.clone(),
+                    chain_config.legacy_tx,
+                    id,
+                );
                 let weth =
                     get_weth_address(chain_config.opportunity_adapter_contract, provider.clone())
                         .await?;
@@ -182,13 +180,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                     verifying_contract: Some(chain_config.permit2_contract),
                 };
 
-                let express_relay_contract = get_express_relay_contract(
-                    chain_config.express_relay_contract,
-                    provider.clone(),
-                    wallet.clone(),
-                    chain_config.legacy_tx,
-                    id,
-                );
 
                 Ok((
                     chain_id.clone(),
@@ -291,6 +282,27 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     task_tracker.wait().await;
 
     Ok(())
+}
+
+pub fn get_chain_provider(
+    chain_id: &String,
+    chain_config: &EthereumConfig,
+) -> anyhow::Result<Provider<TracedClient>> {
+    let mut provider = TracedClient::new(
+        chain_id.clone(),
+        &chain_config.geth_rpc_addr,
+        chain_config.rpc_timeout,
+    )
+    .map_err(|err| {
+        anyhow!(
+            "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
+            err,
+            chain_id = chain_id,
+            rpc_addr = chain_config.geth_rpc_addr
+        )
+    })?;
+    provider.set_interval(Duration::from_secs(chain_config.poll_interval));
+    Ok(provider)
 }
 
 // A static exit flag to indicate to running threads that we're shutting down. This is used to

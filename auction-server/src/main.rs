@@ -28,6 +28,7 @@ mod per_metrics;
 mod serde;
 mod server;
 mod state;
+mod subwallet;
 mod token_spoof;
 mod traced_client;
 
@@ -69,5 +70,6 @@ async fn main() -> Result<()> {
     // with invalid arguments.
     match config::Options::parse() {
         config::Options::Run(opts) => start_server(opts).await,
+        config::Options::SyncSubwallets(opts) => subwallet::sync_subwallets(opts).await,
     }
 }

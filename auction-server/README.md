@@ -50,7 +50,7 @@ To start an instance of the webserver for local testing, you first need to perfo
 Once you've completed the setup, simply run the following command, using the secret from step (2).
 
 ```bash
-cargo run -- run --relayer-private-key <relayer-private-key-in-hex-format>
+cargo run -- run --subwallet-private-key <subwallet-private-key-in-hex-format>
 ```
 
 This command will start the webservice on `localhost:9000`.
@@ -80,3 +80,25 @@ sqlx migrate add -r <migration-name>
 Since we don't have a running db instance on CI, we use `cargo sqlx prepare` to generate the necessary
 info offline. This command will update the `.sqlx` folder.
 You need to commit the changes to this folder when adding or changing the queries.
+
+## Subwallet Management
+
+Express relay contract uses subwallets as a secure mechanism to relay bids without using the main relayer wallet which
+holds the funds.
+You can add the subwallets addresses to the `config.yaml` file under the `subwallets` key and use their private keys for
+the relayer:
+
+```yaml
+chains:
+  development:
+    # rest of the chain configuration
+    subwallets:
+      - 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+      - 0xdecafdecafdecafdecafdecafdecafdecafdecaf
+```
+
+To sync the subwallets with the on-chain contracts you can run:
+
+```bash
+cargo run -- sync-subwallets
+```
