@@ -30,7 +30,10 @@ use {
     },
     axum_prometheus::metrics,
     ethers::{
-        abi,
+        abi::{
+            self,
+            Detokenize,
+        },
         contract::{
             abigen,
             ContractError,
@@ -44,6 +47,7 @@ use {
                 Transformer,
                 TransformerError,
             },
+            GasOracle,
             NonceManagerMiddleware,
             SignerMiddleware,
             TransformerMiddleware,
@@ -79,6 +83,7 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::{
+        borrow::Borrow,
         result,
         sync::{
             atomic::Ordering,
@@ -178,6 +183,12 @@ impl From<SimulatedBid> for MulticallData {
     }
 }
 
+// While we are submitting bids together, increasing this number will have the following effects:
+// 1. There will be more gas required for the transaction, which will result in a higher minimum bid amount.
+// 2. The transaction size limit will be reduced for each bid.
+// 3. Gas consumption limit will decrease for the bid
+const TOTAL_BIDS_PER_AUCTION: usize = 5;
+
 async fn get_winner_bids(
     bids: &[SimulatedBid],
     permission_key: Bytes,
@@ -191,6 +202,7 @@ async fn get_winner_bids(
 
     let mut bids = bids.to_owned();
     bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
+    let bids: Vec<SimulatedBid> = bids.into_iter().take(TOTAL_BIDS_PER_AUCTION).collect();
 
     let simulation_result = get_simulation_call(
         store.relayer.address(),
@@ -205,7 +217,7 @@ async fn get_winner_bids(
         .iter()
         .position(|status| status.external_success)
     {
-        Some(index) => Ok(bids.into_iter().skip(index).collect()),
+        Some(index) => Ok(bids.into_iter().skip(index).take(5).collect()),
         None => Ok(vec![]),
     }
 }
@@ -532,6 +544,42 @@ pub struct Bid {
     pub amount:          BidAmount,
 }
 
+// For now we are only supporting the EIP1559 enabled networks
+async fn verify_bid_for_call<B, M, D, G>(
+    call: FunctionCall<B, M, D>,
+    oracle: G,
+    bid_amount: U256,
+    threshold: U256,
+) -> Result<(), RestError>
+where
+    B: Borrow<M>,
+    M: Middleware,
+    D: Detokenize,
+    G: GasOracle,
+{
+    let estimated_gas = call
+        .estimate_gas()
+        .await
+        .map_err(|_| RestError::TemporarilyUnavailable)?;
+    let (base_fee_per_gas, _) = oracle
+        .estimate_eip1559_fees()
+        .await
+        .map_err(|_| RestError::TemporarilyUnavailable)?;
+    let gas_price = base_fee_per_gas * estimated_gas;
+    if bid_amount >= gas_price * threshold {
+        Ok(())
+    } else {
+        Err(RestError::BadParameters(format!(
+            "Bid amount is insufficient for gas. gas price: {}, threshold: {}",
+            gas_price, threshold
+        )))
+    }
+}
+
+// As we submit bids together for an auction, the bid is limited as follows:
+// 1. The bid amount should cover gas fees for all bids included in the submission.
+// 2. Depending on the maximum number of bids in the auction, the transaction size for the bid is limited.
+// 3. Depending on the maximum number of bids in the auction, the gas consumption for the bid is limited.
 pub async fn handle_bid(
     store: Arc<Store>,
     bid: Bid,
@@ -554,6 +602,18 @@ pub async fn handle_bid(
             bid.amount,
         ))],
     );
+
+    verify_bid_for_call(
+        call.clone(),
+        EthProviderOracle::new(chain_store.provider.clone()),
+        bid.amount,
+        // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
+        // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
+        // The threshold will be multiplied by two to ensure the bid is beneficial, as well as to allow for estimation errors.
+        // For example, if we are unable to submit the bid in the current block.
+        U256::from(TOTAL_BIDS_PER_AUCTION * 2),
+    )
+    .await?;
 
     match call.await {
         Ok(results) => {

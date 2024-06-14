@@ -358,15 +358,15 @@ contract VaultScript is Script {
         // transfer ETH to relevant wallets
         vm.startBroadcast(skDeployer);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[3]).transfer(10 ether);
+        payable(addressesScript[3]).transfer(1000 ether);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[0]).transfer(10 ether);
+        payable(addressesScript[0]).transfer(1000 ether);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[1]).transfer(10 ether);
+        payable(addressesScript[1]).transfer(1000 ether);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[2]).transfer(10 ether);
+        payable(addressesScript[2]).transfer(1000 ether);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[4]).transfer(10 ether);
+        payable(addressesScript[4]).transfer(1000 ether);
         vm.stopBroadcast();
 
         // deploy weth, multicall, opportunityAdapter, oracle, tokenVault
@@ -443,24 +443,19 @@ contract VaultScript is Script {
         // mint tokens to the depositor address
         token1.mint(addressesScript[2], qtys[0]);
         token2.mint(addressesScript[2], qtys[1]);
-
         // mint tokens to searcher A contract
         token1.mint(address(searcherA), qtys[2]);
         token2.mint(address(searcherA), qtys[3]);
-
         // mint tokens to searcher B contract
         token1.mint(address(searcherB), qtys[4]);
         token2.mint(address(searcherB), qtys[5]);
-
         // mint token 2 to the vault contract (to allow creation of initial vault with outstanding debt position)
         token2.mint(tokenVaultAddress, qtys[7]);
-
         // mint token to searchers A and B EOAs
         token1.mint(address(addressesScript[0]), 20_000_000);
         token2.mint(address(addressesScript[0]), 20_000_000);
         token1.mint(address(addressesScript[1]), 30_000_000);
         token2.mint(address(addressesScript[1]), 30_000_000);
-
         vm.stopBroadcast();
 
         // searchers A and B approve liquidation adapter to spend their tokens
@@ -468,14 +463,20 @@ contract VaultScript is Script {
         IERC20(address(token1)).approve(permit2Address, 199_999_999);
         IERC20(address(token2)).approve(permit2Address, 199_999_999);
         // deposit ETH to get WETH
-        WETH9(payable(wethAddress)).deposit{value: 1 ether}();
-        WETH9(payable(wethAddress)).approve(permit2Address, 399_999_999);
+        WETH9(payable(wethAddress)).deposit{value: 101 ether}();
+        WETH9(payable(wethAddress)).approve(
+            permit2Address,
+            100_000_000_000_000_000_000
+        );
         vm.stopBroadcast();
         vm.startBroadcast(sksScript[1]);
         IERC20(address(token1)).approve(permit2Address, 199_999_999);
         IERC20(address(token2)).approve(permit2Address, 199_999_999);
-        WETH9(payable(wethAddress)).deposit{value: 1 ether}();
-        WETH9(payable(wethAddress)).approve(permit2Address, 399_999_999);
+        WETH9(payable(wethAddress)).deposit{value: 101 ether}();
+        WETH9(payable(wethAddress)).approve(
+            permit2Address,
+            100_000_000_000_000_000_000
+        );
         vm.stopBroadcast();
 
         string memory obj = "latestEnvironment";

@@ -65,11 +65,12 @@ where
 }
 
 /// The default EIP-1559 fee estimator which is based on the work by [MyCrypto](https://github.com/MyCryptoHQ/MyCrypto/blob/master/src/services/ApiService/Gas/eip1559.ts)
-fn eip1559_default_estimator(base_fee_per_gas: U256, rewards: Vec<Vec<U256>>) -> (U256, U256) {
+pub fn eip1559_default_estimator(base_fee_per_gas: U256, rewards: Vec<Vec<U256>>) -> (U256, U256) {
     let max_priority_fee_per_gas = std::cmp::max(
         estimate_priority_fee(rewards),
         U256::from(EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE),
     );
+
     // Minimum of 6 blocks needed to double the base fee.
     let potential_max_fee = base_fee_per_gas * 2;
     (
