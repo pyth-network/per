@@ -43,6 +43,19 @@ repos:
         entry: cargo +stable clippy --manifest-path ./vault-simulator/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
         pass_filenames: false
         files: vault-simulator
+      # Hooks for gas-oracle
+      - id: cargo-fmt-gas-oracle
+        name: Cargo format for gas oracle
+        language: "rust"
+        entry: cargo +nightly-2024-04-10 fmt --manifest-path ./gas-oracle/Cargo.toml --all -- --config-path rustfmt.toml
+        pass_filenames: false
+        files: gas-oracle
+      - id: cargo-clippy-vault-simulator
+        name: Cargo clippy for gas oracle
+        language: "rust"
+        entry: cargo +stable clippy --manifest-path ./gas-oracle/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        pass_filenames: false
+        files: gas-oracle
       # For python files
       - id: isort
         name: isort
