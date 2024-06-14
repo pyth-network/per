@@ -34,3 +34,4 @@ base64 = "0.22.1"
 time = { version = "0.3.36", features = ["serde"] }
 axum-prometheus = "0.6.1"
 reqwest = { version = "0.11.27" }
+gas-oracle = { path = "../gas-oracle" }
