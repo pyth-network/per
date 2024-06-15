@@ -58,16 +58,23 @@ error DuplicateRelayerSubwallet();
 // Signature: 0xac4d92b3
 error RelayerSubwalletNotFound();
 
+// Signature: 0xcd21db4f
 error SignatureExpired(uint256 signatureDeadline);
 
+// Signature: 0x756688fe
 error InvalidNonce();
 
+// Signature: 0xff633a38
 error LengthMismatch();
 
+// Signature: 0x815e1d64
 error InvalidSigner();
 
+// Signature: 0xb0669cbc
 error InvalidContractSignature();
 
+// Signature: 0x3728b83d
 error InvalidAmount(uint256 maxAmount);
 
+// Signature: 0x5569851a
 error InvalidTargetContract();
