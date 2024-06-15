@@ -3,15 +3,15 @@ pragma solidity ^0.8.17;
 import {Test} from "forge-std/Test.sol";
 import {EIP712} from "openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
-import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
-import {ISignatureTransfer} from "permit2/interfaces/ISignatureTransfer.sol";
+import {PermitBatchTransferFrom} from "../src/Structs.sol";
+import {Permit2Upgradable} from "../src/Permit2Upgradable.sol";
+import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 interface EIP712Domain {
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
+    function domainSeparator() external view returns (bytes32);
 }
 
 contract PermitSignature is Test {
-    address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     bytes32 constant FULL_WITNESS_BATCH_TYPEHASH =
         keccak256(
             "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)"
@@ -20,12 +20,18 @@ contract PermitSignature is Test {
     bytes32 public constant _TOKEN_PERMISSIONS_TYPEHASH =
         keccak256("TokenPermissions(address token,uint256 amount)");
 
-    function setUpPermit2() public {
-        deployCodeTo("out/Permit2.sol/Permit2.json", PERMIT2);
+    Permit2Upgradable permit2;
+
+    function setUpPermit2(address admin) public {
+        Permit2Upgradable _permit2 = new Permit2Upgradable();
+        // deploy proxy contract and point it to implementation
+        ERC1967Proxy proxyPermit2 = new ERC1967Proxy(address(_permit2), "");
+        permit2 = Permit2Upgradable(payable(proxyPermit2));
+        permit2.initialize(admin, admin, admin);
     }
 
     function getPermitBatchWitnessSignature(
-        ISignatureTransfer.PermitBatchTransferFrom memory permit,
+        PermitBatchTransferFrom memory permit,
         uint256 privateKey,
         bytes32 typeHash,
         bytes32 witness,

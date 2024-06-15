@@ -57,3 +57,17 @@ error DuplicateRelayerSubwallet();
 
 // Signature: 0xac4d92b3
 error RelayerSubwalletNotFound();
+
+error SignatureExpired(uint256 signatureDeadline);
+
+error InvalidNonce();
+
+error LengthMismatch();
+
+error InvalidSigner();
+
+error InvalidContractSignature();
+
+error InvalidAmount(uint256 maxAmount);
+
+error InvalidTargetContract();

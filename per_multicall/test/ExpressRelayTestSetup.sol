@@ -31,6 +31,7 @@ import "./helpers/MulticallHelpers.sol";
 import "./helpers/ExpressRelayHarness.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/ExpressRelayUpgradable.sol";
+import "../src/Permit2Upgradable.sol";
 import "./PermitSignature.sol";
 
 import "../src/ExpressRelayEvents.sol";
@@ -168,6 +169,9 @@ contract ExpressRelayTestSetup is
         weth = new WETH9();
 
         vm.prank(relayer);
+        setUpPermit2(relayer);
+
+        vm.prank(relayer);
         OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
         // deploy proxy contract and point it to implementation
         ERC1967Proxy proxyOpportunityAdapter = new ERC1967Proxy(
@@ -183,8 +187,11 @@ contract ExpressRelayTestSetup is
             relayer,
             address(expressRelay),
             address(weth),
-            PermitSignature.PERMIT2
+            address(PermitSignature.permit2)
         );
+
+        vm.prank(relayer);
+        permit2.setOpportunityAdapter(address(opportunityAdapter));
 
         searcherSignatureContract = new SearcherSignature();
         searcherSignatureContract.initializeSearcherSignature();
@@ -454,7 +461,7 @@ contract ExpressRelayTestSetup is
             vm.deal(searcher, (i + 1) * 100 ether);
             weth.deposit{value: (i + 1) * 100 ether}();
             // create allowance for Permit2 (weth)
-            weth.approve(PERMIT2, (i + 1) * 100 ether);
+            weth.approve(address(permit2), (i + 1) * 100 ether);
             vm.stopPrank();
         }
         // two separate loops to avoid stack too deep error
@@ -467,12 +474,18 @@ contract ExpressRelayTestSetup is
             // create allowance for Permit2
             if (tokensDebt[0] == tokensDebt[1]) {
                 MyToken(tokensDebt[0]).approve(
-                    PERMIT2,
+                    address(permit2),
                     amountsDebt[0] + amountsDebt[1]
                 );
             } else {
-                MyToken(tokensDebt[0]).approve(PERMIT2, amountsDebt[0]);
-                MyToken(tokensDebt[1]).approve(PERMIT2, amountsDebt[1]);
+                MyToken(tokensDebt[0]).approve(
+                    address(permit2),
+                    amountsDebt[0]
+                );
+                MyToken(tokensDebt[1]).approve(
+                    address(permit2),
+                    amountsDebt[1]
+                );
             }
             vm.stopPrank();
         }
@@ -581,27 +594,25 @@ contract ExpressRelayTestSetup is
 
         data = new bytes[](bidInfos.length);
         for (uint i = 0; i < bidInfos.length; i++) {
-            ISignatureTransfer.TokenPermissions[]
-                memory permitted = new ISignatureTransfer.TokenPermissions[](
-                    sellTokens.length + 1
-                );
+            TokenPermissions[] memory permitted = new TokenPermissions[](
+                sellTokens.length + 1
+            );
             for (uint j = 0; j < sellTokens.length; j++) {
-                permitted[j] = ISignatureTransfer.TokenPermissions(
+                permitted[j] = TokenPermissions(
                     sellTokens[j].token,
                     sellTokens[j].amount
                 );
             }
-            permitted[sellTokens.length] = ISignatureTransfer.TokenPermissions(
+            permitted[sellTokens.length] = TokenPermissions(
                 address(weth),
                 bidInfos[i].bid
             );
 
-            ISignatureTransfer.PermitBatchTransferFrom memory permit = ISignatureTransfer
-                .PermitBatchTransferFrom(
-                    permitted,
-                    0, // TODO: fill in the nonce
-                    bidInfos[i].validUntil
-                );
+            PermitBatchTransferFrom memory permit = PermitBatchTransferFrom(
+                permitted,
+                0, // TODO: fill in the nonce
+                bidInfos[i].validUntil
+            );
             ExecutionWitness memory witness = ExecutionWitness(
                 buyTokens,
                 bidInfos[i].executor,
@@ -621,7 +632,7 @@ contract ExpressRelayTestSetup is
                 FULL_WITNESS_BATCH_TYPEHASH,
                 opportunityAdapter.hash(witness),
                 address(opportunityAdapter),
-                EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
+                EIP712Domain(address(permit2)).domainSeparator()
             );
             data[i] = abi.encodeWithSelector(
                 opportunityAdapter.executeOpportunity.selector,

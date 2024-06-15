@@ -11,7 +11,6 @@ import "../src/OpportunityAdapter.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/MyToken.sol";
 import "./helpers/Signatures/OpportunityAdapterSignature.sol";
-import "permit2/interfaces/ISignatureTransfer.sol";
 import {PermitSignature, EIP712Domain} from "./PermitSignature.sol";
 
 contract MockTarget {
@@ -84,15 +83,18 @@ contract OpportunityAdapterIntegrationTest is
             address(this),
             address(this),
             address(weth),
-            PermitSignature.PERMIT2
+            address(permit2)
         );
     }
 
     function setUp() public {
         setUpTokens();
-        setUpPermit2();
+        (address admin, ) = makeAddrAndKey("admin");
+        setUpPermit2(admin);
         setUpOpportunityAdapter();
         mockTarget = new MockTarget();
+        vm.prank(admin);
+        permit2.setOpportunityAdapter(address(opportunityAdapter));
     }
 
     // successful bids will be received by this contract
@@ -109,23 +111,21 @@ contract OpportunityAdapterIntegrationTest is
         public
         returns (ExecutionParams memory executionParams, bytes memory signature)
     {
-        ISignatureTransfer.TokenPermissions[]
-            memory permitted = new ISignatureTransfer.TokenPermissions[](
-                sellTokens.length
-            );
+        TokenPermissions[] memory permitted = new TokenPermissions[](
+            sellTokens.length
+        );
         for (uint i = 0; i < sellTokens.length; i++) {
-            permitted[i] = ISignatureTransfer.TokenPermissions(
+            permitted[i] = TokenPermissions(
                 sellTokens[i].token,
                 sellTokens[i].amount
             );
         }
 
-        ISignatureTransfer.PermitBatchTransferFrom memory permit = ISignatureTransfer
-            .PermitBatchTransferFrom(
-                permitted,
-                0, // TODO: fill in the nonce
-                validUntil
-            );
+        PermitBatchTransferFrom memory permit = PermitBatchTransferFrom(
+            permitted,
+            0, // TODO: fill in the nonce
+            validUntil
+        );
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         ExecutionWitness memory witness = ExecutionWitness(
             buyTokens,
@@ -142,7 +142,7 @@ contract OpportunityAdapterIntegrationTest is
             FULL_WITNESS_BATCH_TYPEHASH,
             opportunityAdapter.hash(witness),
             address(opportunityAdapter),
-            EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
+            EIP712Domain(address(permit2)).domainSeparator()
         );
     }
 
@@ -221,7 +221,7 @@ contract OpportunityAdapterIntegrationTest is
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
         weth.deposit{value: callValue}();
-        weth.approve(PERMIT2, callValue);
+        weth.approve(address(permit2), callValue);
         vm.stopPrank();
         vm.prank(opportunityAdapter.getExpressRelay());
         // callvalue is 123 wei, and executor has approved 123 wei so the call should succeed but adapter does not have
@@ -270,8 +270,8 @@ contract OpportunityAdapterIntegrationTest is
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
         weth.deposit{value: (callValue + bid)}();
-        weth.approve(PERMIT2, (callValue + bid));
-        sellToken.approve(PERMIT2, sellTokenAmount);
+        weth.approve(address(permit2), (callValue + bid));
+        sellToken.approve(address(permit2), sellTokenAmount);
         vm.stopPrank();
         vm.prank(opportunityAdapter.getExpressRelay());
         vm.expectCall(address(mockTarget), callValue, targetCalldata);

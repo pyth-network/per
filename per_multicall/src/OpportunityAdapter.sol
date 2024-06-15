@@ -9,7 +9,7 @@ import "forge-std/console.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
-import "permit2/interfaces/ISignatureTransfer.sol";
+import {Permit2} from "./Permit2.sol";
 import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
 abstract contract OpportunityAdapter is ReentrancyGuard {
@@ -18,7 +18,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
     address _admin;
     address _expressRelay;
     address _weth;
-    ISignatureTransfer _permit2;
+    Permit2 _permit2;
 
     string public constant _OPPORTUNITY_WITNESS_TYPE =
         "OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
@@ -44,7 +44,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
         _admin = admin;
         _expressRelay = expressRelay;
         _weth = weth;
-        _permit2 = ISignatureTransfer(permit2);
+        _permit2 = Permit2(permit2);
     }
 
     /**
@@ -121,6 +121,9 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
         if (msg.sender != _expressRelay) {
             revert Unauthorized();
         }
+        if (params.witness.targetContract == address(_permit2)) {
+            revert InvalidTargetContract();
+        }
         _checkDuplicateTokens(params.permit.permitted);
         _checkDuplicateTokens(params.witness.buyTokens);
     }
@@ -138,7 +141,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
     }
 
     function _checkDuplicateTokens(
-        ISignatureTransfer.TokenPermissions[] calldata tokens
+        TokenPermissions[] calldata tokens
     ) internal pure {
         for (uint i = 0; i < tokens.length; i++) {
             for (uint j = i + 1; j < tokens.length; j++) {
@@ -150,18 +153,18 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
     }
 
     function _prepareSellTokens(
-        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
+        PermitBatchTransferFrom calldata permit,
         ExecutionWitness calldata witness,
         bytes calldata signature
     ) internal {
-        ISignatureTransfer.SignatureTransferDetails[]
-            memory transferDetails = new ISignatureTransfer.SignatureTransferDetails[](
+        SignatureTransferDetails[]
+            memory transferDetails = new SignatureTransferDetails[](
                 permit.permitted.length
             );
         for (uint i = 0; i < permit.permitted.length; i++) {
             uint256 amount = permit.permitted[i].amount;
             IERC20 token = IERC20(permit.permitted[i].token);
-            transferDetails[i] = ISignatureTransfer.SignatureTransferDetails({
+            transferDetails[i] = SignatureTransferDetails({
                 to: address(this),
                 requestedAmount: amount
             });
@@ -178,7 +181,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
     }
 
     function _revokeAllowances(
-        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
+        PermitBatchTransferFrom calldata permit,
         address targetContract
     ) internal {
         for (uint i = 0; i < permit.permitted.length; i++) {

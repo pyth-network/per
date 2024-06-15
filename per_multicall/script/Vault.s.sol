@@ -11,6 +11,7 @@ import {TokenVault} from "../src/TokenVault.sol";
 import {SearcherVault} from "../src/SearcherVault.sol";
 import {ExpressRelay} from "../src/ExpressRelay.sol";
 import {OpportunityAdapter} from "../src/OpportunityAdapter.sol";
+import {Permit2} from "../src/Permit2.sol";
 import {MyToken} from "../src/MyToken.sol";
 import "../src/Structs.sol";
 import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
@@ -25,6 +26,7 @@ import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import "../src/Errors.sol";
 import {OpportunityAdapterUpgradable} from "../src/OpportunityAdapterUpgradable.sol";
+import {Permit2Upgradable} from "../src/Permit2Upgradable.sol";
 import {ExpressRelayUpgradable} from "../src/ExpressRelayUpgradable.sol";
 
 contract VaultScript is Script {
@@ -174,13 +176,42 @@ contract VaultScript is Script {
         return address(mockPyth);
     }
 
-    function deployPermit2() public returns (address) {
+    function deployPermit2(
+        address admin,
+        address owner
+    ) public returns (address) {
+        // (, uint256 skDeployer) = getDeployer();
+        // vm.startBroadcast(skDeployer);
+        // address permit2 = deployCode("out/Permit2.sol/Permit2.json");
+        // vm.stopBroadcast();
+        // console.log("deployed permit2 at", permit2);
+        // return permit2;
         (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
-        address permit2 = deployCode("out/Permit2.sol/Permit2.json");
+        Permit2Upgradable _permit2Upgradable = new Permit2Upgradable();
+        // deploy proxy contract and point it to implementation
+        ERC1967Proxy proxy = new ERC1967Proxy(address(_permit2Upgradable), "");
+        // wrap in ABI to support easier calls
+        Permit2Upgradable permit2 = Permit2Upgradable(payable(proxy));
+        permit2.initialize(owner, admin, admin);
         vm.stopBroadcast();
-        console.log("deployed permit2 at", permit2);
-        return permit2;
+        console.log(
+            "deployed permit2Upgradeable implementation contract at",
+            address(_permit2Upgradable)
+        );
+        console.log("permit2Upgradeable proxy at", address(permit2));
+        return address(permit2);
+    }
+
+    function updatePermit2OpportunityAdapter(
+        address permit2,
+        address opportunityAdapter
+    ) public {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
+        Permit2Upgradable permit2Contract = Permit2Upgradable(permit2);
+        permit2Contract.setOpportunityAdapter(opportunityAdapter);
+        vm.stopBroadcast();
     }
 
     function deployAll()
@@ -202,8 +233,7 @@ contract VaultScript is Script {
             feeSplitProtocolDefault,
             feeSplitRelayer
         );
-        address permit2 = deployPermit2();
-
+        address permit2 = deployPermit2(deployer, deployer);
         address opportunityAdapter = deployOpportunityAdapter(
             deployer,
             deployer,
@@ -211,6 +241,7 @@ contract VaultScript is Script {
             weth,
             permit2
         );
+        updatePermit2OpportunityAdapter(permit2, opportunityAdapter);
         address mockPyth = deployMockPyth();
         address vault = deployVault(expressRelay, mockPyth, false);
         return (
@@ -250,8 +281,7 @@ contract VaultScript is Script {
             feeSplitProtocolDefault,
             feeSplitRelayer
         );
-        address permit2 = deployPermit2();
-
+        address permit2 = deployPermit2(deployer, deployer);
         address opportunityAdapter = deployOpportunityAdapter(
             deployer,
             deployer,
@@ -259,6 +289,7 @@ contract VaultScript is Script {
             weth,
             permit2
         );
+        updatePermit2OpportunityAdapter(permit2, opportunityAdapter);
         address vault = deployVault(
             expressRelay,
             pyth,

@@ -12,7 +12,6 @@ import "../src/OpportunityAdapterUpgradable.sol";
 import "../src/MyToken.sol";
 import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 import "./helpers/OpportunityAdapterHarness.sol";
-import "permit2/interfaces/ISignatureTransfer.sol";
 import "./PermitSignature.sol";
 
 contract OpportunityAdapterUnitTest is
@@ -24,9 +23,12 @@ contract OpportunityAdapterUnitTest is
     MyToken myToken;
 
     function setUp() public {
-        setUpPermit2();
-        opportunityAdapter = new OpportunityAdapterHarness(PERMIT2);
+        (address admin, ) = makeAddrAndKey("admin");
+        setUpPermit2(admin);
+        opportunityAdapter = new OpportunityAdapterHarness(address(permit2));
         myToken = new MyToken("SellToken", "ST");
+        vm.prank(admin);
+        permit2.setOpportunityAdapter(address(opportunityAdapter));
     }
 
     function testTypeStrings() public {
@@ -52,22 +54,18 @@ contract OpportunityAdapterUnitTest is
         uint256 privateKey
     )
         public
-        returns (
-            ISignatureTransfer.PermitBatchTransferFrom memory permit,
-            bytes memory signature
-        )
+        returns (PermitBatchTransferFrom memory permit, bytes memory signature)
     {
-        ISignatureTransfer.TokenPermissions[]
-            memory permitted = new ISignatureTransfer.TokenPermissions[](
-                sellTokens.length
-            );
+        TokenPermissions[] memory permitted = new TokenPermissions[](
+            sellTokens.length
+        );
         for (uint i = 0; i < sellTokens.length; i++) {
-            permitted[i] = ISignatureTransfer.TokenPermissions({
+            permitted[i] = TokenPermissions({
                 token: sellTokens[i].token,
                 amount: sellTokens[i].amount
             });
         }
-        permit = ISignatureTransfer.PermitBatchTransferFrom({
+        permit = PermitBatchTransferFrom({
             permitted: permitted,
             nonce: 1000,
             deadline: block.timestamp + 1000
@@ -78,7 +76,7 @@ contract OpportunityAdapterUnitTest is
             FULL_WITNESS_BATCH_TYPEHASH,
             opportunityAdapter.hash(witness),
             address(opportunityAdapter),
-            EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
+            EIP712Domain(address(permit2)).domainSeparator()
         );
     }
 
@@ -90,7 +88,7 @@ contract OpportunityAdapterUnitTest is
         );
         myToken.mint(executor, tokenAmount);
         vm.prank(executor);
-        myToken.approve(PERMIT2, tokenAmount);
+        myToken.approve(address(permit2), tokenAmount);
 
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         ExecutionWitness memory witness = ExecutionWitness({
@@ -102,7 +100,7 @@ contract OpportunityAdapterUnitTest is
             bidAmount: 0
         });
         (
-            ISignatureTransfer.PermitBatchTransferFrom memory permit,
+            PermitBatchTransferFrom memory permit,
             bytes memory signature
         ) = makePermitFromSellTokens(sellTokens, witness, executorPrivateKey);
         address targetContract = makeAddr("targetContract");

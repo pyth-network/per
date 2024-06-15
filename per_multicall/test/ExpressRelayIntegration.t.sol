@@ -28,7 +28,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         setUpContracts();
         setUpTokensAndOracle();
         setUpVaults();
-        setUpPermit2();
         fundSearcherWallets();
     }
 
