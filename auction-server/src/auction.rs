@@ -575,9 +575,9 @@ async fn verify_bid_under_gas_limit(
     multiplier: U256,
 ) -> Result<(), RestError> {
     if chain_store.block_gas_limit < estimated_gas * multiplier {
-        let (maximum_allowed_gas, _) = chain_store.block_gas_limit.div_mod(multiplier);
+        let maximum_allowed_gas = chain_store.block_gas_limit / multiplier;
         Err(RestError::BadParameters(format!(
-            "Bid is too large for gas limit. gas estmation for bid: {}, maximum gas allowed: {}",
+            "Bid estimated gas usage is higher than maximum gas allowed. estimated gas usage: {}, maximum gas allowed: {}",
             estimated_gas, maximum_allowed_gas
         )))
     } else {
