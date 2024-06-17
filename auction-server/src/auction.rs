@@ -29,10 +29,7 @@ use {
     },
     axum_prometheus::metrics,
     ethers::{
-        abi::{
-            self,
-            Detokenize,
-        },
+        abi,
         contract::{
             abigen,
             ContractError,
@@ -83,7 +80,7 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::{
-        borrow::Borrow,
+        cmp::max,
         result,
         sync::{
             atomic::Ordering,
@@ -548,22 +545,15 @@ pub struct Bid {
 }
 
 // For now, we are only supporting the EIP1559 enabled networks
-async fn verify_bid_for_call<B, M, D, G>(
-    call: FunctionCall<B, M, D>,
+async fn verify_bid_exceeds_gas_cost<G>(
+    estimated_gas: U256,
     oracle: G,
     bid_amount: U256,
     threshold: U256,
 ) -> Result<(), RestError>
 where
-    B: Borrow<M>,
-    M: Middleware,
-    D: Detokenize,
     G: GasOracle,
 {
-    let estimated_gas = call
-        .estimate_gas()
-        .await
-        .map_err(|_| RestError::TemporarilyUnavailable)?;
     let (base_fee_per_gas, _) = oracle
         .estimate_eip1559_fees()
         .await
@@ -578,6 +568,24 @@ where
         )))
     }
 }
+
+async fn verify_bid_under_gas_limit(
+    chain_store: &ChainStore,
+    estimated_gas: U256,
+    multiplier: U256,
+) -> Result<(), RestError> {
+    if chain_store.block_gas_limit < estimated_gas * multiplier {
+        let maximum_allowed_gas = chain_store.block_gas_limit / multiplier;
+        Err(RestError::BadParameters(format!(
+            "Bid estimated gas usage is higher than maximum gas allowed. estimated gas usage: {}, maximum gas allowed: {}",
+            estimated_gas, maximum_allowed_gas
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+const MINIMUM_GAS_MULTIPLIER: usize = 5;
 
 // As we submit bids together for an auction, the bid is limited as follows:
 // 1. The bid amount should cover gas fees for all bids included in the submission.
@@ -607,14 +615,26 @@ pub async fn handle_bid(
         ))],
     );
 
-    verify_bid_for_call(
-        call.clone(),
+    let estimated_gas = call
+        .estimate_gas()
+        .await
+        .map_err(|_| RestError::TemporarilyUnavailable)?;
+
+    verify_bid_exceeds_gas_cost(
+        estimated_gas,
         EthProviderOracle::new(chain_store.provider.clone()),
         bid.amount,
         // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
         // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
         // The threshold will be multiplied by two to ensure the bid is beneficial, as well as to allow for estimation errors.
         // For example, if we are unable to submit the bid in the current block.
+        U256::from(max(TOTAL_BIDS_PER_AUCTION * 2, MINIMUM_GAS_MULTIPLIER)),
+    )
+    .await?;
+    // The transaction body size will be automatically limited when the gas is limited.
+    verify_bid_under_gas_limit(
+        chain_store,
+        estimated_gas,
         U256::from(TOTAL_BIDS_PER_AUCTION * 2),
     )
     .await?;
