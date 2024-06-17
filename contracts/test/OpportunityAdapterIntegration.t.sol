@@ -117,7 +117,7 @@ contract OpportunityAdapterIntegrationTest is
         signature = getPermitBatchWitnessSignature(
             permit,
             executorSk,
-            FULL_WITNESS_BATCH_TYPEHASH,
+            FULL_OPPORTUNITY_WITNESS_BATCH_TYPEHASH,
             hash(witness),
             adapterFactory.computeAddress(executor),
             EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
