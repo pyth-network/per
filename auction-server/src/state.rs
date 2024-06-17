@@ -187,7 +187,7 @@ pub struct ChainStore {
     pub token_spoof_info:       RwLock<HashMap<Address, SpoofInfo>>,
     pub eip_712_domain:         EIP712Domain,
     pub express_relay_contract: Arc<SignableExpressRelayContract>,
-    pub gas_limit:              U256,
+    pub block_gas_limit:        U256,
 }
 
 #[derive(Default)]

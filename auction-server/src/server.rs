@@ -196,7 +196,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         weth,
                         eip_712_domain,
                         express_relay_contract: Arc::new(express_relay_contract),
-                        gas_limit: block.gas_limit,
+                        block_gas_limit: block.gas_limit,
                     },
                 ))
             }
