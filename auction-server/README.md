@@ -116,3 +116,7 @@ To sync the subwallets with the on-chain contracts you can run:
 ```bash
 cargo run -- sync-subwallets
 ```
+
+## License
+
+Auction server source code is licensed under the [BUSL-1.1](./license.txt).
