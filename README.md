@@ -40,3 +40,9 @@ There are some useful gadgets in Tilt ui for creating new vaults and checking th
 You can use them to test the system end to end.
 
 You can modify the services and restart the resources as necessary.
+
+## License
+
+The primary license for source codes available in this repo is the Apache 2.0 (`Apache-2.0`), see [LICENSE](./LICENSE). Minus the following exceptions:
+
+- [Express Relay Auction Server](./auction-server) has a `BUSL-1.1` license
