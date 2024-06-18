@@ -2,7 +2,7 @@
 name = "vault-simulator"
 version = "0.2.0"
 edition = "2021"
-license-file = "license.txt"
+license = "Apache-2.0"
 
 [dependencies]
 tokio = { version = "1.28", features = ["macros", "sync", "rt-multi-thread", "signal"] }
