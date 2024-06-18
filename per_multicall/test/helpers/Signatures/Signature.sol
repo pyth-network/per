@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import "../../../src/Structs.sol";
-import "../../../src/SigVerify.sol";
+import "../../SearcherVault/Structs.sol";
+import "../../SearcherVault/SigVerify.sol";
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 

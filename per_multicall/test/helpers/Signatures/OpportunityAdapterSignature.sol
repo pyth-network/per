@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "./Signature.sol";
-import "../../../src/OpportunityAdapterUpgradable.sol";
+import "../../../src/OpportunityAdapter/OpportunityAdapterUpgradable.sol";
 
 contract OpportunityAdapterSignature is Signature {
     string constant _NAME = "OpportunityAdapter";

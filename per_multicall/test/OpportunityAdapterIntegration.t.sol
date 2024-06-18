@@ -5,10 +5,11 @@ import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import "../src/Errors.sol";
-import "../src/Structs.sol";
-import "../src/OpportunityAdapter.sol";
-import "../src/OpportunityAdapterUpgradable.sol";
+import "../src/ExpressRelay/Errors.sol";
+import "./SearcherVault/Structs.sol";
+import "../src/OpportunityAdapter/OpportunityAdapter.sol";
+import "../src/OpportunityAdapter/OpportunityAdapterUpgradable.sol";
+import "./WETH9.sol";
 import "./MyToken.sol";
 import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";

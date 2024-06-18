@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import "../src/Errors.sol";
-import "../src/Structs.sol";
+import "../src/ExpressRelay/Errors.sol";
+import "../src/ExpressRelay/Structs.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 import "./helpers/MockProtocol.sol";
