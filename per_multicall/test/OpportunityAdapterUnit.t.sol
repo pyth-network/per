@@ -9,7 +9,7 @@ import "../src/Errors.sol";
 import "../src/Structs.sol";
 import "../src/OpportunityAdapter.sol";
 import "../src/OpportunityAdapterUpgradable.sol";
-import "../src/MyToken.sol";
+import "./MyToken.sol";
 import "./helpers/Signatures/OpportunityAdapterSignature.sol";
 import "./helpers/OpportunityAdapterHarness.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";

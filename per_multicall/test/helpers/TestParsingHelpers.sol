@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {Test, console2} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import {MyToken} from "../../src/MyToken.sol";
+import {MyToken} from "../MyToken.sol";
 import "../../src/Structs.sol";
 
 contract TestParsingHelpers is Test {

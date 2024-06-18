@@ -3,11 +3,6 @@ pragma solidity ^0.8.13;
 
 import "permit2/interfaces/ISignatureTransfer.sol";
 
-struct OracleState {
-    uint256 price;
-    uint256 timestamp;
-}
-
 struct Vault {
     address tokenCollateral;
     address tokenDebt;
