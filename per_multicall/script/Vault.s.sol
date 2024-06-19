@@ -6,16 +6,16 @@ import "forge-std/StdJson.sol";
 import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
 
-import {TokenVault} from "../src/TokenVault.sol";
-import {SearcherVault} from "../test/SearcherVault/SearcherVault.sol";
-import {OpportunityAdapter} from "../src/OpportunityAdapter/OpportunityAdapter.sol";
-import {OpportunityAdapterUpgradable} from "../src/OpportunityAdapter/OpportunityAdapterUpgradable.sol";
-import {ExpressRelay} from "../src/ExpressRelay/ExpressRelay.sol";
-import {ExpressRelayUpgradable} from "../src/ExpressRelay/ExpressRelayUpgradable.sol";
-import "../src/ExpressRelay/Errors.sol";
+import {TokenVault} from "../test/token-vault/TokenVault.sol";
+import {SearcherVault} from "../test/searcher-vault/SearcherVault.sol";
+import {OpportunityAdapter} from "../src/opportunity-adapter/OpportunityAdapter.sol";
+import {OpportunityAdapterUpgradable} from "../src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
+import {ExpressRelay} from "../src/express-relay/ExpressRelay.sol";
+import {ExpressRelayUpgradable} from "../src/express-relay/ExpressRelayUpgradable.sol";
+import "../src/express-relay/Errors.sol";
 import {MyToken} from "../test/MyToken.sol";
 import {WETH9} from "../test/WETH9.sol";
-import "../test/SearcherVault/Structs.sol";
+import "../test/searcher-vault/Structs.sol";
 import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";

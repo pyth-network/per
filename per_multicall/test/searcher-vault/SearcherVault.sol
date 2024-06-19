@@ -5,7 +5,7 @@ import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import "./SigVerify.sol";
 import "./Structs.sol";
-import "../../src/TokenVault.sol";
+import "../token-vault/TokenVault.sol";
 import "../../src/CommonErrors.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";

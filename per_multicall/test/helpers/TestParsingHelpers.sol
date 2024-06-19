@@ -5,7 +5,7 @@ import {Test, console2} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import {MyToken} from "../MyToken.sol";
-import "../SearcherVault/Structs.sol";
+import "../searcher-vault/Structs.sol";
 
 contract TestParsingHelpers is Test {
     struct AccountBalance {

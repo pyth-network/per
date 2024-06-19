@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import "./SearcherVault/SigVerify.sol";
+import "./searcher-vault/SigVerify.sol";
 import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
 
-import {TokenVault} from "../src/TokenVault.sol";
-import {SearcherVault} from "./SearcherVault/SearcherVault.sol";
-import {ExpressRelay} from "../src/ExpressRelay/ExpressRelay.sol";
+import {TokenVault} from "./token-vault/TokenVault.sol";
+import {SearcherVault} from "./searcher-vault/SearcherVault.sol";
+import {ExpressRelay} from "../src/express-relay/ExpressRelay.sol";
 import {WETH9} from "./WETH9.sol";
-import {OpportunityAdapter} from "../src/OpportunityAdapter/OpportunityAdapter.sol";
+import {OpportunityAdapter} from "../src/opportunity-adapter/OpportunityAdapter.sol";
 import {MyToken} from "./MyToken.sol";
-import "../src/ExpressRelay/Errors.sol";
-import "../src/TokenVaultErrors.sol";
-import "./SearcherVault/Structs.sol";
+import "../src/express-relay/Errors.sol";
+import "./token-vault/Errors.sol";
+import "./searcher-vault/Structs.sol";
 
 import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
 
@@ -29,12 +29,12 @@ import "./helpers/PriceHelpers.sol";
 import "./helpers/TestParsingHelpers.sol";
 import "./helpers/MulticallHelpers.sol";
 import "./helpers/ExpressRelayHarness.sol";
-import "../src/OpportunityAdapter/OpportunityAdapterUpgradable.sol";
-import "../src/ExpressRelay/ExpressRelayUpgradable.sol";
+import "../src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
+import "../src/express-relay/ExpressRelayUpgradable.sol";
 import "./PermitSignature.sol";
 
-import "../src/ExpressRelay/ExpressRelayEvents.sol";
-import "../src/ExpressRelay/ExpressRelayGovernanceEvents.sol";
+import "../src/express-relay/ExpressRelayEvents.sol";
+import "../src/express-relay/ExpressRelayGovernanceEvents.sol";
 
 /**
  * @title ExpressRelayTestSetUp

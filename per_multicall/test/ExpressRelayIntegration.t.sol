@@ -4,10 +4,10 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import "../src/ExpressRelay/Structs.sol";
-import "../src/ExpressRelay/Errors.sol";
-import "../src/OpportunityAdapter/Errors.sol";
-import "../src/TokenVaultErrors.sol";
+import "../src/express-relay/Structs.sol";
+import "../src/express-relay/Errors.sol";
+import "../src/opportunity-adapter/Errors.sol";
+import "./token-vault/Errors.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 
