@@ -10,7 +10,7 @@ import "../src/opportunity-adapter/OpportunityAdapter.sol";
 import "../src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
 import "./searcher-vault/Structs.sol";
 import "./MyToken.sol";
-import "./helpers/Signatures/OpportunityAdapterSignature.sol";
+import "./helpers/signatures/OpportunityAdapterSignature.sol";
 import "./helpers/OpportunityAdapterHarness.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 import "./PermitSignature.sol";

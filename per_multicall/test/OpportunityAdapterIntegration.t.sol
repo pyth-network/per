@@ -11,7 +11,7 @@ import "../src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
 import "./WETH9.sol";
 import "./MyToken.sol";
 import "./searcher-vault/Structs.sol";
-import "./helpers/Signatures/OpportunityAdapterSignature.sol";
+import "./helpers/signatures/OpportunityAdapterSignature.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 import {PermitSignature, EIP712Domain} from "./PermitSignature.sol";
 
