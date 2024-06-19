@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./Structs.sol";
 
-contract ExpressRelayGovernanceEvents {
+contract GovernanceEvents {
     event RelayerSet(address relayer);
     event RelayerSubwalletAdded(address indexed relayer, address subwallet);
     event RelayerSubwalletRemoved(address indexed relayer, address subwallet);

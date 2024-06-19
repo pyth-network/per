@@ -9,13 +9,13 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-import {ExpressRelay} from "../src/express-relay/ExpressRelay.sol";
-import "../src/express-relay/Errors.sol";
-import "../src/express-relay/ExpressRelayUpgradable.sol";
-import "../src/express-relay/ExpressRelayEvents.sol";
-import "../src/express-relay/ExpressRelayGovernanceEvents.sol";
-import "../src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
-import {OpportunityAdapter} from "../src/opportunity-adapter/OpportunityAdapter.sol";
+import {ExpressRelay} from "src/express-relay/ExpressRelay.sol";
+import "src/express-relay/Errors.sol";
+import "src/express-relay/ExpressRelayUpgradable.sol";
+import "src/express-relay/Events.sol";
+import "src/express-relay/GovernanceEvents.sol";
+import "src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
+import {OpportunityAdapter} from "src/opportunity-adapter/OpportunityAdapter.sol";
 
 import "./token-vault/Errors.sol";
 import {TokenVault} from "./token-vault/TokenVault.sol";
@@ -48,7 +48,7 @@ contract ExpressRelayTestSetup is
     PriceHelpers,
     MulticallHelpers,
     ExpressRelayEvents,
-    ExpressRelayGovernanceEvents,
+    GovernanceEvents,
     PermitSignature
 {
     TokenVault public tokenVault;

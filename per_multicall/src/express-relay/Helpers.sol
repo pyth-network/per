@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-contract ExpressRelayHelpers {
+contract Helpers {
     function isContract(address addr) internal view returns (bool) {
         uint32 size;
         assembly {

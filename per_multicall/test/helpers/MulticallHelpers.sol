@@ -5,7 +5,7 @@ import {Test, console2} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import "./TestParsingHelpers.sol";
-import "../../src/express-relay/Structs.sol";
+import "src/express-relay/Structs.sol";
 
 contract MulticallHelpers is Test, TestParsingHelpers {
     function assertFailedMulticall(

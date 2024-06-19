@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import {ExpressRelayUpgradable} from "../../src/express-relay/ExpressRelayUpgradable.sol";
+import {ExpressRelayUpgradable} from "src/express-relay/ExpressRelayUpgradable.sol";
 
 contract ExpressRelayHarness is ExpressRelayUpgradable {
     function exposed_setFeeSplitPrecision() external {
