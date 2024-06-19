@@ -7,11 +7,10 @@ import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "src/express-relay/Errors.sol";
 import "src/opportunity-adapter/OpportunityAdapter.sol";
-import "src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
+import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdapterFactory.sol";
 import "./WETH9.sol";
 import "./MyToken.sol";
 import "./searcher-vault/Structs.sol";
-import "./helpers/signatures/OpportunityAdapterSignature.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 import {PermitSignature, EIP712Domain} from "./PermitSignature.sol";
 
@@ -42,25 +41,13 @@ contract MockTarget {
     }
 }
 
-contract InvalidMagicOpportunityAdapter is
-    Initializable,
-    OwnableUpgradeable,
-    UUPSUpgradeable
-{
-    function _authorizeUpgrade(address) internal override onlyOwner {}
-
-    function opportunityAdapterUpgradableMagic() public pure returns (uint32) {
-        return 0x00000000;
-    }
-}
-
 contract OpportunityAdapterIntegrationTest is
     Test,
-    OpportunityAdapterSignature,
-    PermitSignature
+    PermitSignature,
+    OpportunityAdapterHasher
 {
     MockTarget mockTarget;
-    OpportunityAdapterUpgradable opportunityAdapter;
+    OpportunityAdapterFactory adapterFactory;
     WETH9 weth;
     MyToken buyToken;
     MyToken sellToken;
@@ -72,17 +59,7 @@ contract OpportunityAdapterIntegrationTest is
     }
 
     function setUpOpportunityAdapter() internal {
-        OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
-        ERC1967Proxy proxyOpportunityAdapter = new ERC1967Proxy(
-            address(_opportunityAdapter),
-            ""
-        );
-        opportunityAdapter = OpportunityAdapterUpgradable(
-            payable(proxyOpportunityAdapter)
-        );
-        opportunityAdapter.initialize(
-            address(this),
-            address(this),
+        adapterFactory = new OpportunityAdapterFactory(
             address(this),
             address(weth),
             PermitSignature.PERMIT2
@@ -141,8 +118,8 @@ contract OpportunityAdapterIntegrationTest is
             permit,
             executorSk,
             FULL_WITNESS_BATCH_TYPEHASH,
-            opportunityAdapter.hash(witness),
-            address(opportunityAdapter),
+            hash(witness),
+            adapterFactory.computeAddress(executor),
             EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
         );
     }
@@ -192,10 +169,10 @@ contract OpportunityAdapterIntegrationTest is
                 0,
                 block.timestamp + 1000
             );
-        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.prank(adapterFactory.getExpressRelay());
         // callvalue is 1 wei, but executor has not deposited/approved any WETH
         vm.expectRevert(InsufficientWethForTargetCallValue.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 
     function testRevertWhenInsufficientWethToTransferForBid() public {
@@ -224,12 +201,12 @@ contract OpportunityAdapterIntegrationTest is
         weth.deposit{value: callValue}();
         weth.approve(PERMIT2, callValue);
         vm.stopPrank();
-        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.prank(adapterFactory.getExpressRelay());
         // callvalue is 123 wei, and executor has approved 123 wei so the call should succeed but adapter does not have
         // 100 more wei to return the bid
         vm.expectCall(address(mockTarget), callValue, targetCalldata);
         vm.expectRevert(InsufficientEthToSettleBid.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 
     function testExecutionWithBidAndCallValue() public {
@@ -263,10 +240,8 @@ contract OpportunityAdapterIntegrationTest is
                 block.timestamp + 1000
             );
         uint256 initialAdapterBuyTokenBalance = 5000;
-        buyToken.mint(
-            address(opportunityAdapter),
-            initialAdapterBuyTokenBalance
-        ); // initial balance should not affect the result
+        address opportunityAdapter = adapterFactory.computeAddress(executor);
+        buyToken.mint(opportunityAdapter, initialAdapterBuyTokenBalance); // initial balance should not affect the result
         sellToken.mint(executor, sellTokenAmount);
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
@@ -274,7 +249,7 @@ contract OpportunityAdapterIntegrationTest is
         weth.approve(PERMIT2, (callValue + bid));
         sellToken.approve(PERMIT2, sellTokenAmount);
         vm.stopPrank();
-        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.prank(adapterFactory.getExpressRelay());
         vm.expectCall(address(mockTarget), callValue, targetCalldata);
         // We expect the adapter to transfer the bid to the express relay
         vm.expectCall(address(this), bid, bytes(""));
@@ -286,18 +261,15 @@ contract OpportunityAdapterIntegrationTest is
             address(weth),
             abi.encodeWithSelector(WETH9.withdraw.selector, bid)
         );
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
         assertEq(buyToken.balanceOf(executor), buyTokenAmount);
         assertEq(
-            buyToken.balanceOf(address(opportunityAdapter)),
+            buyToken.balanceOf(opportunityAdapter),
             initialAdapterBuyTokenBalance
         );
         assertEq(sellToken.balanceOf(executor), 0);
         assertEq(
-            sellToken.allowance(
-                address(opportunityAdapter),
-                address(mockTarget)
-            ),
+            sellToken.allowance(opportunityAdapter, address(mockTarget)),
             0
         );
     }
@@ -318,7 +290,7 @@ contract OpportunityAdapterIntegrationTest is
                 0,
                 block.timestamp + 1000
             );
-        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.prank(adapterFactory.getExpressRelay());
         vm.expectCall(address(mockTarget), targetCalldata);
         // When count is 0 (3rd argument) we expect 0 calls to be made to the specified address
         // In this case, we do not expect adapter to transfer any ETH to the express relay
@@ -328,7 +300,7 @@ contract OpportunityAdapterIntegrationTest is
             abi.encodeWithSelector(WETH9.withdraw.selector, 0),
             0
         );
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 
     function testRevertWhenEthBalanceDecrease() public {
@@ -347,10 +319,10 @@ contract OpportunityAdapterIntegrationTest is
                 1,
                 block.timestamp + 1000
             );
-        vm.deal(address(opportunityAdapter), 1 ether);
-        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.deal(adapterFactory.computeAddress(makeAddr("executor")), 1 ether);
+        vm.prank(adapterFactory.getExpressRelay());
         vm.expectRevert(EthOrWethBalanceDecreased.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 
     function testRevertWhenWethBalanceDecrease() public {
@@ -369,12 +341,12 @@ contract OpportunityAdapterIntegrationTest is
                 0,
                 block.timestamp + 1000
             );
-        vm.deal(address(opportunityAdapter), 1 ether);
-        vm.prank(address(opportunityAdapter));
+        vm.deal(adapterFactory.computeAddress(makeAddr("executor")), 1 ether);
+        vm.prank(adapterFactory.computeAddress(makeAddr("executor")));
         weth.deposit{value: 1 ether}();
-        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.prank(adapterFactory.getExpressRelay());
         vm.expectRevert(EthOrWethBalanceDecreased.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 
     function testRevertWhenInsufficientTokensReceived() public {
@@ -399,11 +371,11 @@ contract OpportunityAdapterIntegrationTest is
                 0,
                 block.timestamp + 1000
             );
-        buyToken.mint(address(opportunityAdapter), 1000); // initial balance should not affect the result
-        vm.prank(opportunityAdapter.getExpressRelay());
+        buyToken.mint(address(adapterFactory), 1000); // initial balance should not affect the result
+        vm.prank(adapterFactory.getExpressRelay());
         vm.expectCall(address(mockTarget), targetCalldata);
         vm.expectRevert(InsufficientTokenReceived.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 
     function testRevertWhenNotCalledByExpressRelay() public {
@@ -412,8 +384,8 @@ contract OpportunityAdapterIntegrationTest is
             bytes memory signature
         ) = createDummyExecutionParams(false);
         vm.prank(makeAddr("nonRelayer"));
-        vm.expectRevert(Unauthorized.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        vm.expectRevert(NotCalledByExpressRelay.selector);
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 
     // TODO: we can remove this test since it is testing Permit2 and not our own contracts anymore
@@ -422,12 +394,12 @@ contract OpportunityAdapterIntegrationTest is
             ExecutionParams memory executionParams,
             bytes memory signature
         ) = createDummyExecutionParams(false);
-        vm.startPrank(opportunityAdapter.getExpressRelay());
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        vm.startPrank(adapterFactory.getExpressRelay());
+        adapterFactory.executeOpportunity(executionParams, signature);
         vm.expectRevert(
             abi.encodeWithSelector(bytes4(keccak256("InvalidNonce()")))
         );
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
         vm.stopPrank();
     }
 
@@ -436,30 +408,18 @@ contract OpportunityAdapterIntegrationTest is
             ExecutionParams memory executionParams,
             bytes memory signature
         ) = createDummyExecutionParams(true);
-        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.prank(adapterFactory.getExpressRelay());
         vm.expectRevert(
             abi.encodeWithSelector(
                 TargetCallFailed.selector,
                 abi.encodeWithSelector(MockTarget.BadCall.selector)
             )
         );
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 
     function testGetWeth() public {
-        assertEq(opportunityAdapter.getWeth(), address(weth));
-    }
-
-    function testSetExpressRelay() public {
-        address newRelay = makeAddr("newRelay");
-        opportunityAdapter.setExpressRelay(newRelay);
-        assertEq(opportunityAdapter.getExpressRelay(), newRelay);
-    }
-
-    function testRevertWhenUnauthorizedSetExpressRelay() public {
-        vm.prank(makeAddr("invalidAdmin"));
-        vm.expectRevert(Unauthorized.selector);
-        opportunityAdapter.setExpressRelay(address(this));
+        assertEq(adapterFactory.getWeth(), address(weth));
     }
 
     function _testRevertWithDuplicateTokens(
@@ -480,9 +440,9 @@ contract OpportunityAdapterIntegrationTest is
                 0,
                 block.timestamp + 1000
             );
-        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.prank(adapterFactory.getExpressRelay());
         vm.expectRevert(DuplicateToken.selector);
-        opportunityAdapter.executeOpportunity(executionParams, signature);
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 
     function testRevertWhenDuplicateBuyTokensOrDuplicateSellTokens() public {
@@ -512,31 +472,13 @@ contract OpportunityAdapterIntegrationTest is
                 block.timestamp + 1
             );
         vm.warp(block.timestamp + 2);
-        vm.prank(opportunityAdapter.getExpressRelay());
+        vm.prank(adapterFactory.getExpressRelay());
         vm.expectRevert(
             abi.encodeWithSelector(
                 bytes4(keccak256("SignatureExpired(uint256)")),
                 executionParams.permit.deadline
             )
         );
-        opportunityAdapter.executeOpportunity(executionParams, signature);
-    }
-
-    function testRevertWhenUpgradeWithWrongContract() public {
-        vm.expectRevert("ERC1967Upgrade: new implementation is not UUPS");
-        opportunityAdapter.upgradeTo(address(sellToken));
-    }
-
-    function testRevertWhenUpgradeWithWrongMagic() public {
-        InvalidMagicOpportunityAdapter invalidMagicOpportunityAdapter = new InvalidMagicOpportunityAdapter();
-        vm.prank(opportunityAdapter.owner());
-        vm.expectRevert(InvalidMagicValue.selector);
-        opportunityAdapter.upgradeTo(address(invalidMagicOpportunityAdapter));
-    }
-
-    function testSuccessfulUpgrade() public {
-        OpportunityAdapterUpgradable newOpportunityAdapter = new OpportunityAdapterUpgradable();
-        vm.prank(opportunityAdapter.owner());
-        opportunityAdapter.upgradeTo(address(newOpportunityAdapter));
+        adapterFactory.executeOpportunity(executionParams, signature);
     }
 }

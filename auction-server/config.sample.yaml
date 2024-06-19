@@ -4,7 +4,7 @@ chains:
     geth_ws_addr: ws://127.0.0.1:9545
     rpc_timeout: 5
     express_relay_contract: 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853
-    opportunity_adapter_contract: 0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e
+    adapter_factory_contract: 0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e
     permit2_contract: 0x000000000022D473030F116dDEE9F6B43aC78BA3
     legacy_tx: false
     poll_interval: 1

@@ -303,9 +303,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         assert(expressRelayHarness.exposed_isContract(address(expressRelay)));
         assert(expressRelayHarness.exposed_isContract(address(mockProtocol)));
         assert(expressRelayHarness.exposed_isContract(address(mockTarget)));
-        assert(
-            expressRelayHarness.exposed_isContract(address(opportunityAdapter))
-        );
+        assert(expressRelayHarness.exposed_isContract(address(adapterFactory)));
         assert(expressRelayHarness.exposed_isContract(address(tokenVault)));
         assert(expressRelayHarness.exposed_isContract(address(weth)));
         assert(expressRelayHarness.exposed_isContract(address(searcherA)));

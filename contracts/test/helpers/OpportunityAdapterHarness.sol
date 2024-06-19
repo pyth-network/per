@@ -5,16 +5,20 @@ import {OpportunityAdapter, TokenAmount, ExecutionWitness} from "src/opportunity
 import "permit2/interfaces/ISignatureTransfer.sol";
 
 contract OpportunityAdapterHarness is OpportunityAdapter {
-    constructor(address permit2) {
-        _initialize(msg.sender, address(0), address(0), permit2);
-    }
-
     function exposed_prepareSellTokens(
         ISignatureTransfer.PermitBatchTransferFrom calldata permit,
         ExecutionWitness calldata witness,
         bytes calldata signature
     ) public {
         _prepareSellTokens(permit, witness, signature);
+    }
+
+    function getOpportunityWitnessType() public view returns (string memory) {
+        return _OPPORTUNITY_WITNESS_TYPE;
+    }
+
+    function getTokenAmountType() public view returns (string memory) {
+        return _TOKEN_AMOUNT_TYPE;
     }
 
     function exposed_revokeAllowances(

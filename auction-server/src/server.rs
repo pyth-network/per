@@ -177,7 +177,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                     id,
                 );
                 let weth =
-                    get_weth_address(chain_config.opportunity_adapter_contract, provider.clone())
+                    get_weth_address(chain_config.adapter_factory_contract, provider.clone())
                         .await?;
                 let eip_712_domain = EIP712Domain {
                     name:               Some("Permit2".to_string()),

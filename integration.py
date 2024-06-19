@@ -15,7 +15,8 @@ field_mapping = {
     'weth': 'WETH',
     'relayerPrivateKey': 'RELAYER_PRIVATE_KEY',
     'searcherAOwnerSk': 'SEARCHER_SK',
-    'opportunityAdapter': 'OPPORTUNITY_ADAPTER',
+    'adapterFactory': 'ADAPTER_FACTORY',
+    'adapterBytecodeHash': 'ADAPTER_BYTECODE_HASH',
 }
 
 
@@ -33,7 +34,7 @@ chains:
     geth_ws_addr: {sys.argv[2]}
     rpc_timeout: 2
     express_relay_contract: {latest_env['expressRelay']}
-    opportunity_adapter_contract: {latest_env['opportunityAdapter']}
+    adapter_factory_contract: {latest_env['adapterFactory']}
     permit2_contract: {latest_env['permit2']}
     legacy_tx: false
     poll_interval: 1

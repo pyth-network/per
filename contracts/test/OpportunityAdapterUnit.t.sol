@@ -7,32 +7,46 @@ import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "src/express-relay/Errors.sol";
 import "src/opportunity-adapter/OpportunityAdapter.sol";
-import "src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
 import "./searcher-vault/Structs.sol";
 import "./MyToken.sol";
-import "./helpers/signatures/OpportunityAdapterSignature.sol";
 import "./helpers/OpportunityAdapterHarness.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 import "./PermitSignature.sol";
 
 contract OpportunityAdapterUnitTest is
     Test,
-    OpportunityAdapterSignature,
-    PermitSignature
+    PermitSignature,
+    IOpportunityAdapterFactory,
+    OpportunityAdapterHasher
 {
+    struct Parameters {
+        address expressRelay;
+        address weth;
+        address permit2;
+        address owner;
+    }
+
+    Parameters public override parameters;
+
     OpportunityAdapterHarness opportunityAdapter;
     MyToken myToken;
 
     function setUp() public {
         setUpPermit2();
-        opportunityAdapter = new OpportunityAdapterHarness(PERMIT2);
+        parameters = Parameters({
+            expressRelay: address(0),
+            weth: address(0),
+            permit2: PERMIT2,
+            owner: makeAddr("executor")
+        });
+        opportunityAdapter = new OpportunityAdapterHarness();
         myToken = new MyToken("SellToken", "ST");
     }
 
     function testTypeStrings() public {
         string memory opportunityWitnessType = opportunityAdapter
-            ._OPPORTUNITY_WITNESS_TYPE();
-        string memory tokenAmountType = opportunityAdapter._TOKEN_AMOUNT_TYPE();
+            .getOpportunityWitnessType();
+        string memory tokenAmountType = opportunityAdapter.getTokenAmountType();
         // make sure tokenAmountType is at the end of opportunityWitnessType
         for (uint i = 0; i < bytes(tokenAmountType).length; i++) {
             assertEq(
@@ -76,7 +90,7 @@ contract OpportunityAdapterUnitTest is
             permit,
             privateKey,
             FULL_WITNESS_BATCH_TYPEHASH,
-            opportunityAdapter.hash(witness),
+            hash(witness),
             address(opportunityAdapter),
             EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
         );

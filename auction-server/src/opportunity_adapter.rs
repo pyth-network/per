@@ -63,6 +63,7 @@ use {
             Signature,
             U256,
         },
+        utils::get_create2_address,
     },
     rand::Rng,
     serde::{
@@ -90,7 +91,9 @@ use {
 
 abigen!(
     OpportunityAdapter,
-    "../contracts/out/OpportunityAdapter.sol/OpportunityAdapter.json"
+    "../contracts/out/OpportunityAdapter.sol/OpportunityAdapter.json";
+    AdapterFactory,
+    "../contracts/out/OpportunityAdapterFactory.sol/OpportunityAdapterFactory.json"
 );
 abigen!(ERC20, "../contracts/out/ERC20.sol/ERC20.json");
 abigen!(WETH9, "../contracts/out/WETH9.sol/WETH9.json");
@@ -104,7 +107,7 @@ pub async fn get_weth_address(
     adapter_contract: Address,
     provider: Provider<TracedClient>,
 ) -> Result<Address> {
-    let adapter = OpportunityAdapter::new(adapter_contract, Arc::new(provider));
+    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
     adapter
         .get_weth()
         .call()
@@ -149,18 +152,16 @@ pub async fn verify_opportunity(
     let hashed_data = typed_data.encode_eip712()?;
     let signature = fake_wallet.sign_hash(hashed_data.into())?;
 
-    let adapter_calldata = OpportunityAdapter::new(
-        chain_store.config.opportunity_adapter_contract,
-        client.clone(),
-    )
-    .execute_opportunity(
-        params_with_signature.params.clone(),
-        signature.to_vec().into(),
-    )
-    .calldata()
-    .ok_or(anyhow!(
-        "Failed to generate calldata for opportunity adapter"
-    ))?;
+    let adapter_calldata =
+        AdapterFactory::new(chain_store.config.adapter_factory_contract, client.clone())
+            .execute_opportunity(
+                params_with_signature.params.clone(),
+                signature.to_vec().into(),
+            )
+            .calldata()
+            .ok_or(anyhow!(
+                "Failed to generate calldata for opportunity adapter"
+            ))?;
 
     let call = get_simulation_call(
         relayer,
@@ -169,7 +170,7 @@ pub async fn verify_opportunity(
         opportunity.permission_key,
         vec![MulticallData::from((
             Uuid::new_v4().to_bytes_le(),
-            chain_store.config.opportunity_adapter_contract,
+            chain_store.config.adapter_factory_contract,
             adapter_calldata,
             fake_bid.amount,
         ))],
@@ -399,6 +400,13 @@ pub fn make_opportunity_execution_params(
     bid: OpportunityBid,
     chain_store: &ChainStore,
 ) -> ExecutionParamsWithSignature {
+    let mut salt = [0u8; 32];
+    salt[12..32].copy_from_slice(bid.executor.as_bytes());
+    let executor_adapter_address = get_create2_address(
+        chain_store.config.adapter_factory_contract,
+        salt,
+        &OPPORTUNITYADAPTER_BYTECODE,
+    );
     ExecutionParamsWithSignature {
         params:         ExecutionParams {
             permit:  PermitBatchTransferFrom {
@@ -421,7 +429,7 @@ pub fn make_opportunity_execution_params(
         },
         signature:      bid.signature.to_vec().into(),
         eip_712_domain: chain_store.eip_712_domain.clone(),
-        spender:        chain_store.config.opportunity_adapter_contract,
+        spender:        executor_adapter_address,
     }
 }
 
@@ -430,7 +438,7 @@ pub async fn make_adapter_calldata(
     bid: OpportunityBid,
     chain_store: &ChainStore,
 ) -> Result<Bytes> {
-    let adapter_contract = chain_store.config.opportunity_adapter_contract;
+    let adapter_contract = chain_store.config.adapter_factory_contract;
     let execution_params = make_opportunity_execution_params(opportunity.clone(), bid, chain_store);
     // TODO do we really need it here?
     verify_signature(execution_params.clone())?;
@@ -590,7 +598,7 @@ pub async fn handle_opportunity_bid(
         Bid {
             permission_key:  params.permission_key.clone(),
             chain_id:        params.chain_id.clone(),
-            target_contract: chain_store.config.opportunity_adapter_contract,
+            target_contract: chain_store.config.adapter_factory_contract,
             target_calldata: adapter_calldata,
             amount:          opportunity_bid.amount,
         },
