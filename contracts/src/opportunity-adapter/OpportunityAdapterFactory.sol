@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "./OpportunityAdapter.sol";
 import "./Structs.sol";
 import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import "openzeppelin-contracts/contracts/utils/Create2.sol";
 import {IOpportunityAdapterFactory} from "./IOpportunityAdapterFactory.sol";
 
 contract OpportunityAdapterFactory is
@@ -46,9 +47,13 @@ contract OpportunityAdapterFactory is
             permit2: _permit2,
             owner: owner
         });
-        OpportunityAdapter adapter = new OpportunityAdapter{salt: salt}();
+        address adapter = Create2.deploy(
+            0,
+            salt,
+            type(OpportunityAdapter).creationCode
+        );
         delete parameters;
-        return address(adapter);
+        return adapter;
     }
 
     function isContract(address addr) internal view returns (bool) {
@@ -60,12 +65,8 @@ contract OpportunityAdapterFactory is
     }
 
     function computeAddress(address owner) public view returns (address) {
-        uint8 prefix = 0xff;
         bytes32 salt = bytes32(uint256(uint160(owner)));
-        bytes32 hash = keccak256(
-            abi.encodePacked(prefix, address(this), salt, _codeHash)
-        );
-        return address(uint160(uint256(hash)));
+        return Create2.computeAddress(salt, _codeHash);
     }
 
     /**
