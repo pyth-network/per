@@ -20,7 +20,7 @@ field_mapping = {
 
 
 def main():
-    latest_env = json.load(open('per_multicall/latestEnvironment.json'))
+    latest_env = json.load(open('contracts/latestEnvironment.json'))
     with open('tilt-resources.env', 'w') as f:
         for k, v in field_mapping.items():
             f.write(f'export {v}={latest_env[k]}\n')

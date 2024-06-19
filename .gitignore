@@ -14,7 +14,7 @@ api_keys.py
 
 # env files
 *.env
-per_multicall/latestEnvironment.json
+contracts/latestEnvironment.json
 
 # Ignores development broadcast logs
 !/broadcast
