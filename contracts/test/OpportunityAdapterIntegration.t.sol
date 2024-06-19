@@ -11,7 +11,6 @@ import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdap
 import "./WETH9.sol";
 import "./MyToken.sol";
 import "./searcher-vault/Structs.sol";
-import "./helpers/signatures/OpportunityAdapterSignature.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 import {PermitSignature, EIP712Domain} from "./PermitSignature.sol";
 
@@ -44,7 +43,6 @@ contract MockTarget {
 
 contract OpportunityAdapterIntegrationTest is
     Test,
-    OpportunityAdapterSignature,
     PermitSignature,
     OpportunityAdapterHasher
 {
