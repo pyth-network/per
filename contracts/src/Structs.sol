@@ -8,12 +8,13 @@ struct TokenAmount {
     uint256 amount;
 }
 
-struct DummyExchangeExecutionWitness {
+struct OpportunityProviderExecutionWitness {
     TokenAmount[] buyTokens;
     address owner;
+    bytes permissionKey;
 }
 
-struct DummyExchangeExecutionParams {
+struct OpportunityProviderExecutionParams {
     ISignatureTransfer.PermitBatchTransferFrom permit;
-    DummyExchangeExecutionWitness witness;
+    OpportunityProviderExecutionWitness witness;
 }
