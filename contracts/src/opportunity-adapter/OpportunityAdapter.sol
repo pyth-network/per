@@ -16,10 +16,10 @@ import {OpportunityAdapterHasher} from "./OpportunityAdapterHasher.sol";
 contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     using SafeERC20 for IERC20;
 
-    address _owner;
-    address _expressRelay;
-    address _weth;
-    address _permit2;
+    address immutable _owner;
+    address immutable _expressRelay;
+    address immutable _weth;
+    address immutable _permit2;
 
     string public constant WITNESS_TYPE_STRING =
         "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
