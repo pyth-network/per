@@ -107,8 +107,8 @@ pub struct EthereumConfig {
     /// Address of the express relay contract to interact with.
     pub express_relay_contract: Address,
 
-    /// Address of the opportunity adapter contract to interact with.
-    pub opportunity_adapter_contract: Address,
+    /// Address of the opportunity adapter factory contract to interact with.
+    pub adapter_factory_contract: Address,
 
     /// Address of the permit2 contract to interact with.
     pub permit2_contract: Address,

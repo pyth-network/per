@@ -6,6 +6,7 @@ import urllib.parse
 from typing import TypedDict
 
 import httpx
+import web3
 from eth_account import Account
 
 from per_sdk.searcher.searcher_utils import BidInfo, construct_signature_executor
@@ -99,6 +100,17 @@ def create_liquidation_transaction(
     return opportunity_bid
 
 
+def calculate_opportunity_adapter_address(
+    executor: str, adapter_factory_address: str, adapter_bytecode: str
+) -> str:
+    pre = b"\xff"
+    address = bytes.fromhex(adapter_factory_address.replace("0x", ""))
+    salt = bytes(12) + bytes.fromhex(executor.replace("0x", ""))
+    init_code_hash = web3.Web3.keccak(bytes.fromhex(adapter_bytecode.replace("0x", "")))
+    result = web3.Web3.keccak(pre + address + salt + init_code_hash)
+    return "0x" + result.hex()[-40:]
+
+
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action="count", default=0)
@@ -127,10 +139,16 @@ async def main():
         help="Liquidation server endpoint to use for fetching opportunities and submitting bids",
     )
     parser.add_argument(
-        "--opportunity-adapter-address",
+        "--adapter-factory-address",
         type=str,
         required=True,
-        help="Address of the opportunity adapter contract to use for liquidation opportunities",
+        help="Address of the opportunity adapter factory contract to use for liquidation opportunities",
+    )
+    parser.add_argument(
+        "--adapter-bytecode",
+        type=str,
+        required=True,
+        help="Bytecode of opportunity adapter used in the factory contract. This is used for calculating the derived address",
     )
     parser.add_argument(
         "--weth-address",
@@ -153,6 +171,12 @@ async def main():
     liquidator = Account.from_key(sk_liquidator).address
     logger.info("Liquidator address: %s", liquidator)
     client = httpx.AsyncClient()
+
+    executor = Account.from_key(sk_liquidator).address
+    opportunity_adapter_address = calculate_opportunity_adapter_address(
+        executor, args.adapter_factory_address, args.adapter_bytecode
+    )
+
     while True:
         try:
             accounts_liquidatable = (
@@ -186,7 +210,7 @@ async def main():
                     liquidation_opp,
                     sk_liquidator,
                     bid_info,
-                    args.opportunity_adapter_address,
+                    opportunity_adapter_address,
                     args.weth_address,
                 )
 

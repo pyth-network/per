@@ -112,7 +112,8 @@ searcher_command = (
     + "--chain-id development "
     + "--verbose "
     + "--liquidation-server-url http://localhost:9000 "
-    + "--opportunity-adapter-address $OPPORTUNITY_ADAPTER "
+    + "--adapter-factory-address $ADAPTER_FACTORY "
+    + "--adapter-bytecode $ADAPTER_BYTECODE "
     + "--weth-address $WETH"
 )
 local_resource(

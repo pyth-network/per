@@ -29,7 +29,7 @@ contract PermitSignature is Test {
         uint256 privateKey,
         bytes32 typeHash,
         bytes32 witness,
-        address adapter,
+        address spender,
         bytes32 domainSeparator
     ) internal returns (bytes memory sig) {
         bytes32[] memory tokenPermissions = new bytes32[](
@@ -49,7 +49,7 @@ contract PermitSignature is Test {
                     abi.encode(
                         typeHash,
                         keccak256(abi.encodePacked(tokenPermissions)),
-                        adapter,
+                        spender,
                         permit.nonce,
                         permit.deadline,
                         witness

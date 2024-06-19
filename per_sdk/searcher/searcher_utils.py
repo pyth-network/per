@@ -1,12 +1,9 @@
 from typing import TypedDict
 
-import web3
 from eth_account import Account
 from eth_account.datastructures import SignedMessage
 
 from per_sdk.utils.types_liquidation_adapter import EIP712Domain
-
-solidity_keccak = web3.Web3.solidity_keccak
 
 
 class BidInfo(TypedDict):

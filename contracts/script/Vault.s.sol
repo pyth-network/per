@@ -6,16 +6,16 @@ import "forge-std/StdJson.sol";
 import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
 
-import {TokenVault} from "../test/token-vault/TokenVault.sol";
-import {SearcherVault} from "../test/searcher-vault/SearcherVault.sol";
-import {OpportunityAdapter} from "../src/opportunity-adapter/OpportunityAdapter.sol";
-import {OpportunityAdapterUpgradable} from "../src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
-import {ExpressRelay} from "../src/express-relay/ExpressRelay.sol";
-import {ExpressRelayUpgradable} from "../src/express-relay/ExpressRelayUpgradable.sol";
-import "../src/express-relay/Errors.sol";
-import {MyToken} from "../test/MyToken.sol";
-import {WETH9} from "../test/WETH9.sol";
-import "../test/searcher-vault/Structs.sol";
+import {TokenVault} from "test/token-vault/TokenVault.sol";
+import {SearcherVault} from "test/searcher-vault/SearcherVault.sol";
+import {OpportunityAdapter} from "src/opportunity-adapter/OpportunityAdapter.sol";
+import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdapterFactory.sol";
+import {ExpressRelay} from "src/express-relay/ExpressRelay.sol";
+import {ExpressRelayUpgradable} from "src/express-relay/ExpressRelayUpgradable.sol";
+import "src/express-relay/Errors.sol";
+import {MyToken} from "test/MyToken.sol";
+import {WETH9} from "test/WETH9.sol";
+import "test/searcher-vault/Structs.sol";
 import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -44,52 +44,22 @@ contract VaultScript is Script {
         return address(weth);
     }
 
-    function deployOpportunityAdapter(
-        address owner,
-        address admin,
+    function deployAdapterFactory(
         address expressRelay,
         address wethAddress,
         address permit2
     ) public returns (address) {
         (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
-        OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
-        // deploy proxy contract and point it to implementation
-        ERC1967Proxy proxy = new ERC1967Proxy(address(_opportunityAdapter), "");
-        // wrap in ABI to support easier calls
-        OpportunityAdapterUpgradable opportunityAdapter = OpportunityAdapterUpgradable(
-                payable(proxy)
-            );
-        opportunityAdapter.initialize(
-            owner,
-            admin,
-            expressRelay,
-            wethAddress,
-            permit2
-        );
-        vm.stopBroadcast();
-        console.log(
-            "deployed OpportunityAdapterUpgradable implementation contract at",
-            address(_opportunityAdapter)
-        );
-        console.log(
-            "OpportunityAdapterUpgradeable proxy at",
-            address(opportunityAdapter)
-        );
-        return address(opportunityAdapter);
-    }
 
-    function upgradeOpportunityAdapter(address proxyAddress) public {
-        (, uint256 skDeployer) = getDeployer();
-        vm.startBroadcast(skDeployer);
-        OpportunityAdapterUpgradable _newImplementation = new OpportunityAdapterUpgradable();
-        // Proxy object is technically an OpportunityAdapterUpgradable because it points to an implementation
-        // of such contract. Therefore we can call the upgradeTo function on it.
-        OpportunityAdapterUpgradable proxy = OpportunityAdapterUpgradable(
-            payable(proxyAddress)
-        );
-        proxy.upgradeTo(address(_newImplementation));
+        OpportunityAdapterFactory adapterFactory = new OpportunityAdapterFactory(
+                expressRelay,
+                wethAddress,
+                permit2
+            );
         vm.stopBroadcast();
+        console.log("AdapterFactory at", address(adapterFactory));
+        return address(adapterFactory);
     }
 
     function deployExpressRelay(
@@ -200,23 +170,15 @@ contract VaultScript is Script {
         );
         address permit2 = deployPermit2();
 
-        address opportunityAdapter = deployOpportunityAdapter(
-            deployer,
-            deployer,
+        address adapterFactory = deployAdapterFactory(
             expressRelay,
             weth,
             permit2
         );
+
         address mockPyth = deployMockPyth();
         address vault = deployVault(expressRelay, mockPyth, false);
-        return (
-            expressRelay,
-            opportunityAdapter,
-            mockPyth,
-            permit2,
-            vault,
-            weth
-        );
+        return (expressRelay, adapterFactory, mockPyth, permit2, vault, weth);
     }
 
     /**
@@ -248,9 +210,7 @@ contract VaultScript is Script {
         );
         address permit2 = deployPermit2();
 
-        address opportunityAdapter = deployOpportunityAdapter(
-            deployer,
-            deployer,
+        address adapterFactory = deployAdapterFactory(
             expressRelay,
             weth,
             permit2
@@ -303,7 +263,7 @@ contract VaultScript is Script {
         string memory obj = "";
         vm.serializeAddress(obj, "tokens", tokens);
         vm.serializeAddress(obj, "per", expressRelay);
-        vm.serializeAddress(obj, "opportunityAdapter", opportunityAdapter);
+        vm.serializeAddress(obj, "adapterFactor", adapterFactory);
         vm.serializeAddress(obj, "oracle", pyth);
         vm.serializeAddress(obj, "tokenVault", vault);
         string memory finalJSON = vm.serializeAddress(obj, "weth", weth);
@@ -354,27 +314,27 @@ contract VaultScript is Script {
         // transfer ETH to relevant wallets
         vm.startBroadcast(skDeployer);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[3]).transfer(1000 ether);
+        payable(addressesScript[3]).transfer(100 ether);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[0]).transfer(1000 ether);
+        payable(addressesScript[0]).transfer(100 ether);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[1]).transfer(1000 ether);
+        payable(addressesScript[1]).transfer(100 ether);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[2]).transfer(1000 ether);
+        payable(addressesScript[2]).transfer(100 ether);
         console.log("balance of deployer", pkDeployer.balance);
-        payable(addressesScript[4]).transfer(1000 ether);
+        payable(addressesScript[4]).transfer(100 ether);
         vm.stopBroadcast();
 
         // deploy weth, multicall, opportunityAdapter, oracle, tokenVault
         address expressRelay;
-        address opportunityAdapter;
+        address adapterFactory;
         address oracleAddress;
         address permit2Address;
         address tokenVaultAddress;
         address wethAddress;
         (
             expressRelay,
-            opportunityAdapter,
+            adapterFactory,
             oracleAddress,
             permit2Address,
             tokenVaultAddress,
@@ -459,20 +419,14 @@ contract VaultScript is Script {
         IERC20(address(token1)).approve(permit2Address, 199_999_999);
         IERC20(address(token2)).approve(permit2Address, 199_999_999);
         // deposit ETH to get WETH
-        WETH9(payable(wethAddress)).deposit{value: 101 ether}();
-        WETH9(payable(wethAddress)).approve(
-            permit2Address,
-            100_000_000_000_000_000_000
-        );
+        WETH9(payable(wethAddress)).deposit{value: 90 ether}();
+        WETH9(payable(wethAddress)).approve(permit2Address, 90 ether);
         vm.stopBroadcast();
         vm.startBroadcast(sksScript[1]);
         IERC20(address(token1)).approve(permit2Address, 199_999_999);
         IERC20(address(token2)).approve(permit2Address, 199_999_999);
-        WETH9(payable(wethAddress)).deposit{value: 101 ether}();
-        WETH9(payable(wethAddress)).approve(
-            permit2Address,
-            100_000_000_000_000_000_000
-        );
+        WETH9(payable(wethAddress)).deposit{value: 90 ether}();
+        WETH9(payable(wethAddress)).approve(permit2Address, 90 ether);
         vm.stopBroadcast();
 
         string memory obj = "latestEnvironment";
@@ -480,7 +434,12 @@ contract VaultScript is Script {
         vm.serializeAddress(obj, "searcherA", address(searcherA));
         vm.serializeAddress(obj, "searcherB", address(searcherB));
         vm.serializeAddress(obj, "expressRelay", expressRelay);
-        vm.serializeAddress(obj, "opportunityAdapter", opportunityAdapter);
+        vm.serializeAddress(obj, "adapterFactory", adapterFactory);
+        vm.serializeBytes(
+            obj,
+            "adapterBytecode",
+            type(OpportunityAdapter).creationCode
+        );
         vm.serializeAddress(obj, "oracle", oracleAddress);
         vm.serializeAddress(obj, "permit2", permit2Address);
 
@@ -686,15 +645,6 @@ contract VaultScript is Script {
             IERC20(token1Latest).allowance(from, spender),
             IERC20(token2Latest).allowance(from, spender)
         );
-    }
-
-    function tryOpportunityAdapterContract() public view returns (address) {
-        string memory json = vm.readFile(latestEnvironmentPath);
-        address opportunityAdapter = vm.parseJsonAddress(
-            json,
-            ".opportunityAdapter"
-        );
-        return OpportunityAdapter(payable(opportunityAdapter)).getWeth();
     }
 
     function createLiquidatableVault() public {

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import "../CommonErrors.sol";
+// Signature: 0xd5668c88
+error NotCalledByExpressRelay();
+
+// Signature: 0x446f3eeb
+error AdapterOwnerMismatch();
 
 // Signature: 0x4af147aa
 error InsufficientTokenReceived();
@@ -20,3 +24,6 @@ error DuplicateToken();
 
 // Signature: 0x1979776d
 error EthOrWethBalanceDecreased();
+
+// Signature: 0x9c86e59e
+error TargetContractNotAllowed();

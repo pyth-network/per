@@ -6,12 +6,13 @@ import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "./SigVerify.sol";
 import "./Structs.sol";
 import "../token-vault/TokenVault.sol";
-import "src/CommonErrors.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
 import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+
+error Unauthorized();
 
 contract SearcherVault is SigVerify, ReentrancyGuard {
     event ReceivedETH(address, uint);

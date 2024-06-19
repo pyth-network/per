@@ -533,7 +533,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         uint256 bidAmount0 = 150;
-        contracts[0] = address(opportunityAdapter);
+        contracts[0] = address(adapterFactory);
         bidInfos[0] = makeBidInfo(bidAmount0, searcherAOwnerSk);
 
         (
@@ -611,7 +611,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         uint256 bidAmount0 = 150;
-        contracts[0] = address(opportunityAdapter);
+        contracts[0] = address(adapterFactory);
         bidInfos[0] = makeBidInfo(bidAmount0, searcherBOwnerSk);
         bidInfos[0].executor = searcherAOwnerAddress; // use wrong liquidator address to induce invalid signature
 
@@ -676,7 +676,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         BidInfo[] memory bidInfos = new BidInfo[](1);
 
         uint256 bidAmount0 = 150;
-        contracts[0] = address(opportunityAdapter);
+        contracts[0] = address(adapterFactory);
         bidInfos[0] = makeBidInfo(bidAmount0, searcherAOwnerSk);
         bidInfos[0].validUntil = block.timestamp - 1; // use old timestamp for the validUntil field to create expired signature
 
@@ -747,11 +747,11 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         BidInfo[] memory bidInfos = new BidInfo[](2);
 
         uint256 bidAmount0 = 150;
-        contracts[0] = address(opportunityAdapter);
+        contracts[0] = address(adapterFactory);
         bidInfos[0] = makeBidInfo(bidAmount0, searcherAOwnerSk);
 
         uint256 bidAmount1 = 100;
-        contracts[1] = address(opportunityAdapter);
+        contracts[1] = address(adapterFactory);
         bidInfos[1] = makeBidInfo(bidAmount1, searcherBOwnerSk);
 
         (

@@ -14,8 +14,7 @@ import "src/express-relay/Errors.sol";
 import "src/express-relay/ExpressRelayUpgradable.sol";
 import "src/express-relay/Events.sol";
 import "src/express-relay/GovernanceEvents.sol";
-import "src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
-import {OpportunityAdapter} from "src/opportunity-adapter/OpportunityAdapter.sol";
+import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdapterFactory.sol";
 
 import "./token-vault/Errors.sol";
 import {TokenVault} from "./token-vault/TokenVault.sol";
@@ -49,14 +48,15 @@ contract ExpressRelayTestSetup is
     MulticallHelpers,
     ExpressRelayEvents,
     GovernanceEvents,
-    PermitSignature
+    PermitSignature,
+    OpportunityAdapterHasher
 {
     TokenVault public tokenVault;
     SearcherVault public searcherA;
     SearcherVault public searcherB;
     ExpressRelayUpgradable public expressRelay;
     WETH9 public weth;
-    OpportunityAdapterUpgradable public opportunityAdapter;
+    OpportunityAdapterFactory public adapterFactory;
     MockPyth public mockPyth;
 
     ExpressRelayHarness public expressRelayHarness;
@@ -163,20 +163,7 @@ contract ExpressRelayTestSetup is
         vm.prank(relayer);
         weth = new WETH9();
 
-        vm.prank(relayer);
-        OpportunityAdapterUpgradable _opportunityAdapter = new OpportunityAdapterUpgradable();
-        // deploy proxy contract and point it to implementation
-        ERC1967Proxy proxyOpportunityAdapter = new ERC1967Proxy(
-            address(_opportunityAdapter),
-            ""
-        );
-        opportunityAdapter = OpportunityAdapterUpgradable(
-            payable(proxyOpportunityAdapter)
-        );
-        opportunityAdapter.initialize(
-            // TODO: fix the owner and admin here
-            relayer,
-            relayer,
+        adapterFactory = new OpportunityAdapterFactory(
             address(expressRelay),
             address(weth),
             PermitSignature.PERMIT2
@@ -615,12 +602,12 @@ contract ExpressRelayTestSetup is
                 permit,
                 bidInfos[i].executorSk,
                 FULL_WITNESS_BATCH_TYPEHASH,
-                opportunityAdapter.hash(witness),
-                address(opportunityAdapter),
+                hash(witness),
+                adapterFactory.computeAddress(bidInfos[i].executor),
                 EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
             );
             data[i] = abi.encodeWithSelector(
-                opportunityAdapter.executeOpportunity.selector,
+                adapterFactory.executeOpportunity.selector,
                 executionParams,
                 signature
             );

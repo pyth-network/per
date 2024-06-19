@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "./Signature.sol";
-import "src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
+import "src/opportunity-adapter/OpportunityAdapter.sol";
 
 contract OpportunityAdapterSignature is Signature {
     string constant _NAME = "OpportunityAdapter";
@@ -13,11 +13,11 @@ contract OpportunityAdapterSignature is Signature {
     }
 
     function createOpportunityAdapterSignature(
-        OpportunityAdapterUpgradable opportunityAdapter,
+        OpportunityAdapter opportunityAdapter,
         ExecutionParams memory executionParams,
         uint256 executorSk
     ) public view returns (bytes memory) {
-        bytes32 hashedData = opportunityAdapter.hash(executionParams.witness);
+        bytes32 hashedData = 0;
         bytes32 domainSeparator = _domainSeparatorV4(
             address(opportunityAdapter),
             _NAME,

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import "../CommonErrors.sol";
+error Unauthorized();
+// The new contract does not have the same magic value as the old one.
+// Signature: 0x4ed848c1
+error InvalidMagicValue();
 
 // Signature: 0x868a64de
 error InvalidPermission();

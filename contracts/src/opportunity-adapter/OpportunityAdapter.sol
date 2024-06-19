@@ -10,52 +10,28 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
+import "./IOpportunityAdapterFactory.sol";
+import {OpportunityAdapterHasher} from "./OpportunityAdapterHasher.sol";
 
-abstract contract OpportunityAdapter is ReentrancyGuard {
+contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     using SafeERC20 for IERC20;
 
-    address _admin;
+    address _owner;
     address _expressRelay;
     address _weth;
-    ISignatureTransfer _permit2;
-
-    string public constant _OPPORTUNITY_WITNESS_TYPE =
-        "OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
-    string public constant _TOKEN_AMOUNT_TYPE =
-        "TokenAmount(address token,uint256 amount)";
+    address _permit2;
 
     string public constant WITNESS_TYPE_STRING =
         "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
 
     /**
-     * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract with given parameters
+     * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract
      *
-     * @param admin: address of admin of opportunity adapter
-     * @param expressRelay: address of express relay
-     * @param weth: address of WETH contract
      */
-    function _initialize(
-        address admin,
-        address expressRelay,
-        address weth,
-        address permit2
-    ) internal {
-        _admin = admin;
-        _expressRelay = expressRelay;
-        _weth = weth;
-        _permit2 = ISignatureTransfer(permit2);
-    }
-
-    /**
-     * @notice setExpressRelay function - sets the address of the express relay authenticated for calling this contract
-     *
-     * @param expressRelay: address of express relay contract
-     */
-    function setExpressRelay(address expressRelay) public {
-        if (msg.sender != _admin) {
-            revert Unauthorized();
-        }
-        _expressRelay = expressRelay;
+    constructor() {
+        (_expressRelay, _weth, _permit2, _owner) = IOpportunityAdapterFactory(
+            msg.sender
+        ).parameters();
     }
 
     /**
@@ -76,49 +52,12 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
         return IWETH9(payable(_weth));
     }
 
-    function hash(
-        TokenAmount memory tokenAmount
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256(bytes(_TOKEN_AMOUNT_TYPE)),
-                    tokenAmount.token,
-                    tokenAmount.amount
-                )
-            );
-    }
-
-    function hash(
-        TokenAmount[] memory tokenAmounts
-    ) internal pure returns (bytes32) {
-        bytes32[] memory hashedTokens = new bytes32[](tokenAmounts.length);
-        for (uint i = 0; i < tokenAmounts.length; i++) {
-            hashedTokens[i] = hash(tokenAmounts[i]);
-        }
-        return keccak256(abi.encodePacked(hashedTokens));
-    }
-
-    function hash(
-        ExecutionWitness memory params
-    ) public pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256(bytes(_OPPORTUNITY_WITNESS_TYPE)),
-                    hash(params.buyTokens),
-                    params.executor,
-                    params.targetContract,
-                    keccak256(params.targetCalldata),
-                    params.targetCallValue,
-                    params.bidAmount
-                )
-            );
-    }
-
     function _verifyParams(ExecutionParams calldata params) internal view {
-        if (msg.sender != _expressRelay) {
-            revert Unauthorized();
+        if (params.witness.executor != _owner) {
+            revert AdapterOwnerMismatch();
+        }
+        if (params.witness.targetContract == _permit2) {
+            revert TargetContractNotAllowed();
         }
         _checkDuplicateTokens(params.permit.permitted);
         _checkDuplicateTokens(params.witness.buyTokens);
@@ -166,7 +105,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
             });
             token.forceApprove(witness.targetContract, amount);
         }
-        _permit2.permitWitnessTransferFrom(
+        ISignatureTransfer(_permit2).permitWitnessTransferFrom(
             permit,
             transferDetails,
             witness.executor,
@@ -291,6 +230,10 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
         ) {
             revert EthOrWethBalanceDecreased();
         }
+    }
+
+    function version() public pure returns (string memory) {
+        return "0.1.0";
     }
 
     // necessary to receive ETH from WETH contract using withdraw
