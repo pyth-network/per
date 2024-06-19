@@ -34,7 +34,7 @@ local_resource(
     + forge_base_command
     + " --sig 'setUpLocalnet()' --broadcast; "
     + "cast rp --rpc-url http://localhost:9545 evm_setIntervalMining %s" % block_time,
-    dir="per_multicall",
+    dir="contracts",
     env={"PRIVATE_KEY": private_key},
     resource_deps=["anvil"],
 )
@@ -44,7 +44,7 @@ cmd_button(
     argv=[
         "sh",
         "-c",
-        "cd per_multicall; "
+        "cd contracts; "
         + forge_base_command
         + " --sig 'getVault(uint256)' $VAULT --broadcast",
     ],
@@ -63,7 +63,7 @@ cmd_button(
     argv=[
         "sh",
         "-c",
-        "cd per_multicall; "
+        "cd contracts; "
         + forge_base_command
         + " --sig 'createLiquidatableVault()' --broadcast",
     ],

@@ -3,8 +3,8 @@ ARG RUST_VERSION=1.66.1
 # Get the solidity dependencies using npm
 FROM node:21-alpine3.18 AS npm_build
 WORKDIR /src
-COPY per_multicall per_multicall
-WORKDIR /src/per_multicall
+COPY contracts contracts
+WORKDIR /src/contracts
 RUN npm install
 
 
@@ -19,9 +19,9 @@ RUN foundryup
 
 # Add solidity dependencies
 WORKDIR /src
-COPY per_multicall per_multicall
-COPY --from=npm_build /src/per_multicall/node_modules/ /src/per_multicall/node_modules/
-WORKDIR /src/per_multicall
+COPY contracts contracts
+COPY --from=npm_build /src/contracts/node_modules/ /src/contracts/node_modules/
+WORKDIR /src/contracts
 RUN forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit
 RUN forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commit
 RUN forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit

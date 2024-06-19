@@ -95,7 +95,7 @@ use {
 
 abigen!(
     ExpressRelay,
-    "../per_multicall/out/ExpressRelay.sol/ExpressRelay.json"
+    "../contracts/out/ExpressRelay.sol/ExpressRelay.json"
 );
 pub type ExpressRelayContract = ExpressRelay<Provider<TracedClient>>;
 pub type SignableProvider = TransformerMiddleware<

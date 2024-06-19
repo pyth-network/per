@@ -50,12 +50,12 @@ use {
 
 abigen!(
     TokenVault,
-    "../per_multicall/out/TokenVault.sol/TokenVault.json"
+    "../contracts/out/TokenVault.sol/TokenVault.json"
 );
 
-abigen!(ERC20, "../per_multicall/out/MyToken.sol/MyToken.json");
-abigen!(WETH9, "../per_multicall/out/WETH9.sol/WETH9.json");
-abigen!(IPyth, "../per_multicall/out/IPyth.sol/IPyth.json");
+abigen!(ERC20, "../contracts/out/MyToken.sol/MyToken.json");
+abigen!(WETH9, "../contracts/out/WETH9.sol/WETH9.json");
+abigen!(IPyth, "../contracts/out/IPyth.sol/IPyth.json");
 
 type SimulatorProvider = GasOracleMiddleware<
     SignerMiddleware<Provider<Http>, LocalWallet>,

@@ -5,8 +5,8 @@ ARG POETRY_VERSION=1.6.1
 FROM node:21-alpine3.18 AS npm_build
 
 WORKDIR /src
-COPY per_multicall per_multicall
-WORKDIR /src/per_multicall
+COPY contracts contracts
+WORKDIR /src/contracts
 RUN npm install
 
 
@@ -21,9 +21,9 @@ RUN foundryup
 
 # Add solidity dependencies
 WORKDIR /src
-COPY per_multicall per_multicall
-COPY --from=npm_build /src/per_multicall/node_modules/ /src/per_multicall/node_modules/
-WORKDIR /src/per_multicall
+COPY contracts contracts
+COPY --from=npm_build /src/contracts/node_modules/ /src/contracts/node_modules/
+WORKDIR /src/contracts
 RUN forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit
 RUN forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commit
 RUN forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
@@ -56,7 +56,7 @@ ENV PATH="$POETRY_HOME/bin:$PATH"
 # Copy only requirements to cache them in docker layer
 WORKDIR /src
 COPY per_sdk/poetry.lock per_sdk/pyproject.toml /src/per_sdk/
-COPY --from=contract_build /src/per_multicall/out/ /src/per_multicall/out/
+COPY --from=contract_build /src/contracts/out/ /src/contracts/out/
 
 # Project initialization:
 RUN poetry -C per_sdk install  --no-interaction --no-ansi

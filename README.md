@@ -2,7 +2,7 @@
 
 ## [Off-chain server](auction-server/README.md)
 
-## [Contracts](per_multicall/README.md)
+## [Contracts](contracts/README.md)
 
 ### pre-commit hooks
 
