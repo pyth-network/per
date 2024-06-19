@@ -5,40 +5,70 @@ import {Test} from "forge-std/Test.sol";
 import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20Errors} from "openzeppelin-contracts/contracts/interfaces/draft-IERC6093.sol";
 
-import "../src/Errors.sol";
-import "../src/Structs.sol";
-import "../src/OpportunityProvider.sol";
-import "../src/MyToken.sol";
+import "src/express-relay/ExpressRelayUpgradable.sol";
+import "./opportunity-provider/Errors.sol";
+import "./opportunity-provider/Structs.sol";
+import "./opportunity-provider/OpportunityProvider.sol";
+import "./MyToken.sol";
 import "./helpers/OpportunityProviderHarness.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 import "./PermitSignature.sol";
 
-contract DummyExchangeUnitTest is Test, PermitSignature {
+contract OpportunityProviderUnitTest is Test, PermitSignature {
     OpportunityProviderHarness opportunityProvider;
+    ExpressRelayUpgradable expressRelay;
     MyToken sellToken;
     MyToken buyToken;
 
+    uint256 constant feeSplitProtocolDefault = 50 * 10 ** 16;
+    uint256 constant feeSplitRelayer = 10 ** 17;
+    address admin;
+    uint256 adminPrivateKey;
+    address relayer;
+
+    function setUpExpressRelay() internal {
+        (relayer, ) = makeAddrAndKey("relayer");
+        (admin, adminPrivateKey) = makeAddrAndKey("admin");
+        vm.prank(relayer);
+        ExpressRelayUpgradable _expressRelay = new ExpressRelayUpgradable();
+        // deploy proxy contract and point it to implementation
+        ERC1967Proxy proxyExpressRelay = new ERC1967Proxy(
+            address(_expressRelay),
+            ""
+        );
+        expressRelay = ExpressRelayUpgradable(payable(proxyExpressRelay));
+        expressRelay.initialize(
+            relayer,
+            address(this),
+            relayer,
+            feeSplitProtocolDefault,
+            feeSplitRelayer
+        );
+    }
+
     function setUp() public {
+        setUpExpressRelay();
         setUpPermit2();
         opportunityProvider = new OpportunityProviderHarness(
-            address(this),
-            address(this),
+            admin,
+            address(expressRelay),
             PERMIT2
         );
         sellToken = new MyToken("SellToken", "ST");
         buyToken = new MyToken("BuyToken", "BT");
     }
 
-    function testTypeStrings() public {
-        string memory dummyExchangeWitnessType = dummyExchange
-            ._DUMMY_EXCHANGE_WITNESS_TYPE();
-        string memory tokenAmountType = dummyExchange._TOKEN_AMOUNT_TYPE();
-        // make sure tokenAmountType is at the end of dummyExchangeWitnessType
+    function testTypeStrings() public view {
+        string memory witnessType = opportunityProvider
+            ._OPPORTUNITY_PROVIDER_WITNESS_TYPE();
+        string memory tokenAmountType = opportunityProvider
+            ._TOKEN_AMOUNT_TYPE();
+        // make sure tokenAmountType is at the end of opportunityProviderWitnessType
         for (uint i = 0; i < bytes(tokenAmountType).length; i++) {
             assertEq(
-                bytes(dummyExchangeWitnessType)[
+                bytes(witnessType)[
                     i +
-                        bytes(dummyExchangeWitnessType).length -
+                        bytes(witnessType).length -
                         bytes(tokenAmountType).length
                 ],
                 bytes(tokenAmountType)[i]
@@ -48,10 +78,11 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
 
     function makePermitFromSellTokens(
         TokenAmount[] memory sellTokens,
-        DummyExchangeExecutionWitness memory witness,
+        ExecutionWitness memory witness,
         uint256 privateKey
     )
         public
+        view
         returns (
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
             bytes memory signature
@@ -75,9 +106,9 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
         signature = getPermitBatchWitnessSignature(
             permit,
             privateKey,
-            FULL_EXCHANGE_WITNESS_BATCH_TYPEHASH,
-            dummyExchange.hash(witness),
-            address(dummyExchange),
+            FULL_OPPORTUNITY_PROVIDER_WITNESS_BATCH_TYPEHASH,
+            opportunityProvider.hash(witness),
+            address(opportunityProvider),
             EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
         );
     }
@@ -90,10 +121,10 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
         tokens[0] = TokenAmount(token0, 0);
         tokens[1] = TokenAmount(token1, 0);
         tokens[2] = TokenAmount(token2, 0);
-        dummyExchange.exposed_checkDuplicateTokensTokenAmount(tokens);
+        opportunityProvider.exposed_checkDuplicateTokensTokenAmount(tokens);
         tokens[1] = TokenAmount(token2, 0);
         vm.expectRevert(DuplicateToken.selector);
-        dummyExchange.exposed_checkDuplicateTokensTokenAmount(tokens);
+        opportunityProvider.exposed_checkDuplicateTokensTokenAmount(tokens);
     }
 
     function testCheckDuplicateTokensTokenPermissions() public {
@@ -105,35 +136,40 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
         tokens[0] = ISignatureTransfer.TokenPermissions(token0, 0);
         tokens[1] = ISignatureTransfer.TokenPermissions(token1, 0);
         tokens[2] = ISignatureTransfer.TokenPermissions(token2, 0);
-        dummyExchange.exposed_checkDuplicateTokensTokenPermissions(tokens);
+        opportunityProvider.exposed_checkDuplicateTokensTokenPermissions(
+            tokens
+        );
         tokens[1] = ISignatureTransfer.TokenPermissions(token2, 0);
         vm.expectRevert(DuplicateToken.selector);
-        dummyExchange.exposed_checkDuplicateTokensTokenPermissions(tokens);
+        opportunityProvider.exposed_checkDuplicateTokensTokenPermissions(
+            tokens
+        );
     }
 
-    function prepareBuytokens(
+    function prepareBuyTokens(
         address owner,
         uint256 tokenAmount,
-        uint256 balance
-    ) internal returns (DummyExchangeExecutionWitness memory) {
+        uint256 balance,
+        address sellerAddress
+    ) internal returns (ExecutionWitness memory) {
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         buyTokens[0] = TokenAmount(address(buyToken), tokenAmount);
-        buyToken.mint(address(this), balance);
-        buyToken.approve(address(dummyExchange), tokenAmount);
-        DummyExchangeExecutionWitness
-            memory witness = DummyExchangeExecutionWitness({
-                buyTokens: buyTokens,
-                owner: owner
-            });
+        buyToken.mint(sellerAddress, balance);
+        vm.prank(sellerAddress);
+        buyToken.approve(address(opportunityProvider), tokenAmount);
+        ExecutionWitness memory witness = ExecutionWitness({
+            buyTokens: buyTokens,
+            owner: owner
+        });
         return witness;
     }
 
     function testTransferBuyTokens(uint256 tokenAmount) public {
         address owner = makeAddr("owner");
-        dummyExchange.exposed_transferBuyTokens(
-            prepareBuytokens(owner, tokenAmount, tokenAmount)
+        opportunityProvider.exposed_transferBuyTokens(
+            prepareBuyTokens(owner, tokenAmount, tokenAmount, address(this))
         );
-        assertEq(buyToken.balanceOf(address(dummyExchange)), 0);
+        assertEq(buyToken.balanceOf(address(opportunityProvider)), 0);
         assertEq(buyToken.balanceOf(owner), tokenAmount);
         assertEq(buyToken.balanceOf(address(this)), 0);
     }
@@ -143,10 +179,11 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
     ) public {
         address owner = makeAddr("owner");
         uint256 tokenAmount = uint256(amount);
-        DummyExchangeExecutionWitness memory witness = prepareBuytokens(
+        ExecutionWitness memory witness = prepareBuyTokens(
             owner,
             tokenAmount + 1,
-            tokenAmount
+            tokenAmount,
+            address(this)
         );
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -156,7 +193,7 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
                 tokenAmount + 1
             )
         );
-        dummyExchange.exposed_transferBuyTokens(witness);
+        opportunityProvider.exposed_transferBuyTokens(witness);
     }
 
     function prepareSellTokens(
@@ -169,7 +206,7 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
         internal
         returns (
             ISignatureTransfer.PermitBatchTransferFrom memory,
-            DummyExchangeExecutionWitness memory,
+            ExecutionWitness memory,
             bytes memory
         )
     {
@@ -188,17 +225,16 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
                 nonce: 1000,
                 deadline: block.timestamp + 1000
             });
-        DummyExchangeExecutionWitness
-            memory witness = DummyExchangeExecutionWitness({
-                buyTokens: buyTokens,
-                owner: owner
-            });
+        ExecutionWitness memory witness = ExecutionWitness({
+            buyTokens: buyTokens,
+            owner: owner
+        });
         bytes memory signature = getPermitBatchWitnessSignature(
             permit,
             privateKey,
-            FULL_EXCHANGE_WITNESS_BATCH_TYPEHASH,
-            dummyExchange.hash(witness),
-            address(dummyExchange),
+            FULL_OPPORTUNITY_PROVIDER_WITNESS_BATCH_TYPEHASH,
+            opportunityProvider.hash(witness),
+            address(opportunityProvider),
             EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
         );
         return (permit, witness, signature);
@@ -208,7 +244,7 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
         (address owner, uint256 privateKey) = makeAddrAndKey("owner");
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
-            DummyExchangeExecutionWitness memory witness,
+            ExecutionWitness memory witness,
             bytes memory signature
         ) = prepareSellTokens(
                 owner,
@@ -217,8 +253,12 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
                 tokenAmount,
                 new TokenAmount[](0)
             );
-        dummyExchange.exposed_transferSellTokens(permit, witness, signature);
-        assertEq(sellToken.balanceOf(address(dummyExchange)), 0);
+        opportunityProvider.exposed_transferSellTokens(
+            permit,
+            witness,
+            signature
+        );
+        assertEq(sellToken.balanceOf(address(opportunityProvider)), 0);
         assertEq(sellToken.balanceOf(owner), 0);
         assertEq(sellToken.balanceOf(address(this)), tokenAmount);
     }
@@ -230,7 +270,7 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
         uint256 tokenAmount = uint256(amount);
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
-            DummyExchangeExecutionWitness memory witness,
+            ExecutionWitness memory witness,
             bytes memory signature
         ) = prepareSellTokens(
                 owner,
@@ -240,35 +280,81 @@ contract DummyExchangeUnitTest is Test, PermitSignature {
                 new TokenAmount[](0)
             );
         vm.expectRevert("TRANSFER_FROM_FAILED");
-        dummyExchange.exposed_transferSellTokens(permit, witness, signature);
+        opportunityProvider.exposed_transferSellTokens(
+            permit,
+            witness,
+            signature
+        );
     }
 
-    function testExecuteExchange(uint256 buyAmount, uint256 sellAmount) public {
-        (address owner, uint256 privateKey) = makeAddrAndKey("owner");
-        DummyExchangeExecutionWitness memory buyWitness = prepareBuytokens(
-            owner,
+    function testExecute(uint256 buyAmount, uint256 sellAmount) public {
+        ExecutionWitness memory buyWitness = prepareBuyTokens(
+            admin,
             buyAmount,
-            buyAmount
+            buyAmount,
+            address(expressRelay)
         );
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
-            DummyExchangeExecutionWitness memory witness,
+            ExecutionWitness memory witness,
             bytes memory signature
         ) = prepareSellTokens(
-                owner,
-                privateKey,
+                admin,
+                adminPrivateKey,
                 sellAmount,
                 sellAmount,
                 buyWitness.buyTokens
             );
-        DummyExchangeExecutionParams
-            memory params = DummyExchangeExecutionParams({
-                permit: permit,
-                witness: witness
-            });
-        dummyExchange.executeExchange(params, signature);
-        assertEq(sellToken.balanceOf(address(dummyExchange)), 0);
-        assertEq(buyToken.balanceOf(owner), buyAmount);
-        assertEq(sellToken.balanceOf(address(this)), sellAmount);
+        ExecutionParams memory params = ExecutionParams({
+            permit: permit,
+            witness: witness
+        });
+
+        bytes memory permission = abi.encode(address(expressRelay), signature);
+        MulticallData[] memory multicallData = new MulticallData[](1);
+        multicallData[0] = MulticallData(
+            bytes16("1"),
+            address(opportunityProvider),
+            abi.encodeWithSelector(
+                opportunityProvider.execute.selector,
+                params,
+                signature
+            ),
+            0
+        );
+        vm.prank(relayer);
+        expressRelay.multicall(permission, multicallData);
+        assertEq(sellToken.balanceOf(address(opportunityProvider)), 0);
+        assertEq(buyToken.balanceOf(admin), buyAmount);
+        assertEq(sellToken.balanceOf(address(expressRelay)), sellAmount);
+    }
+
+    function testRevertWhenCallExecuteDirectly(
+        uint256 buyAmount,
+        uint256 sellAmount
+    ) public {
+        ExecutionWitness memory buyWitness = prepareBuyTokens(
+            admin,
+            buyAmount,
+            buyAmount,
+            address(this)
+        );
+        (
+            ISignatureTransfer.PermitBatchTransferFrom memory permit,
+            ExecutionWitness memory witness,
+            bytes memory signature
+        ) = prepareSellTokens(
+                admin,
+                adminPrivateKey,
+                sellAmount,
+                sellAmount,
+                buyWitness.buyTokens
+            );
+        ExecutionParams memory params = ExecutionParams({
+            permit: permit,
+            witness: witness
+        });
+        vm.expectRevert(InvalidOpportunity.selector);
+        opportunityProvider.execute(params, signature);
     }
 }
