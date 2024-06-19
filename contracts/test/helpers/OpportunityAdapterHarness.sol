@@ -13,6 +13,14 @@ contract OpportunityAdapterHarness is OpportunityAdapter {
         _prepareSellTokens(permit, witness, signature);
     }
 
+    function getOpportunityWitnessType() public view returns (string memory) {
+        return _OPPORTUNITY_WITNESS_TYPE;
+    }
+
+    function getTokenAmountType() public view returns (string memory) {
+        return _TOKEN_AMOUNT_TYPE;
+    }
+
     function exposed_revokeAllowances(
         ISignatureTransfer.PermitBatchTransferFrom calldata permit,
         address targetContract

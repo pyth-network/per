@@ -56,7 +56,10 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         if (params.witness.executor != _owner) {
             revert AdapterOwnerMismatch();
         }
-        if (params.witness.targetContract == _permit2) {
+        if (
+            params.witness.targetContract == _permit2 ||
+            params.witness.targetContract == address(this)
+        ) {
             revert TargetContractNotAllowed();
         }
         _checkDuplicateTokens(params.permit.permitted);

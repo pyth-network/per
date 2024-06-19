@@ -45,8 +45,8 @@ contract OpportunityAdapterUnitTest is
 
     function testTypeStrings() public {
         string memory opportunityWitnessType = opportunityAdapter
-            ._OPPORTUNITY_WITNESS_TYPE();
-        string memory tokenAmountType = opportunityAdapter._TOKEN_AMOUNT_TYPE();
+            .getOpportunityWitnessType();
+        string memory tokenAmountType = opportunityAdapter.getTokenAmountType();
         // make sure tokenAmountType is at the end of opportunityWitnessType
         for (uint i = 0; i < bytes(tokenAmountType).length; i++) {
             assertEq(

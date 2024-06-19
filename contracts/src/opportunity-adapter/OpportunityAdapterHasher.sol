@@ -4,9 +4,9 @@ pragma solidity ^0.8.13;
 import "./Structs.sol";
 
 contract OpportunityAdapterHasher {
-    string public constant _OPPORTUNITY_WITNESS_TYPE =
+    string internal constant _OPPORTUNITY_WITNESS_TYPE =
         "OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
-    string public constant _TOKEN_AMOUNT_TYPE =
+    string internal constant _TOKEN_AMOUNT_TYPE =
         "TokenAmount(address token,uint256 amount)";
 
     function hash(
