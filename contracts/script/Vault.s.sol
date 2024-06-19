@@ -435,10 +435,10 @@ contract VaultScript is Script {
         vm.serializeAddress(obj, "searcherB", address(searcherB));
         vm.serializeAddress(obj, "expressRelay", expressRelay);
         vm.serializeAddress(obj, "adapterFactory", adapterFactory);
-        vm.serializeBytes(
+        vm.serializeBytes32(
             obj,
-            "adapterBytecode",
-            type(OpportunityAdapter).creationCode
+            "adapterBytecodeHash",
+            keccak256(type(OpportunityAdapter).creationCode)
         );
         vm.serializeAddress(obj, "oracle", oracleAddress);
         vm.serializeAddress(obj, "permit2", permit2Address);

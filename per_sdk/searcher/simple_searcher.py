@@ -101,12 +101,12 @@ def create_liquidation_transaction(
 
 
 def calculate_opportunity_adapter_address(
-    executor: str, adapter_factory_address: str, adapter_bytecode: str
+    executor: str, adapter_factory_address: str, adapter_bytecode_hash: str
 ) -> str:
     pre = b"\xff"
     address = bytes.fromhex(adapter_factory_address.replace("0x", ""))
     salt = bytes(12) + bytes.fromhex(executor.replace("0x", ""))
-    init_code_hash = web3.Web3.keccak(bytes.fromhex(adapter_bytecode.replace("0x", "")))
+    init_code_hash = bytes.fromhex(adapter_bytecode_hash.replace("0x", ""))
     result = web3.Web3.keccak(pre + address + salt + init_code_hash)
     return "0x" + result.hex()[-40:]
 
@@ -145,10 +145,10 @@ async def main():
         help="Address of the opportunity adapter factory contract to use for liquidation opportunities",
     )
     parser.add_argument(
-        "--adapter-bytecode",
+        "--adapter-bytecode-hash",
         type=str,
         required=True,
-        help="Bytecode of opportunity adapter used in the factory contract. This is used for calculating the derived address",
+        help="Bytecode hash of opportunity adapter used in the factory contract. This is used for calculating the derived address",
     )
     parser.add_argument(
         "--weth-address",
@@ -174,7 +174,7 @@ async def main():
 
     executor = Account.from_key(sk_liquidator).address
     opportunity_adapter_address = calculate_opportunity_adapter_address(
-        executor, args.adapter_factory_address, args.adapter_bytecode
+        executor, args.adapter_factory_address, args.adapter_bytecode_hash
     )
 
     while True:
