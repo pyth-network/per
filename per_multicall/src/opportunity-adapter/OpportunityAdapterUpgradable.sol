@@ -3,22 +3,19 @@ pragma solidity ^0.8.13;
 
 import "./Errors.sol";
 import "./Structs.sol";
-import "./SigVerify.sol";
-import "./ExpressRelay.sol";
-import "./WETH9.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
-import {ExpressRelay} from "./ExpressRelay.sol";
+import {OpportunityAdapter} from "./OpportunityAdapter.sol";
 
-contract ExpressRelayUpgradable is
+contract OpportunityAdapterUpgradable is
     Initializable,
     Ownable2StepUpgradeable,
     UUPSUpgradeable,
-    ExpressRelay
+    OpportunityAdapter
 {
     event ContractUpgraded(
         address oldImplementation,
@@ -31,23 +28,20 @@ contract ExpressRelayUpgradable is
     function initialize(
         address owner,
         address admin,
-        address relayer,
-        uint256 feeSplitProtocolDefault,
-        uint256 feeSplitRelayer
+        address expressRelay,
+        address weth,
+        address permit2
     ) public initializer {
         require(owner != address(0), "owner is zero address");
         require(admin != address(0), "admin is zero address");
-        require(relayer != address(0), "relayer is zero address");
+        require(expressRelay != address(0), "expressRelay is zero address");
+        require(weth != address(0), "weth is zero address");
+        require(permit2 != address(0), "permit2 is zero address");
 
         __Ownable_init();
         __UUPSUpgradeable_init();
 
-        ExpressRelay._initialize(
-            admin,
-            relayer,
-            feeSplitProtocolDefault,
-            feeSplitRelayer
-        );
+        OpportunityAdapter._initialize(admin, expressRelay, weth, permit2);
 
         // We need to transfer the ownership from deployer to the new owner
         _transferOwnership(owner);
@@ -91,12 +85,12 @@ contract ExpressRelayUpgradable is
         // Calling a method using `this.<method>` will cause a contract call that will use
         // the new contract. This call will fail if the method does not exists or the magic
         // is different.
-        if (this.expressRelayUpgradableMagic() != 0x292e6740)
+        if (this.opportunityAdapterUpgradableMagic() != 0x12d9987e)
             revert InvalidMagicValue();
     }
 
-    function expressRelayUpgradableMagic() public pure returns (uint32) {
-        return 0x292e6740;
+    function opportunityAdapterUpgradableMagic() public pure returns (uint32) {
+        return 0x12d9987e;
     }
 
     function version() public pure returns (string memory) {

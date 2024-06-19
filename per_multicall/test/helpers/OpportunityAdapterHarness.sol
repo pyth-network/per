@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import {OpportunityAdapter} from "../../src/OpportunityAdapter.sol";
-import {TokenAmount, ExecutionWitness} from "../../src/Structs.sol";
+import {OpportunityAdapter, TokenAmount, ExecutionWitness} from "src/opportunity-adapter/OpportunityAdapter.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 
 contract OpportunityAdapterHarness is OpportunityAdapter {

@@ -2,15 +2,14 @@
 pragma solidity ^0.8.13;
 
 import "./Structs.sol";
-import "./ExpressRelay.sol";
-import "./WETH9.sol";
-import "forge-std/console.sol";
+import "./IWETH9.sol";
+import "./Errors.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
-import "permit2/interfaces/ISignatureTransfer.sol";
 import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import "permit2/interfaces/ISignatureTransfer.sol";
 
 abstract contract OpportunityAdapter is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -73,8 +72,8 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
         return _weth;
     }
 
-    function _getWethContract() internal view returns (WETH9) {
-        return WETH9(payable(_weth));
+    function _getWethContract() internal view returns (IWETH9) {
+        return IWETH9(payable(_weth));
     }
 
     function hash(
@@ -189,7 +188,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
 
     function _settleBid(address executor, uint256 bidAmount) internal {
         if (bidAmount == 0) return;
-        WETH9 weth = _getWethContract();
+        IWETH9 weth = _getWethContract();
         uint256 balance = address(this).balance;
         if (balance < bidAmount) {
             // withdraw from WETH if necessary to pay the bid
@@ -265,7 +264,7 @@ abstract contract OpportunityAdapter is ReentrancyGuard {
             );
         _prepareSellTokens(params.permit, params.witness, signature);
         if (params.witness.targetCallValue > 0) {
-            WETH9 weth = _getWethContract();
+            IWETH9 weth = _getWethContract();
             try weth.withdraw(params.witness.targetCallValue) {} catch {
                 revert InsufficientWethForTargetCallValue();
             }

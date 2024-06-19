@@ -3,21 +3,16 @@ pragma solidity ^0.8.13;
 
 import "./Errors.sol";
 import "./Structs.sol";
-import "./ExpressRelayState.sol";
-import "./ExpressRelayHelpers.sol";
-import "./ExpressRelayEvents.sol";
+import "./State.sol";
+import "./Helpers.sol";
+import "./Events.sol";
 
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelayFeeReceiver.sol";
 import "ExcessivelySafeCall/ExcessivelySafeCall.sol";
 
-contract ExpressRelay is
-    ExpressRelayHelpers,
-    ExpressRelayState,
-    ExpressRelayEvents,
-    ReentrancyGuard
-{
+contract ExpressRelay is Helpers, State, ExpressRelayEvents, ReentrancyGuard {
     using ExcessivelySafeCall for address;
 
     /**

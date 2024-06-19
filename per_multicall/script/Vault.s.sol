@@ -2,30 +2,26 @@
 pragma solidity ^0.8.13;
 
 import {Script, console2} from "forge-std/Script.sol";
-import "../src/SigVerify.sol";
 import "forge-std/StdJson.sol";
 import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
 
-import {TokenVault} from "../src/TokenVault.sol";
-import {SearcherVault} from "../src/SearcherVault.sol";
-import {ExpressRelay} from "../src/ExpressRelay.sol";
-import {OpportunityAdapter} from "../src/OpportunityAdapter.sol";
-import {MyToken} from "../src/MyToken.sol";
-import "../src/Structs.sol";
+import {TokenVault} from "../test/token-vault/TokenVault.sol";
+import {SearcherVault} from "../test/searcher-vault/SearcherVault.sol";
+import {OpportunityAdapter} from "../src/opportunity-adapter/OpportunityAdapter.sol";
+import {OpportunityAdapterUpgradable} from "../src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
+import {ExpressRelay} from "../src/express-relay/ExpressRelay.sol";
+import {ExpressRelayUpgradable} from "../src/express-relay/ExpressRelayUpgradable.sol";
+import "../src/express-relay/Errors.sol";
+import {MyToken} from "../test/MyToken.sol";
+import {WETH9} from "../test/WETH9.sol";
+import "../test/searcher-vault/Structs.sol";
 import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-
-import {WETH9} from "../src/WETH9.sol";
-
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
-
-import "../src/Errors.sol";
-import {OpportunityAdapterUpgradable} from "../src/OpportunityAdapterUpgradable.sol";
-import {ExpressRelayUpgradable} from "../src/ExpressRelayUpgradable.sol";
 
 contract VaultScript is Script {
     string public latestEnvironmentPath = "latestEnvironment.json";

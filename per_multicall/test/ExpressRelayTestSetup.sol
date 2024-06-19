@@ -1,40 +1,36 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import "../src/SigVerify.sol";
 import "forge-std/console.sol";
 import "forge-std/StdMath.sol";
-
-import {TokenVault} from "../src/TokenVault.sol";
-import {SearcherVault} from "../src/SearcherVault.sol";
-import {ExpressRelay} from "../src/ExpressRelay.sol";
-import {WETH9} from "../src/WETH9.sol";
-import {OpportunityAdapter} from "../src/OpportunityAdapter.sol";
-import {MyToken} from "../src/MyToken.sol";
-import "../src/Errors.sol";
-import "../src/TokenVaultErrors.sol";
-import "../src/Structs.sol";
-
 import "@pythnetwork/pyth-sdk-solidity/MockPyth.sol";
-
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-import "./helpers/Signatures/SearcherSignature.sol";
-import "./helpers/Signatures/OpportunityAdapterSignature.sol";
+import {ExpressRelay} from "src/express-relay/ExpressRelay.sol";
+import "src/express-relay/Errors.sol";
+import "src/express-relay/ExpressRelayUpgradable.sol";
+import "src/express-relay/Events.sol";
+import "src/express-relay/GovernanceEvents.sol";
+import "src/opportunity-adapter/OpportunityAdapterUpgradable.sol";
+import {OpportunityAdapter} from "src/opportunity-adapter/OpportunityAdapter.sol";
+
+import "./token-vault/Errors.sol";
+import {TokenVault} from "./token-vault/TokenVault.sol";
+import "./searcher-vault/Structs.sol";
+import "./searcher-vault/SigVerify.sol";
+import {SearcherVault} from "./searcher-vault/SearcherVault.sol";
+import "./helpers/signatures/SearcherSignature.sol";
+import "./helpers/signatures/OpportunityAdapterSignature.sol";
 import "./helpers/PriceHelpers.sol";
 import "./helpers/TestParsingHelpers.sol";
 import "./helpers/MulticallHelpers.sol";
 import "./helpers/ExpressRelayHarness.sol";
-import "../src/OpportunityAdapterUpgradable.sol";
-import "../src/ExpressRelayUpgradable.sol";
 import "./PermitSignature.sol";
-
-import "../src/ExpressRelayEvents.sol";
-import "../src/ExpressRelayGovernanceEvents.sol";
+import {WETH9} from "./WETH9.sol";
+import {MyToken} from "./MyToken.sol";
 
 /**
  * @title ExpressRelayTestSetUp
@@ -52,7 +48,7 @@ contract ExpressRelayTestSetup is
     PriceHelpers,
     MulticallHelpers,
     ExpressRelayEvents,
-    ExpressRelayGovernanceEvents,
+    GovernanceEvents,
     PermitSignature
 {
     TokenVault public tokenVault;
