@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import {OpportunityAdapter} from "src/opportunity-adapter/OpportunityAdapter.sol";
 import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdapterFactory.sol";
 
 contract OpportunityAdapterFactoryHarness is OpportunityAdapterFactory {

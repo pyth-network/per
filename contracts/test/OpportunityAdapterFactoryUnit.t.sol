@@ -2,15 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import "forge-std/console.sol";
-import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "permit2/interfaces/ISignatureTransfer.sol";
 
-import "src/express-relay/Errors.sol";
 import "src/opportunity-adapter/OpportunityAdapterFactory.sol";
-import "src/opportunity-adapter/OpportunityAdapter.sol";
-import "src/opportunity-adapter/IOpportunityAdapterFactory.sol";
-import "./searcher-vault/Structs.sol";
 import "./helpers/OpportunityAdapterFactoryHarness.sol";
 
 contract OpportunityAdapterFactoryUnitTest is
