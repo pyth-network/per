@@ -280,7 +280,7 @@ pub async fn deploy_contract(options: DeployOptions) -> Result<()> {
     )?
     .send()
     .await?;
-    tracing::info!("{}", contract.address().to_string());
+    tracing::info!("{:?}", contract.address());
     Ok(())
 }
 
