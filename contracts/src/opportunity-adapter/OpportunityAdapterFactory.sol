@@ -56,7 +56,7 @@ contract OpportunityAdapterFactory is
         return adapter;
     }
 
-    function isContract(address addr) internal view returns (bool) {
+    function _isContract(address addr) internal view returns (bool) {
         uint32 size;
         assembly {
             size := extcodesize(addr)
@@ -91,7 +91,7 @@ contract OpportunityAdapterFactory is
             revert NotCalledByExpressRelay();
         }
         address adapterAddress = computeAddress(params.witness.executor);
-        if (!isContract(adapterAddress)) {
+        if (!_isContract(adapterAddress)) {
             createAdapter(params.witness.executor);
         }
         // msg.value should be 0 but we will pass it to the adapter anyway in case it changes in the future
