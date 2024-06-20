@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Lavra Holdings Limited - All Rights Reserved
+// SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
 import "./Structs.sol";
@@ -80,14 +80,9 @@ abstract contract OpportunityProvider is ReentrancyGuard {
         bytes calldata signature
     ) internal view {
         if (params.witness.owner != _admin) {
-            revert Unauthorized();
+            revert NotCalledByAdmin();
         }
-        if (
-            !IExpressRelay(_expressRelay).isPermissioned(
-                _expressRelay,
-                signature
-            )
-        ) {
+        if (!IExpressRelay(_expressRelay).isPermissioned(_admin, signature)) {
             revert InvalidOpportunity();
         }
         _checkDuplicateTokens(params.permit.permitted);

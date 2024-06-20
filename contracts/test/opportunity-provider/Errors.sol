@@ -1,7 +1,8 @@
-// Copyright (C) 2024 Lavra Holdings Limited - All Rights Reserved
+// SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import "src/CommonErrors.sol";
+// Signature: 0x1867356e
+error NotCalledByAdmin();
 
 // Signature: 0xfe440a6b
 error InvalidOpportunity();

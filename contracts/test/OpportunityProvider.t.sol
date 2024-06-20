@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Lavra Holdings Limited - All Rights Reserved
+// SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
@@ -10,13 +10,24 @@ import "./opportunity-provider/Errors.sol";
 import "./opportunity-provider/Structs.sol";
 import "./opportunity-provider/OpportunityProvider.sol";
 import "./MyToken.sol";
+import "./WETH9.sol";
 import "./helpers/OpportunityProviderHarness.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 import "./PermitSignature.sol";
+import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdapterFactory.sol";
+import {OpportunityAdapterHasher} from "src/opportunity-adapter/OpportunityAdapterHasher.sol";
+import {ExecutionWitness as AdapterExecutionWitness, ExecutionParams as AdapterExecutionParams, TokenAmount as AdapterTokenAmount} from "src/opportunity-adapter/Structs.sol";
 
-contract OpportunityProviderUnitTest is Test, PermitSignature {
+contract OpportunityProviderUnitTest is
+    Test,
+    PermitSignature,
+    OpportunityAdapterHasher
+{
     OpportunityProviderHarness opportunityProvider;
+    OpportunityAdapterFactory adapterFactory;
     ExpressRelayUpgradable expressRelay;
+
+    WETH9 weth;
     MyToken sellToken;
     MyToken buyToken;
 
@@ -25,6 +36,28 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
     address admin;
     uint256 adminPrivateKey;
     address relayer;
+
+    function setUpTokens() internal {
+        buyToken = new MyToken("BuyToken", "BT");
+        sellToken = new MyToken("SellToken", "ST");
+        weth = new WETH9();
+    }
+
+    function setUpOpportunityAdapter() internal {
+        adapterFactory = new OpportunityAdapterFactory(
+            address(expressRelay),
+            address(weth),
+            PERMIT2
+        );
+    }
+
+    function setUpOpportunityProvider() internal {
+        opportunityProvider = new OpportunityProviderHarness(
+            admin,
+            address(expressRelay),
+            PERMIT2
+        );
+    }
 
     function setUpExpressRelay() internal {
         (relayer, ) = makeAddrAndKey("relayer");
@@ -47,15 +80,11 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
     }
 
     function setUp() public {
+        setUpTokens();
         setUpExpressRelay();
+        setUpOpportunityProvider();
+        setUpOpportunityAdapter();
         setUpPermit2();
-        opportunityProvider = new OpportunityProviderHarness(
-            admin,
-            address(expressRelay),
-            PERMIT2
-        );
-        sellToken = new MyToken("SellToken", "ST");
-        buyToken = new MyToken("BuyToken", "BT");
     }
 
     function testTypeStrings() public view {
@@ -74,43 +103,6 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
                 bytes(tokenAmountType)[i]
             );
         }
-    }
-
-    function makePermitFromSellTokens(
-        TokenAmount[] memory sellTokens,
-        ExecutionWitness memory witness,
-        uint256 privateKey
-    )
-        public
-        view
-        returns (
-            ISignatureTransfer.PermitBatchTransferFrom memory permit,
-            bytes memory signature
-        )
-    {
-        ISignatureTransfer.TokenPermissions[]
-            memory permitted = new ISignatureTransfer.TokenPermissions[](
-                sellTokens.length
-            );
-        for (uint i = 0; i < sellTokens.length; i++) {
-            permitted[i] = ISignatureTransfer.TokenPermissions({
-                token: sellTokens[i].token,
-                amount: sellTokens[i].amount
-            });
-        }
-        permit = ISignatureTransfer.PermitBatchTransferFrom({
-            permitted: permitted,
-            nonce: 1000,
-            deadline: block.timestamp + 1000
-        });
-        signature = getPermitBatchWitnessSignature(
-            permit,
-            privateKey,
-            FULL_OPPORTUNITY_PROVIDER_WITNESS_BATCH_TYPEHASH,
-            opportunityProvider.hash(witness),
-            address(opportunityProvider),
-            EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
-        );
     }
 
     function testCheckDuplicateTokensTokenAmount() public {
@@ -197,8 +189,6 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
     }
 
     function prepareSellTokens(
-        address owner,
-        uint256 privateKey,
         uint256 tokenAmount,
         uint256 approveAmount,
         TokenAmount[] memory buyTokens
@@ -216,8 +206,8 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
             address(sellToken),
             tokenAmount
         );
-        sellToken.mint(owner, tokenAmount);
-        vm.prank(owner);
+        sellToken.mint(admin, tokenAmount);
+        vm.prank(admin);
         sellToken.approve(address(PERMIT2), approveAmount);
         ISignatureTransfer.PermitBatchTransferFrom
             memory permit = ISignatureTransfer.PermitBatchTransferFrom({
@@ -227,11 +217,11 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
             });
         ExecutionWitness memory witness = ExecutionWitness({
             buyTokens: buyTokens,
-            owner: owner
+            owner: admin
         });
         bytes memory signature = getPermitBatchWitnessSignature(
             permit,
-            privateKey,
+            adminPrivateKey,
             FULL_OPPORTUNITY_PROVIDER_WITNESS_BATCH_TYPEHASH,
             opportunityProvider.hash(witness),
             address(opportunityProvider),
@@ -241,40 +231,30 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
     }
 
     function testTransferSellTokens(uint256 tokenAmount) public {
-        (address owner, uint256 privateKey) = makeAddrAndKey("owner");
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
             ExecutionWitness memory witness,
             bytes memory signature
-        ) = prepareSellTokens(
-                owner,
-                privateKey,
-                tokenAmount,
-                tokenAmount,
-                new TokenAmount[](0)
-            );
+        ) = prepareSellTokens(tokenAmount, tokenAmount, new TokenAmount[](0));
         opportunityProvider.exposed_transferSellTokens(
             permit,
             witness,
             signature
         );
         assertEq(sellToken.balanceOf(address(opportunityProvider)), 0);
-        assertEq(sellToken.balanceOf(owner), 0);
+        assertEq(sellToken.balanceOf(admin), 0);
         assertEq(sellToken.balanceOf(address(this)), tokenAmount);
     }
 
     function testRevertWhenInsufficientTokensInTransferSellTokens(
         uint128 amount
     ) public {
-        (address owner, uint256 privateKey) = makeAddrAndKey("owner");
         uint256 tokenAmount = uint256(amount);
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
             ExecutionWitness memory witness,
             bytes memory signature
         ) = prepareSellTokens(
-                owner,
-                privateKey,
                 tokenAmount + 1,
                 tokenAmount,
                 new TokenAmount[](0)
@@ -287,7 +267,117 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
         );
     }
 
-    function testExecute(uint256 buyAmount, uint256 sellAmount) public {
+    function prepareTokensForOpportunityAdapter(
+        ExecutionParams memory params,
+        bytes memory providerSignature,
+        uint256 bidAmount
+    )
+        internal
+        returns (
+            AdapterExecutionParams memory executionParams,
+            bytes memory signature
+        )
+    {
+        (address buyer, uint256 buyerPrivateKey) = makeAddrAndKey("buyer");
+        uint256 tokenAmount = params.witness.buyTokens[0].amount;
+        buyToken.mint(buyer, tokenAmount);
+        vm.prank(buyer);
+        buyToken.approve(PERMIT2, tokenAmount);
+
+        ISignatureTransfer.TokenPermissions[]
+            memory permitted = new ISignatureTransfer.TokenPermissions[](2);
+        permitted[0] = ISignatureTransfer.TokenPermissions(
+            address(buyToken),
+            tokenAmount
+        );
+        permitted[1] = ISignatureTransfer.TokenPermissions(
+            address(weth),
+            bidAmount
+        );
+        ISignatureTransfer.PermitBatchTransferFrom
+            memory permit = ISignatureTransfer.PermitBatchTransferFrom(
+                permitted,
+                100,
+                block.timestamp + 1000
+            );
+        AdapterTokenAmount[] memory sellTokens = new AdapterTokenAmount[](1);
+        sellTokens[0] = AdapterTokenAmount(
+            address(sellToken),
+            params.permit.permitted[0].amount
+        );
+        AdapterExecutionWitness memory witness = AdapterExecutionWitness(
+            sellTokens,
+            buyer,
+            address(opportunityProvider),
+            abi.encodeWithSelector(
+                opportunityProvider.execute.selector,
+                params,
+                providerSignature
+            ),
+            0,
+            bidAmount
+        );
+
+        vm.deal(buyer, 1 ether);
+        vm.startPrank(buyer);
+        weth.deposit{value: bidAmount}();
+        weth.approve(PERMIT2, bidAmount);
+        vm.stopPrank();
+
+        executionParams = AdapterExecutionParams(permit, witness);
+        signature = getPermitBatchWitnessSignature(
+            permit,
+            buyerPrivateKey,
+            FULL_OPPORTUNITY_WITNESS_BATCH_TYPEHASH,
+            hash(witness),
+            adapterFactory.computeAddress(buyer),
+            EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
+        );
+    }
+
+    function testExecuteWithBidAndAdapter(
+        uint256 buyAmount,
+        uint256 sellAmount
+    ) public {
+        TokenAmount[] memory buyTokens = new TokenAmount[](1);
+        buyTokens[0] = TokenAmount(address(buyToken), buyAmount);
+        (
+            ISignatureTransfer.PermitBatchTransferFrom memory permit,
+            ExecutionWitness memory witness,
+            bytes memory signature
+        ) = prepareSellTokens(sellAmount, sellAmount, buyTokens);
+        uint256 bidAmount = 1e3;
+        (
+            AdapterExecutionParams memory adapterExecutionParams,
+            bytes memory adapterSignature
+        ) = prepareTokensForOpportunityAdapter(
+                ExecutionParams({permit: permit, witness: witness}),
+                signature,
+                bidAmount
+            );
+        bytes memory permission = abi.encode(address(admin), signature);
+        MulticallData[] memory multicallData = new MulticallData[](1);
+        multicallData[0] = MulticallData(
+            bytes16("1"),
+            address(adapterFactory),
+            abi.encodeWithSelector(
+                adapterFactory.executeOpportunity.selector,
+                adapterExecutionParams,
+                adapterSignature
+            ),
+            bidAmount
+        );
+        vm.prank(relayer);
+        expressRelay.multicall(permission, multicallData);
+        assertEq(sellToken.balanceOf(address(opportunityProvider)), 0);
+        assertEq(buyToken.balanceOf(admin), buyAmount);
+        assertEq(sellToken.balanceOf(makeAddr("buyer")), sellAmount);
+    }
+
+    function testExecuteWithoutBidAndDirectly(
+        uint256 buyAmount,
+        uint256 sellAmount
+    ) public {
         ExecutionWitness memory buyWitness = prepareBuyTokens(
             admin,
             buyAmount,
@@ -298,19 +388,13 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
             ExecutionWitness memory witness,
             bytes memory signature
-        ) = prepareSellTokens(
-                admin,
-                adminPrivateKey,
-                sellAmount,
-                sellAmount,
-                buyWitness.buyTokens
-            );
+        ) = prepareSellTokens(sellAmount, sellAmount, buyWitness.buyTokens);
         ExecutionParams memory params = ExecutionParams({
             permit: permit,
             witness: witness
         });
 
-        bytes memory permission = abi.encode(address(expressRelay), signature);
+        bytes memory permission = abi.encode(address(admin), signature);
         MulticallData[] memory multicallData = new MulticallData[](1);
         multicallData[0] = MulticallData(
             bytes16("1"),
@@ -343,13 +427,7 @@ contract OpportunityProviderUnitTest is Test, PermitSignature {
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
             ExecutionWitness memory witness,
             bytes memory signature
-        ) = prepareSellTokens(
-                admin,
-                adminPrivateKey,
-                sellAmount,
-                sellAmount,
-                buyWitness.buyTokens
-            );
+        ) = prepareSellTokens(sellAmount, sellAmount, buyWitness.buyTokens);
         ExecutionParams memory params = ExecutionParams({
             permit: permit,
             witness: witness

@@ -128,7 +128,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         }
     }
 
-    function _settleBid(address executor, uint256 bidAmount) internal {
+    function _settleBid(uint256 bidAmount) internal {
         if (bidAmount == 0) return;
         IWETH9 weth = _getWethContract();
         uint256 balance = address(this).balance;
@@ -222,7 +222,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
             params.witness.executor,
             buyTokensBalancesBeforeCall
         );
-        _settleBid(params.witness.executor, params.witness.bidAmount);
+        _settleBid(params.witness.bidAmount);
         (
             uint256 ethBalanceAfterCall,
             uint256 wethBalanceAfterCall
