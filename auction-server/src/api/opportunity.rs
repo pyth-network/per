@@ -33,7 +33,11 @@ use {
     },
     ethers::{
         signers::Signer,
-        types::U256,
+        types::{
+            Address,
+            H256,
+            U256,
+        },
     },
     serde::{
         Deserialize,
@@ -62,7 +66,7 @@ pub struct EIP712Domain {
     pub chain_id:           Option<U256>,
     /// The verifying contract address parameter for the EIP712 domain.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub verifying_contract: Option<ethers::abi::Address>,
+    pub verifying_contract: Option<Address>,
 }
 
 /// Similar to OpportunityParams, but with the opportunity id included.
@@ -223,6 +227,40 @@ pub async fn opportunity_bid(
     Json(opportunity_bid): Json<OpportunityBid>,
 ) -> Result<Json<BidResult>, RestError> {
     process_opportunity_bid(store, opportunity_id, &opportunity_bid, auth).await
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
+pub struct OpportunityAdapterConfig {
+    /// The opportunity factory address
+    #[schema(example = "0x0AFA3E194ca60B13a3f455b63Ed16Df044c9AeD4", value_type = String)]
+    pub opportunity_adapter_factory:            Address,
+    /// The hash of the bytecode used to initialize the opportunity adapter
+    #[schema(example = "0x5fd31c9d02e2fc69cc09dfea1a9b726391e0e0862624757c0373f66c3bb8920e", value_type = String)]
+    pub opportunity_adapter_init_bytecode_hash: H256,
+    /// The permit2 address
+    #[schema(example = "0x92ab27f3559c8f18bB86E2b2bBfA15631dE45718", value_type = String)]
+    pub permit2:                                Address,
+    /// The weth address
+    #[schema(example = "0xE1408BbF3076A40C0c30F6E243f0Bc43e4f51850", value_type = String)]
+    pub weth:                                   Address,
+}
+
+/// Fetch the opportunity adapter config for a chain.
+#[utoipa::path(get, path = "/v1/opportunities/{chain_id}/opportunity_config",
+params(("chain_id" = String, description = "Chain id to get opportunity config for")), responses(
+(status = 200, description = "The opportunity config for the specified chain ID", body = OpportunityAdapterConfig),
+(status = 400, response = ErrorBodyResponse),
+(status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
+),)]
+pub async fn get_opportunity_config(
+    State(store): State<Arc<Store>>,
+    Path(chain_id): Path<ChainId>,
+) -> Result<axum::Json<OpportunityAdapterConfig>, RestError> {
+    let chain_store = store
+        .chains
+        .get(&chain_id)
+        .ok_or(RestError::InvalidChainId)?;
+    Ok(chain_store.opportunity_adapter_config.clone().into())
 }
 
 pub async fn process_opportunity_bid(

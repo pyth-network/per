@@ -14,7 +14,7 @@ from per_sdk.utils.types_liquidation_adapter import Opportunity
 
 logger = logging.getLogger(__name__)
 
-VALID_UNTIL = 1_000_000_000_000
+DEADLINE = 2**256 - 1
 
 
 def assess_liquidation_opportunity(
@@ -22,7 +22,7 @@ def assess_liquidation_opportunity(
     opp: Opportunity,
 ) -> BidInfo | None:
     """
-    Assesses whether a liquidation opportunity is worth liquidating; if so, returns the bid and valid_until timestamp. Otherwise returns None.
+    Assesses whether a liquidation opportunity is worth liquidating; if so, returns the bid and deadline timestamp. Otherwise returns None.
     This function determines whether the given opportunity deals with the specified sell and buy tokens that the searcher wishes to transact in and whether it is profitable to execute the liquidation.
     There are many ways to evaluate this, but the most common way is to check that the value of the amount the searcher will receive from the liquidation exceeds the value of the amount repaid.
     Individual searchers will have their own methods to determine market impact and the profitability of conducting a liquidation. This function can be expanded to include external prices to perform this evaluation.
@@ -36,7 +36,7 @@ def assess_liquidation_opportunity(
     """
     user_execution_params = {
         "bid": default_bid,
-        "valid_until": VALID_UNTIL,
+        "deadline": DEADLINE,
         "nonce": secrets.randbits(64),
     }
     return user_execution_params
@@ -46,7 +46,7 @@ class OpportunityBid(TypedDict):
     opportunity_id: str
     permission_key: str
     amount: str
-    valid_until: str
+    deadline: str
     nonce: str
     executor: str
     signature: str
@@ -91,7 +91,7 @@ def create_liquidation_transaction(
         "opportunity_id": opp["opportunity_id"],
         "permission_key": opp["permission_key"],
         "amount": str(bid_info["bid"]),
-        "valid_until": str(bid_info["valid_until"]),
+        "deadline": str(bid_info["deadline"]),
         "nonce": str(bid_info["nonce"]),
         "executor": liquidator,
         "signature": bytes(signature_liquidator.signature).hex(),
@@ -129,7 +129,7 @@ async def main():
     parser.add_argument(
         "--bid",
         type=int,
-        default=int(1e15),  # To make sure it covers the gas cost
+        default=int(2e16),  # To make sure it covers the gas cost
         help="Default amount of bid for liquidation opportunities",
     )
     parser.add_argument(

@@ -8,7 +8,7 @@ from per_sdk.utils.types_liquidation_adapter import EIP712Domain
 
 class BidInfo(TypedDict):
     bid: int
-    valid_until: int
+    deadline: int
     nonce: int
 
 
@@ -62,7 +62,7 @@ def construct_signature_executor(
         calldata: The calldata for the execution method call.
         value: The value for the liquidation method call.
         bid: The amount of native token to bid on this opportunity.
-        valid_until: The timestamp at which the transaction will expire.
+        deadline: The timestamp at which the transaction will expire.
         secret_key: A 0x-prefixed hex string representing the liquidator's private key.
         eip_712_domain: The EIP712 domain data to create the signature.
     Returns:
@@ -112,7 +112,7 @@ def construct_signature_executor(
         ),
         "spender": opportunity_adapter_address,
         "nonce": bid_info["nonce"],
-        "deadline": bid_info["valid_until"],
+        "deadline": bid_info["deadline"],
         "witness": {
             "buyTokens": [
                 {

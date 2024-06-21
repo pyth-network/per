@@ -42,14 +42,14 @@ contract SearcherVault is SigVerify, ReentrancyGuard {
      *
      * @param vaultId: ID of the vault to be liquidated
      * @param bid: size of the bid to pay to express relay
-     * @param validUntil: timestamp at which signatureSearcher is no longer valid
+     * @param deadline: timestamp at which signatureSearcher is no longer valid
      * @param updateData: data to update price feed with
      * @param signatureSearcher: signature of the vaultId and bid, signed by the searcher's EOA, to be verified if msg.sender is express relay
      */
     function doLiquidate(
         uint256 vaultId,
         uint256 bid,
-        uint256 validUntil,
+        uint256 deadline,
         bytes calldata updateData,
         bytes calldata signatureSearcher
     ) public payable nonReentrant {
@@ -63,17 +63,17 @@ contract SearcherVault is SigVerify, ReentrancyGuard {
                 keccak256(
                     abi.encode(
                         keccak256(
-                            "ExecutionParams(uint256 vaultId,uint256 bid,address signer,uint256 validUntil)"
+                            "ExecutionParams(uint256 vaultId,uint256 bid,address signer,uint256 deadline)"
                         ),
                         vaultId,
                         bid,
                         owner,
-                        validUntil
+                        deadline
                     )
                 ),
                 owner,
                 signatureSearcher,
-                validUntil
+                deadline
             );
         }
 

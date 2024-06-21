@@ -61,6 +61,7 @@ use {
             Address,
             Bytes,
             Signature,
+            H256,
             U256,
         },
         utils::get_create2_address,
@@ -115,6 +116,31 @@ pub async fn get_weth_address(
         .map_err(|e| anyhow!("Error getting WETH address from adapter: {:?}", e))
 }
 
+pub async fn get_permit2_address(
+    adapter_contract: Address,
+    provider: Provider<TracedClient>,
+) -> Result<Address> {
+    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+    adapter
+        .get_permit_2()
+        .call()
+        .await
+        .map_err(|e| anyhow!("Error getting permit2 address from adapter: {:?}", e))
+}
+
+pub async fn get_opportunity_adapter_init_bytecode_hash(
+    adapter_contract: Address,
+    provider: Provider<TracedClient>,
+) -> Result<H256> {
+    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+    adapter
+        .get_opportunity_adapter_creation_code_hash()
+        .call()
+        .await
+        .map(|x| H256::from_slice(x.as_slice()))
+        .map_err(|e| anyhow!("Error getting init bytecode hash from adapter: {:?}", e))
+}
+
 fn generate_random_u256() -> U256 {
     let mut rng = rand::thread_rng();
     U256::from(rng.gen::<[u8; 32]>())
@@ -135,7 +161,7 @@ pub async fn verify_opportunity(
 
     let fake_bid = OpportunityBid {
         executor:       fake_wallet.address(),
-        valid_until:    U256::max_value(),
+        deadline:       U256::max_value(),
         nonce:          generate_random_u256(),
         permission_key: opportunity.permission_key.clone(),
         amount:         U256::zero(),
@@ -219,7 +245,7 @@ pub async fn verify_opportunity(
 
                 let allowance_storage_key = token_spoof::calculate_allowance_storage_key(
                     fake_wallet.address(),
-                    chain_store.config.permit2_contract,
+                    chain_store.opportunity_adapter_config.permit2,
                     allowance_slot,
                 );
                 let value: [u8; 32] = amount.into();
@@ -412,7 +438,7 @@ pub fn make_opportunity_execution_params(
             permit:  PermitBatchTransferFrom {
                 permitted: make_permitted_tokens(opportunity.clone(), bid.clone(), chain_store),
                 nonce:     bid.nonce,
-                deadline:  bid.valid_until,
+                deadline:  bid.deadline,
             },
             witness: ExecutionWitness {
                 buy_tokens:        opportunity
@@ -545,7 +571,7 @@ pub struct OpportunityBid {
     /// The latest unix timestamp in seconds until which the bid is valid
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
-    pub valid_until:    U256,
+    pub deadline:       U256,
     /// The nonce of the bid permit signature
     #[schema(example = "123", value_type=String)]
     #[serde(with = "crate::serde::u256")]

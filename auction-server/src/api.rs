@@ -342,7 +342,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     let opportunity_routes = Router::new()
         .route("/", post(opportunity::post_opportunity))
         .route("/", get(opportunity::get_opportunities))
-        .route("/:opportunity_id/bids", post(opportunity::opportunity_bid));
+        .route("/:opportunity_id/bids", post(opportunity::opportunity_bid))
+        .route(
+            "/:chain_id/opportunity_config",
+            get(opportunity::get_opportunity_config),
+        );
     let profile_routes = Router::new()
         .route("/", admin_only!(store, post(profile::post_profile)))
         .route(

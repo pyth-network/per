@@ -77,6 +77,24 @@ contract OpportunityAdapterFactory is
     }
 
     /**
+     * @notice getPermit2 function - returns the address of the permit2 contract used for token approvals
+     */
+    function getPermit2() public view returns (address) {
+        return _permit2;
+    }
+
+    /**
+     * @notice getOpportunityAdapterCreationCodeHash - returns the hash of the creation code of the opportunity adapter contract
+     */
+    function getOpportunityAdapterCreationCodeHash()
+        public
+        view
+        returns (bytes32)
+    {
+        return _codeHash;
+    }
+
+    /**
      * @notice getExpressRelay function - returns the address of the express relay authenticated for calling this contract
      */
     function getExpressRelay() public view returns (address) {

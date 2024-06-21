@@ -21,7 +21,7 @@ contract TestParsingHelpers is Test {
 
     struct BidInfo {
         uint256 bid;
-        uint256 validUntil;
+        uint256 deadline;
         address executor;
         uint256 executorSk;
     }

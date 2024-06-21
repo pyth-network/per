@@ -498,14 +498,14 @@ contract ExpressRelayTestSetup is
                     bidInfos[i].executor,
                     vaultNumber,
                     bidInfos[i].bid,
-                    bidInfos[i].validUntil,
+                    bidInfos[i].deadline,
                     bidInfos[i].executorSk
                 );
             data[i] = abi.encodeWithSelector(
                 searcherA.doLiquidate.selector,
                 vaultNumber,
                 bidInfos[i].bid,
-                bidInfos[i].validUntil,
+                bidInfos[i].deadline,
                 tokenDebtUpdateData,
                 signatureSearcher
             );
@@ -516,7 +516,7 @@ contract ExpressRelayTestSetup is
      * @notice getMulticallInfoOpportunityAdapter function - creates necessary permission and data for multicall to liquidation adapter contract
      *
      * @param vaultNumber: the vault number to liquidate
-     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     * @param bidInfos: array of BidInfo structs containing bid amount, deadline, executor address, and executor secret key
      */
     function getMulticallInfoOpportunityAdapter(
         uint256 vaultNumber,
@@ -580,7 +580,7 @@ contract ExpressRelayTestSetup is
                 .PermitBatchTransferFrom(
                     permitted,
                     0, // TODO: fill in the nonce
-                    bidInfos[i].validUntil
+                    bidInfos[i].deadline
                 );
             ExecutionWitness memory witness = ExecutionWitness(
                 buyTokens,
@@ -641,7 +641,7 @@ contract ExpressRelayTestSetup is
      *
      * @param contracts: array of contract addresses
      * @param data: array of calldata
-     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     * @param bidInfos: array of BidInfo structs containing bid amount, deadline, executor address, and executor secret key
      */
     function getMulticallData(
         address[] memory contracts,
@@ -759,7 +759,7 @@ contract ExpressRelayTestSetup is
      * @param feeReceiver: the address of the fee receiver
      * @param contracts: array of target contract addresses
      * @param data: array of target calldata
-     * @param bidInfos: array of BidInfo structs containing bid amount, validUntil, executor address, and executor secret key
+     * @param bidInfos: array of BidInfo structs containing bid amount, deadline, executor address, and executor secret key
      */
     function makeMulticallMockTargetCall(
         address feeReceiver,

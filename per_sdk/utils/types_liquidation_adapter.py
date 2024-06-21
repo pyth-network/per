@@ -46,7 +46,7 @@ class OpportunityAdapterCalldata(TypedDict):
     liquidator: str
     contract: str
     data: bytes
-    valid_until: int
+    deadline: int
     bid: int
     signature_liquidator: bytes
 
