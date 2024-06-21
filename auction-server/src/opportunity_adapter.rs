@@ -433,8 +433,14 @@ pub fn make_opportunity_execution_params(
         salt,
         &OPPORTUNITYADAPTER_BYTECODE,
     );
+    let eip_712_domain = EIP712Domain {
+        name:               Some("Permit2".to_string()),
+        version:            None,
+        chain_id:           Some(chain_store.opportunity_adapter_config.chain_id.into()),
+        verifying_contract: Some(chain_store.opportunity_adapter_config.permit2),
+    };
     ExecutionParamsWithSignature {
-        params:         ExecutionParams {
+        params: ExecutionParams {
             permit:  PermitBatchTransferFrom {
                 permitted: make_permitted_tokens(opportunity.clone(), bid.clone(), chain_store),
                 nonce:     bid.nonce,
@@ -453,9 +459,9 @@ pub fn make_opportunity_execution_params(
                 bid_amount:        bid.amount,
             },
         },
-        signature:      bid.signature.to_vec().into(),
-        eip_712_domain: chain_store.eip_712_domain.clone(),
-        spender:        executor_adapter_address,
+        signature: bid.signature.to_vec().into(),
+        eip_712_domain,
+        spender: executor_adapter_address,
     }
 }
 

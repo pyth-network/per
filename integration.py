@@ -15,8 +15,6 @@ field_mapping = {
     'weth': 'WETH',
     'relayerPrivateKey': 'RELAYER_PRIVATE_KEY',
     'searcherAOwnerSk': 'SEARCHER_SK',
-    'adapterFactory': 'ADAPTER_FACTORY',
-    'adapterBytecodeHash': 'ADAPTER_BYTECODE_HASH',
 }
 
 

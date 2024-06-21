@@ -34,8 +34,6 @@ class Opportunity(TypedDict):
     sell_tokens: list[TokenAmount]
     # A list of tokens that ought to be received by the liquidator in exchange for the sell tokens.
     buy_tokens: list[TokenAmount]
-    # The eip712 domain config to be used for signing the opportunity
-    eip_712_domain: EIP712Domain
     # Opportunity format version, used to determine how to interpret the opportunity data
     version: str
 

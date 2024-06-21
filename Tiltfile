@@ -112,9 +112,6 @@ searcher_command = (
     + "--chain-id development "
     + "--verbose "
     + "--liquidation-server-url http://localhost:9000 "
-    + "--adapter-factory-address $ADAPTER_FACTORY "
-    + "--adapter-bytecode-hash $ADAPTER_BYTECODE_HASH "
-    + "--weth-address $WETH"
 )
 local_resource(
     "searcher",

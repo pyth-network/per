@@ -58,6 +58,8 @@ def create_liquidation_transaction(
     bid_info: BidInfo,
     opportunity_adapter_address: str,
     weth_address: str,
+    permit2_address: str,
+    chain_id: int,
 ) -> OpportunityBid:
     """
     Creates a bid for a liquidation opportunity.
@@ -82,9 +84,10 @@ def create_liquidation_transaction(
         int(opp["target_call_value"]),
         bid_info,
         sk_liquidator,
-        opp["eip_712_domain"],
         opportunity_adapter_address,
         weth_address,
+        permit2_address,
+        chain_id,
     )
 
     opportunity_bid = {
@@ -138,24 +141,6 @@ async def main():
         required=True,
         help="Liquidation server endpoint to use for fetching opportunities and submitting bids",
     )
-    parser.add_argument(
-        "--adapter-factory-address",
-        type=str,
-        required=True,
-        help="Address of the opportunity adapter factory contract to use for liquidation opportunities",
-    )
-    parser.add_argument(
-        "--adapter-bytecode-hash",
-        type=str,
-        required=True,
-        help="Bytecode hash of opportunity adapter used in the factory contract. This is used for calculating the derived address",
-    )
-    parser.add_argument(
-        "--weth-address",
-        type=str,
-        required=True,
-        help="Address of the WETH contract to use for liquidation opportunities",
-    )
     args = parser.parse_args()
 
     logger.setLevel(logging.INFO if args.verbose == 0 else logging.DEBUG)
@@ -173,8 +158,26 @@ async def main():
     client = httpx.AsyncClient()
 
     executor = Account.from_key(sk_liquidator).address
+
+    opportunity_adapter_config = (
+        await client.get(
+            urllib.parse.urljoin(
+                args.liquidation_server_url, f"/v1/opportunities/{args.chain_id}/config"
+            )
+        )
+    ).json()
+    opportunity_adapter_factory = opportunity_adapter_config[
+        "opportunity_adapter_factory"
+    ]
+    opportunity_adapter_init_code_hash = opportunity_adapter_config[
+        "opportunity_adapter_init_bytecode_hash"
+    ]
+    permit2 = opportunity_adapter_config["permit2"]
+    weth = opportunity_adapter_config["weth"]
+    chain_id_num = opportunity_adapter_config["chain_id"]
+
     opportunity_adapter_address = calculate_opportunity_adapter_address(
-        executor, args.adapter_factory_address, args.adapter_bytecode_hash
+        executor, opportunity_adapter_factory, opportunity_adapter_init_code_hash
     )
 
     while True:
@@ -211,7 +214,9 @@ async def main():
                     sk_liquidator,
                     bid_info,
                     opportunity_adapter_address,
-                    args.weth_address,
+                    weth,
+                    permit2,
+                    chain_id_num,
                 )
 
                 resp = await client.post(

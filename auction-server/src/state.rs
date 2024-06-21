@@ -1,10 +1,7 @@
 use {
     crate::{
         api::{
-            opportunity::{
-                EIP712Domain,
-                OpportunityAdapterConfig,
-            },
+            opportunity::OpportunityAdapterConfig,
             profile as ApiProfile,
             ws::{
                 UpdateEvent,
@@ -188,7 +185,6 @@ pub struct ChainStore {
     pub config:                     EthereumConfig,
     pub weth:                       Address,
     pub token_spoof_info:           RwLock<HashMap<Address, SpoofInfo>>,
-    pub eip_712_domain:             EIP712Domain,
     pub express_relay_contract:     Arc<SignableExpressRelayContract>,
     pub block_gas_limit:            U256,
     pub opportunity_adapter_config: OpportunityAdapterConfig,

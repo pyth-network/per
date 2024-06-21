@@ -344,7 +344,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .route("/", get(opportunity::get_opportunities))
         .route("/:opportunity_id/bids", post(opportunity::opportunity_bid))
         .route(
-            "/:chain_id/opportunity_config",
+            "/:chain_id/config",
             get(opportunity::get_opportunity_config),
         );
     let profile_routes = Router::new()
