@@ -110,9 +110,6 @@ pub struct EthereumConfig {
     /// Address of the opportunity adapter factory contract to interact with.
     pub adapter_factory_contract: Address,
 
-    /// Address of the permit2 contract to interact with.
-    pub permit2_contract: Address,
-
     /// Subwallets available for relaying bids. Only used in the subwallet sync command.
     pub subwallets: Option<Vec<Address>>,
 

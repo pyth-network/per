@@ -240,7 +240,7 @@ pub struct OpportunityAdapterConfig {
 }
 
 /// Fetch the opportunity adapter config for a chain.
-#[utoipa::path(get, path = "/v1/opportunities/{chain_id}/opportunity_config",
+#[utoipa::path(get, path = "/v1/opportunities/{chain_id}/config",
 params(("chain_id" = String, description = "Chain id to get opportunity config for")), responses(
 (status = 200, description = "The opportunity config for the specified chain ID", body = OpportunityAdapterConfig),
 (status = 400, response = ErrorBodyResponse),

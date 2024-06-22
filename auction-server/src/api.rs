@@ -7,6 +7,7 @@ use {
             },
             opportunity::{
                 EIP712Domain,
+                OpportunityAdapterConfig,
                 OpportunityParamsWithMetadata,
             },
             ws::{
@@ -281,6 +282,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
+    opportunity::get_opportunity_config,
     profile::delete_profile_access_token,
     ),
     components(
@@ -297,6 +299,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     OpportunityBid,
     OpportunityParams,
     OpportunityParamsWithMetadata,
+    OpportunityAdapterConfig,
     TokenAmount,
     ErrorBodyResponse,
     ClientRequest,
@@ -308,6 +311,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     responses(
     ErrorBodyResponse,
     OpportunityParamsWithMetadata,
+    OpportunityAdapterConfig,
     BidResult,
     SimulatedBids,
     ),
