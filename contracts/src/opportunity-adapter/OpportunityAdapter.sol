@@ -16,6 +16,7 @@ import {OpportunityAdapterHasher} from "./OpportunityAdapterHasher.sol";
 contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     using SafeERC20 for IERC20;
 
+    address immutable _opportunityAdapterFactory;
     address immutable _owner;
     address immutable _expressRelay;
     address immutable _weth;
@@ -29,6 +30,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
      *
      */
     constructor() {
+        _opportunityAdapterFactory = msg.sender;
         (_expressRelay, _weth, _permit2, _owner) = IOpportunityAdapterFactory(
             msg.sender
         ).parameters();
@@ -221,6 +223,9 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         ExecutionParams calldata params,
         bytes calldata signature
     ) public payable nonReentrant {
+        if (msg.sender != _opportunityAdapterFactory) {
+            revert NotCalledByFactory();
+        }
         _verifyParams(params);
         (
             uint256 ethBalanceBeforeCall,
