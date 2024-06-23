@@ -935,4 +935,28 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         vm.prank(address(expressRelay));
         expressRelay.callWithBid(multicallData[0]);
     }
+
+    function testCallWithBidCallSelfFail() public {
+        address feeReceiver = address(mockProtocol);
+
+        uint256 bid = 100;
+
+        address[] memory contracts = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        BidInfo[] memory bidInfos = new BidInfo[](1);
+
+        contracts[0] = address(expressRelay);
+        bidInfos[0] = makeBidInfo(bid, searcherAOwnerSk);
+
+        (, MulticallData[] memory multicallData) = makeMulticallMockTargetCall(
+            feeReceiver,
+            contracts,
+            data,
+            bidInfos
+        );
+
+        vm.expectRevert(InvalidTargetContract.selector);
+        vm.prank(address(expressRelay));
+        expressRelay.callWithBid(multicallData[0]);
+    }
 }
