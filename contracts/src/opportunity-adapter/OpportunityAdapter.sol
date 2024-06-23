@@ -34,6 +34,13 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         ).parameters();
     }
 
+    modifier onlyOwner() {
+        if (msg.sender != _owner) {
+            revert OnlyOwnerCanCall();
+        }
+        _;
+    }
+
     /**
      * @notice getExpressRelay function - returns the address of the express relay authenticated for calling this contract
      */
@@ -46,6 +53,26 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
      */
     function getWeth() public view returns (address) {
         return _weth;
+    }
+
+    /**
+     * @notice withdrawEth function - withdraws ETH from the contract to the owner
+     */
+    function withdrawEth() public onlyOwner {
+        (bool sent, ) = payable(_owner).call{value: address(this).balance}("");
+        require(sent, "Withdrawal of ETH failed");
+    }
+
+    /**
+     * @notice withdrawToken function - withdraws specified tokens from the contract to the owner
+     *
+     * @param token: address of the token to withdraw
+     */
+    function withdrawToken(address token) public onlyOwner {
+        IERC20(token).safeTransfer(
+            _owner,
+            IERC20(token).balanceOf(address(this))
+        );
     }
 
     function _getWethContract() internal view returns (IWETH9) {

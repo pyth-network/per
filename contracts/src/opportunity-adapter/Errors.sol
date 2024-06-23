@@ -27,3 +27,6 @@ error EthOrWethBalanceDecreased();
 
 // Signature: 0x9c86e59e
 error TargetContractNotAllowed();
+
+// Signature: 0x47a8ea58
+error OnlyOwnerCanCall();

@@ -43,6 +43,62 @@ contract OpportunityAdapterUnitTest is
         myToken = new MyToken("SellToken", "ST");
     }
 
+    function testWithdrawEthOwner() public {
+        address owner = makeAddr("executor");
+        uint256 amount = 100;
+        vm.deal(address(opportunityAdapter), amount);
+
+        assertEq(address(opportunityAdapter).balance, amount);
+        assertEq(owner.balance, 0);
+
+        vm.prank(owner);
+        opportunityAdapter.withdrawEth();
+
+        assertEq(address(opportunityAdapter).balance, 0);
+        assertEq(owner.balance, amount);
+    }
+
+    function testRevertWithdrawEthNonOwner() public {
+        address nonOwner = makeAddr("nonOwner");
+        uint256 amount = 100;
+        vm.deal(address(opportunityAdapter), amount);
+
+        assertEq(address(opportunityAdapter).balance, amount);
+        assertEq(nonOwner.balance, 0);
+
+        vm.prank(nonOwner);
+        vm.expectRevert(OnlyOwnerCanCall.selector);
+        opportunityAdapter.withdrawEth();
+    }
+
+    function testWithdrawTokenOwner() public {
+        address owner = makeAddr("executor");
+        uint256 tokenAmount = 100;
+        myToken.mint(address(opportunityAdapter), tokenAmount);
+
+        assertEq(myToken.balanceOf(address(opportunityAdapter)), tokenAmount);
+        assertEq(myToken.balanceOf(owner), 0);
+
+        vm.prank(owner);
+        opportunityAdapter.withdrawToken(address(myToken));
+
+        assertEq(myToken.balanceOf(address(opportunityAdapter)), 0);
+        assertEq(myToken.balanceOf(owner), tokenAmount);
+    }
+
+    function testRevertWithdrawTokenNonOwner() public {
+        address nonOwner = makeAddr("nonOwner");
+        uint256 tokenAmount = 100;
+        myToken.mint(address(opportunityAdapter), tokenAmount);
+
+        assertEq(myToken.balanceOf(address(opportunityAdapter)), tokenAmount);
+        assertEq(myToken.balanceOf(nonOwner), 0);
+
+        vm.prank(nonOwner);
+        vm.expectRevert(OnlyOwnerCanCall.selector);
+        opportunityAdapter.withdrawToken(address(myToken));
+    }
+
     function testTypeStrings() public {
         string memory opportunityWitnessType = opportunityAdapter
             .getOpportunityWitnessType();
