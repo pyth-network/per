@@ -206,7 +206,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
             ) {
                 revert InsufficientTokenReceived();
             }
-            token.safeTransfer(executor, buyTokens[i].amount);
+            token.safeTransfer(executor, token.balanceOf(address(this)));
         }
     }
 

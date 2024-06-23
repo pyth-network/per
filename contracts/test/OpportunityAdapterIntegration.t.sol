@@ -262,10 +262,9 @@ contract OpportunityAdapterIntegrationTest is
             abi.encodeWithSelector(WETH9.withdraw.selector, bid)
         );
         adapterFactory.executeOpportunity(executionParams, signature);
-        assertEq(buyToken.balanceOf(executor), buyTokenAmount);
         assertEq(
-            buyToken.balanceOf(opportunityAdapter),
-            initialAdapterBuyTokenBalance
+            buyToken.balanceOf(executor),
+            initialAdapterBuyTokenBalance + buyTokenAmount
         );
         assertEq(sellToken.balanceOf(executor), 0);
         assertEq(
