@@ -43,13 +43,9 @@ contract OpportunityAdapterUnitTest is
         myToken = new MyToken("SellToken", "ST");
     }
 
-    function testWithdrawEthOwner() public {
+    function testWithdrawEthOwner(uint256 amount) public {
         address owner = makeAddr("executor");
-        uint256 amount = 100;
         vm.deal(address(opportunityAdapter), amount);
-
-        assertEq(address(opportunityAdapter).balance, amount);
-        assertEq(owner.balance, 0);
 
         vm.prank(owner);
         opportunityAdapter.withdrawEth();
@@ -60,24 +56,15 @@ contract OpportunityAdapterUnitTest is
 
     function testRevertWithdrawEthNonOwner() public {
         address nonOwner = makeAddr("nonOwner");
-        uint256 amount = 100;
-        vm.deal(address(opportunityAdapter), amount);
-
-        assertEq(address(opportunityAdapter).balance, amount);
-        assertEq(nonOwner.balance, 0);
 
         vm.prank(nonOwner);
         vm.expectRevert(OnlyOwnerCanCall.selector);
         opportunityAdapter.withdrawEth();
     }
 
-    function testWithdrawTokenOwner() public {
+    function testWithdrawTokenOwner(uint256 tokenAmount) public {
         address owner = makeAddr("executor");
-        uint256 tokenAmount = 100;
         myToken.mint(address(opportunityAdapter), tokenAmount);
-
-        assertEq(myToken.balanceOf(address(opportunityAdapter)), tokenAmount);
-        assertEq(myToken.balanceOf(owner), 0);
 
         vm.prank(owner);
         opportunityAdapter.withdrawToken(address(myToken));
@@ -88,11 +75,6 @@ contract OpportunityAdapterUnitTest is
 
     function testRevertWithdrawTokenNonOwner() public {
         address nonOwner = makeAddr("nonOwner");
-        uint256 tokenAmount = 100;
-        myToken.mint(address(opportunityAdapter), tokenAmount);
-
-        assertEq(myToken.balanceOf(address(opportunityAdapter)), tokenAmount);
-        assertEq(myToken.balanceOf(nonOwner), 0);
 
         vm.prank(nonOwner);
         vm.expectRevert(OnlyOwnerCanCall.selector);

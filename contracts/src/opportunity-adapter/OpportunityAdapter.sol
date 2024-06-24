@@ -202,13 +202,14 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     ) internal {
         for (uint i = 0; i < buyTokens.length; i++) {
             IERC20 token = IERC20(buyTokens[i].token);
+            uint256 tokenBalance = token.balanceOf(address(this));
             if (
-                token.balanceOf(address(this)) <
+                tokenBalance <
                 buyTokensBalancesBeforeCall[i] + buyTokens[i].amount
             ) {
                 revert InsufficientTokenReceived();
             }
-            token.safeTransfer(executor, token.balanceOf(address(this)));
+            token.safeTransfer(executor, tokenBalance);
         }
     }
 

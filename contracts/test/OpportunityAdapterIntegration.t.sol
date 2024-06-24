@@ -241,7 +241,7 @@ contract OpportunityAdapterIntegrationTest is
             );
         uint256 initialAdapterBuyTokenBalance = 5000;
         address opportunityAdapter = adapterFactory.computeAddress(executor);
-        buyToken.mint(opportunityAdapter, initialAdapterBuyTokenBalance); // initial balance should not affect the result
+        buyToken.mint(opportunityAdapter, initialAdapterBuyTokenBalance);
         sellToken.mint(executor, sellTokenAmount);
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
