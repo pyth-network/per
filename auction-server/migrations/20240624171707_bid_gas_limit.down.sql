@@ -1,0 +1,1 @@
+ALTER TABLE bid DROP COLUMN gas_limit;

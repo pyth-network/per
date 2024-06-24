@@ -10,6 +10,7 @@ use {
             Bid,
             MulticallData,
             MulticallReturn,
+            GAS_ESTIMATION_MAX,
         },
         server::{
             EXIT_CHECK_INTERVAL,
@@ -185,6 +186,7 @@ pub async fn verify_opportunity(
             chain_store.config.adapter_factory_contract,
             adapter_calldata,
             fake_bid.amount,
+            U256::from(GAS_ESTIMATION_MAX),
         ))],
     )
     .tx;

@@ -97,6 +97,10 @@ abigen!(
     ExpressRelay,
     "../contracts/out/ExpressRelay.sol/ExpressRelay.json"
 );
+abigen!(
+    OpportunityAdapterFactory,
+    "../contracts/out/OpportunityAdapterFactory.sol/OpportunityAdapterFactory.json"
+);
 pub type ExpressRelayContract = ExpressRelay<Provider<TracedClient>>;
 pub type SignableProvider = TransformerMiddleware<
     GasOracleMiddleware<
@@ -107,15 +111,44 @@ pub type SignableProvider = TransformerMiddleware<
 >;
 pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
 
-impl From<([u8; 16], H160, Bytes, U256)> for MulticallData {
-    fn from(x: ([u8; 16], H160, Bytes, U256)) -> Self {
+impl From<([u8; 16], H160, Bytes, U256, U256)> for MulticallData {
+    fn from(x: ([u8; 16], H160, Bytes, U256, U256)) -> Self {
         MulticallData {
             bid_id:          x.0,
             target_contract: x.1,
             target_calldata: x.2,
             bid_amount:      x.3,
+            gas_limit:       x.4,
         }
     }
+}
+
+pub const GAS_ESTIMATION_MAX: u32 = 3 * 1000 * 1000;
+const GAS_ESTIMATION_MIN: u32 = 500 * 1000;
+const GAS_ESTIMATION_THRESHOLD: u32 = 100 * 1000;
+
+pub async fn estimate_gas(
+    call: FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>>,
+) -> U256 {
+    let mut mx = GAS_ESTIMATION_MAX;
+    let mut mn = GAS_ESTIMATION_MIN;
+    while mn + GAS_ESTIMATION_THRESHOLD < mx {
+        let mid = (mn + mx) / 2;
+        let call = call.clone().gas(mid);
+        match call.call_raw().await {
+            Ok(result) => {
+                if result.iter().all(|status| status.external_success) {
+                    mx = mid;
+                } else {
+                    mn = mid;
+                }
+            }
+            Err(_) => {
+                mn = mid;
+            }
+        }
+    }
+    U256::from(mx)
 }
 
 pub fn get_simulation_call(
@@ -157,17 +190,17 @@ impl Transformer for LegacyTxTransformer {
 pub async fn submit_bids(
     express_relay_contract: Arc<SignableExpressRelayContract>,
     permission: Bytes,
-    multicall_data: Vec<MulticallData>,
+    // multicall_data: Vec<MulticallData>,
+    bids: Vec<SimulatedBid>,
 ) -> Result<H256, ContractError<SignableProvider>> {
-    let call = express_relay_contract.multicall(permission, multicall_data);
-    let mut gas_estimate = call.estimate_gas().await?;
-
-    let gas_multiplier = U256::from(2); //TODO: smarter gas estimation
-    gas_estimate *= gas_multiplier;
-    let call_with_gas = call.gas(gas_estimate);
-    let send_call = call_with_gas.send().await?;
-
-    Ok(send_call.tx_hash())
+    let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
+    let tx_hash = express_relay_contract
+        .multicall(permission, bids.into_iter().map(|b| b.into()).collect())
+        .gas(gas_estimate + GAS_ESTIMATION_MIN)
+        .send()
+        .await?
+        .tx_hash();
+    Ok(tx_hash)
 }
 
 impl From<SimulatedBid> for MulticallData {
@@ -177,6 +210,7 @@ impl From<SimulatedBid> for MulticallData {
             target_contract: bid.target_contract,
             target_calldata: bid.target_calldata,
             bid_amount:      bid.bid_amount,
+            gas_limit:       bid.gas_limit,
         }
     }
 }
@@ -371,7 +405,7 @@ async fn submit_auction_for_bids<'a>(
     let submit_bids_call = submit_bids(
         chain_store.express_relay_contract.clone(),
         permission_key.clone(),
-        winner_bids.clone().into_iter().map(|b| b.into()).collect(),
+        winner_bids.clone().into_iter().collect(),
     );
 
     match submit_bids_call.await {
@@ -612,34 +646,11 @@ pub async fn handle_bid(
             bid.target_contract,
             bid.target_calldata.clone(),
             bid.amount,
+            U256::from(GAS_ESTIMATION_MAX),
         ))],
     );
 
-    let estimated_gas = call
-        .estimate_gas()
-        .await
-        .map_err(|_| RestError::TemporarilyUnavailable)?;
-
-    verify_bid_exceeds_gas_cost(
-        estimated_gas,
-        EthProviderOracle::new(chain_store.provider.clone()),
-        bid.amount,
-        // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
-        // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
-        // The threshold will be multiplied by two to ensure the bid is beneficial, as well as to allow for estimation errors.
-        // For example, if we are unable to submit the bid in the current block.
-        U256::from(max(TOTAL_BIDS_PER_AUCTION * 2, MINIMUM_GAS_MULTIPLIER)),
-    )
-    .await?;
-    // The transaction body size will be automatically limited when the gas is limited.
-    verify_bid_under_gas_limit(
-        chain_store,
-        estimated_gas,
-        U256::from(TOTAL_BIDS_PER_AUCTION * 2),
-    )
-    .await?;
-
-    match call.await {
+    match call.clone().await {
         Ok(results) => {
             if !results[0].external_success {
                 return Err(RestError::SimulationError {
@@ -662,6 +673,26 @@ pub async fn handle_bid(
         }
     }
 
+    let estimated_gas = estimate_gas(call).await;
+    verify_bid_exceeds_gas_cost(
+        estimated_gas,
+        EthProviderOracle::new(chain_store.provider.clone()),
+        bid.amount,
+        // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
+        // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
+        // The threshold will be multiplied by two to ensure the bid is beneficial, as well as to allow for estimation errors.
+        // For example, if we are unable to submit the bid in the current block.
+        U256::from(max(TOTAL_BIDS_PER_AUCTION * 2, MINIMUM_GAS_MULTIPLIER)),
+    )
+    .await?;
+    // The transaction body size will be automatically limited when the gas is limited.
+    verify_bid_under_gas_limit(
+        chain_store,
+        estimated_gas,
+        U256::from(TOTAL_BIDS_PER_AUCTION * 2),
+    )
+    .await?;
+
     let bid_id = Uuid::new_v4();
     let simulated_bid = SimulatedBid {
         target_contract: bid.target_contract,
@@ -676,6 +707,7 @@ pub async fn handle_bid(
             Auth::Authorized(_, profile) => Some(profile.id),
             _ => None,
         },
+        gas_limit: estimated_gas * 13 / 10, // 30% extra gas for safety
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)
