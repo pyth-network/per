@@ -21,7 +21,7 @@ contract PermitSignature is Test {
         keccak256("TokenPermissions(address token,uint256 amount)");
 
     function setUpPermit2() public {
-        deployCodeTo("out/Permit2.sol/Permit2.json", PERMIT2);
+        deployCodeTo("permit2/Permit2.json", PERMIT2);
     }
 
     function getPermitBatchWitnessSignature(
