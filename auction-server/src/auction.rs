@@ -97,10 +97,6 @@ abigen!(
     ExpressRelay,
     "../contracts/out/ExpressRelay.sol/ExpressRelay.json"
 );
-abigen!(
-    OpportunityAdapterFactory,
-    "../contracts/out/OpportunityAdapterFactory.sol/OpportunityAdapterFactory.json"
-);
 pub type ExpressRelayContract = ExpressRelay<Provider<TracedClient>>;
 pub type SignableProvider = TransformerMiddleware<
     GasOracleMiddleware<
@@ -405,7 +401,7 @@ async fn submit_auction_for_bids<'a>(
     let submit_bids_call = submit_bids(
         chain_store.express_relay_contract.clone(),
         permission_key.clone(),
-        winner_bids.clone().into_iter().collect(),
+        winner_bids.clone(),
     );
 
     match submit_bids_call.await {
@@ -707,7 +703,10 @@ pub async fn handle_bid(
             Auth::Authorized(_, profile) => Some(profile.id),
             _ => None,
         },
-        gas_limit: estimated_gas * 13 / 10, // 30% extra gas for safety
+        // add a buffer to the gas limit to account for estimation errors
+        // for example if the THRESHOLD is 100 and MIN is 500, the safety would be like 26%
+        gas_limit: estimated_gas
+            + estimated_gas * (GAS_ESTIMATION_THRESHOLD * 13 / 10) / GAS_ESTIMATION_MIN,
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)
