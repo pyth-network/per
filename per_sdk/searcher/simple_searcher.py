@@ -9,7 +9,11 @@ import httpx
 import web3
 from eth_account import Account
 
-from per_sdk.searcher.searcher_utils import BidInfo, construct_signature_executor
+from per_sdk.searcher.searcher_utils import (
+    OPPORTUNITY_ADAPTER_CONFIGS,
+    BidInfo,
+    construct_signature_executor,
+)
 from per_sdk.utils.types_liquidation_adapter import Opportunity
 
 logger = logging.getLogger(__name__)
@@ -159,13 +163,7 @@ async def main():
 
     executor = Account.from_key(sk_liquidator).address
 
-    opportunity_adapter_config = (
-        await client.get(
-            urllib.parse.urljoin(
-                args.liquidation_server_url, f"/v1/opportunities/{args.chain_id}/config"
-            )
-        )
-    ).json()
+    opportunity_adapter_config = OPPORTUNITY_ADAPTER_CONFIGS[args.chain_id]
     opportunity_adapter_factory = opportunity_adapter_config[
         "opportunity_adapter_factory"
     ]

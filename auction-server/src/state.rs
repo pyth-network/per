@@ -1,7 +1,6 @@
 use {
     crate::{
         api::{
-            opportunity::OpportunityAdapterConfig,
             profile as ApiProfile,
             ws::{
                 UpdateEvent,
@@ -180,14 +179,15 @@ pub enum SpoofInfo {
 }
 
 pub struct ChainStore {
-    pub provider:                   Provider<TracedClient>,
-    pub network_id:                 u64,
-    pub config:                     EthereumConfig,
-    pub weth:                       Address,
-    pub token_spoof_info:           RwLock<HashMap<Address, SpoofInfo>>,
-    pub express_relay_contract:     Arc<SignableExpressRelayContract>,
-    pub block_gas_limit:            U256,
-    pub opportunity_adapter_config: OpportunityAdapterConfig,
+    pub chain_id_num:           u64,
+    pub provider:               Provider<TracedClient>,
+    pub network_id:             u64,
+    pub config:                 EthereumConfig,
+    pub permit2:                Address,
+    pub weth:                   Address,
+    pub token_spoof_info:       RwLock<HashMap<Address, SpoofInfo>>,
+    pub express_relay_contract: Arc<SignableExpressRelayContract>,
+    pub block_gas_limit:        U256,
 }
 
 #[derive(Default)]

@@ -2,7 +2,6 @@ use {
     crate::{
         api::{
             self,
-            opportunity::OpportunityAdapterConfig,
             ws,
         },
         auction::{
@@ -18,7 +17,6 @@ use {
         },
         models,
         opportunity_adapter::{
-            get_opportunity_adapter_init_bytecode_hash,
             get_permit2_address,
             get_weth_address,
             run_verification_loop,
@@ -178,37 +176,25 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                     chain_config.legacy_tx,
                     id,
                 );
-                let opportunity_adapter_init_bytecode_hash =
-                    get_opportunity_adapter_init_bytecode_hash(
-                        chain_config.adapter_factory_contract,
-                        provider.clone(),
-                    )
-                    .await?;
                 let permit2 =
                     get_permit2_address(chain_config.adapter_factory_contract, provider.clone())
                         .await?;
                 let weth =
                     get_weth_address(chain_config.adapter_factory_contract, provider.clone())
                         .await?;
-                let opportunity_adapter_config = OpportunityAdapterConfig {
-                    chain_id: id,
-                    opportunity_adapter_factory: chain_config.adapter_factory_contract,
-                    opportunity_adapter_init_bytecode_hash,
-                    permit2,
-                    weth,
-                };
 
                 Ok((
                     chain_id.clone(),
                     ChainStore {
+                        chain_id_num: id,
                         provider,
                         network_id: id,
                         token_spoof_info: Default::default(),
                         config: chain_config.clone(),
+                        permit2,
                         weth,
                         express_relay_contract: Arc::new(express_relay_contract),
                         block_gas_limit: block.gas_limit,
-                        opportunity_adapter_config,
                     },
                 ))
             }

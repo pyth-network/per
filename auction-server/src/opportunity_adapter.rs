@@ -61,7 +61,6 @@ use {
             Address,
             Bytes,
             Signature,
-            H256,
             U256,
         },
         utils::get_create2_address,
@@ -126,19 +125,6 @@ pub async fn get_permit2_address(
         .call()
         .await
         .map_err(|e| anyhow!("Error getting permit2 address from adapter: {:?}", e))
-}
-
-pub async fn get_opportunity_adapter_init_bytecode_hash(
-    adapter_contract: Address,
-    provider: Provider<TracedClient>,
-) -> Result<H256> {
-    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
-    adapter
-        .get_opportunity_adapter_creation_code_hash()
-        .call()
-        .await
-        .map(|x| H256::from_slice(x.as_slice()))
-        .map_err(|e| anyhow!("Error getting init bytecode hash from adapter: {:?}", e))
 }
 
 fn generate_random_u256() -> U256 {
@@ -245,7 +231,7 @@ pub async fn verify_opportunity(
 
                 let allowance_storage_key = token_spoof::calculate_allowance_storage_key(
                     fake_wallet.address(),
-                    chain_store.opportunity_adapter_config.permit2,
+                    chain_store.permit2,
                     allowance_slot,
                 );
                 let value: [u8; 32] = amount.into();
@@ -436,8 +422,8 @@ pub fn make_opportunity_execution_params(
     let eip_712_domain = EIP712Domain {
         name:               Some("Permit2".to_string()),
         version:            None,
-        chain_id:           Some(chain_store.opportunity_adapter_config.chain_id.into()),
-        verifying_contract: Some(chain_store.opportunity_adapter_config.permit2),
+        chain_id:           Some(chain_store.chain_id_num.into()),
+        verifying_contract: Some(chain_store.permit2),
     };
     ExecutionParamsWithSignature {
         params: ExecutionParams {
