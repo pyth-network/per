@@ -84,7 +84,6 @@ def construct_signature_executor(
         "chainId": str(chain_id),
         "verifyingContract": permit2_address,
     }
-    print(domain_data)
 
     message_types = {
         "PermitBatchWitnessTransferFrom": [

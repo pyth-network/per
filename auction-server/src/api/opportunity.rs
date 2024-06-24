@@ -91,7 +91,7 @@ impl OpportunityParamsWithMetadata {
     }
 }
 
-impl OpportunityParamsWithMetadata {
+impl From<Opportunity> for OpportunityParamsWithMetadata {
     fn from(val: Opportunity) -> Self {
         OpportunityParamsWithMetadata {
             opportunity_id: val.id,
@@ -161,8 +161,7 @@ pub async fn post_opportunity(
         );
     }
 
-    let opportunity_with_metadata: OpportunityParamsWithMetadata =
-        OpportunityParamsWithMetadata::from(opportunity.clone());
+    let opportunity_with_metadata: OpportunityParamsWithMetadata = opportunity.into();
 
     Ok(opportunity_with_metadata.into())
 }
@@ -184,11 +183,11 @@ pub async fn get_opportunities(
         .read()
         .await
         .iter()
-        .filter_map(|(_key, opportunities)| {
+        .map(|(_key, opportunities)| {
             let opportunity = opportunities
                 .last()
                 .expect("A permission key vector should have at least one opportunity");
-            Some(OpportunityParamsWithMetadata::from(opportunity.clone()))
+            OpportunityParamsWithMetadata::from(opportunity.clone())
         })
         .filter(|params_with_id: &OpportunityParamsWithMetadata| {
             let OpportunityParams::V1(params) = &params_with_id.params;
