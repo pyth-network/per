@@ -4,6 +4,9 @@ pragma solidity ^0.8.13;
 // Signature: 0xd5668c88
 error NotCalledByExpressRelay();
 
+// Signature: 0xb02436cc
+error NotCalledByFactory();
+
 // Signature: 0x446f3eeb
 error AdapterOwnerMismatch();
 
@@ -27,3 +30,6 @@ error EthOrWethBalanceDecreased();
 
 // Signature: 0x9c86e59e
 error TargetContractNotAllowed();
+
+// Signature: 0x47a8ea58
+error OnlyOwnerCanCall();

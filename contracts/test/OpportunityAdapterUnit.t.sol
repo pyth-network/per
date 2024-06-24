@@ -43,6 +43,44 @@ contract OpportunityAdapterUnitTest is
         myToken = new MyToken("SellToken", "ST");
     }
 
+    function testWithdrawEthOwner(uint256 amount) public {
+        address owner = makeAddr("executor");
+        vm.deal(address(opportunityAdapter), amount);
+
+        vm.prank(owner);
+        opportunityAdapter.withdrawEth();
+
+        assertEq(address(opportunityAdapter).balance, 0);
+        assertEq(owner.balance, amount);
+    }
+
+    function testRevertWithdrawEthNonOwner() public {
+        address nonOwner = makeAddr("nonOwner");
+
+        vm.prank(nonOwner);
+        vm.expectRevert(OnlyOwnerCanCall.selector);
+        opportunityAdapter.withdrawEth();
+    }
+
+    function testWithdrawTokenOwner(uint256 tokenAmount) public {
+        address owner = makeAddr("executor");
+        myToken.mint(address(opportunityAdapter), tokenAmount);
+
+        vm.prank(owner);
+        opportunityAdapter.withdrawToken(address(myToken));
+
+        assertEq(myToken.balanceOf(address(opportunityAdapter)), 0);
+        assertEq(myToken.balanceOf(owner), tokenAmount);
+    }
+
+    function testRevertWithdrawTokenNonOwner() public {
+        address nonOwner = makeAddr("nonOwner");
+
+        vm.prank(nonOwner);
+        vm.expectRevert(OnlyOwnerCanCall.selector);
+        opportunityAdapter.withdrawToken(address(myToken));
+    }
+
     function testTypeStrings() public {
         string memory opportunityWitnessType = opportunityAdapter
             .getOpportunityWitnessType();
@@ -176,21 +214,28 @@ contract OpportunityAdapterUnitTest is
             .exposed_getContractTokenBalances(tokens);
     }
 
-    function testValidateAndTransferBuyTokens(uint256 tokenAmount) public {
+    function testValidateAndTransferBuyTokens(
+        uint256 tokenAmount,
+        uint256 excessTokenAmount
+    ) public {
+        vm.assume(tokenAmount <= type(uint256).max - excessTokenAmount); // to avoid overflow in the test
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         buyTokens[0] = TokenAmount(address(myToken), tokenAmount);
         address executor = makeAddr("executor");
         address targetContract = makeAddr("targetContract");
         uint256[] memory buyTokensBalancesBeforeCall = new uint256[](1);
         buyTokensBalancesBeforeCall[0] = 0;
-        myToken.mint(address(opportunityAdapter), tokenAmount);
+        myToken.mint(
+            address(opportunityAdapter),
+            tokenAmount + excessTokenAmount
+        );
         opportunityAdapter.exposed_validateAndTransferBuyTokens(
             buyTokens,
             executor,
             buyTokensBalancesBeforeCall
         );
         assertEq(myToken.balanceOf(address(opportunityAdapter)), 0);
-        assertEq(myToken.balanceOf(executor), tokenAmount);
+        assertEq(myToken.balanceOf(executor), tokenAmount + excessTokenAmount);
     }
 
     function testRevertWhenInsufficientTokensInValidateAndTransferBuyTokens(
