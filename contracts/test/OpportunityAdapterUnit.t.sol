@@ -89,7 +89,7 @@ contract OpportunityAdapterUnitTest is
         signature = getPermitBatchWitnessSignature(
             permit,
             privateKey,
-            FULL_WITNESS_BATCH_TYPEHASH,
+            FULL_OPPORTUNITY_WITNESS_BATCH_TYPEHASH,
             hash(witness),
             address(opportunityAdapter),
             EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()

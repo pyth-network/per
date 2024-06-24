@@ -598,7 +598,7 @@ contract ExpressRelayTestSetup is
             bytes memory signature = getPermitBatchWitnessSignature(
                 permit,
                 bidInfos[i].executorSk,
-                FULL_WITNESS_BATCH_TYPEHASH,
+                FULL_OPPORTUNITY_WITNESS_BATCH_TYPEHASH,
                 hash(witness),
                 adapterFactory.computeAddress(bidInfos[i].executor),
                 EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
