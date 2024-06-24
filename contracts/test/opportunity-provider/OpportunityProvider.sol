@@ -10,18 +10,17 @@ import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
+import {OpportunityProviderHasher} from "./OpportunityProviderHasher.sol";
 
-abstract contract OpportunityProvider is ReentrancyGuard {
+abstract contract OpportunityProvider is
+    ReentrancyGuard,
+    OpportunityProviderHasher
+{
     using SafeERC20 for IERC20;
 
     address _admin;
     address _permit2;
     address _expressRelay;
-
-    string public constant _OPPORTUNITY_PROVIDER_WITNESS_TYPE =
-        "OpportunityProviderWitness(TokenAmount[] buyTokens,address owner)TokenAmount(address token,uint256 amount)";
-    string public constant _TOKEN_AMOUNT_TYPE =
-        "TokenAmount(address token,uint256 amount)";
 
     string public constant OPPORTUNITY_PROVIDER_WITNESS_TYPE_STRING =
         "OpportunityProviderWitness witness)OpportunityProviderWitness(TokenAmount[] buyTokens,address owner)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
@@ -37,42 +36,6 @@ abstract contract OpportunityProvider is ReentrancyGuard {
         _admin = admin;
         _expressRelay = expressRelay;
         _permit2 = permit2;
-    }
-
-    function hash(
-        TokenAmount memory tokenAmount
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256(bytes(_TOKEN_AMOUNT_TYPE)),
-                    tokenAmount.token,
-                    tokenAmount.amount
-                )
-            );
-    }
-
-    function hash(
-        TokenAmount[] memory tokenAmounts
-    ) internal pure returns (bytes32) {
-        bytes32[] memory hashedTokens = new bytes32[](tokenAmounts.length);
-        for (uint i = 0; i < tokenAmounts.length; i++) {
-            hashedTokens[i] = hash(tokenAmounts[i]);
-        }
-        return keccak256(abi.encodePacked(hashedTokens));
-    }
-
-    function hash(
-        ExecutionWitness memory params
-    ) public pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256(bytes(_OPPORTUNITY_PROVIDER_WITNESS_TYPE)),
-                    hash(params.buyTokens),
-                    params.owner
-                )
-            );
     }
 
     function _verifyParams(
