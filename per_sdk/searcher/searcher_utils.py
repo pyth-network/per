@@ -10,17 +10,6 @@ class BidInfo(TypedDict):
     nonce: int
 
 
-OPPORTUNITY_ADAPTER_CONFIGS = {
-    "development": {
-        "chain_id": 31337,
-        "opportunity_adapter_factory": "0x610178da211fef7d417bc0e6fed39f05609ad788",
-        "opportunity_adapter_init_bytecode_hash": "0x126a3490f7fac65732396d617d2b728c25235e2cdc9f1e99faea1d24a9fba89c",
-        "permit2": "0x8a791620dd6260079bf849dc5567adc3f2fdc318",
-        "weth": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
-    }
-}
-
-
 def _get_permitted_tokens(
     sell_tokens: list[(str, int)], bid_amount: int, call_value: int, weth_address: str
 ) -> list[dict[str, int]]:

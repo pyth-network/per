@@ -9,11 +9,7 @@ import httpx
 import web3
 from eth_account import Account
 
-from per_sdk.searcher.searcher_utils import (
-    OPPORTUNITY_ADAPTER_CONFIGS,
-    BidInfo,
-    construct_signature_executor,
-)
+from per_sdk.searcher.searcher_utils import BidInfo, construct_signature_executor
 from per_sdk.utils.types_liquidation_adapter import Opportunity
 
 logger = logging.getLogger(__name__)
@@ -134,6 +130,12 @@ async def main():
         help="Chain ID of the network to monitor for opportunities",
     )
     parser.add_argument(
+        "--chain-id-num",
+        type=int,
+        required=True,
+        help="Chain ID as a number",
+    )
+    parser.add_argument(
         "--bid",
         type=int,
         default=int(2e16),  # To make sure it covers the gas cost
@@ -144,6 +146,30 @@ async def main():
         type=str,
         required=True,
         help="Liquidation server endpoint to use for fetching opportunities and submitting bids",
+    )
+    parser.add_argument(
+        "--adapter-factory-address",
+        type=str,
+        required=True,
+        help="Address of the adapter factory contract to use for liquidation opportunities",
+    )
+    parser.add_argument(
+        "--adapter-init-bytecode-hash",
+        type=str,
+        required=True,
+        help="Hash of the adapter factory contract initialization code. This is used for calculating the derived address of the opportunity adapter.",
+    )
+    parser.add_argument(
+        "--permit2-address",
+        type=str,
+        required=True,
+        help="Address of the permit2 contract to use for liquidation opportunities",
+    )
+    parser.add_argument(
+        "--weth-address",
+        type=str,
+        required=True,
+        help="Address of the WETH contract to use for liquidation opportunities",
     )
     args = parser.parse_args()
 
@@ -163,16 +189,11 @@ async def main():
 
     executor = Account.from_key(sk_liquidator).address
 
-    opportunity_adapter_config = OPPORTUNITY_ADAPTER_CONFIGS[args.chain_id]
-    opportunity_adapter_factory = opportunity_adapter_config[
-        "opportunity_adapter_factory"
-    ]
-    opportunity_adapter_init_code_hash = opportunity_adapter_config[
-        "opportunity_adapter_init_bytecode_hash"
-    ]
-    permit2 = opportunity_adapter_config["permit2"]
-    weth = opportunity_adapter_config["weth"]
-    chain_id_num = opportunity_adapter_config["chain_id"]
+    opportunity_adapter_factory = args.adapter_factory_address
+    opportunity_adapter_init_code_hash = args.adapter_init_bytecode_hash
+    permit2 = args.permit2_address
+    weth = args.weth_address
+    chain_id_num = args.chain_id_num
 
     opportunity_adapter_address = calculate_opportunity_adapter_address(
         executor, opportunity_adapter_factory, opportunity_adapter_init_code_hash
