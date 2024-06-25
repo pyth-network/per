@@ -4,8 +4,9 @@ use {
         api::{
             bid::BidResult,
             ws::UpdateEvent::NewOpportunity,
-            ChainIdQueryParams,
             ErrorBodyResponse,
+            GetOpportunitiesQueryParams,
+            OpportunityMode,
             RestError,
         },
         config::ChainId,
@@ -92,7 +93,7 @@ impl OpportunityParamsWithMetadata {
 }
 
 impl OpportunityParamsWithMetadata {
-    fn from(val: Opportunity, chain_store: &ChainStore) -> Self {
+    pub fn from(val: Opportunity, chain_store: &ChainStore) -> Self {
         OpportunityParamsWithMetadata {
             opportunity_id: val.id,
             creation_time:  val.creation_time,
@@ -169,44 +170,67 @@ pub async fn post_opportunity(
     Ok(opportunity_with_metadata.into())
 }
 
-/// Fetch all opportunities ready to be exectued.
+/// Fetch opportunities ready for execution or historical opportunities
+/// depending on the mode. You need to provide `chain_id` and `permission_key` for historical mode.
 #[utoipa::path(get, path = "/v1/opportunities", responses(
 (status = 200, description = "Array of opportunities ready for bidding", body = Vec < OpportunityParamsWithMetadata >),
 (status = 400, response = ErrorBodyResponse),
 (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),
-params(ChainIdQueryParams))]
+params(GetOpportunitiesQueryParams))]
 pub async fn get_opportunities(
     State(store): State<Arc<Store>>,
-    query_params: Query<ChainIdQueryParams>,
+    query_params: Query<GetOpportunitiesQueryParams>,
 ) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
-    let opportunities: Vec<OpportunityParamsWithMetadata> = store
-        .opportunity_store
-        .opportunities
-        .read()
-        .await
-        .iter()
-        .filter_map(|(_key, opportunities)| {
-            let opportunity = opportunities
-                .last()
-                .expect("A permission key vector should have at least one opportunity");
+    match query_params.mode.clone() {
+        OpportunityMode::Live => {
+            let opportunities: Vec<OpportunityParamsWithMetadata> = store
+                .opportunity_store
+                .opportunities
+                .read()
+                .await
+                .iter()
+                .filter_map(|(_key, opportunities)| {
+                    let opportunity = opportunities
+                        .last()
+                        .expect("A permission key vector should have at least one opportunity");
 
-            let OpportunityParams::V1(params) = opportunity.params.clone();
-            store.chains.get(&params.chain_id).map(|chain_store| {
-                OpportunityParamsWithMetadata::from(opportunity.clone(), chain_store)
-            })
-        })
-        .filter(|params_with_id: &OpportunityParamsWithMetadata| {
-            let OpportunityParams::V1(params) = &params_with_id.params;
-            if let Some(chain_id) = &query_params.chain_id {
-                params.chain_id == *chain_id
-            } else {
-                true
-            }
-        })
-        .collect();
+                    let OpportunityParams::V1(params) = opportunity.params.clone();
+                    store.chains.get(&params.chain_id).map(|chain_store| {
+                        OpportunityParamsWithMetadata::from(opportunity.clone(), chain_store)
+                    })
+                })
+                .filter(|params_with_id: &OpportunityParamsWithMetadata| {
+                    let OpportunityParams::V1(params) = &params_with_id.params;
+                    if let Some(chain_id) = &query_params.chain_id {
+                        params.chain_id == *chain_id
+                    } else {
+                        true
+                    }
+                })
+                .collect();
 
-    Ok(opportunities.into())
+            Ok(opportunities.into())
+        }
+        OpportunityMode::Historical => {
+            let chain_id = query_params.chain_id.clone().ok_or_else(|| {
+                RestError::BadParameters("Chain id is required on historical mode".to_string())
+            })?;
+            let permission_key = query_params.permission_key.clone().ok_or_else(|| {
+                RestError::BadParameters(
+                    "Permission key is required on historical mode".to_string(),
+                )
+            })?;
+            let opps = store
+                .get_opportunities_by_permission_key(
+                    chain_id,
+                    permission_key,
+                    query_params.from_time,
+                )
+                .await?;
+            Ok(opps.into())
+        }
+    }
 }
 
 /// Bid on opportunity

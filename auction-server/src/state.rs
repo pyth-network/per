@@ -1,7 +1,10 @@
 use {
     crate::{
         api::{
-            opportunity::EIP712Domain,
+            opportunity::{
+                EIP712Domain,
+                OpportunityParamsWithMetadata,
+            },
             profile as ApiProfile,
             ws::{
                 UpdateEvent,
@@ -950,6 +953,66 @@ impl Store {
         };
         query.fetch_all(&self.db).await.map_err(|e| {
             tracing::error!("DB: Failed to fetch bids: {}", e);
+            RestError::TemporarilyUnavailable
+        })
+    }
+
+    pub async fn get_opportunities_by_permission_key(
+        &self,
+        chain_id: ChainId,
+        permission_key: PermissionKey,
+        from_time: Option<OffsetDateTime>,
+    ) -> Result<Vec<OpportunityParamsWithMetadata>, RestError> {
+        let chain_store = self
+            .chains
+            .get(&chain_id)
+            .ok_or_else(|| RestError::InvalidChainId)?;
+        let select = "SELECT * FROM opportunity WHERE chain_id = $1 AND permission_key = $2";
+        let order_by = "ORDER BY creation_time DESC LIMIT 20";
+        let query_with_time = format!("{} AND creation_time >= $3 {}", select, order_by);
+        let query_without_time = format!("{} {}", select, order_by);
+
+        let query = match from_time {
+            Some(from_time) => sqlx::query_as(query_with_time.as_str())
+                .bind(&chain_id)
+                .bind(permission_key.to_vec())
+                .bind(from_time),
+            None => sqlx::query_as(query_without_time.as_str())
+                .bind(&chain_id)
+                .bind(permission_key.to_vec()),
+        };
+        let opps: Vec<models::Opportunity> = query.fetch_all(&self.db).await.map_err(|e| {
+            tracing::error!("DB: Failed to fetch opportunities: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        let parsed_opps: anyhow::Result<Vec<OpportunityParamsWithMetadata>> = opps
+            .into_iter()
+            .map(|opp| {
+                let params: OpportunityParams = OpportunityParams::V1(OpportunityParamsV1 {
+                    permission_key:    Bytes::from(opp.permission_key.clone()),
+                    chain_id:          opp.chain_id,
+                    target_contract:   ethers::abi::Address::from_slice(&opp.target_contract),
+                    target_calldata:   Bytes::from(opp.target_calldata),
+                    target_call_value: U256::from_dec_str(
+                        opp.target_call_value.to_string().as_str(),
+                    )?,
+                    sell_tokens:       serde_json::from_value(opp.sell_tokens)?,
+                    buy_tokens:        serde_json::from_value(opp.buy_tokens)?,
+                });
+                let opp = Opportunity {
+                    id: opp.id,
+                    creation_time: opp.creation_time.assume_utc().unix_timestamp_nanos(),
+                    params,
+                };
+                Ok(OpportunityParamsWithMetadata::from(opp, chain_store))
+            })
+            .collect();
+        parsed_opps.map_err(|e| {
+            tracing::error!(
+                "Failed to convert opportunity to OpportunityParamsWithMetadata: {}",
+                e
+            );
             RestError::TemporarilyUnavailable
         })
     }

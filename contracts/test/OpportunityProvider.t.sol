@@ -87,7 +87,7 @@ contract OpportunityProviderUnitTest is
         setUpPermit2();
     }
 
-    function testTypeStrings() public view {
+    function testTypeStrings() public {
         string memory witnessType = opportunityProvider
             ._OPPORTUNITY_PROVIDER_WITNESS_TYPE();
         string memory tokenAmountType = opportunityProvider
