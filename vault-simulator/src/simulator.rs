@@ -267,13 +267,20 @@ pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
 
 pub async fn deploy_contract(options: DeployOptions) -> Result<()> {
     let client = setup_client(options.private_key, options.rpc_addr).await?;
+    let admin = client.inner().signer().address();
+    let allow_undercollateralized = true;
     let contract = SignableTokenVaultContract::deploy(
         client,
-        (options.relay_contract, options.oracle_contract),
+        (
+            admin,
+            options.relay_contract,
+            options.oracle_contract,
+            allow_undercollateralized,
+        ),
     )?
     .send()
     .await?;
-    tracing::info!("{}", contract.address().to_string());
+    tracing::info!("{:?}", contract.address());
     Ok(())
 }
 
