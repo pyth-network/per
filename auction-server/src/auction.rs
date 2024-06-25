@@ -643,7 +643,6 @@ pub async fn handle_bid(
             }
         }
         Err(e) => {
-            println!("Inside error: {:?}", e);
             return match e {
                 ContractError::Revert(reason) => {
                     if let Some(decoded_error) = ExpressRelayErrors::decode_with_selector(&reason) {
