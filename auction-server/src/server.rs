@@ -2,7 +2,6 @@ use {
     crate::{
         api::{
             self,
-            opportunity::EIP712Domain,
             ws,
         },
         auction::{
@@ -18,6 +17,7 @@ use {
         },
         models,
         opportunity_adapter::{
+            get_permit2_address,
             get_weth_address,
             run_verification_loop,
         },
@@ -176,25 +176,23 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                     chain_config.legacy_tx,
                     id,
                 );
+                let permit2 =
+                    get_permit2_address(chain_config.adapter_factory_contract, provider.clone())
+                        .await?;
                 let weth =
                     get_weth_address(chain_config.adapter_factory_contract, provider.clone())
                         .await?;
-                let eip_712_domain = EIP712Domain {
-                    name:               Some("Permit2".to_string()),
-                    version:            None,
-                    chain_id:           Some(id.into()),
-                    verifying_contract: Some(chain_config.permit2_contract),
-                };
 
                 Ok((
                     chain_id.clone(),
                     ChainStore {
+                        chain_id_num: id,
                         provider,
                         network_id: id,
                         token_spoof_info: Default::default(),
                         config: chain_config.clone(),
+                        permit2,
                         weth,
-                        eip_712_domain,
                         express_relay_contract: Arc::new(express_relay_contract),
                         block_gas_limit: block.gas_limit,
                     },

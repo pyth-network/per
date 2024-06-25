@@ -82,7 +82,7 @@ contract OpportunityAdapterIntegrationTest is
         bytes memory data,
         uint256 value,
         uint256 bid,
-        uint256 validUntil
+        uint256 deadline
     )
         public
         returns (ExecutionParams memory executionParams, bytes memory signature)
@@ -102,7 +102,7 @@ contract OpportunityAdapterIntegrationTest is
             .PermitBatchTransferFrom(
                 permitted,
                 0, // TODO: fill in the nonce
-                validUntil
+                deadline
             );
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         ExecutionWitness memory witness = ExecutionWitness(

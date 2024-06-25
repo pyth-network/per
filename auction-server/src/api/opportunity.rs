@@ -16,7 +16,6 @@ use {
             OpportunityBid,
         },
         state::{
-            ChainStore,
             Opportunity,
             OpportunityId,
             OpportunityParams,
@@ -32,10 +31,7 @@ use {
         },
         Json,
     },
-    ethers::{
-        signers::Signer,
-        types::U256,
-    },
+    ethers::signers::Signer,
     serde::{
         Deserialize,
         Serialize,
@@ -49,22 +45,6 @@ use {
     uuid::Uuid,
 };
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
-pub struct EIP712Domain {
-    /// The name parameter for the EIP712 domain.
-    #[schema(example = "OpportunityAdapter", value_type = Option<String>)]
-    pub name:               Option<String>,
-    /// The version parameter for the EIP712 domain.
-    #[schema(example = "1", value_type = Option<String>)]
-    pub version:            Option<String>,
-    /// The network chain id parameter for EIP712 domain.
-    #[schema(example = "31337", value_type=Option<String>)]
-    #[serde(with = "crate::serde::nullable_u256")]
-    pub chain_id:           Option<U256>,
-    /// The verifying contract address parameter for the EIP712 domain.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub verifying_contract: Option<ethers::abi::Address>,
-}
 
 /// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
@@ -80,8 +60,6 @@ pub struct OpportunityParamsWithMetadata {
     // expands params into component fields in the generated client schemas
     #[schema(inline)]
     params:         OpportunityParams,
-    /// The data needed to create the EIP712 domain separator
-    eip_712_domain: EIP712Domain,
 }
 
 impl OpportunityParamsWithMetadata {
@@ -92,13 +70,12 @@ impl OpportunityParamsWithMetadata {
     }
 }
 
-impl OpportunityParamsWithMetadata {
-    pub fn from(val: Opportunity, chain_store: &ChainStore) -> Self {
+impl From<Opportunity> for OpportunityParamsWithMetadata {
+    fn from(val: Opportunity) -> Self {
         OpportunityParamsWithMetadata {
             opportunity_id: val.id,
             creation_time:  val.creation_time,
             params:         val.params,
-            eip_712_domain: chain_store.eip_712_domain.clone(),
         }
     }
 }
@@ -146,7 +123,6 @@ pub async fn post_opportunity(
         .broadcast_sender
         .send(NewOpportunity(OpportunityParamsWithMetadata::from(
             opportunity.clone(),
-            chain_store,
         )))
         .map_err(|e| {
             tracing::error!("Failed to send update: {}", e);
@@ -164,8 +140,7 @@ pub async fn post_opportunity(
         );
     }
 
-    let opportunity_with_metadata: OpportunityParamsWithMetadata =
-        OpportunityParamsWithMetadata::from(opportunity.clone(), chain_store);
+    let opportunity_with_metadata: OpportunityParamsWithMetadata = opportunity.into();
 
     Ok(opportunity_with_metadata.into())
 }
@@ -199,20 +174,19 @@ pub async fn get_opportunities(
                 .read()
                 .await
                 .iter()
-                .filter_map(|(_key, opportunities)| {
+                .map(|(_key, opportunities)| {
                     let opportunity = opportunities
                         .last()
                         .expect("A permission key vector should have at least one opportunity");
-
-                    let OpportunityParams::V1(params) = opportunity.params.clone();
-                    if let Some(query_chain_id) = &query_params.chain_id {
-                        if params.chain_id != *query_chain_id {
-                            return None;
-                        }
+                    OpportunityParamsWithMetadata::from(opportunity.clone())
+                })
+                .filter(|params_with_id: &OpportunityParamsWithMetadata| {
+                    let OpportunityParams::V1(params) = &params_with_id.params;
+                    if let Some(chain_id) = &query_params.chain_id {
+                        params.chain_id == *chain_id
+                    } else {
+                        true
                     }
-                    store.chains.get(&params.chain_id).map(|chain_store| {
-                        OpportunityParamsWithMetadata::from(opportunity.clone(), chain_store)
-                    })
                 })
                 .collect();
 

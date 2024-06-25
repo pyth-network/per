@@ -17,6 +17,8 @@ field_mapping = {
     'searcherAOwnerSk': 'SEARCHER_SK',
     'adapterFactory': 'ADAPTER_FACTORY',
     'adapterBytecodeHash': 'ADAPTER_BYTECODE_HASH',
+    'permit2': 'PERMIT2',
+    'chainIdNum': 'CHAIN_ID_NUM',
 }
 
 
@@ -35,7 +37,6 @@ chains:
     rpc_timeout: 2
     express_relay_contract: {latest_env['expressRelay']}
     adapter_factory_contract: {latest_env['adapterFactory']}
-    permit2_contract: {latest_env['permit2']}
     legacy_tx: false
     poll_interval: 1
 '''

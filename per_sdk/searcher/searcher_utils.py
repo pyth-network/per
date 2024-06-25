@@ -3,12 +3,10 @@ from typing import TypedDict
 from eth_account import Account
 from eth_account.datastructures import SignedMessage
 
-from per_sdk.utils.types_liquidation_adapter import EIP712Domain
-
 
 class BidInfo(TypedDict):
     bid: int
-    valid_until: int
+    deadline: int
     nonce: int
 
 
@@ -48,9 +46,10 @@ def construct_signature_executor(
     value: int,
     bid_info: BidInfo,
     secret_key: str,
-    eip_712_domain: EIP712Domain,
     opportunity_adapter_address: str,
     weth_address: str,
+    permit2_address: str,
+    chain_id: int,
 ) -> SignedMessage:
     """
     Constructs a signature for an executors' bid to submit to the auction server.
@@ -62,22 +61,18 @@ def construct_signature_executor(
         calldata: The calldata for the execution method call.
         value: The value for the liquidation method call.
         bid: The amount of native token to bid on this opportunity.
-        valid_until: The timestamp at which the transaction will expire.
+        deadline: The timestamp at which the transaction will expire.
         secret_key: A 0x-prefixed hex string representing the liquidator's private key.
         eip_712_domain: The EIP712 domain data to create the signature.
     Returns:
         An EIP712 SignedMessage object, representing the liquidator's signature.
     """
     executor = Account.from_key(secret_key).address
-    domain_data = {}
-    if eip_712_domain.get("name"):
-        domain_data["name"] = eip_712_domain["name"]
-    if eip_712_domain.get("version"):
-        domain_data["version"] = eip_712_domain["version"]
-    if eip_712_domain.get("chain_id"):
-        domain_data["chainId"] = eip_712_domain["chain_id"]
-    if eip_712_domain.get("verifying_contract"):
-        domain_data["verifyingContract"] = eip_712_domain["verifying_contract"]
+    domain_data = {
+        "name": "Permit2",
+        "chainId": str(chain_id),
+        "verifyingContract": permit2_address,
+    }
 
     message_types = {
         "PermitBatchWitnessTransferFrom": [
@@ -112,7 +107,7 @@ def construct_signature_executor(
         ),
         "spender": opportunity_adapter_address,
         "nonce": bid_info["nonce"],
-        "deadline": bid_info["valid_until"],
+        "deadline": bid_info["deadline"],
         "witness": {
             "buyTokens": [
                 {

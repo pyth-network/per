@@ -46,7 +46,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         bytes memory signatureSearcher;
 
-        uint256 validUntil = UINT256_MAX;
+        uint256 deadline = UINT256_MAX;
 
         AccountBalance memory balancesAPre = getBalances(
             address(searcherA),
@@ -58,7 +58,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         searcherA.doLiquidate(
             0,
             0,
-            validUntil,
+            deadline,
             tokenDebtUpdateData,
             signatureSearcher
         );
@@ -92,14 +92,14 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
 
         bytes memory signatureSearcher;
 
-        uint256 validUntil = UINT256_MAX;
+        uint256 deadline = UINT256_MAX;
 
         vm.expectRevert(InvalidLiquidation.selector);
         vm.prank(searcherAOwnerAddress);
         searcherA.doLiquidate(
             0,
             0,
-            validUntil,
+            deadline,
             tokenDebtUpdateData,
             signatureSearcher
         );
@@ -678,7 +678,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         uint256 bidAmount0 = 150;
         contracts[0] = address(adapterFactory);
         bidInfos[0] = makeBidInfo(bidAmount0, searcherAOwnerSk);
-        bidInfos[0].validUntil = block.timestamp - 1; // use old timestamp for the validUntil field to create expired signature
+        bidInfos[0].deadline = block.timestamp - 1; // use old timestamp for the deadline field to create expired signature
 
         (
             bytes memory permission,
@@ -703,7 +703,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         expectedMulticallStatuses[0].externalSuccess = false;
         expectedMulticallStatuses[0].externalResult = abi.encodeWithSelector(
             bytes4(keccak256("SignatureExpired(uint256)")),
-            bidInfos[0].validUntil
+            bidInfos[0].deadline
         );
         expectMulticallIssuedEmit(
             permission,

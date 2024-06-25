@@ -5,7 +5,7 @@ import "./Signature.sol";
 
 contract SearcherSignature is Signature {
     bytes constant _TYPE_HASH =
-        "ExecutionParams(uint256 vaultId,uint256 bid,address signer,uint256 validUntil)";
+        "ExecutionParams(uint256 vaultId,uint256 bid,address signer,uint256 deadline)";
     string constant _NAME = "Searcher";
     string constant _VERSION = "1";
 
@@ -18,7 +18,7 @@ contract SearcherSignature is Signature {
         address signer,
         uint256 dataNumber,
         uint256 bid,
-        uint256 validUntil,
+        uint256 deadline,
         uint256 searcherSk
     ) public view returns (bytes memory) {
         bytes32 domainSeparator = _domainSeparatorV4(
@@ -27,13 +27,7 @@ contract SearcherSignature is Signature {
             _VERSION
         );
         bytes32 hashedData = keccak256(
-            abi.encode(
-                keccak256(_TYPE_HASH),
-                dataNumber,
-                bid,
-                signer,
-                validUntil
-            )
+            abi.encode(keccak256(_TYPE_HASH), dataNumber, bid, signer, deadline)
         );
         return createSignature(hashedData, domainSeparator, searcherSk);
     }

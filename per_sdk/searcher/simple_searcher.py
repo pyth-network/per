@@ -14,7 +14,7 @@ from per_sdk.utils.types_liquidation_adapter import Opportunity
 
 logger = logging.getLogger(__name__)
 
-VALID_UNTIL = 1_000_000_000_000
+DEADLINE = 2**256 - 1
 
 
 def assess_liquidation_opportunity(
@@ -22,7 +22,7 @@ def assess_liquidation_opportunity(
     opp: Opportunity,
 ) -> BidInfo | None:
     """
-    Assesses whether a liquidation opportunity is worth liquidating; if so, returns the bid and valid_until timestamp. Otherwise returns None.
+    Assesses whether a liquidation opportunity is worth liquidating; if so, returns the bid and deadline timestamp. Otherwise returns None.
     This function determines whether the given opportunity deals with the specified sell and buy tokens that the searcher wishes to transact in and whether it is profitable to execute the liquidation.
     There are many ways to evaluate this, but the most common way is to check that the value of the amount the searcher will receive from the liquidation exceeds the value of the amount repaid.
     Individual searchers will have their own methods to determine market impact and the profitability of conducting a liquidation. This function can be expanded to include external prices to perform this evaluation.
@@ -36,7 +36,7 @@ def assess_liquidation_opportunity(
     """
     user_execution_params = {
         "bid": default_bid,
-        "valid_until": VALID_UNTIL,
+        "deadline": DEADLINE,
         "nonce": secrets.randbits(64),
     }
     return user_execution_params
@@ -46,7 +46,7 @@ class OpportunityBid(TypedDict):
     opportunity_id: str
     permission_key: str
     amount: str
-    valid_until: str
+    deadline: str
     nonce: str
     executor: str
     signature: str
@@ -58,6 +58,8 @@ def create_liquidation_transaction(
     bid_info: BidInfo,
     opportunity_adapter_address: str,
     weth_address: str,
+    permit2_address: str,
+    chain_id: int,
 ) -> OpportunityBid:
     """
     Creates a bid for a liquidation opportunity.
@@ -82,16 +84,17 @@ def create_liquidation_transaction(
         int(opp["target_call_value"]),
         bid_info,
         sk_liquidator,
-        opp["eip_712_domain"],
         opportunity_adapter_address,
         weth_address,
+        permit2_address,
+        chain_id,
     )
 
     opportunity_bid = {
         "opportunity_id": opp["opportunity_id"],
         "permission_key": opp["permission_key"],
         "amount": str(bid_info["bid"]),
-        "valid_until": str(bid_info["valid_until"]),
+        "deadline": str(bid_info["deadline"]),
         "nonce": str(bid_info["nonce"]),
         "executor": liquidator,
         "signature": bytes(signature_liquidator.signature).hex(),
@@ -127,9 +130,15 @@ async def main():
         help="Chain ID of the network to monitor for opportunities",
     )
     parser.add_argument(
+        "--chain-id-num",
+        type=int,
+        required=True,
+        help="Chain ID as a number",
+    )
+    parser.add_argument(
         "--bid",
         type=int,
-        default=int(1e15),  # To make sure it covers the gas cost
+        default=int(2e16),  # To make sure it covers the gas cost
         help="Default amount of bid for liquidation opportunities",
     )
     parser.add_argument(
@@ -142,13 +151,19 @@ async def main():
         "--adapter-factory-address",
         type=str,
         required=True,
-        help="Address of the opportunity adapter factory contract to use for liquidation opportunities",
+        help="Address of the adapter factory contract to use for liquidation opportunities",
     )
     parser.add_argument(
-        "--adapter-bytecode-hash",
+        "--adapter-init-bytecode-hash",
         type=str,
         required=True,
-        help="Bytecode hash of opportunity adapter used in the factory contract. This is used for calculating the derived address",
+        help="Hash of the adapter factory contract initialization code. This is used for calculating the derived address of the opportunity adapter.",
+    )
+    parser.add_argument(
+        "--permit2-address",
+        type=str,
+        required=True,
+        help="Address of the permit2 contract to use for liquidation opportunities",
     )
     parser.add_argument(
         "--weth-address",
@@ -173,8 +188,15 @@ async def main():
     client = httpx.AsyncClient()
 
     executor = Account.from_key(sk_liquidator).address
+
+    opportunity_adapter_factory = args.adapter_factory_address
+    opportunity_adapter_init_code_hash = args.adapter_init_bytecode_hash
+    permit2 = args.permit2_address
+    weth = args.weth_address
+    chain_id_num = args.chain_id_num
+
     opportunity_adapter_address = calculate_opportunity_adapter_address(
-        executor, args.adapter_factory_address, args.adapter_bytecode_hash
+        executor, opportunity_adapter_factory, opportunity_adapter_init_code_hash
     )
 
     while True:
@@ -211,7 +233,9 @@ async def main():
                     sk_liquidator,
                     bid_info,
                     opportunity_adapter_address,
-                    args.weth_address,
+                    weth,
+                    permit2,
+                    chain_id_num,
                 )
 
                 resp = await client.post(

@@ -1,7 +1,6 @@
 use {
     crate::{
         api::{
-            opportunity::EIP712Domain,
             Auth,
             RestError,
         },
@@ -56,6 +55,7 @@ use {
             spoof,
             transaction::eip712::{
                 self,
+                EIP712Domain,
                 Eip712,
             },
             Address,
@@ -115,6 +115,18 @@ pub async fn get_weth_address(
         .map_err(|e| anyhow!("Error getting WETH address from adapter: {:?}", e))
 }
 
+pub async fn get_permit2_address(
+    adapter_contract: Address,
+    provider: Provider<TracedClient>,
+) -> Result<Address> {
+    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+    adapter
+        .get_permit_2()
+        .call()
+        .await
+        .map_err(|e| anyhow!("Error getting permit2 address from adapter: {:?}", e))
+}
+
 fn generate_random_u256() -> U256 {
     let mut rng = rand::thread_rng();
     U256::from(rng.gen::<[u8; 32]>())
@@ -135,7 +147,7 @@ pub async fn verify_opportunity(
 
     let fake_bid = OpportunityBid {
         executor:       fake_wallet.address(),
-        valid_until:    U256::max_value(),
+        deadline:       U256::max_value(),
         nonce:          generate_random_u256(),
         permission_key: opportunity.permission_key.clone(),
         amount:         U256::zero(),
@@ -219,7 +231,7 @@ pub async fn verify_opportunity(
 
                 let allowance_storage_key = token_spoof::calculate_allowance_storage_key(
                     fake_wallet.address(),
-                    chain_store.config.permit2_contract,
+                    chain_store.permit2,
                     allowance_slot,
                 );
                 let value: [u8; 32] = amount.into();
@@ -241,19 +253,6 @@ pub async fn verify_opportunity(
     }
     Ok(VerificationResult::Success)
 }
-
-impl From<EIP712Domain> for eip712::EIP712Domain {
-    fn from(val: EIP712Domain) -> Self {
-        eip712::EIP712Domain {
-            name:               val.name,
-            version:            val.version,
-            chain_id:           val.chain_id,
-            verifying_contract: val.verifying_contract,
-            salt:               None,
-        }
-    }
-}
-
 impl From<ExecutionParamsWithSignature> for eip712::TypedData {
     fn from(val: ExecutionParamsWithSignature) -> Self {
         let params = val.params;
@@ -303,7 +302,7 @@ impl From<ExecutionParamsWithSignature> for eip712::TypedData {
             }),
         });
         eip712::TypedData {
-            domain:       val.eip_712_domain.into(),
+            domain:       val.eip_712_domain,
             types:        serde_json::from_value(data_type)
                 .expect("Failed to parse data type for eip712 typed data"),
             primary_type: "PermitBatchWitnessTransferFrom".into(),
@@ -407,12 +406,19 @@ pub fn make_opportunity_execution_params(
         salt,
         &OPPORTUNITYADAPTER_BYTECODE,
     );
+    let eip_712_domain = EIP712Domain {
+        name:               Some("Permit2".to_string()),
+        version:            None,
+        chain_id:           Some(chain_store.chain_id_num.into()),
+        verifying_contract: Some(chain_store.permit2),
+        salt:               None,
+    };
     ExecutionParamsWithSignature {
-        params:         ExecutionParams {
+        params: ExecutionParams {
             permit:  PermitBatchTransferFrom {
                 permitted: make_permitted_tokens(opportunity.clone(), bid.clone(), chain_store),
                 nonce:     bid.nonce,
-                deadline:  bid.valid_until,
+                deadline:  bid.deadline,
             },
             witness: ExecutionWitness {
                 buy_tokens:        opportunity
@@ -427,9 +433,9 @@ pub fn make_opportunity_execution_params(
                 bid_amount:        bid.amount,
             },
         },
-        signature:      bid.signature.to_vec().into(),
-        eip_712_domain: chain_store.eip_712_domain.clone(),
-        spender:        executor_adapter_address,
+        signature: bid.signature.to_vec().into(),
+        eip_712_domain,
+        spender: executor_adapter_address,
     }
 }
 
@@ -545,7 +551,7 @@ pub struct OpportunityBid {
     /// The latest unix timestamp in seconds until which the bid is valid
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
-    pub valid_until:    U256,
+    pub deadline:       U256,
     /// The nonce of the bid permit signature
     #[schema(example = "123", value_type=String)]
     #[serde(with = "crate::serde::u256")]

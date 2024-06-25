@@ -110,11 +110,13 @@ searcher_command = (
     + "python3 -m per_sdk.searcher.simple_searcher "
     + "--private-key $SEARCHER_SK "
     + "--chain-id development "
+    + "--chain-id-num $CHAIN_ID_NUM "
     + "--verbose "
     + "--liquidation-server-url http://localhost:9000 "
     + "--adapter-factory-address $ADAPTER_FACTORY "
-    + "--adapter-bytecode-hash $ADAPTER_BYTECODE_HASH "
-    + "--weth-address $WETH"
+    + "--adapter-init-bytecode-hash $ADAPTER_BYTECODE_HASH "
+    + "--weth-address $WETH "
+    + "--permit2-address $PERMIT2 "
 )
 local_resource(
     "searcher",

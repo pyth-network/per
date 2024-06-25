@@ -460,6 +460,7 @@ contract VaultScript is Script {
         vm.serializeBytes32(obj, "depositorSk", bytes32(sksScript[2]));
         vm.serializeAddress(obj, "tokenVaultDeployer", addressesScript[4]);
         vm.serializeBytes32(obj, "tokenVaultDeployerSk", bytes32(sksScript[4]));
+        vm.serializeUint(obj, "chainIdNum", block.chainid);
         string memory finalJSON = vm.serializeUint(obj, "numVaults", 0);
         vm.writeJson(finalJSON, latestEnvironmentPath);
     }

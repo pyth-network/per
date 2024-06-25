@@ -1,10 +1,7 @@
 use {
     crate::{
         api::{
-            opportunity::{
-                EIP712Domain,
-                OpportunityParamsWithMetadata,
-            },
+            opportunity::OpportunityParamsWithMetadata,
             profile as ApiProfile,
             ws::{
                 UpdateEvent,
@@ -184,12 +181,13 @@ pub enum SpoofInfo {
 }
 
 pub struct ChainStore {
+    pub chain_id_num:           u64,
     pub provider:               Provider<TracedClient>,
     pub network_id:             u64,
     pub config:                 EthereumConfig,
+    pub permit2:                Address,
     pub weth:                   Address,
     pub token_spoof_info:       RwLock<HashMap<Address, SpoofInfo>>,
-    pub eip_712_domain:         EIP712Domain,
     pub express_relay_contract: Arc<SignableExpressRelayContract>,
     pub block_gas_limit:        U256,
 }
@@ -964,10 +962,6 @@ impl Store {
         permission_key: Option<PermissionKey>,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<OpportunityParamsWithMetadata>, RestError> {
-        let chain_store = self
-            .chains
-            .get(&chain_id)
-            .ok_or_else(|| RestError::InvalidChainId)?;
         let mut query = QueryBuilder::new("SELECT * from opportunity where chain_id = ");
         query.push_bind(chain_id);
         if let Some(permission_key) = permission_key {
@@ -1006,7 +1000,7 @@ impl Store {
                     creation_time: opp.creation_time.assume_utc().unix_timestamp_nanos(),
                     params,
                 };
-                Ok(OpportunityParamsWithMetadata::from(opp, chain_store))
+                Ok(opp.into())
             })
             .collect();
         parsed_opps.map_err(|e| {
