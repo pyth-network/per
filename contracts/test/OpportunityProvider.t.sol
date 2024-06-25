@@ -33,6 +33,7 @@ contract OpportunityProviderUnitTest is
 
     uint256 constant feeSplitProtocolDefault = 50 * 10 ** 16;
     uint256 constant feeSplitRelayer = 10 ** 17;
+    uint256 constant infiniteGas = 1e9;
     address admin;
     uint256 adminPrivateKey;
     address relayer;
@@ -365,7 +366,9 @@ contract OpportunityProviderUnitTest is
                 adapterExecutionParams,
                 adapterSignature
             ),
-            bidAmount
+            bidAmount,
+            infiniteGas,
+            false
         );
         vm.prank(relayer);
         expressRelay.multicall(permission, multicallData);
@@ -404,7 +407,9 @@ contract OpportunityProviderUnitTest is
                 params,
                 signature
             ),
-            0
+            0,
+            infiniteGas,
+            false
         );
         vm.prank(relayer);
         expressRelay.multicall(permission, multicallData);

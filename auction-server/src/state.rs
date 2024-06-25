@@ -111,6 +111,10 @@ pub struct SimulatedBid {
     /// The profile id for the bid owner.
     #[schema(example = "", value_type = String)]
     pub profile_id:      Option<models::ProfileId>,
+    /// The gas limit for the contract call.
+    #[schema(example = "2000000", value_type = String)]
+    #[serde(with = "crate::serde::u256")]
+    pub gas_limit:       U256,
 }
 
 pub type UnixTimestampMicros = i128;
@@ -359,6 +363,8 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBid {
         }
         let bid_amount = BidAmount::from_dec_str(bid.bid_amount.to_string().as_str())
             .map_err(|e| anyhow::anyhow!(e))?;
+        let gas_limit = U256::from_dec_str(bid.gas_limit.to_string().as_str())
+            .map_err(|e| anyhow::anyhow!(e))?;
         let bid_with_auction = (bid.clone(), auction);
         Ok(SimulatedBid {
             id: bid.id,
@@ -370,6 +376,7 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBid {
             status: bid_with_auction.try_into()?,
             initiation_time: bid.initiation_time.assume_offset(UtcOffset::UTC),
             profile_id: bid.profile_id,
+            gas_limit,
         })
     }
 }
@@ -551,7 +558,7 @@ impl Store {
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
         let bid_id = bid.id;
         let now = OffsetDateTime::now_utc();
-        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time, profile_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time, profile_id, gas_limit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
         bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
         bid.permission_key.to_vec(),
@@ -562,6 +569,7 @@ impl Store {
         bid.status as _,
         PrimitiveDateTime::new(bid.initiation_time.date(), bid.initiation_time.time()),
         bid.profile_id,
+        BigDecimal::from_str(&bid.gas_limit.to_string()).unwrap(),
         )
             .execute(&self.db)
             .await.map_err(|e| {

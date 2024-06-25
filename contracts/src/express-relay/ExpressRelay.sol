@@ -77,6 +77,13 @@ contract ExpressRelay is Helpers, State, ExpressRelayEvents, ReentrancyGuard {
                 multicallStatuses[i].multicallRevertReason = reason;
             }
 
+            if (
+                !multicallStatuses[i].externalSuccess &&
+                multicallData[i].revertOnFailure
+            ) {
+                revert ExternalCallFailed(multicallStatuses[i]);
+            }
+
             // only count bid if call was successful (and bid was paid out)
             if (multicallStatuses[i].externalSuccess) {
                 totalBid += multicallData[i].bidAmount;
@@ -142,7 +149,7 @@ contract ExpressRelay is Helpers, State, ExpressRelayEvents, ReentrancyGuard {
         (bool success, bytes memory result) = multicallData
             .targetContract
             .excessivelySafeCall(
-                gasleft(), // this will automatically forward 63/64 of gas
+                multicallData.gasLimit,
                 0,
                 32,
                 multicallData.targetCalldata

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time, profile_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+  "query": "INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time, profile_id, gas_limit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -26,10 +26,11 @@
           }
         },
         "Timestamp",
-        "Uuid"
+        "Uuid",
+        "Numeric"
       ]
     },
     "nullable": []
   },
-  "hash": "96d94edc07a4bdffed54e9dc20b97551f25a428b19c285b91cad03be81cbc86c"
+  "hash": "b8d0513ba6a00c8ad20b9c72677a69857e0f8ae8c2401c52f7f961c600574ffa"
 }

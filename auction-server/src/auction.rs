@@ -33,6 +33,7 @@ use {
         contract::{
             abigen,
             ContractError,
+            ContractRevert,
             EthError,
             EthEvent,
             FunctionCall,
@@ -107,16 +108,20 @@ pub type SignableProvider = TransformerMiddleware<
 >;
 pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
 
-impl From<([u8; 16], H160, Bytes, U256)> for MulticallData {
-    fn from(x: ([u8; 16], H160, Bytes, U256)) -> Self {
+impl From<([u8; 16], H160, Bytes, U256, U256, bool)> for MulticallData {
+    fn from(x: ([u8; 16], H160, Bytes, U256, U256, bool)) -> Self {
         MulticallData {
-            bid_id:          x.0,
-            target_contract: x.1,
-            target_calldata: x.2,
-            bid_amount:      x.3,
+            bid_id:            x.0,
+            target_contract:   x.1,
+            target_calldata:   x.2,
+            bid_amount:        x.3,
+            gas_limit:         x.4,
+            revert_on_failure: x.5,
         }
     }
 }
+
+const EXTRA_GAS_FOR_SUBMISSION: u32 = 500 * 1000;
 
 pub fn get_simulation_call(
     relayer: Address,
@@ -157,26 +162,30 @@ impl Transformer for LegacyTxTransformer {
 pub async fn submit_bids(
     express_relay_contract: Arc<SignableExpressRelayContract>,
     permission: Bytes,
-    multicall_data: Vec<MulticallData>,
+    bids: Vec<SimulatedBid>,
 ) -> Result<H256, ContractError<SignableProvider>> {
-    let call = express_relay_contract.multicall(permission, multicall_data);
-    let mut gas_estimate = call.estimate_gas().await?;
-
-    let gas_multiplier = U256::from(2); //TODO: smarter gas estimation
-    gas_estimate *= gas_multiplier;
-    let call_with_gas = call.gas(gas_estimate);
-    let send_call = call_with_gas.send().await?;
-
-    Ok(send_call.tx_hash())
+    let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
+    let tx_hash = express_relay_contract
+        .multicall(
+            permission,
+            bids.into_iter().map(|b| (b, false).into()).collect(),
+        )
+        .gas(gas_estimate + EXTRA_GAS_FOR_SUBMISSION)
+        .send()
+        .await?
+        .tx_hash();
+    Ok(tx_hash)
 }
 
-impl From<SimulatedBid> for MulticallData {
-    fn from(bid: SimulatedBid) -> Self {
+impl From<(SimulatedBid, bool)> for MulticallData {
+    fn from((bid, revert_on_failure): (SimulatedBid, bool)) -> Self {
         MulticallData {
-            bid_id:          bid.id.into_bytes(),
+            bid_id: bid.id.into_bytes(),
             target_contract: bid.target_contract,
             target_calldata: bid.target_calldata,
-            bid_amount:      bid.bid_amount,
+            bid_amount: bid.bid_amount,
+            gas_limit: bid.gas_limit,
+            revert_on_failure,
         }
     }
 }
@@ -208,7 +217,10 @@ async fn get_winner_bids(
         chain_store.provider.clone(),
         chain_store.config.clone(),
         permission_key.clone(),
-        bids.clone().into_iter().map(|b| b.into()).collect(),
+        bids.clone()
+            .into_iter()
+            .map(|b| (b, false).into())
+            .collect(),
     )
     .await?;
 
@@ -371,7 +383,7 @@ async fn submit_auction_for_bids<'a>(
     let submit_bids_call = submit_bids(
         chain_store.express_relay_contract.clone(),
         permission_key.clone(),
-        winner_bids.clone().into_iter().map(|b| b.into()).collect(),
+        winner_bids.clone(),
     );
 
     match submit_bids_call.await {
@@ -612,8 +624,48 @@ pub async fn handle_bid(
             bid.target_contract,
             bid.target_calldata.clone(),
             bid.amount,
+            U256::max_value(),
+            // The gas estimation use some binary search algorithm to find the gas limit.
+            // It reduce the upper bound threshold on success and increase the lower bound on revert.
+            // If the contract does not reverts, the gas estimation will not be accurate in case of external call failures.
+            // So we need to make sure in order to calculate the gas estimation correctly, the contract will revert if the external call fails.
+            true,
         ))],
     );
+
+    match call.clone().await {
+        Ok(results) => {
+            if !results[0].external_success {
+                return Err(RestError::SimulationError {
+                    result: results[0].external_result.clone(),
+                    reason: results[0].multicall_revert_reason.clone(),
+                });
+            }
+        }
+        Err(e) => {
+            return match e {
+                ContractError::Revert(reason) => {
+                    if let Some(decoded_error) = ExpressRelayErrors::decode_with_selector(&reason) {
+                        if let ExpressRelayErrors::ExternalCallFailed(failure_result) =
+                            decoded_error
+                        {
+                            return Err(RestError::SimulationError {
+                                result: failure_result.status.external_result,
+                                reason: failure_result.status.multicall_revert_reason,
+                            });
+                        }
+                    }
+                    Err(RestError::BadParameters(format!(
+                        "Contract Revert Error: {}",
+                        reason,
+                    )))
+                }
+                ContractError::MiddlewareError { e: _ } => Err(RestError::TemporarilyUnavailable),
+                ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
+                _ => Err(RestError::BadParameters(format!("Error: {}", e))),
+            };
+        }
+    }
 
     let estimated_gas = call
         .estimate_gas()
@@ -639,29 +691,6 @@ pub async fn handle_bid(
     )
     .await?;
 
-    match call.await {
-        Ok(results) => {
-            if !results[0].external_success {
-                return Err(RestError::SimulationError {
-                    result: results[0].external_result.clone(),
-                    reason: results[0].multicall_revert_reason.clone(),
-                });
-            }
-        }
-        Err(e) => {
-            return match e {
-                ContractError::Revert(reason) => Err(RestError::BadParameters(format!(
-                    "Contract Revert Error: {}",
-                    String::decode_with_selector(&reason)
-                        .unwrap_or("unable to decode revert".to_string())
-                ))),
-                ContractError::MiddlewareError { e: _ } => Err(RestError::TemporarilyUnavailable),
-                ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
-                _ => Err(RestError::BadParameters(format!("Error: {}", e))),
-            };
-        }
-    }
-
     let bid_id = Uuid::new_v4();
     let simulated_bid = SimulatedBid {
         target_contract: bid.target_contract,
@@ -676,6 +705,8 @@ pub async fn handle_bid(
             Auth::Authorized(_, profile) => Some(profile.id),
             _ => None,
         },
+        // Add a 25% more for estimation errors
+        gas_limit: estimated_gas * U256::from(125) / U256::from(100),
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)

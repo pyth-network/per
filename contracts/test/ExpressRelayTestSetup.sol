@@ -81,6 +81,7 @@ contract ExpressRelayTestSetup is
     uint256 tokenVaultDeployerSk;
 
     uint256 constant healthPrecision = 10 ** 16;
+    uint256 constant infiniteGas = 1e9;
 
     address depositor; // address of the initial depositor into the token vault
 
@@ -666,7 +667,9 @@ contract ExpressRelayTestSetup is
                 bidId,
                 contracts[i],
                 data[i],
-                bidAmounts[i]
+                bidAmounts[i],
+                infiniteGas,
+                false
             );
         }
     }

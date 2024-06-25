@@ -185,6 +185,8 @@ pub async fn verify_opportunity(
             chain_store.config.adapter_factory_contract,
             adapter_calldata,
             fake_bid.amount,
+            U256::max_value(),
+            false,
         ))],
     )
     .tx;

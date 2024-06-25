@@ -153,6 +153,7 @@ pub struct Bid {
     pub bundle_index:    BundleIndex,
     pub initiation_time: PrimitiveDateTime,
     pub profile_id:      Option<ProfileId>,
+    pub gas_limit:       BigDecimal,
 }
 
 impl Bid {
