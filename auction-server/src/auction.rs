@@ -107,45 +107,20 @@ pub type SignableProvider = TransformerMiddleware<
 >;
 pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
 
-impl From<([u8; 16], H160, Bytes, U256, U256)> for MulticallData {
-    fn from(x: ([u8; 16], H160, Bytes, U256, U256)) -> Self {
+impl From<([u8; 16], H160, Bytes, U256, U256, bool)> for MulticallData {
+    fn from(x: ([u8; 16], H160, Bytes, U256, U256, bool)) -> Self {
         MulticallData {
-            bid_id:          x.0,
-            target_contract: x.1,
-            target_calldata: x.2,
-            bid_amount:      x.3,
-            gas_limit:       x.4,
+            bid_id:            x.0,
+            target_contract:   x.1,
+            target_calldata:   x.2,
+            bid_amount:        x.3,
+            gas_limit:         x.4,
+            revert_on_failure: x.5,
         }
     }
 }
 
-pub const GAS_ESTIMATION_MAX: u32 = 3 * 1000 * 1000;
-const GAS_ESTIMATION_MIN: u32 = 500 * 1000;
-const GAS_ESTIMATION_THRESHOLD: u32 = 100 * 1000;
-
-pub async fn estimate_gas(
-    call: FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>>,
-) -> U256 {
-    let mut mx = GAS_ESTIMATION_MAX;
-    let mut mn = GAS_ESTIMATION_MIN;
-    while mn + GAS_ESTIMATION_THRESHOLD < mx {
-        let mid = (mn + mx) / 2;
-        let call = call.clone().gas(mid);
-        match call.call_raw().await {
-            Ok(result) => {
-                if result.iter().all(|status| status.external_success) {
-                    mx = mid;
-                } else {
-                    mn = mid;
-                }
-            }
-            Err(_) => {
-                mn = mid;
-            }
-        }
-    }
-    U256::from(mx)
-}
+const EXTRA_GAS_FOR_SUBMISSION: u32 = 500 * 1000;
 
 pub fn get_simulation_call(
     relayer: Address,
@@ -191,22 +166,26 @@ pub async fn submit_bids(
 ) -> Result<H256, ContractError<SignableProvider>> {
     let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
     let tx_hash = express_relay_contract
-        .multicall(permission, bids.into_iter().map(|b| b.into()).collect())
-        .gas(gas_estimate + GAS_ESTIMATION_MIN)
+        .multicall(
+            permission,
+            bids.into_iter().map(|b| (b, false).into()).collect(),
+        )
+        .gas(gas_estimate + EXTRA_GAS_FOR_SUBMISSION)
         .send()
         .await?
         .tx_hash();
     Ok(tx_hash)
 }
 
-impl From<SimulatedBid> for MulticallData {
-    fn from(bid: SimulatedBid) -> Self {
+impl From<(SimulatedBid, bool)> for MulticallData {
+    fn from((bid, revert_on_failure): (SimulatedBid, bool)) -> Self {
         MulticallData {
-            bid_id:          bid.id.into_bytes(),
+            bid_id: bid.id.into_bytes(),
             target_contract: bid.target_contract,
             target_calldata: bid.target_calldata,
-            bid_amount:      bid.bid_amount,
-            gas_limit:       bid.gas_limit,
+            bid_amount: bid.bid_amount,
+            gas_limit: bid.gas_limit,
+            revert_on_failure,
         }
     }
 }
@@ -238,7 +217,10 @@ async fn get_winner_bids(
         chain_store.provider.clone(),
         chain_store.config.clone(),
         permission_key.clone(),
-        bids.clone().into_iter().map(|b| b.into()).collect(),
+        bids.clone()
+            .into_iter()
+            .map(|b| (b, false).into())
+            .collect(),
     )
     .await?;
 
@@ -642,9 +624,37 @@ pub async fn handle_bid(
             bid.target_contract,
             bid.target_calldata.clone(),
             bid.amount,
-            U256::from(GAS_ESTIMATION_MAX),
+            U256::max_value(),
+            // The gas estimation use some binary search algorithm to find the gas limit.
+            // It reduce the upper bound threshold on success and increase the lower bound on revert.
+            // If the contract does not reverts, the gas estimation will not be accurate in case of external call failures.
+            // So we need to make sure in order to calculate the gas estimation correctly, the contract will revert if the external call fails.
+            true,
         ))],
     );
+
+    let estimated_gas: U256 = call
+        .estimate_gas()
+        .await
+        .map_err(|_| RestError::TemporarilyUnavailable)?;
+    verify_bid_exceeds_gas_cost(
+        estimated_gas,
+        EthProviderOracle::new(chain_store.provider.clone()),
+        bid.amount,
+        // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
+        // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
+        // The threshold will be multiplied by two to ensure the bid is beneficial, as well as to allow for estimation errors.
+        // For example, if we are unable to submit the bid in the current block.
+        U256::from(max(TOTAL_BIDS_PER_AUCTION * 2, MINIMUM_GAS_MULTIPLIER)),
+    )
+    .await?;
+    // The transaction body size will be automatically limited when the gas is limited.
+    verify_bid_under_gas_limit(
+        chain_store,
+        estimated_gas,
+        U256::from(TOTAL_BIDS_PER_AUCTION * 2),
+    )
+    .await?;
 
     match call.clone().await {
         Ok(results) => {
@@ -669,26 +679,6 @@ pub async fn handle_bid(
         }
     }
 
-    let estimated_gas = estimate_gas(call).await;
-    verify_bid_exceeds_gas_cost(
-        estimated_gas,
-        EthProviderOracle::new(chain_store.provider.clone()),
-        bid.amount,
-        // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
-        // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
-        // The threshold will be multiplied by two to ensure the bid is beneficial, as well as to allow for estimation errors.
-        // For example, if we are unable to submit the bid in the current block.
-        U256::from(max(TOTAL_BIDS_PER_AUCTION * 2, MINIMUM_GAS_MULTIPLIER)),
-    )
-    .await?;
-    // The transaction body size will be automatically limited when the gas is limited.
-    verify_bid_under_gas_limit(
-        chain_store,
-        estimated_gas,
-        U256::from(TOTAL_BIDS_PER_AUCTION * 2),
-    )
-    .await?;
-
     let bid_id = Uuid::new_v4();
     let simulated_bid = SimulatedBid {
         target_contract: bid.target_contract,
@@ -703,10 +693,8 @@ pub async fn handle_bid(
             Auth::Authorized(_, profile) => Some(profile.id),
             _ => None,
         },
-        // add a buffer to the gas limit to account for estimation errors
-        // for example if the THRESHOLD is 100 and MIN is 500, the safety would be like 26%
-        gas_limit: estimated_gas
-            + estimated_gas * (GAS_ESTIMATION_THRESHOLD * 13 / 10) / GAS_ESTIMATION_MIN,
+        // Add a 25% more for estimation errors
+        gas_limit: estimated_gas * U256::from(125) / U256::from(100),
     };
     store.add_bid(simulated_bid).await?;
     Ok(bid_id)

@@ -367,7 +367,8 @@ contract OpportunityProviderUnitTest is
                 adapterSignature
             ),
             bidAmount,
-            infiniteGas
+            infiniteGas,
+            false
         );
         vm.prank(relayer);
         expressRelay.multicall(permission, multicallData);
@@ -407,7 +408,8 @@ contract OpportunityProviderUnitTest is
                 signature
             ),
             0,
-            infiniteGas
+            infiniteGas,
+            false
         );
         vm.prank(relayer);
         expressRelay.multicall(permission, multicallData);

@@ -22,3 +22,6 @@ error DuplicateRelayerSubwallet();
 
 // Signature: 0xac4d92b3
 error RelayerSubwalletNotFound();
+
+// Signature: 0x350c20f1
+error ExternalCallFailed();

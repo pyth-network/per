@@ -7,6 +7,7 @@ struct MulticallData {
     bytes targetCalldata;
     uint256 bidAmount;
     uint256 gasLimit;
+    bool revertOnFailure;
 }
 
 struct MulticallStatus {
