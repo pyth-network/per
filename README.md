@@ -4,6 +4,14 @@
 
 ## [Contracts](contracts/README.md)
 
+## SDKs
+
+You can use the following SDKs to integrate with the Express Relay APIs and contracts:
+
+- [Javascript SDK](https://github.com/pyth-network/pyth-crosschain/tree/main/express_relay/sdk/js)
+- [Python SDK](https://github.com/pyth-network/pyth-crosschain/tree/main/express_relay/sdk/python)
+- [Solidity SDK](https://github.com/pyth-network/pyth-crosschain/tree/main/express_relay/sdk/solidity)
+
 ### pre-commit hooks
 
 pre-commit is a tool that checks and fixes simple issues (formatting, ...) before each commit.
