@@ -182,6 +182,17 @@ pub async fn get_opportunities(
     State(store): State<Arc<Store>>,
     query_params: Query<GetOpportunitiesQueryParams>,
 ) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
+    // make sure the chain id is valid
+    match query_params.chain_id.clone() {
+        Some(chain_id) => {
+            store
+                .chains
+                .get(&chain_id)
+                .ok_or(RestError::InvalidChainId)?;
+        }
+        None => {}
+    }
+
     match query_params.mode.clone() {
         OpportunityMode::Live => {
             let opportunities: Vec<OpportunityParamsWithMetadata> = store
@@ -196,17 +207,14 @@ pub async fn get_opportunities(
                         .expect("A permission key vector should have at least one opportunity");
 
                     let OpportunityParams::V1(params) = opportunity.params.clone();
+                    if let Some(query_chain_id) = &query_params.chain_id {
+                        if params.chain_id != *query_chain_id {
+                            return None;
+                        }
+                    }
                     store.chains.get(&params.chain_id).map(|chain_store| {
                         OpportunityParamsWithMetadata::from(opportunity.clone(), chain_store)
                     })
-                })
-                .filter(|params_with_id: &OpportunityParamsWithMetadata| {
-                    let OpportunityParams::V1(params) = &params_with_id.params;
-                    if let Some(chain_id) = &query_params.chain_id {
-                        params.chain_id == *chain_id
-                    } else {
-                        true
-                    }
                 })
                 .collect();
 
