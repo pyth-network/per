@@ -53,6 +53,7 @@ use {
             BigDecimal,
         },
         Postgres,
+        QueryBuilder,
         TypeInfo,
     },
     std::{
@@ -940,52 +941,52 @@ impl Store {
         profile_id: models::ProfileId,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<models::Bid>, RestError> {
-        let select = "SELECT * FROM bid WHERE profile_id = $1";
-        let order_by = "ORDER BY initiation_time ASC LIMIT 20";
-        let query_with_time = format!("{} AND initiation_time >= $2 {}", select, order_by);
-        let query_without_time = format!("{} {}", select, order_by);
-
-        let query = match from_time {
-            Some(from_time) => sqlx::query_as(query_with_time.as_str())
-                .bind(profile_id)
-                .bind(from_time),
-            None => sqlx::query_as(query_without_time.as_str()).bind(profile_id),
-        };
-        query.fetch_all(&self.db).await.map_err(|e| {
-            tracing::error!("DB: Failed to fetch bids: {}", e);
-            RestError::TemporarilyUnavailable
-        })
+        let mut query = QueryBuilder::new("SELECT * from bid where profile_id = ");
+        query.push_bind(profile_id);
+        if let Some(from_time) = from_time {
+            query.push(" AND initiation_time >= ");
+            query.push_bind(from_time);
+        }
+        query.push(" ORDER BY initiation_time ASC LIMIT 20");
+        query
+            .build_query_as()
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch bids: {}", e);
+                RestError::TemporarilyUnavailable
+            })
     }
 
     pub async fn get_opportunities_by_permission_key(
         &self,
         chain_id: ChainId,
-        permission_key: PermissionKey,
+        permission_key: Option<PermissionKey>,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<OpportunityParamsWithMetadata>, RestError> {
         let chain_store = self
             .chains
             .get(&chain_id)
             .ok_or_else(|| RestError::InvalidChainId)?;
-        let select = "SELECT * FROM opportunity WHERE chain_id = $1 AND permission_key = $2";
-        let order_by = "ORDER BY creation_time DESC LIMIT 20";
-        let query_with_time = format!("{} AND creation_time >= $3 {}", select, order_by);
-        let query_without_time = format!("{} {}", select, order_by);
-
-        let query = match from_time {
-            Some(from_time) => sqlx::query_as(query_with_time.as_str())
-                .bind(&chain_id)
-                .bind(permission_key.to_vec())
-                .bind(from_time),
-            None => sqlx::query_as(query_without_time.as_str())
-                .bind(&chain_id)
-                .bind(permission_key.to_vec()),
-        };
-        let opps: Vec<models::Opportunity> = query.fetch_all(&self.db).await.map_err(|e| {
-            tracing::error!("DB: Failed to fetch opportunities: {}", e);
-            RestError::TemporarilyUnavailable
-        })?;
-
+        let mut query = QueryBuilder::new("SELECT * from opportunity where chain_id = ");
+        query.push_bind(chain_id);
+        if let Some(permission_key) = permission_key {
+            query.push(" AND permission_key = ");
+            query.push_bind(permission_key.to_vec());
+        }
+        if let Some(from_time) = from_time {
+            query.push(" AND creation_time >= ");
+            query.push_bind(from_time);
+        }
+        query.push(" ORDER BY creation_time DESC LIMIT 20");
+        let opps: Vec<models::Opportunity> = query
+            .build_query_as()
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch opportunities: {}", e);
+                RestError::TemporarilyUnavailable
+            })?;
         let parsed_opps: anyhow::Result<Vec<OpportunityParamsWithMetadata>> = opps
             .into_iter()
             .map(|opp| {

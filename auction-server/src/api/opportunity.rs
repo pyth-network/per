@@ -171,7 +171,7 @@ pub async fn post_opportunity(
 }
 
 /// Fetch opportunities ready for execution or historical opportunities
-/// depending on the mode. You need to provide `chain_id` and `permission_key` for historical mode.
+/// depending on the mode. You need to provide `chain_id` for historical mode.
 #[utoipa::path(get, path = "/v1/opportunities", responses(
 (status = 200, description = "Array of opportunities ready for bidding", body = Vec < OpportunityParamsWithMetadata >),
 (status = 400, response = ErrorBodyResponse),
@@ -183,14 +183,12 @@ pub async fn get_opportunities(
     query_params: Query<GetOpportunitiesQueryParams>,
 ) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
     // make sure the chain id is valid
-    match query_params.chain_id.clone() {
-        Some(chain_id) => {
-            store
-                .chains
-                .get(&chain_id)
-                .ok_or(RestError::InvalidChainId)?;
-        }
-        None => {}
+
+    if let Some(chain_id) = query_params.chain_id.clone() {
+        store
+            .chains
+            .get(&chain_id)
+            .ok_or(RestError::InvalidChainId)?;
     }
 
     match query_params.mode.clone() {
@@ -224,15 +222,10 @@ pub async fn get_opportunities(
             let chain_id = query_params.chain_id.clone().ok_or_else(|| {
                 RestError::BadParameters("Chain id is required on historical mode".to_string())
             })?;
-            let permission_key = query_params.permission_key.clone().ok_or_else(|| {
-                RestError::BadParameters(
-                    "Permission key is required on historical mode".to_string(),
-                )
-            })?;
             let opps = store
                 .get_opportunities_by_permission_key(
                     chain_id,
-                    permission_key,
+                    query_params.permission_key.clone(),
                     query_params.from_time,
                 )
                 .await?;
