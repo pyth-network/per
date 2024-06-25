@@ -7,6 +7,12 @@ import "forge-std/console.sol";
 import "./TestParsingHelpers.sol";
 import "src/express-relay/Structs.sol";
 
+contract Dummy {
+    function verifyGas() public view {
+        assert(gasleft() < 1000);
+    }
+}
+
 contract MulticallHelpers is Test, TestParsingHelpers {
     function assertFailedMulticall(
         MulticallStatus memory status,

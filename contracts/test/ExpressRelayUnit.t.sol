@@ -9,12 +9,7 @@ import "src/express-relay/Structs.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 import "./helpers/MockProtocol.sol";
-
-contract Dummy {
-    function dummy() public view {
-        assert(gasleft() < 1000);
-    }
-}
+import {Dummy} from "./helpers/MulticallHelpers.sol";
 
 /**
  * @title ExpressRelayUnitTest
@@ -973,7 +968,7 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         multicallData[0] = MulticallData(
             "1",
             address(dummy),
-            abi.encodeWithSelector(dummy.dummy.selector),
+            abi.encodeWithSelector(dummy.verifyGas.selector),
             0,
             1000,
             false
