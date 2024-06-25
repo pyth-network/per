@@ -30,7 +30,6 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::sync::Arc,
-    time::format_description::well_known::Rfc3339,
     utoipa::{
         IntoParams,
         ToResponse,
@@ -105,7 +104,8 @@ pub struct SimulatedBids {
 #[derive(Serialize, Deserialize, IntoParams)]
 pub struct GetBidsByTimeQueryParams {
     #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
-    pub from_time: Option<String>,
+    #[serde(default, with = "crate::serde::nullable_datetime")]
+    pub from_time: Option<OffsetDateTime>,
 }
 
 /// Returns at most 20 bids which were submitted after a specific time.
@@ -126,16 +126,8 @@ pub async fn get_bids_by_time(
 ) -> Result<Json<SimulatedBids>, RestError> {
     match auth {
         Auth::Authorized(_, profile) => {
-            let from_time = match query.from_time.clone() {
-                Some(time) => {
-                    Some(OffsetDateTime::parse(time.as_str(), &Rfc3339).map_err(|_| {
-                        RestError::BadParameters("Invalid initiation time".to_string())
-                    })?)
-                }
-                None => None,
-            };
             let bids = store
-                .get_simulated_bids_by_time(profile.id, from_time)
+                .get_simulated_bids_by_time(profile.id, query.from_time)
                 .await?;
             Ok(Json(SimulatedBids { items: bids }))
         }

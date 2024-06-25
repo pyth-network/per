@@ -5,6 +5,7 @@ use {
         types::{
             time::PrimitiveDateTime,
             BigDecimal,
+            JsonValue,
         },
     },
     std::{
@@ -46,6 +47,21 @@ pub struct Auction {
     pub tx_hash:             TxHash,
     pub bid_collection_time: Option<PrimitiveDateTime>,
     pub submission_time:     Option<PrimitiveDateTime>,
+}
+
+
+#[derive(Clone, FromRow, Debug)]
+pub struct Opportunity {
+    pub id:                Uuid,
+    pub creation_time:     PrimitiveDateTime,
+    pub permission_key:    Vec<u8>,
+    pub chain_id:          String,
+    pub target_contract:   Vec<u8>,
+    pub target_call_value: BigDecimal,
+    pub target_calldata:   Vec<u8>,
+    pub removal_time:      PrimitiveDateTime,
+    pub sell_tokens:       JsonValue,
+    pub buy_tokens:        JsonValue,
 }
 
 

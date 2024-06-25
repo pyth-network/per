@@ -1,0 +1,2 @@
+DROP INDEX opportunity_permission_key_creation_time_idx;
+DROP INDEX opportunity_creation_time_idx;
