@@ -5,10 +5,7 @@ use {
                 BidResult,
                 SimulatedBids,
             },
-            opportunity::{
-                EIP712Domain,
-                OpportunityParamsWithMetadata,
-            },
+            opportunity::OpportunityParamsWithMetadata,
             ws::{
                 APIResponse,
                 ClientMessage,
@@ -316,7 +313,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     BidResult,
     SimulatedBid,
     SimulatedBids,
-    EIP712Domain,
     OpportunityParamsV1,
     OpportunityBid,
     OpportunityMode,

@@ -1,7 +1,6 @@
 use {
     crate::{
         api::{
-            opportunity::EIP712Domain,
             Auth,
             RestError,
         },
@@ -56,6 +55,7 @@ use {
             spoof,
             transaction::eip712::{
                 self,
+                EIP712Domain,
                 Eip712,
             },
             Address,
@@ -253,19 +253,6 @@ pub async fn verify_opportunity(
     }
     Ok(VerificationResult::Success)
 }
-
-impl From<EIP712Domain> for eip712::EIP712Domain {
-    fn from(val: EIP712Domain) -> Self {
-        eip712::EIP712Domain {
-            name:               val.name,
-            version:            val.version,
-            chain_id:           val.chain_id,
-            verifying_contract: val.verifying_contract,
-            salt:               None,
-        }
-    }
-}
-
 impl From<ExecutionParamsWithSignature> for eip712::TypedData {
     fn from(val: ExecutionParamsWithSignature) -> Self {
         let params = val.params;
@@ -315,7 +302,7 @@ impl From<ExecutionParamsWithSignature> for eip712::TypedData {
             }),
         });
         eip712::TypedData {
-            domain:       val.eip_712_domain.into(),
+            domain:       val.eip_712_domain,
             types:        serde_json::from_value(data_type)
                 .expect("Failed to parse data type for eip712 typed data"),
             primary_type: "PermitBatchWitnessTransferFrom".into(),
@@ -424,6 +411,7 @@ pub fn make_opportunity_execution_params(
         version:            None,
         chain_id:           Some(chain_store.chain_id_num.into()),
         verifying_contract: Some(chain_store.permit2),
+        salt:               None,
     };
     ExecutionParamsWithSignature {
         params: ExecutionParams {
