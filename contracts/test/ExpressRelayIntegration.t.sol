@@ -835,45 +835,6 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         );
     }
 
-    function testLiquidateWithoutEnoughGas() public {
-        uint256 vaultNumber = 0;
-
-        address[] memory contracts = new address[](1);
-        BidInfo[] memory bidInfos = new BidInfo[](1);
-
-        uint256 bidAmount0 = 150;
-        contracts[0] = address(adapterFactory);
-        bidInfos[0] = makeBidInfo(bidAmount0, searcherAOwnerSk);
-
-        (
-            bytes memory permission,
-            bytes[] memory data
-        ) = getMulticallInfoOpportunityAdapter(vaultNumber, bidInfos);
-
-        MulticallData[] memory multicallData = getMulticallData(
-            contracts,
-            data,
-            bidInfos
-        );
-        multicallData[0].gasLimit = 1000;
-
-        vm.prank(relayer);
-        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
-            permission,
-            multicallData
-        );
-        assertEq(
-            multicallStatuses[0].externalSuccess,
-            false,
-            "Expected call to fail"
-        );
-        assertEq(
-            multicallStatuses[0].externalResult.length,
-            0,
-            "Expected out-of-gas error"
-        );
-    }
-
     function testRevertOnExternalCallFailure() public {
         uint256 vaultNumber = 0;
 

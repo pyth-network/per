@@ -10,6 +10,12 @@ import "src/express-relay/Structs.sol";
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 import "./helpers/MockProtocol.sol";
 
+contract Dummy {
+    function dummy() public view {
+        assert(gasleft() < 1000);
+    }
+}
+
 /**
  * @title ExpressRelayUnitTest
  *
@@ -958,5 +964,30 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
         vm.expectRevert(InvalidTargetContract.selector);
         vm.prank(address(expressRelay));
         expressRelay.callWithBid(multicallData[0]);
+    }
+
+    function testCallGasLimit() public {
+        bytes memory permission = abi.encode(address(this), "0");
+        Dummy dummy = new Dummy();
+        MulticallData[] memory multicallData = new MulticallData[](1);
+        multicallData[0] = MulticallData(
+            "1",
+            address(dummy),
+            abi.encodeWithSelector(dummy.dummy.selector),
+            0,
+            1000,
+            false
+        );
+        vm.prank(relayer);
+        MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
+            permission,
+            multicallData
+        );
+        assertEq(multicallStatuses[0].externalSuccess, true);
+
+        multicallData[0].gasLimit = 1150;
+        vm.prank(relayer);
+        multicallStatuses = expressRelay.multicall(permission, multicallData);
+        assertEq(multicallStatuses[0].externalSuccess, false);
     }
 }
