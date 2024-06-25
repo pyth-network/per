@@ -33,6 +33,7 @@ use {
         contract::{
             abigen,
             ContractError,
+            ContractRevert,
             EthError,
             EthEvent,
             FunctionCall,
@@ -161,7 +162,6 @@ impl Transformer for LegacyTxTransformer {
 pub async fn submit_bids(
     express_relay_contract: Arc<SignableExpressRelayContract>,
     permission: Bytes,
-    // multicall_data: Vec<MulticallData>,
     bids: Vec<SimulatedBid>,
 ) -> Result<H256, ContractError<SignableProvider>> {
     let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
@@ -633,10 +633,46 @@ pub async fn handle_bid(
         ))],
     );
 
-    let estimated_gas: U256 = call
+    match call.clone().await {
+        Ok(results) => {
+            if !results[0].external_success {
+                return Err(RestError::SimulationError {
+                    result: results[0].external_result.clone(),
+                    reason: results[0].multicall_revert_reason.clone(),
+                });
+            }
+        }
+        Err(e) => {
+            println!("Inside error: {:?}", e);
+            return match e {
+                ContractError::Revert(reason) => {
+                    if let Some(decoded_error) = ExpressRelayErrors::decode_with_selector(&reason) {
+                        if let ExpressRelayErrors::ExternalCallFailed(failure_result) =
+                            decoded_error
+                        {
+                            return Err(RestError::SimulationError {
+                                result: failure_result.status.external_result,
+                                reason: failure_result.status.multicall_revert_reason,
+                            });
+                        }
+                    }
+                    Err(RestError::BadParameters(format!(
+                        "Contract Revert Error: {}",
+                        reason,
+                    )))
+                }
+                ContractError::MiddlewareError { e: _ } => Err(RestError::TemporarilyUnavailable),
+                ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
+                _ => Err(RestError::BadParameters(format!("Error: {}", e))),
+            };
+        }
+    }
+
+    let estimated_gas = call
         .estimate_gas()
         .await
         .map_err(|_| RestError::TemporarilyUnavailable)?;
+
     verify_bid_exceeds_gas_cost(
         estimated_gas,
         EthProviderOracle::new(chain_store.provider.clone()),
@@ -655,29 +691,6 @@ pub async fn handle_bid(
         U256::from(TOTAL_BIDS_PER_AUCTION * 2),
     )
     .await?;
-
-    match call.clone().await {
-        Ok(results) => {
-            if !results[0].external_success {
-                return Err(RestError::SimulationError {
-                    result: results[0].external_result.clone(),
-                    reason: results[0].multicall_revert_reason.clone(),
-                });
-            }
-        }
-        Err(e) => {
-            return match e {
-                ContractError::Revert(reason) => Err(RestError::BadParameters(format!(
-                    "Contract Revert Error: {}",
-                    String::decode_with_selector(&reason)
-                        .unwrap_or("unable to decode revert".to_string())
-                ))),
-                ContractError::MiddlewareError { e: _ } => Err(RestError::TemporarilyUnavailable),
-                ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
-                _ => Err(RestError::BadParameters(format!("Error: {}", e))),
-            };
-        }
-    }
 
     let bid_id = Uuid::new_v4();
     let simulated_bid = SimulatedBid {

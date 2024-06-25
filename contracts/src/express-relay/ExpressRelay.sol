@@ -81,7 +81,7 @@ contract ExpressRelay is Helpers, State, ExpressRelayEvents, ReentrancyGuard {
                 !multicallStatuses[i].externalSuccess &&
                 multicallData[i].revertOnFailure
             ) {
-                revert ExternalCallFailed();
+                revert ExternalCallFailed(multicallStatuses[i]);
             }
 
             // only count bid if call was successful (and bid was paid out)

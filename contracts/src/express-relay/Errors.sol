@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
+import "./Structs.sol";
+
 // Signature: 0x82b42900
 error Unauthorized();
 
@@ -23,5 +25,5 @@ error DuplicateRelayerSubwallet();
 // Signature: 0xac4d92b3
 error RelayerSubwalletNotFound();
 
-// Signature: 0x350c20f1
-error ExternalCallFailed();
+// Signature: 0x740d0306
+error ExternalCallFailed(MulticallStatus status);

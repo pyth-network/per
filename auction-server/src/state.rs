@@ -112,7 +112,7 @@ pub struct SimulatedBid {
     #[schema(example = "", value_type = String)]
     pub profile_id:      Option<models::ProfileId>,
     /// The gas limit for the contract call.
-    #[schema(example = "", value_type = String)]
+    #[schema(example = "2000000", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub gas_limit:       U256,
 }
