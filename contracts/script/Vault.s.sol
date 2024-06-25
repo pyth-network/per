@@ -143,7 +143,7 @@ contract VaultScript is Script {
     function deployPermit2() public returns (address) {
         (, uint256 skDeployer) = getDeployer();
         vm.startBroadcast(skDeployer);
-        address permit2 = deployCode("out/Permit2.sol/Permit2.json");
+        address permit2 = deployCode("permit2/Permit2.json");
         vm.stopBroadcast();
         console.log("deployed permit2 at", permit2);
         return permit2;

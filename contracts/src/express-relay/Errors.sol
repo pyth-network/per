@@ -14,6 +14,9 @@ error InvalidPermission();
 // Signature: 0x0601f697
 error InvalidFeeSplit();
 
+// Signature: 0x5569851a
+error InvalidTargetContract();
+
 // Signature: 0xb40d37c3
 error DuplicateRelayerSubwallet();
 

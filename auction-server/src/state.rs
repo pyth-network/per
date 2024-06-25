@@ -1,6 +1,7 @@
 use {
     crate::{
         api::{
+            opportunity::OpportunityParamsWithMetadata,
             profile as ApiProfile,
             ws::{
                 UpdateEvent,
@@ -49,6 +50,7 @@ use {
             BigDecimal,
         },
         Postgres,
+        QueryBuilder,
         TypeInfo,
     },
     std::{
@@ -937,19 +939,75 @@ impl Store {
         profile_id: models::ProfileId,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<models::Bid>, RestError> {
-        let select = "SELECT * FROM bid WHERE profile_id = $1";
-        let order_by = "ORDER BY initiation_time ASC LIMIT 20";
-        let query_with_time = format!("{} AND initiation_time >= $2 {}", select, order_by);
-        let query_without_time = format!("{} {}", select, order_by);
+        let mut query = QueryBuilder::new("SELECT * from bid where profile_id = ");
+        query.push_bind(profile_id);
+        if let Some(from_time) = from_time {
+            query.push(" AND initiation_time >= ");
+            query.push_bind(from_time);
+        }
+        query.push(" ORDER BY initiation_time ASC LIMIT 20");
+        query
+            .build_query_as()
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch bids: {}", e);
+                RestError::TemporarilyUnavailable
+            })
+    }
 
-        let query = match from_time {
-            Some(from_time) => sqlx::query_as(query_with_time.as_str())
-                .bind(profile_id)
-                .bind(from_time),
-            None => sqlx::query_as(query_without_time.as_str()).bind(profile_id),
-        };
-        query.fetch_all(&self.db).await.map_err(|e| {
-            tracing::error!("DB: Failed to fetch bids: {}", e);
+    pub async fn get_opportunities_by_permission_key(
+        &self,
+        chain_id: ChainId,
+        permission_key: Option<PermissionKey>,
+        from_time: Option<OffsetDateTime>,
+    ) -> Result<Vec<OpportunityParamsWithMetadata>, RestError> {
+        let mut query = QueryBuilder::new("SELECT * from opportunity where chain_id = ");
+        query.push_bind(chain_id);
+        if let Some(permission_key) = permission_key {
+            query.push(" AND permission_key = ");
+            query.push_bind(permission_key.to_vec());
+        }
+        if let Some(from_time) = from_time {
+            query.push(" AND creation_time >= ");
+            query.push_bind(from_time);
+        }
+        query.push(" ORDER BY creation_tim ASC LIMIT 20");
+        let opps: Vec<models::Opportunity> = query
+            .build_query_as()
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch opportunities: {}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+        let parsed_opps: anyhow::Result<Vec<OpportunityParamsWithMetadata>> = opps
+            .into_iter()
+            .map(|opp| {
+                let params: OpportunityParams = OpportunityParams::V1(OpportunityParamsV1 {
+                    permission_key:    Bytes::from(opp.permission_key.clone()),
+                    chain_id:          opp.chain_id,
+                    target_contract:   ethers::abi::Address::from_slice(&opp.target_contract),
+                    target_calldata:   Bytes::from(opp.target_calldata),
+                    target_call_value: U256::from_dec_str(
+                        opp.target_call_value.to_string().as_str(),
+                    )?,
+                    sell_tokens:       serde_json::from_value(opp.sell_tokens)?,
+                    buy_tokens:        serde_json::from_value(opp.buy_tokens)?,
+                });
+                let opp = Opportunity {
+                    id: opp.id,
+                    creation_time: opp.creation_time.assume_utc().unix_timestamp_nanos(),
+                    params,
+                };
+                Ok(opp.into())
+            })
+            .collect();
+        parsed_opps.map_err(|e| {
+            tracing::error!(
+                "Failed to convert opportunity to OpportunityParamsWithMetadata: {}",
+                e
+            );
             RestError::TemporarilyUnavailable
         })
     }

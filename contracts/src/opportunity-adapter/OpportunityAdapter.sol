@@ -16,6 +16,7 @@ import {OpportunityAdapterHasher} from "./OpportunityAdapterHasher.sol";
 contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     using SafeERC20 for IERC20;
 
+    address immutable _opportunityAdapterFactory;
     address immutable _owner;
     address immutable _expressRelay;
     address immutable _weth;
@@ -29,9 +30,17 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
      *
      */
     constructor() {
+        _opportunityAdapterFactory = msg.sender;
         (_expressRelay, _weth, _permit2, _owner) = IOpportunityAdapterFactory(
             msg.sender
         ).parameters();
+    }
+
+    modifier onlyOwner() {
+        if (msg.sender != _owner) {
+            revert OnlyOwnerCanCall();
+        }
+        _;
     }
 
     /**
@@ -46,6 +55,26 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
      */
     function getWeth() public view returns (address) {
         return _weth;
+    }
+
+    /**
+     * @notice withdrawEth function - withdraws ETH from the contract to the owner
+     */
+    function withdrawEth() public onlyOwner {
+        (bool sent, ) = payable(_owner).call{value: address(this).balance}("");
+        require(sent, "Withdrawal of ETH failed");
+    }
+
+    /**
+     * @notice withdrawToken function - withdraws specified tokens from the contract to the owner
+     *
+     * @param token: address of the token to withdraw
+     */
+    function withdrawToken(address token) public onlyOwner {
+        IERC20(token).safeTransfer(
+            _owner,
+            IERC20(token).balanceOf(address(this))
+        );
     }
 
     function _getWethContract() internal view returns (IWETH9) {
@@ -128,7 +157,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         }
     }
 
-    function _settleBid(address executor, uint256 bidAmount) internal {
+    function _settleBid(uint256 bidAmount) internal {
         if (bidAmount == 0) return;
         IWETH9 weth = _getWethContract();
         uint256 balance = address(this).balance;
@@ -173,13 +202,14 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     ) internal {
         for (uint i = 0; i < buyTokens.length; i++) {
             IERC20 token = IERC20(buyTokens[i].token);
+            uint256 tokenBalance = token.balanceOf(address(this));
             if (
-                token.balanceOf(address(this)) <
+                tokenBalance <
                 buyTokensBalancesBeforeCall[i] + buyTokens[i].amount
             ) {
                 revert InsufficientTokenReceived();
             }
-            token.safeTransfer(executor, buyTokens[i].amount);
+            token.safeTransfer(executor, tokenBalance);
         }
     }
 
@@ -194,6 +224,9 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         ExecutionParams calldata params,
         bytes calldata signature
     ) public payable nonReentrant {
+        if (msg.sender != _opportunityAdapterFactory) {
+            revert NotCalledByFactory();
+        }
         _verifyParams(params);
         (
             uint256 ethBalanceBeforeCall,
@@ -222,7 +255,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
             params.witness.executor,
             buyTokensBalancesBeforeCall
         );
-        _settleBid(params.witness.executor, params.witness.bidAmount);
+        _settleBid(params.witness.bidAmount);
         (
             uint256 ethBalanceAfterCall,
             uint256 wethBalanceAfterCall

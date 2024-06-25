@@ -117,7 +117,7 @@ contract OpportunityAdapterIntegrationTest is
         signature = getPermitBatchWitnessSignature(
             permit,
             executorSk,
-            FULL_WITNESS_BATCH_TYPEHASH,
+            FULL_OPPORTUNITY_WITNESS_BATCH_TYPEHASH,
             hash(witness),
             adapterFactory.computeAddress(executor),
             EIP712Domain(PERMIT2).DOMAIN_SEPARATOR()
@@ -241,7 +241,7 @@ contract OpportunityAdapterIntegrationTest is
             );
         uint256 initialAdapterBuyTokenBalance = 5000;
         address opportunityAdapter = adapterFactory.computeAddress(executor);
-        buyToken.mint(opportunityAdapter, initialAdapterBuyTokenBalance); // initial balance should not affect the result
+        buyToken.mint(opportunityAdapter, initialAdapterBuyTokenBalance);
         sellToken.mint(executor, sellTokenAmount);
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
@@ -262,10 +262,9 @@ contract OpportunityAdapterIntegrationTest is
             abi.encodeWithSelector(WETH9.withdraw.selector, bid)
         );
         adapterFactory.executeOpportunity(executionParams, signature);
-        assertEq(buyToken.balanceOf(executor), buyTokenAmount);
         assertEq(
-            buyToken.balanceOf(opportunityAdapter),
-            initialAdapterBuyTokenBalance
+            buyToken.balanceOf(executor),
+            initialAdapterBuyTokenBalance + buyTokenAmount
         );
         assertEq(sellToken.balanceOf(executor), 0);
         assertEq(

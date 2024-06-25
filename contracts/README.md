@@ -18,10 +18,11 @@ $ forge install Uniswap/permit2@0x000000000022D473030F116dDEE9F6B43aC78BA3 --no-
 $ forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1fcb4e286 --no-git --no-commit
 ```
 
-## Build Permit2
+## Permit2
 
-Since Permit2 contract compiles with a different solc version not compatible with the rest of the repo, we build it
-using another foundry profile:
+Since Permit2 contract compiles with a different solc version not compatible with the rest of the repo,
+we have commited the compiled artifacts in [`permit2/Permit2.json`](`permit2/Permit2.json`).
+To compile the contract yourself, you can run the following command:
 
 ```shell
 FOUNDRY_PROFILE=permit2 forge build --via-ir

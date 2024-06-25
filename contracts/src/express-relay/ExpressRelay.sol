@@ -133,6 +133,9 @@ contract ExpressRelay is Helpers, State, ExpressRelayEvents, ReentrancyGuard {
         if (msg.sender != address(this)) {
             revert Unauthorized();
         }
+        if (multicallData.targetContract == address(this)) {
+            revert InvalidTargetContract();
+        }
 
         uint256 balanceInitEth = address(this).balance;
 
