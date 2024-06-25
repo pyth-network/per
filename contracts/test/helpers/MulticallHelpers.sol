@@ -7,7 +7,7 @@ import "forge-std/console.sol";
 import "./TestParsingHelpers.sol";
 import "src/express-relay/Structs.sol";
 
-contract Dummy {
+contract GasVerifier {
     function verifyGas() public view {
         assert(gasleft() < 1000);
     }

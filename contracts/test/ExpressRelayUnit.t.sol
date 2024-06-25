@@ -9,7 +9,7 @@ import "src/express-relay/Structs.sol";
 
 import {ExpressRelayTestSetup} from "./ExpressRelayTestSetup.sol";
 import "./helpers/MockProtocol.sol";
-import {Dummy} from "./helpers/MulticallHelpers.sol";
+import {GasVerifier} from "./helpers/MulticallHelpers.sol";
 
 /**
  * @title ExpressRelayUnitTest
@@ -963,12 +963,12 @@ contract ExpressRelayUnitTest is Test, ExpressRelayTestSetup {
 
     function testCallGasLimit() public {
         bytes memory permission = abi.encode(address(this), "0");
-        Dummy dummy = new Dummy();
+        GasVerifier verifier = new GasVerifier();
         MulticallData[] memory multicallData = new MulticallData[](1);
         multicallData[0] = MulticallData(
             "1",
-            address(dummy),
-            abi.encodeWithSelector(dummy.verifyGas.selector),
+            address(verifier),
+            abi.encodeWithSelector(verifier.verifyGas.selector),
             0,
             1000,
             false
