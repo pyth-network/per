@@ -859,7 +859,12 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
         multicallData[0].revertOnFailure = true;
 
         vm.prank(relayer);
-        vm.expectRevert(ExternalCallFailed.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ExternalCallFailed.selector,
+                MulticallStatus(false, new bytes(0), "")
+            )
+        );
         MulticallStatus[] memory multicallStatuses = expressRelay.multicall(
             permission,
             multicallData
