@@ -172,6 +172,7 @@ pub async fn post_opportunity(
 
 /// Fetch opportunities ready for execution or historical opportunities
 /// depending on the mode. You need to provide `chain_id` for historical mode.
+/// Opportunities are sorted by creation time in ascending order in historical mode.
 #[utoipa::path(get, path = "/v1/opportunities", responses(
 (status = 200, description = "Array of opportunities ready for bidding", body = Vec < OpportunityParamsWithMetadata >),
 (status = 400, response = ErrorBodyResponse),
@@ -183,7 +184,6 @@ pub async fn get_opportunities(
     query_params: Query<GetOpportunitiesQueryParams>,
 ) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
     // make sure the chain id is valid
-
     if let Some(chain_id) = query_params.chain_id.clone() {
         store
             .chains
