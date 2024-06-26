@@ -17,6 +17,7 @@ use {
         },
         models,
         opportunity_adapter::{
+            get_adapter_bytecode_hash,
             get_permit2_address,
             get_weth_address,
             run_verification_loop,
@@ -182,6 +183,11 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                 let weth =
                     get_weth_address(chain_config.adapter_factory_contract, provider.clone())
                         .await?;
+                let adapter_bytecode_hash = get_adapter_bytecode_hash(
+                    chain_config.adapter_factory_contract,
+                    provider.clone(),
+                )
+                .await?;
 
                 Ok((
                     chain_id.clone(),
@@ -193,6 +199,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
                         config: chain_config.clone(),
                         permit2,
                         weth,
+                        adapter_bytecode_hash,
                         express_relay_contract: Arc::new(express_relay_contract),
                         block_gas_limit: block.gas_limit,
                     },

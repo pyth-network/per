@@ -63,7 +63,7 @@ use {
             Signature,
             U256,
         },
-        utils::get_create2_address,
+        utils::get_create2_address_from_hash,
     },
     rand::Rng,
     serde::{
@@ -113,6 +113,18 @@ pub async fn get_weth_address(
         .call()
         .await
         .map_err(|e| anyhow!("Error getting WETH address from adapter: {:?}", e))
+}
+
+pub async fn get_adapter_bytecode_hash(
+    adapter_contract: Address,
+    provider: Provider<TracedClient>,
+) -> Result<[u8; 32]> {
+    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+    adapter
+        .get_opportunity_adapter_creation_code_hash()
+        .call()
+        .await
+        .map_err(|e| anyhow!("Error getting adapter code hash from adapter: {:?}", e))
 }
 
 pub async fn get_permit2_address(
@@ -248,7 +260,14 @@ pub async fn verify_opportunity(
     match MulticallReturn::decode(&result) {
         Ok(result) => {
             if !result.multicall_statuses[0].external_success {
-                return Err(anyhow!("Express Relay Simulation failed"));
+                tracing::info!(
+                    "Opportunity simulation failed: {:?}",
+                    result.multicall_statuses[0]
+                );
+                return Err(anyhow!(
+                    "Express Relay Simulation failed: {:?}",
+                    result.multicall_statuses[0].external_result
+                ));
             }
         }
         Err(e) => return Err(anyhow!(format!("Error decoding multicall result: {:?}", e))),
@@ -403,10 +422,10 @@ pub fn make_opportunity_execution_params(
 ) -> ExecutionParamsWithSignature {
     let mut salt = [0u8; 32];
     salt[12..32].copy_from_slice(bid.executor.as_bytes());
-    let executor_adapter_address = get_create2_address(
+    let executor_adapter_address = get_create2_address_from_hash(
         chain_store.config.adapter_factory_contract,
         salt,
-        &OPPORTUNITYADAPTER_BYTECODE,
+        chain_store.adapter_bytecode_hash,
     );
     let eip_712_domain = EIP712Domain {
         name:               Some("Permit2".to_string()),

@@ -34,7 +34,6 @@ use {
             abigen,
             ContractError,
             ContractRevert,
-            EthError,
             EthEvent,
             FunctionCall,
         },

@@ -190,6 +190,7 @@ pub struct ChainStore {
     pub network_id:             u64,
     pub config:                 EthereumConfig,
     pub permit2:                Address,
+    pub adapter_bytecode_hash:  [u8; 32],
     pub weth:                   Address,
     pub token_spoof_info:       RwLock<HashMap<Address, SpoofInfo>>,
     pub express_relay_contract: Arc<SignableExpressRelayContract>,
