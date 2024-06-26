@@ -981,7 +981,7 @@ impl Store {
             query.push(" AND creation_time >= ");
             query.push_bind(from_time);
         }
-        query.push(" ORDER BY creation_tim ASC LIMIT 20");
+        query.push(" ORDER BY creation_time ASC LIMIT 20");
         let opps: Vec<models::Opportunity> = query
             .build_query_as()
             .fetch_all(&self.db)
