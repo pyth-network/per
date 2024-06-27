@@ -563,13 +563,17 @@ async fn verify_bid_exceeds_gas_cost<G>(
 where
     G: GasOracle,
 {
-    let (base_fee_per_gas, _) = oracle
+    let (maximum_gas_fee, priority_fee) = oracle
         .estimate_eip1559_fees()
         .await
         .map_err(|_| RestError::TemporarilyUnavailable)?;
+
     // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
-    // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
-    let minimum_bid_amount = base_fee_per_gas * estimated_gas * U256::from(TOTAL_BIDS_PER_AUCTION);
+    // To make sure we cover the estimation errors, we add the priority_fee to the final potential gas fee.
+    // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times per potential gas fee.
+    let potential_gas_fee = maximum_gas_fee * U256::from(TOTAL_BIDS_PER_AUCTION) + priority_fee;
+    let minimum_bid_amount = potential_gas_fee * estimated_gas;
+
     if bid_amount >= minimum_bid_amount {
         Ok(())
     } else {
