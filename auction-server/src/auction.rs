@@ -80,7 +80,6 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::{
-        cmp::max,
         result,
         sync::{
             atomic::Ordering,
@@ -193,7 +192,7 @@ impl From<(SimulatedBid, bool)> for MulticallData {
 // 1. There will be more gas required for the transaction, which will result in a higher minimum bid amount.
 // 2. The transaction size limit will be reduced for each bid.
 // 3. Gas consumption limit will decrease for the bid
-const TOTAL_BIDS_PER_AUCTION: usize = 5;
+const TOTAL_BIDS_PER_AUCTION: usize = 3;
 
 #[tracing::instrument(skip_all)]
 async fn get_winner_bids(
@@ -560,7 +559,7 @@ async fn verify_bid_exceeds_gas_cost<G>(
     estimated_gas: U256,
     oracle: G,
     bid_amount: U256,
-    threshold: U256,
+    multiplier: U256,
 ) -> Result<(), RestError>
 where
     G: GasOracle,
@@ -570,12 +569,12 @@ where
         .await
         .map_err(|_| RestError::TemporarilyUnavailable)?;
     let gas_price = base_fee_per_gas * estimated_gas;
-    if bid_amount >= gas_price * threshold {
+    if bid_amount >= gas_price * multiplier {
         Ok(())
     } else {
         Err(RestError::BadParameters(format!(
-            "Bid amount is insufficient for gas. gas price: {}, threshold: {}",
-            gas_price, threshold
+            "Insufficient bid amount. Based on the current gas fees, your bid should be larger than: {}",
+            gas_price * multiplier
         )))
     }
 }
@@ -595,8 +594,6 @@ async fn verify_bid_under_gas_limit(
         Ok(())
     }
 }
-
-const MINIMUM_GAS_MULTIPLIER: usize = 5;
 
 // As we submit bids together for an auction, the bid is limited as follows:
 // 1. The bid amount should cover gas fees for all bids included in the submission.
@@ -644,15 +641,13 @@ pub async fn handle_bid(
         Err(e) => {
             return match e {
                 ContractError::Revert(reason) => {
-                    if let Some(decoded_error) = ExpressRelayErrors::decode_with_selector(&reason) {
-                        if let ExpressRelayErrors::ExternalCallFailed(failure_result) =
-                            decoded_error
-                        {
-                            return Err(RestError::SimulationError {
-                                result: failure_result.status.external_result,
-                                reason: failure_result.status.multicall_revert_reason,
-                            });
-                        }
+                    if let Some(ExpressRelayErrors::ExternalCallFailed(failure_result)) =
+                        ExpressRelayErrors::decode_with_selector(&reason)
+                    {
+                        return Err(RestError::SimulationError {
+                            result: failure_result.status.external_result,
+                            reason: failure_result.status.multicall_revert_reason,
+                        });
                     }
                     Err(RestError::BadParameters(format!(
                         "Contract Revert Error: {}",
@@ -677,9 +672,9 @@ pub async fn handle_bid(
         bid.amount,
         // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
         // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
-        // The threshold will be multiplied by two to ensure the bid is beneficial, as well as to allow for estimation errors.
+        // In order to make sure estimation errors are covered, it is summed up with one.
         // For example, if we are unable to submit the bid in the current block.
-        U256::from(max(TOTAL_BIDS_PER_AUCTION * 2, MINIMUM_GAS_MULTIPLIER)),
+        U256::from(TOTAL_BIDS_PER_AUCTION + 1),
     )
     .await?;
     // The transaction body size will be automatically limited when the gas is limited.
