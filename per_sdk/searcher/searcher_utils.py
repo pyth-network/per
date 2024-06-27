@@ -84,10 +84,10 @@ def construct_signature_executor(
         ],
         "OpportunityWitness": [
             {"name": "buyTokens", "type": "TokenAmount[]"},
-            {"name": "executor", "type": "address"},
-            {"name": "targetContract", "type": "address"},
             {"name": "targetCalldata", "type": "bytes"},
             {"name": "targetCallValue", "type": "uint256"},
+            {"name": "targetContract", "type": "address"},
+            {"name": "executor", "type": "address"},
             {"name": "bidAmount", "type": "uint256"},
         ],
         "TokenAmount": [
@@ -116,10 +116,10 @@ def construct_signature_executor(
                 }
                 for token in buy_tokens
             ],
-            "executor": executor,
-            "targetContract": address,
             "targetCalldata": calldata,
             "targetCallValue": value,
+            "targetContract": address,
+            "executor": executor,
             "bidAmount": bid_info["bid"],
         },
     }

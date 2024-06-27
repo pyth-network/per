@@ -585,10 +585,10 @@ contract ExpressRelayTestSetup is
                 );
             ExecutionWitness memory witness = ExecutionWitness(
                 buyTokens,
-                bidInfos[i].executor,
-                contractAddress,
                 calldataVault,
                 value,
+                contractAddress,
+                bidInfos[i].executor,
                 bidInfos[i].bid
             );
             // create liquidation call params struct

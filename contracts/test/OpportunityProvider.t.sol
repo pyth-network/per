@@ -308,14 +308,14 @@ contract OpportunityProviderUnitTest is
         );
         AdapterExecutionWitness memory witness = AdapterExecutionWitness(
             sellTokens,
-            buyer,
-            address(opportunityProvider),
             abi.encodeWithSelector(
                 opportunityProvider.execute.selector,
                 params,
                 providerSignature
             ),
             0,
+            address(opportunityProvider),
+            buyer,
             bidAmount
         );
 

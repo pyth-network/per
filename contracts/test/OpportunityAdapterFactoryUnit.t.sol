@@ -79,10 +79,10 @@ contract OpportunityAdapterFactoryUnitTest is
 
         ExecutionWitness memory witness = ExecutionWitness({
             buyTokens: new TokenAmount[](0),
-            executor: makeAddr("executor"),
-            targetContract: targetContract,
             targetCalldata: new bytes(0),
             targetCallValue: 0,
+            targetContract: targetContract,
+            executor: makeAddr("executor"),
             bidAmount: 0
         });
 

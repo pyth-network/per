@@ -107,10 +107,10 @@ contract OpportunityAdapterIntegrationTest is
         (address executor, uint256 executorSk) = makeAddrAndKey("executor");
         ExecutionWitness memory witness = ExecutionWitness(
             buyTokens,
-            executor,
-            address(mockTarget),
             data,
             value,
+            address(mockTarget),
+            executor,
             bid
         );
         executionParams = ExecutionParams(permit, witness);

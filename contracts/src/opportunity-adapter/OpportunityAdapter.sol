@@ -23,7 +23,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     address immutable _permit2;
 
     string public constant WITNESS_TYPE_STRING =
-        "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
+        "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,bytes targetCalldata,uint256 targetCallValue,address targetContract,address executor,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
 
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract

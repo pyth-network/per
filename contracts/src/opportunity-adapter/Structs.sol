@@ -10,10 +10,10 @@ struct TokenAmount {
 
 struct ExecutionWitness {
     TokenAmount[] buyTokens;
-    address executor;
-    address targetContract;
     bytes targetCalldata;
     uint256 targetCallValue;
+    address targetContract;
+    address executor;
     uint256 bidAmount;
 }
 

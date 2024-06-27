@@ -287,10 +287,10 @@ impl From<ExecutionParamsWithSignature> for eip712::TypedData {
             ],
             "OpportunityWitness": [
                 {"name": "buyTokens", "type": "TokenAmount[]"},
-                {"name": "executor", "type": "address"},
-                {"name": "targetContract", "type": "address"},
                 {"name": "targetCalldata", "type": "bytes"},
                 {"name": "targetCallValue", "type": "uint256"},
+                {"name": "targetContract", "type": "address"},
+                {"name": "executor", "type": "address"},
                 {"name": "bidAmount", "type": "uint256"},
             ],
             "TokenAmount": [
@@ -315,10 +315,10 @@ impl From<ExecutionParamsWithSignature> for eip712::TypedData {
                     "token": x.token,
                     "amount": x.amount,
                 })).collect::<Vec<_>>(),
-                "executor": params.witness.executor,
-                "targetContract": params.witness.target_contract,
                 "targetCalldata": params.witness.target_calldata,
                 "targetCallValue": params.witness.target_call_value,
+                "targetContract": params.witness.target_contract,
+                "executor": params.witness.executor,
                 "bidAmount": params.witness.bid_amount,
             }),
         });
@@ -447,10 +447,10 @@ pub fn make_opportunity_execution_params(
                     .into_iter()
                     .map(TokenAmount::from)
                     .collect(),
-                executor:          bid.executor,
-                target_contract:   opportunity.target_contract,
                 target_calldata:   opportunity.target_calldata,
                 target_call_value: opportunity.target_call_value,
+                target_contract:   opportunity.target_contract,
+                executor:          bid.executor,
                 bid_amount:        bid.amount,
             },
         },
