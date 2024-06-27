@@ -5,7 +5,7 @@ import "./Structs.sol";
 
 contract OpportunityAdapterHasher {
     string internal constant _OPPORTUNITY_WITNESS_TYPE =
-        "OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
+        "OpportunityWitness(TokenAmount[] buyTokens,bytes targetCalldata,uint256 targetCallValue,address targetContract,address executor,uint256 bidAmount)TokenAmount(address token,uint256 amount)";
     string internal constant _TOKEN_AMOUNT_TYPE =
         "TokenAmount(address token,uint256 amount)";
 
@@ -40,10 +40,10 @@ contract OpportunityAdapterHasher {
                 abi.encode(
                     keccak256(bytes(_OPPORTUNITY_WITNESS_TYPE)),
                     hash(params.buyTokens),
-                    params.executor,
-                    params.targetContract,
                     keccak256(params.targetCalldata),
                     params.targetCallValue,
+                    params.targetContract,
+                    params.executor,
                     params.bidAmount
                 )
             );
