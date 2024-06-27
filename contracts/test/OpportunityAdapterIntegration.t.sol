@@ -25,12 +25,16 @@ contract MockTarget {
 
     function doNothing() public payable {}
 
-    function transferWethToSender(uint256 amount) public payable {
+    function exchangeWethForWeth(
+        uint256 amountIn,
+        uint256 amountOut
+    ) public payable {
+        WETH9(_weth).transferFrom(msg.sender, address(this), amountIn);
         uint256 balanceWeth = WETH9(_weth).balanceOf(address(this));
-        if (balanceWeth < amount) {
-            WETH9(_weth).deposit{value: amount - balanceWeth}();
+        if (balanceWeth < amountOut) {
+            WETH9(_weth).deposit{value: amountOut - balanceWeth}();
         }
-        WETH9(_weth).transfer(msg.sender, amount);
+        WETH9(_weth).transfer(msg.sender, amountOut);
     }
 
     function transferTokenToSender(
@@ -353,7 +357,8 @@ contract OpportunityAdapterIntegrationTest is
         vm.deal(address(mockTarget), wethBuyTokenAmount);
 
         bytes memory targetCalldata = abi.encodeWithSelector(
-            mockTarget.transferWethToSender.selector,
+            mockTarget.exchangeWethForWeth.selector,
+            wethSellTokenAmount,
             wethBuyTokenAmount
         );
         (
@@ -367,15 +372,35 @@ contract OpportunityAdapterIntegrationTest is
                 bidAmount,
                 block.timestamp + 1000
             );
+
         vm.deal(executionParams.witness.executor, sellTokenAmount);
         vm.startPrank(executionParams.witness.executor);
         weth.deposit{value: sellTokenAmount}();
         weth.approve(PERMIT2, sellTokenAmount);
         vm.stopPrank();
 
+        uint256 balanceWethPlusEthMockTargetPre = address(mockTarget).balance +
+            WETH9(weth).balanceOf(address(mockTarget));
+
         vm.prank(adapterFactory.getExpressRelay());
         vm.expectCall(address(mockTarget), targetCalldata);
         adapterFactory.executeOpportunity(executionParams, signature);
+
+        uint256 balanceWethPlusEthMockTargetPost = address(mockTarget).balance +
+            WETH9(weth).balanceOf(address(mockTarget));
+
+        assertEq(
+            WETH9(weth).balanceOf(executionParams.witness.executor),
+            wethBuyTokenAmount
+        );
+        assertEq(adapterFactory.getExpressRelay().balance, bidAmount);
+        assertEq(
+            balanceWethPlusEthMockTargetPost,
+            balanceWethPlusEthMockTargetPre -
+                wethBuyTokenAmount +
+                targetCallValue +
+                wethSellTokenAmount
+        );
     }
 
     function testRevertWhenEthBalanceDecrease() public {
