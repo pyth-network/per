@@ -772,9 +772,8 @@ impl Store {
                     }
                 } else {
                     query_result = sqlx::query!(
-                        "UPDATE bid SET status = $1, bundle_index = $2 WHERE id = $3 AND status = 'pending'",
+                        "UPDATE bid SET status = $1 WHERE id = $2 AND status = 'pending'",
                         updated_status as _,
-                        index.map(|i| i as i32),
                         bid.id
                     )
                     .execute(&self.db)
