@@ -559,7 +559,6 @@ async fn verify_bid_exceeds_gas_cost<G>(
     estimated_gas: U256,
     oracle: G,
     bid_amount: U256,
-    multiplier: U256,
 ) -> Result<(), RestError>
 where
     G: GasOracle,
@@ -568,13 +567,15 @@ where
         .estimate_eip1559_fees()
         .await
         .map_err(|_| RestError::TemporarilyUnavailable)?;
-    let gas_price = base_fee_per_gas * estimated_gas;
-    if bid_amount >= gas_price * multiplier {
+    // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
+    // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
+    let minimum_bid_amount = base_fee_per_gas * estimated_gas * U256::from(TOTAL_BIDS_PER_AUCTION);
+    if bid_amount >= minimum_bid_amount {
         Ok(())
     } else {
         Err(RestError::BadParameters(format!(
-            "Insufficient bid amount. Based on the current gas fees, your bid should be larger than: {}",
-            gas_price * multiplier
+            "Insufficient bid amount based on the current gas fees. estimated gas usage: {}, minimum bid amount: {}",
+            estimated_gas, minimum_bid_amount
         )))
     }
 }
@@ -670,11 +671,6 @@ pub async fn handle_bid(
         estimated_gas,
         EthProviderOracle::new(chain_store.provider.clone()),
         bid.amount,
-        // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
-        // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times the gas fee.
-        // In order to make sure estimation errors are covered, it is summed up with one.
-        // For example, if we are unable to submit the bid in the current block.
-        U256::from(TOTAL_BIDS_PER_AUCTION + 1),
     )
     .await?;
     // The transaction body size will be automatically limited when the gas is limited.
