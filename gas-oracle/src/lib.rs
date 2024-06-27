@@ -71,8 +71,8 @@ pub fn eip1559_default_estimator(base_fee_per_gas: U256, rewards: Vec<Vec<U256>>
         U256::from(EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE),
     );
 
-    // Minimum of 6 blocks needed to double the base fee.
-    let potential_max_fee = base_fee_per_gas * 2;
+    // Minimum of 4 blocks needed to 1.6 the base fee.
+    let potential_max_fee = base_fee_per_gas * 16 / 10;
     (
         potential_max_fee + max_priority_fee_per_gas,
         max_priority_fee_per_gas,
