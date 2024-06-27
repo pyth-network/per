@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "./Structs.sol";
 import "./IWETH9.sol";
 import "./Errors.sol";
+import "forge-std/console.sol";
 
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
@@ -250,12 +251,12 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
             params.witness.targetCallValue
         );
         _revokeAllowances(params.permit, params.witness.targetContract);
+        _settleBid(params.witness.bidAmount);
         _validateAndTransferBuyTokens(
             params.witness.buyTokens,
             params.witness.executor,
             buyTokensBalancesBeforeCall
         );
-        _settleBid(params.witness.bidAmount);
         (
             uint256 ethBalanceAfterCall,
             uint256 wethBalanceAfterCall
