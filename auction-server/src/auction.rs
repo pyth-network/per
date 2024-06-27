@@ -578,8 +578,8 @@ where
         Ok(())
     } else {
         Err(RestError::BadParameters(format!(
-            "Insufficient bid amount based on the current gas fees. estimated gas usage: {}, minimum bid amount: {}",
-            estimated_gas, minimum_bid_amount
+            "Insufficient bid amount based on the current gas fees. estimated gas usage: {}, maximum fee per gas: {}, priority fee per gas: {}, minimum bid amount: {}",
+            estimated_gas, maximum_gas_fee, priority_fee, minimum_bid_amount
         )))
     }
 }
