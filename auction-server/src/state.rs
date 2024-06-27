@@ -747,20 +747,33 @@ impl Store {
             }
             BidStatus::Lost { result: _, index } => {
                 if let Some(auction) = auction {
-                    query_result = sqlx::query!(
-                        "UPDATE bid SET status = $1, bundle_index = $2, auction_id = $3 WHERE id = $4 AND status = 'submitted'",
-                        updated_status as _,
-                        index.map(|i| i as i32),
-                        auction.id,
-                        bid.id
-                    )
-                    .execute(&self.db)
-                    .await?;
+                    match index {
+                        Some(index) => {
+                            query_result = sqlx::query!(
+                                "UPDATE bid SET status = $1, bundle_index = $2, auction_id = $3 WHERE id = $4 AND status = 'submitted'",
+                                updated_status as _,
+                                index as i32,
+                                auction.id,
+                                bid.id
+                            )
+                            .execute(&self.db)
+                            .await?;
+                        }
+                        None => {
+                            query_result = sqlx::query!(
+                                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = 'pending'",
+                                updated_status as _,
+                                auction.id,
+                                bid.id
+                            )
+                            .execute(&self.db)
+                            .await?;
+                        }
+                    }
                 } else {
                     query_result = sqlx::query!(
-                        "UPDATE bid SET status = $1, bundle_index = $2 WHERE id = $3 AND status = 'pending'",
+                        "UPDATE bid SET status = $1 WHERE id = $2 AND status = 'pending'",
                         updated_status as _,
-                        index.map(|i| i as i32),
                         bid.id
                     )
                     .execute(&self.db)
