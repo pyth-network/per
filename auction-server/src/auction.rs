@@ -323,6 +323,52 @@ async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
     }
 }
 
+async fn broadcast_submitted_bids(
+    store: Arc<Store>,
+    bids: Vec<SimulatedBid>,
+    tx_hash: H256,
+    auction: models::Auction,
+) {
+    join_all(bids.iter().enumerate().map(|(i, bid)| {
+        store.broadcast_bid_status_and_update(
+            bid.to_owned(),
+            BidStatus::Submitted {
+                result: tx_hash,
+                index:  i as u32,
+            },
+            Some(&auction),
+        )
+    }))
+    .await;
+}
+
+async fn broadcast_lost_bids(
+    store: Arc<Store>,
+    bids: Vec<SimulatedBid>,
+    submitted_bids: Vec<SimulatedBid>,
+    tx_hash: Option<H256>,
+    auction: Option<&models::Auction>,
+) {
+    join_all(bids.iter().filter_map(|bid| {
+        if submitted_bids
+            .iter()
+            .any(|submitted_bid| bid.id == submitted_bid.id)
+        {
+            return None;
+        }
+
+        Some(store.broadcast_bid_status_and_update(
+            bid.clone(),
+            BidStatus::Lost {
+                result: tx_hash,
+                index:  None,
+            },
+            auction,
+        ))
+    }))
+    .await;
+}
+
 async fn submit_auction_for_bids<'a>(
     bids: Vec<SimulatedBid>,
     bid_collection_time: OffsetDateTime,
@@ -349,18 +395,7 @@ async fn submit_auction_for_bids<'a>(
     let winner_bids =
         get_winner_bids(&bids, permission_key.clone(), store.clone(), chain_store).await?;
     if winner_bids.is_empty() {
-        for bid in bids.iter() {
-            store
-                .broadcast_bid_status_and_update(
-                    bid.clone(),
-                    BidStatus::Lost {
-                        result: None,
-                        index:  None,
-                    },
-                    None,
-                )
-                .await?;
-        }
+        broadcast_lost_bids(store.clone(), bids, winner_bids, None, None).await;
         return Ok(());
     }
 
@@ -388,24 +423,21 @@ async fn submit_auction_for_bids<'a>(
         Ok(tx_hash) => {
             tracing::debug!("Submitted transaction: {:?}", tx_hash);
             auction = store.submit_auction(auction, tx_hash).await?;
-            join_all(winner_bids.iter().enumerate().map(|(i, bid)| {
-                // TODO update the status of bids to lost for those that are not going to be submitted to the chain for this auction
-                let (index, store, bid, auction) =
-                    (i as u32, store.clone(), bid.clone(), auction.clone());
-                async move {
-                    store
-                        .broadcast_bid_status_and_update(
-                            bid,
-                            BidStatus::Submitted {
-                                result: tx_hash,
-                                index,
-                            },
-                            Some(&auction),
-                        )
-                        .await
-                }
-            }))
-            .await;
+            tokio::join!(
+                broadcast_submitted_bids(
+                    store.clone(),
+                    winner_bids.clone(),
+                    tx_hash,
+                    auction.clone()
+                ),
+                broadcast_lost_bids(
+                    store.clone(),
+                    bids,
+                    winner_bids,
+                    Some(tx_hash),
+                    Some(&auction)
+                ),
+            );
         }
         Err(err) => {
             tracing::error!("Transaction failed to submit: {:?}", err);
