@@ -109,9 +109,17 @@ pub async fn post_opportunity(
 
     verify_opportunity(params.clone(), chain_store, store.relayer.address())
         .await
-        .map_err(|e| RestError::InvalidOpportunity(e.to_string()))?;
+        .map_err(|e| {
+            tracing::warn!(
+                "Failed to verify opportunity: {:?} - params: {:?}",
+                e,
+                versioned_params
+            );
+            RestError::InvalidOpportunity(e.to_string())
+        })?;
 
     if store.opportunity_exists(&opportunity).await {
+        tracing::warn!("Duplicate opportunity submission: {:?}", opportunity);
         return Err(RestError::BadParameters(
             "Duplicate opportunity submission".to_string(),
         ));
@@ -125,7 +133,11 @@ pub async fn post_opportunity(
             opportunity.clone(),
         )))
         .map_err(|e| {
-            tracing::error!("Failed to send update: {}", e);
+            tracing::error!(
+                "Failed to send update: {} - opportunity: {:?}",
+                e,
+                opportunity
+            );
             RestError::TemporarilyUnavailable
         })?;
 

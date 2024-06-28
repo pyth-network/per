@@ -109,6 +109,7 @@ pub(crate) mod opportunity;
 pub mod profile;
 pub(crate) mod ws;
 
+#[derive(Debug)]
 pub enum RestError {
     /// The request contained invalid parameters
     BadParameters(String),

@@ -24,7 +24,7 @@ use {
     },
 };
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse, Debug)]
 pub struct CreateProfile {
     /// The name of the profile to create
     #[schema(example = "John Doe")]

@@ -290,13 +290,17 @@ async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction)
                 {
                     if let Err(err) = store
                         .broadcast_bid_status_and_update(
-                            bid,
+                            bid.clone(),
                             get_bid_status(decoded_log, &receipt),
                             Some(&auction),
                         )
                         .await
                     {
-                        tracing::error!("Failed to broadcast bid status: {:?}", err);
+                        tracing::error!(
+                            "Failed to broadcast bid status: {:?} - bid: {:?}",
+                            err,
+                            bid
+                        );
                     }
                 }
             }))
@@ -317,9 +321,18 @@ async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
     );
 
     for auction in auctions.iter() {
-        store
-            .task_tracker
-            .spawn(conclude_submitted_auction(store.clone(), auction.clone()));
+        store.task_tracker.spawn({
+            let (store, auction) = (store.clone(), auction.clone());
+            async move {
+                if let Err(err) = conclude_submitted_auction(store.clone(), auction.clone()).await {
+                    tracing::error!(
+                        "Failed to submit auction: {:?} - auction: {:?}",
+                        err,
+                        auction
+                    );
+                }
+            }
+        });
     }
 }
 
@@ -330,14 +343,22 @@ async fn broadcast_submitted_bids(
     auction: models::Auction,
 ) {
     join_all(bids.iter().enumerate().map(|(i, bid)| {
-        store.broadcast_bid_status_and_update(
-            bid.to_owned(),
-            BidStatus::Submitted {
-                result: tx_hash,
-                index:  i as u32,
-            },
-            Some(&auction),
-        )
+        let (store, auction, index) = (store.clone(), auction.clone(), i as u32);
+        async move {
+            if let Err(err) = store
+                .broadcast_bid_status_and_update(
+                    bid.to_owned(),
+                    BidStatus::Submitted {
+                        result: tx_hash,
+                        index,
+                    },
+                    Some(&auction),
+                )
+                .await
+            {
+                tracing::error!("Failed to broadcast bid status: {:?} - bid: {:?}", err, bid);
+            }
+        }
     }))
     .await;
 }
@@ -357,14 +378,22 @@ async fn broadcast_lost_bids(
             return None;
         }
 
-        Some(store.broadcast_bid_status_and_update(
-            bid.clone(),
-            BidStatus::Lost {
-                result: tx_hash,
-                index:  None,
-            },
-            auction,
-        ))
+        let store = store.clone();
+        Some(async move {
+            if let Err(err) = store
+                .broadcast_bid_status_and_update(
+                    bid.clone(),
+                    BidStatus::Lost {
+                        result: tx_hash,
+                        index:  None,
+                    },
+                    auction,
+                )
+                .await
+            {
+                tracing::error!("Failed to broadcast bid status: {:?} - bid: {:?}", err, bid);
+            }
+        })
     }))
     .await;
 }
@@ -506,7 +535,7 @@ pub fn get_express_relay_contract(
     SignableExpressRelayContract::new(address, client)
 }
 
-async fn submit_auctions(store: Arc<Store>, chain_id: String) -> Result<()> {
+async fn submit_auctions(store: Arc<Store>, chain_id: String) {
     let permission_keys = store.get_permission_keys_for_auction(&chain_id).await;
 
     tracing::info!(
@@ -516,13 +545,23 @@ async fn submit_auctions(store: Arc<Store>, chain_id: String) -> Result<()> {
     );
 
     for permission_key in permission_keys.iter() {
-        store.task_tracker.spawn(submit_auction(
-            store.clone(),
-            permission_key.clone(),
-            chain_id.clone(),
-        ));
+        store.task_tracker.spawn({
+            let (store, permission_key, chain_id) =
+                (store.clone(), permission_key.clone(), chain_id.clone());
+            async move {
+                if let Err(err) =
+                    submit_auction(store, permission_key.clone(), chain_id.clone()).await
+                {
+                    tracing::error!(
+                        "Failed to submit auction: {:?} - permission_key: {:?} - chain_id: {:?}",
+                        err,
+                        permission_key,
+                        chain_id
+                    );
+                }
+            }
+        });
     }
-    Ok(())
 }
 
 async fn get_ws_provider(store: Arc<Store>, chain_id: String) -> Result<Provider<Ws>> {
@@ -566,7 +605,7 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct Bid {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type = String)]
@@ -669,6 +708,8 @@ pub async fn handle_bid(
     match call.clone().await {
         Ok(results) => {
             if !results[0].external_success {
+                // The call should be reverted because the revert on failure is set to true.
+                tracing::error!("Simulation failed and call is not reverted: {:?}", results,);
                 return Err(RestError::SimulationError {
                     result: results[0].external_result.clone(),
                     reason: results[0].multicall_revert_reason.clone(),
@@ -676,6 +717,7 @@ pub async fn handle_bid(
             }
         }
         Err(e) => {
+            tracing::warn!("Error while simulating bid: {:?}", e);
             return match e {
                 ContractError::Revert(reason) => {
                     if let Some(ExpressRelayErrors::ExternalCallFailed(failure_result)) =
@@ -698,10 +740,10 @@ pub async fn handle_bid(
         }
     }
 
-    let estimated_gas = call
-        .estimate_gas()
-        .await
-        .map_err(|_| RestError::TemporarilyUnavailable)?;
+    let estimated_gas = call.estimate_gas().await.map_err(|e| {
+        tracing::error!("Error while estimating gas: {:?}", e);
+        RestError::TemporarilyUnavailable
+    })?;
 
     verify_bid_exceeds_gas_cost(
         estimated_gas,

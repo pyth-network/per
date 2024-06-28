@@ -184,8 +184,10 @@ pub async fn verify_opportunity(
             )
             .calldata()
             .ok_or(anyhow!(
-                "Failed to generate calldata for opportunity adapter"
-            ))?;
+        "Failed to generate calldata for opportunity adapter - params: {:?} - signature: {:?}",
+        params_with_signature.params,
+        signature
+    ))?;
 
     let call = get_simulation_call(
         relayer,
@@ -262,15 +264,20 @@ pub async fn verify_opportunity(
             if !result.multicall_statuses[0].external_success {
                 tracing::info!(
                     "Opportunity simulation failed: {:?}",
-                    result.multicall_statuses[0]
+                    result.multicall_statuses
                 );
                 return Err(anyhow!(
                     "Express Relay Simulation failed: {:?}",
-                    result.multicall_statuses[0].external_result
+                    result.multicall_statuses
                 ));
             }
         }
-        Err(e) => return Err(anyhow!(format!("Error decoding multicall result: {:?}", e))),
+        Err(e) => {
+            return Err(anyhow!(format!(
+                "Error decoding multicall result: {:?} - result: {:?}",
+                e, result
+            )))
+        }
     }
     Ok(VerificationResult::Success)
 }
@@ -619,34 +626,43 @@ pub async fn handle_opportunity_bid(
     let adapter_calldata =
         make_adapter_calldata(params.clone(), opportunity_bid.clone(), chain_store)
             .await
-            .map_err(|e| RestError::BadParameters(e.to_string()))?;
-    match handle_bid(
-        store.clone(),
-        Bid {
-            permission_key:  params.permission_key.clone(),
-            chain_id:        params.chain_id.clone(),
-            target_contract: chain_store.config.adapter_factory_contract,
-            target_calldata: adapter_calldata,
-            amount:          opportunity_bid.amount,
-        },
-        initiation_time,
-        auth,
-    )
-    .await
-    {
+            .map_err(|e| {
+                tracing::error!(
+                    "Error making adapter calldata: {:?} - opportunity: {:?}",
+                    e,
+                    opportunity
+                );
+                RestError::BadParameters(e.to_string())
+            })?;
+    let bid = Bid {
+        permission_key:  params.permission_key.clone(),
+        chain_id:        params.chain_id.clone(),
+        target_contract: chain_store.config.adapter_factory_contract,
+        target_calldata: adapter_calldata,
+        amount:          opportunity_bid.amount,
+    };
+    match handle_bid(store.clone(), bid.clone(), initiation_time, auth).await {
         Ok(id) => Ok(id),
-        Err(e) => match e {
-            RestError::SimulationError { result, reason } => {
-                let parsed = parse_revert_error(&result);
-                match parsed {
-                    Some(decoded) => Err(RestError::BadParameters(decoded)),
-                    None => {
-                        tracing::info!("Could not parse revert reason: {}", reason);
-                        Err(RestError::SimulationError { result, reason })
+        Err(e) => {
+            tracing::warn!(
+                "Error handling bid: {:?} - opportunity: {:?} - bid: {:?}",
+                e,
+                opportunity,
+                bid
+            );
+            match e {
+                RestError::SimulationError { result, reason } => {
+                    let parsed = parse_revert_error(&result);
+                    match parsed {
+                        Some(decoded) => Err(RestError::BadParameters(decoded)),
+                        None => {
+                            tracing::info!("Could not parse revert reason: {}", reason);
+                            Err(RestError::SimulationError { result, reason })
+                        }
                     }
                 }
+                _ => Err(e),
             }
-            _ => Err(e),
-        },
+        }
     }
 }

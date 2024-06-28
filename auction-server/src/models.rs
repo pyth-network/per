@@ -15,7 +15,7 @@ use {
     uuid::Uuid,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TxHash(pub Option<H256>);
 
 impl From<Option<Vec<u8>>> for TxHash {
@@ -36,7 +36,7 @@ impl Deref for TxHash {
 }
 
 pub type AuctionId = Uuid;
-#[derive(Clone, FromRow)]
+#[derive(Clone, FromRow, Debug)]
 pub struct Auction {
     pub id:                  AuctionId,
     pub creation_time:       PrimitiveDateTime,
