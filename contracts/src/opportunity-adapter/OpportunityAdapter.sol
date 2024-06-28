@@ -269,7 +269,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     }
 
     function version() public pure returns (string memory) {
-        return "0.1.0";
+        return "0.2.0";
     }
 
     // necessary to receive ETH from WETH contract using withdraw
