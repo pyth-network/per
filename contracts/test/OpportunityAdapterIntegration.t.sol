@@ -15,9 +15,27 @@ import "permit2/interfaces/ISignatureTransfer.sol";
 import {PermitSignature, EIP712Domain} from "./PermitSignature.sol";
 
 contract MockTarget {
+    address payable _weth;
+
+    constructor(address weth) {
+        _weth = payable(weth);
+    }
+
     error BadCall();
 
     function doNothing() public payable {}
+
+    function exchangeWethForWeth(
+        uint256 amountIn,
+        uint256 amountOut
+    ) public payable {
+        WETH9(_weth).transferFrom(msg.sender, address(this), amountIn);
+        uint256 balanceWeth = WETH9(_weth).balanceOf(address(this));
+        if (balanceWeth < amountOut) {
+            WETH9(_weth).deposit{value: amountOut - balanceWeth}();
+        }
+        WETH9(_weth).transfer(msg.sender, amountOut);
+    }
 
     function transferTokenToSender(
         address token,
@@ -51,6 +69,7 @@ contract OpportunityAdapterIntegrationTest is
     WETH9 weth;
     MyToken buyToken;
     MyToken sellToken;
+    address _expressRelay;
 
     function setUpTokens() internal {
         buyToken = new MyToken("BuyToken", "BT");
@@ -59,8 +78,9 @@ contract OpportunityAdapterIntegrationTest is
     }
 
     function setUpOpportunityAdapter() internal {
+        _expressRelay = makeAddr("expressRelay");
         adapterFactory = new OpportunityAdapterFactory(
-            address(this),
+            _expressRelay,
             address(weth),
             PermitSignature.PERMIT2
         );
@@ -70,7 +90,7 @@ contract OpportunityAdapterIntegrationTest is
         setUpTokens();
         setUpPermit2();
         setUpOpportunityAdapter();
-        mockTarget = new MockTarget();
+        mockTarget = new MockTarget(address(weth));
     }
 
     // successful bids will be received by this contract
@@ -252,7 +272,7 @@ contract OpportunityAdapterIntegrationTest is
         vm.prank(adapterFactory.getExpressRelay());
         vm.expectCall(address(mockTarget), callValue, targetCalldata);
         // We expect the adapter to transfer the bid to the express relay
-        vm.expectCall(address(this), bid, bytes(""));
+        vm.expectCall(_expressRelay, bid, bytes(""));
         vm.expectCall(
             address(weth),
             abi.encodeWithSelector(WETH9.withdraw.selector, callValue)
@@ -300,6 +320,87 @@ contract OpportunityAdapterIntegrationTest is
             0
         );
         adapterFactory.executeOpportunity(executionParams, signature);
+    }
+
+    function testExecutionWithWethBuySellTokens(
+        uint256 wethSellTokenAmount,
+        uint256 wethBuyTokenAmount,
+        uint256 bidAmount,
+        uint256 targetCallValue
+    ) public {
+        vm.assume(bidAmount < type(uint256).max - targetCallValue);
+        vm.assume(
+            wethSellTokenAmount <
+                type(uint256).max - bidAmount - targetCallValue
+        );
+        vm.assume(
+            wethBuyTokenAmount <
+                type(uint256).max -
+                    wethSellTokenAmount -
+                    bidAmount -
+                    targetCallValue
+        );
+
+        TokenAmount[] memory sellTokens = new TokenAmount[](1);
+        uint256 sellTokenAmount = wethSellTokenAmount +
+            bidAmount +
+            targetCallValue;
+        sellTokens[0] = TokenAmount(address(weth), sellTokenAmount);
+
+        TokenAmount[] memory buyTokens;
+        if (wethBuyTokenAmount == 0) {
+            buyTokens = new TokenAmount[](0);
+        } else {
+            buyTokens = new TokenAmount[](1);
+            buyTokens[0] = TokenAmount(address(weth), wethBuyTokenAmount);
+        }
+        vm.deal(address(mockTarget), wethBuyTokenAmount);
+
+        bytes memory targetCalldata = abi.encodeWithSelector(
+            mockTarget.exchangeWethForWeth.selector,
+            wethSellTokenAmount,
+            wethBuyTokenAmount
+        );
+        (
+            ExecutionParams memory executionParams,
+            bytes memory signature
+        ) = createExecutionParamsAndSignature(
+                sellTokens,
+                buyTokens,
+                targetCalldata,
+                targetCallValue,
+                bidAmount,
+                block.timestamp + 1000
+            );
+
+        vm.deal(executionParams.witness.executor, sellTokenAmount);
+        vm.startPrank(executionParams.witness.executor);
+        weth.deposit{value: sellTokenAmount}();
+        weth.approve(PERMIT2, sellTokenAmount);
+        vm.stopPrank();
+
+        uint256 balanceWethPlusEthMockTargetPre = address(mockTarget).balance +
+            WETH9(weth).balanceOf(address(mockTarget));
+
+        vm.prank(adapterFactory.getExpressRelay());
+        vm.expectCall(address(mockTarget), targetCalldata);
+        adapterFactory.executeOpportunity(executionParams, signature);
+
+        uint256 balanceWethPlusEthMockTargetPost = address(mockTarget).balance +
+            WETH9(weth).balanceOf(address(mockTarget));
+
+        assertEq(
+            WETH9(weth).balanceOf(executionParams.witness.executor),
+            wethBuyTokenAmount
+        );
+        assertEq(adapterFactory.getExpressRelay().balance, bidAmount);
+        assertEq(
+            balanceWethPlusEthMockTargetPost,
+            balanceWethPlusEthMockTargetPre -
+                wethBuyTokenAmount +
+                targetCallValue +
+                wethSellTokenAmount
+        );
     }
 
     function testRevertWhenEthBalanceDecrease() public {

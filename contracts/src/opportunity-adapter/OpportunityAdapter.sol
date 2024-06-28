@@ -44,6 +44,13 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     }
 
     /**
+     * @notice getOwner function - returns the address of the owner of the contract
+     */
+    function getOwner() public view returns (address) {
+        return _owner;
+    }
+
+    /**
      * @notice getExpressRelay function - returns the address of the express relay authenticated for calling this contract
      */
     function getExpressRelay() public view returns (address) {
@@ -250,12 +257,12 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
             params.witness.targetCallValue
         );
         _revokeAllowances(params.permit, params.witness.targetContract);
+        _settleBid(params.witness.bidAmount);
         _validateAndTransferBuyTokens(
             params.witness.buyTokens,
             params.witness.executor,
             buyTokensBalancesBeforeCall
         );
-        _settleBid(params.witness.bidAmount);
         (
             uint256 ethBalanceAfterCall,
             uint256 wethBalanceAfterCall
