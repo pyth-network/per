@@ -138,7 +138,7 @@ async def main():
     parser.add_argument(
         "--bid",
         type=int,
-        default=int(2e16),  # To make sure it covers the gas cost
+        default=int(5e17),  # To make sure it covers the gas cost
         help="Default amount of bid for liquidation opportunities",
     )
     parser.add_argument(
