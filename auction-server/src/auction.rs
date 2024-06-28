@@ -708,7 +708,7 @@ pub async fn handle_bid(
     match call.clone().await {
         Ok(results) => {
             if !results[0].external_success {
-                // The call should be reverted because the revert on failure is set to true.
+                // The call should be reverted because the "revert_on_failure" is set to true.
                 tracing::error!("Simulation failed and call is not reverted: {:?}", results,);
                 return Err(RestError::SimulationError {
                     result: results[0].external_result.clone(),
