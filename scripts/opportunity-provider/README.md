@@ -1,6 +1,6 @@
 ## Overview
 
-This script is designed to provide opportunity using the OpportunityProvider contract. Our objective was to ensure that everything is going to work on mainnet by providing real opportunities for the searchers.
+This script is designed to provide opportunity using the OpportunityProvider contract.
 
 ## Installation
 

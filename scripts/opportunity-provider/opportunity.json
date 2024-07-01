@@ -1,6 +1,7 @@
 {
-  "sellToken": "0x3745007F7C8DD8Bec89b3B35f33f13f58b008533",
-  "buyToken": "0x1e3d75F24296abBC7bd10D151F51d758bCE379Ef",
-  "sellAmount": "10",
-  "buyAmount": "5396500053965"
+  "sellToken": "0x20e0b5Ff7aa971dAd8f489112Ae009A70608d2D5",
+  "buyToken": "0x3745007F7C8DD8Bec89b3B35f33f13f58b008533",
+  "sellSymbol": "PYTH",
+  "buySymbol": "BTC",
+  "sellAmount": "6123817238712315231232"
 }

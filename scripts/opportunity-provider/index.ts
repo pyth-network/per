@@ -4,19 +4,23 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   Address,
   PrivateKeyAccount,
+  createPublicClient,
   encodeAbiParameters,
   encodeFunctionData,
   isHex,
+  http,
 } from "viem";
-import { abi } from "./abi";
+import { abi as providerAbi } from "./abi/provider";
+import { abi as erc20Abi } from "./abi/erc20";
 import * as fs from "fs";
-import * as path from "path";
 
 interface Opportunity {
   sellToken: string;
   buyToken: string;
   sellAmount: string;
-  buyAmount: string;
+  buyAmount?: string;
+  sellSymbol?: string;
+  buySymbol?: string;
 }
 
 interface Config {
@@ -25,18 +29,89 @@ interface Config {
   permit2: string;
   chainNetworkId: number;
   chainId: string;
+  rpcUrl: string;
 }
 
-function readConfig(): Config {
-  const configPath = path.join("config.json");
-  const data = fs.readFileSync(configPath, "utf8");
+function readConfig(path: string): Config {
+  const data = fs.readFileSync(path, "utf8");
   return JSON.parse(data) as Config;
 }
 
-function readOpportunity(): Opportunity {
-  const data = fs.readFileSync("opportunity.json", "utf8");
+function readOpportunity(path: string): Opportunity {
+  const data = fs.readFileSync(path, "utf8");
   JSON.parse(data) as Opportunity;
   return JSON.parse(data) as Opportunity;
+}
+
+function getClinet(config: Config) {
+  return createPublicClient({
+    transport: http(config.rpcUrl),
+  });
+}
+
+async function getPrice(symbol: string): Promise<number> {
+  if (symbol == "USDT") {
+    return 1;
+  }
+
+  const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`;
+  const response = await fetch(url);
+  const data = await response.json();
+  const price = parseFloat(data.price);
+  if (isNaN(price)) {
+    throw new Error(`Invalid price: ${data.price}`);
+  }
+
+  return price;
+}
+
+let buyAmount: bigint | undefined;
+async function getBuyAmount(
+  config: Config,
+  opportunity: Opportunity
+): Promise<bigint> {
+  if (buyAmount) {
+    return buyAmount;
+  }
+
+  if (opportunity.buyAmount) {
+    buyAmount = BigInt(opportunity.buyAmount);
+    return buyAmount;
+  }
+
+  if (!opportunity.buySymbol) {
+    throw new Error("Missing buySymbol");
+  }
+
+  if (!opportunity.sellSymbol) {
+    throw new Error("Missing sellSymbol");
+  }
+
+  const sellUsdAmount = await getPrice(opportunity.sellSymbol);
+  const buyUsdAmount = await getPrice(opportunity.buySymbol);
+
+  const client = getClinet(config);
+  const decimalsSellToken = await client.readContract({
+    address: opportunity.sellToken as Address,
+    abi: erc20Abi,
+    functionName: "decimals",
+  });
+  const decimalsBuyToken = await client.readContract({
+    address: opportunity.sellToken as Address,
+    abi: erc20Abi,
+    functionName: "decimals",
+  });
+
+  const multiplier =
+    (sellUsdAmount /
+      buyUsdAmount /
+      10 ** (decimalsSellToken - decimalsBuyToken)) *
+    0.9;
+  buyAmount = BigInt(
+    Math.floor(parseFloat(opportunity.sellAmount) * multiplier)
+  );
+
+  return buyAmount;
 }
 
 async function signOpportunity(
@@ -82,7 +157,7 @@ async function signOpportunity(
       buyTokens: [
         {
           token: opportunity.buyToken,
-          amount: opportunity.buyAmount,
+          amount: await getBuyAmount(config, opportunity),
         },
       ],
       owner: account.address,
@@ -101,15 +176,17 @@ async function signOpportunity(
   });
 }
 
-function getCallData(
+async function getCallData(
+  config: Config,
   account: PrivateKeyAccount,
   opportunity: Opportunity,
   nonce: number,
   deadline: number,
   signature: `0x${string}`
 ) {
+  const buyAmount = await getBuyAmount(config, opportunity);
   return encodeFunctionData({
-    abi,
+    abi: providerAbi,
     functionName: "execute",
     args: [
       {
@@ -127,7 +204,7 @@ function getCallData(
           buyTokens: [
             {
               token: opportunity.buyToken as Address,
-              amount: BigInt(opportunity.buyAmount),
+              amount: buyAmount,
             },
           ],
           owner: account.address,
@@ -138,9 +215,13 @@ function getCallData(
   });
 }
 
-async function submitOpportunity(account: PrivateKeyAccount) {
-  const config = readConfig();
-  const opportunity = readOpportunity();
+async function submitOpportunity(
+  account: PrivateKeyAccount,
+  configPath: string,
+  opportunityPath: string
+) {
+  const config = readConfig(configPath);
+  const opportunity = readOpportunity(opportunityPath);
 
   const nonce = Math.floor(Math.random() * 2 ** 50);
   const deadline = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
@@ -159,12 +240,14 @@ async function submitOpportunity(account: PrivateKeyAccount) {
     [account.address, signature]
   );
 
+  const buyAmount = await getBuyAmount(config, opportunity);
   const params = {
     version: "v1",
     permission_key: permissionKey,
     chain_id: config.chainId,
     target_contract: config.opportunityProvider,
-    target_calldata: getCallData(
+    target_calldata: await getCallData(
+      config,
       account,
       opportunity,
       nonce,
@@ -175,7 +258,7 @@ async function submitOpportunity(account: PrivateKeyAccount) {
     sell_tokens: [
       {
         token: opportunity.buyToken,
-        amount: opportunity.buyAmount,
+        amount: buyAmount.toString(),
       },
     ],
     buy_tokens: [
@@ -206,6 +289,16 @@ const argv = yargs(hideBin(process.argv))
     type: "string",
     demandOption: true,
   })
+  .option("config", {
+    description: "Path to config file",
+    type: "string",
+    default: "config.json",
+  })
+  .option("opportunity", {
+    description: "Path to opportunity file",
+    type: "string",
+    default: "opportunity.json",
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -214,7 +307,7 @@ async function run() {
   if (isHex(argv.privateKey)) {
     const account = privateKeyToAccount(argv.privateKey);
     console.log(`Using account: ${account.address}`);
-    submitOpportunity(account);
+    submitOpportunity(account, argv.config, argv.opportunity);
   } else {
     throw new Error(`Invalid private key: ${argv.privateKey}`);
   }
