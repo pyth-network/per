@@ -12,10 +12,7 @@ import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import "@pythnetwork/express-relay-sdk-solidity/IExpressRelay.sol";
 import {OpportunityProviderHasher} from "./OpportunityProviderHasher.sol";
 
-abstract contract OpportunityProvider is
-    ReentrancyGuard,
-    OpportunityProviderHasher
-{
+contract OpportunityProvider is ReentrancyGuard, OpportunityProviderHasher {
     using SafeERC20 for IERC20;
 
     address _admin;

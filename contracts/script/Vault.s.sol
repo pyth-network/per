@@ -12,6 +12,7 @@ import {OpportunityAdapter} from "src/opportunity-adapter/OpportunityAdapter.sol
 import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdapterFactory.sol";
 import {ExpressRelay} from "src/express-relay/ExpressRelay.sol";
 import {ExpressRelayUpgradable} from "src/express-relay/ExpressRelayUpgradable.sol";
+import {OpportunityProvider} from "test/opportunity-provider/OpportunityProvider.sol";
 import "src/express-relay/Errors.sol";
 import {MyToken} from "test/MyToken.sol";
 import {WETH9} from "test/WETH9.sol";
@@ -147,6 +148,24 @@ contract VaultScript is Script {
         vm.stopBroadcast();
         console.log("deployed permit2 at", permit2);
         return permit2;
+    }
+
+    function deployOpportunityProvider(
+        address admin,
+        address expressRelay,
+        address permit2
+    ) public returns (address) {
+        (, uint256 skDeployer) = getDeployer();
+        vm.startBroadcast(skDeployer);
+
+        OpportunityProvider provider = new OpportunityProvider(
+            admin,
+            expressRelay,
+            permit2
+        );
+        vm.stopBroadcast();
+        console.log("Provoder at", address(provider));
+        return address(provider);
     }
 
     function deployAll()
