@@ -59,7 +59,7 @@ pub struct Opportunity {
     pub target_contract:   Vec<u8>,
     pub target_call_value: BigDecimal,
     pub target_calldata:   Vec<u8>,
-    pub removal_time:      PrimitiveDateTime,
+    pub removal_time:      Option<PrimitiveDateTime>,
     pub sell_tokens:       JsonValue,
     pub buy_tokens:        JsonValue,
 }

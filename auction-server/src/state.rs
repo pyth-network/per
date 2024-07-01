@@ -1006,8 +1006,8 @@ impl Store {
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<OpportunityParamsWithMetadata>, RestError> {
         let mut query = QueryBuilder::new("SELECT * from opportunity where chain_id = ");
-        query.push_bind(chain_id);
-        if let Some(permission_key) = permission_key {
+        query.push_bind(chain_id.clone());
+        if let Some(permission_key) = permission_key.clone() {
             query.push(" AND permission_key = ");
             query.push_bind(permission_key.to_vec());
         }
@@ -1022,9 +1022,11 @@ impl Store {
             .await
             .map_err(|e| {
                 tracing::error!(
-                    "DB: Failed to fetch opportunities: {} - query: {:?}",
+                    "DB: Failed to fetch opportunities: {} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
                     e,
-                    query.sql()
+                    chain_id,
+                    permission_key,
+                    from_time,
                 );
                 RestError::TemporarilyUnavailable
             })?;
@@ -1052,9 +1054,11 @@ impl Store {
             .collect();
         parsed_opps.map_err(|e| {
             tracing::error!(
-                "Failed to convert opportunity to OpportunityParamsWithMetadata: {} - query: {:?}",
+                "Failed to convert opportunity to OpportunityParamsWithMetadata: {} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
                 e,
-                query.sql(),
+                chain_id,
+                permission_key,
+                from_time,
             );
             RestError::TemporarilyUnavailable
         })
