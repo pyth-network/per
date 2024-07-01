@@ -134,7 +134,7 @@ pub struct TokenAmount {
 /// If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
 /// by calling this target contract with the given target calldata and structures, they will
 /// send the tokens specified in the sell_tokens field and receive the tokens specified in the buy_tokens field.
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct OpportunityParamsV1 {
     /// The permission key required for successful execution of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
@@ -157,7 +157,7 @@ pub struct OpportunityParamsV1 {
     pub buy_tokens:  Vec<TokenAmount>,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "version")]
 pub enum OpportunityParams {
     #[serde(rename = "v1")]
@@ -168,7 +168,7 @@ pub type OpportunityId = Uuid;
 pub type AuctionKey = (PermissionKey, ChainId);
 pub type AuctionLock = Arc<Mutex<()>>;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Opportunity {
     pub id:            OpportunityId,
     pub creation_time: UnixTimestampMicros,
@@ -600,7 +600,10 @@ impl Store {
         )
         .fetch_one(&self.db)
         .await
-        .map_err(|_| RestError::BidNotFound)?;
+        .map_err(|e| {
+            tracing::warn!("DB: Failed to get bid status: {} - bid_id: {}", e, bid_id);
+            RestError::BidNotFound
+        })?;
 
         let status_json: Json<BidStatus>;
         match status_data.status {
@@ -616,6 +619,7 @@ impl Store {
                         status_json = BidStatus::Lost { result, index }.into();
                     } else {
                         if result.is_none() || index.is_none() {
+                            tracing::error!("Invalid bid status - Won or submitted bid must have a transaction hash and index - bid_id: {}", bid_id);
                             return Err(RestError::BadParameters(
                                 "Won or submitted bid must have a transaction hash and index"
                                     .to_string(),
@@ -628,12 +632,17 @@ impl Store {
                         } else if status == "submitted" {
                             status_json = BidStatus::Submitted { result, index }.into();
                         } else {
+                            tracing::error!("Invalid bid status - bid_id: {}", bid_id);
                             return Err(RestError::BadParameters("Invalid bid status".to_string()));
                         }
                     }
                 }
             }
             None => {
+                tracing::error!(
+                    "Invalid bid status - bid has not status - bid_id: {}",
+                    bid_id
+                );
                 return Err(RestError::BidNotFound);
             }
         }
@@ -841,13 +850,13 @@ impl Store {
         let profile: models::Profile = sqlx::query_as(
             "INSERT INTO profile (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, created_at, updated_at",
         ).bind(id)
-        .bind(create_profile.name)
+        .bind(create_profile.name.clone())
         .bind(create_profile.email.to_string()).fetch_one(&self.db).await
         .map_err(|e| {
             if let Some(true) = e.as_database_error().map(|e| e.is_unique_violation()) {
                 return RestError::BadParameters("Profile with this email already exists".to_string());
             }
-            tracing::error!("DB: Failed to insert profile: {}", e);
+            tracing::error!("DB: Failed to insert profile: {} - profile_data: {:?}", e, create_profile);
             RestError::TemporarilyUnavailable
         })?;
         Ok(profile)
@@ -868,7 +877,7 @@ impl Store {
             .fetch_one(&self.db)
             .await
             .map_err(|e| {
-                tracing::error!("DB: Failed to fetch profile: {}", e);
+                tracing::error!("DB: Failed to fetch profile: {} - id: {}", e, id);
                 RestError::TemporarilyUnavailable
             })
     }
@@ -878,7 +887,11 @@ impl Store {
         profile_id: models::ProfileId,
     ) -> Result<GetOrCreate<models::AccessToken>, RestError> {
         let generated_token = self.generate_url_safe_token().map_err(|e| {
-            tracing::error!("Failed to generate access token: {}", e);
+            tracing::error!(
+                "Failed to generate access token: {} - profile_id: {}",
+                e,
+                profile_id
+            );
             RestError::TemporarilyUnavailable
         })?;
 
@@ -898,7 +911,11 @@ impl Store {
         .execute(&self.db)
         .await
         .map_err(|e| {
-            tracing::error!("DB: Failed to create access token: {}", e);
+            tracing::error!(
+                "DB: Failed to create access token: {} - profile_id: {}",
+                e,
+                profile_id
+            );
             RestError::TemporarilyUnavailable
         })?;
 
@@ -911,7 +928,11 @@ impl Store {
         .fetch_one(&self.db)
         .await
         .map_err(|e| {
-            tracing::error!("DB: Failed to fetch access token: {}", e);
+            tracing::error!(
+                "DB: Failed to fetch access token: {} - profile_id: {}",
+                e,
+                profile_id
+            );
             RestError::TemporarilyUnavailable
         })?;
 
@@ -985,8 +1006,8 @@ impl Store {
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<OpportunityParamsWithMetadata>, RestError> {
         let mut query = QueryBuilder::new("SELECT * from opportunity where chain_id = ");
-        query.push_bind(chain_id);
-        if let Some(permission_key) = permission_key {
+        query.push_bind(chain_id.clone());
+        if let Some(permission_key) = permission_key.clone() {
             query.push(" AND permission_key = ");
             query.push_bind(permission_key.to_vec());
         }
@@ -1000,7 +1021,13 @@ impl Store {
             .fetch_all(&self.db)
             .await
             .map_err(|e| {
-                tracing::error!("DB: Failed to fetch opportunities: {}", e);
+                tracing::error!(
+                    "DB: Failed to fetch opportunities: {} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
+                    e,
+                    chain_id,
+                    permission_key,
+                    from_time,
+                );
                 RestError::TemporarilyUnavailable
             })?;
         let parsed_opps: anyhow::Result<Vec<OpportunityParamsWithMetadata>> = opps
@@ -1027,8 +1054,11 @@ impl Store {
             .collect();
         parsed_opps.map_err(|e| {
             tracing::error!(
-                "Failed to convert opportunity to OpportunityParamsWithMetadata: {}",
-                e
+                "Failed to convert opportunity to OpportunityParamsWithMetadata: {} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
+                e,
+                chain_id,
+                permission_key,
+                from_time,
             );
             RestError::TemporarilyUnavailable
         })
@@ -1065,11 +1095,15 @@ impl Store {
                     Some(auction_id) => auctions.clone().into_iter().find(|a| a.id == auction_id),
                     None => None,
                 };
-                let result: anyhow::Result<SimulatedBid> = (b, auction).try_into();
+                let result: anyhow::Result<SimulatedBid> = (b.clone(), auction).try_into();
                 match result {
                     Ok(bid) => Some(bid),
                     Err(e) => {
-                        tracing::error!("Failed to convert bid to SimulatedBid: {}", e);
+                        tracing::error!(
+                            "Failed to convert bid to SimulatedBid: {} - bid: {:?}",
+                            e,
+                            b
+                        );
                         None
                     }
                 }

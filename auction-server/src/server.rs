@@ -39,12 +39,16 @@ use {
         utils::SECONDS_DURATION_BUCKETS,
     },
     ethers::{
+        core::k256::ecdsa::SigningKey,
         prelude::{
             LocalWallet,
             Provider,
         },
         providers::Middleware,
-        signers::Signer,
+        signers::{
+            Signer,
+            Wallet,
+        },
         types::BlockNumber,
     },
     futures::{
@@ -74,7 +78,6 @@ use {
     },
     tokio_util::task::TaskTracker,
 };
-
 
 async fn fault_tolerant_handler<F, Fut>(name: String, f: F)
 where
@@ -137,6 +140,60 @@ pub fn setup_metrics_recorder() -> anyhow::Result<PrometheusHandle> {
         .map_err(|err| anyhow!("Failed to set up metrics recorder: {:?}", err))
 }
 
+async fn setup_chain_store(
+    config: Config,
+    wallet: Wallet<SigningKey>,
+) -> anyhow::Result<HashMap<ChainId, ChainStore>> {
+    join_all(config.chains.iter().map(|(chain_id, chain_config)| {
+        let (chain_id, chain_config, wallet) =
+            (chain_id.clone(), chain_config.clone(), wallet.clone());
+        async move {
+            let provider = get_chain_provider(&chain_id, &chain_config)?;
+
+            let id = provider.get_chainid().await?.as_u64();
+            let block = provider
+                .get_block(BlockNumber::Latest)
+                .await?
+                .expect("Failed to get latest block");
+
+            let express_relay_contract = get_express_relay_contract(
+                chain_config.express_relay_contract,
+                provider.clone(),
+                wallet.clone(),
+                chain_config.legacy_tx,
+                id,
+            );
+            let permit2 =
+                get_permit2_address(chain_config.adapter_factory_contract, provider.clone())
+                    .await?;
+            let weth =
+                get_weth_address(chain_config.adapter_factory_contract, provider.clone()).await?;
+            let adapter_bytecode_hash =
+                get_adapter_bytecode_hash(chain_config.adapter_factory_contract, provider.clone())
+                    .await?;
+
+            Ok((
+                chain_id.clone(),
+                ChainStore {
+                    chain_id_num: id,
+                    provider,
+                    network_id: id,
+                    token_spoof_info: Default::default(),
+                    config: chain_config.clone(),
+                    permit2,
+                    weth,
+                    adapter_bytecode_hash,
+                    express_relay_contract: Arc::new(express_relay_contract),
+                    block_gas_limit: block.gas_limit,
+                },
+            ))
+        }
+    }))
+    .await
+    .into_iter()
+    .collect()
+}
+
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     tokio::spawn(async move {
@@ -157,58 +214,13 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let wallet = run_options.subwallet_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {:?}", wallet.address());
 
-    let chain_store: anyhow::Result<HashMap<ChainId, ChainStore>> =
-        join_all(config.chains.iter().map(|(chain_id, chain_config)| {
-            let (chain_id, chain_config, wallet) =
-                (chain_id.clone(), chain_config.clone(), wallet.clone());
-            async move {
-                let provider = get_chain_provider(&chain_id, &chain_config)?;
-
-                let id = provider.get_chainid().await?.as_u64();
-                let block = provider
-                    .get_block(BlockNumber::Latest)
-                    .await?
-                    .expect("Failed to get latest block");
-
-                let express_relay_contract = get_express_relay_contract(
-                    chain_config.express_relay_contract,
-                    provider.clone(),
-                    wallet.clone(),
-                    chain_config.legacy_tx,
-                    id,
-                );
-                let permit2 =
-                    get_permit2_address(chain_config.adapter_factory_contract, provider.clone())
-                        .await?;
-                let weth =
-                    get_weth_address(chain_config.adapter_factory_contract, provider.clone())
-                        .await?;
-                let adapter_bytecode_hash = get_adapter_bytecode_hash(
-                    chain_config.adapter_factory_contract,
-                    provider.clone(),
-                )
-                .await?;
-
-                Ok((
-                    chain_id.clone(),
-                    ChainStore {
-                        chain_id_num: id,
-                        provider,
-                        network_id: id,
-                        token_spoof_info: Default::default(),
-                        config: chain_config.clone(),
-                        permit2,
-                        weth,
-                        adapter_bytecode_hash,
-                        express_relay_contract: Arc::new(express_relay_contract),
-                        block_gas_limit: block.gas_limit,
-                    },
-                ))
-            }
-        }))
-        .await
-        .into_iter()
-        .collect();
+    let chains = match setup_chain_store(config, wallet.clone()).await {
+        Ok(chain_store) => chain_store,
+        Err(err) => {
+            tracing::error!("Failed to set up chain store: {:?}", err);
+            return Err(err);
+        }
+    };
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -236,23 +248,23 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
-        db:                 pool,
-        bids:               Default::default(),
-        chains:             chain_store?,
-        opportunity_store:  OpportunityStore::default(),
-        event_sender:       broadcast_sender.clone(),
-        relayer:            wallet,
-        ws:                 ws::WsState {
+        db: pool,
+        bids: Default::default(),
+        chains,
+        opportunity_store: OpportunityStore::default(),
+        event_sender: broadcast_sender.clone(),
+        relayer: wallet,
+        ws: ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
             broadcast_sender,
             broadcast_receiver,
         },
-        task_tracker:       task_tracker.clone(),
-        auction_lock:       Default::default(),
+        task_tracker: task_tracker.clone(),
+        auction_lock: Default::default(),
         submitted_auctions: Default::default(),
-        secret_key:         run_options.secret_key.clone(),
-        access_tokens:      RwLock::new(access_tokens),
-        metrics_recorder:   setup_metrics_recorder()?,
+        secret_key: run_options.secret_key.clone(),
+        access_tokens: RwLock::new(access_tokens),
+        metrics_recorder: setup_metrics_recorder()?,
     });
 
     tokio::join!(
@@ -305,6 +317,12 @@ pub fn get_chain_provider(
         chain_config.rpc_timeout,
     )
     .map_err(|err| {
+        tracing::error!(
+            "Failed to create provider for chain({chain_id}) at {rpc_addr}: {:?}",
+            err,
+            chain_id = chain_id,
+            rpc_addr = chain_config.geth_rpc_addr
+        );
         anyhow!(
             "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
             err,
