@@ -1,10 +1,15 @@
 import asyncio
+import os
 from typing import TypedDict
 
 import httpx
 
-HERMES_ENDPOINT_HTTPS = "https://hermes.pyth.network/api/"
-HERMES_ENDPOINT_WSS = "wss://hermes.pyth.network/ws"
+HERMES_ENDPOINT_HTTPS = os.environ.get(
+    "HERMES_ENDPOINT_HTTPS", "https://hermes.pyth.network/api/"
+)
+HERMES_ENDPOINT_WSS = os.environ.get(
+    "HERMES_ENDPOINT_WSS", "wss://hermes.pyth.network/ws"
+)
 
 
 class Price(TypedDict):
