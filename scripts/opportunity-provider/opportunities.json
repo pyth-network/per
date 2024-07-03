@@ -1,0 +1,13 @@
+[
+  {
+    "sellToken": {
+      "address": "0x20e0b5Ff7aa971dAd8f489112Ae009A70608d2D5",
+      "symbol": "PYTH"
+    },
+    "buyToken": {
+      "address": "0x3745007F7C8DD8Bec89b3B35f33f13f58b008533",
+      "symbol": "BTC"
+    },
+    "sellAmount": "6123817238712315231232"
+  }
+]
