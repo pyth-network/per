@@ -23,8 +23,8 @@ interface Token {
 interface Opportunity {
   sellToken: Token;
   buyToken: Token;
-  sellAmount: string;
-  buyAmount?: string;
+  sellAmount: number;
+  buyAmount?: number;
 }
 
 interface Config {
@@ -94,37 +94,30 @@ async function getPrice(token: Token): Promise<number> {
   return price;
 }
 
-let buyAmount: bigint | undefined;
 async function getBuyAmount(
   config: Config,
   opportunity: Opportunity,
   threshold: number = 0.9
-): Promise<bigint> {
-  if (buyAmount) {
-    return buyAmount;
-  }
-
+): Promise<number> {
   if (opportunity.buyAmount) {
-    buyAmount = BigInt(opportunity.buyAmount);
-    return buyAmount;
+    return opportunity.buyAmount;
   }
 
   const sellUsdAmount = await getPrice(opportunity.sellToken);
   const buyUsdAmount = await getPrice(opportunity.buyToken);
 
-  const decimalsSellToken = await getDecimals(config, opportunity.sellToken);
-  const decimalsBuyToken = await getDecimals(config, opportunity.buyToken);
-
-  const multiplier =
-    (sellUsdAmount /
-      buyUsdAmount /
-      10 ** (decimalsSellToken - decimalsBuyToken)) *
-    threshold;
-  buyAmount = BigInt(
-    Math.floor(parseFloat(opportunity.sellAmount) * multiplier)
-  );
-
+  const buyAmount =
+    ((opportunity.sellAmount * sellUsdAmount) / buyUsdAmount) * threshold;
   return buyAmount;
+}
+
+async function getDecimalParsed(
+  config: Config,
+  token: Token,
+  amount: number
+): Promise<bigint> {
+  const decimals = await getDecimals(config, token);
+  return BigInt(Math.floor(amount * 10 ** decimals));
 }
 
 async function signOpportunity(
@@ -156,11 +149,16 @@ async function signOpportunity(
     ],
   };
 
+  const buyAmount = await getBuyAmount(config, opportunity);
   const message = {
     permitted: [
       {
         token: opportunity.sellToken.address,
-        amount: opportunity.sellAmount,
+        amount: await getDecimalParsed(
+          config,
+          opportunity.sellToken,
+          opportunity.sellAmount
+        ),
       },
     ],
     spender: config.opportunityProvider,
@@ -170,7 +168,11 @@ async function signOpportunity(
       buyTokens: [
         {
           token: opportunity.buyToken.address,
-          amount: await getBuyAmount(config, opportunity),
+          amount: await getDecimalParsed(
+            config,
+            opportunity.buyToken,
+            buyAmount
+          ),
         },
       ],
       owner: account.address,
@@ -207,7 +209,11 @@ async function getCallData(
           permitted: [
             {
               token: opportunity.sellToken.address,
-              amount: BigInt(opportunity.sellAmount),
+              amount: await getDecimalParsed(
+                config,
+                opportunity.sellToken,
+                opportunity.sellAmount
+              ),
             },
           ],
           nonce: BigInt(nonce),
@@ -217,7 +223,11 @@ async function getCallData(
           buyTokens: [
             {
               token: opportunity.buyToken.address,
-              amount: buyAmount,
+              amount: await getDecimalParsed(
+                config,
+                opportunity.buyToken,
+                buyAmount
+              ),
             },
           ],
           owner: account.address,
@@ -234,7 +244,7 @@ async function submitOpportunity(
   opportunity: Opportunity
 ) {
   const nonce = Math.floor(Math.random() * 2 ** 50);
-  const deadline = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
+  const deadline = Math.floor(Date.now() / 1000) + 60 * 10;
   const signature = await signOpportunity(
     account,
     config,
@@ -269,13 +279,21 @@ async function submitOpportunity(
     sell_tokens: [
       {
         token: opportunity.buyToken.address,
-        amount: buyAmount.toString(),
+        amount: (
+          await getDecimalParsed(config, opportunity.buyToken, buyAmount)
+        ).toString(),
       },
     ],
     buy_tokens: [
       {
         token: opportunity.sellToken.address,
-        amount: opportunity.sellAmount,
+        amount: (
+          await getDecimalParsed(
+            config,
+            opportunity.sellToken,
+            opportunity.sellAmount
+          )
+        ).toString(),
       },
     ],
   };
@@ -316,7 +334,7 @@ async function loadAndSubmitOpportunities(
 }
 
 // [min, max)
-function getNumberForRange(min: number, max: number) {
+function sampleUniform(min: number, max: number) {
   if (min >= max) {
     throw new Error("Invalid range");
   }
@@ -340,32 +358,27 @@ async function createAndSubmitRandomOpportunities(
   // Use simple for to make sure we are going to use the cached data
   const opportunities: Opportunity[] = [];
   for (let i = 0; i < count; i++) {
-    const sellToken = tokens[getNumberForRange(0, tokens.length)];
-    let buyToken = tokens[getNumberForRange(0, tokens.length)];
+    const sellToken = tokens.filter((token) => token.symbol === "SOL")[0];
+    let buyToken = tokens[sampleUniform(0, tokens.length)];
     while (sellToken === buyToken) {
-      buyToken = tokens[getNumberForRange(0, tokens.length)];
+      buyToken = tokens[sampleUniform(0, tokens.length)];
     }
 
-    const sellDecimals = await getDecimals(config, sellToken);
-    const sellAmount = getNumberForRange(
-      10 ** sellDecimals / 2,
-      10 ** sellDecimals
-    );
-
+    const sellAmount = sampleUniform(1, 10) / 10;
     const buyAmount = await getBuyAmount(
       config,
       {
         sellToken,
         buyToken,
-        sellAmount: sellAmount.toString(),
+        sellAmount,
       },
-      getNumberForRange(60, 90) / 100
+      sampleUniform(60, 80) / 100
     );
     opportunities.push({
       sellToken,
       buyToken,
-      sellAmount: sellAmount.toString(),
-      buyAmount: buyAmount.toString(),
+      sellAmount,
+      buyAmount,
     });
   }
 
