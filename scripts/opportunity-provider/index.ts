@@ -45,7 +45,9 @@ async function getDecimals(config: Config, token: Token): Promise<number> {
     return decimals[index];
   }
 
-  const client = getClient(config);
+  const client = createPublicClient({
+    transport: http(config.rpcUrl),
+  });
   decimals[index] = await client.readContract({
     address: token.address,
     abi: erc20Abi,
@@ -57,18 +59,6 @@ async function getDecimals(config: Config, token: Token): Promise<number> {
 function readFile<T>(path: string): T {
   const data = fs.readFileSync(path, "utf8");
   return JSON.parse(data) as T;
-}
-
-let client: PublicClient | undefined = undefined;
-function getClient(config: Config) {
-  if (client) {
-    return client;
-  }
-
-  client = createPublicClient({
-    transport: http(config.rpcUrl),
-  });
-  return client;
 }
 
 async function getPrice(token: Token): Promise<number> {
@@ -422,22 +412,22 @@ const argv = yargs(hideBin(process.argv))
   .parseSync();
 
 async function run() {
-  if (isHex(argv.privateKey)) {
-    const account = privateKeyToAccount(argv.privateKey);
-    console.log(`Using account: ${account.address}`);
-
-    if (argv.loadTest) {
-      createAndSubmitRandomOpportunities(
-        account,
-        argv.config,
-        argv.tokens,
-        argv.count
-      );
-    } else {
-      loadAndSubmitOpportunities(account, argv.config, argv.opportunities);
-    }
-  } else {
+  if (!isHex(argv.privateKey)) {
     throw new Error(`Invalid private key: ${argv.privateKey}`);
+  }
+
+  const account = privateKeyToAccount(argv.privateKey);
+  console.log(`Using account: ${account.address}`);
+
+  if (argv.loadTest) {
+    createAndSubmitRandomOpportunities(
+      account,
+      argv.config,
+      argv.tokens,
+      argv.count
+    );
+  } else {
+    loadAndSubmitOpportunities(account, argv.config, argv.opportunities);
   }
 }
 
