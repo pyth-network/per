@@ -1,0 +1,8 @@
+{
+  "serverUrl": "https://pyth-express-relay-mainnet.asymmetric.re",
+  "opportunityProvider": "0x621330D0ECd449A06b72f41C1A93626cCEC53ccA",
+  "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  "chainNetworkId": 34443,
+  "chainId": "mode",
+  "rpcUrl": "https://mainnet.mode.network/"
+}

@@ -9,18 +9,22 @@ import {
   encodeFunctionData,
   isHex,
   http,
+  PublicClient,
 } from "viem";
 import { abi as providerAbi } from "./abi/provider";
 import { abi as erc20Abi } from "./abi/erc20";
 import * as fs from "fs";
 
+interface Token {
+  address: Address;
+  symbol: string;
+}
+
 interface Opportunity {
-  sellToken: string;
-  buyToken: string;
-  sellAmount: string;
-  buyAmount?: string;
-  sellSymbol?: string;
-  buySymbol?: string;
+  sellToken: Token;
+  buyToken: Token;
+  sellAmount: number;
+  buyAmount?: number;
 }
 
 interface Config {
@@ -32,29 +36,43 @@ interface Config {
   rpcUrl: string;
 }
 
-function readConfig(path: string): Config {
-  const data = fs.readFileSync(path, "utf8");
-  return JSON.parse(data) as Config;
-}
+const decimals: Record<Address, number> = {};
+const prices: Record<string, number> = {};
 
-function readOpportunity(path: string): Opportunity {
-  const data = fs.readFileSync(path, "utf8");
-  JSON.parse(data) as Opportunity;
-  return JSON.parse(data) as Opportunity;
-}
+async function getDecimals(config: Config, token: Token): Promise<number> {
+  const index = token.address;
+  if (decimals[index]) {
+    return decimals[index];
+  }
 
-function getClinet(config: Config) {
-  return createPublicClient({
+  const client = createPublicClient({
     transport: http(config.rpcUrl),
   });
+  decimals[index] = await client.readContract({
+    address: token.address,
+    abi: erc20Abi,
+    functionName: "decimals",
+  });
+  return decimals[index];
 }
 
-async function getPrice(symbol: string): Promise<number> {
-  if (symbol == "USDT") {
+function readFile<T>(path: string): T {
+  const data = fs.readFileSync(path, "utf8");
+  return JSON.parse(data) as T;
+}
+
+async function getPrice(token: Token): Promise<number> {
+  const index = token.symbol;
+  if (prices[index]) {
+    return prices[index];
+  }
+
+  if (token.symbol == "USDT") {
+    prices[index] = 1;
     return 1;
   }
 
-  const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`;
+  const url = `https://api.binance.com/api/v3/ticker/price?symbol=${token.symbol}USDT`;
   const response = await fetch(url);
   const data = await response.json();
   const price = parseFloat(data.price);
@@ -62,56 +80,34 @@ async function getPrice(symbol: string): Promise<number> {
     throw new Error(`Invalid price: ${data.price}`);
   }
 
+  prices[index] = price;
   return price;
 }
 
-let buyAmount: bigint | undefined;
 async function getBuyAmount(
   config: Config,
-  opportunity: Opportunity
-): Promise<bigint> {
-  if (buyAmount) {
-    return buyAmount;
-  }
-
+  opportunity: Opportunity,
+  threshold: number = 0.9
+): Promise<number> {
   if (opportunity.buyAmount) {
-    buyAmount = BigInt(opportunity.buyAmount);
-    return buyAmount;
+    return opportunity.buyAmount;
   }
 
-  if (!opportunity.buySymbol) {
-    throw new Error("Missing buySymbol");
-  }
+  const sellUsdAmount = await getPrice(opportunity.sellToken);
+  const buyUsdAmount = await getPrice(opportunity.buyToken);
 
-  if (!opportunity.sellSymbol) {
-    throw new Error("Missing sellSymbol");
-  }
-
-  const sellUsdAmount = await getPrice(opportunity.sellSymbol);
-  const buyUsdAmount = await getPrice(opportunity.buySymbol);
-
-  const client = getClinet(config);
-  const decimalsSellToken = await client.readContract({
-    address: opportunity.sellToken as Address,
-    abi: erc20Abi,
-    functionName: "decimals",
-  });
-  const decimalsBuyToken = await client.readContract({
-    address: opportunity.sellToken as Address,
-    abi: erc20Abi,
-    functionName: "decimals",
-  });
-
-  const multiplier =
-    (sellUsdAmount /
-      buyUsdAmount /
-      10 ** (decimalsSellToken - decimalsBuyToken)) *
-    0.9;
-  buyAmount = BigInt(
-    Math.floor(parseFloat(opportunity.sellAmount) * multiplier)
-  );
-
+  const buyAmount =
+    ((opportunity.sellAmount * sellUsdAmount) / buyUsdAmount) * threshold;
   return buyAmount;
+}
+
+async function getDecimalParsed(
+  config: Config,
+  token: Token,
+  amount: number
+): Promise<bigint> {
+  const decimals = await getDecimals(config, token);
+  return BigInt(Math.floor(amount * 10 ** decimals));
 }
 
 async function signOpportunity(
@@ -143,11 +139,16 @@ async function signOpportunity(
     ],
   };
 
+  const buyAmount = await getBuyAmount(config, opportunity);
   const message = {
     permitted: [
       {
-        token: opportunity.sellToken,
-        amount: opportunity.sellAmount,
+        token: opportunity.sellToken.address,
+        amount: await getDecimalParsed(
+          config,
+          opportunity.sellToken,
+          opportunity.sellAmount
+        ),
       },
     ],
     spender: config.opportunityProvider,
@@ -156,8 +157,12 @@ async function signOpportunity(
     witness: {
       buyTokens: [
         {
-          token: opportunity.buyToken,
-          amount: await getBuyAmount(config, opportunity),
+          token: opportunity.buyToken.address,
+          amount: await getDecimalParsed(
+            config,
+            opportunity.buyToken,
+            buyAmount
+          ),
         },
       ],
       owner: account.address,
@@ -193,8 +198,12 @@ async function getCallData(
         permit: {
           permitted: [
             {
-              token: opportunity.sellToken as Address,
-              amount: BigInt(opportunity.sellAmount),
+              token: opportunity.sellToken.address,
+              amount: await getDecimalParsed(
+                config,
+                opportunity.sellToken,
+                opportunity.sellAmount
+              ),
             },
           ],
           nonce: BigInt(nonce),
@@ -203,8 +212,12 @@ async function getCallData(
         witness: {
           buyTokens: [
             {
-              token: opportunity.buyToken as Address,
-              amount: buyAmount,
+              token: opportunity.buyToken.address,
+              amount: await getDecimalParsed(
+                config,
+                opportunity.buyToken,
+                buyAmount
+              ),
             },
           ],
           owner: account.address,
@@ -217,14 +230,11 @@ async function getCallData(
 
 async function submitOpportunity(
   account: PrivateKeyAccount,
-  configPath: string,
-  opportunityPath: string
+  config: Config,
+  opportunity: Opportunity
 ) {
-  const config = readConfig(configPath);
-  const opportunity = readOpportunity(opportunityPath);
-
   const nonce = Math.floor(Math.random() * 2 ** 50);
-  const deadline = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
+  const deadline = Math.floor(Date.now() / 1000) + 60 * 10;
   const signature = await signOpportunity(
     account,
     config,
@@ -232,6 +242,7 @@ async function submitOpportunity(
     nonce,
     deadline
   );
+
   const permissionKey = encodeAbiParameters(
     [
       { type: "address", name: "admin" },
@@ -257,14 +268,22 @@ async function submitOpportunity(
     target_call_value: "0",
     sell_tokens: [
       {
-        token: opportunity.buyToken,
-        amount: buyAmount.toString(),
+        token: opportunity.buyToken.address,
+        amount: (
+          await getDecimalParsed(config, opportunity.buyToken, buyAmount)
+        ).toString(),
       },
     ],
     buy_tokens: [
       {
-        token: opportunity.sellToken,
-        amount: opportunity.sellAmount,
+        token: opportunity.sellToken.address,
+        amount: (
+          await getDecimalParsed(
+            config,
+            opportunity.sellToken,
+            opportunity.sellAmount
+          )
+        ).toString(),
       },
     ],
   };
@@ -282,6 +301,80 @@ async function submitOpportunity(
   console.log(data);
 }
 
+async function submitOpportunities(
+  account: PrivateKeyAccount,
+  config: Config,
+  opportunities: Opportunity[]
+) {
+  opportunities.forEach((opportunity) => {
+    submitOpportunity(account, config, opportunity).catch((error) => {
+      console.error("Error submitting opportunity", error);
+    });
+  });
+}
+
+async function loadAndSubmitOpportunities(
+  account: PrivateKeyAccount,
+  configPath: string,
+  opportunityPath: string
+) {
+  const config: Config = readFile(configPath);
+  const opportunities: Opportunity[] = readFile(opportunityPath);
+  submitOpportunities(account, config, opportunities);
+}
+
+// [min, max)
+function sampleUniform(min: number, max: number) {
+  if (min >= max) {
+    throw new Error("Invalid range");
+  }
+
+  return Math.floor(Math.random() * (max - min) + min);
+}
+
+async function createAndSubmitRandomOpportunities(
+  account: PrivateKeyAccount,
+  configPath: string,
+  tokensPath: string,
+  count: number
+) {
+  const config: Config = readFile(configPath);
+  const tokens: Token[] = readFile(tokensPath);
+
+  if (tokens.length < 2) {
+    throw new Error("At least 2 tokens are required");
+  }
+
+  // Use simple for to make sure we are going to use the cached data
+  const opportunities: Opportunity[] = [];
+  for (let i = 0; i < count; i++) {
+    const sellToken = tokens.filter((token) => token.symbol === "SOL")[0];
+    let buyToken = tokens[sampleUniform(0, tokens.length)];
+    while (sellToken === buyToken) {
+      buyToken = tokens[sampleUniform(0, tokens.length)];
+    }
+
+    const sellAmount = sampleUniform(1, 10) / 10;
+    const buyAmount = await getBuyAmount(
+      config,
+      {
+        sellToken,
+        buyToken,
+        sellAmount,
+      },
+      sampleUniform(60, 80) / 100
+    );
+    opportunities.push({
+      sellToken,
+      buyToken,
+      sellAmount,
+      buyAmount,
+    });
+  }
+
+  submitOpportunities(account, config, opportunities);
+}
+
 const argv = yargs(hideBin(process.argv))
   .option("private-key", {
     description:
@@ -294,22 +387,47 @@ const argv = yargs(hideBin(process.argv))
     type: "string",
     default: "config.json",
   })
-  .option("opportunity", {
-    description: "Path to opportunity file",
+  .option("opportunities", {
+    description: "Path to opportunities file",
     type: "string",
-    default: "opportunity.json",
+    default: "opportunities.json",
+  })
+  .option("tokens", {
+    description: "Path to tokens file",
+    type: "string",
+    default: "tokens.json",
+  })
+  .option("count", {
+    description: "Number of opportunities to create",
+    type: "number",
+    default: 10,
+  })
+  .option("load-test", {
+    description: "Create and submit random opportunities",
+    type: "boolean",
+    default: false,
   })
   .help()
   .alias("help", "h")
   .parseSync();
 
 async function run() {
-  if (isHex(argv.privateKey)) {
-    const account = privateKeyToAccount(argv.privateKey);
-    console.log(`Using account: ${account.address}`);
-    submitOpportunity(account, argv.config, argv.opportunity);
-  } else {
+  if (!isHex(argv.privateKey)) {
     throw new Error(`Invalid private key: ${argv.privateKey}`);
+  }
+
+  const account = privateKeyToAccount(argv.privateKey);
+  console.log(`Using account: ${account.address}`);
+
+  if (argv.loadTest) {
+    createAndSubmitRandomOpportunities(
+      account,
+      argv.config,
+      argv.tokens,
+      argv.count
+    );
+  } else {
+    loadAndSubmitOpportunities(account, argv.config, argv.opportunities);
   }
 }
 
