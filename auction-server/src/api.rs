@@ -68,7 +68,10 @@ use {
         },
         TypedHeader,
     },
-    axum_prometheus::PrometheusMetricLayerBuilder,
+    axum_prometheus::{
+        EndpointLabel,
+        PrometheusMetricLayerBuilder,
+    },
     clap::crate_version,
     ethers::types::Bytes,
     serde::{
@@ -387,6 +390,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
 
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
         .with_metrics_from_fn(|| store.metrics_recorder.clone())
+        .with_endpoint_label_type(EndpointLabel::MatchedPathWithFallbackFn(|_| {
+            "unknown".to_string()
+        }))
         .build_pair();
     let app: Router<()> = Router::new()
         .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
