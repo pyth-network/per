@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "auction-server"
-version = "0.9.6"
+version = "0.9.7"
 dependencies = [
  "anyhow",
  "async-stream",
