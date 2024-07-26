@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "src/express-relay/Errors.sol";
@@ -69,11 +68,13 @@ contract OpportunityAdapterIntegrationTest is
     WETH9 weth;
     MyToken buyToken;
     MyToken sellToken;
+    MyToken usdc;
     address _expressRelay;
 
     function setUpTokens() internal {
         buyToken = new MyToken("BuyToken", "BT");
         sellToken = new MyToken("SellToken", "ST");
+        usdc = new MyToken("USDC", "USDC");
         weth = new WETH9();
     }
 
@@ -96,11 +97,30 @@ contract OpportunityAdapterIntegrationTest is
     // successful bids will be received by this contract
     receive() external payable {}
 
+    function createSingularTargetCallMockTarget(
+        TokenAmount[] memory sellTokens,
+        bytes memory data,
+        uint256 value
+    ) public returns (TargetCall[] memory targetCalls) {
+        targetCalls = new TargetCall[](1);
+        TokenToSend[] memory tokensToSend = new TokenToSend[](
+            sellTokens.length
+        );
+        for (uint j = 0; j < sellTokens.length; j++) {
+            tokensToSend[j] = TokenToSend(sellTokens[j], address(mockTarget));
+        }
+        targetCalls[0] = TargetCall(
+            address(mockTarget),
+            data,
+            value,
+            tokensToSend
+        );
+    }
+
     function createExecutionParamsAndSignature(
         TokenAmount[] memory sellTokens,
         TokenAmount[] memory buyTokens,
-        bytes memory data,
-        uint256 value,
+        TargetCall[] memory targetCalls,
         uint256 bid,
         uint256 deadline
     )
@@ -128,9 +148,7 @@ contract OpportunityAdapterIntegrationTest is
         ExecutionWitness memory witness = ExecutionWitness(
             buyTokens,
             executor,
-            address(mockTarget),
-            data,
-            value,
+            targetCalls,
             bid
         );
         executionParams = ExecutionParams(permit, witness);
@@ -165,8 +183,7 @@ contract OpportunityAdapterIntegrationTest is
             createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
-                targetCalldata,
-                0,
+                createSingularTargetCallMockTarget(noTokens, targetCalldata, 0),
                 0,
                 block.timestamp + 1000
             );
@@ -184,8 +201,11 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
-                targetCalldata,
-                callValue,
+                createSingularTargetCallMockTarget(
+                    noTokens,
+                    targetCalldata,
+                    callValue
+                ),
                 0,
                 block.timestamp + 1000
             );
@@ -211,8 +231,11 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 noTokens,
-                targetCalldata,
-                callValue,
+                createSingularTargetCallMockTarget(
+                    sellTokens,
+                    targetCalldata,
+                    callValue
+                ),
                 bid,
                 block.timestamp + 1000
             );
@@ -229,16 +252,23 @@ contract OpportunityAdapterIntegrationTest is
         adapterFactory.executeOpportunity(executionParams, signature);
     }
 
-    function testExecutionWithBidAndCallValue() public {
+    function testExecutionWithBidAndCallValue(
+        uint256 buyTokenAmount,
+        uint256 sellTokenAmount,
+        uint256 targetCallValue,
+        uint256 bidAmount
+    ) public {
+        vm.assume(bidAmount < type(uint256).max - targetCallValue);
+        vm.assume(bidAmount > 0);
+        vm.assume(targetCallValue > 0);
+        vm.assume(sellTokenAmount > 0);
+        vm.assume(buyTokenAmount < type(uint256).max - 5000);
+
         address executor = makeAddr("executor");
         TokenAmount[] memory sellTokens = new TokenAmount[](2);
-        uint256 sellTokenAmount = 1000;
-        uint256 callValue = 123;
-        uint256 bid = 100;
         sellTokens[0] = TokenAmount(address(sellToken), sellTokenAmount);
-        sellTokens[1] = TokenAmount(address(weth), callValue + bid);
+        sellTokens[1] = TokenAmount(address(weth), targetCallValue + bidAmount);
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
-        uint256 buyTokenAmount = 100;
         buyTokens[0] = TokenAmount(address(buyToken), buyTokenAmount);
         // transfer less sellToken than specified to test that allowances are revoked correctly
         bytes memory targetCalldata = abi.encodeWithSelector(
@@ -254,32 +284,35 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 buyTokens,
-                targetCalldata,
-                callValue,
-                bid,
+                createSingularTargetCallMockTarget(
+                    sellTokens,
+                    targetCalldata,
+                    targetCallValue
+                ),
+                bidAmount,
                 block.timestamp + 1000
             );
         uint256 initialAdapterBuyTokenBalance = 5000;
         address opportunityAdapter = adapterFactory.computeAddress(executor);
         buyToken.mint(opportunityAdapter, initialAdapterBuyTokenBalance);
         sellToken.mint(executor, sellTokenAmount);
-        vm.deal(executor, 1 ether);
+        vm.deal(executor, targetCallValue + bidAmount);
         vm.startPrank(executor);
-        weth.deposit{value: (callValue + bid)}();
-        weth.approve(PERMIT2, (callValue + bid));
+        weth.deposit{value: (targetCallValue + bidAmount)}();
+        weth.approve(PERMIT2, (targetCallValue + bidAmount));
         sellToken.approve(PERMIT2, sellTokenAmount);
         vm.stopPrank();
         vm.prank(adapterFactory.getExpressRelay());
-        vm.expectCall(address(mockTarget), callValue, targetCalldata);
+        vm.expectCall(address(mockTarget), targetCallValue, targetCalldata);
         // We expect the adapter to transfer the bid to the express relay
-        vm.expectCall(_expressRelay, bid, bytes(""));
+        vm.expectCall(_expressRelay, bidAmount, bytes(""));
         vm.expectCall(
             address(weth),
-            abi.encodeWithSelector(WETH9.withdraw.selector, callValue)
+            abi.encodeWithSelector(WETH9.withdraw.selector, targetCallValue)
         );
         vm.expectCall(
             address(weth),
-            abi.encodeWithSelector(WETH9.withdraw.selector, bid)
+            abi.encodeWithSelector(WETH9.withdraw.selector, bidAmount)
         );
         adapterFactory.executeOpportunity(executionParams, signature);
         assertEq(
@@ -293,6 +326,139 @@ contract OpportunityAdapterIntegrationTest is
         );
     }
 
+    function testExecutionWithBidAndCallValueWithSwaps(
+        uint256 buyTokenAmount,
+        uint256 sellTokenAmount,
+        uint256 targetCallValue,
+        uint256 bidAmount,
+        uint256 usdcSwapFromAmount,
+        uint256 usdcSwapIntoAmount
+    ) public {
+        vm.assume(bidAmount < type(uint256).max - targetCallValue);
+        vm.assume(bidAmount > 0);
+        vm.assume(targetCallValue > 0);
+        vm.assume(sellTokenAmount > 0);
+        vm.assume(buyTokenAmount < type(uint256).max - 5000);
+        vm.assume(usdcSwapFromAmount > 0);
+        vm.assume(usdcSwapIntoAmount > 0);
+        vm.assume(usdcSwapFromAmount < type(uint256).max - usdcSwapIntoAmount);
+
+        address executor = makeAddr("executor");
+        TokenAmount[] memory sellTokens = new TokenAmount[](2);
+        sellTokens[0] = TokenAmount(address(usdc), usdcSwapFromAmount);
+        sellTokens[1] = TokenAmount(address(weth), targetCallValue + bidAmount);
+        TokenAmount[] memory sellTokensPostSwap = new TokenAmount[](2);
+        sellTokensPostSwap[0] = TokenAmount(
+            address(sellToken),
+            sellTokenAmount
+        );
+        sellTokensPostSwap[1] = TokenAmount(
+            address(weth),
+            targetCallValue + bidAmount
+        );
+
+        TokenAmount[] memory buyTokens = new TokenAmount[](1);
+        buyTokens[0] = TokenAmount(address(usdc), usdcSwapIntoAmount);
+
+        // transfer less sellToken than specified to test that allowances are revoked correctly
+        bytes memory targetCalldata = abi.encodeWithSelector(
+            mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
+            address(sellToken),
+            sellTokenAmount - 1,
+            address(buyToken),
+            buyTokenAmount
+        );
+
+        // create targetCalls with swaps
+        TargetCall[]
+            memory targetCallExecute = createSingularTargetCallMockTarget(
+                sellTokensPostSwap,
+                targetCalldata,
+                targetCallValue
+            );
+        TokenAmount[] memory sellTokensSwapFrom = new TokenAmount[](1);
+        sellTokensSwapFrom[0] = TokenAmount(address(usdc), usdcSwapFromAmount);
+        TargetCall[]
+            memory targetCallSwapFrom = createSingularTargetCallMockTarget(
+                sellTokensSwapFrom,
+                abi.encodeWithSelector(
+                    mockTarget
+                        .transferSellTokenFromSenderAndBuyTokenToSender
+                        .selector,
+                    address(usdc),
+                    usdcSwapFromAmount,
+                    address(sellToken),
+                    sellTokenAmount
+                ),
+                0
+            );
+        TokenAmount[] memory sellTokensSwapInto = new TokenAmount[](1);
+        sellTokensSwapInto[0] = TokenAmount(address(buyToken), buyTokenAmount);
+        TargetCall[]
+            memory targetCallSwapInto = createSingularTargetCallMockTarget(
+                sellTokensSwapInto,
+                abi.encodeWithSelector(
+                    mockTarget
+                        .transferSellTokenFromSenderAndBuyTokenToSender
+                        .selector,
+                    address(buyToken),
+                    buyTokenAmount,
+                    address(usdc),
+                    usdcSwapIntoAmount
+                ),
+                0
+            );
+
+        TargetCall[] memory targetCalls = new TargetCall[](3);
+        targetCalls[0] = targetCallSwapFrom[0];
+        targetCalls[1] = targetCallExecute[0];
+        targetCalls[2] = targetCallSwapInto[0];
+
+        (
+            ExecutionParams memory executionParams,
+            bytes memory signature
+        ) = createExecutionParamsAndSignature(
+                sellTokens,
+                buyTokens,
+                targetCalls,
+                bidAmount,
+                block.timestamp + 1000
+            );
+
+        uint256 initialAdapterBuyTokenBalance = 5000;
+        address opportunityAdapter = adapterFactory.computeAddress(executor);
+        buyToken.mint(opportunityAdapter, initialAdapterBuyTokenBalance);
+        usdc.mint(executor, usdcSwapFromAmount);
+        vm.deal(executor, targetCallValue + bidAmount);
+        vm.startPrank(executor);
+        weth.deposit{value: (targetCallValue + bidAmount)}();
+        weth.approve(PERMIT2, (targetCallValue + bidAmount));
+        usdc.approve(PERMIT2, usdcSwapFromAmount);
+        vm.stopPrank();
+        vm.prank(adapterFactory.getExpressRelay());
+        vm.expectCall(address(mockTarget), targetCallValue, targetCalldata);
+        // We expect the adapter to transfer the bid to the express relay
+        vm.expectCall(_expressRelay, bidAmount, bytes(""));
+        vm.expectCall(
+            address(weth),
+            abi.encodeWithSelector(WETH9.withdraw.selector, targetCallValue)
+        );
+        vm.expectCall(
+            address(weth),
+            abi.encodeWithSelector(WETH9.withdraw.selector, bidAmount)
+        );
+        adapterFactory.executeOpportunity(executionParams, signature);
+        assertEq(buyToken.balanceOf(executor), 0);
+        assertEq(sellToken.balanceOf(executor), 0);
+        assertEq(
+            sellToken.allowance(opportunityAdapter, address(mockTarget)),
+            0
+        );
+
+        assertEq(usdc.balanceOf(executor), usdcSwapIntoAmount);
+        assertEq(usdc.allowance(opportunityAdapter, address(mockTarget)), 0);
+    }
+
     function testExecutionWithNoBidAndCallValue() public {
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
@@ -304,8 +470,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
-                targetCalldata,
-                0,
+                createSingularTargetCallMockTarget(noTokens, targetCalldata, 0),
                 0,
                 block.timestamp + 1000
             );
@@ -367,8 +532,11 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 buyTokens,
-                targetCalldata,
-                targetCallValue,
+                createSingularTargetCallMockTarget(
+                    sellTokens,
+                    targetCalldata,
+                    targetCallValue
+                ),
                 bidAmount,
                 block.timestamp + 1000
             );
@@ -414,8 +582,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
-                targetCalldata,
-                0,
+                createSingularTargetCallMockTarget(noTokens, targetCalldata, 0),
                 1,
                 block.timestamp + 1000
             );
@@ -436,8 +603,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
-                targetCalldata,
-                1,
+                createSingularTargetCallMockTarget(noTokens, targetCalldata, 1),
                 0,
                 block.timestamp + 1000
             );
@@ -466,8 +632,11 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 buyTokens,
-                targetCalldata,
-                0,
+                createSingularTargetCallMockTarget(
+                    sellTokens,
+                    targetCalldata,
+                    0
+                ),
                 0,
                 block.timestamp + 1000
             );
@@ -535,8 +704,11 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 buyTokens,
-                targetCalldata,
-                0,
+                createSingularTargetCallMockTarget(
+                    sellTokens,
+                    targetCalldata,
+                    0
+                ),
                 0,
                 block.timestamp + 1000
             );
@@ -566,8 +738,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
-                targetCalldata,
-                0,
+                createSingularTargetCallMockTarget(noTokens, targetCalldata, 0),
                 0,
                 block.timestamp + 1
             );

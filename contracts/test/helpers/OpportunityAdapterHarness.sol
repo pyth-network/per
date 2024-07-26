@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import {OpportunityAdapter, TokenAmount, ExecutionWitness} from "src/opportunity-adapter/OpportunityAdapter.sol";
+import {OpportunityAdapter, TokenAmount, TokenToSend, ExecutionWitness} from "src/opportunity-adapter/OpportunityAdapter.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 
 contract OpportunityAdapterHarness is OpportunityAdapter {
@@ -22,14 +22,19 @@ contract OpportunityAdapterHarness is OpportunityAdapter {
     }
 
     function exposed_revokeAllowances(
-        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
-        address targetContract
+        TokenToSend[] calldata tokensToSend
     ) public {
-        _revokeAllowances(permit, targetContract);
+        _revokeAllowances(tokensToSend);
     }
 
-    function exposed_checkDuplicateTokens(
+    function exposed_checkDuplicateTokensTokenAmount(
         TokenAmount[] calldata tokens
+    ) public {
+        _checkDuplicateTokens(tokens);
+    }
+
+    function exposed_checkDuplicateTokensTokenPermissions(
+        ISignatureTransfer.TokenPermissions[] calldata tokens
     ) public {
         _checkDuplicateTokens(tokens);
     }
@@ -50,5 +55,9 @@ contract OpportunityAdapterHarness is OpportunityAdapter {
             executor,
             buyTokensBalancesBeforeCall
         );
+    }
+
+    function exposed_approveTokens(TokenToSend[] calldata tokensToSend) public {
+        _approveTokens(tokensToSend);
     }
 }

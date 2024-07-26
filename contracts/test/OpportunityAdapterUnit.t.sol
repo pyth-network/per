@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "src/express-relay/Errors.sol";
@@ -134,7 +133,9 @@ contract OpportunityAdapterUnitTest is
         );
     }
 
-    function testPrepareSellTokensRevokeAllowances(uint256 tokenAmount) public {
+    function testPrepareSellTokensApproveTokensRevokeAllowances(
+        uint256 tokenAmount
+    ) public {
         TokenAmount[] memory sellTokens = new TokenAmount[](1);
         sellTokens[0] = TokenAmount(address(myToken), tokenAmount);
         (address executor, uint256 executorPrivateKey) = makeAddrAndKey(
@@ -144,19 +145,35 @@ contract OpportunityAdapterUnitTest is
         vm.prank(executor);
         myToken.approve(PERMIT2, tokenAmount);
 
+        TargetCall[] memory targetCalls = new TargetCall[](1);
+        TokenToSend[] memory tokensToSend = new TokenToSend[](
+            sellTokens.length
+        );
+        for (uint j = 0; j < sellTokens.length; j++) {
+            tokensToSend[j] = TokenToSend(
+                TokenAmount(sellTokens[j].token, sellTokens[j].amount),
+                makeAddr("targetContract")
+            );
+        }
+        targetCalls[0] = TargetCall(
+            makeAddr("targetContract"),
+            new bytes(0),
+            0,
+            tokensToSend
+        );
+
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         ExecutionWitness memory witness = ExecutionWitness({
             buyTokens: noTokens,
             executor: executor,
-            targetContract: makeAddr("targetContract"),
-            targetCalldata: "0x",
-            targetCallValue: 0,
+            targetCalls: targetCalls,
             bidAmount: 0
         });
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permit,
             bytes memory signature
         ) = makePermitFromSellTokens(sellTokens, witness, executorPrivateKey);
+
         address targetContract = makeAddr("targetContract");
 
         opportunityAdapter.exposed_prepareSellTokens(
@@ -165,20 +182,22 @@ contract OpportunityAdapterUnitTest is
             signature
         );
         assertEq(myToken.balanceOf(address(opportunityAdapter)), tokenAmount);
+        assertEq(myToken.balanceOf(executor), 0);
+
+        opportunityAdapter.exposed_approveTokens(tokensToSend);
         assertEq(
             myToken.allowance(address(opportunityAdapter), targetContract),
             tokenAmount
         );
-        assertEq(myToken.balanceOf(executor), 0);
 
-        opportunityAdapter.exposed_revokeAllowances(permit, targetContract);
+        opportunityAdapter.exposed_revokeAllowances(tokensToSend);
         assertEq(
             myToken.allowance(address(opportunityAdapter), targetContract),
             0
         );
     }
 
-    function testCheckDuplicateTokens() public {
+    function testCheckDuplicateTokensTokenAmount() public {
         TokenAmount[] memory tokens = new TokenAmount[](3);
         address token0 = makeAddr("token0");
         address token1 = makeAddr("token1");
@@ -186,10 +205,25 @@ contract OpportunityAdapterUnitTest is
         tokens[0] = TokenAmount(token0, 0);
         tokens[1] = TokenAmount(token1, 0);
         tokens[2] = TokenAmount(token2, 0);
-        opportunityAdapter.exposed_checkDuplicateTokens(tokens);
+        opportunityAdapter.exposed_checkDuplicateTokensTokenAmount(tokens);
         tokens[1] = TokenAmount(token2, 0);
         vm.expectRevert(DuplicateToken.selector);
-        opportunityAdapter.exposed_checkDuplicateTokens(tokens);
+        opportunityAdapter.exposed_checkDuplicateTokensTokenAmount(tokens);
+    }
+
+    function testCheckDuplicateTokensTokenPermissions() public {
+        ISignatureTransfer.TokenPermissions[]
+            memory tokens = new ISignatureTransfer.TokenPermissions[](3);
+        address token0 = makeAddr("token0");
+        address token1 = makeAddr("token1");
+        address token2 = makeAddr("token2");
+        tokens[0] = ISignatureTransfer.TokenPermissions(token0, 0);
+        tokens[1] = ISignatureTransfer.TokenPermissions(token1, 0);
+        tokens[2] = ISignatureTransfer.TokenPermissions(token2, 0);
+        opportunityAdapter.exposed_checkDuplicateTokensTokenPermissions(tokens);
+        tokens[1] = ISignatureTransfer.TokenPermissions(token2, 0);
+        vm.expectRevert(DuplicateToken.selector);
+        opportunityAdapter.exposed_checkDuplicateTokensTokenPermissions(tokens);
     }
 
     function testGetContractTokenBalances(uint256 tokenAmount) public {

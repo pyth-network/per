@@ -23,7 +23,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
     address immutable _permit2;
 
     string public constant WITNESS_TYPE_STRING =
-        "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
+        "OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,TargetCall[] targetCalls,uint256 bidAmount)TargetCall(address targetContract,bytes targetCalldata,uint256 targetCallValue,TokenToSend[] tokensToSend)TokenToSend(TokenAmount tokenAmount,address destination)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)";
 
     /**
      * @notice OpportunityAdapter initializer - Initializes a new opportunity adapter contract
@@ -92,11 +92,13 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         if (params.witness.executor != _owner) {
             revert AdapterOwnerMismatch();
         }
-        if (
-            params.witness.targetContract == _permit2 ||
-            params.witness.targetContract == address(this)
-        ) {
-            revert TargetContractNotAllowed();
+        for (uint i = 0; i < params.witness.targetCalls.length; i++) {
+            if (
+                params.witness.targetCalls[i].targetContract == _permit2 ||
+                params.witness.targetCalls[i].targetContract == address(this)
+            ) {
+                revert TargetContractNotAllowed(i);
+            }
         }
         _checkDuplicateTokens(params.permit.permitted);
         _checkDuplicateTokens(params.witness.buyTokens);
@@ -142,7 +144,6 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
                 to: address(this),
                 requestedAmount: amount
             });
-            token.forceApprove(witness.targetContract, amount);
         }
         ISignatureTransfer(_permit2).permitWitnessTransferFrom(
             permit,
@@ -154,13 +155,10 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         );
     }
 
-    function _revokeAllowances(
-        ISignatureTransfer.PermitBatchTransferFrom calldata permit,
-        address targetContract
-    ) internal {
-        for (uint i = 0; i < permit.permitted.length; i++) {
-            IERC20 token = IERC20(permit.permitted[i].token);
-            token.forceApprove(targetContract, 0);
+    function _revokeAllowances(TokenToSend[] calldata tokensToSend) internal {
+        for (uint i = 0; i < tokensToSend.length; i++) {
+            IERC20 token = IERC20(tokensToSend[i].tokenAmount.token);
+            token.forceApprove(tokensToSend[i].destination, 0);
         }
     }
 
@@ -176,6 +174,30 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         }
         (bool sent, ) = getExpressRelay().call{value: bidAmount}("");
         require(sent, "Bid transfer to express relay failed");
+    }
+
+    function _makeTargetCall(TargetCall calldata targetCall) internal {
+        if (targetCall.targetCallValue > 0) {
+            IWETH9 weth = _getWethContract();
+            try weth.withdraw(targetCall.targetCallValue) {} catch {
+                revert InsufficientWethForTargetCallValue();
+            }
+        }
+        _approveTokens(targetCall.tokensToSend);
+        _callTargetContract(
+            targetCall.targetContract,
+            targetCall.targetCalldata,
+            targetCall.targetCallValue
+        );
+        _revokeAllowances(targetCall.tokensToSend);
+    }
+
+    function _approveTokens(TokenToSend[] calldata tokensToSend) internal {
+        for (uint i = 0; i < tokensToSend.length; i++) {
+            IERC20 token = IERC20(tokensToSend[i].tokenAmount.token);
+            uint256 amount = tokensToSend[i].tokenAmount.amount;
+            token.forceApprove(tokensToSend[i].destination, amount);
+        }
     }
 
     function _callTargetContract(
@@ -245,18 +267,9 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
                 params.witness.buyTokens
             );
         _prepareSellTokens(params.permit, params.witness, signature);
-        if (params.witness.targetCallValue > 0) {
-            IWETH9 weth = _getWethContract();
-            try weth.withdraw(params.witness.targetCallValue) {} catch {
-                revert InsufficientWethForTargetCallValue();
-            }
+        for (uint i = 0; i < params.witness.targetCalls.length; i++) {
+            _makeTargetCall(params.witness.targetCalls[i]);
         }
-        _callTargetContract(
-            params.witness.targetContract,
-            params.witness.targetCalldata,
-            params.witness.targetCallValue
-        );
-        _revokeAllowances(params.permit, params.witness.targetContract);
         _settleBid(params.witness.bidAmount);
         _validateAndTransferBuyTokens(
             params.witness.buyTokens,

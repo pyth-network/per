@@ -583,12 +583,26 @@ contract ExpressRelayTestSetup is
                     0, // TODO: fill in the nonce
                     bidInfos[i].deadline
                 );
-            ExecutionWitness memory witness = ExecutionWitness(
-                buyTokens,
-                bidInfos[i].executor,
+            TargetCall[] memory targetCalls = new TargetCall[](1);
+            TokenToSend[] memory tokensToSend = new TokenToSend[](
+                permitted.length
+            );
+            for (uint j = 0; j < permitted.length; j++) {
+                tokensToSend[j] = TokenToSend(
+                    TokenAmount(permitted[j].token, permitted[j].amount),
+                    address(tokenVault)
+                );
+            }
+            targetCalls[0] = TargetCall(
                 contractAddress,
                 calldataVault,
                 value,
+                tokensToSend
+            );
+            ExecutionWitness memory witness = ExecutionWitness(
+                buyTokens,
+                bidInfos[i].executor,
+                targetCalls,
                 bidInfos[i].bid
             );
             // create liquidation call params struct
