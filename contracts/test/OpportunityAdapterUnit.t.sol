@@ -290,4 +290,33 @@ contract OpportunityAdapterUnitTest is
             buyTokensBalancesBeforeCall
         );
     }
+
+    function testSweepSpentTokens(
+        uint256 tokenAmount,
+        uint256 excessTokenAmount
+    ) public {
+        vm.assume(tokenAmount <= type(uint256).max - excessTokenAmount); // to avoid overflow in the test
+        TargetCall[] memory targetCalls = new TargetCall[](1);
+        TokenToSend[] memory tokensToSend = new TokenToSend[](1);
+        tokensToSend[0] = TokenToSend(
+            TokenAmount(address(myToken), tokenAmount),
+            makeAddr("destination")
+        );
+        targetCalls[0] = TargetCall(
+            makeAddr("targetContract"),
+            new bytes(0),
+            0,
+            tokensToSend
+        );
+        myToken.mint(
+            address(opportunityAdapter),
+            tokenAmount + excessTokenAmount
+        );
+        opportunityAdapter.exposed_sweepSpentTokens(targetCalls);
+        assertEq(myToken.balanceOf(address(opportunityAdapter)), 0);
+        assertEq(
+            myToken.balanceOf(opportunityAdapter.getOwner()),
+            tokenAmount + excessTokenAmount
+        );
+    }
 }

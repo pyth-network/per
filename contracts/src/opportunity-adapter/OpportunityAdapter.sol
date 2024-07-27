@@ -242,6 +242,17 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
         }
     }
 
+    function _sweepSpentTokens(TargetCall[] calldata targetCalls) internal {
+        for (uint i = 0; i < targetCalls.length; i++) {
+            for (uint j = 0; j < targetCalls[i].tokensToSend.length; j++) {
+                IERC20 token = IERC20(
+                    targetCalls[i].tokensToSend[j].tokenAmount.token
+                );
+                token.safeTransfer(_owner, token.balanceOf(address(this)));
+            }
+        }
+    }
+
     function _getEthAndWethBalances() internal view returns (uint256, uint256) {
         return (
             address(this).balance,
@@ -276,6 +287,7 @@ contract OpportunityAdapter is ReentrancyGuard, OpportunityAdapterHasher {
             params.witness.executor,
             buyTokensBalancesBeforeCall
         );
+        _sweepSpentTokens(params.witness.targetCalls);
         (
             uint256 ethBalanceAfterCall,
             uint256 wethBalanceAfterCall

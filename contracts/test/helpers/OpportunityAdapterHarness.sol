@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.13;
 
-import {OpportunityAdapter, TokenAmount, TokenToSend, ExecutionWitness} from "src/opportunity-adapter/OpportunityAdapter.sol";
+import {OpportunityAdapter, TokenAmount, TargetCall, TokenToSend, ExecutionWitness} from "src/opportunity-adapter/OpportunityAdapter.sol";
 import "permit2/interfaces/ISignatureTransfer.sol";
 
 contract OpportunityAdapterHarness is OpportunityAdapter {
@@ -55,6 +55,12 @@ contract OpportunityAdapterHarness is OpportunityAdapter {
             executor,
             buyTokensBalancesBeforeCall
         );
+    }
+
+    function exposed_sweepSpentTokens(
+        TargetCall[] calldata targetCalls
+    ) public {
+        _sweepSpentTokens(targetCalls);
     }
 
     function exposed_approveTokens(TokenToSend[] calldata tokensToSend) public {

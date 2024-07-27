@@ -271,10 +271,11 @@ contract OpportunityAdapterIntegrationTest is
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         buyTokens[0] = TokenAmount(address(buyToken), buyTokenAmount);
         // transfer less sellToken than specified to test that allowances are revoked correctly
+        uint256 actualSellTokenSpent = sellTokenAmount - 1;
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
             address(sellToken),
-            sellTokenAmount - 1,
+            actualSellTokenSpent,
             address(buyToken),
             buyTokenAmount
         );
@@ -319,7 +320,10 @@ contract OpportunityAdapterIntegrationTest is
             buyToken.balanceOf(executor),
             initialAdapterBuyTokenBalance + buyTokenAmount
         );
-        assertEq(sellToken.balanceOf(executor), 0);
+        assertEq(
+            sellToken.balanceOf(executor),
+            sellTokenAmount - actualSellTokenSpent
+        );
         assertEq(
             sellToken.allowance(opportunityAdapter, address(mockTarget)),
             0
@@ -361,10 +365,11 @@ contract OpportunityAdapterIntegrationTest is
         buyTokens[0] = TokenAmount(address(usdc), usdcSwapIntoAmount);
 
         // transfer less sellToken than specified to test that allowances are revoked correctly
+        uint256 actualSellTokenSpent = sellTokenAmount - 1;
         bytes memory targetCalldata = abi.encodeWithSelector(
             mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
             address(sellToken),
-            sellTokenAmount - 1,
+            actualSellTokenSpent,
             address(buyToken),
             buyTokenAmount
         );
@@ -448,8 +453,11 @@ contract OpportunityAdapterIntegrationTest is
             abi.encodeWithSelector(WETH9.withdraw.selector, bidAmount)
         );
         adapterFactory.executeOpportunity(executionParams, signature);
-        assertEq(buyToken.balanceOf(executor), 0);
-        assertEq(sellToken.balanceOf(executor), 0);
+        assertEq(buyToken.balanceOf(executor), initialAdapterBuyTokenBalance);
+        assertEq(
+            sellToken.balanceOf(executor),
+            sellTokenAmount - actualSellTokenSpent
+        );
         assertEq(
             sellToken.allowance(opportunityAdapter, address(mockTarget)),
             0
