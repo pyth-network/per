@@ -16,7 +16,7 @@ import "permit2/interfaces/ISignatureTransfer.sol";
 import "./PermitSignature.sol";
 import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdapterFactory.sol";
 import {OpportunityAdapterHasher} from "src/opportunity-adapter/OpportunityAdapterHasher.sol";
-import {ExecutionWitness as AdapterExecutionWitness, ExecutionParams as AdapterExecutionParams, TokenAmount as AdapterTokenAmount} from "src/opportunity-adapter/Structs.sol";
+import {ExecutionWitness as AdapterExecutionWitness, ExecutionParams as AdapterExecutionParams, TokenAmount as AdapterTokenAmount, TokenToSend as AdapterTokenToSend, TargetCall as AdapterTargetCall} from "src/opportunity-adapter/Structs.sol";
 
 contract OpportunityProviderUnitTest is
     Test,
@@ -306,9 +306,17 @@ contract OpportunityProviderUnitTest is
             address(sellToken),
             params.permit.permitted[0].amount
         );
-        AdapterExecutionWitness memory witness = AdapterExecutionWitness(
-            sellTokens,
-            buyer,
+        AdapterTargetCall[] memory targetCalls = new AdapterTargetCall[](1);
+        AdapterTokenToSend[] memory tokensToSend = new AdapterTokenToSend[](
+            permit.permitted.length
+        );
+        for (uint j = 0; j < permitted.length; j++) {
+            tokensToSend[j] = AdapterTokenToSend(
+                AdapterTokenAmount(permitted[j].token, permitted[j].amount),
+                address(opportunityProvider)
+            );
+        }
+        targetCalls[0] = AdapterTargetCall(
             address(opportunityProvider),
             abi.encodeWithSelector(
                 opportunityProvider.execute.selector,
@@ -316,6 +324,12 @@ contract OpportunityProviderUnitTest is
                 providerSignature
             ),
             0,
+            tokensToSend
+        );
+        AdapterExecutionWitness memory witness = AdapterExecutionWitness(
+            sellTokens,
+            buyer,
+            targetCalls,
             bidAmount
         );
 

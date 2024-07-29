@@ -28,8 +28,8 @@ error DuplicateToken();
 // Signature: 0x1979776d
 error EthOrWethBalanceDecreased();
 
-// Signature: 0x9c86e59e
-error TargetContractNotAllowed();
+// Signature: 0x879bab83
+error TargetContractNotAllowed(uint256 index);
 
 // Signature: 0x47a8ea58
 error OnlyOwnerCanCall();

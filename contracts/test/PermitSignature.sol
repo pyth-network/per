@@ -14,7 +14,7 @@ contract PermitSignature is Test {
     address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     bytes32 constant FULL_OPPORTUNITY_WITNESS_BATCH_TYPEHASH =
         keccak256(
-            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,address targetContract,bytes targetCalldata,uint256 targetCallValue,uint256 bidAmount)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)"
+            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,OpportunityWitness witness)OpportunityWitness(TokenAmount[] buyTokens,address executor,TargetCall[] targetCalls,uint256 bidAmount)TargetCall(address targetContract,bytes targetCalldata,uint256 targetCallValue,TokenToSend[] tokensToSend)TokenToSend(TokenAmount tokenAmount,address destination)TokenAmount(address token,uint256 amount)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 constant FULL_OPPORTUNITY_PROVIDER_WITNESS_BATCH_TYPEHASH =
         keccak256(

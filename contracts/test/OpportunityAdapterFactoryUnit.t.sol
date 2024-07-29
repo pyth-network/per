@@ -77,15 +77,6 @@ contract OpportunityAdapterFactoryUnitTest is
     function testRevertExecuteOpportunity() public {
         address targetContract = _permit2;
 
-        ExecutionWitness memory witness = ExecutionWitness({
-            buyTokens: new TokenAmount[](0),
-            executor: makeAddr("executor"),
-            targetContract: targetContract,
-            targetCalldata: new bytes(0),
-            targetCallValue: 0,
-            bidAmount: 0
-        });
-
         ISignatureTransfer.TokenPermissions[]
             memory permitted = new ISignatureTransfer.TokenPermissions[](0);
         ISignatureTransfer.PermitBatchTransferFrom
@@ -94,6 +85,22 @@ contract OpportunityAdapterFactoryUnitTest is
                 nonce: 0,
                 deadline: 0
             });
+
+        TargetCall[] memory targetCalls = new TargetCall[](1);
+        TokenToSend[] memory tokensToSend = new TokenToSend[](0);
+        targetCalls[0] = TargetCall(
+            targetContract,
+            new bytes(0),
+            0,
+            tokensToSend
+        );
+
+        ExecutionWitness memory witness = ExecutionWitness({
+            buyTokens: new TokenAmount[](0),
+            executor: makeAddr("executor"),
+            targetCalls: targetCalls,
+            bidAmount: 0
+        });
 
         ExecutionParams memory params = ExecutionParams({
             permit: permit,
@@ -111,7 +118,9 @@ contract OpportunityAdapterFactoryUnitTest is
 
         vm.prank(_expressRelay);
         vm.expectCall(opportunityAdapterExecutor, expectedData);
-        vm.expectRevert(TargetContractNotAllowed.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(TargetContractNotAllowed.selector, 0)
+        );
         opportunityAdapterFactory.executeOpportunity(params, signature);
     }
 

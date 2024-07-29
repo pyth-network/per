@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import "forge-std/console.sol";
 
 import "src/express-relay/Structs.sol";
 import "src/express-relay/Errors.sol";
