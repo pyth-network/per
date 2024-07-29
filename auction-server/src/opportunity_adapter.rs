@@ -21,7 +21,7 @@ use {
             Opportunity,
             OpportunityId,
             OpportunityParams,
-            OpportunityParamsV1,
+            OpportunityParamsV2,
             SpoofInfo,
             Store,
             UnixTimestampMicros,
@@ -150,10 +150,15 @@ fn generate_random_u256() -> U256 {
 /// Returns Err if the simulation fails despite spoofing or if any other error occurs
 #[tracing::instrument(skip_all)]
 pub async fn verify_opportunity(
-    opportunity: OpportunityParamsV1,
+    opportunity: OpportunityParams,
     chain_store: &ChainStore,
     relayer: Address,
 ) -> Result<VerificationResult> {
+    let opportunity_v2 = match opportunity.clone() {
+        OpportunityParams::V1(opportunity) => OpportunityParamsV2::from(opportunity),
+        OpportunityParams::V2(opportunity) => opportunity,
+    };
+
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
 
@@ -161,7 +166,7 @@ pub async fn verify_opportunity(
         executor:       fake_wallet.address(),
         deadline:       U256::max_value(),
         nonce:          generate_random_u256(),
-        permission_key: opportunity.permission_key.clone(),
+        permission_key: opportunity_v2.permission_key.clone(),
         amount:         U256::zero(),
         signature:      Signature {
             v: 0,
@@ -171,7 +176,7 @@ pub async fn verify_opportunity(
     };
 
     let params_with_signature =
-        make_opportunity_execution_params(opportunity.clone(), fake_bid.clone(), chain_store);
+        make_opportunity_execution_params(opportunity, fake_bid.clone(), chain_store);
     let typed_data: eip712::TypedData = params_with_signature.clone().into();
     let hashed_data = typed_data.encode_eip712()?;
     let signature = fake_wallet.sign_hash(hashed_data.into())?;
@@ -193,7 +198,7 @@ pub async fn verify_opportunity(
         relayer,
         chain_store.provider.clone(),
         chain_store.config.clone(),
-        opportunity.permission_key,
+        opportunity_v2.permission_key,
         vec![MulticallData::from((
             Uuid::new_v4().to_bytes_le(),
             chain_store.config.adapter_factory_contract,
@@ -295,10 +300,18 @@ impl From<ExecutionParamsWithSignature> for eip712::TypedData {
             "OpportunityWitness": [
                 {"name": "buyTokens", "type": "TokenAmount[]"},
                 {"name": "executor", "type": "address"},
+                {"name": "targetCalls", "type": "TargetCall[]"},
+                {"name": "bidAmount", "type": "uint256"},
+            ],
+            "TargetCall": [
                 {"name": "targetContract", "type": "address"},
                 {"name": "targetCalldata", "type": "bytes"},
                 {"name": "targetCallValue", "type": "uint256"},
-                {"name": "bidAmount", "type": "uint256"},
+                {"name": "tokensToSend", "type": "TokenToSend[]"},
+            ],
+            "TokenToSend": [
+                {"name": "tokenAmount", "type": "TokenAmount"},
+                {"name": "destination", "type": "address"},
             ],
             "TokenAmount": [
                 {"name": "token", "type": "address"},
@@ -323,9 +336,18 @@ impl From<ExecutionParamsWithSignature> for eip712::TypedData {
                     "amount": x.amount,
                 })).collect::<Vec<_>>(),
                 "executor": params.witness.executor,
-                "targetContract": params.witness.target_contract,
-                "targetCalldata": params.witness.target_calldata,
-                "targetCallValue": params.witness.target_call_value,
+                "targetCalls": params.witness.target_calls.into_iter().map(|x| serde_json::json!({
+                    "targetContract": x.target_contract,
+                    "targetCalldata": x.target_calldata,
+                    "targetCallValue": x.target_call_value,
+                    "tokensToSend": x.tokens_to_send.into_iter().map(|y| serde_json::json!({
+                        "tokenAmount": serde_json::json!({
+                            "token": y.token_amount.token,
+                            "amount": y.token_amount.amount,
+                        }),
+                        "destination": y.destination,
+                    })).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>(),
                 "bidAmount": params.witness.bid_amount,
             }),
         });
@@ -390,11 +412,15 @@ impl From<crate::state::TokenAmount> for TokenAmount {
 }
 
 fn make_permitted_tokens(
-    opportunity: OpportunityParamsV1,
+    opportunity: OpportunityParams,
     bid: OpportunityBid,
     chain_store: &ChainStore,
 ) -> Vec<TokenPermissions> {
-    let mut permitted_tokens: Vec<TokenPermissions> = opportunity
+    let opportunity_v2 = match opportunity {
+        OpportunityParams::V1(opportunity) => OpportunityParamsV2::from(opportunity),
+        OpportunityParams::V2(opportunity) => opportunity,
+    };
+    let mut permitted_tokens: Vec<TokenPermissions> = opportunity_v2
         .sell_tokens
         .clone()
         .into_iter()
@@ -404,7 +430,11 @@ fn make_permitted_tokens(
         })
         .collect();
 
-    let extra_weth_amount = bid.amount + opportunity.target_call_value;
+    let extra_weth_amount = bid.amount
+        + opportunity_v2
+            .target_calls
+            .iter()
+            .fold(U256::zero(), |acc, call| acc + call.target_call_value);
     if let Some(weth_position) = permitted_tokens
         .iter()
         .position(|x| x.token == chain_store.weth)
@@ -423,10 +453,14 @@ fn make_permitted_tokens(
 }
 
 pub fn make_opportunity_execution_params(
-    opportunity: OpportunityParamsV1,
+    opportunity: OpportunityParams,
     bid: OpportunityBid,
     chain_store: &ChainStore,
 ) -> ExecutionParamsWithSignature {
+    let opportunity_v2 = match opportunity {
+        OpportunityParams::V1(opportunity) => OpportunityParamsV2::from(opportunity),
+        OpportunityParams::V2(opportunity) => opportunity,
+    };
     let mut salt = [0u8; 32];
     salt[12..32].copy_from_slice(bid.executor.as_bytes());
     let executor_adapter_address = get_create2_address_from_hash(
@@ -449,16 +483,14 @@ pub fn make_opportunity_execution_params(
                 deadline:  bid.deadline,
             },
             witness: ExecutionWitness {
-                buy_tokens:        opportunity
+                buy_tokens:   opportunity_v2
                     .buy_tokens
                     .into_iter()
                     .map(TokenAmount::from)
                     .collect(),
-                executor:          bid.executor,
-                target_contract:   opportunity.target_contract,
-                target_calldata:   opportunity.target_calldata,
-                target_call_value: opportunity.target_call_value,
-                bid_amount:        bid.amount,
+                executor:     bid.executor,
+                target_calls: opportunity_v2.target_calls,
+                bid_amount:   bid.amount,
             },
         },
         signature: bid.signature.to_vec().into(),
@@ -468,7 +500,7 @@ pub fn make_opportunity_execution_params(
 }
 
 pub async fn make_adapter_calldata(
-    opportunity: OpportunityParamsV1,
+    opportunity: OpportunityParams,
     bid: OpportunityBid,
     chain_store: &ChainStore,
 ) -> Result<Bytes> {
@@ -501,13 +533,16 @@ const MAX_STALE_OPPORTUNITY_MICROS: i128 = 60_000_000;
 /// * `opportunity`: opportunity to verify
 /// * `store`: server store
 async fn verify_with_store(opportunity: Opportunity, store: &Store) -> Result<()> {
-    let OpportunityParams::V1(params) = opportunity.params;
+    let params = match &opportunity.params {
+        OpportunityParams::V1(params) => OpportunityParamsV2::from(params.clone()),
+        OpportunityParams::V2(params) => params.clone(),
+    };
     let chain_store = store
         .chains
         .get(&params.chain_id)
         .ok_or(anyhow!("Chain not found: {}", params.chain_id))?;
     let relayer = store.relayer.address();
-    match verify_opportunity(params.clone(), chain_store, relayer).await {
+    match verify_opportunity(opportunity.params, chain_store, relayer).await {
         Ok(VerificationResult::Success) => Ok(()),
         Ok(VerificationResult::UnableToSpoof) => {
             let current_time =
@@ -616,7 +651,12 @@ pub async fn handle_opportunity_bid(
         .find(|o| o.id == opportunity_id)
         .ok_or(RestError::OpportunityNotFound)?;
 
-    let OpportunityParams::V1(params) = &opportunity.params;
+    let opportunity_params = opportunity.params;
+
+    let params = match &opportunity_params {
+        OpportunityParams::V1(params) => OpportunityParamsV2::from(params.clone()),
+        OpportunityParams::V2(params) => params.clone(),
+    };
 
     let chain_store = store
         .chains
@@ -624,7 +664,7 @@ pub async fn handle_opportunity_bid(
         .ok_or(RestError::InvalidChainId)?;
 
     let adapter_calldata =
-        make_adapter_calldata(params.clone(), opportunity_bid.clone(), chain_store)
+        make_adapter_calldata(opportunity_params, opportunity_bid.clone(), chain_store)
             .await
             .map_err(|e| {
                 tracing::error!(

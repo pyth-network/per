@@ -130,6 +130,32 @@ pub struct TokenAmount {
     pub amount: U256,
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct TokenToSend {
+    /// TokenAmount to send
+    pub token_amount: TokenAmount,
+    /// The address to send the token to
+    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
+    pub destination:  ethers::abi::Address,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct TargetCall {
+    /// The contract address to call for execution of the opportunity.
+    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
+    pub target_contract:   ethers::abi::Address,
+    /// Calldata for the target contract call.
+    #[schema(example = "0xdeadbeef", value_type = String)]
+    pub target_calldata:   Bytes,
+    /// The value to send with the contract call.
+    #[schema(example = "1", value_type = String)]
+    #[serde(with = "crate::serde::u256")]
+    pub target_call_value: U256,
+
+    /// The tokens to approve to send as part of the call.
+    pub tokens_to_send: Vec<TokenToSend>,
+}
+
 /// Opportunity parameters needed for on-chain execution
 /// If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
 /// by calling this target contract with the given target calldata and structures, they will
@@ -157,11 +183,56 @@ pub struct OpportunityParamsV1 {
     pub buy_tokens:  Vec<TokenAmount>,
 }
 
+/// Opportunity parameters needed for on-chain execution, v2
+/// This version includes multiple target calls within execution of the opportunity.
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct OpportunityParamsV2 {
+    /// The permission key required for successful execution of the opportunity.
+    #[schema(example = "0xdeadbeefcafe", value_type = String)]
+    pub permission_key: Bytes,
+    /// The chain id where the opportunity will be executed.
+    #[schema(example = "op_sepolia", value_type = String)]
+    pub chain_id:       ChainId,
+
+    /// The target calls to be executed in order.
+    pub target_calls: Vec<TargetCall>,
+
+    pub sell_tokens: Vec<TokenAmount>,
+    pub buy_tokens:  Vec<TokenAmount>,
+}
+
+impl From<OpportunityParamsV1> for OpportunityParamsV2 {
+    fn from(v1: OpportunityParamsV1) -> Self {
+        OpportunityParamsV2 {
+            permission_key: v1.permission_key,
+            chain_id:       v1.chain_id,
+            target_calls:   vec![TargetCall {
+                target_contract:   v1.target_contract,
+                target_calldata:   v1.target_calldata,
+                target_call_value: v1.target_call_value,
+                tokens_to_send:    v1
+                    .sell_tokens
+                    .clone()
+                    .into_iter()
+                    .map(|t| TokenToSend {
+                        token_amount: t,
+                        destination:  v1.target_contract,
+                    })
+                    .collect(),
+            }],
+            sell_tokens:    v1.sell_tokens,
+            buy_tokens:     v1.buy_tokens,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "version")]
 pub enum OpportunityParams {
     #[serde(rename = "v1")]
     V1(OpportunityParamsV1),
+    #[serde(rename = "v2")]
+    V2(OpportunityParamsV2),
 }
 
 pub type OpportunityId = Uuid;
@@ -206,6 +277,7 @@ impl OpportunityStore {
     pub async fn add_opportunity(&self, opportunity: Opportunity) {
         let key = match &opportunity.params {
             OpportunityParams::V1(params) => params.permission_key.clone(),
+            OpportunityParams::V2(params) => params.permission_key.clone(),
         };
         self.opportunities
             .write()
@@ -386,6 +458,7 @@ impl Store {
     pub async fn opportunity_exists(&self, opportunity: &Opportunity) -> bool {
         let key = match &opportunity.params {
             OpportunityParams::V1(params) => params.permission_key.clone(),
+            OpportunityParams::V2(params) => params.permission_key.clone(),
         };
         self.opportunity_store
             .opportunities
