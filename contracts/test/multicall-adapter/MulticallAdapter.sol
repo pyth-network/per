@@ -9,8 +9,6 @@ import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/Safe
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
-import "forge-std/console.sol";
-
 contract MulticallAdapter is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
