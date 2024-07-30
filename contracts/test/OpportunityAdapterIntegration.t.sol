@@ -2,12 +2,12 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "src/express-relay/Errors.sol";
 import "src/opportunity-adapter/OpportunityAdapter.sol";
 import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdapterFactory.sol";
+import {MulticallAdapter, TargetCall as TargetCall, TokenToSend as TokenToSend, TokenAmount as MulticallAdapterTokenAmount, MulticallParams} from "test/multicall-adapter/MulticallAdapter.sol";
 import "./WETH9.sol";
 import "./MyToken.sol";
 import "./searcher-vault/Structs.sol";
@@ -66,14 +66,17 @@ contract OpportunityAdapterIntegrationTest is
 {
     MockTarget mockTarget;
     OpportunityAdapterFactory adapterFactory;
+    MulticallAdapter multicallAdapter;
     WETH9 weth;
     MyToken buyToken;
     MyToken sellToken;
+    MyToken swapToken;
     address _expressRelay;
 
     function setUpTokens() internal {
         buyToken = new MyToken("BuyToken", "BT");
         sellToken = new MyToken("SellToken", "ST");
+        swapToken = new MyToken("SwapToken", "SWT");
         weth = new WETH9();
     }
 
@@ -86,10 +89,15 @@ contract OpportunityAdapterIntegrationTest is
         );
     }
 
+    function setUpMulticallAdapter() internal {
+        multicallAdapter = new MulticallAdapter();
+    }
+
     function setUp() public {
         setUpTokens();
         setUpPermit2();
         setUpOpportunityAdapter();
+        setUpMulticallAdapter();
         mockTarget = new MockTarget(address(weth));
     }
 
@@ -99,6 +107,7 @@ contract OpportunityAdapterIntegrationTest is
     function createExecutionParamsAndSignature(
         TokenAmount[] memory sellTokens,
         TokenAmount[] memory buyTokens,
+        address targetContract,
         bytes memory data,
         uint256 value,
         uint256 bid,
@@ -128,7 +137,7 @@ contract OpportunityAdapterIntegrationTest is
         ExecutionWitness memory witness = ExecutionWitness(
             buyTokens,
             executor,
-            address(mockTarget),
+            targetContract,
             data,
             value,
             bid
@@ -165,6 +174,7 @@ contract OpportunityAdapterIntegrationTest is
             createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
+                address(mockTarget),
                 targetCalldata,
                 0,
                 0,
@@ -184,6 +194,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
+                address(mockTarget),
                 targetCalldata,
                 callValue,
                 0,
@@ -211,6 +222,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 noTokens,
+                address(mockTarget),
                 targetCalldata,
                 callValue,
                 bid,
@@ -254,6 +266,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 buyTokens,
+                address(mockTarget),
                 targetCalldata,
                 callValue,
                 bid,
@@ -293,6 +306,173 @@ contract OpportunityAdapterIntegrationTest is
         );
     }
 
+    function testExecutionWithBidAndCallValueViaSwaps(
+        uint256 swapTokenIn,
+        uint256 swapTokenOut
+    ) public {
+        vm.assume(swapTokenIn < type(uint256).max - swapTokenOut);
+        vm.assume(swapTokenIn > 0);
+
+        address executor = makeAddr("executor");
+        TokenAmount[] memory sellTokens = new TokenAmount[](2);
+        uint256 sellTokenAmount = 1000;
+        uint256 callValue = 123;
+        uint256 bid = 100;
+        sellTokens[0] = TokenAmount(address(swapToken), swapTokenIn);
+        sellTokens[1] = TokenAmount(address(weth), callValue + bid);
+        TokenAmount[] memory buyTokens = new TokenAmount[](1);
+        uint256 buyTokenAmount = 100;
+        buyTokens[0] = TokenAmount(address(swapToken), swapTokenOut);
+        // transfer less sellToken than specified to test that allowances are revoked correctly
+        bytes memory targetCalldataOpportunity = abi.encodeWithSelector(
+            mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
+            address(sellToken),
+            sellTokenAmount - 1,
+            address(buyToken),
+            buyTokenAmount
+        );
+
+        TargetCall[] memory targetCalls = new TargetCall[](3);
+
+        TokenToSend[] memory tokensToSend0 = new TokenToSend[](1);
+        TokenToSend[] memory tokensToSend1 = new TokenToSend[](1);
+        TokenToSend[] memory tokensToSend2 = new TokenToSend[](1);
+        tokensToSend0[0] = TokenToSend(
+            MulticallAdapterTokenAmount(address(swapToken), swapTokenIn),
+            address(mockTarget)
+        );
+        tokensToSend1[0] = TokenToSend(
+            MulticallAdapterTokenAmount(address(sellToken), sellTokenAmount),
+            address(mockTarget)
+        );
+        tokensToSend2[0] = TokenToSend(
+            MulticallAdapterTokenAmount(address(buyToken), buyTokenAmount),
+            address(mockTarget)
+        );
+
+        bytes memory targetCalldataSwapIn = abi.encodeWithSelector(
+            mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
+            address(swapToken),
+            swapTokenIn - 1,
+            address(sellToken),
+            sellTokenAmount
+        );
+        targetCalls[0] = TargetCall(
+            address(mockTarget),
+            targetCalldataSwapIn,
+            0,
+            tokensToSend0
+        );
+        targetCalls[1] = TargetCall(
+            address(mockTarget),
+            targetCalldataOpportunity,
+            callValue,
+            tokensToSend1
+        );
+        bytes memory targetCalldataSwapOut = abi.encodeWithSelector(
+            mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
+            address(buyToken),
+            buyTokenAmount - 1,
+            address(swapToken),
+            swapTokenOut
+        );
+        targetCalls[2] = TargetCall(
+            address(mockTarget),
+            targetCalldataSwapOut,
+            0,
+            tokensToSend2
+        );
+
+        MulticallAdapterTokenAmount[]
+            memory sellTokensMulticall = new MulticallAdapterTokenAmount[](
+                sellTokens.length
+            );
+        for (uint i = 0; i < sellTokens.length; i++) {
+            if (sellTokens[i].token == address(weth)) {
+                sellTokensMulticall[i] = MulticallAdapterTokenAmount(
+                    address(weth),
+                    sellTokens[i].amount - (callValue + bid)
+                );
+            } else {
+                sellTokensMulticall[i] = MulticallAdapterTokenAmount(
+                    address(swapToken),
+                    sellTokens[i].amount
+                );
+            }
+        }
+
+        MulticallAdapterTokenAmount[]
+            memory buyTokensMulticall = new MulticallAdapterTokenAmount[](
+                buyTokens.length
+            );
+        for (uint i = 0; i < buyTokens.length; i++) {
+            buyTokensMulticall[i] = MulticallAdapterTokenAmount(
+                buyTokens[i].token,
+                buyTokens[i].amount
+            );
+        }
+
+        MulticallParams memory multicallParams = MulticallParams({
+            sellTokens: sellTokensMulticall,
+            buyTokens: buyTokensMulticall,
+            targetCalls: targetCalls
+        });
+
+        bytes memory targetCalldata = abi.encodeWithSelector(
+            multicallAdapter.multicall.selector,
+            multicallParams
+        );
+
+        (
+            ExecutionParams memory executionParams,
+            bytes memory signature
+        ) = createExecutionParamsAndSignature(
+                sellTokens,
+                buyTokens,
+                address(multicallAdapter),
+                targetCalldata,
+                callValue,
+                bid,
+                block.timestamp + 1000
+            );
+        address opportunityAdapter = adapterFactory.computeAddress(executor);
+        swapToken.mint(executor, swapTokenIn);
+        vm.deal(executor, 1 ether);
+        vm.startPrank(executor);
+        weth.deposit{value: (callValue + bid)}();
+        weth.approve(PERMIT2, (callValue + bid));
+        swapToken.approve(PERMIT2, swapTokenIn);
+        vm.stopPrank();
+        vm.prank(adapterFactory.getExpressRelay());
+        vm.expectCall(
+            address(mockTarget),
+            callValue,
+            targetCalldataOpportunity
+        );
+        // We expect the adapter to transfer the bid to the express relay
+        vm.expectCall(_expressRelay, bid, bytes(""));
+        vm.expectCall(
+            address(weth),
+            abi.encodeWithSelector(WETH9.withdraw.selector, callValue)
+        );
+        vm.expectCall(
+            address(weth),
+            abi.encodeWithSelector(WETH9.withdraw.selector, bid)
+        );
+        adapterFactory.executeOpportunity(executionParams, signature);
+        assertEq(buyToken.balanceOf(executor), 0);
+        assertEq(sellToken.balanceOf(executor), 0);
+        // check that extra tokens are swept to the OA
+        assertEq(buyToken.balanceOf(opportunityAdapter), 1);
+        assertEq(sellToken.balanceOf(opportunityAdapter), 1);
+        assertEq(
+            swapToken.allowance(opportunityAdapter, address(mockTarget)),
+            0
+        );
+        assertEq(swapToken.balanceOf(executor), swapTokenOut + 1);
+        assertEq(swapToken.balanceOf(opportunityAdapter), 0);
+    }
+
     function testExecutionWithNoBidAndCallValue() public {
         TokenAmount[] memory noTokens = new TokenAmount[](0);
         bytes memory targetCalldata = abi.encodeWithSelector(
@@ -304,6 +484,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
+                address(mockTarget),
                 targetCalldata,
                 0,
                 0,
@@ -367,6 +548,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 buyTokens,
+                address(mockTarget),
                 targetCalldata,
                 targetCallValue,
                 bidAmount,
@@ -414,6 +596,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
+                address(mockTarget),
                 targetCalldata,
                 0,
                 1,
@@ -436,6 +619,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
+                address(mockTarget),
                 targetCalldata,
                 1,
                 0,
@@ -466,6 +650,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 buyTokens,
+                address(mockTarget),
                 targetCalldata,
                 0,
                 0,
@@ -535,6 +720,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 sellTokens,
                 buyTokens,
+                address(mockTarget),
                 targetCalldata,
                 0,
                 0,
@@ -566,6 +752,7 @@ contract OpportunityAdapterIntegrationTest is
         ) = createExecutionParamsAndSignature(
                 noTokens,
                 noTokens,
+                address(mockTarget),
                 targetCalldata,
                 0,
                 0,
