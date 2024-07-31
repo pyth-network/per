@@ -3,7 +3,7 @@ on:
   push:
     tags:
       - v*
-    branch:
+    branches:
       - feat/image-on-push
   workflow_dispatch:
     inputs:
