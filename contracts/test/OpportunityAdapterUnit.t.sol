@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import "forge-std/console.sol";
 import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "src/express-relay/Errors.sol";
