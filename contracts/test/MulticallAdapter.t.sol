@@ -103,12 +103,14 @@ contract MulticallAdapterUnitTest is Test {
         );
         uint256 targetCallValue = 0;
         address targetContract = address(mockTarget);
+        uint256 targetCallIndex = 0;
 
         vm.expectCall(targetContract, targetCallValue, targetCalldata);
         multicallAdapter.exposed_callTargetContract(
             targetContract,
             targetCalldata,
-            targetCallValue
+            targetCallValue,
+            targetCallIndex
         );
     }
 

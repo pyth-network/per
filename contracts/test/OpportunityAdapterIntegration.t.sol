@@ -7,7 +7,7 @@ import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "src/express-relay/Errors.sol";
 import "src/opportunity-adapter/OpportunityAdapter.sol";
 import {OpportunityAdapterFactory} from "src/opportunity-adapter/OpportunityAdapterFactory.sol";
-import {MulticallAdapter, TargetCall as TargetCall, TokenToSend as TokenToSend, TokenAmount as MulticallAdapterTokenAmount, MulticallParams} from "test/multicall-adapter/MulticallAdapter.sol";
+import {MulticallAdapter, TargetCall, TokenToSend, TokenAmount as MulticallAdapterTokenAmount, MulticallParams} from "test/multicall-adapter/MulticallAdapter.sol";
 import "./WETH9.sol";
 import "./MyToken.sol";
 import "./searcher-vault/Structs.sol";
@@ -306,6 +306,26 @@ contract OpportunityAdapterIntegrationTest is
         );
     }
 
+    /**
+     * @notice testExecutionWithBidAndCallValueViaSwaps function - tests execution of an opportunity with nonzero bid and call value and swaps from/to a base token "swapToken"
+     *
+     * @param swapTokenIn - the amount of swapToken to be sold for the opportunity's sellTokens
+     * @param swapTokenOut - the amount of swapToken to be bought with the opportunity's buyTokens
+     *
+     * @dev This test is similar to testExecutionWithBidAndCallValue, a basic opportunity is created that
+     * transfers the sellTokens and receives the buyTokens from the MockTarget contract. The difference is that
+     * this test checks a derived opportunity with the sellTokens and buyTokens set to a base token "swapToken".
+     * This derived opportunity does the following three steps:
+     *
+     * 1. Sells swapToken for the sellTokens of the original opportunity
+     * 2. Executes the original opportunity, exchanges sellTokens for buyTokens.
+     * 3. Buys swapToken with the buyTokens
+     *
+     * These three legs are processed in the MulticallAdapter contract devised for handling multiple TargetCalls.
+     * The initial and final swap steps take place via the same MockTarget contract that serves as a dummy DEX.
+     * This is meant to replicate the flow of a derived opportunity that enables a searcher to capture an
+     * arbitrage in a fairly liquid/stable token rather than having to manually acquire or hold the sellTokens.
+     */
     function testExecutionWithBidAndCallValueViaSwaps(
         uint256 swapTokenIn,
         uint256 swapTokenOut
@@ -318,10 +338,22 @@ contract OpportunityAdapterIntegrationTest is
         uint256 sellTokenAmount = 1000;
         uint256 callValue = 123;
         uint256 bid = 100;
+
+        // the call values for the swap target calls
+        uint256 targetCallValueSwapIn = 1;
+        uint256 targetCallValueSwapOut = 2;
+
+        // sellTokens here includes the swapToken instead of the original opportunity's sellToken
         sellTokens[0] = TokenAmount(address(swapToken), swapTokenIn);
-        sellTokens[1] = TokenAmount(address(weth), callValue + bid);
+        // need to include the call values for the swap target calls
+        sellTokens[1] = TokenAmount(
+            address(weth),
+            callValue + targetCallValueSwapIn + targetCallValueSwapOut + bid
+        );
         TokenAmount[] memory buyTokens = new TokenAmount[](1);
         uint256 buyTokenAmount = 100;
+
+        // buyTokens here includes the swapToken instead of the original opportunity's buyToken
         buyTokens[0] = TokenAmount(address(swapToken), swapTokenOut);
         // transfer less sellToken than specified to test that allowances are revoked correctly
         bytes memory targetCalldataOpportunity = abi.encodeWithSelector(
@@ -350,6 +382,7 @@ contract OpportunityAdapterIntegrationTest is
             address(mockTarget)
         );
 
+        // swapToken --> sellToken
         bytes memory targetCalldataSwapIn = abi.encodeWithSelector(
             mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
             address(swapToken),
@@ -360,15 +393,19 @@ contract OpportunityAdapterIntegrationTest is
         targetCalls[0] = TargetCall(
             address(mockTarget),
             targetCalldataSwapIn,
-            0,
+            targetCallValueSwapIn,
             tokensToSend0
         );
+
+        // original opportunity: sellToken --> buyToken
         targetCalls[1] = TargetCall(
             address(mockTarget),
             targetCalldataOpportunity,
             callValue,
             tokensToSend1
         );
+
+        // buyToken --> swapToken
         bytes memory targetCalldataSwapOut = abi.encodeWithSelector(
             mockTarget.transferSellTokenFromSenderAndBuyTokenToSender.selector,
             address(buyToken),
@@ -379,7 +416,7 @@ contract OpportunityAdapterIntegrationTest is
         targetCalls[2] = TargetCall(
             address(mockTarget),
             targetCalldataSwapOut,
-            0,
+            targetCallValueSwapOut,
             tokensToSend2
         );
 
@@ -387,6 +424,8 @@ contract OpportunityAdapterIntegrationTest is
             memory sellTokensMulticall = new MulticallAdapterTokenAmount[](
                 sellTokens.length
             );
+
+        // remove callValue and bid from the sellTokens passed to the MulticallAdapter
         for (uint i = 0; i < sellTokens.length; i++) {
             if (sellTokens[i].token == address(weth)) {
                 sellTokensMulticall[i] = MulticallAdapterTokenAmount(
@@ -423,24 +462,30 @@ contract OpportunityAdapterIntegrationTest is
             multicallParams
         );
 
-        (
-            ExecutionParams memory executionParams,
-            bytes memory signature
-        ) = createExecutionParamsAndSignature(
-                sellTokens,
-                buyTokens,
-                address(multicallAdapter),
-                targetCalldata,
-                callValue,
-                bid,
-                block.timestamp + 1000
-            );
+        (ExecutionParams memory executionParams, bytes memory signature) = createExecutionParamsAndSignature(
+            sellTokens,
+            buyTokens,
+            address(multicallAdapter),
+            targetCalldata,
+            // need to adjust the call value to account for the swapTokenIn and swapTokenOut
+            callValue + targetCallValueSwapIn + targetCallValueSwapOut,
+            bid,
+            block.timestamp + 1000
+        );
         address opportunityAdapter = adapterFactory.computeAddress(executor);
         swapToken.mint(executor, swapTokenIn);
         vm.deal(executor, 1 ether);
         vm.startPrank(executor);
-        weth.deposit{value: (callValue + bid)}();
-        weth.approve(PERMIT2, (callValue + bid));
+        weth.deposit{
+            value: (callValue +
+                targetCallValueSwapIn +
+                targetCallValueSwapOut +
+                bid)
+        }();
+        weth.approve(
+            PERMIT2,
+            (callValue + targetCallValueSwapIn + targetCallValueSwapOut + bid)
+        );
         swapToken.approve(PERMIT2, swapTokenIn);
         vm.stopPrank();
         vm.prank(adapterFactory.getExpressRelay());
@@ -453,7 +498,10 @@ contract OpportunityAdapterIntegrationTest is
         vm.expectCall(_expressRelay, bid, bytes(""));
         vm.expectCall(
             address(weth),
-            abi.encodeWithSelector(WETH9.withdraw.selector, callValue)
+            abi.encodeWithSelector(
+                WETH9.withdraw.selector,
+                callValue + targetCallValueSwapIn + targetCallValueSwapOut
+            )
         );
         vm.expectCall(
             address(weth),

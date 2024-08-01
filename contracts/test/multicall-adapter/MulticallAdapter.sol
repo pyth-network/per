@@ -20,12 +20,16 @@ contract MulticallAdapter is ReentrancyGuard {
         }
     }
 
-    function _makeTargetCall(TargetCall calldata targetCall) internal {
+    function _makeTargetCall(
+        TargetCall calldata targetCall,
+        uint256 targetCallIndex
+    ) internal {
         _approveTokens(targetCall.tokensToSend);
         _callTargetContract(
             targetCall.targetContract,
             targetCall.targetCalldata,
-            targetCall.targetCallValue
+            targetCall.targetCallValue,
+            targetCallIndex
         );
         _revokeAllowances(targetCall.tokensToSend);
     }
@@ -41,13 +45,17 @@ contract MulticallAdapter is ReentrancyGuard {
     function _callTargetContract(
         address targetContract,
         bytes calldata targetCalldata,
-        uint256 targetCallValue
+        uint256 targetCallValue,
+        uint256 targetCallIndex
     ) internal {
         (bool success, bytes memory returnData) = targetContract.call{
             value: targetCallValue
         }(targetCalldata);
         if (!success) {
-            revert MulticallAdapterTargetCallFailed(returnData);
+            revert MulticallAdapterTargetCallFailed(
+                targetCallIndex,
+                returnData
+            );
         }
     }
 
@@ -85,7 +93,7 @@ contract MulticallAdapter is ReentrancyGuard {
         _transferSellTokens(params.sellTokens);
 
         for (uint i = 0; i < params.targetCalls.length; i++) {
-            _makeTargetCall(params.targetCalls[i]);
+            _makeTargetCall(params.targetCalls[i], i);
         }
 
         _sweepTokens(params.buyTokens);

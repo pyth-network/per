@@ -16,9 +16,15 @@ contract MulticallAdapterHarness is MulticallAdapter {
     function exposed_callTargetContract(
         address targetContract,
         bytes calldata targetCalldata,
-        uint256 targetCallValue
+        uint256 targetCallValue,
+        uint256 targetCallIndex
     ) public {
-        _callTargetContract(targetContract, targetCalldata, targetCallValue);
+        _callTargetContract(
+            targetContract,
+            targetCalldata,
+            targetCallValue,
+            targetCallIndex
+        );
     }
 
     function exposed_revokeAllowances(
