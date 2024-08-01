@@ -156,6 +156,47 @@ pub struct Bid {
     pub gas_limit:       BigDecimal,
 }
 
+
+#[derive(Clone, FromRow, Debug)]
+pub struct SolanaMetadata {
+    pub transaction: Vec<u8>,
+}
+
+#[derive(Clone, FromRow, Debug)]
+pub struct EvmMetadata {
+    pub target_contract: Vec<u8>,
+    pub target_calldata: Vec<u8>,
+    #[sqlx(try_from = "Option<i32>")]
+    pub bundle_index:    BundleIndex,
+    pub gas_limit:       BigDecimal,
+}
+
+#[derive(Clone, Debug)]
+pub enum NewBidMetadataType {
+    Solana(SolanaMetadata),
+    Evm(EvmMetadata),
+}
+
+
+#[derive(Clone, FromRow, Debug)]
+pub struct NewBid {
+    pub id:              BidId,
+    pub creation_time:   PrimitiveDateTime,
+    pub permission_key:  Vec<u8>,
+    pub chain_id:        String,
+    // pub target_contract: Vec<u8>,
+    // pub target_calldata: Vec<u8>,
+    pub bid_amount:      BigDecimal,
+    pub status:          BidStatus,
+    pub auction_id:      Option<AuctionId>,
+    // pub bundle_index:    BundleIndex,
+    pub initiation_time: PrimitiveDateTime,
+    pub profile_id:      Option<ProfileId>,
+    // pub gas_limit:       BigDecimal,
+    pub metadata:        NewBidMetadataType,
+}
+
+
 impl Bid {
     pub fn is_for_auction(&self, auction: &Option<Auction>) -> bool {
         match auction {

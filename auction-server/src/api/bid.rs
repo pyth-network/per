@@ -9,6 +9,7 @@ use {
             handle_bid,
             Bid,
         },
+        auction_solana,
         state::{
             BidId,
             BidStatus,
@@ -68,13 +69,24 @@ pub async fn process_bid(
     bid: Bid,
     auth: Auth,
 ) -> Result<Json<BidResult>, RestError> {
-    match handle_bid(store, bid, OffsetDateTime::now_utc(), auth).await {
-        Ok(id) => Ok(BidResult {
-            status: "OK".to_string(),
-            id,
+    if bid.chain_id != "solana" {
+        match handle_bid(store, bid, OffsetDateTime::now_utc(), auth).await {
+            Ok(id) => Ok(BidResult {
+                status: "OK".to_string(),
+                id,
+            }
+            .into()),
+            Err(e) => Err(e),
         }
-        .into()),
-        Err(e) => Err(e),
+    } else {
+        match auction_solana::handle_bid(store, bid, OffsetDateTime::now_utc(), auth).await {
+            Ok(id) => Ok(BidResult {
+                status: "OK".to_string(),
+                id,
+            }
+            .into()),
+            Err(e) => Err(e),
+        }
     }
 }
 

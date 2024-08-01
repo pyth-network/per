@@ -606,6 +606,24 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct EvmBidMetadata {
+    pub target_contract: abi::Address,
+    pub target_calldata: Bytes,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct SolanaBidMetadata {
+    pub transaction: Bytes,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub enum BidMetadata {
+    Evm(EvmBidMetadata),
+    Solana(SolanaBidMetadata),
+}
+
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct Bid {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type = String)]
@@ -613,7 +631,7 @@ pub struct Bid {
     /// The chain id to bid on.
     #[schema(example = "op_sepolia", value_type = String)]
     pub chain_id:        ChainId,
-    /// The contract address to call.
+    // /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: abi::Address,
     /// Calldata for the contract call.
@@ -623,6 +641,23 @@ pub struct Bid {
     #[schema(example = "10", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub amount:          BidAmount,
+}
+
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct NewBid {
+    /// The permission key to bid on.
+    #[schema(example = "0xdeadbeef", value_type = String)]
+    pub permission_key: Bytes,
+    /// The chain id to bid on.
+    #[schema(example = "op_sepolia", value_type = String)]
+    pub chain_id:       ChainId,
+    #[schema(example = "10", value_type = String)]
+    #[serde(with = "crate::serde::u256")]
+    pub amount:         BidAmount,
+    /// The metadata of the bid
+    #[schema(example = "", value_type = BidMetadata)]
+    pub metadata:       BidMetadata,
 }
 
 // For now, we are only supporting the EIP1559 enabled networks

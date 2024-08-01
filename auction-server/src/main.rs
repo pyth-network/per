@@ -29,6 +29,7 @@ use {
 
 mod api;
 mod auction;
+mod auction_solana;
 mod config;
 mod models;
 mod opportunity_adapter;
