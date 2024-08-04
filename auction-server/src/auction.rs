@@ -648,6 +648,13 @@ where
     if bid_amount >= minimum_bid_amount {
         Ok(())
     } else {
+        tracing::info!(
+            estimated_gas = estimated_gas.to_string(),
+            maximum_gas_fee = maximum_gas_fee.to_string(),
+            priority_fee = priority_fee.to_string(),
+            minimum_bid_amount = minimum_bid_amount.to_string(),
+            "Bid amount is too low"
+        );
         Err(RestError::BadParameters(format!(
             "Insufficient bid amount based on the current gas fees. estimated gas usage: {}, maximum fee per gas: {}, priority fee per gas: {}, minimum bid amount: {}",
             estimated_gas, maximum_gas_fee, priority_fee, minimum_bid_amount
@@ -662,6 +669,11 @@ async fn verify_bid_under_gas_limit(
 ) -> Result<(), RestError> {
     if chain_store.block_gas_limit < estimated_gas * multiplier {
         let maximum_allowed_gas = chain_store.block_gas_limit / multiplier;
+        tracing::info!(
+            estimated_gas = estimated_gas.to_string(),
+            maximum_allowed_gas = maximum_allowed_gas.to_string(),
+            "Bid gas usage is too high"
+        );
         Err(RestError::BadParameters(format!(
             "Bid estimated gas usage is higher than maximum gas allowed. estimated gas usage: {}, maximum gas allowed: {}",
             estimated_gas, maximum_allowed_gas
