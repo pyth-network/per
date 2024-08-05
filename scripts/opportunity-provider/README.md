@@ -31,11 +31,11 @@ $PERMIT2 $AMOUNT
 Then update the `opportunities.json` and `config.json` files for the opportunity you want to provide, and then run the following command:
 
 ```
-$ npm run opportunity-provider -- --private-key $PRIVATE_KEY
+$ npm run provide-opportunity -- --private-key $PRIVATE_KEY
 ```
 
 To create and submit random opportunities for load test, first update the `tokens.json` file, and use the following command:
 
 ```
-$ npm run opportunity-provider -- --private-key $PRIVATE_KEY --load-test --count 10
+$ npm run provide-opportunity -- --private-key $PRIVATE_KEY --load-test --count 10
 ```
