@@ -1,0 +1,25 @@
+{
+  "name": "swap-beacon",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "swap-beacon": "npm run build && node build/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-ts": "^0.35.1",
+    "@pythnetwork/express-relay-evm-js": "^0.8.1",
+    "axios": "^1.7.3",
+    "viem": "^2.18.6",
+    "yargs": "^17.7.2"
+  }
+}
