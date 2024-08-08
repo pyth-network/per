@@ -46,9 +46,9 @@ export class SwapBeacon {
     tokenIn: Address,
     tokenOut: Address,
     amountIn?: bigint
-  ) {
-    if (tokenIn === tokenOut) {
-      return;
+  ): Promise<Adapter | undefined> {
+    if (tokenIn.toLocaleLowerCase() === tokenOut.toLocaleLowerCase()) {
+      return undefined;
     }
     return this.adapters[0];
     // const prices = await Promise.all(
@@ -105,69 +105,82 @@ export class SwapBeacon {
     });
   }
 
-  private extractTokenAmounts(
-    extendedTargetCall: ExtendedTargetCall[]
-  ): [TokenAmount[], TokenAmount[]] {
-    let inputsAll: Record<Address, bigint> = {};
-    let outputsAll: Record<Address, bigint> = {};
-
-    for (let call of extendedTargetCall) {
-      call.tokensToSend.forEach((tokenToSend) => {
-        const token = tokenToSend.tokenAmount.token;
-        let amount = tokenToSend.tokenAmount.amount;
-
-        if (token in outputsAll) {
-          const deduction = Math.min(Number(outputsAll[token]), Number(amount));
-          outputsAll[token] -= BigInt(deduction);
-          amount -= BigInt(deduction);
-
-          if (outputsAll[token] === 0n) {
-            delete outputsAll[token];
-          }
-        }
-
-        if (amount > 0n) {
-          inputsAll[token] = amount;
-        }
-      });
-
-      call.tokensToReceive.forEach((tokenToReceive) => {
-        const token = tokenToReceive.token;
-        const amount = tokenToReceive.amount;
-
-        if (token in outputsAll) {
-          outputsAll[token] += amount;
-        } else {
-          outputsAll[token] = amount;
-        }
-      });
-    }
-
-    const inputsTokenAmount: TokenAmount[] = Object.entries(inputsAll).map(
-      ([token, amount]) => ({ token: token as Address, amount: amount })
-    );
-    const outputsTokenAmount: TokenAmount[] = Object.entries(outputsAll).map(
-      ([token, amount]) => ({ token: token as Address, amount: amount })
-    );
-
-    return [inputsTokenAmount, outputsTokenAmount];
-  }
-
   private createSwapOpportunity(
     opportunity: Opportunity,
     base: Address,
     swapsSell: ExtendedTargetCall[],
     swapsBuy: ExtendedTargetCall[]
-  ): Opportunity {
+  ): Opportunity | undefined {
     const targetContract =
       SWAP_ADAPTER_CONFIGS[opportunity.chainId].multicallAdapter;
-    const targetCallValue =
-      swapsSell.reduce((prev, curr) => prev + curr.targetCallValue, 0n) +
-      swapsBuy.reduce((prev, curr) => prev + curr.targetCallValue, 0n) +
-      opportunity.targetCallValue;
+    const targetCallValue = BigInt(
+      BigInt(
+        swapsSell.reduce(
+          (prev, curr) => BigInt(prev + curr.targetCallValue),
+          0n
+        ) +
+          swapsBuy.reduce(
+            (prev, curr) => BigInt(prev + curr.targetCallValue),
+            0n
+          )
+      ) + opportunity.targetCallValue
+    );
 
-    const sellTokens: TokenAmount[] = this.extractTokenAmounts(swapsSell)[0];
-    const buyTokens: TokenAmount[] = this.extractTokenAmounts(swapsBuy)[1];
+    // If base is equal to opportunity target token, then we don't need to swap
+    let sellToken = opportunity.sellTokens
+      .filter(({ token }) => token.toLowerCase() === base.toLowerCase())
+      .reduce((acc, val) => BigInt(acc + val.amount), 0n);
+    sellToken += swapsSell.reduce(
+      (acc, val) =>
+        BigInt(
+          acc +
+            val.tokensToSend.reduce(
+              (acc, val) => BigInt(acc + val.tokenAmount.amount),
+              0n
+            )
+        ),
+      0n
+    );
+
+    let buyToken = opportunity.buyTokens
+      .filter(({ token }) => token.toLowerCase() === base.toLowerCase())
+      .reduce((acc, val) => BigInt(acc + val.amount), 0n);
+    buyToken += swapsBuy.reduce(
+      (acc, val) =>
+        BigInt(
+          acc +
+            val.tokensToReceive.reduce(
+              (acc, val) => BigInt(acc + val.amount),
+              0n
+            )
+        ),
+      0n
+    );
+
+    if (buyToken <= sellToken) {
+      console.log(
+        "Sell token is greater than buy token for opportunity:",
+        opportunity
+      );
+      console.log("Sell token:", sellToken.toString());
+      console.log("Buy token:", buyToken.toString());
+      console.log("Swaps sell:", JSON.stringify(swapsSell));
+      console.log("Swaps buy:", JSON.stringify(swapsBuy));
+      return undefined;
+    }
+
+    const sellTokens = [
+      {
+        token: base,
+        amount: sellToken,
+      },
+    ];
+    const buyTokens = [
+      {
+        token: base,
+        amount: buyToken,
+      },
+    ];
 
     const targetCalldata = this.makeMulticallCalldata(
       opportunity,
@@ -176,21 +189,6 @@ export class SwapBeacon {
       sellTokens,
       buyTokens
     );
-
-    console.log("ORIGINAL SELL TOKENS", opportunity.sellTokens);
-    console.log("ORIGINAL BUY TOKENS", opportunity.buyTokens);
-
-    console.log("=====================================");
-
-    console.log("SELL TOKENS", sellTokens);
-    console.log("BUY TOKENS", buyTokens);
-
-    console.log("=====================================");
-
-    console.log("SWAPS SELL SEND", swapsSell[0].tokensToSend);
-    console.log("SWAPS SELL RECEIVE", swapsSell[0].tokensToReceive);
-    console.log("SWAPS BUY SEND", swapsBuy[0].tokensToSend);
-    console.log("SWAPS BUY RECEIVE", swapsBuy[0].tokensToReceive);
 
     return {
       ...opportunity,
@@ -205,16 +203,10 @@ export class SwapBeacon {
   async convertOpportunity(
     opportunity: Opportunity,
     base: Address
-  ): Promise<Opportunity> {
+  ): Promise<Opportunity | undefined> {
     const promisesOptimalAdaptersSell = opportunity.sellTokens.map(
       (sellToken) =>
-        this.getOptimalAdapter(
-          opportunity.chainId,
-          base,
-          sellToken.token,
-          1_000_000_000n
-        )
-      // TODO: improve
+        this.getOptimalAdapter(opportunity.chainId, base, sellToken.token)
     );
     const promisesOptimalAdaptersBuy = opportunity.buyTokens.map((buyToken) =>
       this.getOptimalAdapter(
@@ -278,20 +270,22 @@ export class SwapBeacon {
 
     await Promise.all(
       swapAdapterConfig.liquidAssets.map(async (base) => {
-        const { opportunityId, ...params } = await this.convertOpportunity(
+        const convertedOpportunity = await this.convertOpportunity(
           opportunity,
           base
         );
-        console.log("BASE ASSET IS", base);
+        if (!convertedOpportunity) {
+          return;
+        }
+
+        const { opportunityId, ...params } = convertedOpportunity;
         try {
-          const result = await this.client.submitOpportunity(params);
-          console.log("SUCCEEDED", result);
+          await this.client.submitOpportunity(params);
         } catch (error) {
           console.error(
             `Failed to submit opportunity ${opportunityId}: ${error}`
           );
         }
-        // await this.client.submitOpportunity(params);
       })
     );
   }
@@ -330,5 +324,11 @@ async function run() {
   const beacon = new SwapBeacon(argv.endpoint, argv["chain-ids"].split(","));
   await beacon.start();
 }
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unreachable code error
+BigInt.prototype.toJSON = function (): string {
+  return this.toString();
+};
 
 run();

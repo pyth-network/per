@@ -342,7 +342,7 @@ export class OdosAdapter implements Adapter {
 
       estimatedAmountIn = BigInt(
         Math.ceil(
-          ((((Number(amountOut) * responsePriceIn) / responsePriceOut) *
+          ((((Number(amountOut) * responsePriceOut) / responsePriceIn) *
             10 ** decimalsIn) /
             10 ** decimalsOut) *
             1.005
