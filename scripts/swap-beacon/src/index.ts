@@ -9,7 +9,8 @@ import {
 import { Adapter, ExtendedTargetCall, TargetCall } from "./types";
 import { Address, Hex, encodeFunctionData } from "viem";
 import { multicallAbi } from "./abi";
-import axios from "axios";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
 
 export class SwapBeaconError extends Error {}
 
@@ -26,9 +27,9 @@ export function getSwapAdapterConfig(chainId: string) {
 export class SwapBeacon {
   private client: Client;
   private adapters: Adapter[];
-  private chainId: string;
+  private chainIds: string[];
 
-  constructor(public endpoint: string, public _chainId: string) {
+  constructor(endpoint: string, _chainIds: string[]) {
     this.client = new Client(
       {
         baseUrl: endpoint,
@@ -36,7 +37,7 @@ export class SwapBeacon {
       undefined,
       this.opportunityHandler.bind(this)
     );
-    this.chainId = _chainId;
+    this.chainIds = _chainIds;
     this.adapters = [new OdosAdapter()];
   }
 
@@ -266,8 +267,6 @@ export class SwapBeacon {
   }
 
   async opportunityHandler(opportunity: Opportunity) {
-    console.log("GOT AN OPP");
-
     const swapAdapterConfig = getSwapAdapterConfig(opportunity.chainId);
 
     if (
@@ -299,9 +298,9 @@ export class SwapBeacon {
 
   async start() {
     try {
-      await this.client.subscribeChains([this.chainId]);
+      await this.client.subscribeChains(this.chainIds);
       console.log(
-        `Subscribed to chain ${this.chainId}. Waiting for opportunities...`
+        `Subscribed to chain ${this.chainIds}. Waiting for opportunities...`
       );
     } catch (error) {
       console.error(error);
@@ -310,30 +309,25 @@ export class SwapBeacon {
   }
 }
 
-// const argv = yargs(hideBin(process.argv))
-//   .option("endpoint", {
-//     description:
-//       "Express relay endpoint. e.g: https://per-staging.dourolabs.app/",
-//     type: "string",
-//     demandOption: true,
-//   })
-//   .option("chain-id", {
-//     description: "Chain id to listen and convert opportunities for.",
-//     type: "string",
-//     demandOption: true,
-//   })
-//   .help()
-//   .alias("help", "h")
-//   .parseSync();
-const endpoint = "https://pyth-express-relay-mainnet.asymmetric.re/";
-const chainId = "mode";
+const argv = yargs(hideBin(process.argv))
+  .option("endpoint", {
+    description:
+      "Express relay endpoint. e.g: https://per-staging.dourolabs.app/",
+    type: "string",
+    default: "https://pyth-express-relay-mainnet.asymmetric.re/",
+  })
+  .option("chain-ids", {
+    description:
+      "Chain ids seperated by comma to listen and convert opportunities for.",
+    type: "string",
+    default: "mode",
+  })
+  .help()
+  .alias("help", "h")
+  .parseSync();
+
 async function run() {
-  const beacon = new SwapBeacon(
-    endpoint,
-    chainId
-    // argv.endpoint,
-    // argv.chainId
-  );
+  const beacon = new SwapBeacon(argv.endpoint, argv["chain-ids"].split(","));
   await beacon.start();
 }
 
