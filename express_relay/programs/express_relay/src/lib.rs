@@ -63,7 +63,7 @@ pub mod express_relay {
     }
 
     pub fn permission(ctx: Context<Permission>, data: PermissionArgs) -> Result<()> {
-        if data.deadline >= Clock::get()?.unix_timestamp as u64 {
+        if data.deadline < Clock::get()?.unix_timestamp as u64 {
             return Err(ExpressRelayError::DeadlinePassed.into());
         }
 
@@ -99,15 +99,51 @@ pub mod express_relay {
         if fee_protocol > bid_amount {
             return err!(ExpressRelayError::FeesTooHigh);
         }
+
         let fee_relayer = bid_amount.saturating_sub(fee_protocol) * split_relayer / FEE_SPLIT_PRECISION;
         if fee_relayer.checked_add(fee_protocol).unwrap() > bid_amount {
             return err!(ExpressRelayError::FeesTooHigh);
         }
 
-        transfer_lamports(&searcher.to_account_info(), &protocol_fee_receiver.to_account_info(), fee_protocol)?;
-        transfer_lamports(&searcher.to_account_info(), &relayer_fee_receiver.to_account_info(), fee_relayer)?;
+        let balance_protocol_fee_receiver = protocol_fee_receiver.to_account_info().lamports();
+        // TODO: use actual protocol pda datalen here?
+        let rent_protocol_fee_receiver = Rent::default().minimum_balance(0).max(1);
+        let amount_protocol: u64;
+        if balance_protocol_fee_receiver >= rent_protocol_fee_receiver {
+            amount_protocol = fee_protocol;
+        } else {
+            amount_protocol = fee_protocol + (rent_protocol_fee_receiver - balance_protocol_fee_receiver);
+        }
+
+        let balance_relayer_fee_receiver = relayer_fee_receiver.to_account_info().lamports();
+        // TODO: use actual relayer fee receiver datalen here?
+        let rent_relayer_fee_receiver = Rent::default().minimum_balance(0).max(1);
+        let amount_relayer: u64;
+        if balance_relayer_fee_receiver >= rent_relayer_fee_receiver {
+            amount_relayer = fee_relayer;
+        } else {
+            amount_relayer = fee_relayer + (rent_relayer_fee_receiver - balance_relayer_fee_receiver);
+        }
+
+        transfer_lamports_cpi(
+            &searcher.to_account_info(),
+            &protocol_fee_receiver.to_account_info(),
+            amount_protocol,
+            ctx.accounts.system_program.to_account_info()
+        )?;
+        transfer_lamports_cpi(
+            &searcher.to_account_info(),
+            &relayer_fee_receiver.to_account_info(),
+            amount_relayer,
+            ctx.accounts.system_program.to_account_info()
+        )?;
         // send the remaining balance from the bid to the express relay metadata account
-        transfer_lamports(&searcher.to_account_info(), &express_relay_metadata.to_account_info(), bid_amount.saturating_sub(fee_protocol).saturating_sub(fee_relayer))?;
+        transfer_lamports_cpi(
+            &searcher.to_account_info(),
+            &express_relay_metadata.to_account_info(),
+            bid_amount.saturating_sub(fee_protocol).saturating_sub(fee_relayer),
+            ctx.accounts.system_program.to_account_info()
+        )?;
 
         Ok(())
     }
@@ -125,7 +161,7 @@ pub mod express_relay {
                 continue;
             }
 
-            let permission_args = PermissionArgs::deserialize(&mut &ix.data[..])?;
+            let permission_args = PermissionArgs::deserialize(&mut &ix.data[8..])?;
             if permission_args.permission_id == data.permission_id {
                 return Ok(());
             }
@@ -237,7 +273,7 @@ pub struct Permission<'info> {
     /// CHECK: this is just a PK for the relayer to receive fees at
     #[account(mut)]
     pub fee_receiver_relayer: UncheckedAccount<'info>,
-		/// CHECK: don't care what this PDA looks like
+	/// CHECK: don't care what this PDA looks like
     #[account(mut, seeds = [SEED_EXPRESS_RELAY_FEES], seeds::program = protocol.key(), bump)]
     pub fee_receiver_protocol: UncheckedAccount<'info>,
 

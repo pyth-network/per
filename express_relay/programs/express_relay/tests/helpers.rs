@@ -217,7 +217,8 @@ pub async fn permission(
     fee_receiver_relayer: Pubkey,
     fee_receiver_protocol: Pubkey,
     permission_id: [u8; 32],
-) -> (bool, u64, u64, u64) {
+    bid_amount: u64
+) -> (bool, u64, u64, u64, u64) {
     let express_relay_metadata = Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
     let protocol_config = Pubkey::find_program_address(&[SEED_CONFIG_PROTOCOL, protocol.as_ref()], &express_relay::id()).0;
 
@@ -227,7 +228,7 @@ pub async fn permission(
             data: PermissionArgs {
                 permission_id: permission_id,
                 deadline: 1_000_000_000_000_000,
-                bid_amount: 1000,
+                bid_amount: bid_amount,
             }
         }.data(),
         accounts: Permission {
@@ -272,6 +273,7 @@ pub async fn permission(
     let balance_express_relay_metadata = program_context.banks_client.get_balance(express_relay_metadata).await.unwrap();
     let balance_fee_receiver_relayer = program_context.banks_client.get_balance(fee_receiver_relayer).await.unwrap();
     let balance_fee_receiver_protocol = program_context.banks_client.get_balance(fee_receiver_protocol).await.unwrap();
+    let balance_searcher = program_context.banks_client.get_balance(searcher.pubkey()).await.unwrap();
 
-    return (tx_success, balance_express_relay_metadata, balance_fee_receiver_relayer, balance_fee_receiver_protocol);
+    return (tx_success, balance_express_relay_metadata, balance_fee_receiver_relayer, balance_fee_receiver_protocol, balance_searcher);
 }
