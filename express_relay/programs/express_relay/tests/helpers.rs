@@ -3,7 +3,7 @@ use anchor_spl::token;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{account::Account, instruction::Instruction, signature::Keypair, signer::Signer, sysvar::instructions::id as sysvar_instructions_id, transaction::Transaction};
 use anchor_lang::{ToAccountMetas, InstructionData};
-use express_relay::{accounts::{CheckPermission, Initialize, Permission, SetProtocolSplit, SetRelayer, SetSplits, WithdrawFees}, state::{SEED_CONFIG_PROTOCOL, SEED_METADATA}, CheckPermissionArgs, InitializeArgs, PermissionArgs, SetProtocolSplitArgs, SetSplitsArgs};
+use express_relay::{accounts::{CheckPermission, Initialize, Permission, SetProtocolSplit, SetRelayer, SetSplits, WithdrawFees}, state::{SEED_CONFIG_PROTOCOL, SEED_METADATA}, InitializeArgs, PermissionArgs, SetProtocolSplitArgs, SetSplitsArgs};
 
 pub async fn initialize(program_context: &mut ProgramTestContext, payer: &Keypair, admin: Pubkey, relayer_signer: Pubkey, fee_receiver_relayer: Pubkey, split_protocol_default: u64, split_relayer: u64) -> Account {
     let express_relay_metadata = Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
@@ -216,7 +216,7 @@ pub async fn permission(
     protocol: Pubkey,
     fee_receiver_relayer: Pubkey,
     fee_receiver_protocol: Pubkey,
-    permission_id: [u8; 32],
+    permission: Pubkey,
     bid_amount: u64
 ) -> (bool, u64, u64, u64, u64) {
     let express_relay_metadata = Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
@@ -226,7 +226,6 @@ pub async fn permission(
         program_id: express_relay::id(),
         data: express_relay::instruction::Permission {
             data: PermissionArgs {
-                permission_id: permission_id,
                 deadline: 1_000_000_000_000_000,
                 bid_amount: bid_amount,
             }
@@ -234,6 +233,7 @@ pub async fn permission(
         accounts: Permission {
             relayer_signer: relayer_signer.pubkey(),
             searcher: searcher.pubkey(),
+            permission: permission,
             protocol: protocol,
             protocol_config: protocol_config,
             fee_receiver_relayer: fee_receiver_relayer,
@@ -247,13 +247,10 @@ pub async fn permission(
 
     let check_permission_ix = Instruction {
         program_id: express_relay::id(),
-        data: express_relay::instruction::CheckPermission {
-            data: CheckPermissionArgs {
-                permission_id: permission_id,
-            }
-        }.data(),
+        data: express_relay::instruction::CheckPermission {}.data(),
         accounts: CheckPermission {
             sysvar_instructions: sysvar_instructions_id(),
+            permission: permission,
             protocol: protocol,
         }.to_account_metas(None)
     };

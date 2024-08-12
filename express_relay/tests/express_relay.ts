@@ -16,10 +16,7 @@ import {
   writeKeypairToFile,
   readKeypairFromFile,
 } from "./helpers/keypairUtils";
-import {
-  convertUint8ArrayNumberArray,
-  sendAndConfirmVersionedTransaction,
-} from "./helpers/utils";
+import { sendAndConfirmVersionedTransaction } from "./helpers/utils";
 
 describe("express_relay", () => {
   // Configure the client to use the local cluster.
@@ -132,7 +129,7 @@ describe("express_relay", () => {
   });
 
   it("Dummy:DoNothing via ExpressRelay", async () => {
-    const permissionId = new Uint8Array(32);
+    const permission = anchor.web3.Keypair.generate().publicKey;
     const deadline = new anchor.BN(1_000_000_000_000_000);
     const bidAmount = new anchor.BN(1_000_000);
 
@@ -163,13 +160,13 @@ describe("express_relay", () => {
 
     const ixPermission = await expressRelay.methods
       .permission({
-        permissionId: convertUint8ArrayNumberArray(permissionId),
         deadline: deadline,
         bidAmount: bidAmount,
       })
       .accountsPartial({
         relayerSigner: relayerSigner.publicKey,
         searcher: searcher.publicKey,
+        permission: permission,
         protocol: dummy.programId,
         protocolConfig: protocolConfigDummy,
         feeReceiverRelayer: feeReceiverRelayer.publicKey,
@@ -183,13 +180,12 @@ describe("express_relay", () => {
       .instruction();
 
     const ixDoNothing = await dummy.methods
-      .doNothing({
-        permissionId: convertUint8ArrayNumberArray(permissionId),
-      })
+      .doNothing()
       .accountsPartial({
         payer: searcher.publicKey,
         expressRelay: expressRelay.programId,
         sysvarInstructions: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+        permission: permission,
         protocol: dummy.programId,
       })
       .signers([searcher])

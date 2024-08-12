@@ -50,7 +50,7 @@ async fn test_permission() {
     initialize(&mut program_context, &payer, admin.pubkey(), relayer_signer.pubkey(), fee_receiver_relayer, split_protocol_default, split_relayer).await;
 
     let protocol = Keypair::new().pubkey();
-    let permission_id: [u8; 32] = [0; 32];
+    let permission_key = Pubkey::find_program_address(&[b"permission_key"], &protocol).0;
     let fee_receiver_protocol = Pubkey::find_program_address(&[SEED_EXPRESS_RELAY_FEES], &protocol).0;
     let bid_amount: u64 = 1000;
 
@@ -67,7 +67,7 @@ async fn test_permission() {
         protocol,
         fee_receiver_relayer,
         fee_receiver_protocol,
-        permission_id,
+        permission_key,
         bid_amount
     ).await;
 

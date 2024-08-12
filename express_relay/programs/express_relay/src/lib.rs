@@ -148,7 +148,7 @@ pub mod express_relay {
         Ok(())
     }
 
-    pub fn check_permission(ctx: Context<CheckPermission>, data: CheckPermissionArgs) -> Result<()> {
+    pub fn check_permission(ctx: Context<CheckPermission>) -> Result<()> {
         let num_instructions = read_u16(&mut 0, &ctx.accounts.sysvar_instructions.data.borrow()).map_err(|_| ProgramError::InvalidInstructionData)?;
         for index in 0..num_instructions {
             let ix = load_instruction_at_checked(index.into(), &ctx.accounts.sysvar_instructions)?;
@@ -161,8 +161,11 @@ pub mod express_relay {
                 continue;
             }
 
-            let permission_args = PermissionArgs::deserialize(&mut &ix.data[8..])?;
-            if permission_args.permission_id == data.permission_id {
+            if ix.accounts[2].pubkey != *ctx.accounts.permission.key {
+                continue;
+            }
+
+            if ix.accounts[3].pubkey == *ctx.accounts.protocol.key {
                 return Ok(());
             }
         }
@@ -253,7 +256,6 @@ pub struct SetProtocolSplit<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct PermissionArgs {
-    pub permission_id: [u8; 32],
     pub deadline: u64,
     pub bid_amount: u64,
 }
@@ -265,7 +267,10 @@ pub struct Permission<'info> {
     #[account(mut)]
     pub relayer_signer: Signer<'info>,
 
-    /// CHECK: this is just the protocol/router address
+    /// CHECK: this is the permission_key
+    pub permission: UncheckedAccount<'info>,
+
+    /// CHECK: this is the protocol/router address
     pub protocol: UncheckedAccount<'info>,
     /// CHECK: this cannot be checked against ConfigProtocol bc it may not be initialized bc anchor :(
     #[account(seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]
@@ -287,17 +292,14 @@ pub struct Permission<'info> {
     pub sysvar_instructions: UncheckedAccount<'info>,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
-pub struct CheckPermissionArgs {
-    pub permission_id: [u8; 32]
-}
-
 #[derive(Accounts)]
 pub struct CheckPermission<'info> {
     /// CHECK: this is the sysvar instructions account
     #[account(address = sysvar_instructions::ID)]
     pub sysvar_instructions: UncheckedAccount<'info>,
-		/// CHECK: this is just the protocol/router address
+    /// CHECK: this is the permission_key
+    pub permission: UncheckedAccount<'info>,
+    /// CHECK: this is the protocol/router address
     pub protocol: UncheckedAccount<'info>,
 }
 
