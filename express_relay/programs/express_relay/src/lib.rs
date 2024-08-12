@@ -261,12 +261,13 @@ pub struct PermissionArgs {
 #[derive(Accounts)]
 pub struct Permission<'info> {
     #[account(mut)]
-    pub relayer_signer: Signer<'info>,
-    #[account(mut)]
     pub searcher: Signer<'info>,
+    #[account(mut)]
+    pub relayer_signer: Signer<'info>,
 
     /// CHECK: this is just the protocol/router address
     pub protocol: UncheckedAccount<'info>,
+    /// CHECK: this cannot be checked against ConfigProtocol bc it may not be initialized bc anchor :(
     #[account(seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]
     pub protocol_config: UncheckedAccount<'info>,
 

@@ -5,6 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
+dummy = "HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3"
 express_relay = "GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM"
 
 [registry]
@@ -15,4 +16,4 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.ts --log-level log"
