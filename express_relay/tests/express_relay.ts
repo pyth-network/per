@@ -16,7 +16,10 @@ import {
   writeKeypairToFile,
   readKeypairFromFile,
 } from "./helpers/keypairUtils";
-import { sendAndConfirmVersionedTransaction } from "./helpers/utils";
+import {
+  createAndSubmitTransaction,
+  sendAndConfirmVersionedTransaction,
+} from "./helpers/utils";
 
 describe("express_relay", () => {
   // Configure the client to use the local cluster.
@@ -191,26 +194,30 @@ describe("express_relay", () => {
       .signers([searcher])
       .instruction();
 
-    let transaction = new anchor.web3.Transaction();
-
-    transaction.add(ixPermission);
-    transaction.add(ixDoNothing);
-
-    const lookupTables = [];
-    const latestBlockHash = await provider.connection.getLatestBlockhash();
-    const messageV0 = new TransactionMessage({
-      payerKey: searcher.publicKey,
-      recentBlockhash: latestBlockHash.blockhash,
-      instructions: transaction.instructions,
-    }).compileToV0Message(lookupTables);
-
-    let txFee = (await provider.connection.getFeeForMessage(messageV0)).value;
-
-    const transactionV0 = new VersionedTransaction(messageV0);
-    transactionV0.sign([relayerSigner, searcher]);
-    await sendAndConfirmVersionedTransaction(
+    const lookupAccounts = [
+      relayerSigner.publicKey,
+      dummy.programId,
+      protocolConfigDummy,
+      feeReceiverRelayer.publicKey,
+      feeReceiverDummy,
+      expressRelayMetadata[0],
+      anchor.web3.SystemProgram.programId,
+      TOKEN_PROGRAM_ID,
+      anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+      expressRelay.programId,
+      dummy.programId,
+    ];
+    const lookupPayer = relayerSigner;
+    const payer = searcher.publicKey;
+    const signers = [searcher, relayerSigner];
+    const [txHash, txFee] = await createAndSubmitTransaction(
       provider.connection,
-      transactionV0
+      [ixPermission, ixDoNothing],
+      lookupAccounts,
+      lookupPayer,
+      payer,
+      signers,
+      true
     );
 
     let balanceSearcherPost = await provider.connection.getBalance(
@@ -241,8 +248,6 @@ describe("express_relay", () => {
       ((bidAmount.toNumber() - feeDummy) * splitRelayer.toNumber()) / 10000;
 
     let feeExpressRelay = bidAmount.toNumber() - feeDummy - feeRelayer;
-
-    (1 * LAMPORTS_PER_SOL) / 1e5;
 
     assert.equal(
       balanceSearcherPre - balanceSearcherPost,

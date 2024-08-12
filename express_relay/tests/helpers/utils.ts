@@ -1,10 +1,17 @@
+import * as anchor from "@coral-xyz/anchor";
 import {
   TransactionSignature,
+  TransactionMessage,
   VersionedTransaction,
   Connection,
   Commitment,
   SendOptions,
+  PublicKey,
+  Keypair,
 } from "@solana/web3.js";
+
+import { getTxSize, getVersionedTxSize } from "./txSize";
+import { createAndPopulateLookupTable } from "./lookupTable";
 
 export async function sendAndConfirmVersionedTransaction(
   c: Connection,
@@ -44,4 +51,50 @@ export async function sendAndConfirmVersionedTransaction(
   }
 
   return txId;
+}
+
+export async function createAndSubmitTransaction(
+  c: Connection,
+  ixs: anchor.web3.TransactionInstruction[],
+  lookupAccounts: PublicKey[],
+  lookupPayer: Keypair,
+  payer: PublicKey,
+  signers: Keypair[],
+  verbose: boolean = false
+): Promise<[TransactionSignature, number]> {
+  let transaction = new anchor.web3.Transaction();
+
+  ixs.forEach((ix) => {
+    transaction.add(ix);
+  });
+  let txSize = getTxSize(transaction, payer, verbose);
+
+  const latestBlockHash = await c.getLatestBlockhash();
+  const message = new TransactionMessage({
+    payerKey: payer,
+    recentBlockhash: latestBlockHash.blockhash,
+    instructions: transaction.instructions,
+  });
+
+  // do lookup tables stuff
+  const lookupTableKey = await createAndPopulateLookupTable(
+    c,
+    new Set(lookupAccounts),
+    lookupPayer,
+    lookupPayer
+  );
+  const lookupTable = (await c.getAddressLookupTable(lookupTableKey)).value;
+
+  const messageV0 = message.compileToV0Message([lookupTable]);
+
+  let txFee = (await c.getFeeForMessage(messageV0)).value;
+
+  const transactionV0 = new VersionedTransaction(messageV0);
+  transactionV0.sign(signers);
+
+  let txSizeV0 = getVersionedTxSize(transactionV0, payer, verbose);
+
+  let txResponse = await sendAndConfirmVersionedTransaction(c, transactionV0);
+
+  return [txResponse, txFee];
 }
