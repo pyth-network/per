@@ -1,12 +1,12 @@
 use anchor_lang::{prelude::*, system_program::{transfer, Transfer}};
 use crate::{
-    error::ExpressRelayError,
+    error::ErrorCode,
     state::*,
 };
 
 pub fn validate_fee_split(split: u64) -> Result<()> {
     if split > FEE_SPLIT_PRECISION {
-        return err!(ExpressRelayError::InvalidFeeSplits);
+        return err!(ErrorCode::FeeSplitLargerThanPrecision);
     }
     Ok(())
 }

@@ -3,11 +3,11 @@ pub mod helpers;
 use anchor_lang::prelude::*;
 use solana_program_test::{ProgramTest, tokio};
 use solana_sdk::{account::Account, signature::Keypair, signer::Signer};
-use express_relay::state::{ConfigProtocol, ExpressRelayMetadata};
-use helpers::{initialize, set_protocol_split};
+use express_relay::state::ExpressRelayMetadata;
+use helpers::{initialize, set_admin};
 
 #[tokio::test]
-async fn test_set_protocol_split() {
+async fn test_set_admin() {
     let mut program_test = ProgramTest::new(
         "express_relay",
         express_relay::id(),
@@ -40,15 +40,10 @@ async fn test_set_protocol_split() {
 
     initialize(&mut program_context, &payer, admin.pubkey(), relayer_signer, fee_receiver_relayer, split_protocol_default, split_relayer).await;
 
-    let protocol = Keypair::new().pubkey();
-    let split_protocol = 1000;
+    let admin_new = Keypair::new().pubkey();
 
-    let (protocol_config_acc, express_relay_metadata_acc) = set_protocol_split(&mut program_context, admin, protocol, split_protocol).await;
+    let express_relay_metadata_acc_2 = set_admin(&mut program_context, admin, admin_new).await;
 
-    let express_relay_metadata_data = ExpressRelayMetadata::try_deserialize(&mut express_relay_metadata_acc.data.as_ref()).unwrap();
-    assert_eq!(express_relay_metadata_data.split_protocol_default, split_protocol_default);
-
-    let protocol_config_data = ConfigProtocol::try_deserialize(&mut protocol_config_acc.data.as_ref()).unwrap();
-    assert_eq!(protocol_config_data.protocol, protocol);
-    assert_eq!(protocol_config_data.split, split_protocol);
+    let express_relay_metadata_data_2 = ExpressRelayMetadata::try_deserialize(&mut express_relay_metadata_acc_2.data.as_ref()).unwrap();
+    assert_eq!(express_relay_metadata_data_2.admin, admin_new);
 }

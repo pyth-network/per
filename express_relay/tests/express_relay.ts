@@ -34,6 +34,12 @@ describe("express_relay", () => {
     expressRelay.programId
   );
 
+  const ownerDummy = anchor.web3.Keypair.generate();
+  const feeReceiverDummy = PublicKey.findProgramAddressSync(
+    [anchor.utils.bytes.utf8.encode("express_relay_fees")],
+    dummy.programId
+  )[0];
+
   const splitProtocolDefault = new anchor.BN(5000);
   const splitRelayer = new anchor.BN(2000);
 
@@ -75,30 +81,43 @@ describe("express_relay", () => {
   before(async () => {
     console.log("FUNDING");
 
-    let airdrop_signature_searcher = await provider.connection.requestAirdrop(
+    let airdropSignatureSearcher = await provider.connection.requestAirdrop(
       searcher.publicKey,
       20 * LAMPORTS_PER_SOL
     );
-    await provider.connection.confirmTransaction(airdrop_signature_searcher);
+    await provider.connection.confirmTransaction(airdropSignatureSearcher);
 
-    let airdrop_signature_relayer_signer =
+    let airdropSignatureRelayerSigner =
       await provider.connection.requestAirdrop(
         relayerSigner.publicKey,
         30 * LAMPORTS_PER_SOL
       );
+    await provider.connection.confirmTransaction(airdropSignatureRelayerSigner);
+
+    let airdropSignatureFeeReceiverRelayer =
+      await provider.connection.requestAirdrop(
+        feeReceiverRelayer.publicKey,
+        10 * LAMPORTS_PER_SOL
+      );
     await provider.connection.confirmTransaction(
-      airdrop_signature_relayer_signer
+      airdropSignatureFeeReceiverRelayer
     );
 
-    let airdrop_signature_admin = await provider.connection.requestAirdrop(
+    let airdropOwnerDummy = await provider.connection.requestAirdrop(
+      ownerDummy.publicKey,
+      1 * LAMPORTS_PER_SOL
+    );
+    await provider.connection.confirmTransaction(airdropOwnerDummy);
+
+    let airdropSignatureAdmin = await provider.connection.requestAirdrop(
       admin.publicKey,
       20 * LAMPORTS_PER_SOL
     );
-    await provider.connection.confirmTransaction(airdrop_signature_admin);
+    await provider.connection.confirmTransaction(airdropSignatureAdmin);
   });
 
   before(async () => {
-    console.log("INITIALIZING");
+    console.log("INITIALIZING EXPRESS RELAY");
 
     const balanceExpressRelayMetadata = await provider.connection.getBalance(
       expressRelayMetadata[0]
@@ -124,6 +143,27 @@ describe("express_relay", () => {
     }
   });
 
+  before(async () => {
+    console.log("INITIALIZING DUMMY");
+
+    const balanceFeeReceiverDummy = await provider.connection.getBalance(
+      feeReceiverDummy
+    );
+    if (balanceFeeReceiverDummy === 0) {
+      await dummy.methods
+        .initialize()
+        .accountsPartial({
+          payer: ownerDummy.publicKey,
+          feeReceiverExpressRelay: feeReceiverDummy,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([ownerDummy])
+        .rpc();
+    } else {
+      console.debug("Dummy already initialized");
+    }
+  });
+
   it("Dummy:DoNothing via ExpressRelay", async () => {
     const permission = anchor.web3.Keypair.generate().publicKey;
     const deadline = new anchor.BN(1_000_000_000_000_000);
@@ -135,10 +175,6 @@ describe("express_relay", () => {
         dummy.programId.toBuffer(),
       ],
       expressRelay.programId
-    )[0];
-    const feeReceiverDummy = PublicKey.findProgramAddressSync(
-      [anchor.utils.bytes.utf8.encode("express_relay_fees")],
-      dummy.programId
     )[0];
 
     let balanceSearcherPre = await provider.connection.getBalance(
@@ -226,20 +262,10 @@ describe("express_relay", () => {
       expressRelayMetadata[0]
     );
 
-    let rentFeeReceiverDummy =
-      await provider.connection.getMinimumBalanceForRentExemption(
-        0 // feeReceiverDummy should be of length 0
-      );
     let feeDummy =
       (bidAmount.toNumber() * splitProtocolDefault.toNumber()) / 10000;
-
-    let rentFeeReceiverRelayer =
-      await provider.connection.getMinimumBalanceForRentExemption(
-        0 // feeReceiverRelayer should be of length 0
-      );
     let feeRelayer =
       ((bidAmount.toNumber() - feeDummy) * splitRelayer.toNumber()) / 10000;
-
     let feeExpressRelay = bidAmount.toNumber() - feeDummy - feeRelayer;
 
     assert.equal(
@@ -254,14 +280,14 @@ describe("express_relay", () => {
 
     assert.equal(
       balanceDummyPost - balanceDummyPre,
-      rentFeeReceiverDummy + feeDummy,
-      "Protocol fee receiver balance should be increased by its share of the bid plus rent"
+      feeDummy,
+      "Protocol fee receiver balance should be increased by its share of the bid"
     );
 
     assert.equal(
       balanceRelayerPost - balanceRelayerPre,
-      rentFeeReceiverRelayer + feeRelayer,
-      "Relayer fee receiver balance should be increased by its share of the bid plus rent"
+      feeRelayer,
+      "Relayer fee receiver balance should be increased by its share of the bid"
     );
 
     assert.equal(

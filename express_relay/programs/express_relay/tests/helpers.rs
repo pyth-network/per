@@ -3,7 +3,7 @@ use anchor_spl::token;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{account::Account, instruction::Instruction, signature::Keypair, signer::Signer, sysvar::instructions::id as sysvar_instructions_id, transaction::Transaction};
 use anchor_lang::{ToAccountMetas, InstructionData};
-use express_relay::{accounts::{CheckPermission, Initialize, Permission, SetProtocolSplit, SetRelayer, SetSplits, WithdrawFees}, state::{SEED_CONFIG_PROTOCOL, SEED_METADATA}, InitializeArgs, PermissionArgs, SetProtocolSplitArgs, SetSplitsArgs};
+use express_relay::{accounts::{CheckPermission, Initialize, Permission, SetProtocolSplit, SetAdmin, SetRelayer, SetSplits, WithdrawFees}, state::{SEED_CONFIG_PROTOCOL, SEED_METADATA}, InitializeArgs, PermissionArgs, SetProtocolSplitArgs, SetSplitsArgs};
 
 // TODO: write helpers for failure cases as well
 // TODO: failure initialize--fee splits too high
@@ -59,6 +59,39 @@ pub async fn initialize(program_context: &mut ProgramTestContext, payer: &Keypai
     program_context
         .banks_client
         .process_transaction(initialize_tx)
+        .await
+        .unwrap();
+
+    let express_relay_metadata_acc = program_context
+        .banks_client
+        .get_account(express_relay_metadata)
+        .await
+        .unwrap()
+        .unwrap();
+
+    return express_relay_metadata_acc;
+}
+
+pub async fn set_admin(program_context: &mut ProgramTestContext, admin: Keypair, admin_new: Pubkey) -> Account {
+    let express_relay_metadata = Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
+
+    let set_admin_ix = Instruction {
+        program_id: express_relay::id(),
+        data: express_relay::instruction::SetAdmin {}.data(),
+        accounts: SetAdmin {
+            admin: admin.pubkey(),
+            express_relay_metadata: express_relay_metadata,
+            admin_new: admin_new,
+        }.to_account_metas(None),
+    };
+
+    let mut set_admin_tx = Transaction::new_with_payer(&[set_admin_ix],Some(&admin.pubkey()));
+    let recent_blockhash = program_context.last_blockhash.clone();
+
+    set_admin_tx.partial_sign(&[&admin], recent_blockhash);
+    program_context
+        .banks_client
+        .process_transaction(set_admin_tx)
         .await
         .unwrap();
 
@@ -195,7 +228,7 @@ pub async fn set_protocol_split(program_context: &mut ProgramTestContext, admin:
     return (protocol_config_acc, express_relay_metadata_acc);
 }
 
-pub async fn withdraw_fees(program_context: &mut ProgramTestContext, admin: Keypair) -> (u64, u64) {
+pub async fn withdraw_fees(program_context: &mut ProgramTestContext, admin: Keypair, fee_receiver_admin: Pubkey) -> (u64, u64) {
     let express_relay_metadata = Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
 
     let withdraw_fees_ix = Instruction {
@@ -203,6 +236,7 @@ pub async fn withdraw_fees(program_context: &mut ProgramTestContext, admin: Keyp
         data: express_relay::instruction::WithdrawFees {}.data(),
         accounts: WithdrawFees {
             admin: admin.pubkey(),
+            fee_receiver_admin: fee_receiver_admin,
             express_relay_metadata: express_relay_metadata
         }.to_account_metas(None)
     };
@@ -223,13 +257,13 @@ pub async fn withdraw_fees(program_context: &mut ProgramTestContext, admin: Keyp
         .await
         .unwrap();
 
-    let balance_admin = program_context
+    let balance_fee_receiver_admin = program_context
         .banks_client
-        .get_balance(admin.pubkey())
+        .get_balance(fee_receiver_admin)
         .await
         .unwrap();
 
-    return (balance_express_relay_metadata, balance_admin);
+    return (balance_express_relay_metadata, balance_fee_receiver_admin);
 }
 
 pub async fn permission(

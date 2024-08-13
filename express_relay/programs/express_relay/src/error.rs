@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 
 #[error_code]
-pub enum ExpressRelayError {
-    #[msg("Invalid fee splits")]
-    InvalidFeeSplits,
-    #[msg("Fees too high")]
-    FeesTooHigh,
+pub enum ErrorCode {
+    #[msg("Fee split(s) larger than fee precision")]
+    FeeSplitLargerThanPrecision,
+    #[msg("Fees higher than bid")]
+    FeesHigherThanBid,
     #[msg("Deadline passed")]
     DeadlinePassed,
     #[msg("Invalid CPI into permission instruction")]
@@ -16,4 +16,8 @@ pub enum ExpressRelayError {
     InsufficientWithdrawalFunds,
     #[msg("Insufficient Searcher Funds")]
     InsufficientSearcherFunds,
+    #[msg("Insufficient protocol fee receiver funds for rent")]
+    InsufficientProtocolFeeReceiverFundsForRent,
+    #[msg("Insufficient relayer fee receiver funds for rent")]
+    InsufficientRelayerFeeReceiverFundsForRent,
 }

@@ -40,6 +40,8 @@ async fn test_withdraw_fees() {
 
     let express_relay_metadata = Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
 
+    initialize(&mut program_context, &payer, admin.pubkey(), relayer_signer, fee_receiver_relayer, split_protocol_default, split_relayer).await;
+
     let transfer_ix = transfer(&payer.pubkey(), &express_relay_metadata, 9_000_000_000);
     let mut transfer_tx = Transaction::new_with_payer(&[transfer_ix], Some(&payer.pubkey()));
     let recent_blockhash = program_context.last_blockhash.clone();
@@ -51,13 +53,11 @@ async fn test_withdraw_fees() {
         .await
         .unwrap();
 
-
-    initialize(&mut program_context, &payer, admin.pubkey(), relayer_signer, fee_receiver_relayer, split_protocol_default, split_relayer).await;
-
-    let (balance_express_relay_metadata, balance_admin) = withdraw_fees(&mut program_context, admin).await;
+    let fee_receiver_admin = Keypair::new().pubkey();
+    let (balance_express_relay_metadata, balance_admin) = withdraw_fees(&mut program_context, admin, fee_receiver_admin).await;
 
     let rent_express_relay_metadata = Rent::default().minimum_balance(RESERVE_EXPRESS_RELAY_METADATA).max(1);
 
     assert_eq!(balance_express_relay_metadata, rent_express_relay_metadata);
-    assert!(balance_admin > 9_000_000_000);
+    assert_eq!(balance_admin, 9_000_000_000);
 }
