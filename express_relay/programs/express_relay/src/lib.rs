@@ -85,6 +85,11 @@ pub mod express_relay {
         let split_protocol_default = express_relay_metadata.split_protocol_default;
         let split_protocol: u64;
 
+        let rent_searcher = Rent::default().minimum_balance(0).max(1);
+        if bid_amount + rent_searcher > searcher.to_account_info().lamports() {
+            return err!(ExpressRelayError::InsufficientSearcherFunds);
+        }
+
         let protocol_config_account_info = protocol_config.to_account_info();
         if protocol_config_account_info.data_len() > 0 {
             let account_data = &mut &**protocol_config_account_info.try_borrow_data()?;
@@ -180,7 +185,7 @@ pub mod express_relay {
         let rent_express_relay_metadata = Rent::default().minimum_balance(express_relay_metadata_account_info.data_len()).max(1);
 
         if express_relay_metadata_account_info.lamports() <= rent_express_relay_metadata {
-            return err!(ExpressRelayError::InsufficientFunds);
+            return err!(ExpressRelayError::InsufficientWithdrawalFunds);
         }
 
         let amount = express_relay_metadata.to_account_info().lamports() - rent_express_relay_metadata;

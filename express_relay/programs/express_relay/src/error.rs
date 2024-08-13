@@ -12,6 +12,8 @@ pub enum ExpressRelayError {
     InvalidCPIPermission,
     #[msg("Invalid permissioning")]
     InvalidPermissioning,
-    #[msg("Insufficient Funds")]
-    InsufficientFunds,
+    #[msg("Insufficient Withdrawal Funds")]
+    InsufficientWithdrawalFunds,
+    #[msg("Insufficient Searcher Funds")]
+    InsufficientSearcherFunds,
 }

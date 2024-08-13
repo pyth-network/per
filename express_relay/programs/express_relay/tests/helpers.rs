@@ -5,6 +5,29 @@ use solana_sdk::{account::Account, instruction::Instruction, signature::Keypair,
 use anchor_lang::{ToAccountMetas, InstructionData};
 use express_relay::{accounts::{CheckPermission, Initialize, Permission, SetProtocolSplit, SetRelayer, SetSplits, WithdrawFees}, state::{SEED_CONFIG_PROTOCOL, SEED_METADATA}, InitializeArgs, PermissionArgs, SetProtocolSplitArgs, SetSplitsArgs};
 
+// TODO: write helpers for failure cases as well
+// TODO: failure initialize--fee splits too high
+
+// TODO: failure set_relayer--invalid admin
+
+// TODO: failure set_splits--invalid admin
+// TODO: failure set_splits--fee splits too high
+
+// TODO: failure set_protocol_split--invalid admin
+// TODO: failure set_protocol_split--invalid protocol config
+// TODO: failure set_protocol_split--fee splits too high
+
+// TODO: failure permission--invalid relayer signer
+// TODO: failure permission--invalid relayer fee receiver
+// TODO: failure permission--CPI
+// TODO: failure permission--passed deadline
+// TODO: failure permission--insufficient funds in searcher account (needs to be greater than rent)
+// TODO: failure check_permission--expected different permission key
+// TODO: failure check_permission--expected different protocol key
+// TODO: failure check_permisison--no permission instruction in tx
+
+// TODO: failure withdraw_fees--invalid admin
+
 pub async fn initialize(program_context: &mut ProgramTestContext, payer: &Keypair, admin: Pubkey, relayer_signer: Pubkey, fee_receiver_relayer: Pubkey, split_protocol_default: u64, split_relayer: u64) -> Account {
     let express_relay_metadata = Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
     let system_program_pk = system_program::ID;
