@@ -5,6 +5,7 @@ on:
       - v*
     branches:
       - main
+      - feat/swap-beacon-deployment
   workflow_dispatch:
     inputs:
       dispatch_description:
@@ -45,6 +46,14 @@ jobs:
           tags: |
             type=sha,event=branch
             type=ref,event=tag
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta_swap_beacon
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-monitor
+          tags: |
+            type=sha,event=branch
+            type=ref,event=tag
       - name: Build and push server docker image
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
         with:
@@ -57,6 +66,13 @@ jobs:
         with:
           context: .
           file: ./per_sdk/Dockerfile
+          push: true
+          tags: ${{ steps.meta_monitor.outputs.tags }}
+          labels: ${{ steps.meta_monitor.outputs.labels }}
+      - name: Build and push vault monitor docker image
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: ./scripts/swap-beacon
           push: true
           tags: ${{ steps.meta_monitor.outputs.tags }}
           labels: ${{ steps.meta_monitor.outputs.labels }}
