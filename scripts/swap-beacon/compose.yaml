@@ -11,6 +11,13 @@ services:
   server:
     build:
       context: .
+    command:
+      - node
+      - ./dist/index.js
+      - "--endpoint"
+      - "https://pyth-express-relay-mainnet.asymmetric.re/"
+      - "--chain-ids"
+      - "mode"
     environment:
       NODE_ENV: production
 # The commented out section below is an example of how to define a PostgreSQL
