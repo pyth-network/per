@@ -68,6 +68,7 @@ export async function createAndSubmitTransaction(
     transaction.add(ix);
   });
   let txSize = getTxSize(transaction, payer, verbose);
+  console.log("Legacy transaction size: ", txSize);
 
   const latestBlockHash = await c.getLatestBlockhash();
   const message = new TransactionMessage({
@@ -93,6 +94,7 @@ export async function createAndSubmitTransaction(
   transactionV0.sign(signers);
 
   let txSizeV0 = getVersionedTxSize(transactionV0, payer, verbose);
+  console.log("V0 transaction size: ", txSizeV0);
 
   let txResponse = await sendAndConfirmVersionedTransaction(c, transactionV0);
 

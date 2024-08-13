@@ -5,21 +5,14 @@ import { Dummy } from "../target/types/dummy";
 
 import * as fs from "fs";
 import { assert } from "chai";
-import {
-  PublicKey,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 
 import {
   writeKeypairToFile,
   readKeypairFromFile,
 } from "./helpers/keypairUtils";
-import {
-  createAndSubmitTransaction,
-  sendAndConfirmVersionedTransaction,
-} from "./helpers/utils";
+import { createAndSubmitTransaction } from "./helpers/utils";
 
 describe("express_relay", () => {
   // Configure the client to use the local cluster.
@@ -217,7 +210,7 @@ describe("express_relay", () => {
       lookupPayer,
       payer,
       signers,
-      true
+      false
     );
 
     let balanceSearcherPost = await provider.connection.getBalance(

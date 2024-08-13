@@ -2,7 +2,6 @@
 
 import * as anchor from "@coral-xyz/anchor";
 import * as fs from "fs/promises";
-import * as path from "path";
 
 export const writeKeypairToFile = async (
   sk: Uint8Array,

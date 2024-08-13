@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions as sysvar_instructions;
-use express_relay::{self, ID as EXPRESS_RELAY_ID, cpi::accounts::CheckPermission};
+use express_relay::{self, program::ExpressRelay, cpi::accounts::CheckPermission};
 
 declare_id!("HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3");
 
@@ -35,14 +35,4 @@ pub struct DoNothing<'info> {
     /// CHECK: this is the current program
     #[account(address = crate::ID)]
     pub protocol: UncheckedAccount<'info>,
-}
-
-#[account]
-#[derive(Default)]
-pub struct ExpressRelay;
-
-impl anchor_lang::Id for ExpressRelay {
-    fn id() -> Pubkey {
-        EXPRESS_RELAY_ID
-    }
 }

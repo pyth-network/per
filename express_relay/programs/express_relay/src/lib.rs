@@ -4,7 +4,7 @@ pub mod utils;
 
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_lang::solana_program::sysvar::instructions as sysvar_instructions;
-use solana_program::{serialize_utils::read_u16, sysvar::instructions::{load_current_index_checked, load_instruction_at_checked}};
+use solana_program::{serialize_utils::read_u16, sysvar::instructions::{get_instruction_relative, load_instruction_at_checked}};
 use anchor_syn::codegen::program::common::sighash;
 use anchor_spl::token::Token;
 use crate::{
@@ -68,8 +68,7 @@ pub mod express_relay {
         }
 
         // check that not cpi
-        let instruction_index = load_current_index_checked(&ctx.accounts.sysvar_instructions.to_account_info())?;
-        let instruction = load_instruction_at_checked(instruction_index.into(),&ctx.accounts.sysvar_instructions.to_account_info())?;
+        let instruction = get_instruction_relative(0, &ctx.accounts.sysvar_instructions.to_account_info())?;
         if instruction.program_id != crate::id() {
             return err!(ExpressRelayError::InvalidCPIPermission);
         }
