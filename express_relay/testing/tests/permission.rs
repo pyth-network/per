@@ -201,3 +201,57 @@ fn test_permission_fail_passed_deadline() {
 
     assert_custom_error(tx_result.err, 0, 6002);
 }
+
+#[test]
+fn test_permission_fail_wrong_permission_key() {
+    let PermissionInfo {
+        mut svm,
+        relayer_signer,
+        searcher,
+        fee_receiver_relayer,
+        protocol: _,
+        fee_receiver_protocol,
+        permission_key: _,
+        bid_amount,
+        deadline,
+        ixs
+    } = setup_permission();
+
+    let wrong_permission_key = Keypair::new().pubkey();
+
+    let permission_ixs = get_permission_instructions(
+        &relayer_signer,
+        &searcher,
+        dummy::ID,
+        fee_receiver_relayer.pubkey(),
+        fee_receiver_protocol,
+        wrong_permission_key,
+        bid_amount,
+        deadline,
+        &ixs
+    );
+
+    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+
+    assert_custom_error(tx_result.err, 1, 6004);
+}
+
+#[test]
+fn test_permission_fail_no_permission_ix() {
+    let PermissionInfo {
+        mut svm,
+        relayer_signer: _,
+        searcher,
+        fee_receiver_relayer: _,
+        protocol: _,
+        fee_receiver_protocol: _,
+        permission_key: _,
+        bid_amount: _,
+        deadline: _,
+        ixs
+    } = setup_permission();
+
+    let tx_result = submit_transaction(&mut svm, &ixs, &searcher, &[&searcher]).expect_err("Transaction should have failed");
+
+    assert_custom_error(tx_result.err, 0, 6004);
+}
