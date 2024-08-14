@@ -85,7 +85,7 @@ pub mod express_relay {
         let bid_amount = data.bid_amount;
         let searcher = &ctx.accounts.searcher;
         let rent_searcher = Rent::default().minimum_balance(0);
-        if bid_amount + rent_searcher > searcher.to_account_info().lamports() {
+        if bid_amount + rent_searcher > searcher.lamports() {
             return err!(ErrorCode::InsufficientSearcherFunds);
         }
 
@@ -110,19 +110,19 @@ pub mod express_relay {
         }
 
         let fee_relayer = bid_amount.saturating_sub(fee_protocol) * split_relayer / FEE_SPLIT_PRECISION;
-        if fee_relayer.checked_add(fee_protocol).unwrap() > bid_amount {
+        if fee_relayer.checked_add(fee_protocol).ok_or(ProgramError::ArithmeticOverflow)? > bid_amount {
             return err!(ErrorCode::FeesHigherThanBid);
         }
 
         let protocol_fee_receiver = &ctx.accounts.fee_receiver_protocol;
-        let balance_protocol_fee_receiver = protocol_fee_receiver.to_account_info().lamports();
+        let balance_protocol_fee_receiver = protocol_fee_receiver.lamports();
         let rent_protocol_fee_receiver = Rent::default().minimum_balance(0);
         if balance_protocol_fee_receiver+fee_protocol < rent_protocol_fee_receiver {
             return err!(ErrorCode::InsufficientProtocolFeeReceiverFundsForRent);
         }
 
         let relayer_fee_receiver = &ctx.accounts.fee_receiver_relayer;
-        let balance_relayer_fee_receiver = relayer_fee_receiver.to_account_info().lamports();
+        let balance_relayer_fee_receiver = relayer_fee_receiver.lamports();
         let rent_relayer_fee_receiver = Rent::default().minimum_balance(0);
         if balance_relayer_fee_receiver+fee_relayer < rent_relayer_fee_receiver {
             return err!(ErrorCode::InsufficientRelayerFeeReceiverFundsForRent);
@@ -181,13 +181,13 @@ pub mod express_relay {
         let fee_receiver_admin = &ctx.accounts.fee_receiver_admin;
 
         let express_relay_metadata_account_info = express_relay_metadata.to_account_info();
-        let rent_express_relay_metadata = Rent::default().minimum_balance(express_relay_metadata_account_info.data_len());
+        let rent_express_relay_metadata = Rent::get()?.minimum_balance(express_relay_metadata_account_info.data_len());
 
         if express_relay_metadata_account_info.lamports() <= rent_express_relay_metadata {
             return err!(ErrorCode::InsufficientWithdrawalFunds);
         }
 
-        let amount = express_relay_metadata.to_account_info().lamports() - rent_express_relay_metadata;
+        let amount = express_relay_metadata_account_info.lamports() - rent_express_relay_metadata;
         transfer_lamports(&express_relay_metadata_account_info, &fee_receiver_admin.to_account_info(), amount)
     }
 }
