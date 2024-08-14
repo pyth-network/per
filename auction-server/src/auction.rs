@@ -625,6 +625,36 @@ pub struct Bid {
     pub amount:          BidAmount,
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct SolanaBidMetadata {
+    /// The transaction value of the bid.
+    #[schema(example = "0xdeadbeef", value_type = String)]
+    pub transaction: Bytes,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[serde(untagged)] // Remove tags to avoid key-value wrapping
+pub enum BidMetadata {
+    Solana(SolanaBidMetadata),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct SolanaBid {
+    /// The permission key to bid on.
+    #[schema(example = "0xdeadbeef", value_type = String)]
+    pub permission_key: Bytes,
+    /// The chain id to bid on.
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id:       ChainId,
+    /// Amount of bid in wei.
+    #[schema(example = "10", value_type = String)]
+    #[serde(with = "crate::serde::u256")]
+    pub amount:         BidAmount,
+    /// The metadata for bid based on chain id.
+    #[schema(value_type = BidMetadata)]
+    pub metadata:       BidMetadata,
+}
+
 // For now, we are only supporting the EIP1559 enabled networks
 async fn verify_bid_exceeds_gas_cost<G>(
     estimated_gas: U256,
@@ -830,4 +860,19 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
     }
     tracing::info!("Shutting down tracker...");
     Ok(())
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn solana_handle_bid(
+    store: Arc<Store>,
+    bid: SolanaBid,
+    initiation_time: OffsetDateTime,
+    auth: Auth,
+) -> result::Result<Uuid, RestError> {
+    if bid.chain_id != "solana" {
+        return Err(RestError::InvalidChainId);
+    }
+
+    // TODO implement this
+    Err(RestError::NotImplemented)
 }

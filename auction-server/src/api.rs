@@ -15,7 +15,12 @@ use {
                 ServerUpdateResponse,
             },
         },
-        auction::Bid,
+        auction::{
+            Bid,
+            BidMetadata,
+            SolanaBid,
+            SolanaBidMetadata,
+        },
         config::{
             ChainId,
             RunOptions,
@@ -130,6 +135,8 @@ pub enum RestError {
     TemporarilyUnavailable,
     /// Invalid auth token
     InvalidToken,
+    /// Not implemented
+    NotImplemented,
 }
 
 impl RestError {
@@ -165,6 +172,10 @@ impl RestError {
             RestError::InvalidToken => (
                 StatusCode::UNAUTHORIZED,
                 "Invalid authorization token".to_string(),
+            ),
+            RestError::NotImplemented => (
+                StatusCode::NOT_IMPLEMENTED,
+                "This feature is not implemented".to_string(),
             ),
         }
     }
@@ -301,6 +312,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     #[openapi(
     paths(
     bid::bid,
+    bid::solana_bid,
     bid::bid_status,
     bid::get_bids_by_time,
     opportunity::post_opportunity,
@@ -329,6 +341,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ServerResultMessage,
     ServerUpdateResponse,
     ServerResultResponse,
+    SolanaBid,
+    BidMetadata,
+    SolanaBidMetadata,
     ),
     responses(
     ErrorBodyResponse,
@@ -362,6 +377,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
 
     let bid_routes = Router::new()
         .route("/", post(bid::bid))
+        .route("/solana", post(bid::solana_bid))
         .route("/", login_required!(store, get(bid::get_bids_by_time)))
         .route("/:bid_id", get(bid::bid_status));
     let opportunity_routes = Router::new()
