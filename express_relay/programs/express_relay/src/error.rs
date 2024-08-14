@@ -10,8 +10,8 @@ pub enum ErrorCode {
     DeadlinePassed,
     #[msg("Invalid CPI into permission instruction")]
     InvalidCPIPermission,
-    #[msg("Invalid permissioning")]
-    InvalidPermissioning,
+    #[msg("Missing permission")]
+    MissingPermission,
     #[msg("Insufficient Withdrawal Funds")]
     InsufficientWithdrawalFunds,
     #[msg("Insufficient Searcher Funds")]

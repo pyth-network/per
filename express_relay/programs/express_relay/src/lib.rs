@@ -84,7 +84,7 @@ pub mod express_relay {
         // handle bid payment
         let bid_amount = data.bid_amount;
         let searcher = &ctx.accounts.searcher;
-        let rent_searcher = Rent::default().minimum_balance(0);
+        let rent_searcher = Rent::get()?.minimum_balance(searcher.to_account_info().data_len());
         if bid_amount + rent_searcher > searcher.lamports() {
             return err!(ErrorCode::InsufficientSearcherFunds);
         }
@@ -116,14 +116,14 @@ pub mod express_relay {
 
         let protocol_fee_receiver = &ctx.accounts.fee_receiver_protocol;
         let balance_protocol_fee_receiver = protocol_fee_receiver.lamports();
-        let rent_protocol_fee_receiver = Rent::default().minimum_balance(0);
+        let rent_protocol_fee_receiver = Rent::get()?.minimum_balance(0);
         if balance_protocol_fee_receiver+fee_protocol < rent_protocol_fee_receiver {
             return err!(ErrorCode::InsufficientProtocolFeeReceiverFundsForRent);
         }
 
         let relayer_fee_receiver = &ctx.accounts.fee_receiver_relayer;
         let balance_relayer_fee_receiver = relayer_fee_receiver.lamports();
-        let rent_relayer_fee_receiver = Rent::default().minimum_balance(0);
+        let rent_relayer_fee_receiver = Rent::get()?.minimum_balance(0);
         if balance_relayer_fee_receiver+fee_relayer < rent_relayer_fee_receiver {
             return err!(ErrorCode::InsufficientRelayerFeeReceiverFundsForRent);
         }
@@ -173,7 +173,7 @@ pub mod express_relay {
             }
         }
 
-        return err!(ErrorCode::InvalidPermissioning);
+        return err!(ErrorCode::MissingPermission);
     }
 
     pub fn withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {
