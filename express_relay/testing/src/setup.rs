@@ -1,6 +1,7 @@
-use crate::helpers::LAMPORTS_PER_SOL;
+use crate::helpers::generate_and_fund_key;
 use crate::{express_relay::initialize::get_initialize_instruction as get_initialize_express_relay_instruction, helpers::submit_transaction};
 use crate::dummy::initialize::get_initialize_instruction as get_initialize_dummy_instruction;
+use solana_sdk::transaction::TransactionError;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
 pub struct SetupParams {
@@ -19,7 +20,7 @@ pub struct SetupResult {
     pub searcher: Keypair,
 }
 
-pub fn setup(params: SetupParams) -> SetupResult {
+pub fn setup(params: SetupParams) -> Result<SetupResult, TransactionError> {
     let SetupParams {
         split_protocol_default,
         split_relayer,
@@ -36,19 +37,12 @@ pub fn setup(params: SetupParams) -> SetupResult {
         "../target/deploy/dummy.so",
     ).unwrap();
 
-    let payer = Keypair::new();
-    let admin = Keypair::new();
-    let relayer_signer = Keypair::new();
-    let fee_receiver_relayer = Keypair::new();
+    let payer = generate_and_fund_key(&mut svm);
+    let admin = generate_and_fund_key(&mut svm);
+    let relayer_signer = generate_and_fund_key(&mut svm);
+    let fee_receiver_relayer = generate_and_fund_key(&mut svm);
 
-    svm.airdrop(&payer.pubkey(), 10*LAMPORTS_PER_SOL).unwrap();
-    svm.airdrop(&admin.pubkey(), 10*LAMPORTS_PER_SOL).unwrap();
-    svm.airdrop(&relayer_signer.pubkey(), 10*LAMPORTS_PER_SOL).unwrap();
-    svm.airdrop(&fee_receiver_relayer.pubkey(), 1*LAMPORTS_PER_SOL).unwrap();
-
-    let searcher = Keypair::new();
-
-    svm.airdrop(&searcher.pubkey(), 20*LAMPORTS_PER_SOL).unwrap();
+    let searcher = generate_and_fund_key(&mut svm);
 
     let initialize_express_relay_ix = get_initialize_express_relay_instruction(
         &payer,
@@ -59,22 +53,32 @@ pub fn setup(params: SetupParams) -> SetupResult {
         split_relayer
     );
 
-    submit_transaction(&mut svm, &[initialize_express_relay_ix], &payer, &[&payer]).expect("Initialize express relay tx failed unexpectedly");
+    let tx_result_express_relay = submit_transaction(&mut svm, &[initialize_express_relay_ix], &payer, &[&payer]);
+    match tx_result_express_relay {
+        Ok(_) => (),
+        Err(e) => return Err(e.err),
+    };
 
     let initialize_dummy_ix = get_initialize_dummy_instruction(
         &payer,
     );
 
-    submit_transaction(&mut svm, &[initialize_dummy_ix], &payer, &[&payer]).expect("Initialize dummy tx failed unexpectedly");
-
-    return SetupResult {
-        svm,
-        payer,
-        admin,
-        relayer_signer,
-        fee_receiver_relayer,
-        split_protocol_default,
-        split_relayer,
-        searcher,
+    let tx_result_dummy = submit_transaction(&mut svm, &[initialize_dummy_ix], &payer, &[&payer]);
+    match tx_result_dummy {
+        Ok(_) => (),
+        Err(e) => return Err(e.err),
     };
+
+    return Ok(
+        SetupResult {
+            svm,
+            payer,
+            admin,
+            relayer_signer,
+            fee_receiver_relayer,
+            split_protocol_default,
+            split_relayer,
+            searcher,
+        }
+    );
 }

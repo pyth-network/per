@@ -13,7 +13,7 @@ pub fn get_permission_instructions(
     fee_receiver_protocol: Pubkey,
     permission: Pubkey,
     bid_amount: u64,
-    deadline: u64,
+    deadline: i64,
     ixs: &[Instruction],
 ) -> Vec<Instruction> {
     let express_relay_metadata = get_express_relay_metadata_key();

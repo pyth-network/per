@@ -1,12 +1,12 @@
 use solana_sdk::{signature::Keypair, signer::Signer};
-use testing::{express_relay::{helpers::get_protocol_config, set_protocol_split::get_set_protocol_split_instruction}, helpers::submit_transaction, setup::{setup, SetupParams}};
+use testing::{express_relay::{helpers::get_protocol_config, set_protocol_split::get_set_protocol_split_instruction}, helpers::{assert_custom_error, generate_and_fund_key, submit_transaction}, setup::{setup, SetupParams}};
 
 #[test]
-fn test_set_split() {
+fn test_set_protocol_split() {
     let setup_result = setup(SetupParams {
         split_protocol_default: 4000,
         split_relayer: 2000,
-    });
+    }).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;
@@ -20,4 +20,22 @@ fn test_set_split() {
 
     assert_eq!(protocol_config.protocol, protocol);
     assert_eq!(protocol_config.split, split_protocol);
+}
+
+#[test]
+fn test_set_protocol_split_fail_wrong_admin() {
+    let setup_result = setup(SetupParams {
+        split_protocol_default: 4000,
+        split_relayer: 2000,
+    }).expect("setup failed");
+
+    let mut svm = setup_result.svm;
+    let wrong_admin = generate_and_fund_key(&mut svm);
+
+    let protocol = Keypair::new().pubkey();
+    let split_protocol: u64 = 5000;
+    let set_protocol_split_ix = get_set_protocol_split_instruction(&wrong_admin, protocol, split_protocol);
+    let tx_result = submit_transaction(&mut svm, &[set_protocol_split_ix], &wrong_admin, &[&wrong_admin]).expect_err("Transaction should have failed");
+
+    assert_custom_error(tx_result.err, 0, 2001);
 }

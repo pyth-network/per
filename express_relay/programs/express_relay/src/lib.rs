@@ -71,7 +71,7 @@ pub mod express_relay {
     }
 
     pub fn permission(ctx: Context<Permission>, data: PermissionArgs) -> Result<()> {
-        if data.deadline < Clock::get()?.unix_timestamp as u64 {
+        if data.deadline < Clock::get()?.unix_timestamp {
             return err!(ErrorCode::DeadlinePassed);
         }
 
@@ -284,7 +284,7 @@ pub struct SetProtocolSplit<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct PermissionArgs {
-    pub deadline: u64,
+    pub deadline: i64,
     pub bid_amount: u64,
 }
 

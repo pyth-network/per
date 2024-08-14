@@ -1,15 +1,27 @@
 use express_relay::state::FEE_SPLIT_PRECISION;
-use solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::Keypair, signer::Signer};
-use testing::{dummy::do_nothing::get_do_nothing_instruction, express_relay::{helpers::{get_express_relay_metadata, get_express_relay_metadata_key, get_protocol_fee_receiver_key}, permission::get_permission_instructions}, helpers::{get_balance, submit_transaction, TX_FEE}, setup::{setup, SetupParams}};
+use solana_sdk::{instruction::Instruction, native_token::LAMPORTS_PER_SOL, pubkey::Pubkey, signature::Keypair, signer::Signer};
+use testing::{dummy::do_nothing::get_do_nothing_instruction, express_relay::{helpers::{get_express_relay_metadata, get_express_relay_metadata_key, get_protocol_fee_receiver_key}, permission::get_permission_instructions}, helpers::{assert_custom_error, get_balance, submit_transaction, warp_to_unix, TX_FEE}, setup::{setup, SetupParams}};
 
-#[test]
-fn test_permission() {
+pub struct PermissionInfo {
+    pub svm: litesvm::LiteSVM,
+    pub relayer_signer: Keypair,
+    pub searcher: Keypair,
+    pub fee_receiver_relayer: Keypair,
+    pub protocol: Pubkey,
+    pub fee_receiver_protocol: Pubkey,
+    pub permission_key: Pubkey,
+    pub bid_amount: u64,
+    pub deadline: i64,
+    pub ixs: Vec<Instruction>,
+}
+
+fn setup_permission() -> PermissionInfo {
     let setup_result = setup(SetupParams {
         split_protocol_default: 4000,
         split_relayer: 2000,
-    });
+    }).expect("setup failed");
 
-    let mut svm = setup_result.svm;
+    let svm = setup_result.svm;
     let relayer_signer = setup_result.relayer_signer;
     let searcher = setup_result.searcher;
     let fee_receiver_relayer = setup_result.fee_receiver_relayer;
@@ -17,10 +29,39 @@ fn test_permission() {
     let fee_receiver_protocol = get_protocol_fee_receiver_key(protocol);
     let permission_key = Keypair::new().pubkey();
     let bid_amount = 1*LAMPORTS_PER_SOL;
-    let deadline = 100_000_000_000;
+    let deadline: i64 = 100_000_000_000;
     let ixs = [
         get_do_nothing_instruction(&searcher, permission_key)
     ];
+
+    return PermissionInfo {
+        svm,
+        relayer_signer,
+        searcher,
+        fee_receiver_relayer,
+        protocol,
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        ixs: ixs.to_vec()
+    };
+}
+
+#[test]
+fn test_permission() {
+    let PermissionInfo {
+        mut svm,
+        relayer_signer,
+        searcher,
+        fee_receiver_relayer,
+        protocol: _,
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        ixs
+    } = setup_permission();
 
     let permission_ixs = get_permission_instructions(
         &relayer_signer,
@@ -57,4 +98,106 @@ fn test_permission() {
     assert_eq!(balance_fee_receiver_relayer_post - balance_fee_receiver_relayer_pre, expected_fee_relayer);
     assert_eq!(balance_express_relay_metadata_post - balance_express_relay_metadata_pre, expected_fee_express_relay);
     assert_eq!(balance_searcher_pre - balance_searcher_post, bid_amount+TX_FEE);
+}
+
+#[test]
+fn test_permission_fail_wrong_relayer_signer() {
+    let PermissionInfo {
+        mut svm,
+        relayer_signer: _,
+        searcher,
+        fee_receiver_relayer,
+        protocol: _,
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        ixs
+    } = setup_permission();
+
+    let wrong_relayer_signer = Keypair::new();
+
+    let permission_ixs = get_permission_instructions(
+        &wrong_relayer_signer,
+        &searcher,
+        dummy::ID,
+        fee_receiver_relayer.pubkey(),
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        &ixs
+    );
+
+    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &wrong_relayer_signer]).expect_err("Transaction should have failed");
+
+    assert_custom_error(tx_result.err, 0, 2001);
+}
+
+#[test]
+fn test_permission_fail_wrong_relayer_fee_receiver() {
+    let PermissionInfo {
+        mut svm,
+        relayer_signer,
+        searcher,
+        fee_receiver_relayer: _,
+        protocol: _,
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        ixs
+    } = setup_permission();
+
+    let wrong_fee_receiver_relayer = Keypair::new();
+
+    let permission_ixs = get_permission_instructions(
+        &relayer_signer,
+        &searcher,
+        dummy::ID,
+        wrong_fee_receiver_relayer.pubkey(),
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        &ixs
+    );
+
+    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+
+    assert_custom_error(tx_result.err, 0, 2001);
+}
+
+#[test]
+fn test_permission_fail_passed_deadline() {
+    let PermissionInfo {
+        mut svm,
+        relayer_signer,
+        searcher,
+        fee_receiver_relayer,
+        protocol: _,
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        ixs
+    } = setup_permission();
+
+    let permission_ixs = get_permission_instructions(
+        &relayer_signer,
+        &searcher,
+        dummy::ID,
+        fee_receiver_relayer.pubkey(),
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        &ixs
+    );
+
+    warp_to_unix(&mut svm, deadline+1);
+
+    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+
+    assert_custom_error(tx_result.err, 0, 6002);
 }

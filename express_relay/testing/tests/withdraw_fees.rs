@@ -1,13 +1,13 @@
 use express_relay::state::RESERVE_EXPRESS_RELAY_METADATA;
 use solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::Keypair, signer::Signer};
-use testing::{express_relay::{helpers::get_express_relay_metadata_key, withdraw_fees::get_withdraw_fees_instruction}, helpers::{get_balance, submit_transaction}, setup::{setup, SetupParams}};
+use testing::{express_relay::{helpers::get_express_relay_metadata_key, withdraw_fees::get_withdraw_fees_instruction}, helpers::{assert_custom_error, generate_and_fund_key, get_balance, submit_transaction}, setup::{setup, SetupParams}};
 
 #[test]
 fn test_withdraw_fees() {
     let setup_result = setup(SetupParams {
         split_protocol_default: 4000,
         split_relayer: 2000,
-    });
+    }).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;
@@ -29,4 +29,21 @@ fn test_withdraw_fees() {
     assert_eq!(balance_express_relay_metadata_pre - balance_express_relay_metadata_post, total_fees);
     assert_eq!(balance_fee_receiver_admin_post - balance_fee_receiver_admin_pre, total_fees);
     assert_eq!(balance_express_relay_metadata_post, svm.minimum_balance_for_rent_exemption(RESERVE_EXPRESS_RELAY_METADATA));
+}
+
+#[test]
+fn test_withdraw_fees_fail_wrong_admin() {
+    let setup_result = setup(SetupParams {
+        split_protocol_default: 4000,
+        split_relayer: 2000,
+    }).expect("setup failed");
+
+    let mut svm = setup_result.svm;
+    let wrong_admin = generate_and_fund_key(&mut svm);
+
+    let fee_receiver_admin = Keypair::new();
+    let withdraw_fees_ix = get_withdraw_fees_instruction(&wrong_admin, fee_receiver_admin.pubkey());
+    let tx_result = submit_transaction(&mut svm, &[withdraw_fees_ix], &wrong_admin, &[&wrong_admin]).expect_err("Transaction should have failed");
+
+    assert_custom_error(tx_result.err, 0, 2001);
 }
