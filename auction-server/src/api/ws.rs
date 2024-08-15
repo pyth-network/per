@@ -1,6 +1,6 @@
 use {
     super::{
-        bid::solana_process_bid,
+        bid::svm_process_bid,
         Auth,
     },
     crate::{
@@ -16,7 +16,7 @@ use {
         },
         auction::{
             Bid,
-            SolanaBid,
+            SvmBid,
         },
         config::ChainId,
         opportunity_adapter::OpportunityBid,
@@ -99,8 +99,8 @@ pub enum ClientMessage {
     #[serde(rename = "post_bid")]
     PostBid { bid: Bid },
 
-    #[serde(rename = "solana_post_bid")]
-    SolanaPostBid { bid: SolanaBid },
+    #[serde(rename = "svm_post_bid")]
+    SvmPostBid { bid: SvmBid },
 
     #[serde(rename = "post_opportunity_bid")]
     PostOpportunityBid {
@@ -383,13 +383,13 @@ impl Subscriber {
         }
     }
 
-    async fn solana_handle_post_bid(
+    async fn svm_handle_post_bid(
         &mut self,
         id: String,
-        bid: SolanaBid,
+        bid: SvmBid,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         tracing::Span::current().record("name", "post_bid");
-        match solana_process_bid(self.store.clone(), bid, self.auth.clone()).await {
+        match svm_process_bid(self.store.clone(), bid, self.auth.clone()).await {
             Ok(bid_result) => {
                 // TODO implement this
                 Ok(ServerResultResponse {
@@ -493,9 +493,9 @@ impl Subscriber {
                     tracing::Span::current().record("name", "post_bid");
                     self.handle_post_bid(id, bid).await
                 }
-                ClientMessage::SolanaPostBid { bid } => {
-                    tracing::Span::current().record("name", "solana_post_bid");
-                    self.solana_handle_post_bid(id, bid).await
+                ClientMessage::SvmPostBid { bid } => {
+                    tracing::Span::current().record("name", "svm_post_bid");
+                    self.svm_handle_post_bid(id, bid).await
                 }
                 ClientMessage::PostOpportunityBid {
                     opportunity_bid,

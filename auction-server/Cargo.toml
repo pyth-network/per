@@ -39,3 +39,4 @@ opentelemetry = "0.23.0"
 opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"]}
 opentelemetry-otlp = { version = "0.16.0" }
 gas-oracle = { path = "../gas-oracle" }
+serde_with = { version = "3.9.0", features = ["base64"] }

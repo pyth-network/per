@@ -78,6 +78,10 @@ use {
         Deserialize,
         Serialize,
     },
+    serde_with::{
+        base64::Base64,
+        serde_as,
+    },
     sqlx::types::time::OffsetDateTime,
     std::{
         result,
@@ -625,31 +629,38 @@ pub struct Bid {
     pub amount:          BidAmount,
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct SolanaBidMetadata {
+pub struct SvmBidMetadata {
     /// The transaction value of the bid.
     #[schema(example = "0xdeadbeef", value_type = String)]
-    pub transaction: Bytes,
+    #[serde_as(as = "Base64")]
+    pub transaction: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(untagged)] // Remove tags to avoid key-value wrapping
 pub enum BidMetadata {
-    Solana(SolanaBidMetadata),
+    Svm(SvmBidMetadata),
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct SolanaBid {
+#[serde(untagged)] // Remove tags to avoid key-value wrapping
+pub enum NewBidAmount {
+    Svm(u64),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct SvmBid {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type = String)]
     pub permission_key: Bytes,
     /// The chain id to bid on.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:       ChainId,
-    /// Amount of bid in wei.
-    #[schema(example = "10", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub amount:         BidAmount,
+    /// EVM bid amount in wei, and SVM bid amount in lamports.
+    #[schema(example = 10, value_type = NewBidAmount)]
+    pub amount:         NewBidAmount,
     /// The metadata for bid based on chain id.
     #[schema(value_type = BidMetadata)]
     pub metadata:       BidMetadata,
@@ -863,9 +874,9 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn solana_handle_bid(
+pub async fn svm_handle_bid(
     store: Arc<Store>,
-    bid: SolanaBid,
+    bid: SvmBid,
     initiation_time: OffsetDateTime,
     auth: Auth,
 ) -> result::Result<Uuid, RestError> {

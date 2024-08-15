@@ -7,9 +7,9 @@ use {
         },
         auction::{
             handle_bid,
-            solana_handle_bid,
+            svm_handle_bid,
             Bid,
-            SolanaBid,
+            SvmBid,
         },
         state::{
             BidId,
@@ -80,12 +80,12 @@ pub async fn process_bid(
     }
 }
 
-pub async fn solana_process_bid(
+pub async fn svm_process_bid(
     store: Arc<Store>,
-    bid: SolanaBid,
+    bid: SvmBid,
     auth: Auth,
 ) -> Result<Json<BidResult>, RestError> {
-    match solana_handle_bid(store, bid, OffsetDateTime::now_utc(), auth).await {
+    match svm_handle_bid(store, bid, OffsetDateTime::now_utc(), auth).await {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),
             id,
@@ -155,20 +155,20 @@ pub async fn get_bids_by_time(
     }
 }
 
-/// Bid on a specific permission key for the solana chain.
+/// Bid on a specific permission key for the svm chain.
 ///
 /// Your bid will be verified by the server. Depending on the outcome of the auction, a transaction
-/// containing the contract call will be sent to the blockchain expecting the bid amount to be paid after the call.
-#[utoipa::path(post, path = "/v1/bids/solana", request_body = SolanaBid, responses(
+/// will be sent to the blockchain expecting the bid amount to be paid.
+#[utoipa::path(post, path = "/v1/bids/svm", request_body = SvmBid, responses(
     (status = 200, description = "Bid was placed successfully", body = BidResult,
     example = json!({"status": "OK", "id": "beedbeed-b346-4fa1-8fab-2541a9e1872d"})),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
-pub async fn solana_bid(
+pub async fn svm_bid(
     auth: Auth,
     State(store): State<Arc<Store>>,
-    Json(bid): Json<SolanaBid>,
+    Json(bid): Json<SvmBid>,
 ) -> Result<Json<BidResult>, RestError> {
-    solana_process_bid(store, bid, auth).await
+    svm_process_bid(store, bid, auth).await
 }
