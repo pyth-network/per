@@ -15,7 +15,11 @@ use {
                 ServerUpdateResponse,
             },
         },
-        auction::Bid,
+        auction::{
+            Bid,
+            BidEvm,
+            BidSvm,
+        },
         config::{
             ChainId,
             RunOptions,
@@ -130,6 +134,8 @@ pub enum RestError {
     TemporarilyUnavailable,
     /// Invalid auth token
     InvalidToken,
+    /// Not implemented
+    NotImplemented,
 }
 
 impl RestError {
@@ -165,6 +171,10 @@ impl RestError {
             RestError::InvalidToken => (
                 StatusCode::UNAUTHORIZED,
                 "Invalid authorization token".to_string(),
+            ),
+            RestError::NotImplemented => (
+                StatusCode::NOT_IMPLEMENTED,
+                "This feature is not implemented".to_string(),
             ),
         }
     }
@@ -312,6 +322,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     schemas(
     APIResponse,
     Bid,
+    BidSvm,
+    BidEvm,
     BidStatus,
     BidStatusWithId,
     BidResult,

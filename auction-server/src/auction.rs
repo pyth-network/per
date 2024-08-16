@@ -76,7 +76,12 @@ use {
     gas_oracle::EthProviderOracle,
     serde::{
         Deserialize,
+        Deserializer,
         Serialize,
+    },
+    serde_with::{
+        base64::Base64,
+        serde_as,
     },
     sqlx::types::time::OffsetDateTime,
     std::{
@@ -606,7 +611,7 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct Bid {
+pub struct BidEvm {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type = String)]
     pub permission_key:  Bytes,
@@ -623,6 +628,60 @@ pub struct Bid {
     #[schema(example = "10", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub amount:          BidAmount,
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct BidSvm {
+    /// The permission key to bid on.
+    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
+    #[serde_as(as = "Base64")]
+    pub permission_key: Bytes,
+    /// The chain id to bid on.
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id:       ChainId,
+    /// Bid amount in lamports.
+    #[schema(example = 10, value_type = u64)]
+    pub amount:         u64,
+    /// The transaction for bid.
+    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
+    #[serde_as(as = "Base64")]
+    pub transaction:    Vec<u8>,
+}
+
+#[derive(Serialize, ToSchema, Debug, Clone)]
+#[serde(untagged)] // Remove tags to avoid key-value wrapping
+pub enum Bid {
+    Evm(BidEvm),
+    Svm(BidSvm),
+}
+
+impl<'de> Deserialize<'de> for Bid {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct BidChainId {
+            chain_id: ChainId,
+        }
+
+        let value: serde_json::Value = Deserialize::deserialize(d)?;
+        let bid_id: BidChainId =
+            serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
+        match bid_id.chain_id.as_str() {
+            "solana" => {
+                let svm_bid: BidSvm =
+                    serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
+                Ok(Bid::Svm(svm_bid))
+            }
+            _ => {
+                let evm_bid: BidEvm =
+                    serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
+                Ok(Bid::Evm(evm_bid))
+            }
+        }
+    }
 }
 
 // For now, we are only supporting the EIP1559 enabled networks
@@ -690,7 +749,7 @@ async fn verify_bid_under_gas_limit(
 #[tracing::instrument(skip_all)]
 pub async fn handle_bid(
     store: Arc<Store>,
-    bid: Bid,
+    bid: BidEvm,
     initiation_time: OffsetDateTime,
     auth: Auth,
 ) -> result::Result<Uuid, RestError> {
@@ -830,4 +889,19 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
     }
     tracing::info!("Shutting down tracker...");
     Ok(())
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn svm_handle_bid(
+    _store: Arc<Store>,
+    bid: BidSvm,
+    _initiation_time: OffsetDateTime,
+    _auth: Auth,
+) -> result::Result<Uuid, RestError> {
+    if bid.chain_id != "solana" {
+        return Err(RestError::InvalidChainId);
+    }
+
+    // TODO implement this
+    Err(RestError::NotImplemented)
 }
