@@ -611,20 +611,13 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct BidId {
+pub struct BidEvm {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type = String)]
-    pub permission_key: Bytes,
+    pub permission_key:  Bytes,
     /// The chain id to bid on.
     #[schema(example = "op_sepolia", value_type = String)]
-    pub chain_id:       ChainId,
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct BidEvm {
-    #[serde(flatten)]
-    #[schema(inline)]
-    pub id:              BidId,
+    pub chain_id:        ChainId,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: abi::Address,
@@ -640,16 +633,20 @@ pub struct BidEvm {
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct BidSvm {
-    #[serde(flatten)]
-    #[schema(inline)]
-    pub id:          BidId,
+    /// The permission key to bid on.
+    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
+    #[serde_as(as = "Base64")]
+    pub permission_key: Bytes,
+    /// The chain id to bid on.
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id:       ChainId,
     /// Bid amount in lamports.
     #[schema(example = 10, value_type = u64)]
-    pub amount:      u64,
+    pub amount:         u64,
     /// The transaction for bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde_as(as = "Base64")]
-    pub transaction: Vec<u8>,
+    pub transaction:    Vec<u8>,
 }
 
 #[derive(Serialize, ToSchema, Debug, Clone)]
@@ -664,8 +661,13 @@ impl<'de> Deserialize<'de> for Bid {
     where
         D: Deserializer<'de>,
     {
+        #[derive(Deserialize)]
+        struct BidChainId {
+            chain_id: ChainId,
+        }
+
         let value: serde_json::Value = Deserialize::deserialize(d)?;
-        let bid_id: BidId =
+        let bid_id: BidChainId =
             serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
         match bid_id.chain_id.as_str() {
             "solana" => {
@@ -753,13 +755,13 @@ pub async fn handle_bid(
 ) -> result::Result<Uuid, RestError> {
     let chain_store = store
         .chains
-        .get(&bid.id.chain_id)
+        .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
     let call = get_simulation_call(
         store.relayer.address(),
         chain_store.provider.clone(),
         chain_store.config.clone(),
-        bid.id.permission_key.clone(),
+        bid.permission_key.clone(),
         vec![MulticallData::from((
             Uuid::new_v4().into_bytes(),
             bid.target_contract,
@@ -834,8 +836,8 @@ pub async fn handle_bid(
         target_calldata: bid.target_calldata.clone(),
         bid_amount: bid.amount,
         id: bid_id,
-        permission_key: bid.id.permission_key.clone(),
-        chain_id: bid.id.chain_id.clone(),
+        permission_key: bid.permission_key.clone(),
+        chain_id: bid.chain_id.clone(),
         status: BidStatus::Pending,
         initiation_time,
         profile_id: match auth {
@@ -896,7 +898,7 @@ pub async fn svm_handle_bid(
     _initiation_time: OffsetDateTime,
     _auth: Auth,
 ) -> result::Result<Uuid, RestError> {
-    if bid.id.chain_id != "solana" {
+    if bid.chain_id != "solana" {
         return Err(RestError::InvalidChainId);
     }
 

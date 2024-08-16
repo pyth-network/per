@@ -48,8 +48,8 @@ pub struct BidResult {
 
 /// Bid on a specific permission key for a specific chain.
 ///
-/// Your bid will be simulated and verified by the server. Depending on the outcome of the auction, a transaction
-/// containing the contract call will be sent to the blockchain expecting the bid amount to be paid after the call.
+/// Your bid will be verified by the server. Depending on the outcome of the auction, a transaction
+/// containing will be sent to the blockchain expecting the bid amount to be paid after the call.
 #[utoipa::path(post, path = "/v1/bids", request_body = Bid, responses(
     (status = 200, description = "Bid was placed successfully", body = BidResult,
     example = json!({"status": "OK", "id": "beedbeed-b346-4fa1-8fab-2541a9e1872d"})),

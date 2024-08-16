@@ -8,7 +8,6 @@ use {
             get_simulation_call,
             handle_bid,
             BidEvm,
-            BidId,
             MulticallData,
             MulticallReturn,
         },
@@ -636,10 +635,8 @@ pub async fn handle_opportunity_bid(
                 RestError::BadParameters(e.to_string())
             })?;
     let bid = BidEvm {
-        id:              BidId {
-            permission_key: params.permission_key.clone(),
-            chain_id:       params.chain_id.clone(),
-        },
+        permission_key:  params.permission_key.clone(),
+        chain_id:        params.chain_id.clone(),
         target_contract: chain_store.config.adapter_factory_contract,
         target_calldata: adapter_calldata,
         amount:          opportunity_bid.amount,
