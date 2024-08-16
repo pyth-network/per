@@ -1,8 +1,5 @@
 use {
-    super::{
-        bid::svm_process_bid,
-        Auth,
-    },
+    super::Auth,
     crate::{
         api::{
             bid::{
@@ -14,10 +11,7 @@ use {
                 OpportunityParamsWithMetadata,
             },
         },
-        auction::{
-            Bid,
-            SvmBid,
-        },
+        auction::Bid,
         config::ChainId,
         opportunity_adapter::OpportunityBid,
         server::{
@@ -98,9 +92,6 @@ pub enum ClientMessage {
     },
     #[serde(rename = "post_bid")]
     PostBid { bid: Bid },
-
-    #[serde(rename = "svm_post_bid")]
-    SvmPostBid { bid: SvmBid },
 
     #[serde(rename = "post_opportunity_bid")]
     PostOpportunityBid {
@@ -383,29 +374,6 @@ impl Subscriber {
         }
     }
 
-    async fn svm_handle_post_bid(
-        &mut self,
-        id: String,
-        bid: SvmBid,
-    ) -> Result<ServerResultResponse, ServerResultResponse> {
-        tracing::Span::current().record("name", "post_bid");
-        match svm_process_bid(self.store.clone(), bid, self.auth.clone()).await {
-            Ok(bid_result) => {
-                // TODO implement this
-                Ok(ServerResultResponse {
-                    id:     Some(id.clone()),
-                    result: ServerResultMessage::Success(Some(APIResponse::BidResult(
-                        bid_result.0,
-                    ))),
-                })
-            }
-            Err(e) => Err(ServerResultResponse {
-                id:     Some(id),
-                result: ServerResultMessage::Err(e.to_status_and_message().1),
-            }),
-        }
-    }
-
     #[instrument(skip_all)]
     async fn handle_post_opportunity_bid(
         &mut self,
@@ -492,10 +460,6 @@ impl Subscriber {
                 ClientMessage::PostBid { bid } => {
                     tracing::Span::current().record("name", "post_bid");
                     self.handle_post_bid(id, bid).await
-                }
-                ClientMessage::SvmPostBid { bid } => {
-                    tracing::Span::current().record("name", "svm_post_bid");
-                    self.svm_handle_post_bid(id, bid).await
                 }
                 ClientMessage::PostOpportunityBid {
                     opportunity_bid,

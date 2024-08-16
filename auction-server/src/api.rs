@@ -17,10 +17,8 @@ use {
         },
         auction::{
             Bid,
-            BidMetadata,
-            NewBidAmount,
-            SvmBid,
-            SvmBidMetadata,
+            BidEvm,
+            BidSvm,
         },
         config::{
             ChainId,
@@ -313,7 +311,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     #[openapi(
     paths(
     bid::bid,
-    bid::svm_bid,
     bid::bid_status,
     bid::get_bids_by_time,
     opportunity::post_opportunity,
@@ -325,6 +322,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     schemas(
     APIResponse,
     Bid,
+    BidSvm,
+    BidEvm,
     BidStatus,
     BidStatusWithId,
     BidResult,
@@ -342,10 +341,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ServerResultMessage,
     ServerUpdateResponse,
     ServerResultResponse,
-    SvmBid,
-    BidMetadata,
-    SvmBidMetadata,
-    NewBidAmount,
     ),
     responses(
     ErrorBodyResponse,
@@ -379,7 +374,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
 
     let bid_routes = Router::new()
         .route("/", post(bid::bid))
-        .route("/svm", post(bid::svm_bid))
         .route("/", login_required!(store, get(bid::get_bids_by_time)))
         .route("/:bid_id", get(bid::bid_status));
     let opportunity_routes = Router::new()

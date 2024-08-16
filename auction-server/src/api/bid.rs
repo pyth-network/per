@@ -9,7 +9,6 @@ use {
             handle_bid,
             svm_handle_bid,
             Bid,
-            SvmBid,
         },
         state::{
             BidId,
@@ -70,22 +69,11 @@ pub async fn process_bid(
     bid: Bid,
     auth: Auth,
 ) -> Result<Json<BidResult>, RestError> {
-    match handle_bid(store, bid, OffsetDateTime::now_utc(), auth).await {
-        Ok(id) => Ok(BidResult {
-            status: "OK".to_string(),
-            id,
-        }
-        .into()),
-        Err(e) => Err(e),
-    }
-}
-
-pub async fn svm_process_bid(
-    store: Arc<Store>,
-    bid: SvmBid,
-    auth: Auth,
-) -> Result<Json<BidResult>, RestError> {
-    match svm_handle_bid(store, bid, OffsetDateTime::now_utc(), auth).await {
+    let result = match bid {
+        Bid::Evm(evm_bid) => handle_bid(store, evm_bid, OffsetDateTime::now_utc(), auth).await,
+        Bid::Svm(svm_bid) => svm_handle_bid(store, svm_bid, OffsetDateTime::now_utc(), auth).await,
+    };
+    match result {
         Ok(id) => Ok(BidResult {
             status: "OK".to_string(),
             id,
@@ -153,22 +141,4 @@ pub async fn get_bids_by_time(
             Err(RestError::TemporarilyUnavailable)
         }
     }
-}
-
-/// Bid on a specific permission key for the svm chain.
-///
-/// Your bid will be verified by the server. Depending on the outcome of the auction, a transaction
-/// will be sent to the blockchain expecting the bid amount to be paid.
-#[utoipa::path(post, path = "/v1/bids/svm", request_body = SvmBid, responses(
-    (status = 200, description = "Bid was placed successfully", body = BidResult,
-    example = json!({"status": "OK", "id": "beedbeed-b346-4fa1-8fab-2541a9e1872d"})),
-    (status = 400, response = ErrorBodyResponse),
-    (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
-),)]
-pub async fn svm_bid(
-    auth: Auth,
-    State(store): State<Arc<Store>>,
-    Json(bid): Json<SvmBid>,
-) -> Result<Json<BidResult>, RestError> {
-    svm_process_bid(store, bid, auth).await
 }

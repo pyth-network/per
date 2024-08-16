@@ -76,6 +76,7 @@ use {
     gas_oracle::EthProviderOracle,
     serde::{
         Deserialize,
+        Deserializer,
         Serialize,
     },
     serde_with::{
@@ -610,13 +611,20 @@ pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct Bid {
+pub struct BidId {
     /// The permission key to bid on.
     #[schema(example = "0xdeadbeef", value_type = String)]
-    pub permission_key:  Bytes,
+    pub permission_key: Bytes,
     /// The chain id to bid on.
     #[schema(example = "op_sepolia", value_type = String)]
-    pub chain_id:        ChainId,
+    pub chain_id:       ChainId,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct BidEvm {
+    #[serde(flatten)]
+    #[schema(inline)]
+    pub id:              BidId,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: abi::Address,
@@ -631,39 +639,47 @@ pub struct Bid {
 
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct SvmBidMetadata {
-    /// The transaction value of the bid.
-    #[schema(example = "0xdeadbeef", value_type = String)]
+pub struct BidSvm {
+    #[serde(flatten)]
+    #[schema(inline)]
+    pub id:          BidId,
+    /// Bid amount in lamports.
+    #[schema(example = 10, value_type = u64)]
+    pub amount:      u64,
+    /// The transaction for bid.
+    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde_as(as = "Base64")]
     pub transaction: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[derive(Serialize, ToSchema, Debug, Clone)]
 #[serde(untagged)] // Remove tags to avoid key-value wrapping
-pub enum BidMetadata {
-    Svm(SvmBidMetadata),
+pub enum Bid {
+    Evm(BidEvm),
+    Svm(BidSvm),
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-#[serde(untagged)] // Remove tags to avoid key-value wrapping
-pub enum NewBidAmount {
-    Svm(u64),
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct SvmBid {
-    /// The permission key to bid on.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub permission_key: Bytes,
-    /// The chain id to bid on.
-    #[schema(example = "solana", value_type = String)]
-    pub chain_id:       ChainId,
-    /// EVM bid amount in wei, and SVM bid amount in lamports.
-    #[schema(example = 10, value_type = NewBidAmount)]
-    pub amount:         NewBidAmount,
-    /// The metadata for bid based on chain id.
-    #[schema(value_type = BidMetadata)]
-    pub metadata:       BidMetadata,
+impl<'de> Deserialize<'de> for Bid {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value: serde_json::Value = Deserialize::deserialize(d)?;
+        let bid_id: BidId =
+            serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
+        match bid_id.chain_id.as_str() {
+            "solana" => {
+                let svm_bid: BidSvm =
+                    serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
+                Ok(Bid::Svm(svm_bid))
+            }
+            _ => {
+                let evm_bid: BidEvm =
+                    serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
+                Ok(Bid::Evm(evm_bid))
+            }
+        }
+    }
 }
 
 // For now, we are only supporting the EIP1559 enabled networks
@@ -731,19 +747,19 @@ async fn verify_bid_under_gas_limit(
 #[tracing::instrument(skip_all)]
 pub async fn handle_bid(
     store: Arc<Store>,
-    bid: Bid,
+    bid: BidEvm,
     initiation_time: OffsetDateTime,
     auth: Auth,
 ) -> result::Result<Uuid, RestError> {
     let chain_store = store
         .chains
-        .get(&bid.chain_id)
+        .get(&bid.id.chain_id)
         .ok_or(RestError::InvalidChainId)?;
     let call = get_simulation_call(
         store.relayer.address(),
         chain_store.provider.clone(),
         chain_store.config.clone(),
-        bid.permission_key.clone(),
+        bid.id.permission_key.clone(),
         vec![MulticallData::from((
             Uuid::new_v4().into_bytes(),
             bid.target_contract,
@@ -818,8 +834,8 @@ pub async fn handle_bid(
         target_calldata: bid.target_calldata.clone(),
         bid_amount: bid.amount,
         id: bid_id,
-        permission_key: bid.permission_key.clone(),
-        chain_id: bid.chain_id.clone(),
+        permission_key: bid.id.permission_key.clone(),
+        chain_id: bid.id.chain_id.clone(),
         status: BidStatus::Pending,
         initiation_time,
         profile_id: match auth {
@@ -875,12 +891,12 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
 
 #[tracing::instrument(skip_all)]
 pub async fn svm_handle_bid(
-    store: Arc<Store>,
-    bid: SvmBid,
-    initiation_time: OffsetDateTime,
-    auth: Auth,
+    _store: Arc<Store>,
+    bid: BidSvm,
+    _initiation_time: OffsetDateTime,
+    _auth: Auth,
 ) -> result::Result<Uuid, RestError> {
-    if bid.chain_id != "solana" {
+    if bid.id.chain_id != "solana" {
         return Err(RestError::InvalidChainId);
     }
 
