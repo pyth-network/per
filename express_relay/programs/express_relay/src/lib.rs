@@ -24,6 +24,7 @@ pub mod express_relay {
         validate_fee_split(data.split_relayer)?;
 
         let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata;
+
         express_relay_metadata_data.admin = *ctx.accounts.admin.key;
         express_relay_metadata_data.relayer_signer = *ctx.accounts.relayer_signer.key;
         express_relay_metadata_data.fee_receiver_relayer = *ctx.accounts.fee_receiver_relayer.key;
@@ -37,6 +38,7 @@ pub mod express_relay {
         let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata;
 
         express_relay_metadata_data.admin = *ctx.accounts.admin_new.key;
+
         Ok(())
     }
 
@@ -113,29 +115,35 @@ pub mod express_relay {
             return err!(ErrorCode::FeesHigherThanBid);
         }
 
-        let protocol_fee_receiver = &ctx.accounts.fee_receiver_protocol;
-        let balance_protocol_fee_receiver = protocol_fee_receiver.lamports();
-        let rent_protocol_fee_receiver = Rent::get()?.minimum_balance(0);
-        if balance_protocol_fee_receiver+fee_protocol < rent_protocol_fee_receiver {
-            return err!(ErrorCode::InsufficientProtocolFeeReceiverFundsForRent);
+        let fee_receiver_protocol;
+        // if protocol is not a program, then fee receiver is the address itself
+        if ctx.accounts.protocol.executable {
+            fee_receiver_protocol = &ctx.accounts.fee_receiver_protocol;
+        } else {
+            fee_receiver_protocol = &ctx.accounts.protocol;
+        }
+        let balance_fee_receiver_protocol = fee_receiver_protocol.lamports();
+        let rent_fee_receiver_protocol = Rent::get()?.minimum_balance(0);
+        if balance_fee_receiver_protocol+fee_protocol < rent_fee_receiver_protocol {
+            return err!(ErrorCode::InsufficientProtocolFeeReceiverRent);
         }
 
-        let relayer_fee_receiver = &ctx.accounts.fee_receiver_relayer;
-        let balance_relayer_fee_receiver = relayer_fee_receiver.lamports();
-        let rent_relayer_fee_receiver = Rent::get()?.minimum_balance(0);
-        if balance_relayer_fee_receiver+fee_relayer < rent_relayer_fee_receiver {
-            return err!(ErrorCode::InsufficientRelayerFeeReceiverFundsForRent);
+        let fee_receiver_relayer = &ctx.accounts.fee_receiver_relayer;
+        let balance_fee_receiver_relayer = fee_receiver_relayer.lamports();
+        let rent_fee_receiver_relayer = Rent::get()?.minimum_balance(0);
+        if balance_fee_receiver_relayer+fee_relayer < rent_fee_receiver_relayer {
+            return err!(ErrorCode::InsufficientRelayerFeeReceiverRent);
         }
 
         transfer_lamports_cpi(
             &searcher.to_account_info(),
-            &protocol_fee_receiver.to_account_info(),
+            &fee_receiver_protocol.to_account_info(),
             fee_protocol,
             ctx.accounts.system_program.to_account_info()
         )?;
         transfer_lamports_cpi(
             &searcher.to_account_info(),
-            &relayer_fee_receiver.to_account_info(),
+            &fee_receiver_relayer.to_account_info(),
             fee_relayer,
             ctx.accounts.system_program.to_account_info()
         )?;
@@ -182,11 +190,10 @@ pub mod express_relay {
         let express_relay_metadata_account_info = express_relay_metadata.to_account_info();
         let rent_express_relay_metadata = Rent::get()?.minimum_balance(express_relay_metadata_account_info.data_len());
 
-        if express_relay_metadata_account_info.lamports() <= rent_express_relay_metadata {
-            return err!(ErrorCode::InsufficientWithdrawalFunds);
+        let amount = express_relay_metadata_account_info.lamports().saturating_sub(rent_express_relay_metadata);
+        if amount == 0 {
+            return Ok(());
         }
-
-        let amount = express_relay_metadata_account_info.lamports() - rent_express_relay_metadata;
         transfer_lamports(&express_relay_metadata_account_info, &fee_receiver_admin.to_account_info(), amount)
     }
 }
@@ -205,10 +212,10 @@ pub struct Initialize<'info> {
     #[account(init, payer = payer, space = RESERVE_EXPRESS_RELAY_METADATA, seeds = [SEED_METADATA], bump)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just the PK for the admin to sign from
+    /// CHECK: this is just the admin's PK
     pub admin: UncheckedAccount<'info>,
 
-    /// CHECK: this is just the PK for the relayer to sign from
+    /// CHECK: this is just the relayer's signer PK
     pub relayer_signer: UncheckedAccount<'info>,
 
     /// CHECK: this is just a PK for the relayer to receive fees at
@@ -237,7 +244,7 @@ pub struct SetRelayer<'info> {
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just the PK for the relayer to sign from
+    /// CHECK: this is just the relayer's signer PK
     pub relayer_signer: UncheckedAccount<'info>,
 
     /// CHECK: this is just a PK for the relayer to receive fees at

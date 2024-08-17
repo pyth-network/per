@@ -12,12 +12,10 @@ pub enum ErrorCode {
     InvalidCPIPermission,
     #[msg("Missing permission")]
     MissingPermission,
-    #[msg("Insufficient Withdrawal Funds")]
-    InsufficientWithdrawalFunds,
     #[msg("Insufficient Searcher Funds")]
     InsufficientSearcherFunds,
     #[msg("Insufficient protocol fee receiver funds for rent")]
-    InsufficientProtocolFeeReceiverFundsForRent,
+    InsufficientProtocolFeeReceiverRent,
     #[msg("Insufficient relayer fee receiver funds for rent")]
-    InsufficientRelayerFeeReceiverFundsForRent,
+    InsufficientRelayerFeeReceiverRent,
 }

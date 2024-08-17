@@ -56,7 +56,7 @@ fn test_permission() {
         relayer_signer,
         searcher,
         fee_receiver_relayer,
-        protocol: _,
+        protocol,
         fee_receiver_protocol,
         permission_key,
         bid_amount,
@@ -67,7 +67,7 @@ fn test_permission() {
     let permission_ixs = get_permission_instructions(
         &relayer_signer,
         &searcher,
-        dummy::ID,
+        protocol,
         fee_receiver_relayer.pubkey(),
         fee_receiver_protocol,
         permission_key,
