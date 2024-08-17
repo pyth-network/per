@@ -1,4 +1,4 @@
-use express_relay::state::FEE_SPLIT_PRECISION;
+use express_relay::{state::FEE_SPLIT_PRECISION, error::ErrorCode};
 use solana_sdk::signer::Signer;
 use testing::{express_relay::helpers::get_express_relay_metadata, helpers::assert_custom_error, setup::{setup, SetupParams}};
 
@@ -35,7 +35,7 @@ fn test_initialize_fail_high_split_protocol() {
 
     match setup_result {
         Ok(_) => panic!("expected setup to fail"),
-        Err(err) => assert_custom_error(err, 0, 6000)
+        Err(err) => assert_custom_error(err, 0, ErrorCode::FeeSplitLargerThanPrecision.into())
     }
 }
 
@@ -52,6 +52,6 @@ fn test_initialize_fail_high_split_relayer() {
 
     match setup_result {
         Ok(_) => panic!("expected setup to fail"),
-        Err(err) => assert_custom_error(err, 0, 6000)
+        Err(err) => assert_custom_error(err, 0, ErrorCode::FeeSplitLargerThanPrecision.into())
     }
 }

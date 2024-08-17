@@ -4,7 +4,7 @@ pub mod utils;
 
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_lang::solana_program::sysvar::instructions as sysvar_instructions;
-use solana_program::{serialize_utils::read_u16, sysvar::instructions::{get_instruction_relative, load_instruction_at_checked}};
+use solana_program::{instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT}, serialize_utils::read_u16, sysvar::instructions::load_instruction_at_checked};
 use anchor_syn::codegen::program::common::sighash;
 use anchor_spl::token::Token;
 use crate::{
@@ -76,8 +76,7 @@ pub mod express_relay {
         }
 
         // check that not cpi
-        let instruction = get_instruction_relative(0, &ctx.accounts.sysvar_instructions.to_account_info())?;
-        if instruction.program_id != crate::id() {
+        if get_stack_height() > TRANSACTION_LEVEL_STACK_HEIGHT {
             return err!(ErrorCode::InvalidCPIPermission);
         }
 
@@ -309,7 +308,7 @@ pub struct Permission<'info> {
     #[account(mut)]
     pub fee_receiver_relayer: UncheckedAccount<'info>,
 
-	/// CHECK: don't care what this PDA looks like
+    /// CHECK: don't care what this PDA looks like
     #[account(mut, seeds = [SEED_EXPRESS_RELAY_FEES], seeds::program = protocol.key(), bump)]
     pub fee_receiver_protocol: UncheckedAccount<'info>,
 

@@ -13,7 +13,6 @@ pub fn get_initialize_instruction(
     split_relayer: u64
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
-    let system_program_pk = system_program::ID;
 
     let initialize_ix = Instruction {
         program_id: express_relay::id(),
@@ -30,7 +29,7 @@ pub fn get_initialize_instruction(
             admin: admin,
             relayer_signer: relayer_signer,
             fee_receiver_relayer: fee_receiver_relayer,
-            system_program: system_program_pk,
+            system_program: system_program::ID,
         }
         .to_account_metas(None),
     };

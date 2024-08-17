@@ -1,4 +1,5 @@
-use express_relay::state::FEE_SPLIT_PRECISION;
+use express_relay::{state::FEE_SPLIT_PRECISION, error::ErrorCode};
+use anchor_lang::error::ErrorCode as AnchorErrorCode;
 use testing::{express_relay::{helpers::get_express_relay_metadata, set_splits::get_set_splits_instruction}, helpers::{assert_custom_error, generate_and_fund_key, submit_transaction}, setup::{setup, SetupParams}};
 
 #[test]
@@ -37,7 +38,7 @@ fn test_set_splits_fail_wrong_admin() {
     let set_splits_ix = get_set_splits_instruction(&wrong_admin, split_protocol_default_new, split_relayer_new);
     let tx_result = submit_transaction(&mut svm, &[set_splits_ix], &wrong_admin, &[&wrong_admin]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, 2001);
+    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
 }
 
 #[test]
@@ -55,7 +56,7 @@ fn test_set_splits_fail_high_split_protocol() {
     let set_splits_ix = get_set_splits_instruction(&admin, split_protocol_default_new, split_relayer_new);
     let tx_result = submit_transaction(&mut svm, &[set_splits_ix], &admin, &[&admin]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, 6000);
+    assert_custom_error(tx_result.err, 0, ErrorCode::FeeSplitLargerThanPrecision.into());
 }
 
 #[test]
@@ -73,5 +74,5 @@ fn test_set_splits_fail_high_split_relayer() {
     let set_splits_ix = get_set_splits_instruction(&admin, split_protocol_default_new, split_relayer_new);
     let tx_result = submit_transaction(&mut svm, &[set_splits_ix], &admin, &[&admin]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, 6000);
+    assert_custom_error(tx_result.err, 0, ErrorCode::FeeSplitLargerThanPrecision.into());
 }

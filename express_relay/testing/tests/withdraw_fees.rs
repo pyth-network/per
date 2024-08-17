@@ -1,4 +1,5 @@
 use express_relay::state::RESERVE_EXPRESS_RELAY_METADATA;
+use anchor_lang::error::ErrorCode as AnchorErrorCode;
 use solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::Keypair, signer::Signer};
 use testing::{express_relay::{helpers::get_express_relay_metadata_key, withdraw_fees::get_withdraw_fees_instruction}, helpers::{assert_custom_error, generate_and_fund_key, get_balance, submit_transaction}, setup::{setup, SetupParams}};
 
@@ -45,5 +46,5 @@ fn test_withdraw_fees_fail_wrong_admin() {
     let withdraw_fees_ix = get_withdraw_fees_instruction(&wrong_admin, fee_receiver_admin.pubkey());
     let tx_result = submit_transaction(&mut svm, &[withdraw_fees_ix], &wrong_admin, &[&wrong_admin]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, 2001);
+    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
 }

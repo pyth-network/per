@@ -1,4 +1,5 @@
-use express_relay::state::FEE_SPLIT_PRECISION;
+use express_relay::{state::FEE_SPLIT_PRECISION, error::ErrorCode};
+use anchor_lang::error::ErrorCode as AnchorErrorCode;
 use solana_sdk::{instruction::Instruction, native_token::LAMPORTS_PER_SOL, pubkey::Pubkey, signature::Keypair, signer::Signer};
 use testing::{dummy::do_nothing::get_do_nothing_instruction, express_relay::{helpers::{get_express_relay_metadata, get_express_relay_metadata_key, get_protocol_fee_receiver_key}, permission::get_permission_instructions}, helpers::{assert_custom_error, get_balance, submit_transaction, warp_to_unix, TX_FEE}, setup::{setup, SetupParams}};
 
@@ -131,7 +132,7 @@ fn test_permission_fail_wrong_relayer_signer() {
 
     let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &wrong_relayer_signer]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, 2001);
+    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
 }
 
 #[test]
@@ -165,7 +166,7 @@ fn test_permission_fail_wrong_relayer_fee_receiver() {
 
     let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, 2001);
+    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
 }
 
 #[test]
@@ -199,7 +200,7 @@ fn test_permission_fail_passed_deadline() {
 
     let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, 6002);
+    assert_custom_error(tx_result.err, 0, ErrorCode::DeadlinePassed.into());
 }
 
 #[test]
@@ -233,7 +234,7 @@ fn test_permission_fail_wrong_permission_key() {
 
     let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 1, 6004);
+    assert_custom_error(tx_result.err, 1, ErrorCode::MissingPermission.into());
 }
 
 #[test]
@@ -253,5 +254,5 @@ fn test_permission_fail_no_permission_ix() {
 
     let tx_result = submit_transaction(&mut svm, &ixs, &searcher, &[&searcher]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, 6004);
+    assert_custom_error(tx_result.err, 0, ErrorCode::MissingPermission.into());
 }

@@ -1,4 +1,5 @@
 use solana_sdk::{signature::Keypair, signer::Signer};
+use anchor_lang::error::ErrorCode as AnchorErrorCode;
 use testing::{express_relay::{helpers::get_express_relay_metadata, set_admin::get_set_admin_instruction}, helpers::{assert_custom_error, generate_and_fund_key, submit_transaction}, setup::{setup, SetupParams}};
 
 #[test]
@@ -34,5 +35,5 @@ fn test_set_admin_fail_wrong_admin() {
     let set_admin_ix = get_set_admin_instruction(&wrong_admin, admin_new.pubkey());
     let tx_result = submit_transaction(&mut svm, &[set_admin_ix], &wrong_admin, &[&wrong_admin]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, 2001);
+    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
 }
