@@ -7,10 +7,10 @@ use crate::express_relay::helpers::get_protocol_fee_receiver_key;
 pub fn get_initialize_instruction(
     payer: &Keypair
 ) -> Instruction {
-    let fee_receiver_express_relay = get_protocol_fee_receiver_key(dummy::id());
+    let fee_receiver_express_relay = get_protocol_fee_receiver_key(dummy::ID);
 
     let initialize_ix = Instruction {
-        program_id: dummy::id(),
+        program_id: dummy::ID,
         data: dummy::instruction::Initialize {}.data(),
         accounts: Initialize {
             payer: payer.pubkey(),

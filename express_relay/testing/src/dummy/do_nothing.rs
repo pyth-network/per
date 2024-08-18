@@ -7,14 +7,14 @@ pub fn get_do_nothing_instruction(
     permission_key: Pubkey,
 ) -> Instruction {
     let do_nothing_ix = Instruction {
-        program_id: dummy::id(),
+        program_id: dummy::ID,
         data: dummy::instruction::DoNothing {}.data(),
         accounts: DoNothing {
             payer: payer.pubkey(),
             express_relay: express_relay::ID,
             sysvar_instructions: sysvar_instructions_id(),
             permission: permission_key,
-            protocol: dummy::id(),
+            protocol: dummy::ID,
         }
         .to_account_metas(None),
     };

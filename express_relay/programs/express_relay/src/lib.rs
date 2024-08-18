@@ -115,13 +115,14 @@ pub mod express_relay {
             return err!(ErrorCode::FeesHigherThanBid);
         }
 
-        let fee_receiver_protocol;
-        // if protocol is not a program, then fee receiver is the address itself
-        if ctx.accounts.protocol.executable {
-            fee_receiver_protocol = &ctx.accounts.fee_receiver_protocol;
+        let protocol = &ctx.accounts.protocol;
+        let fee_receiver_protocol = &ctx.accounts.fee_receiver_protocol;
+        if protocol.executable {
+            validate_pda(fee_receiver_protocol.key, protocol.key, &[SEED_EXPRESS_RELAY_FEES])?;
         } else {
-            fee_receiver_protocol = &ctx.accounts.protocol;
+            assert_eq!(protocol.key, fee_receiver_protocol.key);
         }
+
         let balance_fee_receiver_protocol = fee_receiver_protocol.lamports();
         let rent_fee_receiver_protocol = Rent::get()?.minimum_balance(0);
         if balance_fee_receiver_protocol+fee_protocol < rent_fee_receiver_protocol {
@@ -315,8 +316,8 @@ pub struct Permission<'info> {
     #[account(mut)]
     pub fee_receiver_relayer: UncheckedAccount<'info>,
 
-    /// CHECK: don't care what this PDA looks like
-    #[account(mut, seeds = [SEED_EXPRESS_RELAY_FEES], seeds::program = protocol.key(), bump)]
+    /// CHECK: don't care what this looks like; if PDA, validate within program logic
+    #[account(mut)]
     pub fee_receiver_protocol: UncheckedAccount<'info>,
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer, has_one = fee_receiver_relayer)]

@@ -18,4 +18,6 @@ pub enum ErrorCode {
     InsufficientProtocolFeeReceiverRent,
     #[msg("Insufficient relayer fee receiver funds for rent")]
     InsufficientRelayerFeeReceiverRent,
+    #[msg("Invalid PDA provided")]
+    InvalidPDAProvided,
 }

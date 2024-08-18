@@ -53,6 +53,5 @@ pub struct DoNothing<'info> {
     pub permission: UncheckedAccount<'info>,
 
     /// CHECK: this is the current program
-    #[account(address = crate::ID)]
     pub protocol: UncheckedAccount<'info>,
 }

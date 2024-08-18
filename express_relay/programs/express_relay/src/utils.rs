@@ -36,3 +36,12 @@ pub fn transfer_lamports_cpi<'info>(
 
     Ok(())
 }
+
+pub fn validate_pda(pda: &Pubkey, program_id: &Pubkey, seeds: &[&[u8]]) -> Result<()> {
+    let (pda_calculated, _) = Pubkey::find_program_address(seeds, program_id);
+    if pda != &pda_calculated {
+        return err!(ErrorCode::InvalidPDAProvided);
+    }
+
+    Ok(())
+}
