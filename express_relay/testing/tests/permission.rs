@@ -68,6 +68,7 @@ fn test_permission() {
     } = setup_permission();
 
     let permission_ixs = get_permission_instructions(
+        &svm,
         &relayer_signer,
         &searcher,
         protocol,
@@ -122,6 +123,7 @@ fn test_permission_fail_wrong_relayer_signer() {
     let wrong_relayer_signer = Keypair::new();
 
     let permission_ixs = get_permission_instructions(
+        &svm,
         &wrong_relayer_signer,
         &searcher,
         protocol,
@@ -156,6 +158,7 @@ fn test_permission_fail_wrong_relayer_fee_receiver() {
     let wrong_fee_receiver_relayer = Keypair::new();
 
     let permission_ixs = get_permission_instructions(
+        &svm,
         &relayer_signer,
         &searcher,
         protocol,
@@ -190,6 +193,7 @@ fn test_permission_fail_insufficient_searcher_rent() {
     let wrong_bid_amount = get_balance(&svm, &searcher.pubkey()) - Rent::default().minimum_balance(0) + 1;
 
     let permission_ixs = get_permission_instructions(
+        &svm,
         &relayer_signer,
         &searcher,
         protocol,
@@ -222,6 +226,7 @@ fn test_permission_fail_passed_deadline() {
     } = setup_permission();
 
     let permission_ixs = get_permission_instructions(
+        &svm,
         &relayer_signer,
         &searcher,
         protocol,
@@ -258,6 +263,7 @@ fn test_permission_fail_wrong_permission_key() {
     let wrong_permission_key = Keypair::new().pubkey();
 
     let permission_ixs = get_permission_instructions(
+        &svm,
         &relayer_signer,
         &searcher,
         protocol,
@@ -293,6 +299,7 @@ fn test_permission_fail_wrong_protocol_key() {
     let wrong_fee_receiver_protocol = wrong_protocol;
 
     let permission_ixs = get_permission_instructions(
+        &svm,
         &relayer_signer,
         &searcher,
         wrong_protocol,
@@ -327,6 +334,7 @@ fn test_permission_fail_wrong_fee_receiver_protocol_key() {
     let wrong_fee_receiver_protocol = Keypair::new().pubkey();
 
     let permission_ixs = get_permission_instructions(
+        &svm,
         &relayer_signer,
         &searcher,
         protocol,
