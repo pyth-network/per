@@ -96,13 +96,13 @@ pub mod express_relay {
 
         let split_protocol: u64;
         let protocol_config = &ctx.accounts.protocol_config;
-        match protocol_config {
-            Some(protocol_config) => {
-                split_protocol = protocol_config.split;
-            },
-            None => {
-                split_protocol = split_protocol_default;
-            }
+        let protocol_config_account_info = protocol_config.to_account_info();
+        if protocol_config_account_info.data_len() > 0 {
+            let account_data = &mut &**protocol_config_account_info.try_borrow_data()?;
+            let protocol_config_data = ConfigProtocol::try_deserialize(account_data)?;
+            split_protocol = protocol_config_data.split;
+        } else {
+            split_protocol = split_protocol_default;
         }
 
         let fee_protocol = bid_amount * split_protocol / FEE_SPLIT_PRECISION;
@@ -308,8 +308,9 @@ pub struct Permission<'info> {
     /// CHECK: this is the protocol/router address
     pub protocol: UncheckedAccount<'info>,
 
+    /// CHECK: this cannot be checked against ConfigProtocol bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist
     #[account(seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]
-    pub protocol_config: Option<Account<'info, ConfigProtocol>>,
+    pub protocol_config: UncheckedAccount<'info>,
 
     /// CHECK: this is just a PK for the relayer to receive fees at
     #[account(mut)]

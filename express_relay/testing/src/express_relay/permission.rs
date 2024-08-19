@@ -6,7 +6,6 @@ use express_relay::{accounts::Permission, PermissionArgs};
 use super::helpers::{get_express_relay_metadata_key, get_protocol_config_key};
 
 pub fn get_permission_instructions(
-    svm: &litesvm::LiteSVM,
     relayer_signer: &Keypair,
     searcher: &Keypair,
     protocol: Pubkey,
@@ -18,16 +17,7 @@ pub fn get_permission_instructions(
     ixs: &[Instruction],
 ) -> Vec<Instruction> {
     let express_relay_metadata = get_express_relay_metadata_key();
-    let protocol_config_key = get_protocol_config_key(protocol);
-    let protocol_config;
-    match svm.get_account(&protocol_config_key) {
-        Some(_) => {
-            protocol_config = Some(protocol_config_key);
-        },
-        None => {
-            protocol_config = None;
-        }
-    }
+    let protocol_config = get_protocol_config_key(protocol);
 
     let permission_ix = Instruction {
         program_id: express_relay::id(),
