@@ -6,7 +6,6 @@ use anchor_lang::{prelude::*, system_program::System};
 use anchor_lang::solana_program::sysvar::instructions as sysvar_instructions;
 use solana_program::{instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT}, serialize_utils::read_u16, sysvar::instructions::load_instruction_at_checked};
 use anchor_syn::codegen::program::common::sighash;
-use anchor_spl::token::Token;
 use crate::{
     error::ErrorCode,
     state::*,
@@ -331,8 +330,6 @@ pub struct Permission<'info> {
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
     pub system_program: Program<'info, System>,
-
-    pub token_program: Program<'info, Token>,
 
     /// CHECK: this is the sysvar instructions account
     #[account(address = sysvar_instructions::ID)]

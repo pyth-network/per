@@ -1,9 +1,14 @@
 load("ext://uibutton", "cmd_button", "location", "text_input")
 
 
-rpc_port = "9545"
-rpc_url = "http://127.0.0.1:%s" % rpc_port
-ws_url = "ws://127.0.0.1:%s" % rpc_port
+rpc_port_anvil = "9545"
+rpc_url_anvil = "http://127.0.0.1:%s" % rpc_port_anvil
+ws_url_anvil = "ws://127.0.0.1:%s" % rpc_port_anvil
+
+rpc_port_solana = "8899"
+rpc_port_solana_ws = "8900"
+rpc_url_solana = "http://127.0.0.1:%s" % rpc_port_solana
+ws_url_solana = "ws://127.0.0.1:%s" % rpc_port_solana_ws
 
 # Default anvil private key
 private_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
@@ -12,18 +17,18 @@ block_time = "2"
 local_resource(
     "anvil",
     serve_cmd="anvil --gas-limit 500000000000000000 --block-time %s -p %s"
-    % (block_time, rpc_port),
+    % (block_time, rpc_port_anvil),
     readiness_probe=probe(
         period_secs=5,
         exec=exec_action(
-            ["cast", "cid", "--rpc-url", rpc_url]
+            ["cast", "cid", "--rpc-url", rpc_url_anvil]
         ),  # get chain id as a readiness probe
     ),
 )
 
 forge_base_command = (
     "forge script script/Vault.s.sol --via-ir --private-key $PRIVATE_KEY --fork-url %s -vvv"
-    % rpc_url
+    % rpc_url_anvil
 )
 
 # we set automine to true before deployment and then set the interval to the block time after the deployment
@@ -74,7 +79,7 @@ cmd_button(
 )
 
 local_resource(
-    "create-configs", "python3 integration.py %s %s" % (rpc_url, ws_url), resource_deps=["deploy-contracts"]
+    "create-configs", "python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["deploy-contracts"]
 )
 
 local_resource(
@@ -91,7 +96,7 @@ monitor_command = (
     + "poetry -C per_sdk run "
     + "python3 -m per_sdk.protocols.token_vault_monitor "
     + "--chain-id development "
-    + "--rpc-url %s " % (rpc_url)
+    + "--rpc-url %s " % (rpc_url_anvil)
     + "--vault-contract $TOKEN_VAULT "
     + "--weth-contract $WETH "
     + "--liquidation-server-url http://localhost:9000 "
@@ -122,4 +127,54 @@ local_resource(
     "searcher",
     serve_cmd=searcher_command,
     resource_deps=["deploy-contracts", "auction-server", "create-configs"],
+)
+
+
+# Solana resources
+# build solana programs
+local_resource(
+    "build-programs",
+    "cargo build-sbf",
+    dir="express_relay",
+)
+
+# start solana localnet
+local_resource(
+    "solana-localnet",
+    serve_cmd="solana-test-validator $(./test-validator-params.sh)",
+    serve_dir="express_relay",
+    readiness_probe=probe(
+        period_secs=10,
+        http_get = http_get_action(port=int(rpc_port_solana), host="localhost", scheme="http", path="/health")
+        # # WHY DOESN'T THE BELOW WORK?
+        # exec=exec_action(
+        #     ["solana", "ping", "-c", "1", "--url", rpc_url_solana]
+        # ),
+        # timeout_secs=9,
+    ),
+    resource_deps=["build-programs"],
+)
+
+# airdrop SOL to searcher, admin, and relayer
+local_resource(
+    # TODO: fix the python versioning here
+    "airdrop",
+    "python3.11 -m per_sdk.solana.keypairs.airdrop --rpc-url %s" % rpc_url_solana,
+    resource_deps=["solana-localnet"]
+)
+
+# initialize solana programs
+local_resource(
+    # TODO: fix the python versioning here
+    "initialize-programs",
+    "python3.11 -m per_sdk.solana.initialize_programs -v --file-private-key-payer per_sdk/solana/keypairs/searcher.json --file-private-key-admin per_sdk/solana/keypairs/admin.json --file-private-key-relayer-signer per_sdk/solana/keypairs/relayer_signer.json --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3 --rpc-url %s" % rpc_url_solana,
+    resource_deps=["airdrop"]
+)
+
+# submit solana bid
+local_resource(
+    # TODO: fix the python versioning here
+    "submit-bid-solana",
+    "python3.11 -m per_sdk.solana.dummy_tx -v --file-private-key-searcher per_sdk/solana/keypairs/searcher.json --file-private-key-relayer-signer per_sdk/solana/keypairs/relayer_signer.json --bid 100 --auction-server-url http://localhost:9000 --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3",
+    resource_deps=["initialize-programs", "auction-server"],
 )

@@ -1,5 +1,4 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
-use anchor_spl::token;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer, system_program, sysvar::instructions::id as sysvar_instructions_id};
 use express_relay::{accounts::Permission, PermissionArgs};
 
@@ -37,7 +36,6 @@ pub fn get_permission_instructions(
             fee_receiver_protocol: fee_receiver_protocol,
             express_relay_metadata: express_relay_metadata,
             system_program: system_program::ID,
-            token_program: token::ID,
             sysvar_instructions: sysvar_instructions_id(),
         }.to_account_metas(None),
     };

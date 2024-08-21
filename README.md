@@ -24,7 +24,7 @@ The checks are also performed in the CI to ensure the code follows consistent fo
 
 Since express relay is a multi-service project, we use [Tilt](https://tilt.dev/) to manage the development environment.
 It is a great tool for local development and testing.
-Tilt requires `anvil`, `forge`, `poetry`, and rust to be installed on your machine.
+Tilt requires `anvil`, `forge`, `poetry`, rust, and the Solana CLI to be installed on your machine.
 
 Here are the installation instructions for each:
 
@@ -32,17 +32,25 @@ Here are the installation instructions for each:
 - Foundry (anvil,forge,cast, etc.): https://book.getfoundry.sh/getting-started/installation
 - Poetry: https://python-poetry.org/docs/#installation
 - Tilt: https://docs.tilt.dev/install.html
+- Solana CLI: https://docs.solanalabs.com/cli/install
+
+Note that for the Solana CLI, you may need to alter your terminal's `PATH` variable to include the Solana programs. To make this work with Tilt, you should include the `PATH` update in your `~/.bashrc` or `~/.zshrc` file depending on which shell your machine uses.
 
 Run `tilt up` in the root of the repo to start the development environment.
 You can access the ui at `http://localhost:10350/`.
 
 Here is what tilt up does in order:
 
-1. Starts `anvil`: local EVM chain to test the contracts with
-2. Deploy express relay contracts
-3. Start the auction server
-4. Start the liquidation monitor
-5. Start the simple searcher
+1. [EVM] Starts `anvil`: local EVM chain to test the contracts with
+2. [EVM] Deploy express relay contracts
+3. [SVM] Builds Solana programs
+4. [SVM] Starts `solana-test-validator`: Solana localnet to test the programs with
+5. [SVM] Airdrops SOL to searcher, admin, and relayer signer wallet
+6. [SVM] Initializes the SVM programs on the localnet
+7. Start the auction server
+8. [EVM] Start the liquidation monitor
+9. [EVM] Start the simple searcher
+10. [SVM] Submits an SVM transaction bid to the auction server
 
 There are some useful gadgets in Tilt ui for creating new vaults and checking the vault status.
 You can use them to test the system end to end.
