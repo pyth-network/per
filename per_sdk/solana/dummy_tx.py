@@ -2,13 +2,13 @@ import argparse
 import hashlib
 import logging
 import struct
+import urllib
 
 import httpx
 from solana.rpc.async_api import AsyncClient
 from solana.transaction import Transaction
 from solders.instruction import AccountMeta, Instruction
-
-# from solders.transaction import Transaction
+from solders.message import Message
 from solders.pubkey import Pubkey
 from solders.system_program import ID as system_pid
 from solders.sysvar import INSTRUCTIONS as sysvar_ixs_pid
@@ -146,8 +146,26 @@ async def main():
         assert conf.value[0].status is None, "Transaction failed"
     else:
         tx.sign_partial(kp_searcher)
+        message = bytes(Message([ix_permission, ix_dummy], pk_searcher))
+        # TODO: impute one signature into the message
+        bid_body = {
+            "permission_key": str(permission),
+            "chain_id": "solana",
+            "amount": args.bid,
+            "transaction": message.hex(),
+        }
         client = httpx.AsyncClient()
-        raise NotImplementedError("TODO: implement bidding to the server")
+        resp = await client.post(
+            urllib.parse.urljoin(
+                args.auction_server_url,
+                "v1/bids",
+            ),
+            json=bid_body,
+            timeout=20,
+        )
+        logger.info(
+            f"Submitted bid amount {args.bid} on permission key {str(permission)}, server response: {resp.text}"
+        )
 
 
 if __name__ == "__main__":
