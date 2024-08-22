@@ -1,10 +1,10 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer, system_program, sysvar::instructions::id as sysvar_instructions_id};
-use express_relay::{accounts::Permission, PermissionArgs};
+use express_relay::{accounts::SubmitBid, SubmitBidArgs};
 
 use super::helpers::{get_express_relay_metadata_key, get_protocol_config_key};
 
-pub fn get_permission_instructions(
+pub fn get_bid_instructions(
     relayer_signer: &Keypair,
     searcher: &Keypair,
     protocol: Pubkey,
@@ -18,15 +18,15 @@ pub fn get_permission_instructions(
     let express_relay_metadata = get_express_relay_metadata_key();
     let protocol_config = get_protocol_config_key(protocol);
 
-    let permission_ix = Instruction {
+    let submit_bid_ix = Instruction {
         program_id: express_relay::id(),
-        data: express_relay::instruction::Permission {
-            data: PermissionArgs {
+        data: express_relay::instruction::SubmitBid {
+            data: SubmitBidArgs {
                 deadline,
                 bid_amount,
             }
         }.data(),
-        accounts: Permission {
+        accounts: SubmitBid {
             relayer_signer: relayer_signer.pubkey(),
             searcher: searcher.pubkey(),
             permission: permission,
@@ -40,5 +40,5 @@ pub fn get_permission_instructions(
         }.to_account_metas(None),
     };
 
-    return [&[permission_ix], ixs].concat().iter().map(|ix| ix.clone()).collect();
+    return [&[submit_bid_ix], ixs].concat().iter().map(|ix| ix.clone()).collect();
 }

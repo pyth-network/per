@@ -13,6 +13,7 @@ pub mod dummy {
     }
 
     pub fn do_nothing(ctx: Context<DoNothing>) -> Result<()> {
+        // just want to check if the permission is valid, and do nothing else
         let cpi_program = ctx.accounts.express_relay.to_account_info();
         let cpi_accounts = CheckPermission {
             sysvar_instructions: ctx.accounts.sysvar_instructions.to_account_info(),

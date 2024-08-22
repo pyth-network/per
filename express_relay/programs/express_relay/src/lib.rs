@@ -18,7 +18,6 @@ declare_id!("GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM");
 pub mod express_relay {
     use super::*;
 
-    // Initializes the express relay metadata account
     pub fn initialize(ctx: Context<Initialize>, data: InitializeArgs) -> Result<()> {
         validate_fee_split(data.split_protocol_default)?;
         validate_fee_split(data.split_relayer)?;
@@ -34,7 +33,6 @@ pub mod express_relay {
         Ok(())
     }
 
-    // Sets a new admin for the program
     pub fn set_admin(ctx: Context<SetAdmin>) -> Result<()> {
         let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata;
 
@@ -43,7 +41,6 @@ pub mod express_relay {
         Ok(())
     }
 
-    // Sets a new relayer for the program
     pub fn set_relayer(ctx: Context<SetRelayer>) -> Result<()> {
         let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata;
 
@@ -53,7 +50,6 @@ pub mod express_relay {
         Ok(())
     }
 
-    // Sets a new set of fee splits for the program
     pub fn set_splits(ctx: Context<SetSplits>, data: SetSplitsArgs) -> Result<()> {
         validate_fee_split(data.split_protocol_default)?;
         validate_fee_split(data.split_relayer)?;
@@ -66,7 +62,6 @@ pub mod express_relay {
         Ok(())
     }
 
-    // Sets a fee split for a specific protocol
     pub fn set_protocol_split(ctx: Context<SetProtocolSplit>, data: SetProtocolSplitArgs) -> Result<()> {
         validate_fee_split(data.split_protocol)?;
 
@@ -76,94 +71,22 @@ pub mod express_relay {
         Ok(())
     }
 
-    // Permissions a particular (protocol, permission) pair and distributes bids according to splits
-    pub fn permission(ctx: Context<Permission>, data: PermissionArgs) -> Result<()> {
+    // Submits a bid for a particular (protocol, permission) pair and distributes bids according to splits
+    pub fn submit_bid(ctx: Context<SubmitBid>, data: SubmitBidArgs) -> Result<()> {
         if data.deadline < Clock::get()?.unix_timestamp {
             return err!(ErrorCode::DeadlinePassed);
         }
 
         // check that not cpi
         if get_stack_height() > TRANSACTION_LEVEL_STACK_HEIGHT {
-            return err!(ErrorCode::InvalidCPIPermission);
+            return err!(ErrorCode::InvalidCPISubmitBid);
         }
 
-        // handle bid payment
-        let bid_amount = data.bid_amount;
-        let searcher = &ctx.accounts.searcher;
-        let rent_searcher = Rent::get()?.minimum_balance(searcher.to_account_info().data_len());
-        if bid_amount + rent_searcher > searcher.lamports() {
-            return err!(ErrorCode::InsufficientSearcherFunds);
-        }
-
-        let express_relay_metadata = &ctx.accounts.express_relay_metadata;
-        let split_relayer = express_relay_metadata.split_relayer;
-        let split_protocol_default = express_relay_metadata.split_protocol_default;
-
-        let split_protocol: u64;
-        let protocol_config = &ctx.accounts.protocol_config;
-        let protocol_config_account_info = protocol_config.to_account_info();
-        if protocol_config_account_info.data_len() > 0 {
-            let account_data = &mut &**protocol_config_account_info.try_borrow_data()?;
-            let protocol_config_data = ConfigProtocol::try_deserialize(account_data)?;
-            split_protocol = protocol_config_data.split;
-        } else {
-            split_protocol = split_protocol_default;
-        }
-
-        let fee_protocol = bid_amount * split_protocol / FEE_SPLIT_PRECISION;
-        if fee_protocol > bid_amount {
-            return err!(ErrorCode::FeesHigherThanBid);
-        }
-
-        let fee_relayer = bid_amount.saturating_sub(fee_protocol) * split_relayer / FEE_SPLIT_PRECISION;
-        if fee_relayer.checked_add(fee_protocol).ok_or(ProgramError::ArithmeticOverflow)? > bid_amount {
-            return err!(ErrorCode::FeesHigherThanBid);
-        }
-
-        let protocol = &ctx.accounts.protocol;
-        let fee_receiver_protocol = &ctx.accounts.fee_receiver_protocol;
-        if protocol.executable {
-            validate_pda(fee_receiver_protocol.key, protocol.key, &[SEED_EXPRESS_RELAY_FEES])?;
-        } else {
-            assert_eq!(protocol.key, fee_receiver_protocol.key);
-        }
-
-        let balance_fee_receiver_protocol = fee_receiver_protocol.lamports();
-        let rent_fee_receiver_protocol = Rent::get()?.minimum_balance(0);
-        if balance_fee_receiver_protocol+fee_protocol < rent_fee_receiver_protocol {
-            return err!(ErrorCode::InsufficientProtocolFeeReceiverRent);
-        }
-
-        let fee_receiver_relayer = &ctx.accounts.fee_receiver_relayer;
-        let balance_fee_receiver_relayer = fee_receiver_relayer.lamports();
-        let rent_fee_receiver_relayer = Rent::get()?.minimum_balance(0);
-        if balance_fee_receiver_relayer+fee_relayer < rent_fee_receiver_relayer {
-            return err!(ErrorCode::InsufficientRelayerFeeReceiverRent);
-        }
-
-        transfer_lamports_cpi(
-            &searcher.to_account_info(),
-            &fee_receiver_protocol.to_account_info(),
-            fee_protocol,
-            ctx.accounts.system_program.to_account_info()
-        )?;
-        transfer_lamports_cpi(
-            &searcher.to_account_info(),
-            &fee_receiver_relayer.to_account_info(),
-            fee_relayer,
-            ctx.accounts.system_program.to_account_info()
-        )?;
-        transfer_lamports_cpi(
-            &searcher.to_account_info(),
-            &express_relay_metadata.to_account_info(),
-            bid_amount.saturating_sub(fee_protocol).saturating_sub(fee_relayer),
-            ctx.accounts.system_program.to_account_info()
-        )?;
-
-        Ok(())
+        handle_bid_payment(ctx, data.bid_amount)
     }
 
     // Checks if permissioning exists for a particular (protocol, permission) pair within the same transaction
+    // Permissioning takes the form of a submit_bid instruction with matching protocol and permission accounts
     pub fn check_permission(ctx: Context<CheckPermission>) -> Result<()> {
         let num_instructions = read_u16(&mut 0, &ctx.accounts.sysvar_instructions.data.borrow()).map_err(|_| ProgramError::InvalidInstructionData)?;
         for index in 0..num_instructions {
@@ -172,7 +95,7 @@ pub mod express_relay {
             if ix.program_id != crate::id() {
                 continue;
             }
-            let expected_discriminator = sighash("global", "permission");
+            let expected_discriminator = sighash("global", "submit_bid");
             if ix.data[0..8] != expected_discriminator {
                 continue;
             }
@@ -189,7 +112,6 @@ pub mod express_relay {
         return err!(ErrorCode::MissingPermission);
     }
 
-    // Withdraws fees from the express relay program
     pub fn withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {
         let express_relay_metadata = &ctx.accounts.express_relay_metadata;
         let fee_receiver_admin = &ctx.accounts.fee_receiver_admin;
@@ -296,13 +218,13 @@ pub struct SetProtocolSplit<'info> {
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
-pub struct PermissionArgs {
+pub struct SubmitBidArgs {
     pub deadline: i64,
     pub bid_amount: u64,
 }
 
 #[derive(Accounts)]
-pub struct Permission<'info> {
+pub struct SubmitBid<'info> {
     #[account(mut)]
     pub searcher: Signer<'info>,
 

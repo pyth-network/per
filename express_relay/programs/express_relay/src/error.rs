@@ -8,8 +8,8 @@ pub enum ErrorCode {
     FeesHigherThanBid,
     #[msg("Deadline passed")]
     DeadlinePassed,
-    #[msg("Invalid CPI into permission instruction")]
-    InvalidCPIPermission,
+    #[msg("Invalid CPI into submit bid instruction")]
+    InvalidCPISubmitBid,
     #[msg("Missing permission")]
     MissingPermission,
     #[msg("Insufficient Searcher Funds")]

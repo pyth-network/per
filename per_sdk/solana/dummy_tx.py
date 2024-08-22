@@ -98,13 +98,13 @@ async def main():
         [b"metadata"], express_relay_pid
     )[0]
 
-    discriminator_permission = hashlib.sha256(b"global:permission").digest()[:8]
-    data_permission = struct.pack(
-        "<8sqQ", discriminator_permission, DEADLINE_MAX, args.bid
+    discriminator_submit_bid = hashlib.sha256(b"global:submit_bid").digest()[:8]
+    data_submit_bid = struct.pack(
+        "<8sqQ", discriminator_submit_bid, DEADLINE_MAX, args.bid
     )
-    ix_permission = Instruction(
+    ix_submit_bid = Instruction(
         express_relay_pid,
-        data_permission,
+        data_submit_bid,
         [
             AccountMeta(pk_searcher, True, True),
             AccountMeta(pk_relayer_signer, True, False),
@@ -134,7 +134,7 @@ async def main():
     )
 
     tx = Transaction()
-    tx.add(ix_permission)
+    tx.add(ix_submit_bid)
     tx.add(ix_dummy)
 
     if args.submit_on_chain:
@@ -146,7 +146,7 @@ async def main():
         assert conf.value[0].status is None, "Transaction failed"
     else:
         tx.sign_partial(kp_searcher)
-        message = bytes(Message([ix_permission, ix_dummy], pk_searcher))
+        message = bytes(Message([ix_submit_bid, ix_dummy], pk_searcher))
         # TODO: impute one signature into the message
         bid_body = {
             "permission_key": str(permission),

@@ -13,7 +13,9 @@ pub struct ExpressRelayMetadata {
     pub admin: Pubkey,
     pub relayer_signer: Pubkey,
     pub fee_receiver_relayer: Pubkey,
+    // the portion of the bid that goes to the protocol, in bps
     pub split_protocol_default: u64,
+    // the portion of the remaining bid (after protocol fees) that goes to the relayer, in bps
     pub split_relayer: u64,
 }
 

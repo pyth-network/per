@@ -1,9 +1,9 @@
 use express_relay::{state::FEE_SPLIT_PRECISION, error::ErrorCode};
 use anchor_lang::error::ErrorCode as AnchorErrorCode;
 use solana_sdk::{instruction::Instruction, native_token::LAMPORTS_PER_SOL, pubkey::Pubkey, rent::Rent, signature::Keypair, signer::Signer};
-use testing::{dummy::do_nothing::get_do_nothing_instruction, express_relay::{helpers::{get_express_relay_metadata, get_express_relay_metadata_key, get_protocol_fee_receiver_key}, permission::get_permission_instructions}, helpers::{assert_custom_error, get_balance, submit_transaction, warp_to_unix, TX_FEE}, setup::{setup, SetupParams}};
+use testing::{dummy::do_nothing::get_do_nothing_instruction, express_relay::{helpers::{get_express_relay_metadata, get_express_relay_metadata_key, get_protocol_fee_receiver_key}, submit_bid::get_bid_instructions}, helpers::{assert_custom_error, get_balance, submit_transaction, warp_to_unix, TX_FEE}, setup::{setup, SetupParams}};
 
-pub struct PermissionInfo {
+pub struct BidInfo {
     pub svm: litesvm::LiteSVM,
     pub relayer_signer: Keypair,
     pub searcher: Keypair,
@@ -19,7 +19,7 @@ pub struct PermissionInfo {
 pub const SPLIT_PROTOCOL_DEFAULT: u64 = 4000;
 pub const SPLIT_RELAYER: u64 = 2000;
 
-fn setup_permission() -> PermissionInfo {
+fn setup_bid() -> BidInfo {
     let setup_result = setup(SetupParams {
         split_protocol_default: SPLIT_PROTOCOL_DEFAULT,
         split_relayer: SPLIT_RELAYER,
@@ -38,7 +38,7 @@ fn setup_permission() -> PermissionInfo {
         get_do_nothing_instruction(&searcher, permission_key)
     ];
 
-    return PermissionInfo {
+    return BidInfo {
         svm,
         relayer_signer,
         searcher,
@@ -53,8 +53,8 @@ fn setup_permission() -> PermissionInfo {
 }
 
 #[test]
-fn test_permission() {
-    let PermissionInfo {
+fn test_bid() {
+    let BidInfo {
         mut svm,
         relayer_signer,
         searcher,
@@ -65,9 +65,9 @@ fn test_permission() {
         bid_amount,
         deadline,
         ixs
-    } = setup_permission();
+    } = setup_bid();
 
-    let permission_ixs = get_permission_instructions(
+    let bid_ixs = get_bid_instructions(
         &relayer_signer,
         &searcher,
         protocol,
@@ -86,7 +86,7 @@ fn test_permission() {
     let balance_express_relay_metadata_pre = get_balance(&svm, &express_relay_metadata_key);
     let balance_searcher_pre = get_balance(&svm, &searcher.pubkey());
 
-    submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect("Transaction failed unexpectedly");
+    submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect("Transaction failed unexpectedly");
 
     let balance_fee_receiver_protocol_post = get_balance(&svm, &fee_receiver_protocol);
     let balance_fee_receiver_relayer_post = get_balance(&svm, &fee_receiver_relayer.pubkey());
@@ -105,8 +105,8 @@ fn test_permission() {
 }
 
 #[test]
-fn test_permission_fail_wrong_relayer_signer() {
-    let PermissionInfo {
+fn test_bid_fail_wrong_relayer_signer() {
+    let BidInfo {
         mut svm,
         relayer_signer: _,
         searcher,
@@ -117,11 +117,11 @@ fn test_permission_fail_wrong_relayer_signer() {
         bid_amount,
         deadline,
         ixs: _
-    } = setup_permission();
+    } = setup_bid();
 
     let wrong_relayer_signer = Keypair::new();
 
-    let permission_ixs = get_permission_instructions(
+    let bid_ixs = get_bid_instructions(
         &wrong_relayer_signer,
         &searcher,
         protocol,
@@ -133,14 +133,14 @@ fn test_permission_fail_wrong_relayer_signer() {
         &[]
     );
 
-    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &wrong_relayer_signer]).expect_err("Transaction should have failed");
+    let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &wrong_relayer_signer]).expect_err("Transaction should have failed");
 
     assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
 }
 
 #[test]
-fn test_permission_fail_wrong_relayer_fee_receiver() {
-    let PermissionInfo {
+fn test_bid_fail_wrong_relayer_fee_receiver() {
+    let BidInfo {
         mut svm,
         relayer_signer,
         searcher,
@@ -151,11 +151,11 @@ fn test_permission_fail_wrong_relayer_fee_receiver() {
         bid_amount,
         deadline,
         ixs: _
-    } = setup_permission();
+    } = setup_bid();
 
     let wrong_fee_receiver_relayer = Keypair::new();
 
-    let permission_ixs = get_permission_instructions(
+    let bid_ixs = get_bid_instructions(
         &relayer_signer,
         &searcher,
         protocol,
@@ -167,14 +167,14 @@ fn test_permission_fail_wrong_relayer_fee_receiver() {
         &[]
     );
 
-    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+    let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
     assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
 }
 
 #[test]
-fn test_permission_fail_insufficient_searcher_rent() {
-    let PermissionInfo {
+fn test_bid_fail_insufficient_searcher_rent() {
+    let BidInfo {
         mut svm,
         relayer_signer,
         searcher,
@@ -185,11 +185,11 @@ fn test_permission_fail_insufficient_searcher_rent() {
         bid_amount: _,
         deadline,
         ixs: _
-    } = setup_permission();
+    } = setup_bid();
 
     let wrong_bid_amount = get_balance(&svm, &searcher.pubkey()) - Rent::default().minimum_balance(0) + 1;
 
-    let permission_ixs = get_permission_instructions(
+    let bid_ixs = get_bid_instructions(
         &relayer_signer,
         &searcher,
         protocol,
@@ -201,14 +201,14 @@ fn test_permission_fail_insufficient_searcher_rent() {
         &[]
     );
 
-    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+    let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
     assert_custom_error(tx_result.err, 0, ErrorCode::InsufficientSearcherFunds.into());
 }
 
 #[test]
-fn test_permission_fail_passed_deadline() {
-    let PermissionInfo {
+fn test_bid_fail_passed_deadline() {
+    let BidInfo {
         mut svm,
         relayer_signer,
         searcher,
@@ -219,9 +219,9 @@ fn test_permission_fail_passed_deadline() {
         bid_amount,
         deadline,
         ixs: _
-    } = setup_permission();
+    } = setup_bid();
 
-    let permission_ixs = get_permission_instructions(
+    let bid_ixs = get_bid_instructions(
         &relayer_signer,
         &searcher,
         protocol,
@@ -235,14 +235,14 @@ fn test_permission_fail_passed_deadline() {
 
     warp_to_unix(&mut svm, deadline+1);
 
-    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+    let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
     assert_custom_error(tx_result.err, 0, ErrorCode::DeadlinePassed.into());
 }
 
 #[test]
-fn test_permission_fail_wrong_permission_key() {
-    let PermissionInfo {
+fn test_bid_fail_wrong_permission_key() {
+    let BidInfo {
         mut svm,
         relayer_signer,
         searcher,
@@ -253,11 +253,11 @@ fn test_permission_fail_wrong_permission_key() {
         bid_amount,
         deadline,
         ixs
-    } = setup_permission();
+    } = setup_bid();
 
     let wrong_permission_key = Keypair::new().pubkey();
 
-    let permission_ixs = get_permission_instructions(
+    let bid_ixs = get_bid_instructions(
         &relayer_signer,
         &searcher,
         protocol,
@@ -269,14 +269,14 @@ fn test_permission_fail_wrong_permission_key() {
         &ixs
     );
 
-    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+    let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
     assert_custom_error(tx_result.err, 1, ErrorCode::MissingPermission.into());
 }
 
 #[test]
-fn test_permission_fail_wrong_protocol_key() {
-    let PermissionInfo {
+fn test_bid_fail_wrong_protocol_key() {
+    let BidInfo {
         mut svm,
         relayer_signer,
         searcher,
@@ -287,12 +287,12 @@ fn test_permission_fail_wrong_protocol_key() {
         bid_amount,
         deadline,
         ixs
-    } = setup_permission();
+    } = setup_bid();
 
     let wrong_protocol = Keypair::new().pubkey();
     let wrong_fee_receiver_protocol = wrong_protocol;
 
-    let permission_ixs = get_permission_instructions(
+    let bid_ixs = get_bid_instructions(
         &relayer_signer,
         &searcher,
         wrong_protocol,
@@ -304,14 +304,14 @@ fn test_permission_fail_wrong_protocol_key() {
         &ixs
     );
 
-    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+    let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
     assert_custom_error(tx_result.err, 1, ErrorCode::MissingPermission.into());
 }
 
 #[test]
-fn test_permission_fail_wrong_fee_receiver_protocol_key() {
-    let PermissionInfo {
+fn test_bid_fail_wrong_fee_receiver_protocol_key() {
+    let BidInfo {
         mut svm,
         relayer_signer,
         searcher,
@@ -322,11 +322,11 @@ fn test_permission_fail_wrong_fee_receiver_protocol_key() {
         bid_amount,
         deadline,
         ixs: _
-    } = setup_permission();
+    } = setup_bid();
 
     let wrong_fee_receiver_protocol = Keypair::new().pubkey();
 
-    let permission_ixs = get_permission_instructions(
+    let bid_ixs = get_bid_instructions(
         &relayer_signer,
         &searcher,
         protocol,
@@ -338,14 +338,14 @@ fn test_permission_fail_wrong_fee_receiver_protocol_key() {
         &[]
     );
 
-    let tx_result = submit_transaction(&mut svm, &permission_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+    let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
     assert_custom_error(tx_result.err, 0, ErrorCode::InvalidPDAProvided.into());
 }
 
 #[test]
-fn test_permission_fail_no_permission_ix() {
-    let PermissionInfo {
+fn test_bid_fail_no_permission_ix() {
+    let BidInfo {
         mut svm,
         relayer_signer: _,
         searcher,
@@ -356,7 +356,7 @@ fn test_permission_fail_no_permission_ix() {
         bid_amount: _,
         deadline: _,
         ixs
-    } = setup_permission();
+    } = setup_bid();
 
     let tx_result = submit_transaction(&mut svm, &ixs, &searcher, &[&searcher]).expect_err("Transaction should have failed");
 
