@@ -131,50 +131,40 @@ local_resource(
 
 
 # Solana resources
-# build solana programs
 local_resource(
     "build-programs",
     "cargo build-sbf",
     dir="express_relay",
 )
 
-# start solana localnet
 local_resource(
     "solana-localnet",
     serve_cmd="solana-test-validator $(./test-validator-params.sh)",
     serve_dir="express_relay",
+    # check readiness by sending a health GET query to the RPC url
     readiness_probe=probe(
         period_secs=10,
         http_get = http_get_action(port=int(rpc_port_solana), host="localhost", scheme="http", path="/health")
-        # # WHY DOESN'T THE BELOW WORK?
-        # exec=exec_action(
-        #     ["solana", "ping", "-c", "1", "--url", rpc_url_solana]
-        # ),
-        # timeout_secs=9,
     ),
     resource_deps=["build-programs"],
 )
 
-# airdrop SOL to searcher, admin, and relayer
 local_resource(
-    # TODO: fix the python versioning here
     "airdrop",
-    "python3.11 -m per_sdk.solana.keypairs.airdrop --rpc-url %s" % rpc_url_solana,
+    "poetry -C per_sdk run python3 -m per_sdk.solana.keypairs.airdrop --rpc-url %s" % rpc_url_solana,
     resource_deps=["solana-localnet"]
 )
 
-# initialize solana programs
+# need to run initialize instructions for the programs one time, script skips if already initialized
 local_resource(
-    # TODO: fix the python versioning here
     "initialize-programs",
-    "python3.11 -m per_sdk.solana.initialize_programs -v --file-private-key-payer per_sdk/solana/keypairs/searcher.json --file-private-key-admin per_sdk/solana/keypairs/admin.json --file-private-key-relayer-signer per_sdk/solana/keypairs/relayer_signer.json --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3 --rpc-url %s" % rpc_url_solana,
+    "poetry -C per_sdk run python3 -m per_sdk.solana.initialize_programs -v --file-private-key-payer per_sdk/solana/keypairs/searcher.json --file-private-key-admin per_sdk/solana/keypairs/admin.json --file-private-key-relayer-signer per_sdk/solana/keypairs/relayer_signer.json --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3 --rpc-url %s" % rpc_url_solana,
     resource_deps=["airdrop"]
 )
 
-# submit solana bid
+# craft dummy tx, submits as a bid to auction server or submits relayer-signed tx directly to solana cluster
 local_resource(
-    # TODO: fix the python versioning here
     "submit-bid-solana",
-    "python3.11 -m per_sdk.solana.dummy_tx -v --file-private-key-searcher per_sdk/solana/keypairs/searcher.json --file-private-key-relayer-signer per_sdk/solana/keypairs/relayer_signer.json --bid 100 --auction-server-url http://localhost:9000 --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3",
+    "poetry -C per_sdk run python3 -m per_sdk.solana.dummy_tx -v --file-private-key-searcher per_sdk/solana/keypairs/searcher.json --file-private-key-relayer-signer per_sdk/solana/keypairs/relayer_signer.json --bid 100 --auction-server-url http://localhost:9000 --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3",
     resource_deps=["initialize-programs", "auction-server"],
 )
