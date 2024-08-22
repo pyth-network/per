@@ -43,7 +43,7 @@ async def main():
     client = AsyncClient(args.rpc_url)
 
     for account in ["searcher", "admin", "relayer_signer"]:
-        file_path = f"per_sdk/solana/keypairs/{account}.json"
+        file_path = f"keypairs/{account}.json"
         if not os.path.exists(file_path):
             kp = Keypair()
             with open(file_path, "w") as f:

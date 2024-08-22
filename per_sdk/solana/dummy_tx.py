@@ -48,6 +48,13 @@ async def main():
         help="Auction server endpoint to use for submitting bids",
     )
     parser.add_argument(
+        "--rpc-url",
+        type=str,
+        required=False,
+        default="http://localhost:8899",
+        help="URL of the Solana RPC endpoint to use for submitting transactions",
+    )
+    parser.add_argument(
         "--express-relay-program",
         type=str,
         required=True,
@@ -138,12 +145,13 @@ async def main():
     tx.add(ix_dummy)
 
     if args.submit_on_chain:
-        client = AsyncClient("http://localhost:8899")
+        client = AsyncClient(args.rpc_url)
         tx_sig = (
             await client.send_transaction(tx, kp_searcher, kp_relayer_signer)
         ).value
         conf = await client.confirm_transaction(tx_sig)
         assert conf.value[0].status is None, "Transaction failed"
+        logger.info(f"Submitted transaction with signature {tx_sig}")
     else:
         tx.sign_partial(kp_searcher)
         message = bytes(Message([ix_submit_bid, ix_dummy], pk_searcher))

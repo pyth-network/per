@@ -146,7 +146,7 @@ async def main():
         tx_sig = (await client.send_transaction(tx, kp_payer)).value
         conf = await client.confirm_transaction(tx_sig)
         assert conf.value[0].status is None, "Initialization of programs failed"
-        logger.info("Initialization of programs successful")
+        logger.info(f"Initialization of programs successful: {tx_sig}")
     else:
         logger.info("All programs already initialized")
 
