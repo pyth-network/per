@@ -344,7 +344,7 @@ fn test_bid_fail_wrong_fee_receiver_protocol_key() {
 }
 
 #[test]
-fn test_bid_fail_no_permission_ix() {
+fn test_bid_fail_no_permission() {
     let BidInfo {
         mut svm,
         relayer_signer: _,
@@ -361,4 +361,48 @@ fn test_bid_fail_no_permission_ix() {
     let tx_result = submit_transaction(&mut svm, &ixs, &searcher, &[&searcher]).expect_err("Transaction should have failed");
 
     assert_custom_error(tx_result.err, 0, ErrorCode::MissingPermission.into());
+}
+
+#[test]
+fn test_bid_fail_duplicate_permission() {
+    let BidInfo {
+        mut svm,
+        relayer_signer,
+        searcher,
+        fee_receiver_relayer,
+        protocol,
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        ixs: _
+    } = setup_bid();
+
+    let permission_ix_0 = get_bid_instructions(
+        &relayer_signer,
+        &searcher,
+        protocol,
+        fee_receiver_relayer.pubkey(),
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        &[]
+    );
+
+    let bid_ixs = get_bid_instructions(
+        &relayer_signer,
+        &searcher,
+        protocol,
+        fee_receiver_relayer.pubkey(),
+        fee_receiver_protocol,
+        permission_key,
+        bid_amount,
+        deadline,
+        &permission_ix_0
+    );
+
+    let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
+
+    assert_custom_error(tx_result.err, 0, ErrorCode::MultiplePermissions.into());
 }

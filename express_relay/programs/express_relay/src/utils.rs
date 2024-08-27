@@ -1,3 +1,5 @@
+use anchor_syn::codegen::program::common::sighash;
+use solana_program::{serialize_utils::read_u16, sysvar::instructions::load_instruction_at_checked};
 use anchor_lang::{prelude::*, system_program::{transfer, Transfer}};
 use crate::{
     error::ErrorCode,
@@ -45,6 +47,44 @@ pub fn validate_pda(pda: &Pubkey, program_id: &Pubkey, seeds: &[&[u8]]) -> Resul
     }
 
     Ok(())
+}
+
+pub fn num_permissions_in_tx(sysvar_instructions: UncheckedAccount, permission: Option<Pubkey>, protocol: Option<Pubkey>) -> Result<u16> {
+    let num_instructions = read_u16(&mut 0, &sysvar_instructions.data.borrow()).map_err(|_| ProgramError::InvalidInstructionData)?;
+    let mut permission_count = 0u16;
+    for index in 0..num_instructions {
+        let ix = load_instruction_at_checked(index.into(), &sysvar_instructions)?;
+
+        if ix.program_id != crate::id() {
+            continue;
+        }
+        let expected_discriminator = sighash("global", "submit_bid");
+        if ix.data[0..8] != expected_discriminator {
+            continue;
+        }
+
+        match permission {
+            Some(permission) => {
+                if ix.accounts[2].pubkey != permission {
+                    continue;
+                }
+            }
+            None => {}
+        }
+
+        match protocol {
+            Some(protocol) => {
+                if ix.accounts[3].pubkey != protocol {
+                    continue;
+                }
+            }
+            None => {}
+        }
+
+        permission_count += 1;
+    }
+
+    Ok(permission_count)
 }
 
 pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()> {

@@ -4,8 +4,7 @@ pub mod utils;
 
 use anchor_lang::{prelude::*, system_program::System};
 use anchor_lang::solana_program::sysvar::instructions as sysvar_instructions;
-use solana_program::{instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT}, serialize_utils::read_u16, sysvar::instructions::load_instruction_at_checked};
-use anchor_syn::codegen::program::common::sighash;
+use solana_program::instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT};
 use crate::{
     error::ErrorCode,
     state::*,
@@ -82,34 +81,27 @@ pub mod express_relay {
             return err!(ErrorCode::InvalidCPISubmitBid);
         }
 
+        // check "no reentrancy"--submit_bid instruction only used once in transaction
+        // this is done to prevent an exploit where a searcher submits a transaction with multiple submit_bid instructions with different permission keys
+        // that would allow the searcher to win the right to perform the transaction if they won just one of the auctions
+        let permission_count = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), None, None)?;
+        if permission_count > 1 {
+            return err!(ErrorCode::MultiplePermissions);
+        }
+
         handle_bid_payment(ctx, data.bid_amount)
     }
 
     // Checks if permissioning exists for a particular (protocol, permission) pair within the same transaction
     // Permissioning takes the form of a submit_bid instruction with matching protocol and permission accounts
     pub fn check_permission(ctx: Context<CheckPermission>) -> Result<()> {
-        let num_instructions = read_u16(&mut 0, &ctx.accounts.sysvar_instructions.data.borrow()).map_err(|_| ProgramError::InvalidInstructionData)?;
-        for index in 0..num_instructions {
-            let ix = load_instruction_at_checked(index.into(), &ctx.accounts.sysvar_instructions)?;
+        let num_permissions = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), Some(*ctx.accounts.permission.key), Some(*ctx.accounts.protocol.key))?;
 
-            if ix.program_id != crate::id() {
-                continue;
-            }
-            let expected_discriminator = sighash("global", "submit_bid");
-            if ix.data[0..8] != expected_discriminator {
-                continue;
-            }
-
-            if ix.accounts[2].pubkey != *ctx.accounts.permission.key {
-                continue;
-            }
-
-            if ix.accounts[3].pubkey == *ctx.accounts.protocol.key {
-                return Ok(());
-            }
+        if num_permissions == 0 {
+            return err!(ErrorCode::MissingPermission);
         }
 
-        return err!(ErrorCode::MissingPermission);
+        Ok(())
     }
 
     pub fn withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {

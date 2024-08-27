@@ -12,6 +12,8 @@ pub enum ErrorCode {
     InvalidCPISubmitBid,
     #[msg("Missing permission")]
     MissingPermission,
+    #[msg("Multiple permissions")]
+    MultiplePermissions,
     #[msg("Insufficient Searcher Funds")]
     InsufficientSearcherFunds,
     #[msg("Insufficient protocol fee receiver funds for rent")]
