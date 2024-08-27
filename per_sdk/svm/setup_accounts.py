@@ -2,12 +2,12 @@ import argparse
 import asyncio
 import json
 import logging
-import os
+from pathlib import Path
 
 from solana.rpc.async_api import AsyncClient
 from solders.keypair import Keypair
 
-from per_sdk.solana.helpers import read_kp_from_json
+from per_sdk.svm.helpers import configure_logger, read_kp_from_json
 
 logger = logging.getLogger(__name__)
 
@@ -31,26 +31,23 @@ async def main():
     )
     args = parser.parse_args()
 
-    logger.setLevel(logging.INFO if args.verbose == 0 else logging.DEBUG)
-    log_handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s:%(name)s:%(module)s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    log_handler.setFormatter(formatter)
-    logger.addHandler(log_handler)
+    configure_logger(logger, args.verbose)
 
-    client = AsyncClient(args.rpc_url)
+    client = AsyncClient(args.rpc_url, "confirmed")
+
+    keypairs_dir = Path("keypairs/")
+    if not keypairs_dir.exists():
+        keypairs_dir.mkdir(exist_ok=True, parents=True)
 
     for account in ["searcher", "admin", "relayer_signer"]:
-        file_path = f"keypairs/{account}.json"
-        if not os.path.exists(file_path):
+        file_path = keypairs_dir / f"{account}.json"
+        if not file_path.exists():
             kp = Keypair()
-            with open(file_path, "w") as f:
+            with file_path.open("w") as f:
                 json.dump(kp.to_bytes_array(), f)
-                logger.debug(f"Created and saved {account} keypair")
+                logger.info(f"Created and saved {account} keypair")
         else:
-            logger.debug(f"Reusing existing {account} keypair")
+            logger.info(f"Reusing existing {account} keypair")
             kp = read_kp_from_json(file_path)
         airdrop_sig = (
             await client.request_airdrop(kp.pubkey(), args.airdrop_amount)

@@ -10,7 +10,7 @@ from solders.instruction import AccountMeta, Instruction
 from solders.pubkey import Pubkey
 from solders.system_program import ID as system_pid
 
-from per_sdk.solana.helpers import read_kp_from_json
+from per_sdk.svm.helpers import configure_logger, read_kp_from_json
 
 logger = logging.getLogger(__name__)
 
@@ -71,14 +71,7 @@ async def main():
     )
     args = parser.parse_args()
 
-    logger.setLevel(logging.INFO if args.verbose == 0 else logging.DEBUG)
-    log_handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s:%(name)s:%(module)s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    log_handler.setFormatter(formatter)
-    logger.addHandler(log_handler)
+    configure_logger(logger, args.verbose)
 
     express_relay_pid = Pubkey.from_string(args.express_relay_program)
     dummy_pid = Pubkey.from_string(args.dummy_program)
@@ -133,7 +126,7 @@ async def main():
         ],
     )
 
-    client = AsyncClient(args.rpc_url)
+    client = AsyncClient(args.rpc_url, "confirmed")
     balance_express_relay_metadata = await client.get_balance(pk_express_relay_metadata)
     balance_fee_receiver_dummy = await client.get_balance(pk_fee_receiver_dummy)
 

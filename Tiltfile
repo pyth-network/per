@@ -14,17 +14,9 @@ ws_url_solana = "ws://127.0.0.1:%s" % rpc_port_solana_ws
 private_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 block_time = "2"
 
-local_resource(
-    "auction-server",
-    serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --subwallet-private-key $RELAYER_PRIVATE_KEY --secret-key $SECRET_KEY",
-    serve_dir="auction-server",
-    resource_deps=["create-configs"],
-    readiness_probe=probe(period_secs=5, http_get=http_get_action(port=9000)),
-)
-
 # evm resources
 local_resource(
-    "anvil",
+    "evm-anvil",
     serve_cmd="anvil --gas-limit 500000000000000000 --block-time %s -p %s"
     % (block_time, rpc_port_anvil),
     readiness_probe=probe(
@@ -43,14 +35,14 @@ forge_base_command = (
 # we set automine to true before deployment and then set the interval to the block time after the deployment
 # to speed up the deployment
 local_resource(
-    "deploy-contracts",
+    "evm-deploy-contracts",
     "cast rp --rpc-url http://localhost:9545 evm_setAutomine true; "
     + forge_base_command
     + " --sig 'setUpLocalnet()' --broadcast; "
     + "cast rp --rpc-url http://localhost:9545 evm_setIntervalMining %s" % block_time,
     dir="contracts",
     env={"PRIVATE_KEY": private_key},
-    resource_deps=["anvil"],
+    resource_deps=["evm-anvil"],
 )
 
 cmd_button(
@@ -63,7 +55,7 @@ cmd_button(
         + " --sig 'getVault(uint256)' $VAULT --broadcast",
     ],
     location=location.NAV,
-    resource="deploy-contracts",
+    resource="evm-deploy-contracts",
     env=["PRIVATE_KEY=" + private_key],
     icon_name="search",
     text="Get vault state",
@@ -82,15 +74,22 @@ cmd_button(
         + " --sig 'createLiquidatableVault()' --broadcast",
     ],
     location=location.NAV,
-    resource="deploy-contracts",
+    resource="evm-deploy-contracts",
     env=["PRIVATE_KEY=" + private_key],
     icon_name="add",
 )
 
 local_resource(
-    "create-configs", "python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["deploy-contracts"]
+    "evm-create-configs", "python3 evm_integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts"]
 )
 
+local_resource(
+    "auction-server",
+    serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --subwallet-private-key $RELAYER_PRIVATE_KEY --secret-key $SECRET_KEY",
+    serve_dir="auction-server",
+    resource_deps=["evm-create-configs"],
+    readiness_probe=probe(period_secs=5, http_get=http_get_action(port=9000)),
+)
 
 monitor_command = (
     "source tilt-resources.env; "
@@ -105,12 +104,12 @@ monitor_command = (
 )
 
 local_resource(
-    "monitor",
+    "evm-monitor",
     serve_cmd=monitor_command,
-    resource_deps=["deploy-contracts", "auction-server", "create-configs"],
+    resource_deps=["evm-deploy-contracts", "auction-server", "evm-create-configs"],
 )
 
-searcher_command = (
+evm_searcher_command = (
     "source tilt-resources.env;"
     + "poetry -C per_sdk run "
     + "python3 -m per_sdk.searcher.simple_searcher "
@@ -125,21 +124,21 @@ searcher_command = (
     + "--permit2-address $PERMIT2 "
 )
 local_resource(
-    "searcher",
-    serve_cmd=searcher_command,
-    resource_deps=["deploy-contracts", "auction-server", "create-configs"],
+    "evm-searcher",
+    serve_cmd=evm_searcher_command,
+    resource_deps=["evm-deploy-contracts", "auction-server", "evm-create-configs"],
 )
 
 
-# Solana resources
+# svm resources
 local_resource(
-    "build-programs",
+    "svm-build-programs",
     "cargo build-sbf",
     dir="express_relay",
 )
 
 local_resource(
-    "solana-localnet",
+    "svm-localnet",
     serve_cmd="solana-test-validator $(./test-validator-params.sh)",
     serve_dir="express_relay",
     # check readiness by sending a health GET query to the RPC url
@@ -147,25 +146,25 @@ local_resource(
         period_secs=10,
         http_get = http_get_action(port=int(rpc_port_solana), host="localhost", scheme="http", path="/health")
     ),
-    resource_deps=["build-programs"],
+    resource_deps=["svm-build-programs"],
 )
 
 local_resource(
-    "airdrop",
-    "poetry -C per_sdk run python3 -m per_sdk.solana.airdrop --rpc-url %s" % rpc_url_solana,
-    resource_deps=["solana-localnet"]
+    "svm-setup-accounts",
+    "poetry -C per_sdk run python3 -m per_sdk.svm.setup_accounts --rpc-url %s" % rpc_url_solana,
+    resource_deps=["svm-localnet"]
 )
 
 # need to run initialize instructions for the programs one time, script skips if already initialized
 local_resource(
-    "initialize-programs",
-    "poetry -C per_sdk run python3 -m per_sdk.solana.initialize_programs -v --file-private-key-payer keypairs/searcher.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3 --rpc-url %s" % rpc_url_solana,
-    resource_deps=["airdrop"]
+    "svm-initialize-programs",
+    "poetry -C per_sdk run python3 -m per_sdk.svm.initialize_programs -v --file-private-key-payer keypairs/searcher.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3 --rpc-url %s" % rpc_url_solana,
+    resource_deps=["svm-setup-accounts"]
 )
 
 # craft dummy tx, submits as a bid to auction server or submits relayer-signed tx directly to solana cluster
 local_resource(
-    "submit-bid-solana",
-    "poetry -C per_sdk run python3 -m per_sdk.solana.dummy_tx -v --file-private-key-searcher keypairs/searcher.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100 --auction-server-url http://localhost:9000 --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3",
-    resource_deps=["initialize-programs", "auction-server"],
+    "svm-submit-bid",
+    "poetry -C per_sdk run python3 -m per_sdk.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100 --auction-server-url http://localhost:9000 --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3",
+    resource_deps=["svm-initialize-programs", "auction-server"],
 )

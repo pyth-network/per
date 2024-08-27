@@ -13,7 +13,7 @@ from solders.pubkey import Pubkey
 from solders.system_program import ID as system_pid
 from solders.sysvar import INSTRUCTIONS as sysvar_ixs_pid
 
-from per_sdk.solana.helpers import read_kp_from_json
+from per_sdk.svm.helpers import configure_logger, read_kp_from_json
 
 logger = logging.getLogger(__name__)
 
@@ -74,14 +74,7 @@ async def main():
     )
     args = parser.parse_args()
 
-    logger.setLevel(logging.INFO if args.verbose == 0 else logging.DEBUG)
-    log_handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s:%(name)s:%(module)s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    log_handler.setFormatter(formatter)
-    logger.addHandler(log_handler)
+    configure_logger(logger, args.verbose)
 
     express_relay_pid = Pubkey.from_string(args.express_relay_program)
     dummy_pid = Pubkey.from_string(args.dummy_program)
@@ -145,7 +138,7 @@ async def main():
     tx.add(ix_dummy)
 
     if args.submit_on_chain:
-        client = AsyncClient(args.rpc_url)
+        client = AsyncClient(args.rpc_url, "confirmed")
         tx_sig = (
             await client.send_transaction(tx, kp_searcher, kp_relayer_signer)
         ).value
