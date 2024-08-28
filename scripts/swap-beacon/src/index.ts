@@ -238,6 +238,10 @@ export class SwapBeacon {
             return;
           }
           await this.client.submitOpportunity(convertedOpportunity);
+          console.log(
+            "Submitted converted opportunity. Original id:",
+            opportunity.opportunityId
+          );
         } catch (error) {
           console.error(
             `Failed to convert and submit opportunity ${JSON.stringify(
