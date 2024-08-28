@@ -24,3 +24,6 @@ contracts/latestEnvironment.json
 **/target/
 node_modules
 .idea
+
+# Ignore stored SVM keypairs
+keypairs/*.json
