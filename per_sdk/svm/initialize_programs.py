@@ -15,7 +15,7 @@ from per_sdk.svm.helpers import configure_logger, read_kp_from_json
 logger = logging.getLogger(__name__)
 
 
-async def main():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument(
@@ -69,7 +69,82 @@ async def main():
         default="http://localhost:8899",
         help="URL of the Solana RPC endpoint to use for submitting transactions",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def create_ix_init_express_relay(
+    pk_payer: Pubkey,
+    pk_admin: Pubkey,
+    pk_relayer_signer: Pubkey,
+    pk_fee_receiver_relayer: Pubkey,
+    express_relay_pid: Pubkey,
+    split_protocol_default: int,
+    split_relayer: int,
+) -> Instruction:
+    """
+    Creates an instruction to initialize the express relay program.
+    Args:
+        pk_payer: Pubkey of the payer for the transaction
+        pk_admin: Pubkey of the admin for the express relay program
+        pk_relayer_signer: Pubkey of the relayer signer for the express relay program
+        pk_fee_receiver_relayer: Pubkey of the fee receiver address for the relayer
+        express_relay_pid: Pubkey of the express relay program
+        split_protocol_default: Portion of bid that should go to protocol by default, in bps
+        split_relayer: Portion of remaining bid (post protocol fee) that should go to relayer, in bps
+    Returns:
+        Instruction to initialize the express relay program
+    """
+    pk_express_relay_metadata = Pubkey.find_program_address(
+        [b"metadata"], express_relay_pid
+    )[0]
+    discriminator_init_express_relay = hashlib.sha256(b"global:initialize").digest()[:8]
+    data_init_express_relay = struct.pack(
+        "<8sQQ",
+        discriminator_init_express_relay,
+        split_protocol_default,
+        split_relayer,
+    )
+    return Instruction(
+        express_relay_pid,
+        data_init_express_relay,
+        [
+            AccountMeta(pk_payer, True, True),
+            AccountMeta(pk_express_relay_metadata, False, True),
+            AccountMeta(pk_admin, False, False),
+            AccountMeta(pk_relayer_signer, False, False),
+            AccountMeta(pk_fee_receiver_relayer, False, False),
+            AccountMeta(system_pid, False, False),
+        ],
+    )
+
+
+def create_ix_init_dummy(pk_payer: Pubkey, dummy_pid: Pubkey) -> Instruction:
+    """
+    Creates an instruction to initialize the dummy program.
+    Args:
+        pk_payer: Pubkey of the payer for the transaction
+        dummy_pid: Pubkey of the dummy program
+    Returns:
+        Instruction to initialize the dummy program
+    """
+    pk_fee_receiver_dummy = Pubkey.find_program_address(
+        [b"express_relay_fees"], dummy_pid
+    )[0]
+    discriminator_init_dummy = hashlib.sha256(b"global:initialize").digest()[:8]
+    data_init_dummy = struct.pack("<8s", discriminator_init_dummy)
+    return Instruction(
+        dummy_pid,
+        data_init_dummy,
+        [
+            AccountMeta(pk_payer, True, True),
+            AccountMeta(pk_fee_receiver_dummy, False, True),
+            AccountMeta(system_pid, False, False),
+        ],
+    )
+
+
+async def main():
+    args = parse_args()
 
     configure_logger(logger, args.verbose)
 
@@ -88,52 +163,31 @@ async def main():
     pk_relayer_signer = kp_relayer_signer.pubkey()
     logger.info("Relayer signer pubkey: %s", pk_relayer_signer)
 
+    client = AsyncClient(args.rpc_url, "confirmed")
+
     pk_express_relay_metadata = Pubkey.find_program_address(
         [b"metadata"], express_relay_pid
     )[0]
-    discriminator_init_express_relay = hashlib.sha256(b"global:initialize").digest()[:8]
-    data_init_express_relay = struct.pack(
-        "<8sQQ",
-        discriminator_init_express_relay,
-        args.split_protocol_default,
-        args.split_relayer,
-    )
-    ix_init_express_relay = Instruction(
-        express_relay_pid,
-        data_init_express_relay,
-        [
-            AccountMeta(pk_payer, True, True),
-            AccountMeta(pk_express_relay_metadata, False, True),
-            AccountMeta(pk_admin, False, False),
-            AccountMeta(pk_relayer_signer, False, False),
-            AccountMeta(pk_relayer_signer, False, False),
-            AccountMeta(system_pid, False, False),
-        ],
-    )
-
     pk_fee_receiver_dummy = Pubkey.find_program_address(
         [b"express_relay_fees"], dummy_pid
     )[0]
-    discriminator_init_dummy = hashlib.sha256(b"global:initialize").digest()[:8]
-    data_init_dummy = struct.pack("<8s", discriminator_init_dummy)
-    ix_init_dummy = Instruction(
-        dummy_pid,
-        data_init_dummy,
-        [
-            AccountMeta(pk_payer, True, True),
-            AccountMeta(pk_fee_receiver_dummy, False, True),
-            AccountMeta(system_pid, False, False),
-        ],
-    )
-
-    client = AsyncClient(args.rpc_url, "confirmed")
     balance_express_relay_metadata = await client.get_balance(pk_express_relay_metadata)
     balance_fee_receiver_dummy = await client.get_balance(pk_fee_receiver_dummy)
 
     tx = Transaction()
     if balance_express_relay_metadata.value == 0:
+        ix_init_express_relay = create_ix_init_express_relay(
+            pk_payer,
+            pk_admin,
+            pk_relayer_signer,
+            pk_relayer_signer,
+            express_relay_pid,
+            args.split_protocol_default,
+            args.split_relayer,
+        )
         tx.add(ix_init_express_relay)
     if balance_fee_receiver_dummy.value == 0:
+        ix_init_dummy = create_ix_init_dummy(pk_payer, dummy_pid)
         tx.add(ix_init_dummy)
     if len(tx.instructions) > 0:
         tx_sig = (await client.send_transaction(tx, kp_payer)).value

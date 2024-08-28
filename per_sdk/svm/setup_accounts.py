@@ -12,7 +12,7 @@ from per_sdk.svm.helpers import configure_logger, read_kp_from_json
 logger = logging.getLogger(__name__)
 
 
-async def main():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument(
@@ -29,7 +29,11 @@ async def main():
         default=10**9,
         help="Amount of lamports to airdrop to the keypairs",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+async def main():
+    args = parse_args()
 
     configure_logger(logger, args.verbose)
 

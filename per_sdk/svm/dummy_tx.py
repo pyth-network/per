@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import hashlib
 import logging
 import struct
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 DEADLINE_MAX = 2**63 - 1
 
 
-async def main():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument(
@@ -72,7 +73,11 @@ async def main():
         default=False,
         help="Submit the transaction directly on-chain instead of submitting to the server",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+async def main():
+    args = parse_args()
 
     configure_logger(logger, args.verbose)
 
@@ -170,6 +175,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    import asyncio
-
     asyncio.run(main())
