@@ -89,3 +89,42 @@ pub mod nullable_datetime {
         }
     }
 }
+
+pub mod svm_transaction {
+    use {
+        base64::{
+            engine::general_purpose::STANDARD,
+            Engine as _,
+        },
+        serde::{
+            de::Error as _,
+            ser::Error,
+            Deserialize,
+            Deserializer,
+            Serializer,
+        },
+        solana_sdk::transaction::Transaction,
+    };
+
+    pub fn serialize<S>(t: &Transaction, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let serialized = bincode::serialize(t).map_err(|e| S::Error::custom(e.to_string()))?;
+        let base64_encoded = STANDARD.encode(serialized);
+        s.serialize_str(base64_encoded.as_str())
+    }
+
+    pub fn deserialize<'de, D>(d: D) -> Result<Transaction, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(d)?;
+        let base64_decoded = STANDARD
+            .decode(s)
+            .map_err(|e| D::Error::custom(e.to_string()))?;
+        let transaction: Transaction =
+            bincode::deserialize(&base64_decoded).map_err(|e| D::Error::custom(e.to_string()))?;
+        Ok(transaction)
+    }
+}
