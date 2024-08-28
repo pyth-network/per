@@ -215,6 +215,7 @@ export class SwapBeacon {
   }
 
   async opportunityHandler(opportunity: Opportunity) {
+    console.log("Received opportunity:", opportunity.opportunityId);
     const swapAdapterConfig = getSwapAdapterConfig(opportunity.chainId);
 
     if (
