@@ -25,8 +25,10 @@ export function getSwapAdapterConfig(chainId: string) {
 
 export class SwapBeacon {
   private client: Client;
-  private adapters: Adapter[];
-  private chainIds: string[];
+  private pingTimeout: NodeJS.Timeout | undefined;
+  private readonly adapters: Adapter[];
+  private readonly chainIds: string[];
+  private readonly PING_INTERVAL = 30000;
 
   constructor(endpoint: string, _chainIds: string[]) {
     this.client = new Client(
@@ -246,12 +248,25 @@ export class SwapBeacon {
     );
   }
 
+  heartbeat() {
+    if (this.pingTimeout !== undefined) clearTimeout(this.pingTimeout);
+
+    this.pingTimeout = setTimeout(() => {
+      console.error("Received no ping. Terminating connection.");
+      this.client.websocket.terminate();
+    }, this.PING_INTERVAL + 2000); // 2 seconds for latency
+  }
+
   async start() {
     try {
       await this.client.subscribeChains(this.chainIds);
       console.log(
         `Subscribed to chain ${this.chainIds}. Waiting for opportunities...`
       );
+      this.heartbeat();
+      this.client.websocket.on("ping", () => {
+        this.heartbeat();
+      });
     } catch (error) {
       console.error(error);
       this.client.websocket?.close();
