@@ -79,7 +79,7 @@ use {
         Deserializer,
         Serialize,
     },
-    solana_sdk::transaction::Transaction,
+    solana_sdk::transaction::VersionedTransaction,
     sqlx::types::time::OffsetDateTime,
     std::{
         result,
@@ -635,7 +635,7 @@ pub struct BidSvm {
     /// The transaction for bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde(with = "crate::serde::svm_transaction")]
-    pub transaction: Transaction,
+    pub transaction: VersionedTransaction,
 }
 
 #[derive(Serialize, ToSchema, Debug, Clone)]
