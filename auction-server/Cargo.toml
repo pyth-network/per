@@ -43,6 +43,10 @@ serde_path_to_error = "0.1.16"
 solana-sdk = "2.0.7"
 bincode = "1.3.3"
 
+# The curve25519-dalek crate is a dependency of solana-sdk.
+# This crate relies on a specific version of zeroize that is incompatible with many other packages.
+# You can find more details in this issue https://github.com/solana-labs/solana/issues/26688
+# Solana Labs has provided a solution for some of these package incompatibilities, which can be found here https://github.com/solana-labs/solana/blob/27eff8408b7223bb3c4ab70523f8a8dca3ca6645/Cargo.toml#L514
 [patch.crates-io.curve25519-dalek]
 git = "https://github.com/solana-labs/curve25519-dalek.git"
 rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464"
