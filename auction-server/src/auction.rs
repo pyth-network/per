@@ -79,10 +79,7 @@ use {
         Deserializer,
         Serialize,
     },
-    serde_with::{
-        base64::Base64,
-        serde_as,
-    },
+    solana_sdk::transaction::Transaction,
     sqlx::types::time::OffsetDateTime,
     std::{
         result,
@@ -630,23 +627,15 @@ pub struct BidEvm {
     pub amount:          BidAmount,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct BidSvm {
-    /// The permission key to bid on.
-    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
-    #[serde_as(as = "Base64")]
-    pub permission_key: Bytes,
     /// The chain id to bid on.
     #[schema(example = "solana", value_type = String)]
-    pub chain_id:       ChainId,
-    /// Bid amount in lamports.
-    #[schema(example = 10, value_type = u64)]
-    pub amount:         u64,
+    pub chain_id:    ChainId,
     /// The transaction for bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
-    #[serde_as(as = "Base64")]
-    pub transaction:    Vec<u8>,
+    #[serde(with = "crate::serde::svm_transaction")]
+    pub transaction: Transaction,
 }
 
 #[derive(Serialize, ToSchema, Debug, Clone)]
