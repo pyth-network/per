@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import base64
 import hashlib
 import logging
 import struct
@@ -8,11 +9,14 @@ import urllib
 import httpx
 from solana.rpc.async_api import AsyncClient
 from solana.transaction import Transaction
+from solders.hash import Hash
 from solders.instruction import AccountMeta, Instruction
-from solders.message import Message
+from solders.message import MessageV0
+from solders.null_signer import NullSigner
 from solders.pubkey import Pubkey
 from solders.system_program import ID as system_pid
 from solders.sysvar import INSTRUCTIONS as sysvar_ixs_pid
+from solders.transaction import VersionedTransaction
 
 from per_sdk.svm.helpers import configure_logger, read_kp_from_json
 
@@ -72,6 +76,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Submit the transaction directly on-chain instead of submitting to the server",
+    )
+    parser.add_argument(
+        "--use-legacy-transaction-bid",
+        action="store_true",
+        default=False,
+        help="Use the legacy transaction message format instead of the versioned message format for the bid. Only applies if transaction is submitted as a bid (i.e. --submit-on-chain is not set)",
     )
     return parser.parse_args()
 
@@ -138,12 +148,11 @@ async def main():
         ],
     )
 
-    tx = Transaction()
-    tx.add(ix_submit_bid)
-    tx.add(ix_dummy)
-
     if args.submit_on_chain:
         client = AsyncClient(args.rpc_url, "confirmed")
+        tx = Transaction(fee_payer=kp_searcher.pubkey())
+        tx.add(ix_submit_bid)
+        tx.add(ix_dummy)
         tx_sig = (
             await client.send_transaction(tx, kp_searcher, kp_relayer_signer)
         ).value
@@ -151,14 +160,25 @@ async def main():
         assert conf.value[0].status is None, "Transaction failed"
         logger.info(f"Submitted transaction with signature {tx_sig}")
     else:
-        tx.sign_partial(kp_searcher)
-        message = bytes(Message([ix_submit_bid, ix_dummy], pk_searcher))
-        # TODO: impute one signature into the message
+        if args.use_legacy_transaction_bid:
+            tx = Transaction(fee_payer=kp_searcher.pubkey())
+            tx.add(ix_submit_bid)
+            tx.add(ix_dummy)
+            tx.sign_partial(kp_searcher)
+            serialized = base64.b64encode(
+                tx.serialize(verify_signatures=False)
+            ).decode()
+        else:
+            messagev0 = MessageV0.try_compile(
+                kp_searcher.pubkey(), [ix_submit_bid, ix_dummy], [], Hash.default()
+            )
+            signers = [kp_searcher, NullSigner(kp_relayer_signer.pubkey())]
+            partially_signed = VersionedTransaction(messagev0, signers)
+            serialized = base64.b64encode(bytes(partially_signed)).decode()
+
         bid_body = {
-            "permission_key": str(permission),
             "chain_id": "solana",
-            "amount": args.bid,
-            "transaction": message.hex(),
+            "transaction": serialized,
         }
         client = httpx.AsyncClient()
         resp = await client.post(

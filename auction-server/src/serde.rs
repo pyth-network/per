@@ -103,10 +103,10 @@ pub mod svm_transaction {
             Deserializer,
             Serializer,
         },
-        solana_sdk::transaction::Transaction,
+        solana_sdk::transaction::VersionedTransaction,
     };
 
-    pub fn serialize<S>(t: &Transaction, s: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(t: &VersionedTransaction, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -115,7 +115,7 @@ pub mod svm_transaction {
         s.serialize_str(base64_encoded.as_str())
     }
 
-    pub fn deserialize<'de, D>(d: D) -> Result<Transaction, D::Error>
+    pub fn deserialize<'de, D>(d: D) -> Result<VersionedTransaction, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -123,7 +123,7 @@ pub mod svm_transaction {
         let base64_decoded = STANDARD
             .decode(s)
             .map_err(|e| D::Error::custom(e.to_string()))?;
-        let transaction: Transaction =
+        let transaction: VersionedTransaction =
             bincode::deserialize(&base64_decoded).map_err(|e| D::Error::custom(e.to_string()))?;
         Ok(transaction)
     }
