@@ -43,12 +43,6 @@ def parse_args() -> argparse.Namespace:
         help="Pubkey of the express relay program, as a base-58-encoded string",
     )
     parser.add_argument(
-        "--dummy-program",
-        type=str,
-        required=True,
-        help="Pubkey of the dummy program, as a base-58-encoded string",
-    )
-    parser.add_argument(
         "--split-protocol-default",
         type=int,
         required=False,
@@ -78,7 +72,7 @@ def create_ix_init_express_relay(
     pk_relayer_signer: Pubkey,
     pk_fee_receiver_relayer: Pubkey,
     express_relay_pid: Pubkey,
-    split_protocol_default: int,
+    split_router_default: int,
     split_relayer: int,
 ) -> Instruction:
     """
@@ -89,7 +83,7 @@ def create_ix_init_express_relay(
         pk_relayer_signer: Pubkey of the relayer signer for the express relay program
         pk_fee_receiver_relayer: Pubkey of the fee receiver address for the relayer
         express_relay_pid: Pubkey of the express relay program
-        split_protocol_default: Portion of bid that should go to protocol by default, in bps
+        split_router_default: Portion of bid that should go to router by default, in bps
         split_relayer: Portion of remaining bid (post protocol fee) that should go to relayer, in bps
     Returns:
         Instruction to initialize the express relay program
@@ -101,7 +95,7 @@ def create_ix_init_express_relay(
     data_init_express_relay = struct.pack(
         "<8sQQ",
         discriminator_init_express_relay,
-        split_protocol_default,
+        split_router_default,
         split_relayer,
     )
     return Instruction(
@@ -118,38 +112,12 @@ def create_ix_init_express_relay(
     )
 
 
-def create_ix_init_dummy(pk_payer: Pubkey, dummy_pid: Pubkey) -> Instruction:
-    """
-    Creates an instruction to initialize the dummy program.
-    Args:
-        pk_payer: Pubkey of the payer for the transaction
-        dummy_pid: Pubkey of the dummy program
-    Returns:
-        Instruction to initialize the dummy program
-    """
-    pk_fee_receiver_dummy = Pubkey.find_program_address(
-        [b"express_relay_fees"], dummy_pid
-    )[0]
-    discriminator_init_dummy = hashlib.sha256(b"global:initialize").digest()[:8]
-    data_init_dummy = struct.pack("<8s", discriminator_init_dummy)
-    return Instruction(
-        dummy_pid,
-        data_init_dummy,
-        [
-            AccountMeta(pk_payer, True, True),
-            AccountMeta(pk_fee_receiver_dummy, False, True),
-            AccountMeta(system_pid, False, False),
-        ],
-    )
-
-
 async def main():
     args = parse_args()
 
     configure_logger(logger, args.verbose)
 
     express_relay_pid = Pubkey.from_string(args.express_relay_program)
-    dummy_pid = Pubkey.from_string(args.dummy_program)
 
     kp_payer = read_kp_from_json(args.file_private_key_payer)
     pk_payer = kp_payer.pubkey()
@@ -168,11 +136,7 @@ async def main():
     pk_express_relay_metadata = Pubkey.find_program_address(
         [b"metadata"], express_relay_pid
     )[0]
-    pk_fee_receiver_dummy = Pubkey.find_program_address(
-        [b"express_relay_fees"], dummy_pid
-    )[0]
     balance_express_relay_metadata = await client.get_balance(pk_express_relay_metadata)
-    balance_fee_receiver_dummy = await client.get_balance(pk_fee_receiver_dummy)
 
     tx = Transaction()
     if balance_express_relay_metadata.value == 0:
@@ -186,9 +150,7 @@ async def main():
             args.split_relayer,
         )
         tx.add(ix_init_express_relay)
-    if balance_fee_receiver_dummy.value == 0:
-        ix_init_dummy = create_ix_init_dummy(pk_payer, dummy_pid)
-        tx.add(ix_init_dummy)
+
     if len(tx.instructions) > 0:
         tx_sig = (await client.send_transaction(tx, kp_payer)).value
         conf = await client.confirm_transaction(tx_sig)
