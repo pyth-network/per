@@ -30,12 +30,14 @@ pub fn transfer_lamports_cpi<'info>(
     amount: u64,
     system_program: AccountInfo<'info>,
 ) -> Result<()> {
-    let cpi_accounts = Transfer {
-        from: from.clone(),
-        to: to.clone(),
-    };
+    if amount > 0 {
+        let cpi_accounts = Transfer {
+            from: from.clone(),
+            to: to.clone(),
+        };
 
-    transfer(CpiContext::new(system_program, cpi_accounts), amount)?;
+        transfer(CpiContext::new(system_program, cpi_accounts), amount)?;
+    }
 
     Ok(())
 }
@@ -107,39 +109,43 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
         // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
         return err!(ErrorCode::FeesHigherThanBid);
     }
+    if fee_router > 0 {
+        let router = &ctx.accounts.router;
+        let balance_router = router.lamports();
+        let rent_router = Rent::get()?.minimum_balance(router.to_account_info().data_len());
+        if balance_router+fee_router < rent_router {
+            return err!(ErrorCode::InsufficientRouterRent);
+        }
+
+        transfer_lamports_cpi(
+            &searcher.to_account_info(),
+            &router.to_account_info(),
+            fee_router,
+            ctx.accounts.system_program.to_account_info()
+        )?;
+    }
 
     let fee_relayer = bid_amount.saturating_sub(fee_router) * split_relayer / FEE_SPLIT_PRECISION;
     if fee_relayer.checked_add(fee_router).ok_or(ProgramError::ArithmeticOverflow)? > bid_amount {
         // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
         return err!(ErrorCode::FeesHigherThanBid);
     }
+    if fee_relayer > 0 {
+        let fee_receiver_relayer = &ctx.accounts.fee_receiver_relayer;
+        let balance_fee_receiver_relayer = fee_receiver_relayer.lamports();
+        let rent_fee_receiver_relayer = Rent::get()?.minimum_balance(fee_receiver_relayer.to_account_info().data_len());
+        if balance_fee_receiver_relayer+fee_relayer < rent_fee_receiver_relayer {
+            return err!(ErrorCode::InsufficientRelayerFeeReceiverRent);
+        }
 
-    let router = &ctx.accounts.router;
-    let balance_router = router.lamports();
-    let rent_router = Rent::get()?.minimum_balance(router.to_account_info().data_len());
-    if balance_router+fee_router < rent_router {
-        return err!(ErrorCode::InsufficientRouterRent);
+        transfer_lamports_cpi(
+            &searcher.to_account_info(),
+            &fee_receiver_relayer.to_account_info(),
+            fee_relayer,
+            ctx.accounts.system_program.to_account_info()
+        )?;
     }
 
-    let fee_receiver_relayer = &ctx.accounts.fee_receiver_relayer;
-    let balance_fee_receiver_relayer = fee_receiver_relayer.lamports();
-    let rent_fee_receiver_relayer = Rent::get()?.minimum_balance(fee_receiver_relayer.to_account_info().data_len());
-    if balance_fee_receiver_relayer+fee_relayer < rent_fee_receiver_relayer {
-        return err!(ErrorCode::InsufficientRelayerFeeReceiverRent);
-    }
-
-    transfer_lamports_cpi(
-        &searcher.to_account_info(),
-        &router.to_account_info(),
-        fee_router,
-        ctx.accounts.system_program.to_account_info()
-    )?;
-    transfer_lamports_cpi(
-        &searcher.to_account_info(),
-        &fee_receiver_relayer.to_account_info(),
-        fee_relayer,
-        ctx.accounts.system_program.to_account_info()
-    )?;
     transfer_lamports_cpi(
         &searcher.to_account_info(),
         &express_relay_metadata.to_account_info(),
