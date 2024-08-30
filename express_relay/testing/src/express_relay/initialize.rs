@@ -9,7 +9,7 @@ pub fn get_initialize_instruction(
     admin: Pubkey,
     relayer_signer: Pubkey,
     fee_receiver_relayer: Pubkey,
-    split_protocol_default: u64,
+    split_router_default: u64,
     split_relayer: u64
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
@@ -19,7 +19,7 @@ pub fn get_initialize_instruction(
         data:
         express_relay::instruction::Initialize {
             data: InitializeArgs {
-                split_protocol_default: split_protocol_default,
+                split_router_default: split_router_default,
                 split_relayer: split_relayer,
             }
         }.data(),

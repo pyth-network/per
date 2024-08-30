@@ -6,7 +6,7 @@ use testing::{express_relay::{helpers::get_express_relay_metadata_key, withdraw_
 #[test]
 fn test_withdraw_fees() {
     let setup_result = setup(SetupParams {
-        split_protocol_default: 4000,
+        split_router_default: 4000,
         split_relayer: 2000,
     }).expect("setup failed");
 
@@ -35,7 +35,7 @@ fn test_withdraw_fees() {
 #[test]
 fn test_withdraw_fees_fail_wrong_admin() {
     let setup_result = setup(SetupParams {
-        split_protocol_default: 4000,
+        split_router_default: 4000,
         split_relayer: 2000,
     }).expect("setup failed");
 

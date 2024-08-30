@@ -40,16 +40,7 @@ pub fn transfer_lamports_cpi<'info>(
     Ok(())
 }
 
-pub fn validate_pda(pda: &Pubkey, program_id: &Pubkey, seeds: &[&[u8]]) -> Result<()> {
-    let (pda_calculated, _) = Pubkey::find_program_address(seeds, program_id);
-    if pda != &pda_calculated {
-        return err!(ErrorCode::InvalidPDAProvided);
-    }
-
-    Ok(())
-}
-
-pub fn num_permissions_in_tx(sysvar_instructions: UncheckedAccount, permission: Option<Pubkey>, protocol: Option<Pubkey>) -> Result<u16> {
+pub fn num_permissions_in_tx(sysvar_instructions: UncheckedAccount, permission: Option<Pubkey>, router: Option<Pubkey>) -> Result<u16> {
     let num_instructions = read_u16(&mut 0, &sysvar_instructions.data.borrow()).map_err(|_| ProgramError::InvalidInstructionData)?;
     let mut permission_count = 0u16;
     for index in 0..num_instructions {
@@ -72,9 +63,9 @@ pub fn num_permissions_in_tx(sysvar_instructions: UncheckedAccount, permission: 
             None => {}
         }
 
-        match protocol {
-            Some(protocol) => {
-                if ix.accounts[3].pubkey != protocol {
+        match router {
+            Some(router) => {
+                if ix.accounts[3].pubkey != router {
                     continue;
                 }
             }
@@ -96,60 +87,51 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
 
     let express_relay_metadata = &ctx.accounts.express_relay_metadata;
     let split_relayer = express_relay_metadata.split_relayer;
-    let split_protocol_default = express_relay_metadata.split_protocol_default;
+    let split_router_default = express_relay_metadata.split_router_default;
 
-    let split_protocol: u64;
-    let protocol_config = &ctx.accounts.protocol_config;
-    let protocol_config_account_info = protocol_config.to_account_info();
-    // validate the protocol config account struct in program logic bc it may be uninitialized
+    let split_router: u64;
+    let router_config = &ctx.accounts.router_config;
+    let router_config_account_info = router_config.to_account_info();
+    // validate the router config account struct in program logic bc it may be uninitialized
     // only validate if the account has data
-    if protocol_config_account_info.data_len() > 0 {
-        let account_data = &mut &**protocol_config_account_info.try_borrow_data()?;
-        let protocol_config_data = ConfigProtocol::try_deserialize(account_data)?;
-        split_protocol = protocol_config_data.split;
+    if router_config_account_info.data_len() > 0 {
+        let account_data = &mut &**router_config_account_info.try_borrow_data()?;
+        let router_config_data = ConfigRouter::try_deserialize(account_data)?;
+        split_router = router_config_data.split;
     } else {
-        split_protocol = split_protocol_default;
+        split_router = split_router_default;
     }
 
-    let fee_protocol = bid_amount * split_protocol / FEE_SPLIT_PRECISION;
-    if fee_protocol > bid_amount {
+    let fee_router = bid_amount * split_router / FEE_SPLIT_PRECISION;
+    if fee_router > bid_amount {
         // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
         return err!(ErrorCode::FeesHigherThanBid);
     }
 
-    let fee_relayer = bid_amount.saturating_sub(fee_protocol) * split_relayer / FEE_SPLIT_PRECISION;
-    if fee_relayer.checked_add(fee_protocol).ok_or(ProgramError::ArithmeticOverflow)? > bid_amount {
+    let fee_relayer = bid_amount.saturating_sub(fee_router) * split_relayer / FEE_SPLIT_PRECISION;
+    if fee_relayer.checked_add(fee_router).ok_or(ProgramError::ArithmeticOverflow)? > bid_amount {
         // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
         return err!(ErrorCode::FeesHigherThanBid);
     }
 
-    let protocol = &ctx.accounts.protocol;
-    let fee_receiver_protocol = &ctx.accounts.fee_receiver_protocol;
-    if protocol.executable {
-        // validate the protocol fee receiver address as pda if protocol is a program
-        validate_pda(fee_receiver_protocol.key, protocol.key, &[SEED_EXPRESS_RELAY_FEES])?;
-    } else {
-        // if protocol is non-executable pubkey, protocol fee receiver address should = protocol address
-        assert_eq!(protocol.key, fee_receiver_protocol.key);
-    }
-
-    let balance_fee_receiver_protocol = fee_receiver_protocol.lamports();
-    let rent_fee_receiver_protocol = Rent::get()?.minimum_balance(0);
-    if balance_fee_receiver_protocol+fee_protocol < rent_fee_receiver_protocol {
-        return err!(ErrorCode::InsufficientProtocolFeeReceiverRent);
+    let router = &ctx.accounts.router;
+    let balance_router = router.lamports();
+    let rent_router = Rent::get()?.minimum_balance(router.to_account_info().data_len());
+    if balance_router+fee_router < rent_router {
+        return err!(ErrorCode::InsufficientRouterRent);
     }
 
     let fee_receiver_relayer = &ctx.accounts.fee_receiver_relayer;
     let balance_fee_receiver_relayer = fee_receiver_relayer.lamports();
-    let rent_fee_receiver_relayer = Rent::get()?.minimum_balance(0);
+    let rent_fee_receiver_relayer = Rent::get()?.minimum_balance(fee_receiver_relayer.to_account_info().data_len());
     if balance_fee_receiver_relayer+fee_relayer < rent_fee_receiver_relayer {
         return err!(ErrorCode::InsufficientRelayerFeeReceiverRent);
     }
 
     transfer_lamports_cpi(
         &searcher.to_account_info(),
-        &fee_receiver_protocol.to_account_info(),
-        fee_protocol,
+        &router.to_account_info(),
+        fee_router,
         ctx.accounts.system_program.to_account_info()
     )?;
     transfer_lamports_cpi(
@@ -161,7 +143,7 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
     transfer_lamports_cpi(
         &searcher.to_account_info(),
         &express_relay_metadata.to_account_info(),
-        bid_amount.saturating_sub(fee_protocol).saturating_sub(fee_relayer),
+        bid_amount.saturating_sub(fee_router).saturating_sub(fee_relayer),
         ctx.accounts.system_program.to_account_info()
     )?;
 

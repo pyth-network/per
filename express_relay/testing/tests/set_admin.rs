@@ -5,7 +5,7 @@ use testing::{express_relay::{helpers::get_express_relay_metadata, set_admin::ge
 #[test]
 fn test_set_admin() {
     let setup_result = setup(SetupParams {
-        split_protocol_default: 4000,
+        split_router_default: 4000,
         split_relayer: 2000,
     }).expect("setup failed");
 
@@ -24,7 +24,7 @@ fn test_set_admin() {
 #[test]
 fn test_set_admin_fail_wrong_admin() {
     let setup_result = setup(SetupParams {
-        split_protocol_default: 4000,
+        split_router_default: 4000,
         split_relayer: 2000,
     }).expect("setup failed");
 

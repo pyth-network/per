@@ -4,11 +4,11 @@ use testing::{express_relay::helpers::get_express_relay_metadata, helpers::asser
 
 #[test]
 fn test_initialize() {
-    let split_protocol_default: u64 = 4000;
+    let split_router_default: u64 = 4000;
     let split_relayer: u64 = 2000;
 
     let setup_params = SetupParams {
-        split_protocol_default,
+        split_router_default,
         split_relayer,
     };
     let setup_result = setup(setup_params).expect("setup failed");
@@ -18,17 +18,17 @@ fn test_initialize() {
     assert_eq!(express_relay_metadata.admin, setup_result.admin.pubkey());
     assert_eq!(express_relay_metadata.relayer_signer, setup_result.relayer_signer.pubkey());
     assert_eq!(express_relay_metadata.fee_receiver_relayer, setup_result.fee_receiver_relayer.pubkey());
-    assert_eq!(express_relay_metadata.split_protocol_default, split_protocol_default);
+    assert_eq!(express_relay_metadata.split_router_default, split_router_default);
     assert_eq!(express_relay_metadata.split_relayer, split_relayer);
 }
 
 #[test]
-fn test_initialize_fail_high_split_protocol() {
-    let split_protocol_default: u64 = FEE_SPLIT_PRECISION + 1;
+fn test_initialize_fail_high_split_router() {
+    let split_router_default: u64 = FEE_SPLIT_PRECISION + 1;
     let split_relayer: u64 = 2000;
 
     let setup_params = SetupParams {
-        split_protocol_default,
+        split_router_default,
         split_relayer,
     };
     let setup_result = setup(setup_params);
@@ -41,11 +41,11 @@ fn test_initialize_fail_high_split_protocol() {
 
 #[test]
 fn test_initialize_fail_high_split_relayer() {
-    let split_protocol_default: u64 = 4000;
+    let split_router_default: u64 = 4000;
     let split_relayer: u64 = FEE_SPLIT_PRECISION + 1;
 
     let setup_params = SetupParams {
-        split_protocol_default,
+        split_router_default,
         split_relayer,
     };
     let setup_result = setup(setup_params);
