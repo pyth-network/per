@@ -4,7 +4,8 @@ use {
         config::{
             ChainId,
             Config,
-            EthereumConfig,
+            ConfigEvm,
+            ConfigMap,
             SubwalletOptions,
         },
         server::get_chain_provider,
@@ -21,7 +22,7 @@ use {
 };
 
 pub async fn sync_subwallets(opts: SubwalletOptions) -> Result<()> {
-    let config = Config::load(&opts.config.config).map_err(|err| {
+    let config_map = ConfigMap::load(&opts.config.config).map_err(|err| {
         anyhow!(
             "Failed to load config from file({path}): {:?}",
             err,
@@ -30,13 +31,16 @@ pub async fn sync_subwallets(opts: SubwalletOptions) -> Result<()> {
     })?;
     let wallet = opts.relayer_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {:?}", wallet.address());
-    for (chain_id, chain_config) in config.chains.iter() {
-        if let Err(e) = sync_subwallets_for_chain(chain_id, chain_config, wallet.clone()).await {
-            tracing::error!(
-                "Failed to sync subwallets for chain: {}. Error: {:?}",
-                chain_id,
-                e
-            );
+    for (chain_id, config) in config_map.chains.iter() {
+        if let Config::Evm(chain_config) = config {
+            if let Err(e) = sync_subwallets_for_chain(chain_id, chain_config, wallet.clone()).await
+            {
+                tracing::error!(
+                    "Failed to sync subwallets for chain: {}. Error: {:?}",
+                    chain_id,
+                    e
+                );
+            }
         }
     }
     Ok(())
@@ -44,7 +48,7 @@ pub async fn sync_subwallets(opts: SubwalletOptions) -> Result<()> {
 
 async fn sync_subwallets_for_chain(
     chain_id: &ChainId,
-    chain_config: &EthereumConfig,
+    chain_config: &ConfigEvm,
     wallet: LocalWallet,
 ) -> Result<()> {
     let provider = get_chain_provider(chain_id, chain_config)?;

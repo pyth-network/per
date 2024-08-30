@@ -21,7 +21,6 @@ field_mapping = {
     'chainIdNum': 'CHAIN_ID_NUM',
 }
 
-
 def main():
     latest_env = json.load(open('contracts/latestEnvironment.json'))
     with open('tilt-resources.env', 'w') as f:
@@ -39,6 +38,8 @@ chains:
     adapter_factory_contract: {latest_env['adapterFactory']}
     legacy_tx: false
     poll_interval: 1
+  solana:
+    express_relay_program_id: GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)

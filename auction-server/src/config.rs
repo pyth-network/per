@@ -9,6 +9,11 @@ use {
         Parser,
     },
     ethers::abi::Address,
+    serde_with::{
+        serde_as,
+        DisplayFromStr,
+    },
+    solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
         fs,
@@ -76,22 +81,29 @@ pub struct ConfigOptions {
 pub type ChainId = String;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct Config {
-    pub chains: HashMap<ChainId, EthereumConfig>,
+pub struct ConfigMap {
+    pub chains: HashMap<ChainId, Config>,
 }
 
-impl Config {
-    pub fn load(path: &str) -> Result<Config> {
+impl ConfigMap {
+    pub fn load(path: &str) -> Result<ConfigMap> {
         // Open and read the YAML file
         // TODO: the default serde deserialization doesn't enforce unique keys
         let yaml_content = fs::read_to_string(path)?;
-        let config: Config = serde_yaml::from_str(&yaml_content)?;
+        let config: ConfigMap = serde_yaml::from_str(&yaml_content)?;
         Ok(config)
     }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct EthereumConfig {
+#[serde(untagged)] // Remove tags to avoid key-value wrapping
+pub enum Config {
+    Evm(ConfigEvm),
+    Svm(ConfigSvm),
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ConfigEvm {
     /// URL of a Geth RPC endpoint to use for interacting with the blockchain.
     pub geth_rpc_addr: String,
 
@@ -116,4 +128,12 @@ pub struct EthereumConfig {
     /// Use the legacy transaction format (for networks without EIP 1559)
     #[serde(default)]
     pub legacy_tx: bool,
+}
+
+#[serde_as]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ConfigSvm {
+    /// Id of the express relay program.
+    #[serde_as(as = "DisplayFromStr")]
+    pub express_relay_program_id: Pubkey,
 }

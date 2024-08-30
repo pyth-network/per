@@ -12,7 +12,7 @@ use {
         auction::SignableExpressRelayContract,
         config::{
             ChainId,
-            EthereumConfig,
+            ConfigEvm,
         },
         models,
         traced_client::TracedClient,
@@ -38,6 +38,7 @@ use {
         Deserialize,
         Serialize,
     },
+    solana_sdk::pubkey::Pubkey,
     sqlx::{
         database::HasArguments,
         encode::IsNull,
@@ -188,13 +189,17 @@ pub struct ChainStore {
     pub chain_id_num:           u64,
     pub provider:               Provider<TracedClient>,
     pub network_id:             u64,
-    pub config:                 EthereumConfig,
+    pub config:                 ConfigEvm,
     pub permit2:                Address,
     pub adapter_bytecode_hash:  [u8; 32],
     pub weth:                   Address,
     pub token_spoof_info:       RwLock<HashMap<Address, SpoofInfo>>,
     pub express_relay_contract: Arc<SignableExpressRelayContract>,
     pub block_gas_limit:        U256,
+}
+
+pub struct ChainStoreSvm {
+    pub program_id: Pubkey,
 }
 
 #[derive(Default)]
@@ -291,6 +296,7 @@ pub struct BidStatusWithId {
 
 pub struct Store {
     pub chains:             HashMap<ChainId, ChainStore>,
+    pub chains_svm:         HashMap<ChainId, ChainStoreSvm>,
     pub bids:               RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
     pub event_sender:       broadcast::Sender<UpdateEvent>,
     pub opportunity_store:  OpportunityStore,

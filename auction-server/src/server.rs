@@ -12,7 +12,8 @@ use {
         config::{
             ChainId,
             Config,
-            EthereumConfig,
+            ConfigEvm,
+            ConfigMap,
             RunOptions,
         },
         models,
@@ -25,6 +26,7 @@ use {
         per_metrics,
         state::{
             ChainStore,
+            ChainStoreSvm,
             OpportunityStore,
             Store,
         },
@@ -140,55 +142,86 @@ pub fn setup_metrics_recorder() -> anyhow::Result<PrometheusHandle> {
         .map_err(|err| anyhow!("Failed to set up metrics recorder: {:?}", err))
 }
 
+fn setup_chain_store_svm(config_map: ConfigMap) -> HashMap<ChainId, ChainStoreSvm> {
+    config_map
+        .chains
+        .iter()
+        .filter_map(|(chain_id, config)| match config {
+            Config::Evm(_) => None,
+            Config::Svm(chain_config) => Some((
+                chain_id.clone(),
+                ChainStoreSvm {
+                    program_id: chain_config.express_relay_program_id,
+                },
+            )),
+        })
+        .collect()
+}
+
 async fn setup_chain_store(
-    config: Config,
+    config_map: ConfigMap,
     wallet: Wallet<SigningKey>,
 ) -> anyhow::Result<HashMap<ChainId, ChainStore>> {
-    join_all(config.chains.iter().map(|(chain_id, chain_config)| {
-        let (chain_id, chain_config, wallet) =
-            (chain_id.clone(), chain_config.clone(), wallet.clone());
-        async move {
-            let provider = get_chain_provider(&chain_id, &chain_config)?;
+    join_all(
+        config_map
+            .chains
+            .iter()
+            .filter_map(|(chain_id, config)| match config {
+                Config::Svm(_) => None,
+                Config::Evm(chain_config) => {
+                    let (chain_id, chain_config, wallet) =
+                        (chain_id.clone(), chain_config.clone(), wallet.clone());
+                    Some(async move {
+                        let provider = get_chain_provider(&chain_id, &chain_config)?;
 
-            let id = provider.get_chainid().await?.as_u64();
-            let block = provider
-                .get_block(BlockNumber::Latest)
-                .await?
-                .expect("Failed to get latest block");
+                        let id = provider.get_chainid().await?.as_u64();
+                        let block = provider
+                            .get_block(BlockNumber::Latest)
+                            .await?
+                            .expect("Failed to get latest block");
 
-            let express_relay_contract = get_express_relay_contract(
-                chain_config.express_relay_contract,
-                provider.clone(),
-                wallet.clone(),
-                chain_config.legacy_tx,
-                id,
-            );
-            let permit2 =
-                get_permit2_address(chain_config.adapter_factory_contract, provider.clone())
-                    .await?;
-            let weth =
-                get_weth_address(chain_config.adapter_factory_contract, provider.clone()).await?;
-            let adapter_bytecode_hash =
-                get_adapter_bytecode_hash(chain_config.adapter_factory_contract, provider.clone())
-                    .await?;
+                        let express_relay_contract = get_express_relay_contract(
+                            chain_config.express_relay_contract,
+                            provider.clone(),
+                            wallet.clone(),
+                            chain_config.legacy_tx,
+                            id,
+                        );
+                        let permit2 = get_permit2_address(
+                            chain_config.adapter_factory_contract,
+                            provider.clone(),
+                        )
+                        .await?;
+                        let weth = get_weth_address(
+                            chain_config.adapter_factory_contract,
+                            provider.clone(),
+                        )
+                        .await?;
+                        let adapter_bytecode_hash = get_adapter_bytecode_hash(
+                            chain_config.adapter_factory_contract,
+                            provider.clone(),
+                        )
+                        .await?;
 
-            Ok((
-                chain_id.clone(),
-                ChainStore {
-                    chain_id_num: id,
-                    provider,
-                    network_id: id,
-                    token_spoof_info: Default::default(),
-                    config: chain_config.clone(),
-                    permit2,
-                    weth,
-                    adapter_bytecode_hash,
-                    express_relay_contract: Arc::new(express_relay_contract),
-                    block_gas_limit: block.gas_limit,
-                },
-            ))
-        }
-    }))
+                        Ok((
+                            chain_id.clone(),
+                            ChainStore {
+                                chain_id_num: id,
+                                provider,
+                                network_id: id,
+                                token_spoof_info: Default::default(),
+                                config: chain_config.clone(),
+                                permit2,
+                                weth,
+                                adapter_bytecode_hash,
+                                express_relay_contract: Arc::new(express_relay_contract),
+                                block_gas_limit: block.gas_limit,
+                            },
+                        ))
+                    })
+                }
+            }),
+    )
     .await
     .into_iter()
     .collect()
@@ -203,7 +236,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         SHOULD_EXIT.store(true, Ordering::Release);
     });
 
-    let config = Config::load(&run_options.config.config).map_err(|err| {
+    let config_map = ConfigMap::load(&run_options.config.config).map_err(|err| {
         anyhow!(
             "Failed to load config from file({path}): {:?}",
             err,
@@ -214,13 +247,15 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let wallet = run_options.subwallet_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {:?}", wallet.address());
 
-    let chains = match setup_chain_store(config, wallet.clone()).await {
+    let chains = match setup_chain_store(config_map.clone(), wallet.clone()).await {
         Ok(chain_store) => chain_store,
         Err(err) => {
             tracing::error!("Failed to set up chain store: {:?}", err);
             return Err(err);
         }
     };
+
+    let chains_svm = setup_chain_store_svm(config_map);
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -251,6 +286,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         db: pool,
         bids: Default::default(),
         chains,
+        chains_svm,
         opportunity_store: OpportunityStore::default(),
         event_sender: broadcast_sender.clone(),
         relayer: wallet,
@@ -309,7 +345,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
 pub fn get_chain_provider(
     chain_id: &String,
-    chain_config: &EthereumConfig,
+    chain_config: &ConfigEvm,
 ) -> anyhow::Result<Provider<TracedClient>> {
     let mut provider = TracedClient::new(
         chain_id.clone(),

@@ -6,7 +6,7 @@ use {
         },
         config::{
             ChainId,
-            EthereumConfig,
+            ConfigEvm,
         },
         models,
         server::{
@@ -126,7 +126,7 @@ const EXTRA_GAS_FOR_SUBMISSION: u32 = 500 * 1000;
 pub fn get_simulation_call(
     relayer: Address,
     provider: Provider<TracedClient>,
-    chain_config: EthereumConfig,
+    chain_config: ConfigEvm,
     permission_key: Bytes,
     multicall_data: Vec<MulticallData>,
 ) -> FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>> {
@@ -882,15 +882,38 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
 
 #[tracing::instrument(skip_all)]
 pub async fn svm_handle_bid(
-    _store: Arc<Store>,
+    store: Arc<Store>,
     bid: BidSvm,
     _initiation_time: OffsetDateTime,
     _auth: Auth,
 ) -> result::Result<Uuid, RestError> {
-    if bid.chain_id != "solana" {
-        return Err(RestError::InvalidChainId);
-    }
+    let chain_store = store
+        .chains_svm
+        .get(&bid.chain_id)
+        .ok_or(RestError::InvalidChainId)?;
 
+    // Checks that the transaction includes exactly one submit_bid instruction to the Express Relay on-chain program
+    if bid
+        .transaction
+        .message
+        .instructions()
+        .iter()
+        .filter(|instruction| {
+            let program_id = instruction.program_id(bid.transaction.message.static_account_keys());
+            if *program_id != chain_store.program_id {
+                return false;
+            }
+
+            true
+        })
+        .count()
+        != 1
+    {
+        return Err(RestError::BadParameters(
+            "Bid has to include exactly one submit_bid instruction to Express Relay program"
+                .to_string(),
+        ));
+    }
     // TODO implement this
     Err(RestError::NotImplemented)
 }
