@@ -16,6 +16,7 @@ RUN rustup default nightly-2024-04-10
 RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH="${PATH}:/root/.foundry/bin/"
 RUN foundryup
+RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
 
 # Add solidity dependencies
 WORKDIR /src
@@ -27,6 +28,12 @@ RUN forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commi
 RUN forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
 RUN forge install Uniswap/permit2@0x000000000022D473030F116dDEE9F6B43aC78BA3 --no-git --no-commit
 RUN forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1fcb4e286 --no-git --no-commit
+
+# Add solana dependencies
+WORKDIR /src
+COPY express_relay express_relay
+WORKDIR /src/express_relay
+RUN anchor build
 
 # Build auction-server
 WORKDIR /src

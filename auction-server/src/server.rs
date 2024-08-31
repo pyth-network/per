@@ -32,6 +32,10 @@ use {
         },
         traced_client::TracedClient,
     },
+    anchor_lang_idl::{
+        convert::convert_idl,
+        types::Idl,
+    },
     anyhow::anyhow,
     axum_prometheus::{
         metrics_exporter_prometheus::{
@@ -64,6 +68,7 @@ use {
     },
     std::{
         collections::HashMap,
+        fs,
         sync::{
             atomic::{
                 AtomicBool,
@@ -151,7 +156,7 @@ fn setup_chain_store_svm(config_map: ConfigMap) -> HashMap<ChainId, ChainStoreSv
             Config::Svm(chain_config) => Some((
                 chain_id.clone(),
                 ChainStoreSvm {
-                    program_id: chain_config.express_relay_program_id,
+                    express_relay_program_id: chain_config.express_relay_program_id,
                 },
             )),
         })
@@ -225,6 +230,12 @@ async fn setup_chain_store(
     .await
     .into_iter()
     .collect()
+}
+
+pub fn load_express_relay_idl() -> anyhow::Result<Idl> {
+    let idl = fs::read("../express_relay/target/idl/express_relay.json")?;
+    convert_idl(idl.as_slice())
+        .map_err(|err| anyhow!("Failed to convert express relay idl: {:?}", err))
 }
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
@@ -301,6 +312,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         secret_key: run_options.secret_key.clone(),
         access_tokens: RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
+        express_relay_idl: load_express_relay_idl()?,
     });
 
     tokio::join!(

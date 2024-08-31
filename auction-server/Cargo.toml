@@ -36,13 +36,14 @@ axum-prometheus = "0.6.1"
 reqwest = { version = "0.11.27" }
 tracing-opentelemetry = "0.24.0"
 opentelemetry = "0.23.0"
-opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"]}
+opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.16.0" }
 gas-oracle = { path = "../gas-oracle" }
 serde_path_to_error = "0.1.16"
 solana-sdk = "2.0.7"
 bincode = "1.3.3"
 serde_with = "3.9.0"
+anchor-lang-idl = { version = "0.1.1", features = ["convert"] }
 
 # The curve25519-dalek crate is a dependency of solana-sdk.
 # This crate relies on a specific version of zeroize that is incompatible with many other packages.

@@ -83,11 +83,18 @@ local_resource(
     "evm-create-configs", "python3 evm_integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts"]
 )
 
+# svm resources
+local_resource(
+    "svm-build-programs",
+    "cargo build-sbf && anchor build",
+    dir="express_relay",
+)
+
 local_resource(
     "auction-server",
     serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --subwallet-private-key $RELAYER_PRIVATE_KEY --secret-key $SECRET_KEY",
     serve_dir="auction-server",
-    resource_deps=["evm-create-configs"],
+    resource_deps=["evm-create-configs", "svm-build-programs"],
     readiness_probe=probe(period_secs=5, http_get=http_get_action(port=9000)),
 )
 
@@ -129,14 +136,6 @@ local_resource(
     resource_deps=["evm-deploy-contracts", "auction-server", "evm-create-configs"],
 )
 
-
-# svm resources
-local_resource(
-    "svm-build-programs",
-    "cargo build-sbf",
-    dir="express_relay",
-)
-
 local_resource(
     "svm-localnet",
     serve_cmd="solana-test-validator $(./test-validator-params.sh)",
@@ -152,7 +151,7 @@ local_resource(
 local_resource(
     "svm-setup-accounts",
     "poetry -C per_sdk run python3 -m per_sdk.svm.setup_accounts --rpc-url %s" % rpc_url_solana,
-    resource_deps=["svm-localnet"]
+    resource_deps=["svm-localnet"],
 )
 
 # need to run initialize instructions for the programs one time, script skips if already initialized

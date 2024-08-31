@@ -18,11 +18,13 @@ use {
             BidAmount,
             BidStatus,
             ChainStore,
+            ChainStoreSvm,
             SimulatedBid,
             Store,
         },
         traced_client::TracedClient,
     },
+    anchor_lang_idl::types::Idl,
     anyhow::{
         anyhow,
         Result,
@@ -634,7 +636,7 @@ pub struct BidSvm {
     pub chain_id:    ChainId,
     /// The transaction for bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
-    #[serde(with = "crate::serde::svm_transaction")]
+    #[serde(with = "crate::serde::transaction_svm")]
     pub transaction: VersionedTransaction,
 }
 
@@ -660,9 +662,9 @@ impl<'de> Deserialize<'de> for Bid {
             serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
         match bid_id.chain_id.as_str() {
             "solana" => {
-                let svm_bid: BidSvm =
+                let bid_svm: BidSvm =
                     serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
-                Ok(Bid::Svm(svm_bid))
+                Ok(Bid::Svm(bid_svm))
             }
             _ => {
                 let evm_bid: BidEvm =
@@ -880,8 +882,54 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
     Ok(())
 }
 
+// Checks that the transaction includes exactly "total" "name" instruction to the Express Relay on-chain program
+pub fn verify_total_instructions_svm(
+    chain_store: &ChainStoreSvm,
+    express_relay_idl: Idl,
+    transaction: VersionedTransaction,
+    name: String,
+    total: usize,
+) -> Result<(), RestError> {
+    if transaction
+        .message
+        .instructions()
+        .iter()
+        .filter(|instruction| {
+            let program_id = instruction.program_id(transaction.message.static_account_keys());
+            if *program_id != chain_store.express_relay_program_id {
+                return false;
+            }
+
+            match express_relay_idl
+                .instructions
+                .iter()
+                .find(|instruction| instruction.name == name)
+            {
+                Some(submit_bid_instruction) => instruction
+                    .data
+                    .starts_with(&submit_bid_instruction.discriminator),
+                None => {
+                    tracing::error!(
+                        "{} instruction not found in Express Relay program IDL",
+                        name
+                    );
+                    false
+                }
+            }
+        })
+        .count()
+        != total
+    {
+        return Err(RestError::BadParameters(format!(
+            "Bid has to include exactly {} {} instruction to Express Relay program",
+            total, name,
+        )));
+    }
+    Ok(())
+}
+
 #[tracing::instrument(skip_all)]
-pub async fn svm_handle_bid(
+pub async fn handle_bid_svm(
     store: Arc<Store>,
     bid: BidSvm,
     _initiation_time: OffsetDateTime,
@@ -892,28 +940,14 @@ pub async fn svm_handle_bid(
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    // Checks that the transaction includes exactly one submit_bid instruction to the Express Relay on-chain program
-    if bid
-        .transaction
-        .message
-        .instructions()
-        .iter()
-        .filter(|instruction| {
-            let program_id = instruction.program_id(bid.transaction.message.static_account_keys());
-            if *program_id != chain_store.program_id {
-                return false;
-            }
+    verify_total_instructions_svm(
+        chain_store,
+        store.express_relay_idl.clone(),
+        bid.transaction.clone(),
+        "submit_bid".to_string(),
+        1,
+    )?;
 
-            true
-        })
-        .count()
-        != 1
-    {
-        return Err(RestError::BadParameters(
-            "Bid has to include exactly one submit_bid instruction to Express Relay program"
-                .to_string(),
-        ));
-    }
     // TODO implement this
     Err(RestError::NotImplemented)
 }
