@@ -2,13 +2,21 @@ pub mod error;
 pub mod state;
 pub mod utils;
 
-use anchor_lang::{prelude::*, system_program::System};
-use anchor_lang::solana_program::sysvar::instructions as sysvar_instructions;
-use solana_program::instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT};
-use crate::{
-    error::ErrorCode,
-    state::*,
-    utils::*,
+use {
+    crate::{
+        error::ErrorCode,
+        state::*,
+        utils::*,
+    },
+    anchor_lang::{
+        prelude::*,
+        solana_program::sysvar::instructions as sysvar_instructions,
+        system_program::System,
+    },
+    solana_program::instruction::{
+        get_stack_height,
+        TRANSACTION_LEVEL_STACK_HEIGHT,
+    },
 };
 
 declare_id!("GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM");
@@ -84,7 +92,8 @@ pub mod express_relay {
         // check "no reentrancy"--submit_bid instruction only used once in transaction
         // this is done to prevent an exploit where a searcher submits a transaction with multiple submit_bid instructions with different permission keys
         // that would allow the searcher to win the right to perform the transaction if they won just one of the auctions
-        let permission_count = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), None)?;
+        let permission_count =
+            num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), None)?;
         if permission_count > 1 {
             return err!(ErrorCode::MultiplePermissions);
         }
@@ -95,7 +104,13 @@ pub mod express_relay {
     // Checks if permissioning exists for a particular (permission, router) pair within the same transaction
     // Permissioning takes the form of a submit_bid instruction with matching permission and router accounts
     pub fn check_permission(ctx: Context<CheckPermission>) -> Result<()> {
-        let num_permissions = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), Some(PermissionInfo {permission: *ctx.accounts.permission.key, router: *ctx.accounts.router.key}))?;
+        let num_permissions = num_permissions_in_tx(
+            ctx.accounts.sysvar_instructions.clone(),
+            Some(PermissionInfo {
+                permission: *ctx.accounts.permission.key,
+                router:     *ctx.accounts.router.key,
+            }),
+        )?;
 
         if num_permissions == 0 {
             return err!(ErrorCode::MissingPermission);
@@ -109,20 +124,27 @@ pub mod express_relay {
         let fee_receiver_admin = &ctx.accounts.fee_receiver_admin;
 
         let express_relay_metadata_account_info = express_relay_metadata.to_account_info();
-        let rent_express_relay_metadata = Rent::get()?.minimum_balance(express_relay_metadata_account_info.data_len());
+        let rent_express_relay_metadata =
+            Rent::get()?.minimum_balance(express_relay_metadata_account_info.data_len());
 
-        let amount = express_relay_metadata_account_info.lamports().saturating_sub(rent_express_relay_metadata);
+        let amount = express_relay_metadata_account_info
+            .lamports()
+            .saturating_sub(rent_express_relay_metadata);
         if amount == 0 {
             return Ok(());
         }
-        transfer_lamports(&express_relay_metadata_account_info, &fee_receiver_admin.to_account_info(), amount)
+        transfer_lamports(
+            &express_relay_metadata_account_info,
+            &fee_receiver_admin.to_account_info(),
+            amount,
+        )
     }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct InitializeArgs {
     pub split_router_default: u64,
-    pub split_relayer: u64
+    pub split_relayer:        u64,
 }
 
 #[derive(Accounts)]
@@ -175,7 +197,7 @@ pub struct SetRelayer<'info> {
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SetSplitsArgs {
     pub split_router_default: u64,
-    pub split_relayer: u64,
+    pub split_relayer:        u64,
 }
 
 #[derive(Accounts)]
@@ -211,7 +233,7 @@ pub struct SetRouterSplit<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SubmitBidArgs {
-    pub deadline: i64,
+    pub deadline:   i64,
     pub bid_amount: u64,
 }
 

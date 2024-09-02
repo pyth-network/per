@@ -1,8 +1,24 @@
-use anchor_lang::{InstructionData, ToAccountMetas};
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer, system_program};
-use express_relay::{accounts::SetRouterSplit, SetRouterSplitArgs};
-
-use super::helpers::{get_express_relay_metadata_key, get_router_config_key};
+use {
+    super::helpers::{
+        get_express_relay_metadata_key,
+        get_router_config_key,
+    },
+    anchor_lang::{
+        InstructionData,
+        ToAccountMetas,
+    },
+    express_relay::{
+        accounts::SetRouterSplit,
+        SetRouterSplitArgs,
+    },
+    solana_sdk::{
+        instruction::Instruction,
+        pubkey::Pubkey,
+        signature::Keypair,
+        signer::Signer,
+        system_program,
+    },
+};
 
 pub fn set_router_split_instruction(
     admin: &Keypair,
@@ -14,18 +30,18 @@ pub fn set_router_split_instruction(
 
     let set_router_split_ix = Instruction {
         program_id: express_relay::id(),
-        data: express_relay::instruction::SetRouterSplit {
-            data: SetRouterSplitArgs {
-                split_router,
-            }
-        }.data(),
-        accounts: SetRouterSplit {
+        data:       express_relay::instruction::SetRouterSplit {
+            data: SetRouterSplitArgs { split_router },
+        }
+        .data(),
+        accounts:   SetRouterSplit {
             admin: admin.pubkey(),
             router_config,
             express_relay_metadata,
             router,
             system_program: system_program::ID,
-        }.to_account_metas(None),
+        }
+        .to_account_metas(None),
     };
 
     return set_router_split_ix;

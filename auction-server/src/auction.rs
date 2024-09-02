@@ -24,7 +24,8 @@ use {
         },
         traced_client::TracedClient,
     },
-    anchor_lang_idl::types::Idl,
+    ::express_relay as express_relay_svm,
+    anchor_lang::Discriminator,
     anyhow::{
         anyhow,
         Result,
@@ -875,13 +876,10 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
     Ok(())
 }
 
-// Checks that the transaction includes exactly "total" "name" instruction to the Express Relay on-chain program
-pub fn verify_total_instructions_svm(
+// Checks that the transaction includes exactly one submit_bid instruction to the Express Relay on-chain program
+pub fn verify_submit_bid_instruction_svm(
     chain_store: &ChainStoreSvm,
-    express_relay_idl: Idl,
     transaction: VersionedTransaction,
-    name: String,
-    total: usize,
 ) -> Result<(), RestError> {
     if transaction
         .message
@@ -893,30 +891,17 @@ pub fn verify_total_instructions_svm(
                 return false;
             }
 
-            match express_relay_idl
-                .instructions
-                .iter()
-                .find(|instruction| instruction.name == name)
-            {
-                Some(submit_bid_instruction) => instruction
-                    .data
-                    .starts_with(&submit_bid_instruction.discriminator),
-                None => {
-                    tracing::error!(
-                        "{} instruction not found in Express Relay program IDL",
-                        name
-                    );
-                    false
-                }
-            }
+            instruction
+                .data
+                .starts_with(&express_relay_svm::instruction::SubmitBid::discriminator())
         })
         .count()
-        != total
+        != 1
     {
-        return Err(RestError::BadParameters(format!(
-            "Bid has to include exactly {} {} instruction to Express Relay program",
-            total, name,
-        )));
+        return Err(RestError::BadParameters(
+            "Bid has to include exactly one submit_bid instruction to Express Relay program"
+                .to_string(),
+        ));
     }
     Ok(())
 }
@@ -933,13 +918,7 @@ pub async fn handle_bid_svm(
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    verify_total_instructions_svm(
-        chain_store,
-        store.express_relay_idl.clone(),
-        bid.transaction.clone(),
-        "submit_bid".to_string(),
-        1,
-    )?;
+    verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
 
     // TODO implement this
     Err(RestError::NotImplemented)

@@ -1,6 +1,17 @@
-use anchor_lang::{InstructionData, ToAccountMetas};
-use solana_sdk::{instruction::Instruction, signature::Keypair, signer::Signer, pubkey::Pubkey, sysvar::instructions::id as sysvar_instructions_id};
-use dummy::accounts::DoNothing;
+use {
+    anchor_lang::{
+        InstructionData,
+        ToAccountMetas,
+    },
+    dummy::accounts::DoNothing,
+    solana_sdk::{
+        instruction::Instruction,
+        pubkey::Pubkey,
+        signature::Keypair,
+        signer::Signer,
+        sysvar::instructions::id as sysvar_instructions_id,
+    },
+};
 
 pub fn do_nothing_instruction(
     payer: &Keypair,
@@ -9,13 +20,13 @@ pub fn do_nothing_instruction(
 ) -> Instruction {
     let do_nothing_ix = Instruction {
         program_id: dummy::ID,
-        data: dummy::instruction::DoNothing {}.data(),
-        accounts: DoNothing {
+        data:       dummy::instruction::DoNothing {}.data(),
+        accounts:   DoNothing {
             payer: payer.pubkey(),
             express_relay: express_relay::ID,
             sysvar_instructions: sysvar_instructions_id(),
             permission: permission_key,
-            router
+            router,
         }
         .to_account_metas(None),
     };

@@ -1,10 +1,21 @@
-use anchor_syn::codegen::program::common::sighash;
-use solana_program::{serialize_utils::read_u16, sysvar::instructions::load_instruction_at_checked};
-use anchor_lang::{prelude::*, system_program::{transfer, Transfer}};
-use crate::{
-    error::ErrorCode,
-    state::*,
-    SubmitBid,
+use {
+    crate::{
+        error::ErrorCode,
+        state::*,
+        SubmitBid,
+    },
+    anchor_lang::{
+        prelude::*,
+        system_program::{
+            transfer,
+            Transfer,
+        },
+    },
+    anchor_syn::codegen::program::common::sighash,
+    solana_program::{
+        serialize_utils::read_u16,
+        sysvar::instructions::load_instruction_at_checked,
+    },
 };
 
 pub fn validate_fee_split(split: u64) -> Result<()> {
@@ -14,11 +25,7 @@ pub fn validate_fee_split(split: u64) -> Result<()> {
     Ok(())
 }
 
-pub fn transfer_lamports(
-    from: &AccountInfo,
-    to: &AccountInfo,
-    amount: u64,
-) -> Result<()> {
+pub fn transfer_lamports(from: &AccountInfo, to: &AccountInfo, amount: u64) -> Result<()> {
     **from.try_borrow_mut_lamports()? -= amount;
     **to.try_borrow_mut_lamports()? += amount;
     Ok(())
@@ -32,7 +39,7 @@ pub fn transfer_lamports_cpi<'info>(
 ) -> Result<()> {
     let cpi_accounts = Transfer {
         from: from.clone(),
-        to: to.clone(),
+        to:   to.clone(),
     };
 
     transfer(CpiContext::new(system_program, cpi_accounts), amount)?;
@@ -43,7 +50,7 @@ pub fn transfer_lamports_cpi<'info>(
 pub fn check_fee_hits_min_rent(account: &AccountInfo, fee: u64) -> Result<()> {
     let balance = account.lamports();
     let rent = Rent::get()?.minimum_balance(account.data_len());
-    if balance+fee < rent {
+    if balance + fee < rent {
         return err!(ErrorCode::InsufficientRent);
     }
 
@@ -52,11 +59,15 @@ pub fn check_fee_hits_min_rent(account: &AccountInfo, fee: u64) -> Result<()> {
 
 pub struct PermissionInfo {
     pub permission: Pubkey,
-    pub router: Pubkey,
+    pub router:     Pubkey,
 }
 
-pub fn num_permissions_in_tx(sysvar_instructions: UncheckedAccount, permission_info: Option<PermissionInfo>) -> Result<u16> {
-    let num_instructions = read_u16(&mut 0, &sysvar_instructions.data.borrow()).map_err(|_| ProgramError::InvalidInstructionData)?;
+pub fn num_permissions_in_tx(
+    sysvar_instructions: UncheckedAccount,
+    permission_info: Option<PermissionInfo>,
+) -> Result<u16> {
+    let num_instructions = read_u16(&mut 0, &sysvar_instructions.data.borrow())
+        .map_err(|_| ProgramError::InvalidInstructionData)?;
     let mut permission_count = 0u16;
     for index in 0..num_instructions {
         let ix = load_instruction_at_checked(index.into(), &sysvar_instructions)?;
@@ -124,12 +135,16 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
             &searcher.to_account_info(),
             &ctx.accounts.router.to_account_info(),
             fee_router,
-            ctx.accounts.system_program.to_account_info()
+            ctx.accounts.system_program.to_account_info(),
         )?;
     }
 
     let fee_relayer = bid_amount.saturating_sub(fee_router) * split_relayer / FEE_SPLIT_PRECISION;
-    if fee_relayer.checked_add(fee_router).ok_or(ProgramError::ArithmeticOverflow)? > bid_amount {
+    if fee_relayer
+        .checked_add(fee_router)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        > bid_amount
+    {
         // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
         return err!(ErrorCode::FeesHigherThanBid);
     }
@@ -140,15 +155,17 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
             &searcher.to_account_info(),
             &ctx.accounts.fee_receiver_relayer.to_account_info(),
             fee_relayer,
-            ctx.accounts.system_program.to_account_info()
+            ctx.accounts.system_program.to_account_info(),
         )?;
     }
 
     transfer_lamports_cpi(
         &searcher.to_account_info(),
         &express_relay_metadata.to_account_info(),
-        bid_amount.saturating_sub(fee_router).saturating_sub(fee_relayer),
-        ctx.accounts.system_program.to_account_info()
+        bid_amount
+            .saturating_sub(fee_router)
+            .saturating_sub(fee_relayer),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     Ok(())
