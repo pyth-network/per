@@ -38,7 +38,7 @@ chains:
     adapter_factory_contract: {latest_env['adapterFactory']}
     legacy_tx: false
     poll_interval: 1
-  solana:
+  development-solana:
     express_relay_program_id: GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM
 '''
     with open('auction-server/config.yaml', 'w') as f:

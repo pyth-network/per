@@ -186,7 +186,7 @@ pub enum SpoofInfo {
     UnableToSpoof,
 }
 
-pub struct ChainStore {
+pub struct ChainStoreEvm {
     pub chain_id_num:           u64,
     pub provider:               Provider<TracedClient>,
     pub network_id:             u64,
@@ -296,7 +296,7 @@ pub struct BidStatusWithId {
 }
 
 pub struct Store {
-    pub chains:             HashMap<ChainId, ChainStore>,
+    pub chains:             HashMap<ChainId, ChainStoreEvm>,
     pub chains_svm:         HashMap<ChainId, ChainStoreSvm>,
     pub bids:               RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
     pub event_sender:       broadcast::Sender<UpdateEvent>,

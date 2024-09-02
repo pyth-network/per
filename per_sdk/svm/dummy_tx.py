@@ -174,7 +174,7 @@ async def main():
             serialized = base64.b64encode(bytes(partially_signed)).decode()
 
         bid_body = {
-            "chain_id": "solana",
+            "chain_id": "development-solana",
             "transaction": serialized,
         }
         client = httpx.AsyncClient()

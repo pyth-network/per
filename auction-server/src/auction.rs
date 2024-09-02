@@ -17,7 +17,7 @@ use {
             AuctionLock,
             BidAmount,
             BidStatus,
-            ChainStore,
+            ChainStoreEvm,
             ChainStoreSvm,
             SimulatedBid,
             Store,
@@ -203,7 +203,7 @@ async fn get_winner_bids(
     bids: &[SimulatedBid],
     permission_key: Bytes,
     store: Arc<Store>,
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
 ) -> Result<Vec<SimulatedBid>, ContractError<Provider<TracedClient>>> {
     // TODO How we want to perform simulation, pruning, and determination
     if bids.is_empty() {
@@ -408,7 +408,7 @@ async fn submit_auction_for_bids<'a>(
     permission_key: Bytes,
     chain_id: String,
     store: Arc<Store>,
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
     _auction_mutex_gaurd: MutexGuard<'a, ()>,
 ) -> Result<()> {
     let bids: Vec<SimulatedBid> = bids
@@ -652,21 +652,14 @@ impl<'de> Deserialize<'de> for Bid {
     where
         D: Deserializer<'de>,
     {
-        #[derive(Deserialize)]
-        struct BidChainId {
-            chain_id: ChainId,
-        }
-
         let value: serde_json::Value = Deserialize::deserialize(d)?;
-        let bid_id: BidChainId =
-            serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
-        match bid_id.chain_id.as_str() {
-            "solana" => {
+        match value.get("transaction") {
+            Some(_) => {
                 let bid_svm: BidSvm =
                     serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
                 Ok(Bid::Svm(bid_svm))
             }
-            _ => {
+            None => {
                 let evm_bid: BidEvm =
                     serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
                 Ok(Bid::Evm(evm_bid))
@@ -713,7 +706,7 @@ where
 }
 
 async fn verify_bid_under_gas_limit(
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
     estimated_gas: U256,
     multiplier: U256,
 ) -> Result<(), RestError> {

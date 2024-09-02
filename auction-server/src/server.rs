@@ -25,7 +25,7 @@ use {
         },
         per_metrics,
         state::{
-            ChainStore,
+            ChainStoreEvm,
             ChainStoreSvm,
             OpportunityStore,
             Store,
@@ -166,7 +166,7 @@ fn setup_chain_store_svm(config_map: ConfigMap) -> HashMap<ChainId, ChainStoreSv
 async fn setup_chain_store(
     config_map: ConfigMap,
     wallet: Wallet<SigningKey>,
-) -> anyhow::Result<HashMap<ChainId, ChainStore>> {
+) -> anyhow::Result<HashMap<ChainId, ChainStoreEvm>> {
     join_all(
         config_map
             .chains
@@ -210,7 +210,7 @@ async fn setup_chain_store(
 
                         Ok((
                             chain_id.clone(),
-                            ChainStore {
+                            ChainStoreEvm {
                                 chain_id_num: id,
                                 provider,
                                 network_id: id,

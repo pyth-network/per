@@ -80,10 +80,9 @@ cmd_button(
 )
 
 local_resource(
-    "evm-create-configs", "python3 evm_integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts"]
+    "evm-create-configs", "python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts"]
 )
 
-# svm resources
 local_resource(
     "svm-build-programs",
     "cargo build-sbf && anchor build",
