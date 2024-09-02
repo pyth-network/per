@@ -4,7 +4,7 @@ use express_relay::{accounts::SetRouterSplit, SetRouterSplitArgs};
 
 use super::helpers::{get_express_relay_metadata_key, get_router_config_key};
 
-pub fn get_set_router_split_instruction(
+pub fn set_router_split_instruction(
     admin: &Keypair,
     router: Pubkey,
     split_router: u64,

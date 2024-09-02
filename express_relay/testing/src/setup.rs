@@ -1,5 +1,5 @@
 use crate::helpers::generate_and_fund_key;
-use crate::{express_relay::initialize::get_initialize_instruction as get_initialize_express_relay_instruction, helpers::submit_transaction};
+use crate::{express_relay::initialize::initialize_instruction as initialize_express_relay_instruction, helpers::submit_transaction};
 use solana_sdk::transaction::TransactionError;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
@@ -43,7 +43,7 @@ pub fn setup(params: SetupParams) -> Result<SetupResult, TransactionError> {
 
     let searcher = generate_and_fund_key(&mut svm);
 
-    let initialize_express_relay_ix = get_initialize_express_relay_instruction(
+    let initialize_express_relay_ix = initialize_express_relay_instruction(
         &payer,
         admin.pubkey(),
         relayer_signer.pubkey(),

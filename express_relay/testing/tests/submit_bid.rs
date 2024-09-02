@@ -1,7 +1,7 @@
 use express_relay::{state::FEE_SPLIT_PRECISION, error::ErrorCode};
 use anchor_lang::error::ErrorCode as AnchorErrorCode;
 use solana_sdk::{instruction::Instruction, native_token::LAMPORTS_PER_SOL, pubkey::Pubkey, rent::Rent, signature::Keypair, signer::Signer, system_instruction::transfer};
-use testing::{dummy::do_nothing::get_do_nothing_instruction, express_relay::{helpers::{get_express_relay_metadata, get_express_relay_metadata_key}, submit_bid::get_bid_instructions}, helpers::{assert_custom_error, get_balance, submit_transaction, warp_to_unix, TX_FEE}, setup::{setup, SetupParams}};
+use testing::{dummy::do_nothing::do_nothing_instruction, express_relay::{helpers::{get_express_relay_metadata, get_express_relay_metadata_key}, submit_bid::bid_instructions}, helpers::{assert_custom_error, get_balance, submit_transaction, warp_to_unix, TX_FEE}, setup::{setup, SetupParams}};
 
 pub struct BidInfo {
     pub svm: litesvm::LiteSVM,
@@ -33,7 +33,7 @@ fn setup_bid() -> BidInfo {
     let bid_amount = 1*LAMPORTS_PER_SOL;
     let deadline: i64 = 100_000_000_000;
     let ixs = [
-        get_do_nothing_instruction(&searcher, permission_key, router)
+        do_nothing_instruction(&searcher, permission_key, router)
     ];
 
     return BidInfo {
@@ -63,7 +63,7 @@ fn test_bid() {
         ixs
     } = setup_bid();
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &relayer_signer,
         &searcher,
         router,
@@ -115,7 +115,7 @@ fn test_bid_fail_wrong_relayer_signer() {
 
     let wrong_relayer_signer = Keypair::new();
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &wrong_relayer_signer,
         &searcher,
         router,
@@ -147,7 +147,7 @@ fn test_bid_fail_wrong_relayer_fee_receiver() {
 
     let wrong_fee_receiver_relayer = Keypair::new();
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &relayer_signer,
         &searcher,
         router,
@@ -179,7 +179,7 @@ fn test_bid_fail_insufficient_searcher_rent() {
 
     let wrong_bid_amount = get_balance(&svm, &searcher.pubkey()) - Rent::default().minimum_balance(0) + 1;
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &relayer_signer,
         &searcher,
         router,
@@ -211,7 +211,7 @@ fn test_bid_fail_insufficient_router_rent() {
 
     let wrong_bid_amount = 100;
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &relayer_signer,
         &searcher,
         router,
@@ -224,7 +224,7 @@ fn test_bid_fail_insufficient_router_rent() {
 
     let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::InsufficientRouterRent.into());
+    assert_custom_error(tx_result.err, 0, ErrorCode::InsufficientRent.into());
 }
 
 #[test]
@@ -243,14 +243,14 @@ fn test_bid_fail_insufficient_relayer_fee_receiver_rent() {
 
     let wrong_bid_amount = 100;
     let balance_fee_receiver_relayer = get_balance(&svm, &fee_receiver_relayer.pubkey());
-    // transfer the fee receiver relayer's balance to the router so the InsufficientRelayerFeeReceiverRent error is triggered instead of InsufficientRouterRent
+    // transfer the fee receiver relayer's balance to the router so the InsufficientRent error is not tirggered for the relayer
     submit_transaction(
         &mut svm,
         &[transfer(&fee_receiver_relayer.pubkey(), &router, balance_fee_receiver_relayer)],
         &relayer_signer, &[&relayer_signer, &fee_receiver_relayer]
     ).expect("Transaction should have succeeded");
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &relayer_signer,
         &searcher,
         router,
@@ -263,7 +263,7 @@ fn test_bid_fail_insufficient_relayer_fee_receiver_rent() {
 
     let tx_result = submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer]).expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::InsufficientRelayerFeeReceiverRent.into());
+    assert_custom_error(tx_result.err, 0, ErrorCode::InsufficientRent.into());
 }
 
 #[test]
@@ -280,7 +280,7 @@ fn test_bid_fail_passed_deadline() {
         ixs: _
     } = setup_bid();
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &relayer_signer,
         &searcher,
         router,
@@ -314,7 +314,7 @@ fn test_bid_fail_wrong_permission_key() {
 
     let wrong_permission_key = Keypair::new().pubkey();
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &relayer_signer,
         &searcher,
         router,
@@ -346,7 +346,7 @@ fn test_bid_fail_wrong_router_key() {
 
     let wrong_router = Keypair::new().pubkey();
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &relayer_signer,
         &searcher,
         wrong_router,
@@ -395,7 +395,7 @@ fn test_bid_fail_duplicate_permission() {
         ixs: _
     } = setup_bid();
 
-    let permission_ix_0 = get_bid_instructions(
+    let permission_ix_0 = bid_instructions(
         &relayer_signer,
         &searcher,
         router,
@@ -406,7 +406,7 @@ fn test_bid_fail_duplicate_permission() {
         &[]
     );
 
-    let bid_ixs = get_bid_instructions(
+    let bid_ixs = bid_instructions(
         &relayer_signer,
         &searcher,
         router,

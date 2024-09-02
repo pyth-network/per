@@ -4,7 +4,7 @@ use express_relay::{accounts::SetSplits, SetSplitsArgs};
 
 use super::helpers::get_express_relay_metadata_key;
 
-pub fn get_set_splits_instruction(
+pub fn set_splits_instruction(
     admin: &Keypair,
     split_router_default: u64,
     split_relayer: u64

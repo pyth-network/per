@@ -84,7 +84,7 @@ pub mod express_relay {
         // check "no reentrancy"--submit_bid instruction only used once in transaction
         // this is done to prevent an exploit where a searcher submits a transaction with multiple submit_bid instructions with different permission keys
         // that would allow the searcher to win the right to perform the transaction if they won just one of the auctions
-        let permission_count = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), None, None)?;
+        let permission_count = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), None)?;
         if permission_count > 1 {
             return err!(ErrorCode::MultiplePermissions);
         }
@@ -95,7 +95,7 @@ pub mod express_relay {
     // Checks if permissioning exists for a particular (permission, router) pair within the same transaction
     // Permissioning takes the form of a submit_bid instruction with matching permission and router accounts
     pub fn check_permission(ctx: Context<CheckPermission>) -> Result<()> {
-        let num_permissions = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), Some(*ctx.accounts.permission.key), Some(*ctx.accounts.router.key))?;
+        let num_permissions = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), Some(PermissionInfo {permission: *ctx.accounts.permission.key, router: *ctx.accounts.router.key}))?;
 
         if num_permissions == 0 {
             return err!(ErrorCode::MissingPermission);

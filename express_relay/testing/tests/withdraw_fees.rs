@@ -1,7 +1,7 @@
 use express_relay::state::RESERVE_EXPRESS_RELAY_METADATA;
 use anchor_lang::error::ErrorCode as AnchorErrorCode;
 use solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::Keypair, signer::Signer};
-use testing::{express_relay::{helpers::get_express_relay_metadata_key, withdraw_fees::get_withdraw_fees_instruction}, helpers::{assert_custom_error, generate_and_fund_key, get_balance, submit_transaction}, setup::{setup, SetupParams}};
+use testing::{express_relay::{helpers::get_express_relay_metadata_key, withdraw_fees::withdraw_fees_instruction}, helpers::{assert_custom_error, generate_and_fund_key, get_balance, submit_transaction}, setup::{setup, SetupParams}};
 
 #[test]
 fn test_withdraw_fees() {
@@ -14,7 +14,7 @@ fn test_withdraw_fees() {
     let admin = setup_result.admin;
 
     let fee_receiver_admin = Keypair::new();
-    let withdraw_fees_ix = get_withdraw_fees_instruction(&admin, fee_receiver_admin.pubkey());
+    let withdraw_fees_ix = withdraw_fees_instruction(&admin, fee_receiver_admin.pubkey());
     let express_relay_metadata_key = get_express_relay_metadata_key();
     let total_fees: u64 = 1*LAMPORTS_PER_SOL;
     svm.airdrop(&express_relay_metadata_key, total_fees).unwrap();
@@ -43,7 +43,7 @@ fn test_withdraw_fees_fail_wrong_admin() {
     let wrong_admin = generate_and_fund_key(&mut svm);
 
     let fee_receiver_admin = Keypair::new();
-    let withdraw_fees_ix = get_withdraw_fees_instruction(&wrong_admin, fee_receiver_admin.pubkey());
+    let withdraw_fees_ix = withdraw_fees_instruction(&wrong_admin, fee_receiver_admin.pubkey());
     let tx_result = submit_transaction(&mut svm, &[withdraw_fees_ix], &wrong_admin, &[&wrong_admin]).expect_err("Transaction should have failed");
 
     assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());

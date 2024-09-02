@@ -30,19 +30,32 @@ pub fn transfer_lamports_cpi<'info>(
     amount: u64,
     system_program: AccountInfo<'info>,
 ) -> Result<()> {
-    if amount > 0 {
-        let cpi_accounts = Transfer {
-            from: from.clone(),
-            to: to.clone(),
-        };
+    let cpi_accounts = Transfer {
+        from: from.clone(),
+        to: to.clone(),
+    };
 
-        transfer(CpiContext::new(system_program, cpi_accounts), amount)?;
+    transfer(CpiContext::new(system_program, cpi_accounts), amount)?;
+
+    Ok(())
+}
+
+pub fn check_fee_hits_min_rent(account: &AccountInfo, fee: u64) -> Result<()> {
+    let balance = account.lamports();
+    let rent = Rent::get()?.minimum_balance(account.data_len());
+    if balance+fee < rent {
+        return err!(ErrorCode::InsufficientRent);
     }
 
     Ok(())
 }
 
-pub fn num_permissions_in_tx(sysvar_instructions: UncheckedAccount, permission: Option<Pubkey>, router: Option<Pubkey>) -> Result<u16> {
+pub struct PermissionInfo {
+    pub permission: Pubkey,
+    pub router: Pubkey,
+}
+
+pub fn num_permissions_in_tx(sysvar_instructions: UncheckedAccount, permission_info: Option<PermissionInfo>) -> Result<u16> {
     let num_instructions = read_u16(&mut 0, &sysvar_instructions.data.borrow()).map_err(|_| ProgramError::InvalidInstructionData)?;
     let mut permission_count = 0u16;
     for index in 0..num_instructions {
@@ -56,18 +69,13 @@ pub fn num_permissions_in_tx(sysvar_instructions: UncheckedAccount, permission: 
             continue;
         }
 
-        match permission {
-            Some(permission) => {
-                if ix.accounts[2].pubkey != permission {
+        match permission_info {
+            Some(ref permission_info) => {
+                if ix.accounts[2].pubkey != permission_info.permission {
                     continue;
                 }
-            }
-            None => {}
-        }
 
-        match router {
-            Some(router) => {
-                if ix.accounts[3].pubkey != router {
+                if ix.accounts[3].pubkey != permission_info.router {
                     continue;
                 }
             }
@@ -110,16 +118,11 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
         return err!(ErrorCode::FeesHigherThanBid);
     }
     if fee_router > 0 {
-        let router = &ctx.accounts.router;
-        let balance_router = router.lamports();
-        let rent_router = Rent::get()?.minimum_balance(router.to_account_info().data_len());
-        if balance_router+fee_router < rent_router {
-            return err!(ErrorCode::InsufficientRouterRent);
-        }
+        check_fee_hits_min_rent(&ctx.accounts.router, fee_router)?;
 
         transfer_lamports_cpi(
             &searcher.to_account_info(),
-            &router.to_account_info(),
+            &ctx.accounts.router.to_account_info(),
             fee_router,
             ctx.accounts.system_program.to_account_info()
         )?;
@@ -131,16 +134,11 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
         return err!(ErrorCode::FeesHigherThanBid);
     }
     if fee_relayer > 0 {
-        let fee_receiver_relayer = &ctx.accounts.fee_receiver_relayer;
-        let balance_fee_receiver_relayer = fee_receiver_relayer.lamports();
-        let rent_fee_receiver_relayer = Rent::get()?.minimum_balance(fee_receiver_relayer.to_account_info().data_len());
-        if balance_fee_receiver_relayer+fee_relayer < rent_fee_receiver_relayer {
-            return err!(ErrorCode::InsufficientRelayerFeeReceiverRent);
-        }
+        check_fee_hits_min_rent(&ctx.accounts.fee_receiver_relayer, fee_relayer)?;
 
         transfer_lamports_cpi(
             &searcher.to_account_info(),
-            &fee_receiver_relayer.to_account_info(),
+            &ctx.accounts.fee_receiver_relayer.to_account_info(),
             fee_relayer,
             ctx.accounts.system_program.to_account_info()
         )?;

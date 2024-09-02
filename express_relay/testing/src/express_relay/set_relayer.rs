@@ -4,7 +4,7 @@ use express_relay::accounts::SetRelayer;
 
 use super::helpers::get_express_relay_metadata_key;
 
-pub fn get_set_relayer_instruction(
+pub fn set_relayer_instruction(
     admin: &Keypair,
     relayer_signer: Pubkey,
     fee_receiver_relayer: Pubkey

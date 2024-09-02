@@ -4,7 +4,7 @@ use express_relay::accounts::WithdrawFees;
 
 use super::helpers::get_express_relay_metadata_key;
 
-pub fn get_withdraw_fees_instruction(
+pub fn withdraw_fees_instruction(
     admin: &Keypair,
     fee_receiver_admin: Pubkey,
 ) -> Instruction {

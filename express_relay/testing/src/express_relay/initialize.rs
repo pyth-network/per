@@ -4,7 +4,7 @@ use express_relay::{accounts::Initialize, InitializeArgs};
 
 use super::helpers::get_express_relay_metadata_key;
 
-pub fn get_initialize_instruction(
+pub fn initialize_instruction(
     payer: &Keypair,
     admin: Pubkey,
     relayer_signer: Pubkey,

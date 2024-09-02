@@ -4,7 +4,7 @@ use express_relay::{accounts::SubmitBid, SubmitBidArgs};
 
 use super::helpers::{get_express_relay_metadata_key, get_router_config_key};
 
-pub fn get_bid_instructions(
+pub fn bid_instructions(
     relayer_signer: &Keypair,
     searcher: &Keypair,
     router: Pubkey,

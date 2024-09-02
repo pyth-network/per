@@ -19,14 +19,5 @@ pub fn get_router_config_key(router: Pubkey) -> Pubkey {
 
 pub fn get_router_config(svm: litesvm::LiteSVM, router: Pubkey) -> Option<ConfigRouter> {
     let router_config_key = get_router_config_key(router);
-    let router_config_acc = svm.get_account(&router_config_key);
-    match router_config_acc {
-        Some(router_config_acc) => {
-            let router_config = ConfigRouter::try_deserialize(&mut router_config_acc.data.as_ref()).expect("Account is not of struct ConfigRouter");
-            return Some(router_config);
-        },
-        None => {
-            return None;
-        }
-    }
+    return svm.get_account(&router_config_key).map(|acc| ConfigRouter::try_deserialize(&mut acc.data.as_ref()).expect("Account is not of struct ConfigRouter"));
 }

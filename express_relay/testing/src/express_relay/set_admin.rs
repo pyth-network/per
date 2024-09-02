@@ -4,7 +4,7 @@ use express_relay::accounts::SetAdmin;
 
 use super::helpers::get_express_relay_metadata_key;
 
-pub fn get_set_admin_instruction(
+pub fn set_admin_instruction(
     admin: &Keypair,
     admin_new: Pubkey
 ) -> Instruction {
