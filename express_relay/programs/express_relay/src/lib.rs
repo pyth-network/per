@@ -18,7 +18,7 @@ pub mod express_relay {
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>, data: InitializeArgs) -> Result<()> {
-        validate_fee_split(data.split_protocol_default)?;
+        validate_fee_split(data.split_router_default)?;
         validate_fee_split(data.split_relayer)?;
 
         let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata;
@@ -26,7 +26,7 @@ pub mod express_relay {
         express_relay_metadata_data.admin = *ctx.accounts.admin.key;
         express_relay_metadata_data.relayer_signer = *ctx.accounts.relayer_signer.key;
         express_relay_metadata_data.fee_receiver_relayer = *ctx.accounts.fee_receiver_relayer.key;
-        express_relay_metadata_data.split_protocol_default = data.split_protocol_default;
+        express_relay_metadata_data.split_router_default = data.split_router_default;
         express_relay_metadata_data.split_relayer = data.split_relayer;
 
         Ok(())
@@ -50,27 +50,27 @@ pub mod express_relay {
     }
 
     pub fn set_splits(ctx: Context<SetSplits>, data: SetSplitsArgs) -> Result<()> {
-        validate_fee_split(data.split_protocol_default)?;
+        validate_fee_split(data.split_router_default)?;
         validate_fee_split(data.split_relayer)?;
 
         let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata;
 
-        express_relay_metadata_data.split_protocol_default = data.split_protocol_default;
+        express_relay_metadata_data.split_router_default = data.split_router_default;
         express_relay_metadata_data.split_relayer = data.split_relayer;
 
         Ok(())
     }
 
-    pub fn set_protocol_split(ctx: Context<SetProtocolSplit>, data: SetProtocolSplitArgs) -> Result<()> {
-        validate_fee_split(data.split_protocol)?;
+    pub fn set_router_split(ctx: Context<SetRouterSplit>, data: SetRouterSplitArgs) -> Result<()> {
+        validate_fee_split(data.split_router)?;
 
-        ctx.accounts.protocol_config.protocol = *ctx.accounts.protocol.key;
-        ctx.accounts.protocol_config.split = data.split_protocol;
+        ctx.accounts.router_config.router = *ctx.accounts.router.key;
+        ctx.accounts.router_config.split = data.split_router;
 
         Ok(())
     }
 
-    // Submits a bid for a particular (protocol, permission) pair and distributes bids according to splits
+    // Submits a bid for a particular (permission, router) pair and distributes bids according to splits
     pub fn submit_bid(ctx: Context<SubmitBid>, data: SubmitBidArgs) -> Result<()> {
         if data.deadline < Clock::get()?.unix_timestamp {
             return err!(ErrorCode::DeadlinePassed);
@@ -84,7 +84,7 @@ pub mod express_relay {
         // check "no reentrancy"--submit_bid instruction only used once in transaction
         // this is done to prevent an exploit where a searcher submits a transaction with multiple submit_bid instructions with different permission keys
         // that would allow the searcher to win the right to perform the transaction if they won just one of the auctions
-        let permission_count = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), None, None)?;
+        let permission_count = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), None)?;
         if permission_count > 1 {
             return err!(ErrorCode::MultiplePermissions);
         }
@@ -92,10 +92,10 @@ pub mod express_relay {
         handle_bid_payment(ctx, data.bid_amount)
     }
 
-    // Checks if permissioning exists for a particular (protocol, permission) pair within the same transaction
-    // Permissioning takes the form of a submit_bid instruction with matching protocol and permission accounts
+    // Checks if permissioning exists for a particular (permission, router) pair within the same transaction
+    // Permissioning takes the form of a submit_bid instruction with matching permission and router accounts
     pub fn check_permission(ctx: Context<CheckPermission>) -> Result<()> {
-        let num_permissions = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), Some(*ctx.accounts.permission.key), Some(*ctx.accounts.protocol.key))?;
+        let num_permissions = num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), Some(PermissionInfo {permission: *ctx.accounts.permission.key, router: *ctx.accounts.router.key}))?;
 
         if num_permissions == 0 {
             return err!(ErrorCode::MissingPermission);
@@ -121,7 +121,7 @@ pub mod express_relay {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct InitializeArgs {
-    pub split_protocol_default: u64,
+    pub split_router_default: u64,
     pub split_relayer: u64
 }
 
@@ -174,7 +174,7 @@ pub struct SetRelayer<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SetSplitsArgs {
-    pub split_protocol_default: u64,
+    pub split_router_default: u64,
     pub split_relayer: u64,
 }
 
@@ -188,23 +188,23 @@ pub struct SetSplits<'info> {
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
-pub struct SetProtocolSplitArgs {
-    pub split_protocol: u64,
+pub struct SetRouterSplitArgs {
+    pub split_router: u64,
 }
 
 #[derive(Accounts)]
-pub struct SetProtocolSplit<'info> {
+pub struct SetRouterSplit<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
-    #[account(init_if_needed, payer = admin, space = RESERVE_EXPRESS_RELAY_CONFIG_PROTOCOL, seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]
-    pub protocol_config: Account<'info, ConfigProtocol>,
+    #[account(init_if_needed, payer = admin, space = RESERVE_EXPRESS_RELAY_CONFIG_ROUTER, seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
+    pub router_config: Account<'info, ConfigRouter>,
 
     #[account(seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just the protocol fee receiver PK
-    pub protocol: UncheckedAccount<'info>,
+    /// CHECK: this is just the router fee receiver PK
+    pub router: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -225,20 +225,17 @@ pub struct SubmitBid<'info> {
     /// CHECK: this is the permission_key
     pub permission: UncheckedAccount<'info>,
 
-    /// CHECK: this is the protocol/router address
-    pub protocol: UncheckedAccount<'info>,
+    /// CHECK: don't care what this looks like
+    #[account(mut)]
+    pub router: UncheckedAccount<'info>,
 
-    /// CHECK: this cannot be checked against ConfigProtocol bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist
-    #[account(seeds = [SEED_CONFIG_PROTOCOL, protocol.key().as_ref()], bump)]
-    pub protocol_config: UncheckedAccount<'info>,
+    /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist
+    #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
+    pub router_config: UncheckedAccount<'info>,
 
     /// CHECK: this is just a PK for the relayer to receive fees at
     #[account(mut)]
     pub fee_receiver_relayer: UncheckedAccount<'info>,
-
-    /// CHECK: don't care what this looks like; if PDA, validate within program logic
-    #[account(mut)]
-    pub fee_receiver_protocol: UncheckedAccount<'info>,
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer, has_one = fee_receiver_relayer)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
@@ -259,8 +256,8 @@ pub struct CheckPermission<'info> {
     /// CHECK: this is the permission_key
     pub permission: UncheckedAccount<'info>,
 
-    /// CHECK: this is the protocol/router address
-    pub protocol: UncheckedAccount<'info>,
+    /// CHECK: this is the router address
+    pub router: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]

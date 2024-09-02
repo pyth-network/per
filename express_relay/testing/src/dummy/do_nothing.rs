@@ -2,9 +2,10 @@ use anchor_lang::{InstructionData, ToAccountMetas};
 use solana_sdk::{instruction::Instruction, signature::Keypair, signer::Signer, pubkey::Pubkey, sysvar::instructions::id as sysvar_instructions_id};
 use dummy::accounts::DoNothing;
 
-pub fn get_do_nothing_instruction(
+pub fn do_nothing_instruction(
     payer: &Keypair,
     permission_key: Pubkey,
+    router: Pubkey,
 ) -> Instruction {
     let do_nothing_ix = Instruction {
         program_id: dummy::ID,
@@ -14,7 +15,7 @@ pub fn get_do_nothing_instruction(
             express_relay: express_relay::ID,
             sysvar_instructions: sysvar_instructions_id(),
             permission: permission_key,
-            protocol: dummy::ID,
+            router
         }
         .to_account_metas(None),
     };

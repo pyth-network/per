@@ -4,12 +4,12 @@ use express_relay::{accounts::Initialize, InitializeArgs};
 
 use super::helpers::get_express_relay_metadata_key;
 
-pub fn get_initialize_instruction(
+pub fn initialize_instruction(
     payer: &Keypair,
     admin: Pubkey,
     relayer_signer: Pubkey,
     fee_receiver_relayer: Pubkey,
-    split_protocol_default: u64,
+    split_router_default: u64,
     split_relayer: u64
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
@@ -19,7 +19,7 @@ pub fn get_initialize_instruction(
         data:
         express_relay::instruction::Initialize {
             data: InitializeArgs {
-                split_protocol_default: split_protocol_default,
+                split_router_default: split_router_default,
                 split_relayer: split_relayer,
             }
         }.data(),

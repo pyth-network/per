@@ -103,11 +103,9 @@ async def main():
     logger.info("Relayer signer pubkey: %s", pk_relayer_signer)
 
     permission = Pubkey.find_program_address([b"vault"], dummy_pid)[0]
-    protocol_config = Pubkey.find_program_address(
-        [b"config_protocol", bytes(dummy_pid)], express_relay_pid
-    )[0]
-    pk_fee_receiver_dummy = Pubkey.find_program_address(
-        [b"express_relay_fees"], dummy_pid
+    router = Pubkey.find_program_address([b"fees_express_relay"], dummy_pid)[0]
+    router_config = Pubkey.find_program_address(
+        [b"config_router", bytes(router)], express_relay_pid
     )[0]
     pk_express_relay_metadata = Pubkey.find_program_address(
         [b"metadata"], express_relay_pid
@@ -124,10 +122,9 @@ async def main():
             AccountMeta(pk_searcher, True, True),
             AccountMeta(pk_relayer_signer, True, False),
             AccountMeta(permission, False, False),
-            AccountMeta(dummy_pid, False, False),
-            AccountMeta(protocol_config, False, False),
+            AccountMeta(router, False, True),
+            AccountMeta(router_config, False, False),
             AccountMeta(pk_relayer_signer, False, True),
-            AccountMeta(pk_fee_receiver_dummy, False, True),
             AccountMeta(pk_express_relay_metadata, False, True),
             AccountMeta(system_pid, False, False),
             AccountMeta(sysvar_ixs_pid, False, False),
@@ -144,7 +141,7 @@ async def main():
             AccountMeta(express_relay_pid, False, False),
             AccountMeta(sysvar_ixs_pid, False, False),
             AccountMeta(permission, False, False),
-            AccountMeta(dummy_pid, False, False),
+            AccountMeta(router, False, False),
         ],
     )
 

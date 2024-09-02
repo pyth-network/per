@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use solana_sdk::pubkey::Pubkey;
-use express_relay::state::{ConfigProtocol, ExpressRelayMetadata, SEED_CONFIG_PROTOCOL, SEED_EXPRESS_RELAY_FEES, SEED_METADATA};
+use express_relay::state::{ConfigRouter, ExpressRelayMetadata, SEED_CONFIG_ROUTER, SEED_METADATA};
 
 pub fn get_express_relay_metadata_key() -> Pubkey {
     return Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
@@ -13,24 +13,11 @@ pub fn get_express_relay_metadata(svm: litesvm::LiteSVM) -> ExpressRelayMetadata
     return express_relay_metadata;
 }
 
-pub fn get_protocol_config_key(protocol: Pubkey) -> Pubkey {
-    return Pubkey::find_program_address(&[SEED_CONFIG_PROTOCOL, protocol.as_ref()], &express_relay::id()).0;
+pub fn get_router_config_key(router: Pubkey) -> Pubkey {
+    return Pubkey::find_program_address(&[SEED_CONFIG_ROUTER, router.as_ref()], &express_relay::id()).0;
 }
 
-pub fn get_protocol_config(svm: litesvm::LiteSVM, protocol: Pubkey) -> Option<ConfigProtocol> {
-    let protocol_config_key = get_protocol_config_key(protocol);
-    let protocol_config_acc = svm.get_account(&protocol_config_key);
-    match protocol_config_acc {
-        Some(protocol_config_acc) => {
-            let protocol_config = ConfigProtocol::try_deserialize(&mut protocol_config_acc.data.as_ref()).expect("Account is not of struct ConfigProtocol");
-            return Some(protocol_config);
-        },
-        None => {
-            return None;
-        }
-    }
-}
-
-pub fn get_protocol_fee_receiver_key(protocol: Pubkey) -> Pubkey {
-    return Pubkey::find_program_address(&[SEED_EXPRESS_RELAY_FEES], &protocol).0;
+pub fn get_router_config(svm: litesvm::LiteSVM, router: Pubkey) -> Option<ConfigRouter> {
+    let router_config_key = get_router_config_key(router);
+    return svm.get_account(&router_config_key).map(|acc| ConfigRouter::try_deserialize(&mut acc.data.as_ref()).expect("Account is not of struct ConfigRouter"));
 }

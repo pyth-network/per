@@ -16,10 +16,6 @@ pub enum ErrorCode {
     MultiplePermissions,
     #[msg("Insufficient Searcher Funds")]
     InsufficientSearcherFunds,
-    #[msg("Insufficient protocol fee receiver funds for rent")]
-    InsufficientProtocolFeeReceiverRent,
-    #[msg("Insufficient relayer fee receiver funds for rent")]
-    InsufficientRelayerFeeReceiverRent,
-    #[msg("Invalid PDA provided")]
-    InvalidPDAProvided,
+    #[msg("Insufficient funds for rent")]
+    InsufficientRent,
 }
