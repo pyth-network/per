@@ -5,6 +5,7 @@ on:
       - v*
     branches:
       - main
+      - fix/ci-anchor-build
   workflow_dispatch:
     inputs:
       dispatch_description:

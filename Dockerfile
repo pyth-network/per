@@ -9,6 +9,11 @@ RUN npm install
 
 
 FROM rust:${RUST_VERSION} AS build
+
+# This is the latest version that works with anchor installation in aarch64
+RUN rustup default nightly-2024-02-08
+RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
+
 # Set default toolchain
 RUN rustup default nightly-2024-04-10
 
@@ -16,7 +21,6 @@ RUN rustup default nightly-2024-04-10
 RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH="${PATH}:/root/.foundry/bin/"
 RUN foundryup
-RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
 
 # Add contracts
 WORKDIR /src
