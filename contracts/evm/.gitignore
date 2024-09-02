@@ -13,5 +13,5 @@ docs/
 # Dotenv file
 .env
 
-lib/*
-node_modules
+lib/
+node_modules/

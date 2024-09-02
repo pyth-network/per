@@ -91,12 +91,12 @@ use {
 
 abigen!(
     OpportunityAdapter,
-    "../contracts/out/OpportunityAdapter.sol/OpportunityAdapter.json";
+    "../contracts/evm/out/OpportunityAdapter.sol/OpportunityAdapter.json";
     AdapterFactory,
-    "../contracts/out/OpportunityAdapterFactory.sol/OpportunityAdapterFactory.json"
+    "../contracts/evm/out/OpportunityAdapterFactory.sol/OpportunityAdapterFactory.json"
 );
-abigen!(ERC20, "../contracts/out/ERC20.sol/ERC20.json");
-abigen!(WETH9, "../contracts/out/WETH9.sol/WETH9.json");
+abigen!(ERC20, "../contracts/evm/out/ERC20.sol/ERC20.json");
+abigen!(WETH9, "../contracts/evm/out/WETH9.sol/WETH9.json");
 
 pub enum VerificationResult {
     Success,

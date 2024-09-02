@@ -64,7 +64,7 @@ pub fn setup(params: SetupParams) -> Result<SetupResult, TransactionError> {
         Err(e) => return Err(e.err),
     };
 
-    return Ok(SetupResult {
+    Ok(SetupResult {
         svm,
         payer,
         admin,
@@ -73,5 +73,5 @@ pub fn setup(params: SetupParams) -> Result<SetupResult, TransactionError> {
         split_router_default,
         split_relayer,
         searcher,
-    });
+    })
 }

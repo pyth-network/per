@@ -80,17 +80,14 @@ pub fn num_permissions_in_tx(
             continue;
         }
 
-        match permission_info {
-            Some(ref permission_info) => {
-                if ix.accounts[2].pubkey != permission_info.permission {
-                    continue;
-                }
-
-                if ix.accounts[3].pubkey != permission_info.router {
-                    continue;
-                }
+        if let Some(ref permission_info) = permission_info {
+            if ix.accounts[2].pubkey != permission_info.permission {
+                continue;
             }
-            None => {}
+
+            if ix.accounts[3].pubkey != permission_info.router {
+                continue;
+            }
         }
 
         permission_count += 1;
@@ -110,18 +107,17 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
     let split_relayer = express_relay_metadata.split_relayer;
     let split_router_default = express_relay_metadata.split_router_default;
 
-    let split_router: u64;
     let router_config = &ctx.accounts.router_config;
     let router_config_account_info = router_config.to_account_info();
     // validate the router config account struct in program logic bc it may be uninitialized
     // only validate if the account has data
-    if router_config_account_info.data_len() > 0 {
+    let split_router: u64 = if router_config_account_info.data_len() > 0 {
         let account_data = &mut &**router_config_account_info.try_borrow_data()?;
         let router_config_data = ConfigRouter::try_deserialize(account_data)?;
-        split_router = router_config_data.split;
+        router_config_data.split
     } else {
-        split_router = split_router_default;
-    }
+        split_router_default
+    };
 
     let fee_router = bid_amount * split_router / FEE_SPLIT_PRECISION;
     if fee_router > bid_amount {

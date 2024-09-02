@@ -20,17 +20,16 @@ pub fn set_relayer_instruction(
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
 
-    let set_relayer_ix = Instruction {
+
+    Instruction {
         program_id: express_relay::id(),
         data:       express_relay::instruction::SetRelayer {}.data(),
         accounts:   SetRelayer {
-            admin:                  admin.pubkey(),
-            express_relay_metadata: express_relay_metadata,
-            relayer_signer:         relayer_signer,
-            fee_receiver_relayer:   fee_receiver_relayer,
+            admin: admin.pubkey(),
+            express_relay_metadata,
+            relayer_signer,
+            fee_receiver_relayer,
         }
         .to_account_metas(None),
-    };
-
-    return set_relayer_ix;
+    }
 }

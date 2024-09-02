@@ -40,7 +40,7 @@ local_resource(
     + forge_base_command
     + " --sig 'setUpLocalnet()' --broadcast; "
     + "cast rp --rpc-url http://localhost:9545 evm_setIntervalMining %s" % block_time,
-    dir="contracts",
+    dir="contracts/evm",
     env={"PRIVATE_KEY": private_key},
     resource_deps=["evm-anvil"],
 )
@@ -50,7 +50,7 @@ cmd_button(
     argv=[
         "sh",
         "-c",
-        "cd contracts; "
+        "cd contracts/evm; "
         + forge_base_command
         + " --sig 'getVault(uint256)' $VAULT --broadcast",
     ],
@@ -69,7 +69,7 @@ cmd_button(
     argv=[
         "sh",
         "-c",
-        "cd contracts; "
+        "cd contracts/evm; "
         + forge_base_command
         + " --sig 'createLiquidatableVault()' --broadcast",
     ],
@@ -86,7 +86,7 @@ local_resource(
 local_resource(
     "svm-build-programs",
     "cargo build-sbf && anchor build",
-    dir="express_relay",
+    dir="contracts/svm",
 )
 
 local_resource(
@@ -138,7 +138,7 @@ local_resource(
 local_resource(
     "svm-localnet",
     serve_cmd="solana-test-validator $(./test-validator-params.sh)",
-    serve_dir="express_relay",
+    serve_dir="contracts/svm",
     # check readiness by sending a health GET query to the RPC url
     readiness_probe=probe(
         period_secs=10,

@@ -57,9 +57,5 @@ pub fn bid_instructions(
         .to_account_metas(None),
     };
 
-    return [&[submit_bid_ix], ixs]
-        .concat()
-        .iter()
-        .map(|ix| ix.clone())
-        .collect();
+    [&[submit_bid_ix], ixs].concat().to_vec()
 }

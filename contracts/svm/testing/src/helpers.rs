@@ -35,21 +35,18 @@ pub fn submit_transaction(
         svm.latest_blockhash(),
     );
 
-    return svm.send_transaction(tx);
+    svm.send_transaction(tx)
 }
 
 pub fn generate_and_fund_key(svm: &mut litesvm::LiteSVM) -> Keypair {
     let keypair = Keypair::new();
     let pubkey = keypair.pubkey();
     svm.airdrop(&pubkey, 10 * LAMPORTS_PER_SOL).unwrap();
-    return keypair;
+    keypair
 }
 
 pub fn get_balance(svm: &litesvm::LiteSVM, pubkey: &Pubkey) -> u64 {
-    return match svm.get_balance(pubkey) {
-        Some(balance) => balance,
-        None => 0,
-    };
+    svm.get_balance(pubkey).unwrap_or(0)
 }
 
 pub fn warp_to_unix(svm: &mut litesvm::LiteSVM, unix_timestamp: i64) {
