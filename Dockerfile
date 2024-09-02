@@ -20,7 +20,7 @@ RUN curl https://sh.rustup.rs -sSf > /tmp/rustup-init.sh \
     && sh /tmp/rustup-init.sh -y \
     && rm -rf /tmp/rustup-init.sh
 ENV PATH "$PATH:~/.cargo/bin"
-RUN rustup default nightly-2024-02-04
+RUN ~/.cargo/bin/rustup default nightly-2024-02-04
 RUN ~/.cargo/bin/cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
 WORKDIR /src
 COPY contracts/svm contracts/svm
