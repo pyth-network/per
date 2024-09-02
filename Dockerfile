@@ -9,12 +9,13 @@
 
 # Build solana anchor
 FROM solanalabs/solana:v1.18.18 AS solana_build
+RUN apt update && apt install curl
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
 WORKDIR /src
 COPY contracts/svm contracts/svm
 WORKDIR /src/contracts/svm
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # RUN rustup default nightly-2024-02-04
-RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
 RUN anchor build
 
 # FROM rust:${RUST_VERSION} AS build
