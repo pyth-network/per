@@ -27,25 +27,24 @@ pub fn initialize_instruction(
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
 
-    let initialize_ix = Instruction {
+
+    Instruction {
         program_id: express_relay::id(),
         data:       express_relay::instruction::Initialize {
             data: InitializeArgs {
-                split_router_default: split_router_default,
-                split_relayer:        split_relayer,
+                split_router_default,
+                split_relayer,
             },
         }
         .data(),
         accounts:   Initialize {
-            payer:                  payer.pubkey(),
-            express_relay_metadata: express_relay_metadata,
-            admin:                  admin,
-            relayer_signer:         relayer_signer,
-            fee_receiver_relayer:   fee_receiver_relayer,
-            system_program:         system_program::ID,
+            payer: payer.pubkey(),
+            express_relay_metadata,
+            admin,
+            relayer_signer,
+            fee_receiver_relayer,
+            system_program: system_program::ID,
         }
         .to_account_metas(None),
-    };
-
-    return initialize_ix;
+    }
 }

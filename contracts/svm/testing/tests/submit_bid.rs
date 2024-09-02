@@ -64,11 +64,11 @@ fn setup_bid() -> BidInfo {
     let fee_receiver_relayer = setup_result.fee_receiver_relayer;
     let permission_key = Keypair::new().pubkey();
     let router = Keypair::new().pubkey();
-    let bid_amount = 1 * LAMPORTS_PER_SOL;
+    let bid_amount = LAMPORTS_PER_SOL;
     let deadline: i64 = 100_000_000_000;
     let ixs = [do_nothing_instruction(&searcher, permission_key, router)];
 
-    return BidInfo {
+    BidInfo {
         svm,
         relayer_signer,
         searcher,
@@ -78,7 +78,7 @@ fn setup_bid() -> BidInfo {
         bid_amount,
         deadline,
         ixs: ixs.to_vec(),
-    };
+    }
 }
 
 #[test]

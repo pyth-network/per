@@ -3,6 +3,6 @@
     "./auction-server/Cargo.toml",
     "./gas-oracle/Cargo.toml",
     "./vault-simulator/Cargo.toml",
-    "./express_relay/programs/express_relay/Cargo.toml"
+    "./contracts/svm/Cargo.toml"
   ]
 }

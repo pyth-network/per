@@ -2,10 +2,10 @@ use std::process::Command;
 
 fn main() {
     let contract_setup = r#"
-        cd ../contracts
+        cd ../contracts/evm
         forge build --via-ir
     "#;
-    println!("cargo:rerun-if-changed=../contracts");
+    println!("cargo:rerun-if-changed=../contracts/evm");
 
     // Build the contracts and generate the ABIs. This is required for abigen! macro expansions to work.
     let output = Command::new("sh")

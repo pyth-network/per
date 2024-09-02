@@ -14,7 +14,7 @@ api_keys.py
 
 # env files
 *.env
-contracts/latestEnvironment.json
+contracts/evm/latestEnvironment.json
 
 # Ignores development broadcast logs
 !/broadcast

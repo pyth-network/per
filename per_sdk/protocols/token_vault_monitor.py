@@ -35,7 +35,7 @@ class ProtocolAccount(TypedDict):
 
 
 def get_vault_abi():
-    f = open("contracts/out/TokenVault.sol/TokenVault.json")
+    f = open("contracts/evm/out/TokenVault.sol/TokenVault.json")
 
     data = json.load(f)
 

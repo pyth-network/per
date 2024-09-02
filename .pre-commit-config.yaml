@@ -50,12 +50,25 @@ repos:
         entry: cargo +nightly-2024-04-10 fmt --manifest-path ./gas-oracle/Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
         files: gas-oracle
-      - id: cargo-clippy-vault-simulator
+      - id: cargo-clippy-gas-oracle
         name: Cargo clippy for gas oracle
         language: "rust"
         entry: cargo +stable clippy --manifest-path ./gas-oracle/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
         pass_filenames: false
         files: gas-oracle
+      # Hooks for contracts-svm
+      - id: cargo-fmt-contracts-svm
+        name: Cargo format for svm contracts
+        language: "rust"
+        entry: cargo +nightly-2024-04-10 fmt --manifest-path ./contracts/svm/Cargo.toml --all -- --config-path rustfmt.toml
+        pass_filenames: false
+        files: contracts/svm
+      - id: cargo-clippy-contracts-svm
+        name: Cargo clippy for svm contracts
+        language: "rust"
+        entry: cargo +stable clippy --manifest-path ./contracts/svm/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        pass_filenames: false
+        files: contracts/svm
       # For python files
       - id: isort
         name: isort

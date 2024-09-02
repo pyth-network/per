@@ -18,7 +18,7 @@ pub fn do_nothing_instruction(
     permission_key: Pubkey,
     router: Pubkey,
 ) -> Instruction {
-    let do_nothing_ix = Instruction {
+    Instruction {
         program_id: dummy::ID,
         data:       dummy::instruction::DoNothing {}.data(),
         accounts:   DoNothing {
@@ -29,7 +29,5 @@ pub fn do_nothing_instruction(
             router,
         }
         .to_account_metas(None),
-    };
-
-    return do_nothing_ix;
+    }
 }

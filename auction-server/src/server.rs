@@ -233,7 +233,7 @@ async fn setup_chain_store(
 }
 
 pub fn load_express_relay_idl() -> anyhow::Result<Idl> {
-    let idl = fs::read("../express_relay/target/idl/express_relay.json")?;
+    let idl = fs::read("../contracts/svm/target/idl/express_relay.json")?;
     convert_idl(idl.as_slice())
         .map_err(|err| anyhow!("Failed to convert express relay idl: {:?}", err))
 }

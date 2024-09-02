@@ -38,7 +38,7 @@ fn test_withdraw_fees() {
     let fee_receiver_admin = Keypair::new();
     let withdraw_fees_ix = withdraw_fees_instruction(&admin, fee_receiver_admin.pubkey());
     let express_relay_metadata_key = get_express_relay_metadata_key();
-    let total_fees: u64 = 1 * LAMPORTS_PER_SOL;
+    let total_fees: u64 = LAMPORTS_PER_SOL;
     svm.airdrop(&express_relay_metadata_key, total_fees)
         .unwrap();
 
