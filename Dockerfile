@@ -13,7 +13,7 @@ WORKDIR /src
 COPY contracts/svm contracts/svm
 WORKDIR /src/contracts/svm
 # RUN rustup default nightly-2024-02-04
-# RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
+RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
 RUN anchor build
 
 # FROM rust:${RUST_VERSION} AS build
