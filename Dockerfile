@@ -10,7 +10,11 @@
 # Build solana anchor
 FROM solanalabs/solana:v1.18.18 AS solana_build
 RUN apt-get update && apt-get install -y curl
-RUN sh -c "$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)"
+RUN curl https://sh.rustup.rs -sSf > /tmp/rustup-init.sh \
+    && chmod +x /tmp/rustup-init.sh \
+    && sh /tmp/rustup-init.sh -y \
+    && rm -rf /tmp/rustup-init.sh
+ENV PATH "$PATH:~/.cargo/bin"
 RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
 WORKDIR /src
 COPY contracts/svm contracts/svm
