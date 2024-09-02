@@ -6,7 +6,7 @@ use {
         },
         config::{
             ChainId,
-            EthereumConfig,
+            ConfigEvm,
         },
         models,
         server::{
@@ -17,12 +17,15 @@ use {
             AuctionLock,
             BidAmount,
             BidStatus,
-            ChainStore,
+            ChainStoreEvm,
+            ChainStoreSvm,
             SimulatedBid,
             Store,
         },
         traced_client::TracedClient,
     },
+    ::express_relay as express_relay_svm,
+    anchor_lang::Discriminator,
     anyhow::{
         anyhow,
         Result,
@@ -126,7 +129,7 @@ const EXTRA_GAS_FOR_SUBMISSION: u32 = 500 * 1000;
 pub fn get_simulation_call(
     relayer: Address,
     provider: Provider<TracedClient>,
-    chain_config: EthereumConfig,
+    chain_config: ConfigEvm,
     permission_key: Bytes,
     multicall_data: Vec<MulticallData>,
 ) -> FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>> {
@@ -201,7 +204,7 @@ async fn get_winner_bids(
     bids: &[SimulatedBid],
     permission_key: Bytes,
     store: Arc<Store>,
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
 ) -> Result<Vec<SimulatedBid>, ContractError<Provider<TracedClient>>> {
     // TODO How we want to perform simulation, pruning, and determination
     if bids.is_empty() {
@@ -406,7 +409,7 @@ async fn submit_auction_for_bids<'a>(
     permission_key: Bytes,
     chain_id: String,
     store: Arc<Store>,
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
     _auction_mutex_gaurd: MutexGuard<'a, ()>,
 ) -> Result<()> {
     let bids: Vec<SimulatedBid> = bids
@@ -634,7 +637,7 @@ pub struct BidSvm {
     pub chain_id:    ChainId,
     /// The transaction for bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
-    #[serde(with = "crate::serde::svm_transaction")]
+    #[serde(with = "crate::serde::transaction_svm")]
     pub transaction: VersionedTransaction,
 }
 
@@ -650,21 +653,14 @@ impl<'de> Deserialize<'de> for Bid {
     where
         D: Deserializer<'de>,
     {
-        #[derive(Deserialize)]
-        struct BidChainId {
-            chain_id: ChainId,
-        }
-
         let value: serde_json::Value = Deserialize::deserialize(d)?;
-        let bid_id: BidChainId =
-            serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
-        match bid_id.chain_id.as_str() {
-            "solana" => {
-                let svm_bid: BidSvm =
+        match value.get("transaction") {
+            Some(_) => {
+                let bid_svm: BidSvm =
                     serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
-                Ok(Bid::Svm(svm_bid))
+                Ok(Bid::Svm(bid_svm))
             }
-            _ => {
+            None => {
                 let evm_bid: BidEvm =
                     serde_path_to_error::deserialize(&value).map_err(serde::de::Error::custom)?;
                 Ok(Bid::Evm(evm_bid))
@@ -711,7 +707,7 @@ where
 }
 
 async fn verify_bid_under_gas_limit(
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
     estimated_gas: U256,
     multiplier: U256,
 ) -> Result<(), RestError> {
@@ -880,16 +876,49 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
     Ok(())
 }
 
+// Checks that the transaction includes exactly one submit_bid instruction to the Express Relay on-chain program
+pub fn verify_submit_bid_instruction_svm(
+    chain_store: &ChainStoreSvm,
+    transaction: VersionedTransaction,
+) -> Result<(), RestError> {
+    if transaction
+        .message
+        .instructions()
+        .iter()
+        .filter(|instruction| {
+            let program_id = instruction.program_id(transaction.message.static_account_keys());
+            if *program_id != chain_store.express_relay_program_id {
+                return false;
+            }
+
+            instruction
+                .data
+                .starts_with(&express_relay_svm::instruction::SubmitBid::discriminator())
+        })
+        .count()
+        != 1
+    {
+        return Err(RestError::BadParameters(
+            "Bid has to include exactly one submit_bid instruction to Express Relay program"
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+
 #[tracing::instrument(skip_all)]
-pub async fn svm_handle_bid(
-    _store: Arc<Store>,
+pub async fn handle_bid_svm(
+    store: Arc<Store>,
     bid: BidSvm,
     _initiation_time: OffsetDateTime,
     _auth: Auth,
 ) -> result::Result<Uuid, RestError> {
-    if bid.chain_id != "solana" {
-        return Err(RestError::InvalidChainId);
-    }
+    let chain_store = store
+        .chains_svm
+        .get(&bid.chain_id)
+        .ok_or(RestError::InvalidChainId)?;
+
+    verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
 
     // TODO implement this
     Err(RestError::NotImplemented)

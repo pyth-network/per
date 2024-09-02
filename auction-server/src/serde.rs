@@ -90,7 +90,7 @@ pub mod nullable_datetime {
     }
 }
 
-pub mod svm_transaction {
+pub mod transaction_svm {
     use {
         base64::{
             engine::general_purpose::STANDARD,

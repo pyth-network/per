@@ -7,7 +7,7 @@ use {
         },
         auction::{
             handle_bid,
-            svm_handle_bid,
+            handle_bid_svm,
             Bid,
         },
         state::{
@@ -70,8 +70,8 @@ pub async fn process_bid(
     auth: Auth,
 ) -> Result<Json<BidResult>, RestError> {
     let result = match bid {
-        Bid::Evm(evm_bid) => handle_bid(store, evm_bid, OffsetDateTime::now_utc(), auth).await,
-        Bid::Svm(svm_bid) => svm_handle_bid(store, svm_bid, OffsetDateTime::now_utc(), auth).await,
+        Bid::Evm(bid_evm) => handle_bid(store, bid_evm, OffsetDateTime::now_utc(), auth).await,
+        Bid::Svm(bid_svm) => handle_bid_svm(store, bid_svm, OffsetDateTime::now_utc(), auth).await,
     };
     match result {
         Ok(id) => Ok(BidResult {

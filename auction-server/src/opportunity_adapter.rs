@@ -17,7 +17,7 @@ use {
         },
         state::{
             BidAmount,
-            ChainStore,
+            ChainStoreEvm,
             Opportunity,
             OpportunityId,
             OpportunityParams,
@@ -151,7 +151,7 @@ fn generate_random_u256() -> U256 {
 #[tracing::instrument(skip_all)]
 pub async fn verify_opportunity(
     opportunity: OpportunityParamsV1,
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
     relayer: Address,
 ) -> Result<VerificationResult> {
     let client = Arc::new(chain_store.provider.clone());
@@ -392,7 +392,7 @@ impl From<crate::state::TokenAmount> for TokenAmount {
 fn make_permitted_tokens(
     opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
 ) -> Vec<TokenPermissions> {
     let mut permitted_tokens: Vec<TokenPermissions> = opportunity
         .sell_tokens
@@ -425,7 +425,7 @@ fn make_permitted_tokens(
 pub fn make_opportunity_execution_params(
     opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
 ) -> ExecutionParamsWithSignature {
     let mut salt = [0u8; 32];
     salt[12..32].copy_from_slice(bid.executor.as_bytes());
@@ -470,7 +470,7 @@ pub fn make_opportunity_execution_params(
 pub async fn make_adapter_calldata(
     opportunity: OpportunityParamsV1,
     bid: OpportunityBid,
-    chain_store: &ChainStore,
+    chain_store: &ChainStoreEvm,
 ) -> Result<Bytes> {
     let adapter_contract = chain_store.config.adapter_factory_contract;
     let execution_params = make_opportunity_execution_params(opportunity.clone(), bid, chain_store);
