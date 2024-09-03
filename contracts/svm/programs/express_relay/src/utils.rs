@@ -6,16 +6,16 @@ use {
     },
     anchor_lang::{
         prelude::*,
+        solana_program::{
+            serialize_utils::read_u16,
+            sysvar::instructions::load_instruction_at_checked,
+        },
         system_program::{
             transfer,
             Transfer,
         },
     },
     anchor_syn::codegen::program::common::sighash,
-    solana_program::{
-        serialize_utils::read_u16,
-        sysvar::instructions::load_instruction_at_checked,
-    },
 };
 
 pub fn validate_fee_split(split: u64) -> Result<()> {

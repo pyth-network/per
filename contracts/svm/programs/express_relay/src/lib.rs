@@ -10,12 +10,14 @@ use {
     },
     anchor_lang::{
         prelude::*,
-        solana_program::sysvar::instructions as sysvar_instructions,
+        solana_program::{
+            instruction::{
+                get_stack_height,
+                TRANSACTION_LEVEL_STACK_HEIGHT,
+            },
+            sysvar::instructions as sysvar_instructions,
+        },
         system_program::System,
-    },
-    solana_program::instruction::{
-        get_stack_height,
-        TRANSACTION_LEVEL_STACK_HEIGHT,
     },
 };
 

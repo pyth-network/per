@@ -22,6 +22,10 @@ contracts/evm/latestEnvironment.json
 /broadcast/**/dry-run/
 
 **/target/
+**/out/
+**/lib/
+**/cache/
+**/broadcast/
 node_modules
 .idea
 
