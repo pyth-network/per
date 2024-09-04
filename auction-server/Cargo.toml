@@ -45,7 +45,7 @@ bincode = "1.3.3"
 serde_with = "3.9.0"
 anchor-lang-idl = { version = "0.1.1", features = ["convert"] }
 anchor-lang = "0.30.1"
-express_relay = { path = "../contracts/svm/programs/express_relay" }
+express-relay = { path = "../contracts/svm/programs/express_relay" }
 
 # The curve25519-dalek crate is a dependency of solana-sdk.
 # This crate relies on a specific version of zeroize that is incompatible with many other packages.

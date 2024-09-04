@@ -543,7 +543,7 @@ dependencies = [
  "clap",
  "email_address",
  "ethers",
- "express_relay",
+ "express-relay",
  "futures",
  "gas-oracle",
  "opentelemetry",
@@ -2179,14 +2179,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
-name = "express_relay"
+name = "express-relay"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-syn",
- "bytemuck",
- "sha2 0.10.8",
- "solana-program 1.18.23",
 ]
 
 [[package]]
