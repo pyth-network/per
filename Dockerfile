@@ -3,12 +3,33 @@ ARG RUST_VERSION=1.66.1
 # Get the solidity dependencies using npm
 FROM node:21-alpine3.18 AS npm_build
 WORKDIR /src
-COPY contracts contracts
+COPY contracts/evm contracts/evm
 WORKDIR /src/contracts/evm
 RUN npm install
 
+# Build solana anchor
+FROM solanalabs/solana:v1.18.18 AS solana_build
+RUN apt-get update \
+    && apt-get install -y \
+    apt-utils \
+    curl \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl https://sh.rustup.rs -sSf > /tmp/rustup-init.sh \
+    && chmod +x /tmp/rustup-init.sh \
+    && sh /tmp/rustup-init.sh -y \
+    && rm -rf /tmp/rustup-init.sh
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN ["/bin/bash", "-c", "source $HOME/.cargo/env"]
+RUN rustup default nightly-2024-02-04
+RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
+WORKDIR /src
+COPY contracts/svm contracts/svm
+WORKDIR /src/contracts/svm
+RUN anchor build
 
 FROM rust:${RUST_VERSION} AS build
+
 # Set default toolchain
 RUN rustup default nightly-2024-04-10
 
@@ -16,7 +37,6 @@ RUN rustup default nightly-2024-04-10
 RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH="${PATH}:/root/.foundry/bin/"
 RUN foundryup
-RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
 
 # Add contracts
 WORKDIR /src
@@ -32,9 +52,7 @@ RUN forge install Uniswap/permit2@0x000000000022D473030F116dDEE9F6B43aC78BA3 --n
 RUN forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1fcb4e286 --no-git --no-commit
 
 # Add solana dependencies
-WORKDIR /src
-WORKDIR /src/contracts/svm
-RUN anchor build
+COPY --from=solana_build /src/contracts/svm/target/ /src/contracts/svm/target/
 
 # Build auction-server
 WORKDIR /src
