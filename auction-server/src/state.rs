@@ -177,11 +177,6 @@ pub struct Opportunity {
     pub params:        OpportunityParams,
 }
 
-#[derive(Debug)]
-pub enum OpportunityRemovalReason {
-    Expired,
-    Invalid(anyhow::Error),
-}
 
 #[derive(Clone)]
 pub enum SpoofInfo {
@@ -291,26 +286,6 @@ impl sqlx::Type<sqlx::Postgres> for BidStatus {
 
     fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
         ty.name() == "bid_status"
-    }
-}
-
-impl sqlx::Encode<'_, sqlx::Postgres> for OpportunityRemovalReason {
-    fn encode_by_ref(&self, buf: &mut <Postgres as HasArguments<'_>>::ArgumentBuffer) -> IsNull {
-        let result = match self {
-            OpportunityRemovalReason::Expired => "expired",
-            OpportunityRemovalReason::Invalid(_) => "invalid",
-        };
-        <&str as sqlx::Encode<sqlx::Postgres>>::encode(result, buf)
-    }
-}
-
-impl sqlx::Type<sqlx::Postgres> for OpportunityRemovalReason {
-    fn type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("opportunity_removal_reason")
-    }
-
-    fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
-        ty.name() == "opportunity_removal_reason"
     }
 }
 
@@ -464,7 +439,7 @@ impl Store {
     pub async fn remove_opportunity(
         &self,
         opportunity: &Opportunity,
-        reason: OpportunityRemovalReason,
+        reason: models::OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let key = match &opportunity.params {
             OpportunityParams::V1(params) => params.permission_key.clone(),

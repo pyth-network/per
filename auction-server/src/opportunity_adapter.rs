@@ -22,7 +22,6 @@ use {
             OpportunityId,
             OpportunityParams,
             OpportunityParamsV1,
-            OpportunityRemovalReason,
             SpoofInfo,
             Store,
             UnixTimestampMicros,
@@ -102,6 +101,23 @@ abigen!(WETH9, "../contracts/evm/out/WETH9.sol/WETH9.json");
 pub enum VerificationResult {
     Success,
     UnableToSpoof,
+}
+
+#[derive(Debug)]
+pub enum OpportunityRemovalReason {
+    Expired,
+    Invalid(anyhow::Error),
+}
+
+impl From<OpportunityRemovalReason> for crate::models::OpportunityRemovalReason {
+    fn from(val: OpportunityRemovalReason) -> Self {
+        match val {
+            OpportunityRemovalReason::Expired => crate::models::OpportunityRemovalReason::Expired,
+            OpportunityRemovalReason::Invalid(_) => {
+                crate::models::OpportunityRemovalReason::Invalid
+            }
+        }
+    }
 }
 
 pub async fn get_weth_address(
@@ -553,7 +569,7 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
                                 opportunity.id,
                                 reason
                             );
-                            if let Err(e)= store.remove_opportunity(opportunity, reason).await {
+                            if let Err(e)= store.remove_opportunity(opportunity, reason.into()).await {
                                 tracing::error!("Failed to remove opportunity: {}", e);
                             }
                         }
