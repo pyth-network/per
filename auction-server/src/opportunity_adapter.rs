@@ -282,6 +282,7 @@ pub async fn verify_opportunity(
     }
     Ok(VerificationResult::Success)
 }
+
 impl From<ExecutionParamsWithSignature> for eip712::TypedData {
     fn from(val: ExecutionParamsWithSignature) -> Self {
         let params = val.params;
@@ -546,20 +547,14 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
                 for (_permission_key,opportunities) in all_opportunities.iter() {
                     // check each of the opportunities for this permission key for validity
                     for opportunity in opportunities.iter() {
-                        match verify_with_store(opportunity.clone(), &store).await {
-                            None => {}
-                            Some(reason) => {
-                                tracing::info!(
-                                    "Removing Opportunity {} for reason {:?}",
-                                    opportunity.id,
-                                    reason
-                                );
-                                match store.remove_opportunity(opportunity, reason).await {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        tracing::error!("Failed to remove opportunity: {}", e);
-                                    }
-                                }
+                        if let Some(reason) =  verify_with_store(opportunity.clone(), &store).await {
+                            tracing::info!(
+                                "Removing Opportunity {} for reason {:?}",
+                                opportunity.id,
+                                reason
+                            );
+                            if let Err(e)= store.remove_opportunity(opportunity, reason).await {
+                                tracing::error!("Failed to remove opportunity: {}", e);
                             }
                         }
                     }

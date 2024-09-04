@@ -49,6 +49,13 @@ pub struct Auction {
     pub submission_time:     Option<PrimitiveDateTime>,
 }
 
+#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
+#[sqlx(type_name = "opportunity_removal_reason", rename_all = "lowercase")]
+pub enum OpportunityRemovalReason {
+    Expired,
+    Invalid,
+}
+
 
 #[derive(Clone, FromRow, Debug)]
 pub struct Opportunity {
@@ -62,6 +69,7 @@ pub struct Opportunity {
     pub removal_time:      Option<PrimitiveDateTime>,
     pub sell_tokens:       JsonValue,
     pub buy_tokens:        JsonValue,
+    pub removal_reason:    Option<OpportunityRemovalReason>,
 }
 
 
