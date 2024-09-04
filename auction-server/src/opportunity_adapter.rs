@@ -103,6 +103,23 @@ pub enum VerificationResult {
     UnableToSpoof,
 }
 
+#[derive(Debug)]
+pub enum OpportunityRemovalReason {
+    Expired,
+    Invalid(anyhow::Error),
+}
+
+impl From<OpportunityRemovalReason> for crate::models::OpportunityRemovalReason {
+    fn from(val: OpportunityRemovalReason) -> Self {
+        match val {
+            OpportunityRemovalReason::Expired => crate::models::OpportunityRemovalReason::Expired,
+            OpportunityRemovalReason::Invalid(_) => {
+                crate::models::OpportunityRemovalReason::Invalid
+            }
+        }
+    }
+}
+
 pub async fn get_weth_address(
     adapter_contract: Address,
     provider: Provider<TracedClient>,
@@ -281,6 +298,7 @@ pub async fn verify_opportunity(
     }
     Ok(VerificationResult::Success)
 }
+
 impl From<ExecutionParamsWithSignature> for eip712::TypedData {
     fn from(val: ExecutionParamsWithSignature) -> Self {
         let params = val.params;
@@ -494,31 +512,36 @@ pub async fn make_adapter_calldata(
 const MAX_STALE_OPPORTUNITY_MICROS: i128 = 60_000_000;
 
 /// Verify an opportunity is still valid by checking staleness and simulating the execution call and checking the result
-/// Returns Ok(()) if the opportunity is still valid
+/// Returns None if the opportunity is still valid and Some(OpportunityRemovalReason) if not
 ///
 /// # Arguments
 ///
 /// * `opportunity`: opportunity to verify
 /// * `store`: server store
-async fn verify_with_store(opportunity: Opportunity, store: &Store) -> Result<()> {
+async fn verify_with_store(
+    opportunity: Opportunity,
+    store: &Store,
+) -> Option<OpportunityRemovalReason> {
     let OpportunityParams::V1(params) = opportunity.params;
     let chain_store = store
         .chains
         .get(&params.chain_id)
-        .ok_or(anyhow!("Chain not found: {}", params.chain_id))?;
+        .expect("Opportunity Chain not found in store");
     let relayer = store.relayer.address();
     match verify_opportunity(params.clone(), chain_store, relayer).await {
-        Ok(VerificationResult::Success) => Ok(()),
+        Ok(VerificationResult::Success) => None,
         Ok(VerificationResult::UnableToSpoof) => {
-            let current_time =
-                SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros() as UnixTimestampMicros;
+            let current_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Current time older than 1970!")
+                .as_micros() as UnixTimestampMicros;
             if current_time - opportunity.creation_time > MAX_STALE_OPPORTUNITY_MICROS {
-                Err(anyhow!("Opportunity is stale and unverifiable"))
+                Some(OpportunityRemovalReason::Expired)
             } else {
-                Ok(())
+                None
             }
         }
-        Err(e) => Err(e),
+        Err(e) => Some(OpportunityRemovalReason::Invalid(e)),
     }
 }
 
@@ -540,20 +563,14 @@ pub async fn run_verification_loop(store: Arc<Store>) -> Result<()> {
                 for (_permission_key,opportunities) in all_opportunities.iter() {
                     // check each of the opportunities for this permission key for validity
                     for opportunity in opportunities.iter() {
-                        match verify_with_store(opportunity.clone(), &store).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                tracing::info!(
-                                    "Removing Opportunity {} with failed verification: {}",
-                                    opportunity.id,
-                                    e
-                                );
-                                match store.remove_opportunity(opportunity).await {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        tracing::error!("Failed to remove opportunity: {}", e);
-                                    }
-                                }
+                        if let Some(reason) =  verify_with_store(opportunity.clone(), &store).await {
+                            tracing::info!(
+                                "Removing Opportunity {} for reason {:?}",
+                                opportunity.id,
+                                reason
+                            );
+                            if let Err(e)= store.remove_opportunity(opportunity, reason.into()).await {
+                                tracing::error!("Failed to remove opportunity: {}", e);
                             }
                         }
                     }

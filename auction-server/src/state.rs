@@ -177,6 +177,7 @@ pub struct Opportunity {
     pub params:        OpportunityParams,
 }
 
+
 #[derive(Clone)]
 pub enum SpoofInfo {
     Spoofed {
@@ -435,7 +436,11 @@ impl Store {
         Ok(())
     }
 
-    pub async fn remove_opportunity(&self, opportunity: &Opportunity) -> anyhow::Result<()> {
+    pub async fn remove_opportunity(
+        &self,
+        opportunity: &Opportunity,
+        reason: models::OpportunityRemovalReason,
+    ) -> anyhow::Result<()> {
         let key = match &opportunity.params {
             OpportunityParams::V1(params) => params.permission_key.clone(),
         };
@@ -451,12 +456,13 @@ impl Store {
         drop(write_guard);
         let now = OffsetDateTime::now_utc();
         sqlx::query!(
-            "UPDATE opportunity SET removal_time = $1 WHERE id = $2 AND removal_time IS NULL",
+            "UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL",
             PrimitiveDateTime::new(now.date(), now.time()),
+            reason as _,
             opportunity.id
         )
-        .execute(&self.db)
-        .await?;
+            .execute(&self.db)
+            .await?;
         Ok(())
     }
 
