@@ -1,0 +1,18 @@
+name: Publish Express Relay Solana to crates.io
+
+on:
+  push:
+    tags:
+      - express-relay-solana-v*
+jobs:
+  publish-express-relay-solana:
+    name: Publish Express Relay Solana
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - run: cargo publish --token ${CARGO_REGISTRY_TOKEN}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        working-directory: "contracts/svm/programs/express-relay"
