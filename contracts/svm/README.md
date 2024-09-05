@@ -27,7 +27,11 @@ Searchers will construct `Transaction`s and submit these to the Express Relay se
 
 ### Dummy example
 
-The provided `dummy` example program has a `DoNothing` instruction that simply checks the provided permissioning. It does this via CPI to the Express Relay `CheckPermission` instruction. The tests in `testing/tests/` include some integration tests for Express Relay permissioning using this simple program.
+The provided `dummy` example program has a `DoNothing` instruction that simply checks the provided permissioning. It does this via CPI to the Express Relay `CheckPermission` instruction via a helper method in the Express Relay SDK. The tests in `programs/dummy/tests` showcase how an integrating program can use the Express Relay SDK to perform end-to-end testing with Express Relay.
+
+### Express Relay Tests
+
+The tests in `testing/tests/` include some integration tests for Express Relay permissioning using the simple `dummy` program as the integrating program.
 
 ## Building and running
 

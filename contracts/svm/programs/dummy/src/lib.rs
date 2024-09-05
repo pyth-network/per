@@ -4,9 +4,8 @@ use {
         solana_program::sysvar::instructions as sysvar_instructions,
     },
     express_relay::{
-        self,
-        cpi::accounts::CheckPermission,
         program::ExpressRelay,
+        sdk::cpi::check_permission,
     },
 };
 
@@ -17,17 +16,12 @@ pub mod dummy {
     use super::*;
 
     pub fn do_nothing(ctx: Context<DoNothing>) -> Result<()> {
-        // just want to check if the permission is valid, and do nothing else
-        let cpi_program = ctx.accounts.express_relay.to_account_info();
-        let cpi_accounts = CheckPermission {
-            sysvar_instructions: ctx.accounts.sysvar_instructions.to_account_info(),
-            permission:          ctx.accounts.permission.to_account_info(),
-            router:              ctx.accounts.router.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        express_relay::cpi::check_permission(cpi_ctx)?;
-
-        Ok(())
+        check_permission(
+            ctx.accounts.express_relay.key(),
+            ctx.accounts.sysvar_instructions.to_account_info(),
+            ctx.accounts.permission.to_account_info(),
+            ctx.accounts.router.to_account_info(),
+        )
     }
 }
 

@@ -1,7 +1,7 @@
 [package]
 name = "express-relay"
 version = "0.1.0"
-description = "Created with Anchor"
+description = "Express Relay program for handling permissioning and bid distribution"
 edition = "2021"
 
 [lib]
