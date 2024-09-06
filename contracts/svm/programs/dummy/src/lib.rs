@@ -17,7 +17,6 @@ pub mod dummy {
 
     pub fn do_nothing(ctx: Context<DoNothing>) -> Result<()> {
         check_permission(
-            ctx.accounts.express_relay.key(),
             ctx.accounts.sysvar_instructions.to_account_info(),
             ctx.accounts.permission.to_account_info(),
             ctx.accounts.router.to_account_info(),
@@ -30,6 +29,7 @@ pub struct DoNothing<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
+    #[account(address = express_relay::ID)]
     pub express_relay: Program<'info, ExpressRelay>,
 
     /// CHECK: this is the sysvar instructions account
