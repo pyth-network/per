@@ -6,10 +6,14 @@ use {
         sdk::test_helpers::add_express_relay_submit_bid_instruction,
     },
     helpers::{
-        assert_custom_error,
-        create_and_submit_tx,
-        create_do_nothing_ix,
-        setup,
+        helpers_express_relay::{
+            create_do_nothing_ix,
+            setup,
+        },
+        helpers_general::{
+            assert_custom_error,
+            create_and_submit_tx,
+        },
     },
     solana_program_test::tokio,
     solana_sdk::{
