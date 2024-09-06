@@ -36,7 +36,7 @@ pub mod integrating_program {
             ctx.accounts.router.to_account_info(),
         )
 
-        /// integrating_program logic
+        /// integrating_program do_something logic
     }
 }
 ```

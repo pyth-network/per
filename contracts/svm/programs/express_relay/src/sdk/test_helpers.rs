@@ -23,7 +23,8 @@ use {
 
 // Helper method to create an instruction to initialize the express relay program
 // Should be able to sign transactions with the secret keys of the provided payer and relayer_signer
-// The fee split is set to 100% for the router, since fee payments to relayer are not important for the integrating protocol's tests
+// The fee split is set to 100% for the router, since fee payments to relayer are not important for the integrating program's tests
+// Instead it is more relevant for the integrating program to ensure their router account has enough rent to avoid InsufficientRent error
 pub fn create_initialize_express_relay_ix<'info>(
     payer: Pubkey,
     admin: Pubkey,
