@@ -17,7 +17,6 @@ use {
         models,
         traced_client::TracedClient,
     },
-    anchor_lang_idl::types::Idl,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -296,6 +295,12 @@ pub struct BidStatusWithId {
     pub bid_status: BidStatus,
 }
 
+#[derive(Clone)]
+pub struct ExpressRelaySvm {
+    pub permission_account_position: usize,
+    pub router_account_position:     usize,
+}
+
 pub struct Store {
     pub chains:             HashMap<ChainId, ChainStoreEvm>,
     pub chains_svm:         HashMap<ChainId, ChainStoreSvm>,
@@ -311,7 +316,7 @@ pub struct Store {
     pub secret_key:         String,
     pub access_tokens:      RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
     pub metrics_recorder:   PrometheusHandle,
-    pub express_relay_idl:  Idl,
+    pub express_relay_svm:  ExpressRelaySvm,
 }
 
 impl SimulatedBid {

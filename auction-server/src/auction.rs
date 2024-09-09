@@ -19,13 +19,20 @@ use {
             BidStatus,
             ChainStoreEvm,
             ChainStoreSvm,
+            ExpressRelaySvm,
+            PermissionKey,
             SimulatedBid,
             Store,
         },
         traced_client::TracedClient,
     },
-    ::express_relay as express_relay_svm,
-    anchor_lang::Discriminator,
+    ::express_relay::{
+        self as express_relay_svm,
+    },
+    anchor_lang::{
+        AnchorDeserialize,
+        Discriminator,
+    },
     anyhow::{
         anyhow,
         Result,
@@ -82,7 +89,11 @@ use {
         Deserializer,
         Serialize,
     },
-    solana_sdk::transaction::VersionedTransaction,
+    solana_sdk::{
+        instruction::CompiledInstruction,
+        pubkey::Pubkey,
+        transaction::VersionedTransaction,
+    },
     sqlx::types::time::OffsetDateTime,
     std::{
         result,
@@ -880,8 +891,8 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
 pub fn verify_submit_bid_instruction_svm(
     chain_store: &ChainStoreSvm,
     transaction: VersionedTransaction,
-) -> Result<(), RestError> {
-    if transaction
+) -> Result<CompiledInstruction, RestError> {
+    let submit_bid_instructions: Vec<CompiledInstruction> = transaction
         .message
         .instructions()
         .iter()
@@ -895,15 +906,69 @@ pub fn verify_submit_bid_instruction_svm(
                 .data
                 .starts_with(&express_relay_svm::instruction::SubmitBid::discriminator())
         })
-        .count()
-        != 1
-    {
-        return Err(RestError::BadParameters(
+        .cloned()
+        .collect();
+
+    match submit_bid_instructions.len() {
+        1 => Ok(submit_bid_instructions[0].clone()),
+        _ => Err(RestError::BadParameters(
             "Bid has to include exactly one submit_bid instruction to Express Relay program"
                 .to_string(),
-        ));
+        )),
     }
-    Ok(())
+}
+
+fn extract_account_svm(
+    accounts: &[Pubkey],
+    instruction: CompiledInstruction,
+    position: usize,
+) -> Result<Pubkey, RestError> {
+    let account_position = instruction.accounts.get(position).ok_or_else(|| {
+        tracing::error!(
+            "Account position not found in instruction: {:?} - {}",
+            instruction,
+            position,
+        );
+        RestError::BadParameters("Account not found in submit_bid instruction".to_string())
+    })?;
+
+    let account_position: usize = (*account_position).into();
+    let account = accounts.get(account_position).ok_or_else(|| {
+        tracing::error!(
+            "Account not found in transaction accounts: {:?} - {}",
+            accounts,
+            account_position,
+        );
+        RestError::BadParameters("Account not found in transaction accounts".to_string())
+    })?;
+
+    Ok(*account)
+}
+
+fn extract_bid_data_svm(
+    express_relay_svm: ExpressRelaySvm,
+    accounts: &[Pubkey],
+    instruction: CompiledInstruction,
+) -> Result<(u64, PermissionKey), RestError> {
+    let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
+    let submit_bid_data = express_relay_svm::SubmitBidArgs::try_from_slice(
+        &instruction.data.as_slice()[discriminator.len()..],
+    )
+    .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))?;
+
+    let permission_account = extract_account_svm(
+        accounts,
+        instruction.clone(),
+        express_relay_svm.permission_account_position,
+    )?;
+    let router_account = extract_account_svm(
+        accounts,
+        instruction.clone(),
+        express_relay_svm.router_account_position,
+    )?;
+
+    let concat = [permission_account.to_bytes(), router_account.to_bytes()].concat();
+    Ok((submit_bid_data.bid_amount, concat.into()))
 }
 
 #[tracing::instrument(skip_all)]
@@ -918,7 +983,13 @@ pub async fn handle_bid_svm(
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
+    let submit_bid_instruction =
+        verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
+    let (_bid_amount, _permission_key) = extract_bid_data_svm(
+        store.express_relay_svm.clone(),
+        bid.transaction.message.static_account_keys(),
+        submit_bid_instruction,
+    )?;
 
     // TODO implement this
     Err(RestError::NotImplemented)
