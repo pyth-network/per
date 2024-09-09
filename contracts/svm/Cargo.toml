@@ -13,6 +13,3 @@ codegen-units = 1
 opt-level = 3
 incremental = false
 codegen-units = 1
-
-[patch.crates-io]
-solana-program-test = { git = "https://github.com/Kamino-Finance/agave.git", branch = "anchor_0.29_compat/1.18.22" }

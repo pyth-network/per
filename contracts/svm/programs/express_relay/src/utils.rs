@@ -14,8 +14,8 @@ use {
             transfer,
             Transfer,
         },
+        Discriminator,
     },
-    anchor_syn::codegen::program::common::sighash,
 };
 
 pub fn validate_fee_split(split: u64) -> Result<()> {
@@ -75,8 +75,7 @@ pub fn num_permissions_in_tx(
         if ix.program_id != crate::id() {
             continue;
         }
-        let expected_discriminator = sighash("global", "submit_bid");
-        if ix.data[0..8] != expected_discriminator {
+        if ix.data[0..8] != crate::instruction::SubmitBid::DISCRIMINATOR {
             continue;
         }
 

@@ -1,17 +1,18 @@
 use {
     crate::id as EXPRESS_RELAY_PID,
-    anchor_lang::prelude::*,
-    anchor_syn::codegen::program::common::sighash,
+    anchor_lang::{
+        prelude::*,
+        Discriminator,
+    },
 };
 
 // Helper method to create a CPI to the Express Relay program to check permission for a given permission key and router
 pub fn check_permission<'info>(
-    sysvar_instructions: anchor_lang::solana_program::account_info::AccountInfo<'info>,
-    permission: anchor_lang::solana_program::account_info::AccountInfo<'info>,
-    router: anchor_lang::solana_program::account_info::AccountInfo<'info>,
+    sysvar_instructions: AccountInfo<'info>,
+    permission: AccountInfo<'info>,
+    router: AccountInfo<'info>,
 ) -> Result<()> {
-    let discriminator = sighash("global", "check_permission");
-    let data = &discriminator.to_vec();
+    let data = &crate::instruction::CheckPermission::DISCRIMINATOR.to_vec();
 
     anchor_lang::solana_program::program::invoke(
         &anchor_lang::solana_program::instruction::Instruction {

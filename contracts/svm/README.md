@@ -18,7 +18,7 @@ The provided `dummy` example program has a `DoNothing` instruction that simply c
 
 ## Express Relay Tests
 
-The tests in `testing/tests/` include some integration tests for Express Relay permissioning using the simple `dummy` program as the integrating program. To run these tests, run `cargo test-sbf -p dummy` from `contracts/svm`. As of now, using `cargo test` may not succeed due to [existing issues in the Anchor version of the `processor!` macro](https://github.com/coral-xyz/anchor/pull/2711).
+The tests in `testing/tests/` include some integration tests for Express Relay permissioning using the simple `dummy` program as the integrating program. To run these tests, run `cargo-build-sbf` followed by `cargo test-sbf -p dummy` from `contracts/svm`. As of now, using `cargo test` will not succeed due to [existing issues in the Anchor version of the `processor!` macro](https://github.com/coral-xyz/anchor/pull/2711).
 
 ## Building and running
 

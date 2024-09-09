@@ -11,7 +11,6 @@ use {
     },
     express_relay::sdk::test_helpers::create_initialize_express_relay_ix,
     solana_program_test::{
-        anchor_processor,
         ProgramTest,
         ProgramTestContext,
     },
@@ -31,12 +30,8 @@ pub struct SetupInfo {
 }
 
 pub async fn setup(router: Pubkey) -> SetupInfo {
-    let mut program_test = ProgramTest::new("dummy", dummy::ID, anchor_processor!(dummy::entry));
-    program_test.add_program(
-        "express_relay",
-        express_relay::id(),
-        anchor_processor!(express_relay::entry),
-    );
+    let mut program_test = ProgramTest::new("dummy", dummy::ID, None);
+    program_test.add_program("express_relay", express_relay::id(), None);
 
     let payer = create_and_fund_kp(&mut program_test, 1_000_000_000);
     let admin = create_and_fund_kp(&mut program_test, 1_000_000_000);
