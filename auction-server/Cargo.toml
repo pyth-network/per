@@ -4,6 +4,9 @@ version = "0.10.0"
 edition = "2021"
 license-file = "license.txt"
 
+[build-dependencies]
+anchor-lang-idl = { version = "0.1.1", features = ["convert"] }
+
 [dependencies]
 tokio = { version = "1.28", features = ["macros", "sync", "rt-multi-thread", "signal"] }
 tokio-stream = "0.1.14"

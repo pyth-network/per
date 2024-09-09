@@ -24,8 +24,17 @@ use {
         },
         traced_client::TracedClient,
     },
-    ::express_relay as express_relay_svm,
-    anchor_lang::Discriminator,
+    ::express_relay::{
+        self as express_relay_svm,
+    },
+    anchor_lang::{
+        AnchorDeserialize,
+        Discriminator,
+    },
+    anchor_lang_idl::types::{
+        Idl,
+        IdlInstructionAccountItem,
+    },
     anyhow::{
         anyhow,
         Result,
@@ -82,7 +91,11 @@ use {
         Deserializer,
         Serialize,
     },
-    solana_sdk::transaction::VersionedTransaction,
+    solana_sdk::{
+        instruction::CompiledInstruction,
+        pubkey::Pubkey,
+        transaction::VersionedTransaction,
+    },
     sqlx::types::time::OffsetDateTime,
     std::{
         result,
@@ -880,8 +893,8 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
 pub fn verify_submit_bid_instruction_svm(
     chain_store: &ChainStoreSvm,
     transaction: VersionedTransaction,
-) -> Result<(), RestError> {
-    if transaction
+) -> Result<CompiledInstruction, RestError> {
+    let submit_bid_instructions: Vec<CompiledInstruction> = transaction
         .message
         .instructions()
         .iter()
@@ -895,15 +908,48 @@ pub fn verify_submit_bid_instruction_svm(
                 .data
                 .starts_with(&express_relay_svm::instruction::SubmitBid::discriminator())
         })
-        .count()
-        != 1
-    {
-        return Err(RestError::BadParameters(
+        .cloned()
+        .collect();
+
+    match submit_bid_instructions.len() {
+        1 => Ok(submit_bid_instructions[0].clone()),
+        _ => Err(RestError::BadParameters(
             "Bid has to include exactly one submit_bid instruction to Express Relay program"
                 .to_string(),
-        ));
+        )),
     }
-    Ok(())
+}
+
+fn find_account_position_svm(idl: Idl, instruction: &str, account: &str) -> Option<usize> {
+    let instruction = idl.instructions.iter().find(|i| i.name == instruction)?;
+    instruction.accounts.iter().position(|a| match a {
+        IdlInstructionAccountItem::Single(a) => a.name == account,
+        IdlInstructionAccountItem::Composite(a) => a.name == account,
+    })
+}
+
+const SUBMIT_BID_INSTRUCTION_SVM: &str = "submit_bid";
+const PERMISSION_ACCOUNT_SVM: &str = "permission";
+
+fn extract_bid_data_svm(
+    idl: Idl,
+    accounts: &[Pubkey],
+    instruction: CompiledInstruction,
+) -> Result<(u64, Pubkey), RestError> {
+    let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
+    let submit_bid_data = express_relay_svm::SubmitBidArgs::try_from_slice(
+        &instruction.data.as_slice()[discriminator.len()..],
+    )
+    .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))?;
+    let permission_account_position =
+        find_account_position_svm(idl, SUBMIT_BID_INSTRUCTION_SVM, PERMISSION_ACCOUNT_SVM).ok_or(
+            RestError::BadParameters("Invalid submit_bid instruction accounts".to_string()),
+        )?;
+    let account_position = instruction.accounts[permission_account_position];
+    Ok((
+        submit_bid_data.bid_amount,
+        accounts[account_position as usize],
+    ))
 }
 
 #[tracing::instrument(skip_all)]
@@ -918,7 +964,13 @@ pub async fn handle_bid_svm(
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
 
-    verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
+    let submit_bid_instruction =
+        verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
+    let (_bid_amount, _permission) = extract_bid_data_svm(
+        store.express_relay_idl.clone(),
+        bid.transaction.message.static_account_keys(),
+        submit_bid_instruction,
+    )?;
 
     // TODO implement this
     Err(RestError::NotImplemented)
