@@ -31,10 +31,6 @@ use {
         AnchorDeserialize,
         Discriminator,
     },
-    anchor_lang_idl::types::{
-        Idl,
-        IdlInstructionAccountItem,
-    },
     anyhow::{
         anyhow,
         Result,
@@ -920,19 +916,8 @@ pub fn verify_submit_bid_instruction_svm(
     }
 }
 
-fn find_account_position_svm(idl: Idl, instruction: &str, account: &str) -> Option<usize> {
-    let instruction = idl.instructions.iter().find(|i| i.name == instruction)?;
-    instruction.accounts.iter().position(|a| match a {
-        IdlInstructionAccountItem::Single(a) => a.name == account,
-        IdlInstructionAccountItem::Composite(a) => a.name == account,
-    })
-}
-
-const SUBMIT_BID_INSTRUCTION_SVM: &str = "submit_bid";
-const PERMISSION_ACCOUNT_SVM: &str = "permission";
-
 fn extract_bid_data_svm(
-    idl: Idl,
+    permission_account_position: usize,
     accounts: &[Pubkey],
     instruction: CompiledInstruction,
 ) -> Result<(u64, Pubkey), RestError> {
@@ -941,15 +926,31 @@ fn extract_bid_data_svm(
         &instruction.data.as_slice()[discriminator.len()..],
     )
     .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))?;
-    let permission_account_position =
-        find_account_position_svm(idl, SUBMIT_BID_INSTRUCTION_SVM, PERMISSION_ACCOUNT_SVM).ok_or(
-            RestError::BadParameters("Invalid submit_bid instruction accounts".to_string()),
-        )?;
-    let account_position = instruction.accounts[permission_account_position];
-    Ok((
-        submit_bid_data.bid_amount,
-        accounts[account_position as usize],
-    ))
+
+    if instruction.accounts.len() <= permission_account_position {
+        tracing::error!(
+            "Permission account not found in submit_bid instruction: {:?} - {}",
+            instruction.accounts,
+            permission_account_position,
+        );
+        return Err(RestError::BadParameters(
+            "Permission account not found in submit_bid instruction".to_string(),
+        ));
+    }
+
+    let account_position = instruction.accounts[permission_account_position] as usize;
+    if account_position >= accounts.len() {
+        tracing::error!(
+            "Permission account not found in transaction accounts: {:?} - {}",
+            accounts,
+            account_position,
+        );
+        return Err(RestError::BadParameters(
+            "Permission account not found in transaction accounts".to_string(),
+        ));
+    }
+
+    Ok((submit_bid_data.bid_amount, accounts[account_position]))
 }
 
 #[tracing::instrument(skip_all)]
@@ -967,7 +968,7 @@ pub async fn handle_bid_svm(
     let submit_bid_instruction =
         verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
     let (_bid_amount, _permission) = extract_bid_data_svm(
-        store.express_relay_idl.clone(),
+        store.permission_account_position,
         bid.transaction.message.static_account_keys(),
         submit_bid_instruction,
     )?;

@@ -313,6 +313,9 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         access_tokens: RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
         express_relay_idl: load_express_relay_idl()?,
+        permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
+            .parse::<usize>()
+            .expect("Failed to parse permission account position"),
     });
 
     tokio::join!(

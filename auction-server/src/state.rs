@@ -297,21 +297,22 @@ pub struct BidStatusWithId {
 }
 
 pub struct Store {
-    pub chains:             HashMap<ChainId, ChainStoreEvm>,
-    pub chains_svm:         HashMap<ChainId, ChainStoreSvm>,
-    pub bids:               RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
-    pub event_sender:       broadcast::Sender<UpdateEvent>,
-    pub opportunity_store:  OpportunityStore,
-    pub relayer:            LocalWallet,
-    pub ws:                 WsState,
-    pub db:                 sqlx::PgPool,
-    pub task_tracker:       TaskTracker,
-    pub auction_lock:       Mutex<HashMap<AuctionKey, AuctionLock>>,
-    pub submitted_auctions: RwLock<HashMap<ChainId, Vec<models::Auction>>>,
-    pub secret_key:         String,
-    pub access_tokens:      RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
-    pub metrics_recorder:   PrometheusHandle,
-    pub express_relay_idl:  Idl,
+    pub chains:                      HashMap<ChainId, ChainStoreEvm>,
+    pub chains_svm:                  HashMap<ChainId, ChainStoreSvm>,
+    pub bids:                        RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
+    pub event_sender:                broadcast::Sender<UpdateEvent>,
+    pub opportunity_store:           OpportunityStore,
+    pub relayer:                     LocalWallet,
+    pub ws:                          WsState,
+    pub db:                          sqlx::PgPool,
+    pub task_tracker:                TaskTracker,
+    pub auction_lock:                Mutex<HashMap<AuctionKey, AuctionLock>>,
+    pub submitted_auctions:          RwLock<HashMap<ChainId, Vec<models::Auction>>>,
+    pub secret_key:                  String,
+    pub access_tokens:               RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
+    pub metrics_recorder:            PrometheusHandle,
+    pub express_relay_idl:           Idl,
+    pub permission_account_position: usize,
 }
 
 impl SimulatedBid {
