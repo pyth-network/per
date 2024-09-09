@@ -19,6 +19,8 @@ use {
             BidStatus,
             ChainStoreEvm,
             ChainStoreSvm,
+            ExpressRelaySvm,
+            PermissionKey,
             SimulatedBid,
             Store,
         },
@@ -916,32 +918,26 @@ pub fn verify_submit_bid_instruction_svm(
     }
 }
 
-fn extract_bid_data_svm(
-    permission_account_position: usize,
+fn extract_account_svm(
     accounts: &[Pubkey],
     instruction: CompiledInstruction,
-) -> Result<(u64, Pubkey), RestError> {
-    let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
-    let submit_bid_data = express_relay_svm::SubmitBidArgs::try_from_slice(
-        &instruction.data.as_slice()[discriminator.len()..],
-    )
-    .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))?;
-
-    if instruction.accounts.len() <= permission_account_position {
+    position: usize,
+) -> Result<Pubkey, RestError> {
+    if instruction.accounts.len() <= position {
         tracing::error!(
-            "Permission account not found in submit_bid instruction: {:?} - {}",
-            instruction.accounts,
-            permission_account_position,
+            "Account position not found in instruction: {:?} - {}",
+            instruction,
+            position,
         );
         return Err(RestError::BadParameters(
             "Permission account not found in submit_bid instruction".to_string(),
         ));
     }
 
-    let account_position = instruction.accounts[permission_account_position] as usize;
+    let account_position = instruction.accounts[position] as usize;
     if account_position >= accounts.len() {
         tracing::error!(
-            "Permission account not found in transaction accounts: {:?} - {}",
+            "Account not found in transaction accounts: {:?} - {}",
             accounts,
             account_position,
         );
@@ -950,7 +946,33 @@ fn extract_bid_data_svm(
         ));
     }
 
-    Ok((submit_bid_data.bid_amount, accounts[account_position]))
+    Ok(accounts[account_position])
+}
+
+fn extract_bid_data_svm(
+    express_relay_svm: ExpressRelaySvm,
+    accounts: &[Pubkey],
+    instruction: CompiledInstruction,
+) -> Result<(u64, PermissionKey), RestError> {
+    let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
+    let submit_bid_data = express_relay_svm::SubmitBidArgs::try_from_slice(
+        &instruction.data.as_slice()[discriminator.len()..],
+    )
+    .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))?;
+
+    let permission_account = extract_account_svm(
+        accounts,
+        instruction.clone(),
+        express_relay_svm.permission_account_position,
+    )?;
+    let router_account = extract_account_svm(
+        accounts,
+        instruction.clone(),
+        express_relay_svm.router_account_position,
+    )?;
+
+    let concat = [permission_account.to_bytes(), router_account.to_bytes()].concat();
+    Ok((submit_bid_data.bid_amount, concat.into()))
 }
 
 #[tracing::instrument(skip_all)]
@@ -967,8 +989,8 @@ pub async fn handle_bid_svm(
 
     let submit_bid_instruction =
         verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
-    let (_bid_amount, _permission) = extract_bid_data_svm(
-        store.permission_account_position,
+    let (_bid_amount, _permission_key) = extract_bid_data_svm(
+        store.express_relay_svm.clone(),
         bid.transaction.message.static_account_keys(),
         submit_bid_instruction,
     )?;

@@ -27,6 +27,7 @@ use {
         state::{
             ChainStoreEvm,
             ChainStoreSvm,
+            ExpressRelaySvm,
             OpportunityStore,
             Store,
         },
@@ -267,6 +268,15 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     };
 
     let chains_svm = setup_chain_store_svm(config_map);
+    let express_relay_svm = ExpressRelaySvm {
+        idl:                         load_express_relay_idl()?,
+        permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
+            .parse::<usize>()
+            .expect("Failed to parse permission account position"),
+        router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
+            .parse::<usize>()
+            .expect("Failed to parse router account position"),
+    };
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -312,10 +322,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         secret_key: run_options.secret_key.clone(),
         access_tokens: RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
-        express_relay_idl: load_express_relay_idl()?,
-        permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
-            .parse::<usize>()
-            .expect("Failed to parse permission account position"),
+        express_relay_svm,
     });
 
     tokio::join!(

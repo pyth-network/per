@@ -1,7 +1,10 @@
 use {
     anchor_lang_idl::{
         convert::convert_idl,
-        types::IdlInstructionAccountItem,
+        types::{
+            Idl,
+            IdlInstructionAccountItem,
+        },
     },
     std::{
         fs,
@@ -36,38 +39,49 @@ fn build_evm_contracts() {
 
 const SUBMIT_BID_INSTRUCTION_SVM: &str = "submit_bid";
 const PERMISSION_ACCOUNT_SVM: &str = "permission";
+const ROUTER_ACCOUNT_SVM: &str = "router";
 const IDL_LOCATION: &str = "../contracts/svm/target/idl/express_relay.json";
+
+fn extract_account_position(idl: Idl, instruction_name: &str, account_name: &str) -> usize {
+    let instruction = idl
+        .instructions
+        .iter()
+        .find(|i| i.name == instruction_name)
+        .unwrap_or_else(|| panic!("Instruction {} not found in IDL", instruction_name));
+    instruction
+        .accounts
+        .iter()
+        .position(|a| match a {
+            IdlInstructionAccountItem::Single(a) => a.name == account_name,
+            IdlInstructionAccountItem::Composite(a) => a.name == account_name,
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "Account {} not found in instruction {}",
+                account_name, instruction_name
+            )
+        })
+}
 
 fn verify_and_extract_idl_data() {
     let idl_json = fs::read(IDL_LOCATION).expect("Failed to read IDL JSON");
     let express_relay_idl =
         convert_idl(idl_json.as_slice()).expect("Failed to convert IDL to Rust");
-
-    let position = match express_relay_idl
-        .instructions
-        .iter()
-        .find(|i| i.name == SUBMIT_BID_INSTRUCTION_SVM)
-    {
-        Some(instruction) => {
-            match instruction.accounts.iter().position(|a| match a {
-                IdlInstructionAccountItem::Single(a) => a.name == PERMISSION_ACCOUNT_SVM,
-                IdlInstructionAccountItem::Composite(a) => a.name == PERMISSION_ACCOUNT_SVM,
-            }) {
-                Some(position) => position,
-                None => panic!(
-                    "{} account not found in {} instruction",
-                    PERMISSION_ACCOUNT_SVM, SUBMIT_BID_INSTRUCTION_SVM
-                ),
-            }
-        }
-        None => panic!(
-            "{} instruction not found in IDL",
-            SUBMIT_BID_INSTRUCTION_SVM,
-        ),
-    };
     println!(
         "cargo:rustc-env=SUBMIT_BID_PERMISSION_ACCOUNT_POSITION={}",
-        position
+        extract_account_position(
+            express_relay_idl.clone(),
+            SUBMIT_BID_INSTRUCTION_SVM,
+            PERMISSION_ACCOUNT_SVM,
+        )
+    );
+    println!(
+        "cargo:rustc-env=SUBMIT_BID_ROUTER_ACCOUNT_POSITION={}",
+        extract_account_position(
+            express_relay_idl.clone(),
+            SUBMIT_BID_INSTRUCTION_SVM,
+            ROUTER_ACCOUNT_SVM,
+        )
     );
 }
 
