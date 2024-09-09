@@ -33,10 +33,6 @@ use {
         },
         traced_client::TracedClient,
     },
-    anchor_lang_idl::{
-        convert::convert_idl,
-        types::Idl,
-    },
     anyhow::anyhow,
     axum_prometheus::{
         metrics_exporter_prometheus::{
@@ -69,7 +65,6 @@ use {
     },
     std::{
         collections::HashMap,
-        fs,
         sync::{
             atomic::{
                 AtomicBool,
@@ -233,12 +228,6 @@ async fn setup_chain_store(
     .collect()
 }
 
-pub fn load_express_relay_idl() -> anyhow::Result<Idl> {
-    let idl = fs::read("../contracts/svm/target/idl/express_relay.json")?;
-    convert_idl(idl.as_slice())
-        .map_err(|err| anyhow!("Failed to convert express relay idl: {:?}", err))
-}
-
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     tokio::spawn(async move {
@@ -269,7 +258,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let chains_svm = setup_chain_store_svm(config_map);
     let express_relay_svm = ExpressRelaySvm {
-        idl:                         load_express_relay_idl()?,
         permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
             .parse::<usize>()
             .expect("Failed to parse permission account position"),

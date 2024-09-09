@@ -17,7 +17,6 @@ use {
         models,
         traced_client::TracedClient,
     },
-    anchor_lang_idl::types::Idl,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -298,7 +297,6 @@ pub struct BidStatusWithId {
 
 #[derive(Clone)]
 pub struct ExpressRelaySvm {
-    pub idl:                         Idl,
     pub permission_account_position: usize,
     pub router_account_position:     usize,
 }

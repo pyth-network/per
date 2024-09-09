@@ -923,30 +923,34 @@ fn extract_account_svm(
     instruction: CompiledInstruction,
     position: usize,
 ) -> Result<Pubkey, RestError> {
-    if instruction.accounts.len() <= position {
-        tracing::error!(
-            "Account position not found in instruction: {:?} - {}",
-            instruction,
-            position,
-        );
-        return Err(RestError::BadParameters(
-            "Permission account not found in submit_bid instruction".to_string(),
-        ));
+    match instruction.accounts.get(position) {
+        None => {
+            tracing::error!(
+                "Account position not found in instruction: {:?} - {}",
+                instruction,
+                position,
+            );
+            Err(RestError::BadParameters(
+                "Account not found in submit_bid instruction".to_string(),
+            ))
+        }
+        Some(account_position) => {
+            let account_position: usize = (*account_position).into();
+            match accounts.get(position) {
+                None => {
+                    tracing::error!(
+                        "Account not found in transaction accounts: {:?} - {}",
+                        accounts,
+                        account_position,
+                    );
+                    Err(RestError::BadParameters(
+                        "Account not found in transaction accounts".to_string(),
+                    ))
+                }
+                Some(account) => Ok(*account),
+            }
+        }
     }
-
-    let account_position = instruction.accounts[position] as usize;
-    if account_position >= accounts.len() {
-        tracing::error!(
-            "Account not found in transaction accounts: {:?} - {}",
-            accounts,
-            account_position,
-        );
-        return Err(RestError::BadParameters(
-            "Permission account not found in transaction accounts".to_string(),
-        ));
-    }
-
-    Ok(accounts[account_position])
 }
 
 fn extract_bid_data_svm(
