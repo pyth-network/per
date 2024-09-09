@@ -5,6 +5,7 @@ on:
       - v*
     branches:
       - main
+      - feat/svm-extract-bid-data
   workflow_dispatch:
     inputs:
       dispatch_description:
