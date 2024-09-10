@@ -269,8 +269,8 @@ fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedF
         .collect()
 }
 
-
 const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
+
 // An auction is ready if there are any bids with a lifetime of AUCTION_MINIMUM_LIFETIME
 fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDateTime) -> bool {
     bids.iter()
@@ -991,6 +991,32 @@ pub async fn handle_bid_svm(
         submit_bid_instruction,
     )?;
 
+    simulate_bid_svm(chain_store, &bid).await?;
     // TODO implement this
     Err(RestError::NotImplemented)
+}
+
+async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(), RestError> {
+    let response = chain_store
+        .client
+        .simulate_transaction(&bid.transaction)
+        .await;
+    let result = response.map_err(|e| {
+        tracing::error!("Error while simulating bid: {:?}", e);
+        RestError::TemporarilyUnavailable
+    })?;
+    match result.value.err {
+        Some(err) => {
+            tracing::error!(
+                "Error while simulating bid: {:?}, context: {:?}",
+                err,
+                result.context
+            );
+            Err(RestError::SimulationError {
+                result: Default::default(),
+                reason: err.to_string(),
+            })
+        }
+        None => Ok(()),
+    }
 }

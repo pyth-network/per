@@ -38,6 +38,7 @@ use {
         Deserialize,
         Serialize,
     },
+    solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::pubkey::Pubkey,
     sqlx::{
         database::HasArguments,
@@ -201,6 +202,7 @@ pub struct ChainStoreEvm {
 
 pub struct ChainStoreSvm {
     pub express_relay_program_id: Pubkey,
+    pub client:                   RpcClient,
 }
 
 #[derive(Default)]

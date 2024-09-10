@@ -136,4 +136,6 @@ pub struct ConfigSvm {
     /// Id of the express relay program.
     #[serde_as(as = "DisplayFromStr")]
     pub express_relay_program_id: Pubkey,
+    /// RPC endpoint to use for interacting with the blockchain.
+    pub rpc_addr:                 String,
 }

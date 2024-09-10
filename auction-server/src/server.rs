@@ -58,6 +58,8 @@ use {
         future::join_all,
         Future,
     },
+    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_sdk::commitment_config::CommitmentConfig,
     sqlx::{
         migrate,
         postgres::PgPoolOptions,
@@ -153,6 +155,10 @@ fn setup_chain_store_svm(config_map: ConfigMap) -> HashMap<ChainId, ChainStoreSv
                 chain_id.clone(),
                 ChainStoreSvm {
                     express_relay_program_id: chain_config.express_relay_program_id,
+                    client:                   RpcClient::new_with_commitment(
+                        chain_config.rpc_addr.clone(),
+                        CommitmentConfig::processed(),
+                    ),
                 },
             )),
         })
@@ -248,13 +254,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let wallet = run_options.subwallet_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {:?}", wallet.address());
 
-    let chains = match setup_chain_store(config_map.clone(), wallet.clone()).await {
-        Ok(chain_store) => chain_store,
-        Err(err) => {
-            tracing::error!("Failed to set up chain store: {:?}", err);
-            return Err(err);
-        }
-    };
+    let chains = setup_chain_store(config_map.clone(), wallet.clone()).await?;
 
     let chains_svm = setup_chain_store_svm(config_map);
     let express_relay_svm = ExpressRelaySvm {

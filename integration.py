@@ -40,6 +40,7 @@ chains:
     poll_interval: 1
   development-solana:
     express_relay_program_id: GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM
+    rpc_addr: http://localhost:8899
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)
