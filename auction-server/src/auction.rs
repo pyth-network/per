@@ -1007,10 +1007,11 @@ fn verify_signatures_svm(bid: &BidSvm, relayer_pubkey: &Pubkey) -> Result<(), Re
         .all(|(signature, pubkey)| {
             signature.verify(pubkey.as_ref(), &message_bytes) || pubkey.eq(relayer_pubkey)
         });
-    if !all_signatures_valid {
-        return Err(RestError::BadParameters("Invalid signatures".to_string()));
+
+    match all_signatures_valid {
+        true => Ok(()),
+        false => Err(RestError::BadParameters("Invalid signatures".to_string())),
     }
-    Ok(())
 }
 
 async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(), RestError> {
