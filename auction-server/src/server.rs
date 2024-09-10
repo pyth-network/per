@@ -59,7 +59,10 @@ use {
         Future,
     },
     solana_client::nonblocking::rpc_client::RpcClient,
-    solana_sdk::commitment_config::CommitmentConfig,
+    solana_sdk::{
+        commitment_config::CommitmentConfig,
+        signature::Keypair,
+    },
     sqlx::{
         migrate,
         postgres::PgPoolOptions,
@@ -257,7 +260,19 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let chains = setup_chain_store(config_map.clone(), wallet.clone()).await?;
 
     let chains_svm = setup_chain_store_svm(config_map);
+
+    if !chains_svm.is_empty() && run_options.svm_private_key.is_none() {
+        return Err(anyhow!("No svm private key provided for svm chains"));
+    }
+
+    let relayer = Keypair::from_base58_string(
+        &run_options
+            .svm_private_key
+            .clone()
+            .unwrap_or(Keypair::new().to_base58_string()),
+    );
     let express_relay_svm = ExpressRelaySvm {
+        relayer:                     Arc::new(relayer),
         permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
             .parse::<usize>()
             .expect("Failed to parse permission account position"),

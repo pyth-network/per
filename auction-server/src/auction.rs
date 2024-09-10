@@ -92,6 +92,7 @@ use {
     solana_sdk::{
         instruction::CompiledInstruction,
         pubkey::Pubkey,
+        signature::Signer as SvmSigner,
         transaction::VersionedTransaction,
     },
     sqlx::types::time::OffsetDateTime,
@@ -990,10 +991,26 @@ pub async fn handle_bid_svm(
         bid.transaction.message.static_account_keys(),
         submit_bid_instruction,
     )?;
-
+    verify_signatures_svm(&bid, &store.express_relay_svm.relayer.pubkey())?;
     simulate_bid_svm(chain_store, &bid).await?;
     // TODO implement this
     Err(RestError::NotImplemented)
+}
+
+fn verify_signatures_svm(bid: &BidSvm, relayer_pubkey: &Pubkey) -> Result<(), RestError> {
+    let message_bytes = bid.transaction.message.serialize();
+    let all_signatures_valid = bid
+        .transaction
+        .signatures
+        .iter()
+        .zip(bid.transaction.message.static_account_keys().iter())
+        .all(|(signature, pubkey)| {
+            signature.verify(pubkey.as_ref(), &message_bytes) || pubkey.eq(relayer_pubkey)
+        });
+    if !all_signatures_valid {
+        return Err(RestError::BadParameters("Invalid signatures".to_string()));
+    }
+    Ok(())
 }
 
 async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(), RestError> {

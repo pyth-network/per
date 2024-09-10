@@ -3,6 +3,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+import pathlib
 import struct
 import urllib
 
@@ -30,13 +31,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument(
         "--file-private-key-searcher",
-        type=str,
+        type=pathlib.Path,
         required=True,
         help="JSON file containing the private key (as a byte array) of the searcher for signing transaction",
     )
     parser.add_argument(
         "--file-private-key-relayer-signer",
-        type=str,
+        type=pathlib.Path,
         required=True,
         help="JSON file containing the private key (as a byte array) of the relayer signer",
     )

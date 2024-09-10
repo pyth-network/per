@@ -62,6 +62,11 @@ pub struct RunOptions {
     #[arg(env = "SUBWALLET_PRIVATE_KEY")]
     pub subwallet_private_key: String,
 
+    /// SVM relayer private key in base58 format
+    #[arg(long = "svm-private-key")]
+    #[arg(env = "SVM_PRIVATE_KEY")]
+    pub svm_private_key: Option<String>,
+
     #[arg(long = "secret-key")]
     #[arg(env = "SECRET_KEY")]
     pub secret_key: String,

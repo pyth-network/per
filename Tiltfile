@@ -80,7 +80,7 @@ cmd_button(
 )
 
 local_resource(
-    "evm-create-configs", "python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts"]
+    "create-server-configs", "poetry -C per_sdk run python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts","svm-setup-accounts"]
 )
 
 local_resource(
@@ -93,7 +93,7 @@ local_resource(
     "auction-server",
     serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --subwallet-private-key $RELAYER_PRIVATE_KEY --secret-key $SECRET_KEY",
     serve_dir="auction-server",
-    resource_deps=["evm-create-configs", "svm-build-programs"],
+    resource_deps=["create-server-configs", "svm-build-programs", "svm-setup-accounts"],
     readiness_probe=probe(period_secs=5, http_get=http_get_action(port=9000)),
 )
 
@@ -112,7 +112,7 @@ monitor_command = (
 local_resource(
     "evm-monitor",
     serve_cmd=monitor_command,
-    resource_deps=["evm-deploy-contracts", "auction-server", "evm-create-configs"],
+    resource_deps=["evm-deploy-contracts", "auction-server", "create-server-configs"],
 )
 
 evm_searcher_command = (
@@ -132,7 +132,7 @@ evm_searcher_command = (
 local_resource(
     "evm-searcher",
     serve_cmd=evm_searcher_command,
-    resource_deps=["evm-deploy-contracts", "auction-server", "evm-create-configs"],
+    resource_deps=["evm-deploy-contracts", "auction-server", "create-server-configs"],
 )
 
 local_resource(
