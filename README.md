@@ -43,7 +43,7 @@ Here is what tilt up does in order:
 
 1. [EVM] Starts `anvil`: local EVM chain to test the contracts with
 2. [EVM] Deploy express relay contracts
-3. [SVM] Builds Solana programs
+3. [SVM] Builds SVM programs
 4. [SVM] Starts `solana-test-validator`: Solana localnet to test the programs with
 5. [SVM] Airdrops SOL to searcher, admin, and relayer signer wallet
 6. [SVM] Initializes the SVM programs on the localnet

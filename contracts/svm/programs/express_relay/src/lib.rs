@@ -1,4 +1,5 @@
 pub mod error;
+pub mod sdk;
 pub mod state;
 pub mod utils;
 
@@ -80,7 +81,7 @@ pub mod express_relay {
         Ok(())
     }
 
-    // Submits a bid for a particular (permission, router) pair and distributes bids according to splits
+    /// Submits a bid for a particular (permission, router) pair and distributes bids according to splits
     pub fn submit_bid(ctx: Context<SubmitBid>, data: SubmitBidArgs) -> Result<()> {
         if data.deadline < Clock::get()?.unix_timestamp {
             return err!(ErrorCode::DeadlinePassed);
@@ -103,8 +104,8 @@ pub mod express_relay {
         handle_bid_payment(ctx, data.bid_amount)
     }
 
-    // Checks if permissioning exists for a particular (permission, router) pair within the same transaction
-    // Permissioning takes the form of a submit_bid instruction with matching permission and router accounts
+    /// Checks if permissioning exists for a particular (permission, router) pair within the same transaction
+    /// Permissioning takes the form of a submit_bid instruction with matching permission and router accounts
     pub fn check_permission(ctx: Context<CheckPermission>) -> Result<()> {
         let num_permissions = num_permissions_in_tx(
             ctx.accounts.sysvar_instructions.clone(),

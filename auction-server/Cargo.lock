@@ -2183,7 +2183,6 @@ name = "express-relay"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
- "anchor-syn",
 ]
 
 [[package]]
