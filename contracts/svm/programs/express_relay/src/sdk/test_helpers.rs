@@ -25,7 +25,7 @@ use {
 // Should be able to sign transactions with the secret keys of the provided payer and relayer_signer
 // The fee split is set to 100% for the router, since fee payments to relayer are not important for the integrating program's tests
 // Instead it is more relevant for the integrating program to ensure their router account has enough rent to avoid InsufficientRent error
-pub fn create_initialize_express_relay_ix<'info>(
+pub fn create_initialize_express_relay_ix(
     payer: Pubkey,
     admin: Pubkey,
     relayer_signer: Pubkey,
