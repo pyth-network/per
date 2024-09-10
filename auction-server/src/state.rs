@@ -39,8 +39,10 @@ use {
         Serialize,
     },
     solana_client::nonblocking::rpc_client::RpcClient,
+    serde_json::json,
     solana_sdk::{
         pubkey::Pubkey,
+        transaction::VersionedTransaction,
         signature::Keypair,
     },
     sqlx::{
@@ -63,6 +65,7 @@ use {
             hash_map::Entry,
             HashMap,
         },
+        io::Read,
         str::FromStr,
         sync::Arc,
     },
@@ -85,17 +88,10 @@ pub type BidAmount = U256;
 pub type GetOrCreate<T> = (T, bool);
 
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
-#[schema(title = "BidResponse")]
-pub struct SimulatedBid {
+pub struct SimulatedBidShared {
     /// The unique id for bid.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub id:              BidId,
-    /// The contract address to call.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub target_contract: Address,
-    /// Calldata for the contract call.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub target_calldata: Bytes,
     /// Amount of bid in wei.
     #[schema(example = "10", value_type = String)]
     #[serde(with = "crate::serde::u256")]
@@ -116,10 +112,40 @@ pub struct SimulatedBid {
     /// The profile id for the bid owner.
     #[schema(example = "", value_type = String)]
     pub profile_id:      Option<models::ProfileId>,
+}
+
+#[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
+#[schema(title = "BidResponseSvm")]
+pub struct SimulatedBidSvm {
+    #[serde(flatten)]
+    pub data:        SimulatedBidShared,
+    /// The transaction of the bid.
+    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
+    pub transaction: VersionedTransaction,
+}
+
+#[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
+#[schema(title = "BidResponseEvm")]
+pub struct SimulatedBidEvm {
+    #[serde(flatten)]
+    pub data:            SimulatedBidShared,
+    /// The contract address to call.
+    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
+    pub target_contract: Address,
+    /// Calldata for the contract call.
+    #[schema(example = "0xdeadbeef", value_type = String)]
+    pub target_calldata: Bytes,
     /// The gas limit for the contract call.
     #[schema(example = "2000000", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub gas_limit:       U256,
+}
+
+#[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SimulatedBid {
+    Evm(SimulatedBidEvm),
+    Svm(SimulatedBidSvm),
 }
 
 pub type UnixTimestampMicros = i128;
@@ -179,7 +205,6 @@ pub struct Opportunity {
     pub creation_time: UnixTimestampMicros,
     pub params:        OpportunityParams,
 }
-
 
 #[derive(Clone)]
 pub enum SpoofInfo {
@@ -325,9 +350,26 @@ pub struct Store {
     pub express_relay_svm:  ExpressRelaySvm,
 }
 
+impl From<SimulatedBid> for SimulatedBidShared {
+    fn from(bid: SimulatedBid) -> Self {
+        match bid {
+            SimulatedBid::Evm(bid) => bid.data,
+            SimulatedBid::Svm(bid) => bid.data,
+        }
+    }
+}
+
 impl SimulatedBid {
+    pub fn get_data(&self) -> SimulatedBidShared {
+        match self {
+            SimulatedBid::Evm(bid) => bid.data.clone(),
+            SimulatedBid::Svm(bid) => bid.data.clone(),
+        }
+    }
+
     pub fn get_auction_key(&self) -> AuctionKey {
-        (self.permission_key.clone(), self.chain_id.clone())
+        let data = self.get_data();
+        (data.permission_key.clone(), data.chain_id.clone())
     }
 }
 
@@ -347,12 +389,9 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatus {
                 Some(auction) => auction.tx_hash.0,
                 None => None,
             };
-            let index = bid.bundle_index;
+            let index = bid.metadata.0.get_bundle_index();
             if bid.status == models::BidStatus::Lost {
-                Ok(BidStatus::Lost {
-                    result,
-                    index: index.0,
-                })
+                Ok(BidStatus::Lost { result, index })
             } else {
                 if result.is_none() || index.is_none() {
                     return Err(anyhow::anyhow!(
@@ -382,23 +421,76 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBid {
         if !bid.is_for_auction(&auction) {
             return Err(anyhow::anyhow!("Bid is not for the given auction"));
         }
+
         let bid_amount = BidAmount::from_dec_str(bid.bid_amount.to_string().as_str())
             .map_err(|e| anyhow::anyhow!(e))?;
-        let gas_limit = U256::from_dec_str(bid.gas_limit.to_string().as_str())
-            .map_err(|e| anyhow::anyhow!(e))?;
         let bid_with_auction = (bid.clone(), auction);
-        Ok(SimulatedBid {
+
+        let data = SimulatedBidShared {
             id: bid.id,
-            target_contract: Address::from_slice(&bid.target_contract),
-            target_calldata: Bytes::from(bid.target_calldata),
             bid_amount,
             permission_key: Bytes::from(bid.permission_key),
             chain_id: bid.chain_id,
             status: bid_with_auction.try_into()?,
             initiation_time: bid.initiation_time.assume_offset(UtcOffset::UTC),
             profile_id: bid.profile_id,
-            gas_limit,
+        };
+
+        Ok(match bid.metadata.0 {
+            models::BidMetadata::Evm(metadata) => SimulatedBid::Evm(SimulatedBidEvm {
+                data,
+                target_contract: metadata.target_contract,
+                target_calldata: metadata.target_calldata,
+                gas_limit: U256::from(metadata.gas_limit),
+            }),
+            models::BidMetadata::Svm(metadata) => SimulatedBid::Svm(SimulatedBidSvm {
+                data,
+                transaction: metadata.transaction,
+            }),
         })
+    }
+}
+
+impl TryFrom<SimulatedBid> for (models::BidMetadata, models::ChainType) {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        bid: SimulatedBid,
+    ) -> Result<(models::BidMetadata, models::ChainType), Self::Error> {
+        match bid {
+            SimulatedBid::Evm(bid) => Ok((
+                models::BidMetadata::Evm(models::BidMetadataEvm {
+                    target_contract: bid.target_contract,
+                    target_calldata: bid.target_calldata,
+                    gas_limit:       bid.gas_limit.as_u64(),
+                    bundle_index:    models::BundleIndex(match bid.data.status {
+                        BidStatus::Pending => None,
+                        BidStatus::Lost { index, .. } => index,
+                        BidStatus::Submitted { index, .. } => Some(index),
+                        BidStatus::Won { index, .. } => Some(index),
+                    }),
+                }),
+                models::ChainType::Evm,
+            )),
+            SimulatedBid::Svm(bid) => Ok((
+                models::BidMetadata::Svm(models::BidMetadataSvm {
+                    transaction: bid.transaction,
+                }),
+                models::ChainType::Svm,
+            )),
+        }
+    }
+}
+
+impl From<SimulatedBidEvm> for SimulatedBid {
+    fn from(bid: SimulatedBidEvm) -> Self {
+        SimulatedBid::Evm(bid)
+    }
+}
+
+impl From<SimulatedBidSvm> for SimulatedBid {
+    fn from(bid: SimulatedBidSvm) -> Self {
+        SimulatedBid::Svm(bid)
     }
 }
 
@@ -582,20 +674,26 @@ impl Store {
 
     #[tracing::instrument(skip_all)]
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
-        let bid_id = bid.id;
+        let data = bid.get_data();
         let now = OffsetDateTime::now_utc();
-        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time, profile_id, gas_limit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
-        bid.id,
+
+        let (metadata, chain_type): (models::BidMetadata, models::ChainType) =
+            bid.clone().try_into().map_err(|e| {
+                tracing::error!("Failed to convert metadata: {}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+
+        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        data.id,
         PrimitiveDateTime::new(now.date(), now.time()),
-        bid.permission_key.to_vec(),
-        bid.chain_id,
-        &bid.target_contract.to_fixed_bytes(),
-        bid.target_calldata.to_vec(),
-        BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
-        bid.status as _,
-        PrimitiveDateTime::new(bid.initiation_time.date(), bid.initiation_time.time()),
-        bid.profile_id,
-        BigDecimal::from_str(&bid.gas_limit.to_string()).unwrap(),
+        data.permission_key.to_vec(),
+        data.chain_id,
+        chain_type as _,
+        BigDecimal::from_str(&data.bid_amount.to_string()).unwrap(),
+        data.status as _,
+        PrimitiveDateTime::new(data.initiation_time.date(), data.initiation_time.time()),
+        data.profile_id,
+        serde_json::to_value(metadata).unwrap(),
         )
             .execute(&self.db)
             .await.map_err(|e| {
@@ -611,76 +709,76 @@ impl Store {
             .push(bid.clone());
 
         self.broadcast_status_update(BidStatusWithId {
-            id:         bid_id,
-            bid_status: bid.status.clone(),
+            id:         data.id,
+            bid_status: data.status.clone(),
         });
         Ok(())
     }
 
     pub async fn get_bid_status(&self, bid_id: BidId) -> Result<Json<BidStatus>, RestError> {
-        let status_data = sqlx::query!(
-            // TODO: improve the call here to not cast to text
-            "SELECT status::text, auction_id, bundle_index, tx_hash FROM (bid LEFT OUTER JOIN auction ON bid.auction_id = auction.id) WHERE bid.id = $1",
-            bid_id
-        )
-        .fetch_one(&self.db)
-        .await
-        .map_err(|e| {
-            tracing::warn!("DB: Failed to get bid status: {} - bid_id: {}", e, bid_id);
-            RestError::BidNotFound
-        })?;
+        let bid: models::Bid = sqlx::query_as("SELECT * FROM bid WHERE id = $1")
+            .bind(bid_id)
+            .fetch_one(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::warn!("DB: Failed to get bid: {} - bid_id: {}", e, bid_id);
+                RestError::BidNotFound
+            })?;
 
-        let status_json: Json<BidStatus>;
-        match status_data.status {
-            Some(status) => {
-                if status == "pending" {
-                    status_json = BidStatus::Pending.into();
+        if bid.status == models::BidStatus::Pending {
+            Ok(BidStatus::Pending.into())
+        } else {
+            let result = match bid.auction_id {
+                Some(auction_id) => {
+                    let auction: models::Auction =
+                        sqlx::query_as("SELECT * FROM auction WHERE id = $1")
+                            .bind(auction_id)
+                            .fetch_one(&self.db)
+                            .await
+                            .map_err(|e| {
+                                tracing::warn!(
+                                    "DB: Failed to get auction: {} - auction_id: {}",
+                                    e,
+                                    auction_id
+                                );
+                                RestError::TemporarilyUnavailable
+                            })?;
+                    auction.tx_hash.0
+                }
+                None => None,
+            };
+
+            let index = bid.metadata.0.get_bundle_index();
+            if bid.status == models::BidStatus::Lost {
+                Ok(BidStatus::Lost { result, index }.into())
+            } else {
+                if result.is_none() || index.is_none() {
+                    tracing::error!("Invalid bid status - Won or submitted bid must have a transaction hash and index - bid_id: {}", bid_id);
+                    return Err(RestError::BadParameters(
+                        "Won or submitted bid must have a transaction hash and index".to_string(),
+                    ));
+                }
+                let result = result.unwrap();
+                let index = index.unwrap();
+                if bid.status == models::BidStatus::Won {
+                    Ok(BidStatus::Won { result, index }.into())
+                } else if bid.status == models::BidStatus::Submitted {
+                    Ok(BidStatus::Submitted { result, index }.into())
                 } else {
-                    let result = status_data
-                        .tx_hash
-                        .map(|tx_hash| H256::from_slice(&tx_hash));
-                    let index = status_data.bundle_index.map(|i| i as u32);
-                    if status == "lost" {
-                        status_json = BidStatus::Lost { result, index }.into();
-                    } else {
-                        if result.is_none() || index.is_none() {
-                            tracing::error!("Invalid bid status - Won or submitted bid must have a transaction hash and index - bid_id: {}", bid_id);
-                            return Err(RestError::BadParameters(
-                                "Won or submitted bid must have a transaction hash and index"
-                                    .to_string(),
-                            ));
-                        }
-                        let result = result.unwrap();
-                        let index = index.unwrap();
-                        if status == "won" {
-                            status_json = BidStatus::Won { result, index }.into();
-                        } else if status == "submitted" {
-                            status_json = BidStatus::Submitted { result, index }.into();
-                        } else {
-                            tracing::error!("Invalid bid status - bid_id: {}", bid_id);
-                            return Err(RestError::BadParameters("Invalid bid status".to_string()));
-                        }
-                    }
+                    tracing::error!("Invalid bid status - bid_id: {}", bid_id);
+                    return Err(RestError::BadParameters("Invalid bid status".to_string()));
                 }
             }
-            None => {
-                tracing::error!(
-                    "Invalid bid status - bid has not status - bid_id: {}",
-                    bid_id
-                );
-                return Err(RestError::BidNotFound);
-            }
         }
-
-        Ok(status_json)
     }
 
     async fn remove_bid(&self, bid: SimulatedBid) {
         let mut write_guard = self.bids.write().await;
         let key = bid.get_auction_key();
+        let data = bid.get_data();
         if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
             let bids = entry.get_mut();
-            bids.retain(|b| b.id != bid.id);
+            bids.retain(|b| b.get_data().id != data.id);
             if bids.is_empty() {
                 entry.remove();
             }
@@ -697,7 +795,7 @@ impl Store {
         match auction.tx_hash.0 {
             Some(tx_hash) => bids
                 .into_iter()
-                .filter(|bid| match bid.status {
+                .filter(|bid| match bid.get_data().status {
                     BidStatus::Submitted { result, .. } => result == tx_hash,
                     _ => false,
                 })
@@ -729,10 +827,11 @@ impl Store {
     async fn update_bid(&self, bid: SimulatedBid) {
         let mut write_guard = self.bids.write().await;
         let key = bid.get_auction_key();
+        let data = bid.get_data();
         match write_guard.entry(key.clone()) {
             Entry::Occupied(mut entry) => {
                 let bids = entry.get_mut();
-                match bids.iter().position(|b| b.id == bid.id) {
+                match bids.iter().position(|b| b.get_data().id == data.id) {
                     Some(index) => bids[index] = bid,
                     None => {
                         tracing::error!("Update bid failed - bid not found for: {:?}", bid);
@@ -752,6 +851,7 @@ impl Store {
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
         let query_result: PgQueryResult;
+        let data = bid.get_data();
         match updated_status {
             BidStatus::Pending => {
                 return Err(anyhow::anyhow!(
@@ -761,18 +861,26 @@ impl Store {
             BidStatus::Submitted { result: _, index } => {
                 if let Some(auction) = auction {
                     query_result = sqlx::query!(
-                        "UPDATE bid SET status = $1, auction_id = $2, bundle_index = $3 WHERE id = $4 AND status = 'pending'",
+                        "UPDATE bid SET status = $1, auction_id = $2, metadata = jsonb_set(metadata, '{bundle_index}', $3) WHERE id = $4 AND status = 'pending'",
                         updated_status as _,
                         auction.id,
-                        index as i32,
-                        bid.id
+                        json!(index),
+                        data.id
                     )
                     .execute(&self.db)
                     .await?;
 
-                    let mut submitted_bid = bid.clone();
-                    submitted_bid.status = updated_status.clone();
-                    self.update_bid(submitted_bid).await;
+                    let mut data = bid.get_data();
+                    data.status = updated_status.clone();
+                    let updated_bid = match bid {
+                        SimulatedBid::Evm(bid) => {
+                            SimulatedBid::Evm(SimulatedBidEvm { data, ..bid })
+                        }
+                        SimulatedBid::Svm(bid) => {
+                            SimulatedBid::Svm(SimulatedBidSvm { data, ..bid })
+                        }
+                    };
+                    self.update_bid(updated_bid).await;
                 } else {
                     return Err(anyhow::anyhow!(
                         "Cannot broadcast submitted bid status without auction."
@@ -784,11 +892,11 @@ impl Store {
                     match index {
                         Some(index) => {
                             query_result = sqlx::query!(
-                                "UPDATE bid SET status = $1, bundle_index = $2, auction_id = $3 WHERE id = $4 AND status = 'submitted'",
+                                "UPDATE bid SET status = $1, metadata = jsonb_set(metadata, '{bundle_index}', $2), auction_id = $3 WHERE id = $4 AND status = 'submitted'",
                                 updated_status as _,
-                                index as i32,
+                                json!(index),
                                 auction.id,
-                                bid.id
+                                data.id
                             )
                             .execute(&self.db)
                             .await?;
@@ -798,7 +906,7 @@ impl Store {
                                 "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = 'pending'",
                                 updated_status as _,
                                 auction.id,
-                                bid.id
+                                data.id
                             )
                             .execute(&self.db)
                             .await?;
@@ -808,7 +916,7 @@ impl Store {
                     query_result = sqlx::query!(
                         "UPDATE bid SET status = $1 WHERE id = $2 AND status = 'pending'",
                         updated_status as _,
-                        bid.id
+                        data.id
                     )
                     .execute(&self.db)
                     .await?;
@@ -817,10 +925,10 @@ impl Store {
             }
             BidStatus::Won { result: _, index } => {
                 query_result = sqlx::query!(
-                    "UPDATE bid SET status = $1, bundle_index = $2 WHERE id = $3 AND status = 'submitted'",
+                    "UPDATE bid SET status = $1, metadata = jsonb_set(metadata, '{bundle_index}', $2) WHERE id = $3 AND status = 'submitted'",
                     updated_status as _,
-                    index as i32,
-                    bid.id
+                    json!(index),
+                    data.id
                 )
                 .execute(&self.db)
                 .await?;
@@ -833,7 +941,7 @@ impl Store {
         // To ensure we do not broadcast the update more than once, we need to check the below "if"
         if query_result.rows_affected() > 0 {
             self.broadcast_status_update(BidStatusWithId {
-                id:         bid.id,
+                id:         data.id,
                 bid_status: updated_status,
             });
         }

@@ -22,6 +22,9 @@ use {
             ExpressRelaySvm,
             PermissionKey,
             SimulatedBid,
+            SimulatedBidEvm,
+            SimulatedBidShared,
+            SimulatedBidSvm,
             Store,
         },
         traced_client::TracedClient,
@@ -177,7 +180,7 @@ impl Transformer for LegacyTxTransformer {
 pub async fn submit_bids(
     express_relay_contract: Arc<SignableExpressRelayContract>,
     permission: Bytes,
-    bids: Vec<SimulatedBid>,
+    bids: Vec<SimulatedBidEvm>,
 ) -> Result<H256, ContractError<SignableProvider>> {
     let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
     let tx_hash = express_relay_contract
@@ -192,13 +195,13 @@ pub async fn submit_bids(
     Ok(tx_hash)
 }
 
-impl From<(SimulatedBid, bool)> for MulticallData {
-    fn from((bid, revert_on_failure): (SimulatedBid, bool)) -> Self {
+impl From<(SimulatedBidEvm, bool)> for MulticallData {
+    fn from((bid, revert_on_failure): (SimulatedBidEvm, bool)) -> Self {
         MulticallData {
-            bid_id: bid.id.into_bytes(),
+            bid_id: bid.data.id.into_bytes(),
             target_contract: bid.target_contract,
             target_calldata: bid.target_calldata,
-            bid_amount: bid.bid_amount,
+            bid_amount: bid.data.bid_amount,
             gas_limit: bid.gas_limit,
             revert_on_failure,
         }
@@ -213,19 +216,19 @@ const TOTAL_BIDS_PER_AUCTION: usize = 3;
 
 #[tracing::instrument(skip_all)]
 async fn get_winner_bids(
-    bids: &[SimulatedBid],
+    bids: &[SimulatedBidEvm],
     permission_key: Bytes,
     store: Arc<Store>,
     chain_store: &ChainStoreEvm,
-) -> Result<Vec<SimulatedBid>, ContractError<Provider<TracedClient>>> {
+) -> Result<Vec<SimulatedBidEvm>, ContractError<Provider<TracedClient>>> {
     // TODO How we want to perform simulation, pruning, and determination
     if bids.is_empty() {
         return Ok(vec![]);
     }
 
     let mut bids = bids.to_owned();
-    bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
-    let bids: Vec<SimulatedBid> = bids.into_iter().take(TOTAL_BIDS_PER_AUCTION).collect();
+    bids.sort_by(|a, b| b.data.bid_amount.cmp(&a.data.bid_amount));
+    let bids: Vec<SimulatedBidEvm> = bids.into_iter().take(TOTAL_BIDS_PER_AUCTION).collect();
 
     let simulation_result = get_simulation_call(
         store.relayer.address(),
@@ -273,9 +276,9 @@ fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedF
 const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
 
 // An auction is ready if there are any bids with a lifetime of AUCTION_MINIMUM_LIFETIME
-fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDateTime) -> bool {
+fn is_ready_for_auction(bids: Vec<SimulatedBidEvm>, bid_collection_time: OffsetDateTime) -> bool {
     bids.iter()
-        .any(|bid| bid_collection_time - bid.initiation_time > AUCTION_MINIMUM_LIFETIME)
+        .any(|bid| bid_collection_time - bid.data.initiation_time > AUCTION_MINIMUM_LIFETIME)
 }
 
 async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction) -> Result<()> {
@@ -303,7 +306,7 @@ async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction)
                 if let Some(bid) = bids
                     .clone()
                     .into_iter()
-                    .find(|b| b.id == Uuid::from_bytes(decoded_log.bid_id))
+                    .find(|b| b.get_data().id == Uuid::from_bytes(decoded_log.bid_id))
                 {
                     if let Err(err) = store
                         .broadcast_bid_status_and_update(
@@ -390,7 +393,7 @@ async fn broadcast_lost_bids(
     join_all(bids.iter().filter_map(|bid| {
         if submitted_bids
             .iter()
-            .any(|submitted_bid| bid.id == submitted_bid.id)
+            .any(|submitted_bid| bid.get_data().id == submitted_bid.get_data().id)
         {
             return None;
         }
@@ -416,7 +419,7 @@ async fn broadcast_lost_bids(
 }
 
 async fn submit_auction_for_bids<'a>(
-    bids: Vec<SimulatedBid>,
+    bids: Vec<SimulatedBidEvm>,
     bid_collection_time: OffsetDateTime,
     permission_key: Bytes,
     chain_id: String,
@@ -424,9 +427,9 @@ async fn submit_auction_for_bids<'a>(
     chain_store: &ChainStoreEvm,
     _auction_mutex_gaurd: MutexGuard<'a, ()>,
 ) -> Result<()> {
-    let bids: Vec<SimulatedBid> = bids
+    let bids: Vec<SimulatedBidEvm> = bids
         .into_iter()
-        .filter(|bid| bid.status == BidStatus::Pending)
+        .filter(|bid| bid.data.status == BidStatus::Pending)
         .collect();
 
     if bids.is_empty() {
@@ -441,7 +444,14 @@ async fn submit_auction_for_bids<'a>(
     let winner_bids =
         get_winner_bids(&bids, permission_key.clone(), store.clone(), chain_store).await?;
     if winner_bids.is_empty() {
-        broadcast_lost_bids(store.clone(), bids, winner_bids, None, None).await;
+        broadcast_lost_bids(
+            store.clone(),
+            bids.into_iter().map(|b| b.into()).collect(),
+            winner_bids.into_iter().map(|b| b.into()).collect(),
+            None,
+            None,
+        )
+        .await;
         return Ok(());
     }
 
@@ -472,14 +482,14 @@ async fn submit_auction_for_bids<'a>(
             tokio::join!(
                 broadcast_submitted_bids(
                     store.clone(),
-                    winner_bids.clone(),
+                    winner_bids.clone().into_iter().map(|b| b.into()).collect(),
                     tx_hash,
                     auction.clone()
                 ),
                 broadcast_lost_bids(
                     store.clone(),
-                    bids,
-                    winner_bids,
+                    bids.into_iter().map(|b| b.into()).collect(),
+                    winner_bids.into_iter().map(|b| b.into()).collect(),
                     Some(tx_hash),
                     Some(&auction)
                 ),
@@ -508,6 +518,14 @@ async fn submit_auction_for_lock(
     let bids: Vec<SimulatedBid> = store
         .get_bids(&(permission_key.clone(), chain_id.clone()))
         .await;
+
+    let bids: Vec<SimulatedBidEvm> = bids
+        .into_iter()
+        .filter_map(|b| match b {
+            SimulatedBid::Evm(b) => Some(b),
+            _ => None,
+        })
+        .collect();
 
     submit_auction_for_bids(
         bids,
@@ -828,9 +846,7 @@ pub async fn handle_bid(
     .await?;
 
     let bid_id = Uuid::new_v4();
-    let simulated_bid = SimulatedBid {
-        target_contract: bid.target_contract,
-        target_calldata: bid.target_calldata.clone(),
+    let data = SimulatedBidShared {
         bid_amount: bid.amount,
         id: bid_id,
         permission_key: bid.permission_key.clone(),
@@ -841,10 +857,15 @@ pub async fn handle_bid(
             Auth::Authorized(_, profile) => Some(profile.id),
             _ => None,
         },
+    };
+    let simulated_bid = SimulatedBidEvm {
+        data,
+        target_contract: bid.target_contract,
+        target_calldata: bid.target_calldata.clone(),
         // Add a 25% more for estimation errors
         gas_limit: estimated_gas * U256::from(125) / U256::from(100),
     };
-    store.add_bid(simulated_bid).await?;
+    store.add_bid(simulated_bid.into()).await?;
     Ok(bid_id)
 }
 
@@ -976,8 +997,8 @@ fn extract_bid_data_svm(
 pub async fn handle_bid_svm(
     store: Arc<Store>,
     bid: BidSvm,
-    _initiation_time: OffsetDateTime,
-    _auth: Auth,
+    initiation_time: OffsetDateTime,
+    auth: Auth,
 ) -> result::Result<Uuid, RestError> {
     let chain_store = store
         .chains_svm
@@ -986,15 +1007,34 @@ pub async fn handle_bid_svm(
 
     let submit_bid_instruction =
         verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
-    let (_bid_amount, _permission_key) = extract_bid_data_svm(
+    let (bid_amount, permission_key) = extract_bid_data_svm(
         store.express_relay_svm.clone(),
         bid.transaction.message.static_account_keys(),
         submit_bid_instruction,
     )?;
+
     verify_signatures_svm(&bid, &store.express_relay_svm.relayer.pubkey())?;
     simulate_bid_svm(chain_store, &bid).await?;
-    // TODO implement this
-    Err(RestError::NotImplemented)
+
+    let bid_id = Uuid::new_v4();
+    let data = SimulatedBidShared {
+        bid_amount: U256::from(bid_amount),
+        id: bid_id,
+        permission_key,
+        chain_id: bid.chain_id.clone(),
+        status: BidStatus::Pending,
+        initiation_time,
+        profile_id: match auth {
+            Auth::Authorized(_, profile) => Some(profile.id),
+            _ => None,
+        },
+    };
+    let simulated_bid = SimulatedBidSvm {
+        data,
+        transaction: bid.transaction,
+    };
+    store.add_bid(simulated_bid.into()).await?;
+    Ok(bid_id)
 }
 
 fn verify_signatures_svm(bid: &BidSvm, relayer_pubkey: &Pubkey) -> Result<(), RestError> {

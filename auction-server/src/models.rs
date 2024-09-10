@@ -1,10 +1,20 @@
 use {
-    ethers::types::H256,
+    ethers::types::{
+        Address,
+        Bytes,
+        H256,
+    },
+    serde::{
+        Deserialize,
+        Serialize,
+    },
+    solana_sdk::transaction::VersionedTransaction,
     sqlx::{
         prelude::FromRow,
         types::{
             time::PrimitiveDateTime,
             BigDecimal,
+            Json,
             JsonValue,
         },
     },
@@ -122,22 +132,8 @@ pub enum BidStatus {
     Won,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleIndex(pub Option<u32>);
-
-impl TryFrom<Option<i32>> for BundleIndex {
-    type Error = anyhow::Error;
-    fn try_from(value: Option<i32>) -> Result<Self, Self::Error> {
-        match value {
-            Some(value) => {
-                let result: u32 = value.try_into()?;
-                Ok(BundleIndex(Some(result)))
-            }
-            None => Ok(BundleIndex(None)),
-        }
-    }
-}
-
 impl Deref for BundleIndex {
     type Target = Option<u32>;
 
@@ -146,22 +142,47 @@ impl Deref for BundleIndex {
     }
 }
 
-#[derive(Clone, FromRow, Debug)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
+#[sqlx(type_name = "chain_type", rename_all = "lowercase")]
+pub enum ChainType {
+    Evm,
+    Svm,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BidMetadataEvm {
+    pub target_contract: Address,
+    pub target_calldata: Bytes,
+    pub bundle_index:    BundleIndex,
+    pub gas_limit:       u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BidMetadataSvm {
+    #[serde(with = "crate::serde::transaction_svm")]
+    pub transaction: VersionedTransaction,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BidMetadata {
+    Evm(BidMetadataEvm),
+    Svm(BidMetadataSvm),
+}
+
+#[derive(Clone, Debug, FromRow)]
 pub struct Bid {
     pub id:              BidId,
     pub creation_time:   PrimitiveDateTime,
     pub permission_key:  Vec<u8>,
     pub chain_id:        String,
-    pub target_contract: Vec<u8>,
-    pub target_calldata: Vec<u8>,
+    pub chain_type:      ChainType,
     pub bid_amount:      BigDecimal,
     pub status:          BidStatus,
     pub auction_id:      Option<AuctionId>,
-    #[sqlx(try_from = "Option<i32>")]
-    pub bundle_index:    BundleIndex,
     pub initiation_time: PrimitiveDateTime,
     pub profile_id:      Option<ProfileId>,
-    pub gas_limit:       BigDecimal,
+    pub metadata:        Json<BidMetadata>,
 }
 
 impl Bid {
@@ -169,6 +190,15 @@ impl Bid {
         match auction {
             Some(a) => self.auction_id == Some(a.id),
             None => self.auction_id.is_none(),
+        }
+    }
+}
+
+impl BidMetadata {
+    pub fn get_bundle_index(&self) -> Option<u32> {
+        match self {
+            BidMetadata::Evm(metadata) => *metadata.bundle_index,
+            BidMetadata::Svm(_) => None,
         }
     }
 }
