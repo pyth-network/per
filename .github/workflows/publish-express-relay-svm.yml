@@ -2,8 +2,8 @@ name: Publish Express Relay SVM to crates.io
 
 on:
   push:
-    branches:
-      - fix_express_relay_cargo_workflow
+    tags:
+      - express-relay-svm-v*
 jobs:
   publish-express-relay-svm:
     name: Publish Express Relay SVM
