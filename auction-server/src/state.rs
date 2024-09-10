@@ -65,7 +65,6 @@ use {
             hash_map::Entry,
             HashMap,
         },
-        io::Read,
         str::FromStr,
         sync::Arc,
     },
@@ -118,6 +117,7 @@ pub struct SimulatedBidShared {
 #[schema(title = "BidResponseSvm")]
 pub struct SimulatedBidSvm {
     #[serde(flatten)]
+    #[schema(inline)]
     pub data:        SimulatedBidShared,
     /// The transaction of the bid.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
@@ -128,6 +128,7 @@ pub struct SimulatedBidSvm {
 #[schema(title = "BidResponseEvm")]
 pub struct SimulatedBidEvm {
     #[serde(flatten)]
+    #[schema(inline)]
     pub data:            SimulatedBidShared,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
