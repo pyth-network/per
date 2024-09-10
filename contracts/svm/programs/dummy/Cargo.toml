@@ -2,8 +2,6 @@
 name = "dummy"
 version = "0.1.0"
 description = "Created with Anchor"
-repository = "https://github.com/pyth-network/per"
-license = "Apache-2.0"
 edition = "2021"
 
 [lib]
