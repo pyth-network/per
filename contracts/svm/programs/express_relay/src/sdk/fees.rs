@@ -10,7 +10,7 @@ use {
     anchor_lang::prelude::*,
 };
 
-// Returns the total fees paid to the router for a given permission and router within the current transaction
+/// Returns the total fees paid to the router for a given permission and router within the current transaction
 pub fn get_fees_paid_to_router(
     sysvar_instructions: AccountInfo,
     permission: AccountInfo,

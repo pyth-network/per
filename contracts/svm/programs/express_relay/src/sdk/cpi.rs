@@ -6,7 +6,7 @@ use {
     },
 };
 
-// Helper method to create a CPI to the Express Relay program to check permission for a given permission key and router
+/// Helper method to create a CPI to the Express Relay program to check permission for a given permission key and router
 pub fn check_permission<'info>(
     sysvar_instructions: AccountInfo<'info>,
     permission: AccountInfo<'info>,

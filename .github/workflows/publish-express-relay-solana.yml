@@ -1,12 +1,12 @@
-name: Publish Express Relay Solana to crates.io
+name: Publish Express Relay SVM to crates.io
 
 on:
   push:
     tags:
-      - express-relay-solana-v*
+      - express-relay-svm-v*
 jobs:
-  publish-express-relay-solana:
-    name: Publish Express Relay Solana
+  publish-express-relay-svm:
+    name: Publish Express Relay SVM
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources

@@ -4,18 +4,18 @@ This subdir contains the Express Relay program and its SDK to help integrating p
 
 ## Express Relay Design
 
-The design of Express Relay on Solana utilizes the fact that Solana allows for multiple instructions to different programs within the same transaction. As a result, one of the instructions in the Express Relay instruction will be the `SubmitBid` instruction of the Express Relay program, using a `permission` account that represents the specific position/vault whose permissioning is being auctioned by Express Relay. This `permission` pubkey could represent the address of a user's position (or the keccak hash of relevant identifying information for a particular position). This `SubmitBid` instruction will also handle validating and distributing to the relevant parties (protocol, relayer, Express Relay admin) the bid.
+The design of Express Relay on Solana utilizes the fact that Solana allows for multiple instructions to different programs within the same transaction. As a result, one of the instructions in the Express Relay transaction will be the `SubmitBid` instruction of the Express Relay program, using a `permission` account that represents the specific opportunity (e.g. trade; vault liquidation) whose permissioning is being auctioned by Express Relay. For example, this `permission` pubkey could be the address of a user's position (or the keccak hash of relevant identifying information for a particular position). The `SubmitBid` instruction will also handle validating and distributing to the relevant parties (router, relayer) the bid.
 
-The Express Relay `SubmitBid` instruction must be signed by a keypair belonging to the relayer, which is set by governance. It should also be signed by the wallet of the searcher from which the bid will be extracted in SOL (this will often also be the keypair that signs the integrating program instruction(s)). The `SubmitBid` instruction will also contain an account `protocol` representing the integrating program/app. This can be the address of an executable account (most likely the address of an integrating program), in which case the `fee_receiver_protocol` should be a specified PDA of this program. It could alternatively be the pubkey of a keypair (e.g. for frontends looking to integrate), in which case `fee_recevier_protocol` should be the same as `protocol`. The `protocol_config` account specifies the protocol-specific config PDA that, if it exists, has protocol-specific fee splits.
+The Express Relay `SubmitBid` instruction has two signers: a keypair belonging to the relayer, which is set by governance, and the wallet of the searcher from which the bid will be extracted in SOL (this will often also be the keypair that signs the integrating program instruction(s)). Before submitting the transaction with the `SubmitBid` instruction, a searcher must sign that transaction with all the necessary keypairs except for the relayer keypair. The `SubmitBid` instruction will also contain an account `router` representing the integrating program/app. This could be a PDA of the integrating program, the address of a relevant user (e.g. limit order maker) in the transaction workflow, or an address controlled by a protocol's DAO or an app's owner--whoever the integrating program/app wants to receive the fees from Express Relay. The `router_config` account specifies the router-specific config PDA that, if it exists, has router-specific fee splits (which would have been set by governance).
 
 The integrating program will need to check that the appropriate `SubmitBid` instruction is one of the instructions in the ongoing transaction. It can do this by calling the `CheckPermission` method of the Express Relay program via CPI. Note that the permissioning is not stored in any state; it is simply retrieved from the instructions of the current transaction.
 
 To integrate with Express Relay, the integrating program needs to make the following changes:
 
-1. Store the pubkey of the express relay program or validate it in the program logic
-2. Add a `permission` account to the relevant instruction being gated
-3. Make a CPI to the Express Relay program `CheckPermission` instruction
-4. If planning to receive fees in a PDA of the program, create the relevant PDA specified by the seeds in the Express Relay `SubmitBid` instruction.
+1. Store the pubkey of the express relay program and validate it in the program logic
+2. Add a `permission` account to the relevant instruction being gated, or use a suitable existing account for the permissioning check.
+3. Make a CPI to the Express Relay program `CheckPermission` instruction with the designated `permission` and `router` accounts.
+4. If planning to receive fees in a PDA of the program, create the relevant PDA specified by the seeds in the Express Relay `SubmitBid` instruction beforehand.
 
 ## Example Integration
 
