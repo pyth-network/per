@@ -12,7 +12,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - run: cargo publish --token ${PYTH_NETWORK_PYTH_OPS_CARGO_PUSH}
+      - run: cargo publish --token ${CARGO_REGISTRY_TOKEN}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.PYTH_NETWORK_PYTH_OPS_CARGO_PUSH }}
         working-directory: "contracts/svm/programs/express_relay"
