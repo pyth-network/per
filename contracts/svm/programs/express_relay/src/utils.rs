@@ -7,6 +7,7 @@ use {
     anchor_lang::{
         prelude::*,
         solana_program::{
+            instruction::Instruction,
             serialize_utils::read_u16,
             sysvar::instructions::load_instruction_at_checked,
         },
@@ -62,13 +63,13 @@ pub struct PermissionInfo {
     pub router:     Pubkey,
 }
 
-pub fn num_permissions_in_tx(
-    sysvar_instructions: UncheckedAccount,
+pub fn get_matching_instructions(
+    sysvar_instructions: AccountInfo,
     permission_info: Option<PermissionInfo>,
-) -> Result<u16> {
+) -> Result<Vec<Instruction>> {
     let num_instructions = read_u16(&mut 0, &sysvar_instructions.data.borrow())
         .map_err(|_| ProgramError::InvalidInstructionData)?;
-    let mut permission_count = 0u16;
+    let mut matching_instructions = Vec::new();
     for index in 0..num_instructions {
         let ix = load_instruction_at_checked(index.into(), &sysvar_instructions)?;
 
@@ -89,10 +90,19 @@ pub fn num_permissions_in_tx(
             }
         }
 
-        permission_count += 1;
+        matching_instructions.push(ix);
     }
 
-    Ok(permission_count)
+    Ok(matching_instructions)
+}
+
+pub fn num_permissions_in_tx(
+    sysvar_instructions: UncheckedAccount,
+    permission_info: Option<PermissionInfo>,
+) -> Result<u16> {
+    let matching_ixs =
+        get_matching_instructions(sysvar_instructions.to_account_info(), permission_info)?;
+    Ok(matching_ixs.len() as u16)
 }
 
 pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()> {

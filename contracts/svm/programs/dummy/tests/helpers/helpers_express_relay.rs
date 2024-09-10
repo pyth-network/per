@@ -9,7 +9,14 @@ use {
         InstructionData,
         ToAccountMetas,
     },
-    express_relay::sdk::test_helpers::create_initialize_express_relay_ix,
+    dummy::SEED_FEES_COUNT,
+    express_relay::{
+        sdk::test_helpers::create_initialize_express_relay_ix,
+        state::{
+            SEED_CONFIG_ROUTER,
+            SEED_METADATA,
+        },
+    },
     solana_program_test::{
         ProgramTest,
         ProgramTestContext,
@@ -75,6 +82,32 @@ pub fn create_do_nothing_ix(payer: Pubkey, permission: Pubkey, router: Pubkey) -
             sysvar_instructions: sysvar_instructions::id(),
             permission,
             router,
+        }
+        .to_account_metas(None),
+    }
+}
+
+pub fn create_count_fees_ix(payer: Pubkey, permission: Pubkey, router: Pubkey) -> Instruction {
+    let express_relay_metadata =
+        Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
+    let router_config = Pubkey::find_program_address(
+        &[SEED_CONFIG_ROUTER, &router.to_bytes()],
+        &express_relay::id(),
+    )
+    .0;
+    let fees_count = Pubkey::find_program_address(&[SEED_FEES_COUNT], &dummy::id()).0;
+    Instruction {
+        program_id: dummy::id(),
+        data:       dummy::instruction::CountFees {}.data(),
+        accounts:   dummy::accounts::CountFees {
+            payer,
+            express_relay_metadata,
+            sysvar_instructions: anchor_lang::solana_program::sysvar::instructions::id(),
+            permission,
+            router,
+            router_config,
+            fees_count,
+            system_program: anchor_lang::solana_program::system_program::id(),
         }
         .to_account_metas(None),
     }

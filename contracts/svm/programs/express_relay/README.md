@@ -34,11 +34,13 @@ pub mod integrating_program {
             ctx.accounts.sysvar_instructions.to_account_info(),
             ctx.accounts.permission.to_account_info(),
             ctx.accounts.router.to_account_info(),
-        )
+        )?;
 
         /// integrating_program do_something logic
     }
 }
 ```
+
+Some integrating programs may additionally need to learn how much will be paid in fees in an ongoing transaction. These programs can use the `get_fees_paid_to_router` helper defined in the SDK. An example use of this can be seen in the [dummy example program](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy).
 
 To run Rust-based tests, an integrating program can use the helper methods defined in `src/sdk/test_helpers.rs`. See the [dummy example](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy) to see how these methods can be used for Rust-based end-to-end testing.
