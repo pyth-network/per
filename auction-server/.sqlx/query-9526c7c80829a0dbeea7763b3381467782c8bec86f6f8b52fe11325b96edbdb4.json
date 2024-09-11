@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO bid (id, creation_time, permission_key, chain_id, target_contract, target_calldata, bid_amount, status, initiation_time, profile_id, gas_limit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+  "query": "INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -9,8 +9,17 @@
         "Timestamp",
         "Bytea",
         "Text",
-        "Bytea",
-        "Bytea",
+        {
+          "Custom": {
+            "name": "chain_type",
+            "kind": {
+              "Enum": [
+                "evm",
+                "svm"
+              ]
+            }
+          }
+        },
         "Numeric",
         {
           "Custom": {
@@ -27,10 +36,10 @@
         },
         "Timestamp",
         "Uuid",
-        "Numeric"
+        "Jsonb"
       ]
     },
     "nullable": []
   },
-  "hash": "b8d0513ba6a00c8ad20b9c72677a69857e0f8ae8c2401c52f7f961c600574ffa"
+  "hash": "9526c7c80829a0dbeea7763b3381467782c8bec86f6f8b52fe11325b96edbdb4"
 }

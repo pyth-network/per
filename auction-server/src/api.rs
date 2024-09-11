@@ -36,6 +36,8 @@ use {
             OpportunityParams,
             OpportunityParamsV1,
             SimulatedBid,
+            SimulatedBidEvm,
+            SimulatedBidSvm,
             Store,
             TokenAmount,
         },
@@ -134,8 +136,6 @@ pub enum RestError {
     TemporarilyUnavailable,
     /// Invalid auth token
     InvalidToken,
-    /// Not implemented
-    NotImplemented,
 }
 
 impl RestError {
@@ -171,10 +171,6 @@ impl RestError {
             RestError::InvalidToken => (
                 StatusCode::UNAUTHORIZED,
                 "Invalid authorization token".to_string(),
-            ),
-            RestError::NotImplemented => (
-                StatusCode::NOT_IMPLEMENTED,
-                "This feature is not implemented".to_string(),
             ),
         }
     }
@@ -328,6 +324,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     BidStatusWithId,
     BidResult,
     SimulatedBid,
+    SimulatedBidEvm,
+    SimulatedBidSvm,
     SimulatedBids,
     OpportunityParamsV1,
     OpportunityBid,
