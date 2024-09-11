@@ -24,7 +24,7 @@ pub fn get_express_relay_metadata(svm: litesvm::LiteSVM) -> ExpressRelayMetadata
     express_relay_metadata
 }
 
-pub fn get_router_config_key(router: Pubkey) -> Pubkey {
+pub fn get_config_router_key(router: Pubkey) -> Pubkey {
     return Pubkey::find_program_address(
         &[SEED_CONFIG_ROUTER, router.as_ref()],
         &express_relay::id(),
@@ -32,9 +32,9 @@ pub fn get_router_config_key(router: Pubkey) -> Pubkey {
     .0;
 }
 
-pub fn get_router_config(svm: litesvm::LiteSVM, router: Pubkey) -> Option<ConfigRouter> {
-    let router_config_key = get_router_config_key(router);
-    return svm.get_account(&router_config_key).map(|acc| {
+pub fn get_config_router(svm: litesvm::LiteSVM, router: Pubkey) -> Option<ConfigRouter> {
+    let config_router_key = get_config_router_key(router);
+    return svm.get_account(&config_router_key).map(|acc| {
         ConfigRouter::try_deserialize(&mut acc.data.as_ref())
             .expect("Account is not of struct ConfigRouter")
     });

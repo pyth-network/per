@@ -104,12 +104,14 @@ async def main():
 
     permission = Pubkey.find_program_address([b"vault"], dummy_pid)[0]
     router = Pubkey.find_program_address([b"fees_express_relay"], dummy_pid)[0]
-    router_config = Pubkey.find_program_address(
+    config_router = Pubkey.find_program_address(
         [b"config_router", bytes(router)], express_relay_pid
     )[0]
     pk_express_relay_metadata = Pubkey.find_program_address(
         [b"metadata"], express_relay_pid
     )[0]
+
+    accounting = Pubkey.find_program_address([b"accounting"], dummy_pid)[0]
 
     discriminator_submit_bid = hashlib.sha256(b"global:submit_bid").digest()[:8]
     data_submit_bid = struct.pack(
@@ -123,9 +125,9 @@ async def main():
             AccountMeta(pk_relayer_signer, True, False),
             AccountMeta(permission, False, False),
             AccountMeta(router, False, True),
-            AccountMeta(router_config, False, False),
-            AccountMeta(pk_relayer_signer, False, True),
+            AccountMeta(config_router, False, False),
             AccountMeta(pk_express_relay_metadata, False, True),
+            AccountMeta(pk_relayer_signer, False, True),
             AccountMeta(system_pid, False, False),
             AccountMeta(sysvar_ixs_pid, False, False),
         ],
@@ -139,9 +141,13 @@ async def main():
         [
             AccountMeta(pk_searcher, True, True),
             AccountMeta(express_relay_pid, False, False),
+            AccountMeta(pk_express_relay_metadata, False, False),
             AccountMeta(sysvar_ixs_pid, False, False),
             AccountMeta(permission, False, False),
             AccountMeta(router, False, False),
+            AccountMeta(config_router, False, False),
+            AccountMeta(accounting, False, True),
+            AccountMeta(system_pid, False, False),
         ],
     )
 

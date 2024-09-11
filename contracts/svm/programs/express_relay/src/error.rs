@@ -18,4 +18,6 @@ pub enum ErrorCode {
     InsufficientSearcherFunds,
     #[msg("Insufficient funds for rent")]
     InsufficientRent,
+    #[msg("Did not return router fees")]
+    DidNotReturnRouterFees,
 }

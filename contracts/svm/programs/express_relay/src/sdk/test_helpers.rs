@@ -97,7 +97,7 @@ pub fn create_submit_bid_instruction(
     deadline: i64,
     bid_amount: u64,
 ) -> Instruction {
-    let router_config =
+    let config_router =
         Pubkey::find_program_address(&[SEED_CONFIG_ROUTER, router.as_ref()], &EXPRESS_RELAY_PID).0;
     let express_relay_metadata =
         Pubkey::find_program_address(&[SEED_METADATA], &EXPRESS_RELAY_PID).0;
@@ -107,7 +107,7 @@ pub fn create_submit_bid_instruction(
         relayer_signer,
         permission,
         router,
-        router_config,
+        config_router,
         fee_receiver_relayer,
         express_relay_metadata,
         system_program: system_program::ID,

@@ -11,8 +11,8 @@ crate-type = ["cdylib", "lib"]
 name = "express_relay"
 
 [features]
-default = []
-cpi = ["no-entrypoint"]
+default = ["cpi"]
+cpi = []
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []

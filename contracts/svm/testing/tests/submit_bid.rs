@@ -1,5 +1,6 @@
 use {
     anchor_lang::error::ErrorCode as AnchorErrorCode,
+    dummy::RESERVE_ACCOUNTING,
     express_relay::{
         error::ErrorCode,
         state::FEE_SPLIT_PRECISION,
@@ -145,7 +146,7 @@ fn test_bid() {
     );
     assert_eq!(
         balance_searcher_pre - balance_searcher_post,
-        bid_amount + TX_FEE
+        bid_amount + TX_FEE + Rent::default().minimum_balance(RESERVE_ACCOUNTING)
     );
 }
 

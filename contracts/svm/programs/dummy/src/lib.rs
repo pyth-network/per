@@ -5,13 +5,10 @@ use {
     },
     express_relay::{
         program::ExpressRelay,
-        sdk::{
-            cpi::check_permission,
-            fees::get_fees_paid_to_router,
-        },
         state::{
             ExpressRelayMetadata,
             SEED_CONFIG_ROUTER,
+            SEED_METADATA,
         },
     },
 };
@@ -20,27 +17,29 @@ declare_id!("HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3");
 
 #[program]
 pub mod dummy {
-    use super::*;
+    use {
+        super::*,
+        express_relay::{
+            cpi::accounts::CheckPermission,
+            sdk::cpi::check_permission_cpi,
+        },
+    };
 
     pub fn do_nothing(ctx: Context<DoNothing>) -> Result<()> {
-        check_permission(
-            ctx.accounts.sysvar_instructions.to_account_info(),
-            ctx.accounts.permission.to_account_info(),
-            ctx.accounts.router.to_account_info(),
-        )
-    }
-
-    pub fn count_fees(ctx: Context<CountFees>) -> Result<()> {
-        let fees_paid = get_fees_paid_to_router(
-            ctx.accounts.sysvar_instructions.to_account_info(),
-            ctx.accounts.permission.to_account_info(),
-            ctx.accounts.router.to_account_info(),
-            ctx.accounts.router_config.to_account_info(),
-            ctx.accounts.express_relay_metadata.clone(),
+        let check_permission_accounts = CheckPermission {
+            sysvar_instructions:    ctx.accounts.sysvar_instructions.to_account_info(),
+            permission:             ctx.accounts.permission.to_account_info(),
+            router:                 ctx.accounts.router.to_account_info(),
+            config_router:          ctx.accounts.config_router.to_account_info(),
+            express_relay_metadata: ctx.accounts.express_relay_metadata.to_account_info(),
+        };
+        let (n_bid_ixs, fees) = check_permission_cpi(
+            check_permission_accounts,
+            ctx.accounts.express_relay.to_account_info(),
         )?;
 
-        ctx.accounts.fees_count.count += fees_paid;
-
+        ctx.accounts.accounting.n_bids += n_bid_ixs;
+        ctx.accounts.accounting.total_fees += fees;
         Ok(())
     }
 }
@@ -53,23 +52,7 @@ pub struct DoNothing<'info> {
     #[account(address = express_relay::ID)]
     pub express_relay: Program<'info, ExpressRelay>,
 
-    /// CHECK: this is the sysvar instructions account
-    #[account(address = sysvar_instructions::ID)]
-    pub sysvar_instructions: UncheckedAccount<'info>,
-
-    /// CHECK: this is the permission key
-    pub permission: UncheckedAccount<'info>,
-
-    /// CHECK: this is the address to receive express relay fees at
-    pub router: UncheckedAccount<'info>,
-}
-
-#[derive(Accounts)]
-pub struct CountFees<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    #[account(seeds = [b"metadata"], bump, seeds::program = express_relay::ID)]
+    #[account(seeds = [SEED_METADATA], bump, seeds::program = express_relay.key())]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
     /// CHECK: this is the sysvar instructions account
@@ -83,19 +66,21 @@ pub struct CountFees<'info> {
     pub router: UncheckedAccount<'info>,
 
     /// CHECK: doesn't matter what this looks like
-    #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump, seeds::program = express_relay::ID)]
-    pub router_config: UncheckedAccount<'info>,
+    #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump, seeds::program = express_relay.key())]
+    pub config_router: UncheckedAccount<'info>,
 
-    #[account(init_if_needed, payer = payer, space = 8 + 8, seeds = [SEED_FEES_COUNT], bump)]
-    pub fees_count: Account<'info, FeesCount>,
+    #[account(init_if_needed, payer = payer, space = RESERVE_ACCOUNTING, seeds = [SEED_ACCOUNTING], bump)]
+    pub accounting: Account<'info, Accounting>,
 
     pub system_program: Program<'info, System>,
 }
 
-pub const SEED_FEES_COUNT: &[u8] = b"fees_count";
+pub const RESERVE_ACCOUNTING: usize = 8 + 10;
+pub const SEED_ACCOUNTING: &[u8] = b"accounting";
 
 #[account]
 #[derive(Default)]
-pub struct FeesCount {
-    pub count: u64,
+pub struct Accounting {
+    pub n_bids:     u16,
+    pub total_fees: u64,
 }

@@ -3,6 +3,7 @@ use {
         error::ErrorCode,
         state::*,
         SubmitBid,
+        SubmitBidArgs,
     },
     anchor_lang::{
         prelude::*,
@@ -58,14 +59,16 @@ pub fn check_fee_hits_min_rent(account: &AccountInfo, fee: u64) -> Result<()> {
     Ok(())
 }
 
-pub struct PermissionInfo {
-    pub permission: Pubkey,
-    pub router:     Pubkey,
+pub struct PermissionInfo<'info> {
+    pub permission:             Pubkey,
+    pub router:                 Pubkey,
+    pub config_router:          AccountInfo<'info>,
+    pub express_relay_metadata: AccountInfo<'info>,
 }
 
 pub fn get_matching_instructions(
     sysvar_instructions: AccountInfo,
-    permission_info: Option<PermissionInfo>,
+    permission_info: Option<&PermissionInfo>,
 ) -> Result<Vec<Instruction>> {
     let num_instructions = read_u16(&mut 0, &sysvar_instructions.data.borrow())
         .map_err(|_| ProgramError::InvalidInstructionData)?;
@@ -80,12 +83,20 @@ pub fn get_matching_instructions(
             continue;
         }
 
-        if let Some(ref permission_info) = permission_info {
+        if let Some(permission_info) = permission_info {
             if ix.accounts[2].pubkey != permission_info.permission {
                 continue;
             }
 
             if ix.accounts[3].pubkey != permission_info.router {
+                continue;
+            }
+
+            if ix.accounts[4].pubkey != permission_info.config_router.key() {
+                continue;
+            }
+
+            if ix.accounts[5].pubkey != permission_info.express_relay_metadata.key() {
                 continue;
             }
         }
@@ -96,13 +107,54 @@ pub fn get_matching_instructions(
     Ok(matching_instructions)
 }
 
-pub fn num_permissions_in_tx(
+/// Extracts the bid paid from a SubmitBid instruction
+pub fn extract_bid_from_submit_bid_ix(submit_bid_ix: &Instruction) -> Result<u64> {
+    let submit_bid_args =
+        SubmitBidArgs::try_from_slice(&submit_bid_ix.data[8..]).map_err(|_| {
+            ProgramError::BorshIoError("Failed to deserialize SubmitBidArgs".to_string())
+        })?;
+    Ok(submit_bid_args.bid_amount)
+}
+
+/// Performs instruction introspection on a transaction to determine the SubmitBid instructions that match the given permission and router
+/// Returns the number of matching instructions. If the permission_info struct is provided, also returns the total fees paid to the router in the matching instructions
+pub fn inspect_permissions_in_tx(
     sysvar_instructions: UncheckedAccount,
-    permission_info: Option<PermissionInfo>,
-) -> Result<u16> {
+    permission_info: Option<&PermissionInfo>,
+) -> Result<(u16, Option<u64>)> {
     let matching_ixs =
         get_matching_instructions(sysvar_instructions.to_account_info(), permission_info)?;
-    Ok(matching_ixs.len() as u16)
+    let n_ixs = matching_ixs.len() as u16;
+
+    match permission_info {
+        Some(permission_info) => {
+            let mut total_fees = 0u64;
+            let data_config_router = &mut &**permission_info.config_router.try_borrow_data()?;
+            let split_router = match ConfigRouter::try_deserialize(data_config_router) {
+                Ok(config_router) => config_router.split,
+                Err(_) => {
+                    let data_express_relay_metadata =
+                        &mut &**permission_info.express_relay_metadata.try_borrow_data()?;
+                    msg!("Failed to deserialize ConfigRouter, using default split");
+                    msg!(
+                        "data express_relay_metadata: {:?}",
+                        data_express_relay_metadata
+                    );
+                    let express_relay_metadata =
+                        ExpressRelayMetadata::try_deserialize(data_express_relay_metadata)
+                            .map_err(|_| ProgramError::InvalidAccountData)?;
+                    express_relay_metadata.split_router_default
+                }
+            };
+            for ix in matching_ixs {
+                let fee = extract_bid_from_submit_bid_ix(&ix)?;
+                total_fees += fee * split_router / FEE_SPLIT_PRECISION;
+            }
+
+            Ok((n_ixs, Some(total_fees)))
+        }
+        None => Ok((n_ixs, None)),
+    }
 }
 
 pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()> {
@@ -116,14 +168,14 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
     let split_relayer = express_relay_metadata.split_relayer;
     let split_router_default = express_relay_metadata.split_router_default;
 
-    let router_config = &ctx.accounts.router_config;
-    let router_config_account_info = router_config.to_account_info();
+    let config_router = &ctx.accounts.config_router;
+    let config_router_account_info = config_router.to_account_info();
     // validate the router config account struct in program logic bc it may be uninitialized
     // only validate if the account has data
-    let split_router: u64 = if router_config_account_info.data_len() > 0 {
-        let account_data = &mut &**router_config_account_info.try_borrow_data()?;
-        let router_config_data = ConfigRouter::try_deserialize(account_data)?;
-        router_config_data.split
+    let split_router: u64 = if config_router_account_info.data_len() > 0 {
+        let account_data = &mut &**config_router_account_info.try_borrow_data()?;
+        let config_router_data = ConfigRouter::try_deserialize(account_data)?;
+        config_router_data.split
     } else {
         split_router_default
     };
