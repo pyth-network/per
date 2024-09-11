@@ -135,11 +135,6 @@ pub fn inspect_permissions_in_tx(
                 Err(_) => {
                     let data_express_relay_metadata =
                         &mut &**permission_info.express_relay_metadata.try_borrow_data()?;
-                    msg!("Failed to deserialize ConfigRouter, using default split");
-                    msg!(
-                        "data express_relay_metadata: {:?}",
-                        data_express_relay_metadata
-                    );
                     let express_relay_metadata =
                         ExpressRelayMetadata::try_deserialize(data_express_relay_metadata)
                             .map_err(|_| ProgramError::InvalidAccountData)?;

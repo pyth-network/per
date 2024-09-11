@@ -19,7 +19,7 @@ To integrate with Express Relay, the integrating program needs to make the follo
 
 ## Example Integration
 
-Integrating programs can use the `check_permission` helper method defined in the Express Relay SDK:
+Integrating programs can use the `check_permission_cpi` helper method defined in the Express Relay SDK:
 
 ```rust
 use anchor_lang::prelude::*;
@@ -30,10 +30,16 @@ pub mod integrating_program {
     use super::*;
 
     pub fn do_something(ctx: Context<DoSomething>, data: DoSomethingArgs) -> Result<()> {
-        check_permission(
-            ctx.accounts.sysvar_instructions.to_account_info(),
-            ctx.accounts.permission.to_account_info(),
-            ctx.accounts.router.to_account_info(),
+        let check_permission_accounts = CheckPermission {
+            sysvar_instructions:    ctx.accounts.sysvar_instructions.to_account_info(),
+            permission:             ctx.accounts.permission.to_account_info(),
+            router:                 ctx.accounts.router.to_account_info(),
+            config_router:          ctx.accounts.config_router.to_account_info(),
+            express_relay_metadata: ctx.accounts.express_relay_metadata.to_account_info(),
+        };
+        let (n_bid_ixs, fees) = check_permission_cpi(
+            check_permission_accounts,
+            ctx.accounts.express_relay.to_account_info(),
         )?;
 
         /// integrating_program do_something logic
@@ -41,6 +47,6 @@ pub mod integrating_program {
 }
 ```
 
-Some integrating programs may additionally need to learn how much will be paid in fees in an ongoing transaction. These programs can use the `get_fees_paid_to_router` helper defined in the SDK. An example use of this can be seen in the [dummy example program](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy).
+Some integrating programs may need to learn how much will be paid in fees in an ongoing transaction. The `check_permission_cpi` returns a tuple with the number of bid instructions matching the specified `permission` and `router` and the fees paid to the router in the current transaction. An example use of this can be seen in the [dummy example program](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy).
 
 To run Rust-based tests, an integrating program can use the helper methods defined in `src/sdk/test_helpers.rs`. See the [dummy example](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy) to see how these methods can be used for Rust-based end-to-end testing.

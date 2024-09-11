@@ -4,7 +4,9 @@ use {
         solana_program::sysvar::instructions as sysvar_instructions,
     },
     express_relay::{
+        cpi::accounts::CheckPermission,
         program::ExpressRelay,
+        sdk::cpi::check_permission_cpi,
         state::{
             ExpressRelayMetadata,
             SEED_CONFIG_ROUTER,
@@ -17,13 +19,7 @@ declare_id!("HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3");
 
 #[program]
 pub mod dummy {
-    use {
-        super::*,
-        express_relay::{
-            cpi::accounts::CheckPermission,
-            sdk::cpi::check_permission_cpi,
-        },
-    };
+    use super::*;
 
     pub fn do_nothing(ctx: Context<DoNothing>) -> Result<()> {
         let check_permission_accounts = CheckPermission {
