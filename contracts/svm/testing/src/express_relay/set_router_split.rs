@@ -1,7 +1,7 @@
 use {
     super::helpers::{
+        get_config_router_key,
         get_express_relay_metadata_key,
-        get_router_config_key,
     },
     anchor_lang::{
         InstructionData,
@@ -26,9 +26,7 @@ pub fn set_router_split_instruction(
     split_router: u64,
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
-    let router_config = get_router_config_key(router);
-
-
+    let config_router = get_config_router_key(router);
     Instruction {
         program_id: express_relay::id(),
         data:       express_relay::instruction::SetRouterSplit {
@@ -37,7 +35,7 @@ pub fn set_router_split_instruction(
         .data(),
         accounts:   SetRouterSplit {
             admin: admin.pubkey(),
-            router_config,
+            config_router,
             express_relay_metadata,
             router,
             system_program: system_program::ID,

@@ -9,7 +9,7 @@ use {
         InstructionData,
         ToAccountMetas,
     },
-    dummy::SEED_FEES_COUNT,
+    dummy::SEED_ACCOUNTING,
     express_relay::{
         sdk::test_helpers::create_initialize_express_relay_ix,
         state::{
@@ -73,40 +73,26 @@ pub async fn setup(router: Pubkey) -> SetupInfo {
 }
 
 pub fn create_do_nothing_ix(payer: Pubkey, permission: Pubkey, router: Pubkey) -> Instruction {
+    let express_relay_metadata =
+        Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
+    let config_router = Pubkey::find_program_address(
+        &[SEED_CONFIG_ROUTER, &router.to_bytes()],
+        &express_relay::id(),
+    )
+    .0;
+    let accounting = Pubkey::find_program_address(&[SEED_ACCOUNTING], &dummy::id()).0;
     Instruction {
         program_id: dummy::id(),
         data:       dummy::instruction::DoNothing {}.data(),
         accounts:   dummy::accounts::DoNothing {
             payer,
             express_relay: express_relay::id(),
+            express_relay_metadata,
             sysvar_instructions: sysvar_instructions::id(),
             permission,
             router,
-        }
-        .to_account_metas(None),
-    }
-}
-
-pub fn create_count_fees_ix(payer: Pubkey, permission: Pubkey, router: Pubkey) -> Instruction {
-    let express_relay_metadata =
-        Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0;
-    let router_config = Pubkey::find_program_address(
-        &[SEED_CONFIG_ROUTER, &router.to_bytes()],
-        &express_relay::id(),
-    )
-    .0;
-    let fees_count = Pubkey::find_program_address(&[SEED_FEES_COUNT], &dummy::id()).0;
-    Instruction {
-        program_id: dummy::id(),
-        data:       dummy::instruction::CountFees {}.data(),
-        accounts:   dummy::accounts::CountFees {
-            payer,
-            express_relay_metadata,
-            sysvar_instructions: anchor_lang::solana_program::sysvar::instructions::id(),
-            permission,
-            router,
-            router_config,
-            fees_count,
+            config_router,
+            accounting,
             system_program: anchor_lang::solana_program::system_program::id(),
         }
         .to_account_metas(None),

@@ -1407,7 +1407,7 @@ checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
 
 [[package]]
 name = "dummy"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anchor-lang",
  "express-relay",
@@ -1559,7 +1559,7 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
 name = "express-relay"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anchor-lang",
 ]
@@ -5331,7 +5331,7 @@ dependencies = [
 
 [[package]]
 name = "testing"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anchor-lang",
  "dummy",

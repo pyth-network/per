@@ -1,7 +1,7 @@
 use {
     super::helpers::{
+        get_config_router_key,
         get_express_relay_metadata_key,
-        get_router_config_key,
     },
     anchor_lang::{
         InstructionData,
@@ -32,7 +32,7 @@ pub fn bid_instructions(
     ixs: &[Instruction],
 ) -> Vec<Instruction> {
     let express_relay_metadata = get_express_relay_metadata_key();
-    let router_config = get_router_config_key(router);
+    let config_router = get_config_router_key(router);
 
     let submit_bid_ix = Instruction {
         program_id: express_relay::id(),
@@ -48,7 +48,7 @@ pub fn bid_instructions(
             searcher: searcher.pubkey(),
             permission,
             router,
-            router_config,
+            config_router,
             fee_receiver_relayer,
             express_relay_metadata,
             system_program: system_program::ID,

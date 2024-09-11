@@ -10,7 +10,7 @@ use {
     },
     testing::{
         express_relay::{
-            helpers::get_router_config,
+            helpers::get_config_router,
             set_router_split::set_router_split_instruction,
         },
         helpers::{
@@ -42,10 +42,10 @@ fn test_set_router_split() {
     submit_transaction(&mut svm, &[set_router_split_ix], &admin, &[&admin])
         .expect("Transaction failed unexpectedly");
 
-    let router_config = get_router_config(svm, router).expect("Router Config not initialized");
+    let config_router = get_config_router(svm, router).expect("Router Config not initialized");
 
-    assert_eq!(router_config.router, router);
-    assert_eq!(router_config.split, split_router);
+    assert_eq!(config_router.router, router);
+    assert_eq!(config_router.split, split_router);
 }
 
 #[test]

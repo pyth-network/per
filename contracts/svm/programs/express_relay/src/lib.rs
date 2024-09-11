@@ -75,8 +75,8 @@ pub mod express_relay {
     pub fn set_router_split(ctx: Context<SetRouterSplit>, data: SetRouterSplitArgs) -> Result<()> {
         validate_fee_split(data.split_router)?;
 
-        ctx.accounts.router_config.router = *ctx.accounts.router.key;
-        ctx.accounts.router_config.split = data.split_router;
+        ctx.accounts.config_router.router = *ctx.accounts.router.key;
+        ctx.accounts.config_router.split = data.split_router;
 
         Ok(())
     }
@@ -92,12 +92,14 @@ pub mod express_relay {
             return err!(ErrorCode::InvalidCPISubmitBid);
         }
 
-        // check "no reentrancy"--submit_bid instruction only used once in transaction
-        // this is done to prevent an exploit where a searcher submits a transaction with multiple submit_bid instructions with different permission keys
-        // that would allow the searcher to win the right to perform the transaction if they won just one of the auctions
-        let permission_count =
-            num_permissions_in_tx(ctx.accounts.sysvar_instructions.clone(), None)?;
-        if permission_count > 1 {
+        // check "no reentrancy"--SubmitBid instruction only used once in transaction
+        // this is done to prevent an exploit where a searcher submits a transaction with multiple SubmitBid instructions with different permission keys
+        // that could allow the searcher to win the right to perform the transaction if they won just one of the auctions
+        let matching_ixs = get_matching_submit_bid_instructions(
+            ctx.accounts.sysvar_instructions.to_account_info(),
+            None,
+        )?;
+        if matching_ixs.len() > 1 {
             return err!(ErrorCode::MultiplePermissions);
         }
 
@@ -105,21 +107,24 @@ pub mod express_relay {
     }
 
     /// Checks if permissioning exists for a particular (permission, router) pair within the same transaction
-    /// Permissioning takes the form of a submit_bid instruction with matching permission and router accounts
-    pub fn check_permission(ctx: Context<CheckPermission>) -> Result<()> {
-        let num_permissions = num_permissions_in_tx(
+    /// Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts
+    /// Returns the fees paid to the router in the matching instructions
+    pub fn check_permission(ctx: Context<CheckPermission>) -> Result<u64> {
+        let (num_permissions, total_router_fees) = inspect_permissions_in_tx(
             ctx.accounts.sysvar_instructions.clone(),
-            Some(PermissionInfo {
-                permission: *ctx.accounts.permission.key,
-                router:     *ctx.accounts.router.key,
-            }),
+            PermissionInfo {
+                permission:             *ctx.accounts.permission.key,
+                router:                 *ctx.accounts.router.key,
+                config_router:          ctx.accounts.config_router.to_account_info(),
+                express_relay_metadata: ctx.accounts.express_relay_metadata.to_account_info(),
+            },
         )?;
 
         if num_permissions == 0 {
             return err!(ErrorCode::MissingPermission);
         }
 
-        Ok(())
+        Ok(total_router_fees)
     }
 
     pub fn withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {
@@ -223,7 +228,7 @@ pub struct SetRouterSplit<'info> {
     pub admin: Signer<'info>,
 
     #[account(init_if_needed, payer = admin, space = RESERVE_EXPRESS_RELAY_CONFIG_ROUTER, seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
-    pub router_config: Account<'info, ConfigRouter>,
+    pub config_router: Account<'info, ConfigRouter>,
 
     #[account(seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
@@ -256,14 +261,14 @@ pub struct SubmitBid<'info> {
 
     /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist
     #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
-    pub router_config: UncheckedAccount<'info>,
+    pub config_router: UncheckedAccount<'info>,
+
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer, has_one = fee_receiver_relayer)]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
     /// CHECK: this is just a PK for the relayer to receive fees at
     #[account(mut)]
     pub fee_receiver_relayer: UncheckedAccount<'info>,
-
-    #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer, has_one = fee_receiver_relayer)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
     pub system_program: Program<'info, System>,
 
@@ -283,6 +288,13 @@ pub struct CheckPermission<'info> {
 
     /// CHECK: this is the router address
     pub router: UncheckedAccount<'info>,
+
+    /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized.
+    #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
+    pub config_router: UncheckedAccount<'info>,
+
+    #[account(seeds = [SEED_METADATA], bump)]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 }
 
 #[derive(Accounts)]

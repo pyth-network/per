@@ -6,7 +6,7 @@ This subdir contains the Express Relay program and its SDK to help integrating p
 
 The design of Express Relay on Solana utilizes the fact that Solana allows for multiple instructions to different programs within the same transaction. As a result, one of the instructions in the Express Relay transaction will be the `SubmitBid` instruction of the Express Relay program, using a `permission` account that represents the specific opportunity (e.g. trade; vault liquidation) whose permissioning is being auctioned by Express Relay. For example, this `permission` pubkey could be the address of a user's position (or the keccak hash of relevant identifying information for a particular position). The `SubmitBid` instruction will also handle validating and distributing to the relevant parties (router, relayer) the bid.
 
-The Express Relay `SubmitBid` instruction has two signers: a keypair belonging to the relayer, which is set by governance, and the wallet of the searcher from which the bid will be extracted in SOL (this will often also be the keypair that signs the integrating program instruction(s)). Before submitting the transaction with the `SubmitBid` instruction, a searcher must sign that transaction with all the necessary keypairs except for the relayer keypair. The `SubmitBid` instruction will also contain an account `router` representing the integrating program/app. This could be a PDA of the integrating program, the address of a relevant user (e.g. limit order maker) in the transaction workflow, or an address controlled by a protocol's DAO or an app's owner--whoever the integrating program/app wants to receive the fees from Express Relay. The `router_config` account specifies the router-specific config PDA that, if it exists, has router-specific fee splits (which would have been set by governance).
+The Express Relay `SubmitBid` instruction has two signers: a keypair belonging to the relayer, which is set by governance, and the wallet of the searcher from which the bid will be extracted in SOL (this will often also be the keypair that signs the integrating program instruction(s)). Before submitting the transaction with the `SubmitBid` instruction, a searcher must sign that transaction with all the necessary keypairs except for the relayer keypair. The `SubmitBid` instruction will also contain an account `router` representing the integrating program/app. This could be a PDA of the integrating program, the address of a relevant user (e.g. limit order maker) in the transaction workflow, or an address controlled by a protocol's DAO or an app's owner--whoever the integrating program/app wants to receive the fees from Express Relay. The `config_router` account specifies the router-specific config PDA that, if it exists, has router-specific fee splits (which would have been set by governance).
 
 The integrating program will need to check that the appropriate `SubmitBid` instruction is one of the instructions in the ongoing transaction. It can do this by calling the `CheckPermission` method of the Express Relay program via CPI. Note that the permissioning is not stored in any state; it is simply retrieved from the instructions of the current transaction.
 
@@ -19,28 +19,76 @@ To integrate with Express Relay, the integrating program needs to make the follo
 
 ## Example Integration
 
-Integrating programs can use the `check_permission` helper method defined in the Express Relay SDK:
+Integrating programs can use the `check_permission_cpi` helper method defined in the Express Relay SDK. For example:
 
 ```rust
 use anchor_lang::prelude::*;
-use express_relay::sdk::cpi::check_permission;
+use express_relay::sdk::cpi::check_permission_cpi;
 
 #[program]
+use {
+    anchor_lang::{
+        prelude::*,
+        solana_program::sysvar::instructions as sysvar_instructions,
+    },
+    express_relay::{
+        cpi::accounts::CheckPermission,
+        program::ExpressRelay,
+        sdk::cpi::check_permission_cpi,
+        state::{
+            ExpressRelayMetadata,
+            SEED_CONFIG_ROUTER,
+            SEED_METADATA,
+        },
+    },
+};
+
 pub mod integrating_program {
     use super::*;
 
     pub fn do_something(ctx: Context<DoSomething>, data: DoSomethingArgs) -> Result<()> {
-        check_permission(
-            ctx.accounts.sysvar_instructions.to_account_info(),
-            ctx.accounts.permission.to_account_info(),
-            ctx.accounts.router.to_account_info(),
+        let check_permission_accounts = CheckPermission {
+            sysvar_instructions:    ctx.accounts.sysvar_instructions.to_account_info(),
+            permission:             ctx.accounts.permission.to_account_info(),
+            router:                 ctx.accounts.router.to_account_info(),
+            config_router:          ctx.accounts.config_router.to_account_info(),
+            express_relay_metadata: ctx.accounts.express_relay_metadata.to_account_info(),
+        };
+        let fees = check_permission_cpi(
+            check_permission_accounts,
+            ctx.accounts.express_relay.to_account_info(),
         )?;
 
         /// integrating_program do_something logic
     }
 }
+
+#[derive(Accounts)]
+pub struct DoSomething<'info> {
+    #[account(address = express_relay::ID)]
+    pub express_relay: Program<'info, ExpressRelay>,
+
+    #[account(seeds = [SEED_METADATA], bump, seeds::program = express_relay.key())]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+
+    /// CHECK: this is the sysvar instructions account
+    #[account(address = sysvar_instructions::ID)]
+    pub sysvar_instructions: UncheckedAccount<'info>,
+
+    /// CHECK: this is the permission key
+    pub permission: UncheckedAccount<'info>,
+
+    /// CHECK: this is the address to receive express relay fees at
+    pub router: UncheckedAccount<'info>,
+
+    /// CHECK: doesn't matter what this looks like
+    #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump, seeds::program = express_relay.key())]
+    pub config_router: UncheckedAccount<'info>,
+
+    // other accounts
+}
 ```
 
-Some integrating programs may additionally need to learn how much will be paid in fees in an ongoing transaction. These programs can use the `get_fees_paid_to_router` helper defined in the SDK. An example use of this can be seen in the [dummy example program](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy).
+Some integrating programs may need to learn how much will be paid in fees in an ongoing transaction. The `check_permission_cpi` returns the fees paid to the router in the current transaction. An example use of this can be seen in the [dummy example program](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy).
 
 To run Rust-based tests, an integrating program can use the helper methods defined in `src/sdk/test_helpers.rs`. See the [dummy example](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy) to see how these methods can be used for Rust-based end-to-end testing.
