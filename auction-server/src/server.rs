@@ -259,27 +259,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let chains = setup_chain_store(config_map.clone(), wallet.clone()).await?;
 
-    let chains_svm = setup_chain_store_svm(config_map);
-
-    if !chains_svm.is_empty() && run_options.svm_private_key.is_none() {
-        return Err(anyhow!("No svm private key provided for svm chains"));
-    }
-
-    let relayer = Keypair::from_base58_string(
-        &run_options
-            .svm_private_key
-            .clone()
-            .unwrap_or(Keypair::new().to_base58_string()),
-    );
-    let express_relay_svm = ExpressRelaySvm {
-        relayer:                     Arc::new(relayer),
-        permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
-            .parse::<usize>()
-            .expect("Failed to parse permission account position"),
-        router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
-            .parse::<usize>()
-            .expect("Failed to parse router account position"),
-    };
+    let (chains_svm, express_relay_svm) = setup_svm(&run_options, config_map)?;
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -366,6 +346,34 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     task_tracker.wait().await;
 
     Ok(())
+}
+
+fn setup_svm(
+    run_options: &RunOptions,
+    config_map: ConfigMap,
+) -> anyhow::Result<(HashMap<ChainId, ChainStoreSvm>, ExpressRelaySvm)> {
+    let chains_svm = setup_chain_store_svm(config_map);
+
+    if !chains_svm.is_empty() && run_options.private_key_svm.is_none() {
+        return Err(anyhow!("No svm private key provided for svm chains"));
+    }
+
+    let relayer = Keypair::from_base58_string(
+        &run_options
+            .private_key_svm
+            .clone()
+            .unwrap_or(Keypair::new().to_base58_string()),
+    );
+    let express_relay_svm = ExpressRelaySvm {
+        relayer:                     Arc::new(relayer),
+        permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
+            .parse::<usize>()
+            .expect("Failed to parse permission account position"),
+        router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
+            .parse::<usize>()
+            .expect("Failed to parse router account position"),
+    };
+    Ok((chains_svm, express_relay_svm))
 }
 
 pub fn get_chain_provider(

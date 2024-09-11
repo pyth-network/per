@@ -25,12 +25,12 @@ field_mapping = {
 
 def main():
     latest_env = json.load(open('contracts/evm/latestEnvironment.json'))
-    svm_relayer_key = Keypair.from_json((open('keypairs/relayer_signer.json').read()))
+    relayer_key_svm = Keypair.from_json((open('keypairs/relayer_signer.json').read()))
     with open('tilt-resources.env', 'w') as f:
         for k, v in field_mapping.items():
             f.write(f'export {v}={latest_env[k]}\n')
         f.write('export SECRET_KEY=admin\n')
-        f.write(f'export SVM_PRIVATE_KEY={str(svm_relayer_key)}\n')
+        f.write(f'export PRIVATE_KEY_SVM={str(relayer_key_svm)}\n')
     # config_template
     template = f'''
 chains:
