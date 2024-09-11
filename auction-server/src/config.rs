@@ -62,6 +62,11 @@ pub struct RunOptions {
     #[arg(env = "SUBWALLET_PRIVATE_KEY")]
     pub subwallet_private_key: String,
 
+    /// SVM relayer private key in base58 format
+    #[arg(long = "private-key-svm")]
+    #[arg(env = "PRIVATE_KEY_SVM")]
+    pub private_key_svm: Option<String>,
+
     #[arg(long = "secret-key")]
     #[arg(env = "SECRET_KEY")]
     pub secret_key: String,
@@ -136,4 +141,6 @@ pub struct ConfigSvm {
     /// Id of the express relay program.
     #[serde_as(as = "DisplayFromStr")]
     pub express_relay_program_id: Pubkey,
+    /// RPC endpoint to use for interacting with the blockchain.
+    pub rpc_addr:                 String,
 }

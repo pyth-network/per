@@ -38,7 +38,11 @@ use {
         Deserialize,
         Serialize,
     },
-    solana_sdk::pubkey::Pubkey,
+    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_sdk::{
+        pubkey::Pubkey,
+        signature::Keypair,
+    },
     sqlx::{
         database::HasArguments,
         encode::IsNull,
@@ -201,6 +205,7 @@ pub struct ChainStoreEvm {
 
 pub struct ChainStoreSvm {
     pub express_relay_program_id: Pubkey,
+    pub client:                   RpcClient,
 }
 
 #[derive(Default)]
@@ -297,6 +302,7 @@ pub struct BidStatusWithId {
 
 #[derive(Clone)]
 pub struct ExpressRelaySvm {
+    pub relayer:                     Arc<Keypair>,
     pub permission_account_position: usize,
     pub router_account_position:     usize,
 }

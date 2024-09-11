@@ -5,6 +5,7 @@ import logging
 import struct
 
 from solana.rpc.async_api import AsyncClient
+from solana.rpc.commitment import Confirmed
 from solana.transaction import Transaction
 from solders.instruction import AccountMeta, Instruction
 from solders.pubkey import Pubkey
@@ -131,7 +132,7 @@ async def main():
     pk_relayer_signer = kp_relayer_signer.pubkey()
     logger.info("Relayer signer pubkey: %s", pk_relayer_signer)
 
-    client = AsyncClient(args.rpc_url, "confirmed")
+    client = AsyncClient(args.rpc_url, Confirmed)
 
     pk_express_relay_metadata = Pubkey.find_program_address(
         [b"metadata"], express_relay_pid

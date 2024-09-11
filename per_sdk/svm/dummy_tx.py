@@ -5,11 +5,12 @@ import hashlib
 import logging
 import struct
 import urllib
+from pathlib import Path
 
 import httpx
 from solana.rpc.async_api import AsyncClient
+from solana.rpc.commitment import Confirmed
 from solana.transaction import Transaction
-from solders.hash import Hash
 from solders.instruction import AccountMeta, Instruction
 from solders.message import MessageV0
 from solders.null_signer import NullSigner
@@ -30,13 +31,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument(
         "--file-private-key-searcher",
-        type=str,
+        type=Path,
         required=True,
         help="JSON file containing the private key (as a byte array) of the searcher for signing transaction",
     )
     parser.add_argument(
         "--file-private-key-relayer-signer",
-        type=str,
+        type=Path,
         required=True,
         help="JSON file containing the private key (as a byte array) of the relayer signer",
     )
@@ -151,8 +152,8 @@ async def main():
         ],
     )
 
+    client = AsyncClient(args.rpc_url, Confirmed)
     if args.submit_on_chain:
-        client = AsyncClient(args.rpc_url, "confirmed")
         tx = Transaction(fee_payer=kp_searcher.pubkey())
         tx.add(ix_submit_bid)
         tx.add(ix_dummy)
@@ -163,8 +164,11 @@ async def main():
         assert conf.value[0].status is None, "Transaction failed"
         logger.info(f"Submitted transaction with signature {tx_sig}")
     else:
+        recent_blockhash = (await client.get_latest_blockhash()).value.blockhash
         if args.use_legacy_transaction_bid:
-            tx = Transaction(fee_payer=kp_searcher.pubkey())
+            tx = Transaction(
+                fee_payer=kp_searcher.pubkey(), recent_blockhash=recent_blockhash
+            )
             tx.add(ix_submit_bid)
             tx.add(ix_dummy)
             tx.sign_partial(kp_searcher)
@@ -173,7 +177,7 @@ async def main():
             ).decode()
         else:
             messagev0 = MessageV0.try_compile(
-                kp_searcher.pubkey(), [ix_submit_bid, ix_dummy], [], Hash.default()
+                kp_searcher.pubkey(), [ix_submit_bid, ix_dummy], [], recent_blockhash
             )
             signers = [kp_searcher, NullSigner(kp_relayer_signer.pubkey())]
             partially_signed = VersionedTransaction(messagev0, signers)

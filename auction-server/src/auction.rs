@@ -92,6 +92,7 @@ use {
     solana_sdk::{
         instruction::CompiledInstruction,
         pubkey::Pubkey,
+        signature::Signer as SvmSigner,
         transaction::VersionedTransaction,
     },
     sqlx::types::time::OffsetDateTime,
@@ -269,8 +270,8 @@ fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedF
         .collect()
 }
 
-
 const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
+
 // An auction is ready if there are any bids with a lifetime of AUCTION_MINIMUM_LIFETIME
 fn is_ready_for_auction(bids: Vec<SimulatedBid>, bid_collection_time: OffsetDateTime) -> bool {
     bids.iter()
@@ -990,7 +991,50 @@ pub async fn handle_bid_svm(
         bid.transaction.message.static_account_keys(),
         submit_bid_instruction,
     )?;
-
+    verify_signatures_svm(&bid, &store.express_relay_svm.relayer.pubkey())?;
+    simulate_bid_svm(chain_store, &bid).await?;
     // TODO implement this
     Err(RestError::NotImplemented)
+}
+
+fn verify_signatures_svm(bid: &BidSvm, relayer_pubkey: &Pubkey) -> Result<(), RestError> {
+    let message_bytes = bid.transaction.message.serialize();
+    let all_signatures_valid = bid
+        .transaction
+        .signatures
+        .iter()
+        .zip(bid.transaction.message.static_account_keys().iter())
+        .all(|(signature, pubkey)| {
+            signature.verify(pubkey.as_ref(), &message_bytes) || pubkey.eq(relayer_pubkey)
+        });
+
+    match all_signatures_valid {
+        true => Ok(()),
+        false => Err(RestError::BadParameters("Invalid signatures".to_string())),
+    }
+}
+
+async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(), RestError> {
+    let response = chain_store
+        .client
+        .simulate_transaction(&bid.transaction)
+        .await;
+    let result = response.map_err(|e| {
+        tracing::error!("Error while simulating bid: {:?}", e);
+        RestError::TemporarilyUnavailable
+    })?;
+    match result.value.err {
+        Some(err) => {
+            tracing::error!(
+                "Error while simulating bid: {:?}, context: {:?}",
+                err,
+                result.context
+            );
+            Err(RestError::SimulationError {
+                result: Default::default(),
+                reason: err.to_string(),
+            })
+        }
+        None => Ok(()),
+    }
 }

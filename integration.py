@@ -10,6 +10,8 @@ It accepts the geth rpc address as the first argument and generates the followin
 import json
 import sys
 
+from solders.keypair import Keypair
+
 field_mapping = {
     'tokenVault': 'TOKEN_VAULT',
     'weth': 'WETH',
@@ -23,10 +25,12 @@ field_mapping = {
 
 def main():
     latest_env = json.load(open('contracts/evm/latestEnvironment.json'))
+    relayer_key_svm = Keypair.from_json((open('keypairs/relayer_signer.json').read()))
     with open('tilt-resources.env', 'w') as f:
         for k, v in field_mapping.items():
             f.write(f'export {v}={latest_env[k]}\n')
         f.write('export SECRET_KEY=admin\n')
+        f.write(f'export PRIVATE_KEY_SVM={str(relayer_key_svm)}\n')
     # config_template
     template = f'''
 chains:
@@ -40,6 +44,7 @@ chains:
     poll_interval: 1
   development-solana:
     express_relay_program_id: GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM
+    rpc_addr: http://localhost:8899
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)

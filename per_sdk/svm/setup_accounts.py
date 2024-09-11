@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 from solana.rpc.async_api import AsyncClient
+from solana.rpc.commitment import Confirmed
 from solders.keypair import Keypair
 
 from per_sdk.svm.helpers import configure_logger, read_kp_from_json
@@ -37,7 +38,7 @@ async def main():
 
     configure_logger(logger, args.verbose)
 
-    client = AsyncClient(args.rpc_url, "confirmed")
+    client = AsyncClient(args.rpc_url, Confirmed)
 
     keypairs_dir = Path("keypairs/")
     if not keypairs_dir.exists():
