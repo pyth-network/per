@@ -106,6 +106,7 @@ pub mod express_relay {
 
     /// Checks if permissioning exists for a particular (permission, router) pair within the same transaction
     /// Permissioning takes the form of a submit_bid instruction with matching permission and router accounts
+    /// Returns the number of permissions found and the fees paid to the router
     pub fn check_permission(ctx: Context<CheckPermission>) -> Result<(u16, u64)> {
         let (num_permissions, fees_paid_to_router) = inspect_permissions_in_tx(
             ctx.accounts.sysvar_instructions.clone(),

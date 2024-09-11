@@ -23,7 +23,7 @@ Integrating programs can use the `check_permission_cpi` helper method defined in
 
 ```rust
 use anchor_lang::prelude::*;
-use express_relay::sdk::cpi::check_permission;
+use express_relay::sdk::cpi::check_permission_cpi;
 
 #[program]
 pub mod integrating_program {
