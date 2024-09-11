@@ -82,7 +82,6 @@ async fn test_dummy_e2e() {
         Accounting::try_deserialize(&mut account_accounting.data.as_ref()).unwrap();
 
     assert_eq!(balance_router_post, balance_router_pre + bid_amount);
-    assert_eq!(data_accounting.n_bids, 1);
     assert_eq!(data_accounting.total_fees, bid_amount);
 }
 

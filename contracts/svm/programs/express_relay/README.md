@@ -26,6 +26,23 @@ use anchor_lang::prelude::*;
 use express_relay::sdk::cpi::check_permission_cpi;
 
 #[program]
+use {
+    anchor_lang::{
+        prelude::*,
+        solana_program::sysvar::instructions as sysvar_instructions,
+    },
+    express_relay::{
+        cpi::accounts::CheckPermission,
+        program::ExpressRelay,
+        sdk::cpi::check_permission_cpi,
+        state::{
+            ExpressRelayMetadata,
+            SEED_CONFIG_ROUTER,
+            SEED_METADATA,
+        },
+    },
+};
+
 pub mod integrating_program {
     use super::*;
 
@@ -37,7 +54,7 @@ pub mod integrating_program {
             config_router:          ctx.accounts.config_router.to_account_info(),
             express_relay_metadata: ctx.accounts.express_relay_metadata.to_account_info(),
         };
-        let (n_bid_ixs, fees) = check_permission_cpi(
+        let fees = check_permission_cpi(
             check_permission_accounts,
             ctx.accounts.express_relay.to_account_info(),
         )?;
@@ -45,8 +62,33 @@ pub mod integrating_program {
         /// integrating_program do_something logic
     }
 }
+
+#[derive(Accounts)]
+pub struct DoSomething<'info> {
+    #[account(address = express_relay::ID)]
+    pub express_relay: Program<'info, ExpressRelay>,
+
+    #[account(seeds = [SEED_METADATA], bump, seeds::program = express_relay.key())]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+
+    /// CHECK: this is the sysvar instructions account
+    #[account(address = sysvar_instructions::ID)]
+    pub sysvar_instructions: UncheckedAccount<'info>,
+
+    /// CHECK: this is the permission key
+    pub permission: UncheckedAccount<'info>,
+
+    /// CHECK: this is the address to receive express relay fees at
+    pub router: UncheckedAccount<'info>,
+
+    /// CHECK: doesn't matter what this looks like
+    #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump, seeds::program = express_relay.key())]
+    pub config_router: UncheckedAccount<'info>,
+
+    // other accounts
+}
 ```
 
-Some integrating programs may need to learn how much will be paid in fees in an ongoing transaction. The `check_permission_cpi` returns a tuple with the number of bid instructions matching the specified `permission` and `router` and the fees paid to the router in the current transaction. An example use of this can be seen in the [dummy example program](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy).
+Some integrating programs may need to learn how much will be paid in fees in an ongoing transaction. The `check_permission_cpi` returns the fees paid to the router in the current transaction. An example use of this can be seen in the [dummy example program](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy).
 
 To run Rust-based tests, an integrating program can use the helper methods defined in `src/sdk/test_helpers.rs`. See the [dummy example](https://github.com/pyth-network/per/tree/main/contracts/svm/programs/dummy) to see how these methods can be used for Rust-based end-to-end testing.

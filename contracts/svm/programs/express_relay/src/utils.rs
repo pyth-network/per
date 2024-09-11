@@ -109,47 +109,85 @@ pub fn get_matching_instructions(
 
 /// Extracts the bid paid from a SubmitBid instruction
 pub fn extract_bid_from_submit_bid_ix(submit_bid_ix: &Instruction) -> Result<u64> {
-    let submit_bid_args =
-        SubmitBidArgs::try_from_slice(&submit_bid_ix.data[8..]).map_err(|_| {
-            ProgramError::BorshIoError("Failed to deserialize SubmitBidArgs".to_string())
-        })?;
+    let submit_bid_args = SubmitBidArgs::try_from_slice(
+        &submit_bid_ix.data[crate::instruction::SubmitBid::DISCRIMINATOR.len()..],
+    )
+    .map_err(|_| ProgramError::BorshIoError("Failed to deserialize SubmitBidArgs".to_string()))?;
     Ok(submit_bid_args.bid_amount)
 }
 
-/// Performs instruction introspection on a transaction to determine the SubmitBid instructions that match the given permission and router
-/// Returns the number of matching instructions. If the permission_info struct is provided, also returns the total fees paid to the router in the matching instructions
+pub fn perform_fee_split_router(amount: u64, split_router: u64) -> Result<u64> {
+    let fee_router = amount * split_router / FEE_SPLIT_PRECISION;
+    if fee_router > amount {
+        // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
+        return err!(ErrorCode::FeesHigherThanBid);
+    }
+    Ok(fee_router)
+}
+
+pub fn perform_fee_split_relayer(amount: u64, split_relayer: u64) -> Result<u64> {
+    let fee_relayer = amount * split_relayer / FEE_SPLIT_PRECISION;
+    if fee_relayer > amount {
+        // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
+        return err!(ErrorCode::FeesHigherThanBid);
+    }
+    Ok(fee_relayer)
+}
+
+/// Performs fee splits on a bid amount
+/// Returns amount to pay to router and amount to pay to relayer
+pub fn perform_fee_splits(
+    bid_amount: u64,
+    split_router: u64,
+    split_relayer: u64,
+) -> Result<(u64, u64)> {
+    let fee_router = perform_fee_split_router(bid_amount, split_router)?;
+    let fee_relayer =
+        perform_fee_split_relayer(bid_amount.saturating_sub(fee_router), split_relayer)?;
+
+    if fee_relayer
+        .checked_add(fee_router)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        > bid_amount
+    {
+        // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
+        return err!(ErrorCode::FeesHigherThanBid);
+    }
+
+    Ok((fee_router, fee_relayer))
+}
+
+/// Performs instruction introspection on the current transaction to query SubmitBid instructions that match the specified permission and router
+/// Returns the number of matching instructions and the total fees paid to the router
 pub fn inspect_permissions_in_tx(
     sysvar_instructions: UncheckedAccount,
-    permission_info: Option<&PermissionInfo>,
-) -> Result<(u16, Option<u64>)> {
-    let matching_ixs =
-        get_matching_instructions(sysvar_instructions.to_account_info(), permission_info)?;
+    permission_info: PermissionInfo,
+) -> Result<(u16, u64)> {
+    let matching_ixs = get_matching_instructions(
+        sysvar_instructions.to_account_info(),
+        Some(&permission_info),
+    )?;
     let n_ixs = matching_ixs.len() as u16;
 
-    match permission_info {
-        Some(permission_info) => {
-            let mut total_fees = 0u64;
-            let data_config_router = &mut &**permission_info.config_router.try_borrow_data()?;
-            let split_router = match ConfigRouter::try_deserialize(data_config_router) {
-                Ok(config_router) => config_router.split,
-                Err(_) => {
-                    let data_express_relay_metadata =
-                        &mut &**permission_info.express_relay_metadata.try_borrow_data()?;
-                    let express_relay_metadata =
-                        ExpressRelayMetadata::try_deserialize(data_express_relay_metadata)
-                            .map_err(|_| ProgramError::InvalidAccountData)?;
-                    express_relay_metadata.split_router_default
-                }
-            };
-            for ix in matching_ixs {
-                let fee = extract_bid_from_submit_bid_ix(&ix)?;
-                total_fees += fee * split_router / FEE_SPLIT_PRECISION;
-            }
-
-            Ok((n_ixs, Some(total_fees)))
+    let mut total_fees = 0u64;
+    let data_config_router = &mut &**permission_info.config_router.try_borrow_data()?;
+    let split_router = match ConfigRouter::try_deserialize(data_config_router) {
+        Ok(config_router) => config_router.split,
+        Err(_) => {
+            let data_express_relay_metadata =
+                &mut &**permission_info.express_relay_metadata.try_borrow_data()?;
+            let express_relay_metadata =
+                ExpressRelayMetadata::try_deserialize(data_express_relay_metadata)
+                    .map_err(|_| ProgramError::InvalidAccountData)?;
+            express_relay_metadata.split_router_default
         }
-        None => Ok((n_ixs, None)),
+    };
+    for ix in matching_ixs {
+        let bid = extract_bid_from_submit_bid_ix(&ix)?;
+        total_fees += perform_fee_split_router(bid, split_router)?;
     }
+
+    Ok((n_ixs, total_fees))
 }
 
 pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()> {
@@ -175,11 +213,8 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
         split_router_default
     };
 
-    let fee_router = bid_amount * split_router / FEE_SPLIT_PRECISION;
-    if fee_router > bid_amount {
-        // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
-        return err!(ErrorCode::FeesHigherThanBid);
-    }
+    let (fee_router, fee_relayer) = perform_fee_splits(bid_amount, split_router, split_relayer)?;
+
     if fee_router > 0 {
         check_fee_hits_min_rent(&ctx.accounts.router, fee_router)?;
 
@@ -189,16 +224,6 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
             fee_router,
             ctx.accounts.system_program.to_account_info(),
         )?;
-    }
-
-    let fee_relayer = bid_amount.saturating_sub(fee_router) * split_relayer / FEE_SPLIT_PRECISION;
-    if fee_relayer
-        .checked_add(fee_router)
-        .ok_or(ProgramError::ArithmeticOverflow)?
-        > bid_amount
-    {
-        // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
-        return err!(ErrorCode::FeesHigherThanBid);
     }
     if fee_relayer > 0 {
         check_fee_hits_min_rent(&ctx.accounts.fee_receiver_relayer, fee_relayer)?;

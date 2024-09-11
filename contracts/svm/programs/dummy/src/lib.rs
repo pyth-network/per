@@ -29,12 +29,10 @@ pub mod dummy {
             config_router:          ctx.accounts.config_router.to_account_info(),
             express_relay_metadata: ctx.accounts.express_relay_metadata.to_account_info(),
         };
-        let (n_bid_ixs, fees) = check_permission_cpi(
+        let fees = check_permission_cpi(
             check_permission_accounts,
             ctx.accounts.express_relay.to_account_info(),
         )?;
-
-        ctx.accounts.accounting.n_bids += n_bid_ixs;
         ctx.accounts.accounting.total_fees += fees;
         Ok(())
     }
@@ -71,12 +69,11 @@ pub struct DoNothing<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub const RESERVE_ACCOUNTING: usize = 8 + 10;
+pub const RESERVE_ACCOUNTING: usize = 8 + 8;
 pub const SEED_ACCOUNTING: &[u8] = b"accounting";
 
 #[account]
 #[derive(Default)]
 pub struct Accounting {
-    pub n_bids:     u16,
     pub total_fees: u64,
 }
