@@ -64,6 +64,7 @@ use {
         providers::{
             Middleware,
             Provider,
+            SubscriptionStream,
             Ws,
         },
         signers::{
@@ -73,6 +74,7 @@ use {
         types::{
             transaction::eip2718::TypedTransaction,
             Address,
+            Block,
             BlockNumber,
             Bytes,
             TransactionReceipt,
@@ -84,6 +86,7 @@ use {
     },
     futures::{
         future::join_all,
+        Stream,
         StreamExt,
     },
     gas_oracle::EthProviderOracle,
@@ -92,7 +95,19 @@ use {
         Deserializer,
         Serialize,
     },
+    solana_client::{
+        nonblocking::pubsub_client::PubsubClient,
+        rpc_config::{
+            RpcBlockSubscribeConfig,
+            RpcBlockSubscribeFilter,
+        },
+        rpc_response::{
+            Response,
+            RpcBlockUpdate,
+        },
+    },
     solana_sdk::{
+        commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
         pubkey::Pubkey,
         signature::Signer as SvmSigner,
@@ -100,6 +115,8 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::{
+        fmt::Debug as DebugTrait,
+        pin::Pin,
         result,
         sync::{
             atomic::Ordering,
@@ -246,7 +263,7 @@ async fn get_winner_bids(
         .iter()
         .position(|status| status.external_success)
     {
-        Some(index) => Ok(bids.into_iter().skip(index).take(5).collect()),
+        Some(index) => Ok(bids.into_iter().skip(index).collect()),
         None => Ok(vec![]),
     }
 }
@@ -599,47 +616,6 @@ async fn submit_auctions(store: Arc<Store>, chain_id: String) {
     }
 }
 
-async fn get_ws_provider(store: Arc<Store>, chain_id: String) -> Result<Provider<Ws>> {
-    let chain_store = store
-        .chains
-        .get(&chain_id)
-        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
-    let ws = Ws::connect(chain_store.config.geth_ws_addr.clone()).await?;
-    Ok(Provider::new(ws))
-}
-
-pub async fn run_submission_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
-    tracing::info!(chain_id = chain_id, "Starting transaction submitter...");
-    let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
-
-    let ws_provider = get_ws_provider(store.clone(), chain_id.clone()).await?;
-    let mut stream = ws_provider.subscribe_blocks().await?;
-
-    while !SHOULD_EXIT.load(Ordering::Acquire) {
-        tokio::select! {
-            block = stream.next() => {
-                if block.is_none() {
-                    return Err(anyhow!("Block stream ended for chain: {}", chain_id));
-                }
-
-                tracing::debug!("New block received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), block);
-                store.task_tracker.spawn(
-                    submit_auctions(
-                        store.clone(),
-                        chain_id.clone(),
-                    )
-                );
-                store.task_tracker.spawn(
-                    conclude_submitted_auctions(store.clone(), chain_id.clone())
-                );
-            }
-            _ = exit_check_interval.tick() => {}
-        }
-    }
-    tracing::info!("Shutting down transaction submitter...");
-    Ok(())
-}
-
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct BidEvm {
     /// The permission key to bid on.
@@ -914,7 +890,7 @@ pub fn verify_submit_bid_instruction_svm(
         .iter()
         .filter(|instruction| {
             let program_id = instruction.program_id(transaction.message.static_account_keys());
-            if *program_id != chain_store.express_relay_program_id {
+            if *program_id != chain_store.config.express_relay_program_id {
                 return false;
             }
 
@@ -1065,4 +1041,109 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
         }
         None => Ok(()),
     }
+}
+
+trait ChainStore {
+    type Block: DebugTrait;
+    type BlockStream<'a>: Stream<Item = Self::Block> + Unpin + Send + 'a;
+    type WsClient;
+    async fn get_ws_client(&self) -> Result<Self::WsClient>;
+    async fn get_block_stream<'a>(client: &'a Self::WsClient) -> Result<Self::BlockStream<'a>>;
+}
+
+impl ChainStore for &ChainStoreEvm {
+    type Block = Block<H256>;
+    type BlockStream<'a> = SubscriptionStream<'a, Ws, Block<H256>>;
+    type WsClient = Provider<Ws>;
+
+    async fn get_ws_client(&self) -> Result<Self::WsClient> {
+        let ws = Ws::connect(self.config.geth_ws_addr.clone()).await?;
+        Ok(Provider::new(ws))
+    }
+
+    async fn get_block_stream<'a>(client: &'a Self::WsClient) -> Result<Self::BlockStream<'a>> {
+        let block_stream = client.subscribe_blocks().await?;
+        Ok(block_stream)
+    }
+}
+
+impl ChainStore for &ChainStoreSvm {
+    type Block = Response<RpcBlockUpdate>;
+    type BlockStream<'a> = Pin<Box<dyn Stream<Item = Response<RpcBlockUpdate>> + Send + 'a>>;
+    type WsClient = PubsubClient;
+
+    async fn get_ws_client(&self) -> Result<Self::WsClient> {
+        PubsubClient::new(&self.config.ws_addr).await.map_err(|e| {
+            tracing::error!("Error while creating svm pub sub client: {:?}", e);
+            anyhow!(e)
+        })
+    }
+
+    async fn get_block_stream<'a>(client: &'a Self::WsClient) -> Result<Self::BlockStream<'a>> {
+        let (block_subscribe, _) = client
+            .block_subscribe(
+                RpcBlockSubscribeFilter::All,
+                Some(RpcBlockSubscribeConfig {
+                    encoding:                          None,
+                    transaction_details:               None,
+                    show_rewards:                      None,
+                    max_supported_transaction_version: None,
+                    commitment:                        Some(CommitmentConfig::finalized()),
+                }),
+            )
+            .await?;
+        Ok(block_subscribe)
+    }
+}
+
+async fn run_submission_loop<T: ChainStore>(
+    store: Arc<Store>,
+    chain_store: T,
+    chain_id: String,
+) -> Result<()> {
+    tracing::info!(chain_id = chain_id, "Starting transaction submitter...");
+    let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+
+    let ws_client = chain_store.get_ws_client().await?;
+    let mut stream = T::get_block_stream(&ws_client).await?;
+
+    while !SHOULD_EXIT.load(Ordering::Acquire) {
+        tokio::select! {
+            block = stream.next() => {
+                if block.is_none() {
+                    return Err(anyhow!("Block stream ended for chain: {}", chain_id));
+                }
+
+                tracing::debug!("New block received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), block);
+                store.task_tracker.spawn(
+                    submit_auctions(
+                        store.clone(),
+                        chain_id.clone(),
+                    )
+                );
+                store.task_tracker.spawn(
+                    conclude_submitted_auctions(store.clone(), chain_id.clone())
+                );
+            }
+            _ = exit_check_interval.tick() => {}
+        }
+    }
+    tracing::info!("Shutting down transaction submitter...");
+    Ok(())
+}
+
+pub async fn run_submission_loop_evm(store: Arc<Store>, chain_id: String) -> Result<()> {
+    let chain_store = store
+        .chains
+        .get(&chain_id)
+        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+    run_submission_loop(store.clone(), chain_store, chain_id).await
+}
+
+pub async fn run_submission_loop_svm(store: Arc<Store>, chain_id: String) -> Result<()> {
+    let chain_store = store
+        .chains_svm
+        .get(&chain_id)
+        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+    run_submission_loop(store.clone(), chain_store, chain_id).await
 }

@@ -14,6 +14,7 @@ use {
         config::{
             ChainId,
             ConfigEvm,
+            ConfigSvm,
         },
         models,
         traced_client::TracedClient,
@@ -42,7 +43,6 @@ use {
     serde_json::json,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
-        pubkey::Pubkey,
         signature::Keypair,
         transaction::VersionedTransaction,
     },
@@ -231,8 +231,8 @@ pub struct ChainStoreEvm {
 }
 
 pub struct ChainStoreSvm {
-    pub express_relay_program_id: Pubkey,
-    pub client:                   RpcClient,
+    pub client: RpcClient,
+    pub config: ConfigSvm,
 }
 
 #[derive(Default)]

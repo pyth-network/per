@@ -6,7 +6,8 @@ use {
         },
         auction::{
             get_express_relay_contract,
-            run_submission_loop,
+            run_submission_loop_evm,
+            run_submission_loop_svm,
             run_tracker_loop,
         },
         config::{
@@ -157,8 +158,8 @@ fn setup_chain_store_svm(config_map: ConfigMap) -> HashMap<ChainId, ChainStoreSv
             Config::Svm(chain_config) => Some((
                 chain_id.clone(),
                 ChainStoreSvm {
-                    express_relay_program_id: chain_config.express_relay_program_id,
-                    client:                   RpcClient::new_with_commitment(
+                    config: chain_config.clone(),
+                    client: RpcClient::new_with_commitment(
                         chain_config.rpc_addr.clone(),
                         CommitmentConfig::processed(),
                     ),
@@ -312,8 +313,17 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         async {
             let submission_loops = store.chains.keys().map(|chain_id| {
                 fault_tolerant_handler(
-                    format!("submission loop for chain {}", chain_id.clone()),
-                    || run_submission_loop(store.clone(), chain_id.clone()),
+                    format!("submission loop for evm chain {}", chain_id.clone()),
+                    || run_submission_loop_evm(store.clone(), chain_id.clone()),
+                )
+            });
+            join_all(submission_loops).await;
+        },
+        async {
+            let submission_loops = store.chains_svm.keys().map(|chain_id| {
+                fault_tolerant_handler(
+                    format!("submission loop for svm chain {}", chain_id.clone()),
+                    || run_submission_loop_svm(store.clone(), chain_id.clone()),
                 )
             });
             join_all(submission_loops).await;
