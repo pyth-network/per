@@ -845,28 +845,22 @@ pub async fn handle_bid(
     )
     .await?;
 
-    let bid_id = Uuid::new_v4();
-    let core_fields = SimulatedBidCoreFields {
-        bid_amount: bid.amount,
-        id: bid_id,
-        permission_key: bid.permission_key.clone(),
-        chain_id: bid.chain_id.clone(),
-        status: BidStatus::Pending,
+    let core_fields = SimulatedBidCoreFields::new(
+        bid.amount,
+        bid.chain_id,
+        bid.permission_key,
         initiation_time,
-        profile_id: match auth {
-            Auth::Authorized(_, profile) => Some(profile.id),
-            _ => None,
-        },
-    };
+        auth,
+    );
     let simulated_bid = SimulatedBidEvm {
-        core_fields,
+        core_fields:     core_fields.clone(),
         target_contract: bid.target_contract,
         target_calldata: bid.target_calldata.clone(),
         // Add a 25% more for estimation errors
-        gas_limit: estimated_gas * U256::from(125) / U256::from(100),
+        gas_limit:       estimated_gas * U256::from(125) / U256::from(100),
     };
     store.add_bid(simulated_bid.into()).await?;
-    Ok(bid_id)
+    Ok(core_fields.id)
 }
 
 pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
@@ -1016,25 +1010,19 @@ pub async fn handle_bid_svm(
     verify_signatures_svm(&bid, &store.express_relay_svm.relayer.pubkey())?;
     simulate_bid_svm(chain_store, &bid).await?;
 
-    let bid_id = Uuid::new_v4();
-    let core_fields = SimulatedBidCoreFields {
-        bid_amount: U256::from(bid_amount),
-        id: bid_id,
+    let core_fields = SimulatedBidCoreFields::new(
+        U256::from(bid_amount),
+        bid.chain_id,
         permission_key,
-        chain_id: bid.chain_id.clone(),
-        status: BidStatus::Pending,
         initiation_time,
-        profile_id: match auth {
-            Auth::Authorized(_, profile) => Some(profile.id),
-            _ => None,
-        },
-    };
+        auth,
+    );
     let simulated_bid = SimulatedBidSvm {
-        core_fields,
+        core_fields: core_fields.clone(),
         transaction: bid.transaction,
     };
-    store.add_bid(simulated_bid.into()).await?;
-    Ok(bid_id)
+    store.add_bid(simulated_bid.clone().into()).await?;
+    Ok(core_fields.id)
 }
 
 fn verify_signatures_svm(bid: &BidSvm, relayer_pubkey: &Pubkey) -> Result<(), RestError> {

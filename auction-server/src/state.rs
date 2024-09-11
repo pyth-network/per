@@ -7,6 +7,7 @@ use {
                 UpdateEvent,
                 WsState,
             },
+            Auth,
             RestError,
         },
         auction::SignableExpressRelayContract,
@@ -120,7 +121,7 @@ pub struct SimulatedBidSvm {
     #[schema(inline)]
     pub core_fields: SimulatedBidCoreFields,
     /// The transaction of the bid.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
+    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     pub transaction: VersionedTransaction,
 }
 
@@ -360,6 +361,29 @@ impl From<SimulatedBid> for SimulatedBidCoreFields {
     }
 }
 
+impl SimulatedBidCoreFields {
+    pub fn new(
+        bid_amount: U256,
+        chain_id: String,
+        permission_key: Bytes,
+        initiation_time: OffsetDateTime,
+        auth: Auth,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            bid_amount,
+            permission_key,
+            chain_id,
+            initiation_time,
+            status: BidStatus::Pending,
+            profile_id: match auth {
+                Auth::Authorized(_, profile) => Some(profile.id),
+                _ => None,
+            },
+        }
+    }
+}
+
 impl SimulatedBid {
     pub fn get_core_fields(&self) -> SimulatedBidCoreFields {
         match self {
@@ -374,6 +398,15 @@ impl SimulatedBid {
             core_fields.permission_key.clone(),
             core_fields.chain_id.clone(),
         )
+    }
+
+    pub fn update_status(self, status: BidStatus) -> Self {
+        let mut core_fields = self.get_core_fields();
+        core_fields.status = status;
+        match self {
+            SimulatedBid::Evm(bid) => SimulatedBid::Evm(SimulatedBidEvm { core_fields, ..bid }),
+            SimulatedBid::Svm(bid) => SimulatedBid::Svm(SimulatedBidSvm { core_fields, ..bid }),
+        }
     }
 }
 
@@ -466,7 +499,10 @@ impl TryFrom<SimulatedBid> for (models::BidMetadata, models::ChainType) {
                 models::BidMetadata::Evm(models::BidMetadataEvm {
                     target_contract: bid.target_contract,
                     target_calldata: bid.target_calldata,
-                    gas_limit:       bid.gas_limit.as_u64(),
+                    gas_limit:       bid
+                        .gas_limit
+                        .try_into()
+                        .map_err(|e: &str| anyhow::anyhow!(e))?,
                     bundle_index:    models::BundleIndex(match bid.core_fields.status {
                         BidStatus::Pending => None,
                         BidStatus::Lost { index, .. } => index,
@@ -697,8 +733,7 @@ impl Store {
         core_fields.status as _,
         PrimitiveDateTime::new(core_fields.initiation_time.date(), core_fields.initiation_time.time()),
         core_fields.profile_id,
-        serde_json::to_value(metadata).unwrap(),
-        )
+        serde_json::to_value(metadata).expect("Failed to serialize metadata"))
             .execute(&self.db)
             .await.map_err(|e| {
             tracing::error!("DB: Failed to insert bid: {}", e);
@@ -877,18 +912,7 @@ impl Store {
                     .execute(&self.db)
                     .await?;
 
-                    let mut data = bid.get_core_fields();
-                    data.status = updated_status.clone();
-                    let updated_bid = match bid {
-                        SimulatedBid::Evm(bid) => SimulatedBid::Evm(SimulatedBidEvm {
-                            core_fields: data,
-                            ..bid
-                        }),
-                        SimulatedBid::Svm(bid) => SimulatedBid::Svm(SimulatedBidSvm {
-                            core_fields: data,
-                            ..bid
-                        }),
-                    };
+                    let updated_bid = bid.update_status(updated_status.clone());
                     self.update_bid(updated_bid).await;
                 } else {
                     return Err(anyhow::anyhow!(
