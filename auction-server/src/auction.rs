@@ -363,7 +363,7 @@ async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
             async move {
                 if let Err(err) = conclude_submitted_auction(store.clone(), auction.clone()).await {
                     tracing::error!(
-                        "Failed to submit auction: {:?} - auction: {:?}",
+                        "Failed to conclude auction: {:?} - auction: {:?}",
                         err,
                         auction
                     );

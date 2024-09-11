@@ -6,6 +6,8 @@ function print_args {
   # dummy program
   echo "--bpf-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3 ./target/deploy/dummy.so"
 
+  # Make sure subscribe block is enabled
+  echo "--rpc-pubsub-enable-block-subscription"
   # options
   echo "--reset"
 }
