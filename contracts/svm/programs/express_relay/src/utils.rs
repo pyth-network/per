@@ -66,7 +66,9 @@ pub struct PermissionInfo<'info> {
     pub express_relay_metadata: AccountInfo<'info>,
 }
 
-pub fn get_matching_instructions(
+/// Performs instruction introspection to retrieve a vector of SubmitBid instructions in the current transaction
+/// If permission_info is specified, only instructions with matching permission and router accounts are returned
+pub fn get_matching_submit_bid_instructions(
     sysvar_instructions: AccountInfo,
     permission_info: Option<&PermissionInfo>,
 ) -> Result<Vec<Instruction>> {
@@ -163,7 +165,7 @@ pub fn inspect_permissions_in_tx(
     sysvar_instructions: UncheckedAccount,
     permission_info: PermissionInfo,
 ) -> Result<(u16, u64)> {
-    let matching_ixs = get_matching_instructions(
+    let matching_ixs = get_matching_submit_bid_instructions(
         sysvar_instructions.to_account_info(),
         Some(&permission_info),
     )?;

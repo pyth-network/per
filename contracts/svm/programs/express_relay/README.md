@@ -19,7 +19,7 @@ To integrate with Express Relay, the integrating program needs to make the follo
 
 ## Example Integration
 
-Integrating programs can use the `check_permission_cpi` helper method defined in the Express Relay SDK:
+Integrating programs can use the `check_permission_cpi` helper method defined in the Express Relay SDK. For example:
 
 ```rust
 use anchor_lang::prelude::*;

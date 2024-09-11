@@ -92,11 +92,13 @@ pub mod express_relay {
             return err!(ErrorCode::InvalidCPISubmitBid);
         }
 
-        // check "no reentrancy"--submit_bid instruction only used once in transaction
-        // this is done to prevent an exploit where a searcher submits a transaction with multiple submit_bid instructions with different permission keys
-        // that would allow the searcher to win the right to perform the transaction if they won just one of the auctions
-        let matching_ixs =
-            get_matching_instructions(ctx.accounts.sysvar_instructions.to_account_info(), None)?;
+        // check "no reentrancy"--SubmitBid instruction only used once in transaction
+        // this is done to prevent an exploit where a searcher submits a transaction with multiple SubmitBid instructions with different permission keys
+        // that could allow the searcher to win the right to perform the transaction if they won just one of the auctions
+        let matching_ixs = get_matching_submit_bid_instructions(
+            ctx.accounts.sysvar_instructions.to_account_info(),
+            None,
+        )?;
         if matching_ixs.len() > 1 {
             return err!(ErrorCode::MultiplePermissions);
         }
@@ -105,8 +107,8 @@ pub mod express_relay {
     }
 
     /// Checks if permissioning exists for a particular (permission, router) pair within the same transaction
-    /// Permissioning takes the form of a submit_bid instruction with matching permission and router accounts
-    /// Returns the fees paid to the router
+    /// Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts
+    /// Returns the fees paid to the router in the matching instructions
     pub fn check_permission(ctx: Context<CheckPermission>) -> Result<u64> {
         let (num_permissions, total_router_fees) = inspect_permissions_in_tx(
             ctx.accounts.sysvar_instructions.clone(),
