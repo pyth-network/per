@@ -118,22 +118,14 @@ pub fn extract_bid_from_submit_bid_ix(submit_bid_ix: &Instruction) -> Result<u64
     Ok(submit_bid_args.bid_amount)
 }
 
-pub fn perform_fee_split_router(amount: u64, split_router: u64) -> Result<u64> {
-    let fee_router = amount * split_router / FEE_SPLIT_PRECISION;
-    if fee_router > amount {
+/// Computes the fee to pay the router based on the specified bid_amount and the split_router
+fn perform_fee_split_router(bid_amount: u64, split_router: u64) -> Result<u64> {
+    let fee_router = bid_amount * split_router / FEE_SPLIT_PRECISION;
+    if fee_router > bid_amount {
         // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
         return err!(ErrorCode::FeesHigherThanBid);
     }
     Ok(fee_router)
-}
-
-pub fn perform_fee_split_relayer(amount: u64, split_relayer: u64) -> Result<u64> {
-    let fee_relayer = amount * split_relayer / FEE_SPLIT_PRECISION;
-    if fee_relayer > amount {
-        // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
-        return err!(ErrorCode::FeesHigherThanBid);
-    }
-    Ok(fee_relayer)
 }
 
 /// Performs fee splits on a bid amount
@@ -144,8 +136,9 @@ pub fn perform_fee_splits(
     split_relayer: u64,
 ) -> Result<(u64, u64)> {
     let fee_router = perform_fee_split_router(bid_amount, split_router)?;
-    let fee_relayer =
-        perform_fee_split_relayer(bid_amount.saturating_sub(fee_router), split_relayer)?;
+    // we inline the fee_relayer calculation because it is not straightforward and is only used here
+    // fee_relayer is computed as a proportion of the bid amount minus the fee paid to the router
+    let fee_relayer = bid_amount.saturating_sub(fee_router) * split_relayer / FEE_SPLIT_PRECISION;
 
     if fee_relayer
         .checked_add(fee_router)
