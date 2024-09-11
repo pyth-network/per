@@ -87,7 +87,7 @@ pub type BidAmount = U256;
 pub type GetOrCreate<T> = (T, bool);
 
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
-pub struct SimulatedBidShared {
+pub struct SimulatedBidCoreFields {
     /// The unique id for bid.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub id:              BidId,
@@ -118,7 +118,7 @@ pub struct SimulatedBidShared {
 pub struct SimulatedBidSvm {
     #[serde(flatten)]
     #[schema(inline)]
-    pub data:        SimulatedBidShared,
+    pub core_fields: SimulatedBidCoreFields,
     /// The transaction of the bid.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub transaction: VersionedTransaction,
@@ -129,7 +129,7 @@ pub struct SimulatedBidSvm {
 pub struct SimulatedBidEvm {
     #[serde(flatten)]
     #[schema(inline)]
-    pub data:            SimulatedBidShared,
+    pub core_fields:     SimulatedBidCoreFields,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: Address,
@@ -351,26 +351,29 @@ pub struct Store {
     pub express_relay_svm:  ExpressRelaySvm,
 }
 
-impl From<SimulatedBid> for SimulatedBidShared {
+impl From<SimulatedBid> for SimulatedBidCoreFields {
     fn from(bid: SimulatedBid) -> Self {
         match bid {
-            SimulatedBid::Evm(bid) => bid.data,
-            SimulatedBid::Svm(bid) => bid.data,
+            SimulatedBid::Evm(bid) => bid.core_fields,
+            SimulatedBid::Svm(bid) => bid.core_fields,
         }
     }
 }
 
 impl SimulatedBid {
-    pub fn get_data(&self) -> SimulatedBidShared {
+    pub fn get_core_fields(&self) -> SimulatedBidCoreFields {
         match self {
-            SimulatedBid::Evm(bid) => bid.data.clone(),
-            SimulatedBid::Svm(bid) => bid.data.clone(),
+            SimulatedBid::Evm(bid) => bid.core_fields.clone(),
+            SimulatedBid::Svm(bid) => bid.core_fields.clone(),
         }
     }
 
     pub fn get_auction_key(&self) -> AuctionKey {
-        let data = self.get_data();
-        (data.permission_key.clone(), data.chain_id.clone())
+        let core_fields = self.get_core_fields();
+        (
+            core_fields.permission_key.clone(),
+            core_fields.chain_id.clone(),
+        )
     }
 }
 
@@ -427,7 +430,7 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBid {
             .map_err(|e| anyhow::anyhow!(e))?;
         let bid_with_auction = (bid.clone(), auction);
 
-        let data = SimulatedBidShared {
+        let core_fields = SimulatedBidCoreFields {
             id: bid.id,
             bid_amount,
             permission_key: Bytes::from(bid.permission_key),
@@ -439,13 +442,13 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBid {
 
         Ok(match bid.metadata.0 {
             models::BidMetadata::Evm(metadata) => SimulatedBid::Evm(SimulatedBidEvm {
-                data,
+                core_fields,
                 target_contract: metadata.target_contract,
                 target_calldata: metadata.target_calldata,
                 gas_limit: U256::from(metadata.gas_limit),
             }),
             models::BidMetadata::Svm(metadata) => SimulatedBid::Svm(SimulatedBidSvm {
-                data,
+                core_fields,
                 transaction: metadata.transaction,
             }),
         })
@@ -464,7 +467,7 @@ impl TryFrom<SimulatedBid> for (models::BidMetadata, models::ChainType) {
                     target_contract: bid.target_contract,
                     target_calldata: bid.target_calldata,
                     gas_limit:       bid.gas_limit.as_u64(),
-                    bundle_index:    models::BundleIndex(match bid.data.status {
+                    bundle_index:    models::BundleIndex(match bid.core_fields.status {
                         BidStatus::Pending => None,
                         BidStatus::Lost { index, .. } => index,
                         BidStatus::Submitted { index, .. } => Some(index),
@@ -675,7 +678,7 @@ impl Store {
 
     #[tracing::instrument(skip_all)]
     pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
-        let data = bid.get_data();
+        let core_fields = bid.get_core_fields();
         let now = OffsetDateTime::now_utc();
 
         let (metadata, chain_type): (models::BidMetadata, models::ChainType) =
@@ -685,15 +688,15 @@ impl Store {
             })?;
 
         sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-        data.id,
+        core_fields.id,
         PrimitiveDateTime::new(now.date(), now.time()),
-        data.permission_key.to_vec(),
-        data.chain_id,
+        core_fields.permission_key.to_vec(),
+        core_fields.chain_id,
         chain_type as _,
-        BigDecimal::from_str(&data.bid_amount.to_string()).unwrap(),
-        data.status as _,
-        PrimitiveDateTime::new(data.initiation_time.date(), data.initiation_time.time()),
-        data.profile_id,
+        BigDecimal::from_str(&core_fields.bid_amount.to_string()).unwrap(),
+        core_fields.status as _,
+        PrimitiveDateTime::new(core_fields.initiation_time.date(), core_fields.initiation_time.time()),
+        core_fields.profile_id,
         serde_json::to_value(metadata).unwrap(),
         )
             .execute(&self.db)
@@ -710,8 +713,8 @@ impl Store {
             .push(bid.clone());
 
         self.broadcast_status_update(BidStatusWithId {
-            id:         data.id,
-            bid_status: data.status.clone(),
+            id:         core_fields.id,
+            bid_status: core_fields.status.clone(),
         });
         Ok(())
     }
@@ -776,10 +779,10 @@ impl Store {
     async fn remove_bid(&self, bid: SimulatedBid) {
         let mut write_guard = self.bids.write().await;
         let key = bid.get_auction_key();
-        let data = bid.get_data();
+        let core_fields = bid.get_core_fields();
         if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
             let bids = entry.get_mut();
-            bids.retain(|b| b.get_data().id != data.id);
+            bids.retain(|b| b.get_core_fields().id != core_fields.id);
             if bids.is_empty() {
                 entry.remove();
             }
@@ -796,7 +799,7 @@ impl Store {
         match auction.tx_hash.0 {
             Some(tx_hash) => bids
                 .into_iter()
-                .filter(|bid| match bid.get_data().status {
+                .filter(|bid| match bid.get_core_fields().status {
                     BidStatus::Submitted { result, .. } => result == tx_hash,
                     _ => false,
                 })
@@ -828,11 +831,14 @@ impl Store {
     async fn update_bid(&self, bid: SimulatedBid) {
         let mut write_guard = self.bids.write().await;
         let key = bid.get_auction_key();
-        let data = bid.get_data();
+        let core_fields = bid.get_core_fields();
         match write_guard.entry(key.clone()) {
             Entry::Occupied(mut entry) => {
                 let bids = entry.get_mut();
-                match bids.iter().position(|b| b.get_data().id == data.id) {
+                match bids
+                    .iter()
+                    .position(|b| b.get_core_fields().id == core_fields.id)
+                {
                     Some(index) => bids[index] = bid,
                     None => {
                         tracing::error!("Update bid failed - bid not found for: {:?}", bid);
@@ -852,7 +858,7 @@ impl Store {
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
         let query_result: PgQueryResult;
-        let data = bid.get_data();
+        let core_fields = bid.get_core_fields();
         match updated_status {
             BidStatus::Pending => {
                 return Err(anyhow::anyhow!(
@@ -866,20 +872,22 @@ impl Store {
                         updated_status as _,
                         auction.id,
                         json!(index),
-                        data.id
+                        core_fields.id
                     )
                     .execute(&self.db)
                     .await?;
 
-                    let mut data = bid.get_data();
+                    let mut data = bid.get_core_fields();
                     data.status = updated_status.clone();
                     let updated_bid = match bid {
-                        SimulatedBid::Evm(bid) => {
-                            SimulatedBid::Evm(SimulatedBidEvm { data, ..bid })
-                        }
-                        SimulatedBid::Svm(bid) => {
-                            SimulatedBid::Svm(SimulatedBidSvm { data, ..bid })
-                        }
+                        SimulatedBid::Evm(bid) => SimulatedBid::Evm(SimulatedBidEvm {
+                            core_fields: data,
+                            ..bid
+                        }),
+                        SimulatedBid::Svm(bid) => SimulatedBid::Svm(SimulatedBidSvm {
+                            core_fields: data,
+                            ..bid
+                        }),
                     };
                     self.update_bid(updated_bid).await;
                 } else {
@@ -897,7 +905,7 @@ impl Store {
                                 updated_status as _,
                                 json!(index),
                                 auction.id,
-                                data.id
+                                core_fields.id
                             )
                             .execute(&self.db)
                             .await?;
@@ -907,7 +915,7 @@ impl Store {
                                 "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = 'pending'",
                                 updated_status as _,
                                 auction.id,
-                                data.id
+                                core_fields.id
                             )
                             .execute(&self.db)
                             .await?;
@@ -917,7 +925,7 @@ impl Store {
                     query_result = sqlx::query!(
                         "UPDATE bid SET status = $1 WHERE id = $2 AND status = 'pending'",
                         updated_status as _,
-                        data.id
+                        core_fields.id
                     )
                     .execute(&self.db)
                     .await?;
@@ -929,7 +937,7 @@ impl Store {
                     "UPDATE bid SET status = $1, metadata = jsonb_set(metadata, '{bundle_index}', $2) WHERE id = $3 AND status = 'submitted'",
                     updated_status as _,
                     json!(index),
-                    data.id
+                    core_fields.id
                 )
                 .execute(&self.db)
                 .await?;
@@ -942,7 +950,7 @@ impl Store {
         // To ensure we do not broadcast the update more than once, we need to check the below "if"
         if query_result.rows_affected() > 0 {
             self.broadcast_status_update(BidStatusWithId {
-                id:         data.id,
+                id:         core_fields.id,
                 bid_status: updated_status,
             });
         }

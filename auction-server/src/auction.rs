@@ -22,8 +22,8 @@ use {
             ExpressRelaySvm,
             PermissionKey,
             SimulatedBid,
+            SimulatedBidCoreFields,
             SimulatedBidEvm,
-            SimulatedBidShared,
             SimulatedBidSvm,
             Store,
         },
@@ -198,10 +198,10 @@ pub async fn submit_bids(
 impl From<(SimulatedBidEvm, bool)> for MulticallData {
     fn from((bid, revert_on_failure): (SimulatedBidEvm, bool)) -> Self {
         MulticallData {
-            bid_id: bid.data.id.into_bytes(),
+            bid_id: bid.core_fields.id.into_bytes(),
             target_contract: bid.target_contract,
             target_calldata: bid.target_calldata,
-            bid_amount: bid.data.bid_amount,
+            bid_amount: bid.core_fields.bid_amount,
             gas_limit: bid.gas_limit,
             revert_on_failure,
         }
@@ -227,7 +227,7 @@ async fn get_winner_bids(
     }
 
     let mut bids = bids.to_owned();
-    bids.sort_by(|a, b| b.data.bid_amount.cmp(&a.data.bid_amount));
+    bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
     let bids: Vec<SimulatedBidEvm> = bids.into_iter().take(TOTAL_BIDS_PER_AUCTION).collect();
 
     let simulation_result = get_simulation_call(
@@ -278,7 +278,7 @@ const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
 // An auction is ready if there are any bids with a lifetime of AUCTION_MINIMUM_LIFETIME
 fn is_ready_for_auction(bids: Vec<SimulatedBidEvm>, bid_collection_time: OffsetDateTime) -> bool {
     bids.iter()
-        .any(|bid| bid_collection_time - bid.data.initiation_time > AUCTION_MINIMUM_LIFETIME)
+        .any(|bid| bid_collection_time - bid.core_fields.initiation_time > AUCTION_MINIMUM_LIFETIME)
 }
 
 async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction) -> Result<()> {
@@ -306,7 +306,7 @@ async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction)
                 if let Some(bid) = bids
                     .clone()
                     .into_iter()
-                    .find(|b| b.get_data().id == Uuid::from_bytes(decoded_log.bid_id))
+                    .find(|b| b.get_core_fields().id == Uuid::from_bytes(decoded_log.bid_id))
                 {
                     if let Err(err) = store
                         .broadcast_bid_status_and_update(
@@ -393,7 +393,7 @@ async fn broadcast_lost_bids(
     join_all(bids.iter().filter_map(|bid| {
         if submitted_bids
             .iter()
-            .any(|submitted_bid| bid.get_data().id == submitted_bid.get_data().id)
+            .any(|submitted_bid| bid.get_core_fields().id == submitted_bid.get_core_fields().id)
         {
             return None;
         }
@@ -429,7 +429,7 @@ async fn submit_auction_for_bids<'a>(
 ) -> Result<()> {
     let bids: Vec<SimulatedBidEvm> = bids
         .into_iter()
-        .filter(|bid| bid.data.status == BidStatus::Pending)
+        .filter(|bid| bid.core_fields.status == BidStatus::Pending)
         .collect();
 
     if bids.is_empty() {
@@ -846,7 +846,7 @@ pub async fn handle_bid(
     .await?;
 
     let bid_id = Uuid::new_v4();
-    let data = SimulatedBidShared {
+    let core_fields = SimulatedBidCoreFields {
         bid_amount: bid.amount,
         id: bid_id,
         permission_key: bid.permission_key.clone(),
@@ -859,7 +859,7 @@ pub async fn handle_bid(
         },
     };
     let simulated_bid = SimulatedBidEvm {
-        data,
+        core_fields,
         target_contract: bid.target_contract,
         target_calldata: bid.target_calldata.clone(),
         // Add a 25% more for estimation errors
@@ -1017,7 +1017,7 @@ pub async fn handle_bid_svm(
     simulate_bid_svm(chain_store, &bid).await?;
 
     let bid_id = Uuid::new_v4();
-    let data = SimulatedBidShared {
+    let core_fields = SimulatedBidCoreFields {
         bid_amount: U256::from(bid_amount),
         id: bid_id,
         permission_key,
@@ -1030,7 +1030,7 @@ pub async fn handle_bid_svm(
         },
     };
     let simulated_bid = SimulatedBidSvm {
-        data,
+        core_fields,
         transaction: bid.transaction,
     };
     store.add_bid(simulated_bid.into()).await?;
