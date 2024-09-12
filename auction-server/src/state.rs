@@ -143,6 +143,7 @@ pub struct SimulatedBidEvm {
     pub gas_limit:       U256,
 }
 
+// TODO - we should delete this enum and use the SimulatedBidTrait instead. We may need it for API.
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SimulatedBid {
