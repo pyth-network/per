@@ -855,7 +855,7 @@ impl Store {
 
     async fn remove_bid<T: SimulatedBidTrait>(&self, bid: T) {
         let mut write_guard = self.bids.write().await;
-        let key = bid.clone().get_auction_key();
+        let key = bid.get_auction_key();
         let core_fields = bid.get_core_fields();
         if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
             let bids = entry.get_mut();
@@ -907,7 +907,7 @@ impl Store {
 
     async fn update_bid<T: SimulatedBidTrait>(&self, bid: T) {
         let mut write_guard = self.bids.write().await;
-        let key = bid.clone().get_auction_key();
+        let key = bid.get_auction_key();
         let core_fields = bid.clone().get_core_fields();
         match write_guard.entry(key.clone()) {
             Entry::Occupied(mut entry) => {
@@ -916,7 +916,7 @@ impl Store {
                     .iter()
                     .position(|b| b.get_core_fields().id == core_fields.id)
                 {
-                    Some(index) => bids[index] = bid.clone().into(),
+                    Some(index) => bids[index] = bid.into(),
                     None => {
                         tracing::error!("Update bid failed - bid not found for: {:?}", bid);
                     }
@@ -935,7 +935,7 @@ impl Store {
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
         let query_result: PgQueryResult;
-        let core_fields = bid.clone().get_core_fields();
+        let core_fields = bid.get_core_fields();
         match updated_status {
             BidStatus::Pending => {
                 return Err(anyhow::anyhow!(
@@ -954,7 +954,7 @@ impl Store {
                     .execute(&self.db)
                     .await?;
 
-                    let updated_bid = bid.clone().update_status(updated_status.clone());
+                    let updated_bid = bid.update_status(updated_status.clone());
                     self.update_bid(updated_bid).await;
                 } else {
                     return Err(anyhow::anyhow!(
