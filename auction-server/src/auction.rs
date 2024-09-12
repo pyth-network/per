@@ -25,6 +25,7 @@ use {
             SimulatedBidCoreFields,
             SimulatedBidEvm,
             SimulatedBidSvm,
+            SimulatedBidTrait,
             Store,
         },
         traced_client::TracedClient,
@@ -225,49 +226,6 @@ impl From<(SimulatedBidEvm, bool)> for MulticallData {
     }
 }
 
-// While we are submitting bids together, increasing this number will have the following effects:
-// 1. There will be more gas required for the transaction, which will result in a higher minimum bid amount.
-// 2. The transaction size limit will be reduced for each bid.
-// 3. Gas consumption limit will decrease for the bid
-const TOTAL_BIDS_PER_AUCTION: usize = 3;
-
-#[tracing::instrument(skip_all)]
-async fn get_winner_bids(
-    bids: &[SimulatedBidEvm],
-    permission_key: Bytes,
-    store: Arc<Store>,
-    chain_store: &ChainStoreEvm,
-) -> Result<Vec<SimulatedBidEvm>, ContractError<Provider<TracedClient>>> {
-    // TODO How we want to perform simulation, pruning, and determination
-    if bids.is_empty() {
-        return Ok(vec![]);
-    }
-
-    let mut bids = bids.to_owned();
-    bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
-    let bids: Vec<SimulatedBidEvm> = bids.into_iter().take(TOTAL_BIDS_PER_AUCTION).collect();
-
-    let simulation_result = get_simulation_call(
-        store.relayer.address(),
-        chain_store.provider.clone(),
-        chain_store.config.clone(),
-        permission_key.clone(),
-        bids.clone()
-            .into_iter()
-            .map(|b| (b, false).into())
-            .collect(),
-    )
-    .await?;
-
-    match simulation_result
-        .iter()
-        .position(|status| status.external_success)
-    {
-        Some(index) => Ok(bids.into_iter().skip(index).collect()),
-        None => Ok(vec![]),
-    }
-}
-
 fn get_bid_status(decoded_log: &MulticallIssuedFilter, receipt: &TransactionReceipt) -> BidStatus {
     match decoded_log.multicall_status.external_success {
         true => BidStatus::Won {
@@ -290,12 +248,14 @@ fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedF
         .collect()
 }
 
-const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
-
 // An auction is ready if there are any bids with a lifetime of AUCTION_MINIMUM_LIFETIME
-fn is_ready_for_auction(bids: Vec<SimulatedBidEvm>, bid_collection_time: OffsetDateTime) -> bool {
-    bids.iter()
-        .any(|bid| bid_collection_time - bid.core_fields.initiation_time > AUCTION_MINIMUM_LIFETIME)
+fn is_ready_for_auction<T: Auction>(
+    bids: Vec<T::SimulatedBid>,
+    bid_collection_time: OffsetDateTime,
+) -> bool {
+    bids.into_iter().any(|bid| {
+        bid_collection_time - bid.get_core_fields().initiation_time > T::AUCTION_MINIMUM_LIFETIME
+    })
 }
 
 async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction) -> Result<()> {
@@ -318,12 +278,13 @@ async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction)
                 .await
                 .map_err(|e| anyhow!("Failed to conclude auction: {:?}", e))?;
             let bids: Vec<SimulatedBid> = store.bids_for_submitted_auction(auction.clone()).await;
+            let bids = <&ChainStoreEvm as Auction>::filter_bids(bids);
 
             join_all(decoded_logs.iter().map(|decoded_log| async {
                 if let Some(bid) = bids
                     .clone()
                     .into_iter()
-                    .find(|b| b.get_core_fields().id == Uuid::from_bytes(decoded_log.bid_id))
+                    .find(|b| b.core_fields.id == Uuid::from_bytes(decoded_log.bid_id))
                 {
                     if let Err(err) = store
                         .broadcast_bid_status_and_update(
@@ -373,9 +334,9 @@ async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
     }
 }
 
-async fn broadcast_submitted_bids(
+async fn broadcast_submitted_bids<T: SimulatedBidTrait>(
     store: Arc<Store>,
-    bids: Vec<SimulatedBid>,
+    bids: Vec<T>,
     tx_hash: H256,
     auction: models::Auction,
 ) {
@@ -400,10 +361,10 @@ async fn broadcast_submitted_bids(
     .await;
 }
 
-async fn broadcast_lost_bids(
+async fn broadcast_lost_bids<T: SimulatedBidTrait>(
     store: Arc<Store>,
-    bids: Vec<SimulatedBid>,
-    submitted_bids: Vec<SimulatedBid>,
+    bids: Vec<T>,
+    submitted_bids: Vec<T>,
     tx_hash: Option<H256>,
     auction: Option<&models::Auction>,
 ) {
@@ -435,40 +396,35 @@ async fn broadcast_lost_bids(
     .await;
 }
 
-async fn submit_auction_for_bids<'a>(
-    bids: Vec<SimulatedBidEvm>,
+async fn submit_auction_for_bids<'a, T: Auction>(
+    bids: Vec<SimulatedBid>,
     bid_collection_time: OffsetDateTime,
     permission_key: Bytes,
     chain_id: String,
     store: Arc<Store>,
-    chain_store: &ChainStoreEvm,
+    chain_store: T,
     _auction_mutex_gaurd: MutexGuard<'a, ()>,
 ) -> Result<()> {
-    let bids: Vec<SimulatedBidEvm> = bids
+    let bids = T::filter_bids(bids);
+    let bids: Vec<T::SimulatedBid> = bids
         .into_iter()
-        .filter(|bid| bid.core_fields.status == BidStatus::Pending)
+        .filter(|bid| bid.get_core_fields().status == BidStatus::Pending)
         .collect();
 
     if bids.is_empty() {
         return Ok(());
     }
 
-    if !is_ready_for_auction(bids.clone(), bid_collection_time) {
+    if !is_ready_for_auction::<T>(bids.clone(), bid_collection_time) {
         tracing::info!("Auction for {} is not ready yet", permission_key);
         return Ok(());
     }
 
-    let winner_bids =
-        get_winner_bids(&bids, permission_key.clone(), store.clone(), chain_store).await?;
+    let winner_bids = chain_store
+        .get_winner_bids(&bids, permission_key.clone(), store.clone())
+        .await?;
     if winner_bids.is_empty() {
-        broadcast_lost_bids(
-            store.clone(),
-            bids.into_iter().map(|b| b.into()).collect(),
-            winner_bids.into_iter().map(|b| b.into()).collect(),
-            None,
-            None,
-        )
-        .await;
+        broadcast_lost_bids(store.clone(), bids, winner_bids, None, None).await;
         return Ok(());
     }
 
@@ -486,27 +442,25 @@ async fn submit_auction_for_bids<'a>(
         chain_id,
         OffsetDateTime::now_utc()
     );
-    let submit_bids_call = submit_bids(
-        chain_store.express_relay_contract.clone(),
-        permission_key.clone(),
-        winner_bids.clone(),
-    );
 
-    match submit_bids_call.await {
+    match chain_store
+        .submit_bids(permission_key.clone(), winner_bids.clone())
+        .await
+    {
         Ok(tx_hash) => {
             tracing::debug!("Submitted transaction: {:?}", tx_hash);
             auction = store.submit_auction(auction, tx_hash).await?;
             tokio::join!(
                 broadcast_submitted_bids(
                     store.clone(),
-                    winner_bids.clone().into_iter().map(|b| b.into()).collect(),
+                    winner_bids.clone(),
                     tx_hash,
                     auction.clone()
                 ),
                 broadcast_lost_bids(
                     store.clone(),
-                    bids.into_iter().map(|b| b.into()).collect(),
-                    winner_bids.into_iter().map(|b| b.into()).collect(),
+                    bids,
+                    winner_bids,
                     Some(tx_hash),
                     Some(&auction)
                 ),
@@ -526,34 +480,45 @@ async fn submit_auction_for_lock(
     auction_lock: AuctionLock,
 ) -> Result<()> {
     let acquired_lock = auction_lock.lock().await;
-    let chain_store = store
-        .chains
-        .get(&chain_id)
-        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+    let chain_store = store.chains.get(&chain_id);
+    let chain_store_svm = store.chains_svm.get(&chain_id);
+
+    if chain_store.is_none() && chain_store_svm.is_none() {
+        return Err(anyhow!("Chain not found: {}", chain_id));
+    }
+
+    if chain_store.is_some() && chain_store_svm.is_some() {
+        tracing::error!("Chain found in both EVM and SVM chains: {}", chain_id);
+    }
 
     let bid_collection_time: OffsetDateTime = OffsetDateTime::now_utc();
     let bids: Vec<SimulatedBid> = store
         .get_bids(&(permission_key.clone(), chain_id.clone()))
         .await;
 
-    let bids: Vec<SimulatedBidEvm> = bids
-        .into_iter()
-        .filter_map(|b| match b {
-            SimulatedBid::Evm(b) => Some(b),
-            _ => None,
-        })
-        .collect();
-
-    submit_auction_for_bids(
-        bids,
-        bid_collection_time,
-        permission_key.clone(),
-        chain_id.clone(),
-        store.clone(),
-        chain_store,
-        acquired_lock,
-    )
-    .await
+    if let Some(chain_store_svm) = chain_store_svm {
+        submit_auction_for_bids(
+            bids.clone(),
+            bid_collection_time,
+            permission_key.clone(),
+            chain_id.clone(),
+            store.clone(),
+            chain_store_svm,
+            acquired_lock,
+        )
+        .await
+    } else {
+        submit_auction_for_bids(
+            bids.clone(),
+            bid_collection_time,
+            permission_key.clone(),
+            chain_id.clone(),
+            store.clone(),
+            chain_store.unwrap_or_else(|| panic!("Chain not found: {}", chain_id.clone())),
+            acquired_lock,
+        )
+        .await
+    }
 }
 
 #[tracing::instrument(skip_all)]
@@ -1043,18 +1008,43 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
     }
 }
 
-trait ChainStore {
+trait Auction {
     type Block: DebugTrait;
     type BlockStream<'a>: Stream<Item = Self::Block> + Unpin + Send + 'a;
     type WsClient;
+    type SimulatedBid: SimulatedBidTrait + Clone;
+
+    const AUCTION_MINIMUM_LIFETIME: Duration;
+
     async fn get_ws_client(&self) -> Result<Self::WsClient>;
     async fn get_block_stream<'a>(client: &'a Self::WsClient) -> Result<Self::BlockStream<'a>>;
+    fn filter_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid>;
+    async fn get_winner_bids(
+        &self,
+        bids: &[Self::SimulatedBid],
+        permission_key: Bytes,
+        store: Arc<Store>,
+    ) -> Result<Vec<Self::SimulatedBid>>;
+    async fn submit_bids(
+        &self,
+        permission_key: Bytes,
+        bids: Vec<Self::SimulatedBid>,
+    ) -> Result<H256>;
 }
 
-impl ChainStore for &ChainStoreEvm {
+// While we are submitting bids together, increasing this number will have the following effects:
+// 1. There will be more gas required for the transaction, which will result in a higher minimum bid amount.
+// 2. The transaction size limit will be reduced for each bid.
+// 3. Gas consumption limit will decrease for the bid
+const TOTAL_BIDS_PER_AUCTION: usize = 3;
+
+impl Auction for &ChainStoreEvm {
     type Block = Block<H256>;
     type BlockStream<'a> = SubscriptionStream<'a, Ws, Block<H256>>;
     type WsClient = Provider<Ws>;
+    type SimulatedBid = SimulatedBidEvm;
+
+    const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
 
     async fn get_ws_client(&self) -> Result<Self::WsClient> {
         let ws = Ws::connect(self.config.geth_ws_addr.clone()).await?;
@@ -1065,18 +1055,96 @@ impl ChainStore for &ChainStoreEvm {
         let block_stream = client.subscribe_blocks().await?;
         Ok(block_stream)
     }
+
+    fn filter_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid> {
+        bids.into_iter()
+            .filter_map(|b| match b {
+                SimulatedBid::Evm(b) => Some(b),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn get_winner_bids(
+        &self,
+        bids: &[Self::SimulatedBid],
+        permission_key: Bytes,
+        store: Arc<Store>,
+    ) -> Result<Vec<Self::SimulatedBid>> {
+        // TODO How we want to perform simulation, pruning, and determination
+        if bids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut bids = bids.to_owned();
+        bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
+        let bids: Vec<SimulatedBidEvm> = bids.into_iter().take(TOTAL_BIDS_PER_AUCTION).collect();
+
+        let simulation_result = get_simulation_call(
+            store.relayer.address(),
+            self.provider.clone(),
+            self.config.clone(),
+            permission_key.clone(),
+            bids.clone()
+                .into_iter()
+                .map(|b| (b, false).into())
+                .collect(),
+        )
+        .await?;
+
+        match simulation_result
+            .iter()
+            .position(|status| status.external_success)
+        {
+            Some(index) => Ok(bids.into_iter().skip(index).collect()),
+            None => Ok(vec![]),
+        }
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn submit_bids(
+        &self,
+        permission_key: Bytes,
+        bids: Vec<Self::SimulatedBid>,
+    ) -> Result<H256> {
+        let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
+        let tx_hash = self
+            .express_relay_contract
+            .multicall(
+                permission_key,
+                bids.into_iter().map(|b| (b, false).into()).collect(),
+            )
+            .gas(gas_estimate + EXTRA_GAS_FOR_SUBMISSION)
+            .send()
+            .await?
+            .tx_hash();
+        Ok(tx_hash)
+    }
 }
 
-impl ChainStore for &ChainStoreSvm {
+impl Auction for &ChainStoreSvm {
     type Block = Response<RpcBlockUpdate>;
     type BlockStream<'a> = Pin<Box<dyn Stream<Item = Response<RpcBlockUpdate>> + Send + 'a>>;
     type WsClient = PubsubClient;
+    type SimulatedBid = SimulatedBidSvm;
+
+    const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_millis(400);
 
     async fn get_ws_client(&self) -> Result<Self::WsClient> {
         PubsubClient::new(&self.config.ws_addr).await.map_err(|e| {
             tracing::error!("Error while creating svm pub sub client: {:?}", e);
             anyhow!(e)
         })
+    }
+
+    fn filter_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid> {
+        bids.into_iter()
+            .filter_map(|b| match b {
+                SimulatedBid::Svm(b) => Some(b),
+                _ => None,
+            })
+            .collect()
     }
 
     async fn get_block_stream<'a>(client: &'a Self::WsClient) -> Result<Self::BlockStream<'a>> {
@@ -1094,9 +1162,29 @@ impl ChainStore for &ChainStoreSvm {
             .await?;
         Ok(block_subscribe)
     }
+
+    async fn get_winner_bids(
+        &self,
+        bids: &[Self::SimulatedBid],
+        _permission_key: Bytes,
+        _store: Arc<Store>,
+    ) -> Result<Vec<Self::SimulatedBid>> {
+        match bids.iter().max_by_key(|b| b.core_fields.bid_amount) {
+            Some(bid) => Ok(vec![bid.clone()]),
+            None => Ok(vec![]),
+        }
+    }
+
+    async fn submit_bids(
+        &self,
+        _permission_key: Bytes,
+        _bids: Vec<Self::SimulatedBid>,
+    ) -> Result<H256> {
+        Err(anyhow!("Not implemented"))
+    }
 }
 
-async fn run_submission_loop<T: ChainStore>(
+async fn run_submission_loop<T: Auction>(
     store: Arc<Store>,
     chain_store: T,
     chain_id: String,
