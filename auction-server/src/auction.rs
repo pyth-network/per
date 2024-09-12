@@ -110,7 +110,11 @@ use {
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
         pubkey::Pubkey,
-        signature::Signer as SvmSigner,
+        signature::{
+            Keypair,
+            Signature as SignatureSvm,
+            Signer as SvmSigner,
+        },
         transaction::VersionedTransaction,
     },
     sqlx::types::time::OffsetDateTime,
@@ -212,6 +216,27 @@ pub async fn submit_bids(
     Ok(tx_hash)
 }
 
+#[tracing::instrument(skip_all)]
+pub async fn submit_bids_svm(
+    relayer: &Arc<Keypair>,
+    chain_store: &ChainStoreSvm,
+    bids: Vec<SimulatedBidSvm>,
+) -> Result<SignatureSvm, ContractError<SignableProvider>> {
+    let mut bid = bids[0].clone();
+    let serialized_message = bid.transaction.message.serialize();
+    let relayer_signature_pos = bid
+        .transaction
+        .message
+        .static_account_keys()
+        .iter()
+        .position(|p| p.eq(&relayer.pubkey()))
+        .expect("Relayer not found in static account keys");
+    bid.transaction.signatures[relayer_signature_pos] = relayer.sign_message(&serialized_message);
+    let response = chain_store.client.send_transaction(&bid.transaction).await;
+    Ok(response.unwrap())
+    // relayer.
+}
+
 impl From<(SimulatedBidEvm, bool)> for MulticallData {
     fn from((bid, revert_on_failure): (SimulatedBidEvm, bool)) -> Self {
         MulticallData {
@@ -268,6 +293,39 @@ async fn get_winner_bids(
     }
 }
 
+#[tracing::instrument(skip_all)]
+async fn get_winner_bids_svm(
+    bids: &[SimulatedBidSvm],
+    permission_key: Bytes,
+    store: Arc<Store>,
+    chain_store: &ChainStoreSvm,
+) -> Result<Vec<SimulatedBidSvm>, ContractError<Provider<TracedClient>>> {
+    // TODO How we want to perform simulation, pruning, and determination
+    if bids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let bids = bids.to_owned();
+    let results = join_all(
+        bids.iter()
+            .map(|b| simulate_bid_svm(chain_store, &b.transaction)),
+    )
+    .await;
+
+    let highest_remaining_bid: Option<SimulatedBidSvm> = bids
+        .into_iter()
+        .zip(results.into_iter())
+        .filter_map(|(bid, result)| match result {
+            Ok(()) => Some(bid),
+            _ => None,
+        })
+        .max_by_key(|b| b.core_fields.bid_amount);
+    match highest_remaining_bid {
+        Some(bid) => Ok(vec![bid]),
+        None => Ok(vec![]),
+    }
+}
+
 fn get_bid_status(decoded_log: &MulticallIssuedFilter, receipt: &TransactionReceipt) -> BidStatus {
     match decoded_log.multicall_status.external_success {
         true => BidStatus::Won {
@@ -296,6 +354,53 @@ const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
 fn is_ready_for_auction(bids: Vec<SimulatedBidEvm>, bid_collection_time: OffsetDateTime) -> bool {
     bids.iter()
         .any(|bid| bid_collection_time - bid.core_fields.initiation_time > AUCTION_MINIMUM_LIFETIME)
+}
+
+async fn conclude_submitted_auction_svm(store: Arc<Store>, auction: models::Auction) -> Result<()> {
+    let chain_store = store
+        .chains_svm
+        .get(&auction.chain_id)
+        .ok_or(anyhow!("Chain not found: {}", auction.chain_id))?;
+    let tx_hash = match auction.tx_hash.0 {
+        Some(tx_hash) => tx_hash,
+        None => return Ok(()),
+    };
+    //TODO: replace with actual tx hash
+    let status = chain_store
+        .client
+        .get_signature_status_with_commitment(
+            &SignatureSvm::default(),
+            CommitmentConfig::confirmed(),
+        )
+        .await?;
+    match status {
+        Some(res) => {
+            let bid_status = match res {
+                Ok(()) => BidStatus::Won {
+                    index:  0,
+                    result: tx_hash,
+                },
+                Err(e) => BidStatus::Lost {
+                    index:  Some(0),
+                    result: Some(tx_hash),
+                },
+            };
+            let bids: Vec<SimulatedBid> = store.bids_for_submitted_auction(auction.clone()).await;
+            // we assume that this is just a single bid and is correct
+            let bid = bids[0].clone();
+            if let Err(err) = store
+                .broadcast_bid_status_and_update(bid.clone(), bid_status, Some(&auction))
+                .await
+            {
+                tracing::error!("Failed to broadcast bid status: {:?} - bid: {:?}", err, bid);
+            }
+            Ok(())
+        }
+        None => {
+            // not yet confirmed
+            Ok(())
+        }
+    }
 }
 
 async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction) -> Result<()> {
@@ -495,6 +600,95 @@ async fn submit_auction_for_bids<'a>(
     match submit_bids_call.await {
         Ok(tx_hash) => {
             tracing::debug!("Submitted transaction: {:?}", tx_hash);
+            auction = store.submit_auction(auction, tx_hash).await?;
+            tokio::join!(
+                broadcast_submitted_bids(
+                    store.clone(),
+                    winner_bids.clone().into_iter().map(|b| b.into()).collect(),
+                    tx_hash,
+                    auction.clone()
+                ),
+                broadcast_lost_bids(
+                    store.clone(),
+                    bids.into_iter().map(|b| b.into()).collect(),
+                    winner_bids.into_iter().map(|b| b.into()).collect(),
+                    Some(tx_hash),
+                    Some(&auction)
+                ),
+            );
+        }
+        Err(err) => {
+            tracing::error!("Transaction failed to submit: {:?}", err);
+        }
+    };
+    Ok(())
+}
+
+
+async fn submit_auction_for_bids_svm<'a>(
+    bids: Vec<SimulatedBidSvm>,
+    bid_collection_time: OffsetDateTime,
+    permission_key: Bytes,
+    chain_id: String,
+    store: Arc<Store>,
+    chain_store: &ChainStoreSvm,
+    _auction_mutex_gaurd: MutexGuard<'a, ()>,
+) -> Result<()> {
+    let bids: Vec<SimulatedBidSvm> = bids
+        .into_iter()
+        .filter(|bid| bid.core_fields.status == BidStatus::Pending)
+        .collect();
+
+    if bids.is_empty() {
+        return Ok(());
+    }
+
+    // if !is_ready_for_auction(bids.clone(), bid_collection_time) {
+    //     tracing::info!("Auction for {} is not ready yet", permission_key);
+    //     return Ok(());
+    // }
+
+    let winner_bids =
+        get_winner_bids_svm(&bids, permission_key.clone(), store.clone(), chain_store).await?;
+    if winner_bids.is_empty() {
+        broadcast_lost_bids(
+            store.clone(),
+            bids.into_iter().map(|b| b.into()).collect(),
+            winner_bids.into_iter().map(|b| b.into()).collect(),
+            None,
+            None,
+        )
+        .await;
+        return Ok(());
+    }
+
+    let mut auction = store
+        .init_auction(
+            permission_key.clone(),
+            chain_id.clone(),
+            bid_collection_time,
+        )
+        .await?;
+
+    tracing::info!(
+        "Submission for {} on chain {} started at {}",
+        permission_key,
+        chain_id,
+        OffsetDateTime::now_utc()
+    );
+
+    let submit_bids_call = submit_bids_svm(
+        &store.express_relay_svm.relayer,
+        chain_store,
+        winner_bids.clone(),
+    );
+
+    match submit_bids_call.await {
+        Ok(tx_hash) => {
+            tracing::debug!("Submitted transaction: {:?}", tx_hash);
+
+            //TODO make auction accept both tx hashes
+            let tx_hash = H256::default();
             auction = store.submit_auction(auction, tx_hash).await?;
             tokio::join!(
                 broadcast_submitted_bids(
@@ -984,7 +1178,7 @@ pub async fn handle_bid_svm(
     )?;
 
     verify_signatures_svm(&bid, &store.express_relay_svm.relayer.pubkey())?;
-    simulate_bid_svm(chain_store, &bid).await?;
+    simulate_bid_svm(chain_store, &bid.transaction).await?;
 
     let core_fields = SimulatedBidCoreFields::new(
         U256::from(bid_amount),
@@ -1018,11 +1212,11 @@ fn verify_signatures_svm(bid: &BidSvm, relayer_pubkey: &Pubkey) -> Result<(), Re
     }
 }
 
-async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(), RestError> {
-    let response = chain_store
-        .client
-        .simulate_transaction(&bid.transaction)
-        .await;
+async fn simulate_bid_svm(
+    chain_store: &ChainStoreSvm,
+    transaction: &VersionedTransaction,
+) -> Result<(), RestError> {
+    let response = chain_store.client.simulate_transaction(transaction).await;
     let result = response.map_err(|e| {
         tracing::error!("Error while simulating bid: {:?}", e);
         RestError::TemporarilyUnavailable
