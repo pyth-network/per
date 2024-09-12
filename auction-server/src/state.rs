@@ -31,7 +31,6 @@ use {
         types::{
             Address,
             Bytes,
-            H256,
             U256,
         },
     },
@@ -299,6 +298,7 @@ impl OpportunityStore {
 
 pub type BidId = Uuid;
 
+// TODO update result type for evm and svm
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatus {
@@ -307,8 +307,9 @@ pub enum BidStatus {
     /// The bid is submitted to the chain, which is placed at the given index of the transaction with the given hash
     /// This state is temporary and will be updated to either lost or won after conclusion of the auction
     Submitted {
-        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-        result: H256,
+        result: Vec<u8>,
+        // #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
+        // result: H256,
         #[schema(example = 1, value_type = u32)]
         index:  u32,
     },
@@ -318,15 +319,17 @@ pub enum BidStatus {
     /// There are cases where the result is not None and the index is None.
     /// It is because other bids were selected for submission to the chain, but not this one.
     Lost {
-        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
-        result: Option<H256>,
+        result: Option<Vec<u8>>,
+        // #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
+        // result: Option<H256>,
         #[schema(example = 1, value_type = Option<u32>)]
         index:  Option<u32>,
     },
     /// The bid won the auction, which is concluded with the transaction with the given hash and index
     Won {
-        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-        result: H256,
+        result: Vec<u8>,
+        // #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
+        // result: H256,
         #[schema(example = 1, value_type = u32)]
         index:  u32,
     },
@@ -466,7 +469,7 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatus {
             Ok(BidStatus::Pending)
         } else {
             let result = match auction {
-                Some(auction) => auction.tx_hash.0,
+                Some(auction) => auction.tx_hash,
                 None => None,
             };
             let index = bid.metadata.0.get_bundle_index();
@@ -666,7 +669,7 @@ impl Store {
             conclusion_time: None,
             permission_key: permission_key.to_vec(),
             chain_id,
-            tx_hash: models::TxHash(None),
+            tx_hash: None,
             bid_collection_time: Some(PrimitiveDateTime::new(
                 bid_collection_time.date(),
                 bid_collection_time.time(),
@@ -690,14 +693,14 @@ impl Store {
     pub async fn submit_auction(
         &self,
         mut auction: models::Auction,
-        transaction_hash: H256,
+        transaction_hash: Vec<u8>,
     ) -> anyhow::Result<models::Auction> {
-        auction.tx_hash = models::TxHash(Some(transaction_hash));
+        auction.tx_hash = Some(transaction_hash);
         let now = OffsetDateTime::now_utc();
         auction.submission_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
         sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
             auction.submission_time,
-            auction.tx_hash.map(|h| h.as_bytes().to_vec()),
+            auction.tx_hash,
             auction.id)
             .execute(&self.db)
             .await?;
@@ -825,7 +828,7 @@ impl Store {
                                 );
                                 RestError::TemporarilyUnavailable
                             })?;
-                    auction.tx_hash.0
+                    auction.tx_hash
                 }
                 None => None,
             };
@@ -874,7 +877,7 @@ impl Store {
                 auction.chain_id.clone(),
             ))
             .await;
-        match auction.tx_hash.0 {
+        match auction.tx_hash {
             Some(tx_hash) => bids
                 .into_iter()
                 .filter(|bid| match bid.get_core_fields().status {

@@ -2,7 +2,6 @@ use {
     ethers::types::{
         Address,
         Bytes,
-        H256,
     },
     serde::{
         Deserialize,
@@ -26,24 +25,7 @@ use {
 };
 
 #[derive(Clone, Debug)]
-pub struct TxHash(pub Option<H256>);
-
-impl From<Option<Vec<u8>>> for TxHash {
-    fn from(value: Option<Vec<u8>>) -> Self {
-        match value {
-            Some(value) => TxHash(Some(H256::from_slice(value.as_slice()))),
-            None => TxHash(None),
-        }
-    }
-}
-
-impl Deref for TxHash {
-    type Target = Option<H256>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+pub struct TxHash(pub Option<Vec<u8>>);
 
 pub type AuctionId = Uuid;
 #[derive(Clone, FromRow, Debug)]
@@ -53,8 +35,7 @@ pub struct Auction {
     pub conclusion_time:     Option<PrimitiveDateTime>,
     pub permission_key:      Vec<u8>,
     pub chain_id:            String,
-    #[sqlx(try_from = "Option<Vec<u8>>")]
-    pub tx_hash:             TxHash,
+    pub tx_hash:             Option<Vec<u8>>,
     pub bid_collection_time: Option<PrimitiveDateTime>,
     pub submission_time:     Option<PrimitiveDateTime>,
 }

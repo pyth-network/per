@@ -89,6 +89,7 @@ use {
         future::join_all,
         Stream,
         StreamExt,
+        TryFutureExt,
     },
     gas_oracle::EthProviderOracle,
     serde::{
@@ -230,11 +231,11 @@ fn get_bid_status(decoded_log: &MulticallIssuedFilter, receipt: &TransactionRece
     match decoded_log.multicall_status.external_success {
         true => BidStatus::Won {
             index:  decoded_log.multicall_index.as_u32(),
-            result: receipt.transaction_hash,
+            result: receipt.transaction_hash.0.to_vec(),
         },
         false => BidStatus::Lost {
             index:  Some(decoded_log.multicall_index.as_u32()),
-            result: Some(receipt.transaction_hash),
+            result: Some(receipt.transaction_hash.0.to_vec()),
         },
     }
 }
@@ -259,15 +260,16 @@ fn is_ready_for_auction<T: Auction>(
 }
 
 async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction) -> Result<()> {
-    if let Some(tx_hash) = auction.tx_hash.0 {
+    if let Some(tx_hash) = auction.tx_hash.clone() {
         let chain_store = store
             .chains
             .get(&auction.chain_id)
             .ok_or(anyhow!("Chain not found: {}", auction.chain_id))?;
 
+        // TODO move it to trait
         let receipt = chain_store
             .provider
-            .get_transaction_receipt(tx_hash)
+            .get_transaction_receipt(H256::from_slice(tx_hash.as_slice()))
             .await
             .map_err(|e| anyhow!("Failed to get transaction receipt: {:?}", e))?;
 
@@ -337,11 +339,12 @@ async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
 async fn broadcast_submitted_bids<T: SimulatedBidTrait>(
     store: Arc<Store>,
     bids: Vec<T>,
-    tx_hash: H256,
+    tx_hash: Vec<u8>,
     auction: models::Auction,
 ) {
     join_all(bids.iter().enumerate().map(|(i, bid)| {
-        let (store, auction, index) = (store.clone(), auction.clone(), i as u32);
+        let (store, auction, index, tx_hash) =
+            (store.clone(), auction.clone(), i as u32, tx_hash.clone());
         async move {
             if let Err(err) = store
                 .broadcast_bid_status_and_update(
@@ -365,7 +368,7 @@ async fn broadcast_lost_bids<T: SimulatedBidTrait>(
     store: Arc<Store>,
     bids: Vec<T>,
     submitted_bids: Vec<T>,
-    tx_hash: Option<H256>,
+    tx_hash: Option<Vec<u8>>,
     auction: Option<&models::Auction>,
 ) {
     join_all(bids.iter().filter_map(|bid| {
@@ -376,7 +379,7 @@ async fn broadcast_lost_bids<T: SimulatedBidTrait>(
             return None;
         }
 
-        let store = store.clone();
+        let (store, tx_hash) = (store.clone(), tx_hash.clone());
         Some(async move {
             if let Err(err) = store
                 .broadcast_bid_status_and_update(
@@ -444,17 +447,17 @@ async fn submit_auction_for_bids<'a, T: Auction>(
     );
 
     match chain_store
-        .submit_bids(permission_key.clone(), winner_bids.clone())
+        .submit_bids(permission_key.clone(), winner_bids.clone(), store.clone())
         .await
     {
         Ok(tx_hash) => {
             tracing::debug!("Submitted transaction: {:?}", tx_hash);
-            auction = store.submit_auction(auction, tx_hash).await?;
+            auction = store.submit_auction(auction, tx_hash.clone()).await?;
             tokio::join!(
                 broadcast_submitted_bids(
                     store.clone(),
                     winner_bids.clone(),
-                    tx_hash,
+                    tx_hash.clone(),
                     auction.clone()
                 ),
                 broadcast_lost_bids(
@@ -1029,7 +1032,8 @@ trait Auction {
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
-    ) -> Result<H256>;
+        store: Arc<Store>,
+    ) -> Result<Vec<u8>>;
 }
 
 // While we are submitting bids together, increasing this number will have the following effects:
@@ -1107,7 +1111,8 @@ impl Auction for &ChainStoreEvm {
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
-    ) -> Result<H256> {
+        _store: Arc<Store>,
+    ) -> Result<Vec<u8>> {
         let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
         let tx_hash = self
             .express_relay_contract
@@ -1119,7 +1124,7 @@ impl Auction for &ChainStoreEvm {
             .send()
             .await?
             .tx_hash();
-        Ok(tx_hash)
+        Ok(tx_hash.0.to_vec())
     }
 }
 
@@ -1175,12 +1180,32 @@ impl Auction for &ChainStoreSvm {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn submit_bids(
         &self,
         _permission_key: Bytes,
-        _bids: Vec<Self::SimulatedBid>,
-    ) -> Result<H256> {
-        Err(anyhow!("Not implemented"))
+        bids: Vec<Self::SimulatedBid>,
+        store: Arc<Store>,
+    ) -> Result<Vec<u8>> {
+        let relayer = store.express_relay_svm.relayer.clone();
+        let mut bid = bids[0].clone();
+        let serialized_message = bid.transaction.message.serialize();
+        let relayer_signature_pos = bid
+            .transaction
+            .message
+            .static_account_keys()
+            .iter()
+            .position(|p| p.eq(&relayer.pubkey()))
+            .expect("Relayer not found in static account keys");
+        bid.transaction.signatures[relayer_signature_pos] =
+            relayer.sign_message(&serialized_message);
+        match self.client.send_transaction(&bid.transaction).await {
+            Ok(response) => Ok(response.as_ref().to_vec()),
+            Err(e) => {
+                tracing::error!("Error while submitting bid: {:?}", e);
+                Err(anyhow!(e))
+            }
+        }
     }
 }
 
