@@ -1,8 +1,4 @@
 use {
-    crate::{
-        auction::Auction as AuctionTrait,
-        state::Store,
-    },
     ethers::types::{
         Address,
         Bytes,
@@ -24,7 +20,6 @@ use {
     std::{
         ops::Deref,
         str::FromStr,
-        sync::Arc,
     },
     uuid::Uuid,
 };

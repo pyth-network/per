@@ -1,5 +1,7 @@
 DELETE FROM bid WHERE chain_type = 'svm';
+DELETE FROM auction WHERE chain_type = 'svm';
 ALTER TABLE bid DROP COLUMN chain_type;
+ALTER TABLE auction DROP COLUMN chain_type;
 DROP TYPE chain_type;
 
 ALTER TABLE bid
@@ -34,3 +36,6 @@ ALTER COLUMN target_calldata SET NOT NULL,
 ALTER COLUMN gas_limit SET NOT NULL;
 
 ALTER TABLE bid ADD CONSTRAINT target_contract_length_check CHECK (LENGTH(target_contract) = 20);
+
+ALTER TABLE auction DROP CONSTRAINT IF EXISTS auction_tx_hash_check;
+ALTER TABLE auction ADD CONSTRAINT auction_tx_hash_check CHECK (LENGTH(tx_hash) = 32);
