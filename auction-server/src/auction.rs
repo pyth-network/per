@@ -89,7 +89,6 @@ use {
         future::join_all,
         Stream,
         StreamExt,
-        TryFutureExt,
     },
     gas_oracle::EthProviderOracle,
     serde::{
@@ -112,12 +111,19 @@ use {
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
         pubkey::Pubkey,
-        signature::Signer as SvmSigner,
-        transaction::VersionedTransaction,
+        signature::{
+            Signature as SignatureSvm,
+            Signer as SvmSigner,
+        },
+        transaction::{
+            TransactionError,
+            VersionedTransaction,
+        },
     },
     sqlx::types::time::OffsetDateTime,
     std::{
         fmt::Debug as DebugTrait,
+        future::Future,
         pin::Pin,
         result,
         sync::{
@@ -259,48 +265,30 @@ fn is_ready_for_auction<T: Auction>(
     })
 }
 
-async fn conclude_submitted_auction(store: Arc<Store>, auction: models::Auction) -> Result<()> {
+async fn conclude_submitted_auction<T: Auction>(
+    store: Arc<Store>,
+    chain_store: T,
+    auction: models::Auction,
+) -> Result<()> {
     if let Some(tx_hash) = auction.tx_hash.clone() {
-        let chain_store = store
-            .chains
-            .get(&auction.chain_id)
-            .ok_or(anyhow!("Chain not found: {}", auction.chain_id))?;
-
-        // TODO move it to trait
-        let receipt = chain_store
-            .provider
-            .get_transaction_receipt(H256::from_slice(tx_hash.as_slice()))
-            .await
-            .map_err(|e| anyhow!("Failed to get transaction receipt: {:?}", e))?;
-
-        if let Some(receipt) = receipt {
-            let decoded_logs = decode_logs_for_receipt(&receipt);
+        let bids: Vec<SimulatedBid> = store.bids_for_submitted_auction(auction.clone()).await;
+        let bids = T::filter_bids(bids);
+        if let Some(bid_statuses) = chain_store.get_bid_results(bids.clone(), tx_hash).await? {
             let auction = store
                 .conclude_auction(auction)
                 .await
                 .map_err(|e| anyhow!("Failed to conclude auction: {:?}", e))?;
-            let bids: Vec<SimulatedBid> = store.bids_for_submitted_auction(auction.clone()).await;
-            let bids = <&ChainStoreEvm as Auction>::filter_bids(bids);
 
-            join_all(decoded_logs.iter().map(|decoded_log| async {
-                if let Some(bid) = bids
-                    .clone()
-                    .into_iter()
-                    .find(|b| b.core_fields.id == Uuid::from_bytes(decoded_log.bid_id))
-                {
-                    if let Err(err) = store
-                        .broadcast_bid_status_and_update(
-                            bid.clone(),
-                            get_bid_status(decoded_log, &receipt),
-                            Some(&auction),
-                        )
-                        .await
-                    {
-                        tracing::error!(
-                            "Failed to broadcast bid status: {:?} - bid: {:?}",
-                            err,
-                            bid
-                        );
+            join_all(bid_statuses.iter().enumerate().map(|(index, bid_status)| {
+                let (index, bids, store, auction, bid_statuses) = (index.clone(), bids.clone(), store.clone(), auction.clone(), bid_statuses.clone());
+                async move {
+                    match bids.get(index) {
+                        Some(bid) => {
+                            if let Err(err) = store.broadcast_bid_status_and_update(bid.clone(), bid_status.clone(), Some(&auction)).await {
+                                tracing::error!("Failed to broadcast bid status: {:?} - bid: {:?}", err, bid);
+                            }
+                        }
+                        None => tracing::error!("Bids array is smaller than statuses array. bids: {:?} - statuses: {:?} - auction: {:?} ", bids, bid_statuses, auction),
                     }
                 }
             }))
@@ -324,7 +312,43 @@ async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
         store.task_tracker.spawn({
             let (store, auction) = (store.clone(), auction.clone());
             async move {
-                if let Err(err) = conclude_submitted_auction(store.clone(), auction.clone()).await {
+                let err = match auction.chain_type {
+                    models::ChainType::Evm => {
+                        let chain_store = store.chains.get(&auction.chain_id);
+                        if let Some(chain_store) = chain_store {
+                            match conclude_submitted_auction(
+                                store.clone(),
+                                chain_store,
+                                auction.clone(),
+                            )
+                            .await
+                            {
+                                Ok(_) => None,
+                                Err(err) => Some(err.to_string()),
+                            }
+                        } else {
+                            Some(format!("Chain not found: {}", auction.chain_id))
+                        }
+                    }
+                    models::ChainType::Svm => {
+                        let chain_store = store.chains_svm.get(&auction.chain_id);
+                        if let Some(chain_store) = chain_store {
+                            match conclude_submitted_auction(
+                                store.clone(),
+                                chain_store,
+                                auction.clone(),
+                            )
+                            .await
+                            {
+                                Ok(_) => None,
+                                Err(err) => Some(err.to_string()),
+                            }
+                        } else {
+                            Some(format!("Chain not found: {}", auction.chain_id))
+                        }
+                    }
+                };
+                if let Some(err) = err {
                     tracing::error!(
                         "Failed to conclude auction: {:?} - auction: {:?}",
                         err,
@@ -432,7 +456,7 @@ async fn submit_auction_for_bids<'a, T: Auction>(
     }
 
     let mut auction = store
-        .init_auction(
+        .init_auction::<T>(
             permission_key.clone(),
             chain_id.clone(),
             bid_collection_time,
@@ -1011,29 +1035,39 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
     }
 }
 
-trait Auction {
+pub trait Auction {
     type Block: DebugTrait;
     type BlockStream<'a>: Stream<Item = Self::Block> + Unpin + Send + 'a;
     type WsClient;
     type SimulatedBid: SimulatedBidTrait + Clone;
+    type ConclusionResult;
 
+    const CHAIN_TYPE: models::ChainType;
     const AUCTION_MINIMUM_LIFETIME: Duration;
 
-    async fn get_ws_client(&self) -> Result<Self::WsClient>;
-    async fn get_block_stream<'a>(client: &'a Self::WsClient) -> Result<Self::BlockStream<'a>>;
+    fn get_ws_client(self) -> impl Future<Output = Result<Self::WsClient>> + Send;
+    fn get_block_stream<'a>(
+        client: &'a Self::WsClient,
+    ) -> impl Future<Output = Result<Self::BlockStream<'a>>>;
     fn filter_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid>;
-    async fn get_winner_bids(
+    fn get_winner_bids(
         &self,
         bids: &[Self::SimulatedBid],
         permission_key: Bytes,
         store: Arc<Store>,
-    ) -> Result<Vec<Self::SimulatedBid>>;
-    async fn submit_bids(
+    ) -> impl Future<Output = Result<Vec<Self::SimulatedBid>>>;
+    fn submit_bids(
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
         store: Arc<Store>,
-    ) -> Result<Vec<u8>>;
+    ) -> impl Future<Output = Result<Vec<u8>>>;
+    // Order of BidStatus is as same as the order of the bids
+    fn get_bid_results(
+        &self,
+        bids: Vec<Self::SimulatedBid>,
+        tx_hash: Vec<u8>,
+    ) -> impl Future<Output = Result<Option<Vec<BidStatus>>>>;
 }
 
 // While we are submitting bids together, increasing this number will have the following effects:
@@ -1047,10 +1081,12 @@ impl Auction for &ChainStoreEvm {
     type BlockStream<'a> = SubscriptionStream<'a, Ws, Block<H256>>;
     type WsClient = Provider<Ws>;
     type SimulatedBid = SimulatedBidEvm;
+    type ConclusionResult = TransactionReceipt;
 
+    const CHAIN_TYPE: models::ChainType = models::ChainType::Evm;
     const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
 
-    async fn get_ws_client(&self) -> Result<Self::WsClient> {
+    async fn get_ws_client(self) -> Result<Self::WsClient> {
         let ws = Ws::connect(self.config.geth_ws_addr.clone()).await?;
         Ok(Provider::new(ws))
     }
@@ -1126,6 +1162,39 @@ impl Auction for &ChainStoreEvm {
             .tx_hash();
         Ok(tx_hash.0.to_vec())
     }
+
+    async fn get_bid_results(
+        &self,
+        bids: Vec<Self::SimulatedBid>,
+        tx_hash: Vec<u8>,
+    ) -> Result<Option<Vec<BidStatus>>> {
+        let reciept = self
+            .provider
+            .get_transaction_receipt(H256::from_slice(tx_hash.clone().as_slice()))
+            .await
+            .map_err(|e| anyhow!("Failed to get transaction receipt: {:?}", e))?;
+        match reciept {
+            Some(receipt) => {
+                let decoded_logs = decode_logs_for_receipt(&receipt);
+                Ok(Some(
+                    bids.iter()
+                        .map(|b| {
+                            match decoded_logs.iter().find(|decoded_log| {
+                                Uuid::from_bytes(decoded_log.bid_id) == b.core_fields.id
+                            }) {
+                                Some(decoded_log) => get_bid_status(decoded_log, &receipt),
+                                None => BidStatus::Lost {
+                                    result: Some(tx_hash.clone()),
+                                    index:  None,
+                                },
+                            }
+                        })
+                        .collect(),
+                ))
+            }
+            None => Ok(None),
+        }
+    }
 }
 
 impl Auction for &ChainStoreSvm {
@@ -1133,10 +1202,12 @@ impl Auction for &ChainStoreSvm {
     type BlockStream<'a> = Pin<Box<dyn Stream<Item = Response<RpcBlockUpdate>> + Send + 'a>>;
     type WsClient = PubsubClient;
     type SimulatedBid = SimulatedBidSvm;
+    type ConclusionResult = result::Result<(), TransactionError>;
 
+    const CHAIN_TYPE: models::ChainType = models::ChainType::Svm;
     const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_millis(400);
 
-    async fn get_ws_client(&self) -> Result<Self::WsClient> {
+    async fn get_ws_client(self) -> Result<Self::WsClient> {
         PubsubClient::new(&self.config.ws_addr).await.map_err(|e| {
             tracing::error!("Error while creating svm pub sub client: {:?}", e);
             anyhow!(e)
@@ -1174,10 +1245,27 @@ impl Auction for &ChainStoreSvm {
         _permission_key: Bytes,
         _store: Arc<Store>,
     ) -> Result<Vec<Self::SimulatedBid>> {
-        match bids.iter().max_by_key(|b| b.core_fields.bid_amount) {
-            Some(bid) => Ok(vec![bid.clone()]),
-            None => Ok(vec![]),
+        let mut bids = bids.to_owned();
+        bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
+        for bid in bids.iter() {
+            match simulate_bid_svm(
+                self,
+                &BidSvm {
+                    chain_id:    bid.core_fields.chain_id.clone(),
+                    transaction: bid.transaction.clone(),
+                },
+            )
+            .await
+            {
+                Err(RestError::SimulationError {
+                    result: _,
+                    reason: _,
+                }) => {}
+                // Either simulation was successful or we can't simulate at this moment
+                _ => return Ok(vec![bid.clone()]),
+            }
         }
+        Ok(vec![])
     }
 
     #[tracing::instrument(skip_all)]
@@ -1204,6 +1292,42 @@ impl Auction for &ChainStoreSvm {
             Err(e) => {
                 tracing::error!("Error while submitting bid: {:?}", e);
                 Err(anyhow!(e))
+            }
+        }
+    }
+
+    async fn get_bid_results(
+        &self,
+        bids: Vec<Self::SimulatedBid>,
+        tx_hash: Vec<u8>,
+    ) -> Result<Option<Vec<BidStatus>>> {
+        if bids.len() != 1 {
+            return Err(anyhow!("Invalid number of bids: {}", bids.len()));
+        }
+
+        let status = self
+            .client
+            .get_signature_status_with_commitment(
+                &SignatureSvm::try_from(tx_hash.clone())
+                    .map_err(|e| anyhow!("Invalid svm signature: {:?}", e))?,
+                CommitmentConfig::confirmed(),
+            )
+            .await?;
+
+        match status {
+            Some(res) => Ok(Some(vec![match res {
+                Ok(()) => BidStatus::Won {
+                    index:  0,
+                    result: tx_hash,
+                },
+                Err(_) => BidStatus::Lost {
+                    index:  Some(0),
+                    result: Some(tx_hash),
+                },
+            }])),
+            None => {
+                // not yet confirmed
+                Ok(None)
             }
         }
     }

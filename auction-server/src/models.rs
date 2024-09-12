@@ -1,4 +1,8 @@
 use {
+    crate::{
+        auction::Auction as AuctionTrait,
+        state::Store,
+    },
     ethers::types::{
         Address,
         Bytes,
@@ -20,12 +24,10 @@ use {
     std::{
         ops::Deref,
         str::FromStr,
+        sync::Arc,
     },
     uuid::Uuid,
 };
-
-#[derive(Clone, Debug)]
-pub struct TxHash(pub Option<Vec<u8>>);
 
 pub type AuctionId = Uuid;
 #[derive(Clone, FromRow, Debug)]
@@ -35,6 +37,7 @@ pub struct Auction {
     pub conclusion_time:     Option<PrimitiveDateTime>,
     pub permission_key:      Vec<u8>,
     pub chain_id:            String,
+    pub chain_type:          ChainType,
     pub tx_hash:             Option<Vec<u8>>,
     pub bid_collection_time: Option<PrimitiveDateTime>,
     pub submission_time:     Option<PrimitiveDateTime>,
@@ -46,7 +49,6 @@ pub enum OpportunityRemovalReason {
     Expired,
     Invalid,
 }
-
 
 #[derive(Clone, FromRow, Debug)]
 pub struct Opportunity {

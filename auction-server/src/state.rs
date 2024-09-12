@@ -10,7 +10,10 @@ use {
             Auth,
             RestError,
         },
-        auction::SignableExpressRelayContract,
+        auction::{
+            Auction,
+            SignableExpressRelayContract,
+        },
         config::{
             ChainId,
             ConfigEvm,
@@ -656,7 +659,7 @@ impl Store {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn init_auction(
+    pub async fn init_auction<T: Auction>(
         &self,
         permission_key: PermissionKey,
         chain_id: ChainId,
@@ -669,6 +672,7 @@ impl Store {
             conclusion_time: None,
             permission_key: permission_key.to_vec(),
             chain_id,
+            chain_type: T::CHAIN_TYPE,
             tx_hash: None,
             bid_collection_time: Some(PrimitiveDateTime::new(
                 bid_collection_time.date(),
@@ -677,11 +681,12 @@ impl Store {
             submission_time: None,
         };
         sqlx::query!(
-            "INSERT INTO auction (id, creation_time, permission_key, chain_id, bid_collection_time) VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO auction (id, creation_time, permission_key, chain_id, chain_type, bid_collection_time) VALUES ($1, $2, $3, $4, $5, $6)",
             auction.id,
             auction.creation_time,
             auction.permission_key,
             auction.chain_id,
+            auction.chain_type as _,
             auction.bid_collection_time,
         )
         .execute(&self.db)
