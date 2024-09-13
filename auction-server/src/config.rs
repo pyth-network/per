@@ -143,4 +143,6 @@ pub struct ConfigSvm {
     pub express_relay_program_id: Pubkey,
     /// RPC endpoint to use for interacting with the blockchain.
     pub rpc_addr:                 String,
+    /// WS endpoint to use for interacting with the blockchain.
+    pub ws_addr:                  String,
 }
