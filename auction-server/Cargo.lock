@@ -672,7 +672,7 @@ dependencies = [
 
 [[package]]
 name = "auction-server"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "anchor-lang",
  "anchor-lang-idl",
