@@ -11,7 +11,7 @@ use {
             RestError,
         },
         auction::{
-            Auction,
+            ChainStore,
             SignableExpressRelayContract,
         },
         config::{
@@ -659,7 +659,7 @@ impl Store {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn init_auction<T: Auction>(
+    pub async fn init_auction<T: ChainStore>(
         &self,
         permission_key: PermissionKey,
         chain_id: ChainId,

@@ -113,7 +113,7 @@ use {
         pubkey::Pubkey,
         signature::{
             Signature as SignatureSvm,
-            Signer as SvmSigner,
+            Signer as SignerSvm,
         },
         transaction::{
             TransactionError,
@@ -256,7 +256,7 @@ fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedF
 }
 
 // An auction is ready if there are any bids with a lifetime of AUCTION_MINIMUM_LIFETIME
-fn is_ready_for_auction<T: Auction>(
+fn is_ready_for_auction<T: ChainStore>(
     bids: Vec<T::SimulatedBid>,
     bid_collection_time: OffsetDateTime,
 ) -> bool {
@@ -265,7 +265,7 @@ fn is_ready_for_auction<T: Auction>(
     })
 }
 
-async fn conclude_submitted_auction<T: Auction>(
+async fn conclude_submitted_auction<T: ChainStore>(
     store: Arc<Store>,
     chain_store: T,
     auction: models::Auction,
@@ -280,7 +280,7 @@ async fn conclude_submitted_auction<T: Auction>(
                 .map_err(|e| anyhow!("Failed to conclude auction: {:?}", e))?;
 
             join_all(bid_statuses.iter().enumerate().map(|(index, bid_status)| {
-                let (index, bids, store, auction, bid_statuses) = (index.clone(), bids.clone(), store.clone(), auction.clone(), bid_statuses.clone());
+                let (bids, store, auction, bid_statuses) = (bids.clone(), store.clone(), auction.clone(), bid_statuses.clone());
                 async move {
                     match bids.get(index) {
                         Some(bid) => {
@@ -312,43 +312,24 @@ async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
         store.task_tracker.spawn({
             let (store, auction) = (store.clone(), auction.clone());
             async move {
-                let err = match auction.chain_type {
-                    models::ChainType::Evm => {
-                        let chain_store = store.chains.get(&auction.chain_id);
-                        if let Some(chain_store) = chain_store {
-                            match conclude_submitted_auction(
-                                store.clone(),
-                                chain_store,
-                                auction.clone(),
-                            )
-                            .await
-                            {
-                                Ok(_) => None,
-                                Err(err) => Some(err.to_string()),
-                            }
-                        } else {
-                            Some(format!("Chain not found: {}", auction.chain_id))
+                let result = match auction.chain_type {
+                    models::ChainType::Evm => match store.chains.get(&auction.chain_id) {
+                        Some(chain_store) => {
+                            conclude_submitted_auction(store.clone(), chain_store, auction.clone())
+                                .await
                         }
-                    }
-                    models::ChainType::Svm => {
-                        let chain_store = store.chains_svm.get(&auction.chain_id);
-                        if let Some(chain_store) = chain_store {
-                            match conclude_submitted_auction(
-                                store.clone(),
-                                chain_store,
-                                auction.clone(),
-                            )
-                            .await
-                            {
-                                Ok(_) => None,
-                                Err(err) => Some(err.to_string()),
-                            }
-                        } else {
-                            Some(format!("Chain not found: {}", auction.chain_id))
+                        None => Err(anyhow!("Chain not found: {}", auction.chain_id)),
+                    },
+                    models::ChainType::Svm => match store.chains_svm.get(&auction.chain_id) {
+                        Some(chain_store) => {
+                            conclude_submitted_auction(store.clone(), chain_store, auction.clone())
+                                .await
                         }
-                    }
+                        None => Err(anyhow!("Chain not found: {}", auction.chain_id)),
+                    },
                 };
-                if let Some(err) = err {
+
+                if let Err(err) = result {
                     tracing::error!(
                         "Failed to conclude auction: {:?} - auction: {:?}",
                         err,
@@ -423,7 +404,7 @@ async fn broadcast_lost_bids<T: SimulatedBidTrait>(
     .await;
 }
 
-async fn submit_auction_for_bids<'a, T: Auction>(
+async fn submit_auction_for_bids<'a, T: ChainStore>(
     bids: Vec<SimulatedBid>,
     bid_collection_time: OffsetDateTime,
     permission_key: Bytes,
@@ -533,19 +514,20 @@ async fn submit_auction_for_lock(
             chain_store_svm,
             acquired_lock,
         )
-        .await
-    } else {
+        .await?
+    } else if let Some(chain_store) = chain_store {
         submit_auction_for_bids(
             bids.clone(),
             bid_collection_time,
             permission_key.clone(),
             chain_id.clone(),
             store.clone(),
-            chain_store.unwrap_or_else(|| panic!("Chain not found: {}", chain_id.clone())),
+            chain_store,
             acquired_lock,
         )
-        .await
-    }
+        .await?
+    };
+    Ok(())
 }
 
 #[tracing::instrument(skip_all)]
@@ -1035,34 +1017,48 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
     }
 }
 
-pub trait Auction {
+/// The trait for the chain store to be implemented for each chain type
+/// These functions are chain specific and should be implemented for each chain in order to handle auctions
+pub trait ChainStore {
+    /// The block type for the chain
     type Block: DebugTrait;
+    /// The block stream type when subscribing to new blocks on the ws client for the chain
     type BlockStream<'a>: Stream<Item = Self::Block> + Unpin + Send + 'a;
+    /// The ws client type for the chain
     type WsClient;
-    type SimulatedBid: SimulatedBidTrait + Clone;
+    /// The simulated bid type for the chain
+    type SimulatedBid: SimulatedBidTrait;
+    /// The conclusion result type when try to conclude the auction for the chain
     type ConclusionResult;
 
+    /// The chain type for the chain
     const CHAIN_TYPE: models::ChainType;
+    /// The minimum lifetime for an auction. If any bid for auction is older than this, the auction is ready to be submitted.
     const AUCTION_MINIMUM_LIFETIME: Duration;
 
+    /// Get the ws client for the chain
     fn get_ws_client(self) -> impl Future<Output = Result<Self::WsClient>> + Send;
+    /// Get the block stream for the ws client to subscribe to new blocks
     fn get_block_stream<'a>(
         client: &'a Self::WsClient,
     ) -> impl Future<Output = Result<Self::BlockStream<'a>>>;
+    /// Filter the bids to only include the chain specific bids
     fn filter_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid>;
+    /// Get the winner bids for the auction
     fn get_winner_bids(
         &self,
         bids: &[Self::SimulatedBid],
         permission_key: Bytes,
         store: Arc<Store>,
     ) -> impl Future<Output = Result<Vec<Self::SimulatedBid>>>;
+    /// Submit the bids for the auction on the chain
     fn submit_bids(
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
         store: Arc<Store>,
     ) -> impl Future<Output = Result<Vec<u8>>>;
-    // Order of BidStatus is as same as the order of the bids
+    /// Get the bid results for the bids submitted for the auction after the transaction is concluded. Order of the returned BidStatus is as same as the order of the bids
     fn get_bid_results(
         &self,
         bids: Vec<Self::SimulatedBid>,
@@ -1076,7 +1072,7 @@ pub trait Auction {
 // 3. Gas consumption limit will decrease for the bid
 const TOTAL_BIDS_PER_AUCTION: usize = 3;
 
-impl Auction for &ChainStoreEvm {
+impl ChainStore for &ChainStoreEvm {
     type Block = Block<H256>;
     type BlockStream<'a> = SubscriptionStream<'a, Ws, Block<H256>>;
     type WsClient = Provider<Ws>;
@@ -1197,7 +1193,7 @@ impl Auction for &ChainStoreEvm {
     }
 }
 
-impl Auction for &ChainStoreSvm {
+impl ChainStore for &ChainStoreSvm {
     type Block = Response<RpcBlockUpdate>;
     type BlockStream<'a> = Pin<Box<dyn Stream<Item = Response<RpcBlockUpdate>> + Send + 'a>>;
     type WsClient = PubsubClient;
@@ -1333,7 +1329,7 @@ impl Auction for &ChainStoreSvm {
     }
 }
 
-async fn run_submission_loop<T: Auction>(
+async fn run_submission_loop<T: ChainStore>(
     store: Arc<Store>,
     chain_store: T,
     chain_id: String,
