@@ -272,7 +272,7 @@ async fn conclude_submitted_auction<T: ChainStore>(
 ) -> Result<()> {
     if let Some(tx_hash) = auction.tx_hash.clone() {
         let bids: Vec<SimulatedBid> = store.bids_for_submitted_auction(auction.clone()).await;
-        let bids = T::filter_bids(bids);
+        let bids = T::convert_bids(bids);
         if let Some(bid_statuses) = chain_store.get_bid_results(bids.clone(), tx_hash).await? {
             let auction = store
                 .conclude_auction(auction)
@@ -413,7 +413,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     chain_store: T,
     _auction_mutex_gaurd: MutexGuard<'a, ()>,
 ) -> Result<()> {
-    let bids = T::filter_bids(bids);
+    let bids = T::convert_bids(bids);
     let bids: Vec<T::SimulatedBid> = bids
         .into_iter()
         .filter(|bid| bid.get_core_fields().status == BidStatus::Pending)
@@ -1037,14 +1037,14 @@ pub trait ChainStore {
     const AUCTION_MINIMUM_LIFETIME: Duration;
 
     /// Get the ws client for the chain
-    fn get_ws_client(self) -> impl Future<Output = Result<Self::WsClient>> + Send;
+    fn get_ws_client(&self) -> impl Future<Output = Result<Self::WsClient>> + Send;
     /// Get the block stream for the ws client to subscribe to new blocks
     fn get_block_stream<'a>(
         client: &'a Self::WsClient,
     ) -> impl Future<Output = Result<Self::BlockStream<'a>>>;
-    /// Filter the bids to only include the chain specific bids
-    fn filter_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid>;
-    /// Get the winner bids for the auction
+    /// Convert the bids to the chain specific simulated bid type and panics if the conversion is not possible
+    fn convert_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid>;
+    /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     fn get_winner_bids(
         &self,
         bids: &[Self::SimulatedBid],
@@ -1082,7 +1082,7 @@ impl ChainStore for &ChainStoreEvm {
     const CHAIN_TYPE: models::ChainType = models::ChainType::Evm;
     const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
 
-    async fn get_ws_client(self) -> Result<Self::WsClient> {
+    async fn get_ws_client(&self) -> Result<Self::WsClient> {
         let ws = Ws::connect(self.config.geth_ws_addr.clone()).await?;
         Ok(Provider::new(ws))
     }
@@ -1092,11 +1092,11 @@ impl ChainStore for &ChainStoreEvm {
         Ok(block_stream)
     }
 
-    fn filter_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid> {
+    fn convert_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid> {
         bids.into_iter()
-            .filter_map(|b| match b {
-                SimulatedBid::Evm(b) => Some(b),
-                _ => None,
+            .map(|b| match b {
+                SimulatedBid::Evm(b) => b,
+                _ => panic!("Expected SimulatedBidEvm but got something else"),
             })
             .collect()
     }
@@ -1203,18 +1203,18 @@ impl ChainStore for &ChainStoreSvm {
     const CHAIN_TYPE: models::ChainType = models::ChainType::Svm;
     const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_millis(400);
 
-    async fn get_ws_client(self) -> Result<Self::WsClient> {
+    async fn get_ws_client(&self) -> Result<Self::WsClient> {
         PubsubClient::new(&self.config.ws_addr).await.map_err(|e| {
             tracing::error!("Error while creating svm pub sub client: {:?}", e);
             anyhow!(e)
         })
     }
 
-    fn filter_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid> {
+    fn convert_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid> {
         bids.into_iter()
-            .filter_map(|b| match b {
-                SimulatedBid::Svm(b) => Some(b),
-                _ => None,
+            .map(|b| match b {
+                SimulatedBid::Svm(b) => b,
+                _ => panic!("Expected SimulatedBidSvm but got something else"),
             })
             .collect()
     }
