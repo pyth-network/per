@@ -85,7 +85,8 @@ enum Commands {
         #[arg(long)]
         /// Path to the private key json file for the current admin
         /// This account will be used as the transaction payer as well
-        admin:     String,
+        admin: String,
+
         #[arg(long)]
         /// New admin pubkey
         admin_new: Pubkey,
@@ -97,7 +98,7 @@ enum Commands {
         admin: String,
 
         #[arg(long)]
-        /// signer used for relaying the bids
+        /// Signer used for relaying the bids
         relayer_signer: Pubkey,
 
         #[arg(long)]
