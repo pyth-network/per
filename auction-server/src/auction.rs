@@ -98,15 +98,7 @@ use {
     },
     solana_client::{
         nonblocking::pubsub_client::PubsubClient,
-        rpc_config::{
-            RpcBlockSubscribeConfig,
-            RpcBlockSubscribeFilter,
-        },
-        rpc_response::{
-            Response,
-            RpcBlockUpdate,
-            SlotInfo,
-        },
+        rpc_response::SlotInfo,
     },
     solana_sdk::{
         commitment_config::CommitmentConfig,
@@ -1021,9 +1013,9 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
 /// The trait for the chain store to be implemented for each chain type
 /// These functions are chain specific and should be implemented for each chain in order to handle auctions
 pub trait ChainStore {
-    /// The block type for the chain
+    /// The trigger type for the chain. This is the type that is used to trigger the auction submission and conclusion
     type Trigger: DebugTrait;
-    /// The block stream type when subscribing to new blocks on the ws client for the chain
+    /// The trigger stream type when subscribing to new triggers on the ws client for the chain
     type TriggerStream<'a>: Stream<Item = Self::Trigger> + Unpin + Send + 'a;
     /// The ws client type for the chain
     type WsClient;
@@ -1039,7 +1031,7 @@ pub trait ChainStore {
 
     /// Get the ws client for the chain
     fn get_ws_client(&self) -> impl Future<Output = Result<Self::WsClient>> + Send;
-    /// Get the block stream for the ws client to subscribe to new blocks
+    /// Get the trigger stream for the ws client to subscribe to new triggers
     fn get_trigger_stream<'a>(
         client: &'a Self::WsClient,
     ) -> impl Future<Output = Result<Self::TriggerStream<'a>>>;
@@ -1337,7 +1329,7 @@ async fn run_submission_loop<T: ChainStore>(
                     return Err(anyhow!("Trigger stream ended for chain: {}", chain_id));
                 }
 
-                tracing::debug!("New block received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), trigger);
+                tracing::debug!("New trigger received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), trigger);
                 store.task_tracker.spawn(
                     submit_auctions(
                         store.clone(),
