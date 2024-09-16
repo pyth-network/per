@@ -98,14 +98,7 @@ use {
     },
     solana_client::{
         nonblocking::pubsub_client::PubsubClient,
-        rpc_config::{
-            RpcBlockSubscribeConfig,
-            RpcBlockSubscribeFilter,
-        },
-        rpc_response::{
-            Response,
-            RpcBlockUpdate,
-        },
+        rpc_response::SlotInfo,
     },
     solana_sdk::{
         commitment_config::CommitmentConfig,
@@ -1020,10 +1013,10 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
 /// The trait for the chain store to be implemented for each chain type
 /// These functions are chain specific and should be implemented for each chain in order to handle auctions
 pub trait ChainStore {
-    /// The block type for the chain
-    type Block: DebugTrait;
-    /// The block stream type when subscribing to new blocks on the ws client for the chain
-    type BlockStream<'a>: Stream<Item = Self::Block> + Unpin + Send + 'a;
+    /// The trigger type for the chain. This is the type that is used to trigger the auction submission and conclusion
+    type Trigger: DebugTrait;
+    /// The trigger stream type when subscribing to new triggers on the ws client for the chain
+    type TriggerStream<'a>: Stream<Item = Self::Trigger> + Unpin + Send + 'a;
     /// The ws client type for the chain
     type WsClient;
     /// The simulated bid type for the chain
@@ -1038,10 +1031,10 @@ pub trait ChainStore {
 
     /// Get the ws client for the chain
     fn get_ws_client(&self) -> impl Future<Output = Result<Self::WsClient>> + Send;
-    /// Get the block stream for the ws client to subscribe to new blocks
-    fn get_block_stream<'a>(
+    /// Get the trigger stream for the ws client to subscribe to new triggers
+    fn get_trigger_stream<'a>(
         client: &'a Self::WsClient,
-    ) -> impl Future<Output = Result<Self::BlockStream<'a>>>;
+    ) -> impl Future<Output = Result<Self::TriggerStream<'a>>>;
     /// Convert the bids to the chain specific simulated bid type and panics if the conversion is not possible
     fn convert_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid>;
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
@@ -1073,8 +1066,8 @@ pub trait ChainStore {
 const TOTAL_BIDS_PER_AUCTION: usize = 3;
 
 impl ChainStore for &ChainStoreEvm {
-    type Block = Block<H256>;
-    type BlockStream<'a> = SubscriptionStream<'a, Ws, Block<H256>>;
+    type Trigger = Block<H256>;
+    type TriggerStream<'a> = SubscriptionStream<'a, Ws, Block<H256>>;
     type WsClient = Provider<Ws>;
     type SimulatedBid = SimulatedBidEvm;
     type ConclusionResult = TransactionReceipt;
@@ -1087,7 +1080,7 @@ impl ChainStore for &ChainStoreEvm {
         Ok(Provider::new(ws))
     }
 
-    async fn get_block_stream<'a>(client: &'a Self::WsClient) -> Result<Self::BlockStream<'a>> {
+    async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>> {
         let block_stream = client.subscribe_blocks().await?;
         Ok(block_stream)
     }
@@ -1194,8 +1187,8 @@ impl ChainStore for &ChainStoreEvm {
 }
 
 impl ChainStore for &ChainStoreSvm {
-    type Block = Response<RpcBlockUpdate>;
-    type BlockStream<'a> = Pin<Box<dyn Stream<Item = Response<RpcBlockUpdate>> + Send + 'a>>;
+    type Trigger = SlotInfo;
+    type TriggerStream<'a> = Pin<Box<dyn Stream<Item = Self::Trigger> + Send + 'a>>;
     type WsClient = PubsubClient;
     type SimulatedBid = SimulatedBidSvm;
     type ConclusionResult = result::Result<(), TransactionError>;
@@ -1219,20 +1212,9 @@ impl ChainStore for &ChainStoreSvm {
             .collect()
     }
 
-    async fn get_block_stream<'a>(client: &'a Self::WsClient) -> Result<Self::BlockStream<'a>> {
-        let (block_subscribe, _) = client
-            .block_subscribe(
-                RpcBlockSubscribeFilter::All,
-                Some(RpcBlockSubscribeConfig {
-                    encoding:                          None,
-                    transaction_details:               None,
-                    show_rewards:                      None,
-                    max_supported_transaction_version: None,
-                    commitment:                        Some(CommitmentConfig::finalized()),
-                }),
-            )
-            .await?;
-        Ok(block_subscribe)
+    async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>> {
+        let (slot_subscribe, _) = client.slot_subscribe().await?;
+        Ok(slot_subscribe)
     }
 
     async fn get_winner_bids(
@@ -1338,16 +1320,16 @@ async fn run_submission_loop<T: ChainStore>(
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
     let ws_client = chain_store.get_ws_client().await?;
-    let mut stream = T::get_block_stream(&ws_client).await?;
+    let mut stream = T::get_trigger_stream(&ws_client).await?;
 
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
-            block = stream.next() => {
-                if block.is_none() {
-                    return Err(anyhow!("Block stream ended for chain: {}", chain_id));
+            trigger = stream.next() => {
+                if trigger.is_none() {
+                    return Err(anyhow!("Trigger stream ended for chain: {}", chain_id));
                 }
 
-                tracing::debug!("New block received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), block);
+                tracing::debug!("New trigger received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), trigger);
                 store.task_tracker.spawn(
                     submit_auctions(
                         store.clone(),
