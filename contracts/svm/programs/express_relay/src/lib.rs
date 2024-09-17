@@ -22,7 +22,7 @@ use {
     },
 };
 
-declare_id!("GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM");
+declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
 
 #[program]
 pub mod express_relay {

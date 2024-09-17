@@ -156,13 +156,13 @@ local_resource(
 # need to run initialize instructions for the programs one time, script skips if already initialized
 local_resource(
     "svm-initialize-programs",
-    "poetry -C per_sdk run python3 -m per_sdk.svm.initialize_programs -v --file-private-key-payer keypairs/searcher.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --rpc-url %s" % rpc_url_solana,
+    "poetry -C per_sdk run python3 -m per_sdk.svm.initialize_programs -v --file-private-key-payer keypairs/searcher.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --rpc-url %s" % rpc_url_solana,
     resource_deps=["svm-setup-accounts"]
 )
 
 # craft dummy tx, submits as a bid to auction server or submits relayer-signed tx directly to solana cluster
 local_resource(
     "svm-submit-bid",
-    "poetry -C per_sdk run python3 -m per_sdk.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100000000 --auction-server-url http://localhost:9000 --express-relay-program GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM --dummy-program HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3",
+    "poetry -C per_sdk run python3 -m per_sdk.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100000000 --auction-server-url http://localhost:9000 --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --dummy-program DuMYMhmEio5twEWgfYFAvJ6pq215LeCc8MMTPPY4DYUR",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )

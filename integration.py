@@ -43,7 +43,7 @@ chains:
     legacy_tx: false
     poll_interval: 1
   development-solana:
-    express_relay_program_id: GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM
+    express_relay_program_id: PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou
     rpc_addr: http://localhost:8899
     ws_addr: ws://localhost:8900
 '''
