@@ -15,7 +15,7 @@ use {
     },
 };
 
-declare_id!("DuMYMhmEio5twEWgfYFAvJ6pq215LeCc8MMTPPY4DYUR");
+declare_id!("DUmmYXYFZugRn2DS4REc5F9UbQNoxYsHP1VMZ6j5U7kZ");
 
 #[program]
 pub mod dummy {
