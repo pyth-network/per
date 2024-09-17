@@ -1,6 +1,6 @@
 [package]
 name = "express-relay"
-version = "0.2.0"
+version = "0.3.0"
 description = "Pyth Express Relay program for handling permissioning and bid distribution"
 repository = "https://github.com/pyth-network/per"
 license = "Apache-2.0"
