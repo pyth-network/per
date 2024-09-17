@@ -157,6 +157,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let express_relay_metadata = Pubkey::find_program_address(&[SEED_METADATA], &program_id).0;
     let cluster = Cluster::from_str(args.rpc_url.as_str())?;
 
+    let get_router_config_account = |router: &Pubkey| {
+        Pubkey::find_program_address(&[SEED_CONFIG_ROUTER, router.as_ref()], &program_id).0
+    };
+
     match args.command {
         Commands::Initialize(init_args) => {
             let payer = read_keypair_file(init_args.payer)?;
@@ -269,8 +273,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let client = Client::new_with_options(cluster, &payer, CommitmentConfig::confirmed());
             let program = client.program(program_id)?;
 
-            let config_router = get_router_config_account(&program_id, &router);
-
+            let config_router = get_router_config_account(&router);
             let result = program
                 .request()
                 .accounts(accounts::SetRouterSplit {
@@ -324,7 +327,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let keypair = Keypair::new();
             let client = Client::new(cluster, &keypair);
             let program = client.program(program_id)?;
-            let config_router = get_router_config_account(&program_id, &router);
+            let config_router = get_router_config_account(&router);
             let config_router_account: ConfigRouter = program.account(config_router)?;
             println!(
                 "Router {:?} split {:?}",
@@ -334,8 +337,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     Ok(())
-}
-
-fn get_router_config_account(program_id: &Pubkey, router: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[SEED_CONFIG_ROUTER, router.as_ref()], program_id).0
 }
