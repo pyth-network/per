@@ -154,7 +154,7 @@ async def main():
 
     client = AsyncClient(args.rpc_url, Confirmed)
     if args.submit_on_chain:
-        tx = Transaction(fee_payer=kp_searcher.pubkey())
+        tx = Transaction(fee_payer=pk_searcher)
         tx.add(ix_submit_bid)
         tx.add(ix_dummy)
         tx_sig = (
@@ -166,9 +166,7 @@ async def main():
     else:
         recent_blockhash = (await client.get_latest_blockhash()).value.blockhash
         if args.use_legacy_transaction_bid:
-            tx = Transaction(
-                fee_payer=kp_searcher.pubkey(), recent_blockhash=recent_blockhash
-            )
+            tx = Transaction(fee_payer=pk_searcher, recent_blockhash=recent_blockhash)
             tx.add(ix_submit_bid)
             tx.add(ix_dummy)
             tx.sign_partial(kp_searcher)
@@ -177,9 +175,9 @@ async def main():
             ).decode()
         else:
             messagev0 = MessageV0.try_compile(
-                kp_searcher.pubkey(), [ix_submit_bid, ix_dummy], [], recent_blockhash
+                pk_searcher, [ix_submit_bid, ix_dummy], [], recent_blockhash
             )
-            signers = [kp_searcher, NullSigner(kp_relayer_signer.pubkey())]
+            signers = [kp_searcher, NullSigner(pk_relayer_signer)]
             partially_signed = VersionedTransaction(messagev0, signers)
             serialized = base64.b64encode(bytes(partially_signed)).decode()
 
