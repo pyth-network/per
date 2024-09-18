@@ -17,6 +17,9 @@ use {
             AuctionLock,
             BidAmount,
             BidStatus,
+            BidStatusEvm,
+            BidStatusSvm,
+            BidStatusTrait,
             ChainStoreEvm,
             ChainStoreSvm,
             ExpressRelaySvm,
@@ -226,15 +229,18 @@ impl From<(SimulatedBidEvm, bool)> for MulticallData {
     }
 }
 
-fn get_bid_status(decoded_log: &MulticallIssuedFilter, receipt: &TransactionReceipt) -> BidStatus {
+fn get_bid_status(
+    decoded_log: &MulticallIssuedFilter,
+    receipt: &TransactionReceipt,
+) -> BidStatusEvm {
     match decoded_log.multicall_status.external_success {
-        true => BidStatus::Won {
+        true => BidStatusEvm::Won {
             index:  decoded_log.multicall_index.as_u32(),
-            result: receipt.transaction_hash.0.to_vec(),
+            result: receipt.transaction_hash,
         },
-        false => BidStatus::Lost {
+        false => BidStatusEvm::Lost {
             index:  Some(decoded_log.multicall_index.as_u32()),
-            result: Some(receipt.transaction_hash.0.to_vec()),
+            result: Some(receipt.transaction_hash),
         },
     }
 }
@@ -337,25 +343,29 @@ async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
 async fn broadcast_submitted_bids<T: SimulatedBidTrait>(
     store: Arc<Store>,
     bids: Vec<T>,
-    tx_hash: Vec<u8>,
+    tx_hash: <T::StatusType as BidStatusTrait>::TxHash,
     auction: models::Auction,
 ) {
     join_all(bids.iter().enumerate().map(|(i, bid)| {
         let (store, auction, index, tx_hash) =
             (store.clone(), auction.clone(), i as u32, tx_hash.clone());
         async move {
-            if let Err(err) = store
-                .broadcast_bid_status_and_update(
-                    bid.to_owned(),
-                    BidStatus::Submitted {
-                        result: tx_hash,
-                        index,
-                    },
-                    Some(&auction),
-                )
-                .await
-            {
-                tracing::error!("Failed to broadcast bid status: {:?} - bid: {:?}", err, bid);
+            match T::get_bid_status(models::BidStatus::Submitted, Some(index), Some(tx_hash)) {
+                Ok(status) => {
+                    if let Err(err) = store
+                        .broadcast_bid_status_and_update(bid.clone(), status, Some(&auction))
+                        .await
+                    {
+                        tracing::error!(
+                            "Failed to broadcast bid status: {:?} - bid: {:?}",
+                            err,
+                            bid
+                        );
+                    }
+                }
+                Err(err) => {
+                    tracing::error!("Failed to get bid status: {:?} - bid: {:?}", err, bid);
+                }
             }
         }
     }))
@@ -366,7 +376,7 @@ async fn broadcast_lost_bids<T: SimulatedBidTrait>(
     store: Arc<Store>,
     bids: Vec<T>,
     submitted_bids: Vec<T>,
-    tx_hash: Option<Vec<u8>>,
+    tx_hash: Option<<T::StatusType as BidStatusTrait>::TxHash>,
     auction: Option<&models::Auction>,
 ) {
     join_all(bids.iter().filter_map(|bid| {
@@ -379,18 +389,22 @@ async fn broadcast_lost_bids<T: SimulatedBidTrait>(
 
         let (store, tx_hash) = (store.clone(), tx_hash.clone());
         Some(async move {
-            if let Err(err) = store
-                .broadcast_bid_status_and_update(
-                    bid.clone(),
-                    BidStatus::Lost {
-                        result: tx_hash,
-                        index:  None,
-                    },
-                    auction,
-                )
-                .await
-            {
-                tracing::error!("Failed to broadcast bid status: {:?} - bid: {:?}", err, bid);
+            match T::get_bid_status(models::BidStatus::Submitted, None, tx_hash) {
+                Ok(status) => {
+                    if let Err(err) = store
+                        .broadcast_bid_status_and_update(bid.clone(), status, auction)
+                        .await
+                    {
+                        tracing::error!(
+                            "Failed to broadcast bid status: {:?} - bid: {:?}",
+                            err,
+                            bid
+                        );
+                    }
+                }
+                Err(err) => {
+                    tracing::error!("Failed to get bid status: {:?} - bid: {:?}", err, bid);
+                }
             }
         })
     }))
@@ -409,7 +423,10 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     let bids = T::convert_bids(bids);
     let bids: Vec<T::SimulatedBid> = bids
         .into_iter()
-        .filter(|bid| bid.get_core_fields().status == BidStatus::Pending)
+        .filter(|bid| {
+            let status: models::BidStatus = bid.get_core_fields().status.into();
+            status == models::BidStatus::Pending
+        })
         .collect();
 
     if bids.is_empty() {
@@ -450,7 +467,8 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     {
         Ok(tx_hash) => {
             tracing::debug!("Submitted transaction: {:?}", tx_hash);
-            auction = store.submit_auction(auction, tx_hash.clone()).await?;
+            let converted_tx_hash = <<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::convert_tx_hash(tx_hash.clone());
+            auction = store.submit_auction(auction, converted_tx_hash).await?;
             tokio::join!(
                 broadcast_submitted_bids(
                     store.clone(),
@@ -791,6 +809,7 @@ pub async fn handle_bid(
     let core_fields = SimulatedBidCoreFields::new(
         bid.amount,
         bid.chain_id,
+        BidStatusEvm::Pending,
         bid.permission_key,
         initiation_time,
         auth,
@@ -802,7 +821,7 @@ pub async fn handle_bid(
         // Add a 25% more for estimation errors
         gas_limit:       estimated_gas * U256::from(125) / U256::from(100),
     };
-    store.add_bid(simulated_bid.into()).await?;
+    store.add_bid(simulated_bid).await?;
     Ok(core_fields.id)
 }
 
@@ -956,6 +975,7 @@ pub async fn handle_bid_svm(
     let core_fields = SimulatedBidCoreFields::new(
         U256::from(bid_amount),
         bid.chain_id,
+        BidStatusSvm::Pending,
         permission_key,
         initiation_time,
         auth,
@@ -964,7 +984,7 @@ pub async fn handle_bid_svm(
         core_fields: core_fields.clone(),
         transaction: bid.transaction,
     };
-    store.add_bid(simulated_bid.clone().into()).await?;
+    store.add_bid(simulated_bid).await?;
     Ok(core_fields.id)
 }
 
@@ -1050,13 +1070,17 @@ pub trait ChainStore {
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
         store: Arc<Store>,
-    ) -> impl Future<Output = Result<Vec<u8>>>;
+    ) -> impl Future<
+        Output = Result<
+            <<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash,
+        >,
+    >;
     /// Get the bid results for the bids submitted for the auction after the transaction is concluded. Order of the returned BidStatus is as same as the order of the bids
     fn get_bid_results(
         &self,
         bids: Vec<Self::SimulatedBid>,
         tx_hash: Vec<u8>,
-    ) -> impl Future<Output = Result<Option<Vec<BidStatus>>>>;
+    ) -> impl Future<Output = Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>>>;
 }
 
 // While we are submitting bids together, increasing this number will have the following effects:
@@ -1071,6 +1095,7 @@ impl ChainStore for &ChainStoreEvm {
     type WsClient = Provider<Ws>;
     type SimulatedBid = SimulatedBidEvm;
     type ConclusionResult = TransactionReceipt;
+    // type BidStatus = BidStatusEvm;
 
     const CHAIN_TYPE: models::ChainType = models::ChainType::Evm;
     const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
@@ -1137,7 +1162,8 @@ impl ChainStore for &ChainStoreEvm {
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
         _store: Arc<Store>,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<<<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>
+    {
         let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
         let tx_hash = self
             .express_relay_contract
@@ -1149,17 +1175,18 @@ impl ChainStore for &ChainStoreEvm {
             .send()
             .await?
             .tx_hash();
-        Ok(tx_hash.0.to_vec())
+        Ok(tx_hash)
     }
 
     async fn get_bid_results(
         &self,
         bids: Vec<Self::SimulatedBid>,
         tx_hash: Vec<u8>,
-    ) -> Result<Option<Vec<BidStatus>>> {
+    ) -> Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>> {
+        let tx_hash = H256::from_slice(tx_hash.as_slice());
         let reciept = self
             .provider
-            .get_transaction_receipt(H256::from_slice(tx_hash.clone().as_slice()))
+            .get_transaction_receipt(tx_hash)
             .await
             .map_err(|e| anyhow!("Failed to get transaction receipt: {:?}", e))?;
         match reciept {
@@ -1172,8 +1199,8 @@ impl ChainStore for &ChainStoreEvm {
                                 Uuid::from_bytes(decoded_log.bid_id) == b.core_fields.id
                             }) {
                                 Some(decoded_log) => get_bid_status(decoded_log, &receipt),
-                                None => BidStatus::Lost {
-                                    result: Some(tx_hash.clone()),
+                                None => BidStatusEvm::Lost {
+                                    result: Some(tx_hash),
                                     index:  None,
                                 },
                             }
@@ -1252,7 +1279,8 @@ impl ChainStore for &ChainStoreSvm {
         _permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
         store: Arc<Store>,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<<<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>
+    {
         let relayer = store.express_relay_svm.relayer.clone();
         let mut bid = bids[0].clone();
         let serialized_message = bid.transaction.message.serialize();
@@ -1266,7 +1294,7 @@ impl ChainStore for &ChainStoreSvm {
         bid.transaction.signatures[relayer_signature_pos] =
             relayer.sign_message(&serialized_message);
         match self.client.send_transaction(&bid.transaction).await {
-            Ok(response) => Ok(response.as_ref().to_vec()),
+            Ok(response) => Ok(response),
             Err(e) => {
                 tracing::error!("Error while submitting bid: {:?}", e);
                 Err(anyhow!(e))
@@ -1278,28 +1306,23 @@ impl ChainStore for &ChainStoreSvm {
         &self,
         bids: Vec<Self::SimulatedBid>,
         tx_hash: Vec<u8>,
-    ) -> Result<Option<Vec<BidStatus>>> {
+    ) -> Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>> {
+        let tx_hash: SignatureSvm = tx_hash
+            .try_into()
+            .map_err(|_| anyhow!("Invalid svm signature"))?;
         if bids.len() != 1 {
             return Err(anyhow!("Invalid number of bids: {}", bids.len()));
         }
 
         let status = self
             .client
-            .get_signature_status_with_commitment(
-                &SignatureSvm::try_from(tx_hash.clone())
-                    .map_err(|e| anyhow!("Invalid svm signature: {:?}", e))?,
-                CommitmentConfig::confirmed(),
-            )
+            .get_signature_status_with_commitment(&tx_hash, CommitmentConfig::confirmed())
             .await?;
 
         match status {
             Some(res) => Ok(Some(vec![match res {
-                Ok(()) => BidStatus::Won {
-                    index:  0,
-                    result: tx_hash,
-                },
-                Err(_) => BidStatus::Lost {
-                    index:  Some(0),
+                Ok(()) => BidStatusSvm::Won { result: tx_hash },
+                Err(_) => BidStatusSvm::Lost {
                     result: Some(tx_hash),
                 },
             }])),

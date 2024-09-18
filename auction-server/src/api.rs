@@ -32,6 +32,8 @@ use {
         },
         state::{
             BidStatus,
+            BidStatusEvm,
+            BidStatusSvm,
             BidStatusWithId,
             OpportunityParams,
             OpportunityParamsV1,
@@ -321,6 +323,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     BidSvm,
     BidEvm,
     BidStatus,
+    BidStatusEvm,
+    BidStatusSvm,
     BidStatusWithId,
     BidResult,
     SimulatedBid,
