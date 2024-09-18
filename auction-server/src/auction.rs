@@ -16,7 +16,6 @@ use {
         state::{
             AuctionLock,
             BidAmount,
-            BidStatus,
             BidStatusEvm,
             BidStatusSvm,
             BidStatusTrait,

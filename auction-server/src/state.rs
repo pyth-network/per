@@ -34,7 +34,6 @@ use {
         types::{
             Address,
             Bytes,
-            Transaction,
             H256,
             U256,
         },
@@ -54,12 +53,7 @@ use {
         transaction::VersionedTransaction,
     },
     sqlx::{
-        database::HasArguments,
-        encode::IsNull,
-        postgres::{
-            PgArguments,
-            PgQueryResult,
-        },
+        postgres::PgArguments,
         query::Query,
         types::{
             time::{
@@ -70,7 +64,6 @@ use {
         },
         Postgres,
         QueryBuilder,
-        TypeInfo,
     },
     std::{
         collections::{
@@ -359,7 +352,7 @@ impl SimulatedBidTrait for SimulatedBidSvm {
 
     fn get_bid_status(
         status: models::BidStatus,
-        index: Option<u32>,
+        _index: Option<u32>,
         result: Option<<Self::StatusType as BidStatusTrait>::TxHash>,
     ) -> anyhow::Result<Self::StatusType> {
         match status {
@@ -596,7 +589,6 @@ pub trait BidStatusTrait:
 {
     type TxHash: Clone + std::fmt::Debug;
 
-    fn get_tx_hash(&self) -> Option<Self::TxHash>;
     fn get_update_query(
         &self,
         id: BidId,
@@ -619,15 +611,6 @@ impl Into<BidStatus> for BidStatusSvm {
 
 impl BidStatusTrait for BidStatusEvm {
     type TxHash = H256;
-
-    fn get_tx_hash(&self) -> Option<Self::TxHash> {
-        match self {
-            BidStatusEvm::Pending => None,
-            BidStatusEvm::Submitted { result, .. } => Some(result.clone()),
-            BidStatusEvm::Lost { result, .. } => result.clone(),
-            BidStatusEvm::Won { result, .. } => Some(result.clone()),
-        }
-    }
 
     fn get_update_query(
         &self,
@@ -700,15 +683,6 @@ impl BidStatusTrait for BidStatusEvm {
 
 impl BidStatusTrait for BidStatusSvm {
     type TxHash = Signature;
-
-    fn get_tx_hash(&self) -> Option<Self::TxHash> {
-        match self {
-            BidStatusSvm::Pending => None,
-            BidStatusSvm::Submitted { result, .. } => Some(result.clone()),
-            BidStatusSvm::Lost { result, .. } => result.clone(),
-            BidStatusSvm::Won { result, .. } => Some(result.clone()),
-        }
-    }
 
     fn get_update_query(
         &self,
@@ -811,10 +785,6 @@ impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {
                 _ => None,
             },
         }
-    }
-
-    pub fn get_tx_hash(&self) -> Option<<T as BidStatusTrait>::TxHash> {
-        self.status.get_tx_hash()
     }
 }
 
