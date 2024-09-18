@@ -790,18 +790,6 @@ pub struct Store {
     pub express_relay_svm:  ExpressRelaySvm,
 }
 
-// impl<T> From<SimulatedBid> for SimulatedBidCoreFields<T>
-// where T: BidStatusTrait,
-// SimulatedBidCoreFields<BidStatusEvm>: From<SimulatedBidCoreFields<T>>,
-// SimulatedBidCoreFields<BidStatusSvm>: From<SimulatedBidCoreFields<T>>, {
-//     fn from(bid: SimulatedBid) -> Self {
-//         match bid {
-//             SimulatedBid::Evm(bid) => bid.get_core_fields(),
-//             SimulatedBid::Svm(bid) => bid.get_core_fields(),
-//         }
-//     }
-// }
-
 impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {
     pub fn new(
         bid_amount: U256,
@@ -837,23 +825,6 @@ impl SimulatedBid {
             SimulatedBid::Svm(bid) => bid.core_fields.id,
         }
     }
-
-    // pub fn get_auction_key(&self) -> AuctionKey {
-    //     let core_fields = self.get_core_fields();
-    //     (
-    //         core_fields.permission_key.clone(),
-    //         core_fields.chain_id.clone(),
-    //     )
-    // }
-
-    // pub fn update_status(self, status: BidStatus) -> Self {
-    //     let mut core_fields = self.get_core_fields();
-    //     core_fields.status = status;
-    //     match self {
-    //         SimulatedBid::Evm(bid) => SimulatedBid::Evm(SimulatedBidEvm { core_fields, ..bid }),
-    //         SimulatedBid::Svm(bid) => SimulatedBid::Svm(SimulatedBidSvm { core_fields, ..bid }),
-    //     }
-    // }
 }
 
 impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatusEvm {
@@ -951,43 +922,6 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatus {
         }
     }
 }
-
-// impl TryFrom<SimulatedBid> for (models::BidMetadata, models::ChainType) {
-//     type Error = anyhow::Error;
-
-//     fn try_from(
-//         bid: SimulatedBid,
-//     ) -> Result<(models::BidMetadata, models::ChainType), Self::Error> {
-//         match bid {
-//             SimulatedBid::Evm(bid) => Ok((
-//                 models::BidMetadata::Evm(models::BidMetadataEvm {
-//                     target_contract: bid.target_contract,
-//                     target_calldata: bid.target_calldata,
-//                     gas_limit:       bid
-//                         .gas_limit
-//                         .try_into()
-//                         .map_err(|e: &str| anyhow::anyhow!(e))?,
-//                     bundle_index:    models::BundleIndex(match bid.core_fields.status {
-//                         BidStatus::Evm(status) => match status {
-//                                 BidStatusEvm::Pending => None,
-//                                 BidStatusEvm::Lost { index, .. } => index,
-//                                 BidStatusEvm::Submitted { index, .. } => Some(index),
-//                                 BidStatusEvm::Won { index, .. } => Some(index),
-//                             }
-//                         _ => anyhow::bail!("Svm status found for Evm simulated bid"),
-//                     }),
-//                 }),
-//                 models::ChainType::Evm,
-//             )),
-//             SimulatedBid::Svm(bid) => Ok((
-//                 models::BidMetadata::Svm(models::BidMetadataSvm {
-//                     transaction: bid.transaction,
-//                 }),
-//                 models::ChainType::Svm,
-//             )),
-//         }
-//     }
-// }
 
 impl From<SimulatedBidEvm> for SimulatedBid {
     fn from(bid: SimulatedBidEvm) -> Self {
