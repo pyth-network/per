@@ -24,7 +24,6 @@ use {
             ChainStoreSvm,
             ExpressRelaySvm,
             PermissionKey,
-            SimulatedBid,
             SimulatedBidCoreFields,
             SimulatedBidEvm,
             SimulatedBidSvm,
@@ -277,7 +276,6 @@ async fn conclude_submitted_auction<T: ChainStore>(
         let bids: Vec<T::SimulatedBid> = chain_store
             .bids_for_submitted_auction(auction.clone())
             .await;
-        // let bids = T::convert_bids(bids);
         if let Some(bid_statuses) = chain_store.get_bid_results(bids.clone(), tx_hash).await? {
             let auction = store
                 .conclude_auction(auction)
@@ -1123,8 +1121,6 @@ pub trait ChainStore: Copy {
     fn get_trigger_stream<'a>(
         client: &'a Self::WsClient,
     ) -> impl Future<Output = Result<Self::TriggerStream<'a>>>;
-    /// Convert the bids to the chain specific simulated bid type and panics if the conversion is not possible
-    fn convert_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid>;
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     fn get_winner_bids(
         &self,
@@ -1320,15 +1316,6 @@ impl ChainStore for &ChainStoreEvm {
         Ok(block_stream)
     }
 
-    fn convert_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid> {
-        bids.into_iter()
-            .map(|b| match b {
-                SimulatedBid::Evm(b) => b,
-                _ => panic!("Expected SimulatedBidEvm but got something else"),
-            })
-            .collect()
-    }
-
     #[tracing::instrument(skip_all)]
     async fn get_winner_bids(
         &self,
@@ -1442,15 +1429,6 @@ impl ChainStore for &ChainStoreSvm {
             tracing::error!("Error while creating svm pub sub client: {:?}", e);
             anyhow!(e)
         })
-    }
-
-    fn convert_bids(bids: Vec<SimulatedBid>) -> Vec<Self::SimulatedBid> {
-        bids.into_iter()
-            .map(|b| match b {
-                SimulatedBid::Svm(b) => b,
-                _ => panic!("Expected SimulatedBidSvm but got something else"),
-            })
-            .collect()
     }
 
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>> {

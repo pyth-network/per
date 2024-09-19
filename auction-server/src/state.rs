@@ -70,10 +70,7 @@ use {
         QueryBuilder,
     },
     std::{
-        collections::{
-            hash_map::Entry,
-            HashMap,
-        },
+        collections::HashMap,
         str::FromStr,
         sync::Arc,
     },
@@ -421,7 +418,6 @@ pub enum OpportunityParams {
 }
 
 pub type OpportunityId = Uuid;
-pub type AuctionKey = (PermissionKey, ChainId);
 pub type AuctionLock = Arc<Mutex<()>>;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -877,15 +873,6 @@ impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {
     }
 }
 
-impl SimulatedBid {
-    pub fn get_id(&self) -> BidId {
-        match self {
-            SimulatedBid::Evm(bid) => bid.core_fields.id,
-            SimulatedBid::Svm(bid) => bid.core_fields.id,
-        }
-    }
-}
-
 impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatus {
     type Error = anyhow::Error;
 
@@ -1043,12 +1030,7 @@ impl Store {
             .execute(&self.db)
             .await?;
 
-        chain_store
-            .get_core_fields()
-            .submitted_auctions
-            .write()
-            .await
-            .push(auction.clone());
+        chain_store.add_submitted_auction(auction.clone()).await;
         Ok(auction)
     }
 
