@@ -527,16 +527,6 @@ async fn submit_auction_for_lock<T: ChainStore>(
     auction_lock: AuctionLock,
 ) -> Result<()> {
     let acquired_lock = auction_lock.lock().await;
-    // let chain_store = store.chains.get(&chain_id);
-    // let chain_store_svm = store.chains_svm.get(&chain_id);
-
-    // if chain_store.is_none() && chain_store_svm.is_none() {
-    //     return Err(anyhow!("Chain not found: {}", chain_id));
-    // }
-
-    // if chain_store.is_some() && chain_store_svm.is_some() {
-    //     tracing::error!("Chain found in both EVM and SVM chains: {}", chain_id);
-    // }
 
     let bid_collection_time: OffsetDateTime = OffsetDateTime::now_utc();
     let bids: Vec<T::SimulatedBid> = chain_store.get_bids(&permission_key).await;
@@ -552,19 +542,6 @@ async fn submit_auction_for_lock<T: ChainStore>(
         acquired_lock,
     )
     .await
-    // } else if let Some(chain_store) = chain_store {
-    //     submit_auction_for_bids(
-    //         bids.clone(),
-    //         bid_collection_time,
-    //         permission_key.clone(),
-    //         chain_id.clone(),
-    //         store.clone(),
-    //         chain_store,
-    //         acquired_lock,
-    //     )
-    //     .await?
-    // };
-    // Ok(())
 }
 
 #[tracing::instrument(skip_all)]
@@ -626,38 +603,42 @@ async fn submit_auctions<T: ChainStore>(
             let (store, permission_key, chain_id) =
                 (store.clone(), permission_key.clone(), chain_id.clone());
             async move {
-                let chain_store = store.chains.get(&chain_id);
-                let chain_store_svm = store.chains_svm.get(&chain_id);
-                if chain_store.is_none() && chain_store_svm.is_none() {
-                    tracing::error!("Chain not found: {}", chain_id);
-                    return;
-                }
-
-                if chain_store.is_some() && chain_store_svm.is_some() {
-                    tracing::error!("Chain found in both EVM and SVM chains: {}", chain_id);
-                }
-
-                if let Some(chain_store) = chain_store {
-                    if let Err(err) = submit_auction(store.clone(), chain_store, permission_key.clone(), chain_id.clone()).await {
-                        tracing::error!(
-                            "Failed to submit auction: {:?} - permission_key: {:?} - chain_id: {:?}",
-                            err,
-                            permission_key,
-                            chain_id
-                        );
+                let result = match T::CHAIN_TYPE {
+                    models::ChainType::Evm => {
+                        let chain_store = store
+                            .chains
+                            .get(&chain_id)
+                            .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+                        submit_auction(
+                            store.clone(),
+                            chain_store,
+                            permission_key.clone(),
+                            chain_id.clone(),
+                        )
+                        .await
                     }
-                }
-
-                if let Some(chain_store_svm) = chain_store_svm {
-                    if let Err(err) = submit_auction(store.clone(), chain_store_svm, permission_key.clone(), chain_id.clone()).await {
-                        tracing::error!(
-                            "Failed to submit auction: {:?} - permission_key: {:?} - chain_id: {:?}",
-                            err,
-                            permission_key,
-                            chain_id
-                        );
+                    models::ChainType::Svm => {
+                        let chain_store = store
+                            .chains_svm
+                            .get(&chain_id)
+                            .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+                        submit_auction(
+                            store.clone(),
+                            chain_store,
+                            permission_key.clone(),
+                            chain_id.clone(),
+                        )
+                        .await
                     }
+                };
+                if let Err(err) = result {
+                    tracing::error!(
+                        "Failed to submit auction: {:?} - permission_key: {:?}",
+                        err,
+                        permission_key
+                    );
                 }
+                Ok(()) as Result<(), anyhow::Error>
             }
         });
     }
