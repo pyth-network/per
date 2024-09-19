@@ -531,7 +531,6 @@ async fn submit_auction_for_lock<T: ChainStore>(
     let bid_collection_time: OffsetDateTime = OffsetDateTime::now_utc();
     let bids: Vec<T::SimulatedBid> = chain_store.get_bids(&permission_key).await;
 
-    // if let Some(chain_store_svm) = chain_store_svm {
     submit_auction_for_bids(
         bids.clone(),
         bid_collection_time,
@@ -1282,7 +1281,6 @@ impl ChainStore for &ChainStoreEvm {
     type WsClient = Provider<Ws>;
     type SimulatedBid = SimulatedBidEvm;
     type ConclusionResult = TransactionReceipt;
-    // type BidStatus = BidStatusEvm;
 
     const CHAIN_TYPE: models::ChainType = models::ChainType::Evm;
     const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
