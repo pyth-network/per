@@ -19,6 +19,7 @@ use {
             BidStatusEvm,
             BidStatusSvm,
             BidStatusTrait,
+            ChainStoreCoreFields,
             ChainStoreEvm,
             ChainStoreSvm,
             ExpressRelaySvm,
@@ -117,6 +118,7 @@ use {
     },
     sqlx::types::time::OffsetDateTime,
     std::{
+        collections::hash_map::Entry,
         fmt::Debug as DebugTrait,
         future::Future,
         pin::Pin,
@@ -127,7 +129,10 @@ use {
         },
         time::Duration,
     },
-    tokio::sync::MutexGuard,
+    tokio::sync::{
+        Mutex,
+        MutexGuard,
+    },
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -269,8 +274,10 @@ async fn conclude_submitted_auction<T: ChainStore>(
     auction: models::Auction,
 ) -> Result<()> {
     if let Some(tx_hash) = auction.tx_hash.clone() {
-        let bids: Vec<SimulatedBid> = store.bids_for_submitted_auction(auction.clone()).await;
-        let bids = T::convert_bids(bids);
+        let bids: Vec<T::SimulatedBid> = chain_store
+            .bids_for_submitted_auction(auction.clone())
+            .await;
+        // let bids = T::convert_bids(bids);
         if let Some(bid_statuses) = chain_store.get_bid_results(bids.clone(), tx_hash).await? {
             let auction = store
                 .conclude_auction(auction)
@@ -282,7 +289,7 @@ async fn conclude_submitted_auction<T: ChainStore>(
                 async move {
                     match bids.get(index) {
                         Some(bid) => {
-                            if let Err(err) = store.broadcast_bid_status_and_update(bid.clone(), bid_status.clone(), Some(&auction)).await {
+                            if let Err(err) = store.broadcast_bid_status_and_update(chain_store, bid.clone(), bid_status.clone(), Some(&auction)).await {
                                 tracing::error!("Failed to broadcast bid status: {:?} - bid: {:?}", err, bid);
                             }
                         }
@@ -291,14 +298,18 @@ async fn conclude_submitted_auction<T: ChainStore>(
                 }
             }))
             .await;
-            store.remove_submitted_auction(auction).await;
+            chain_store.remove_submitted_auction(auction).await;
         }
     }
     Ok(())
 }
 
-async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
-    let auctions = store.get_submitted_auctions(&chain_id).await;
+async fn conclude_submitted_auctions<T: ChainStore>(
+    store: Arc<Store>,
+    chain_store: T,
+    chain_id: String,
+) -> Result<()> {
+    let auctions = chain_store.get_submitted_auctions().await;
 
     tracing::info!(
         "Chain: {chain_id} Auctions to conclude {auction_len}",
@@ -337,22 +348,33 @@ async fn conclude_submitted_auctions(store: Arc<Store>, chain_id: String) {
             }
         });
     }
+    Ok(())
 }
 
-async fn broadcast_submitted_bids<T: SimulatedBidTrait>(
+async fn broadcast_submitted_bids<T: ChainStore>(
     store: Arc<Store>,
-    bids: Vec<T>,
-    tx_hash: <T::StatusType as BidStatusTrait>::TxHash,
+    chain_store: T,
+    bids: Vec<T::SimulatedBid>,
+    tx_hash: <<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash,
     auction: models::Auction,
 ) {
     join_all(bids.iter().enumerate().map(|(i, bid)| {
         let (store, auction, index, tx_hash) =
             (store.clone(), auction.clone(), i as u32, tx_hash.clone());
         async move {
-            match T::get_bid_status(models::BidStatus::Submitted, Some(index), Some(tx_hash)) {
+            match <T::SimulatedBid as SimulatedBidTrait>::get_bid_status(
+                models::BidStatus::Submitted,
+                Some(index),
+                Some(tx_hash),
+            ) {
                 Ok(status) => {
                     if let Err(err) = store
-                        .broadcast_bid_status_and_update(bid.clone(), status, Some(&auction))
+                        .broadcast_bid_status_and_update(
+                            chain_store,
+                            bid.clone(),
+                            status,
+                            Some(&auction),
+                        )
                         .await
                     {
                         tracing::error!(
@@ -371,11 +393,12 @@ async fn broadcast_submitted_bids<T: SimulatedBidTrait>(
     .await;
 }
 
-async fn broadcast_lost_bids<T: SimulatedBidTrait>(
+async fn broadcast_lost_bids<T: ChainStore>(
     store: Arc<Store>,
-    bids: Vec<T>,
-    submitted_bids: Vec<T>,
-    tx_hash: Option<<T::StatusType as BidStatusTrait>::TxHash>,
+    chain_store: T,
+    bids: Vec<T::SimulatedBid>,
+    submitted_bids: Vec<T::SimulatedBid>,
+    tx_hash: Option<<<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>,
     auction: Option<&models::Auction>,
 ) {
     join_all(bids.iter().filter_map(|bid| {
@@ -388,10 +411,14 @@ async fn broadcast_lost_bids<T: SimulatedBidTrait>(
 
         let (store, tx_hash) = (store.clone(), tx_hash.clone());
         Some(async move {
-            match T::get_bid_status(models::BidStatus::Lost, None, tx_hash) {
+            match <T::SimulatedBid as SimulatedBidTrait>::get_bid_status(
+                models::BidStatus::Lost,
+                None,
+                tx_hash,
+            ) {
                 Ok(status) => {
                     if let Err(err) = store
-                        .broadcast_bid_status_and_update(bid.clone(), status, auction)
+                        .broadcast_bid_status_and_update(chain_store, bid.clone(), status, auction)
                         .await
                     {
                         tracing::error!(
@@ -411,7 +438,7 @@ async fn broadcast_lost_bids<T: SimulatedBidTrait>(
 }
 
 async fn submit_auction_for_bids<'a, T: ChainStore>(
-    bids: Vec<SimulatedBid>,
+    bids: Vec<T::SimulatedBid>,
     bid_collection_time: OffsetDateTime,
     permission_key: Bytes,
     chain_id: String,
@@ -419,7 +446,6 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     chain_store: T,
     _auction_mutex_gaurd: MutexGuard<'a, ()>,
 ) -> Result<()> {
-    let bids = T::convert_bids(bids);
     let bids: Vec<T::SimulatedBid> = bids
         .into_iter()
         .filter(|bid| {
@@ -441,7 +467,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
         .get_winner_bids(&bids, permission_key.clone(), store.clone())
         .await?;
     if winner_bids.is_empty() {
-        broadcast_lost_bids(store.clone(), bids, winner_bids, None, None).await;
+        broadcast_lost_bids(store.clone(), chain_store, bids, winner_bids, None, None).await;
         return Ok(());
     }
 
@@ -467,16 +493,20 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
         Ok(tx_hash) => {
             tracing::debug!("Submitted transaction: {:?}", tx_hash);
             let converted_tx_hash = <<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::convert_tx_hash(&tx_hash);
-            auction = store.submit_auction(auction, converted_tx_hash).await?;
+            auction = store
+                .submit_auction(chain_store, auction, converted_tx_hash)
+                .await?;
             tokio::join!(
                 broadcast_submitted_bids(
                     store.clone(),
+                    chain_store,
                     winner_bids.clone(),
                     tx_hash.clone(),
                     auction.clone()
                 ),
                 broadcast_lost_bids(
                     store.clone(),
+                    chain_store,
                     bids,
                     winner_bids,
                     Some(tx_hash),
@@ -491,62 +521,71 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     Ok(())
 }
 
-async fn submit_auction_for_lock(
+async fn submit_auction_for_lock<T: ChainStore>(
     store: Arc<Store>,
+    chain_store: T,
     permission_key: Bytes,
     chain_id: String,
     auction_lock: AuctionLock,
 ) -> Result<()> {
     let acquired_lock = auction_lock.lock().await;
-    let chain_store = store.chains.get(&chain_id);
-    let chain_store_svm = store.chains_svm.get(&chain_id);
+    // let chain_store = store.chains.get(&chain_id);
+    // let chain_store_svm = store.chains_svm.get(&chain_id);
 
-    if chain_store.is_none() && chain_store_svm.is_none() {
-        return Err(anyhow!("Chain not found: {}", chain_id));
-    }
+    // if chain_store.is_none() && chain_store_svm.is_none() {
+    //     return Err(anyhow!("Chain not found: {}", chain_id));
+    // }
 
-    if chain_store.is_some() && chain_store_svm.is_some() {
-        tracing::error!("Chain found in both EVM and SVM chains: {}", chain_id);
-    }
+    // if chain_store.is_some() && chain_store_svm.is_some() {
+    //     tracing::error!("Chain found in both EVM and SVM chains: {}", chain_id);
+    // }
 
     let bid_collection_time: OffsetDateTime = OffsetDateTime::now_utc();
-    let bids: Vec<SimulatedBid> = store
-        .get_bids(&(permission_key.clone(), chain_id.clone()))
-        .await;
+    let bids: Vec<T::SimulatedBid> = chain_store.get_bids(&permission_key).await;
 
-    if let Some(chain_store_svm) = chain_store_svm {
-        submit_auction_for_bids(
-            bids.clone(),
-            bid_collection_time,
-            permission_key.clone(),
-            chain_id.clone(),
-            store.clone(),
-            chain_store_svm,
-            acquired_lock,
-        )
-        .await?
-    } else if let Some(chain_store) = chain_store {
-        submit_auction_for_bids(
-            bids.clone(),
-            bid_collection_time,
-            permission_key.clone(),
-            chain_id.clone(),
-            store.clone(),
-            chain_store,
-            acquired_lock,
-        )
-        .await?
-    };
-    Ok(())
+    // if let Some(chain_store_svm) = chain_store_svm {
+    submit_auction_for_bids(
+        bids.clone(),
+        bid_collection_time,
+        permission_key.clone(),
+        chain_id.clone(),
+        store.clone(),
+        chain_store,
+        acquired_lock,
+    )
+    .await
+    // } else if let Some(chain_store) = chain_store {
+    //     submit_auction_for_bids(
+    //         bids.clone(),
+    //         bid_collection_time,
+    //         permission_key.clone(),
+    //         chain_id.clone(),
+    //         store.clone(),
+    //         chain_store,
+    //         acquired_lock,
+    //     )
+    //     .await?
+    // };
+    // Ok(())
 }
 
 #[tracing::instrument(skip_all)]
-async fn submit_auction(store: Arc<Store>, permission_key: Bytes, chain_id: String) -> Result<()> {
-    let key = (permission_key.clone(), chain_id.clone());
-    let auction_lock = store.get_auction_lock(key.clone()).await;
-    let result =
-        submit_auction_for_lock(store.clone(), permission_key, chain_id, auction_lock).await;
-    store.remove_auction_lock(&key).await;
+async fn submit_auction<T: ChainStore>(
+    store: Arc<Store>,
+    chain_store: T,
+    permission_key: Bytes,
+    chain_id: String,
+) -> Result<()> {
+    let auction_lock = chain_store.get_auction_lock(permission_key.clone()).await;
+    let result = submit_auction_for_lock(
+        store.clone(),
+        chain_store,
+        permission_key.clone(),
+        chain_id,
+        auction_lock,
+    )
+    .await;
+    chain_store.remove_auction_lock(&permission_key).await;
     result
 }
 
@@ -571,8 +610,12 @@ pub fn get_express_relay_contract(
     SignableExpressRelayContract::new(address, client)
 }
 
-async fn submit_auctions(store: Arc<Store>, chain_id: String) {
-    let permission_keys = store.get_permission_keys_for_auction(&chain_id).await;
+async fn submit_auctions<T: ChainStore>(
+    store: Arc<Store>,
+    chain_store: T,
+    chain_id: String,
+) -> Result<()> {
+    let permission_keys = chain_store.get_permission_keys_for_auction().await;
 
     tracing::info!(
         "Chain: {chain_id} Auctions to process {auction_len}",
@@ -585,19 +628,43 @@ async fn submit_auctions(store: Arc<Store>, chain_id: String) {
             let (store, permission_key, chain_id) =
                 (store.clone(), permission_key.clone(), chain_id.clone());
             async move {
-                if let Err(err) =
-                    submit_auction(store, permission_key.clone(), chain_id.clone()).await
-                {
-                    tracing::error!(
-                        "Failed to submit auction: {:?} - permission_key: {:?} - chain_id: {:?}",
-                        err,
-                        permission_key,
-                        chain_id
-                    );
+                let chain_store = store.chains.get(&chain_id);
+                let chain_store_svm = store.chains_svm.get(&chain_id);
+                if chain_store.is_none() && chain_store_svm.is_none() {
+                    tracing::error!("Chain not found: {}", chain_id);
+                    return;
+                }
+
+                if chain_store.is_some() && chain_store_svm.is_some() {
+                    tracing::error!("Chain found in both EVM and SVM chains: {}", chain_id);
+                }
+
+                if let Some(chain_store) = chain_store {
+                    if let Err(err) = submit_auction(store.clone(), chain_store, permission_key.clone(), chain_id.clone()).await {
+                        tracing::error!(
+                            "Failed to submit auction: {:?} - permission_key: {:?} - chain_id: {:?}",
+                            err,
+                            permission_key,
+                            chain_id
+                        );
+                    }
+                }
+
+                if let Some(chain_store_svm) = chain_store_svm {
+                    if let Err(err) = submit_auction(store.clone(), chain_store_svm, permission_key.clone(), chain_id.clone()).await {
+                        tracing::error!(
+                            "Failed to submit auction: {:?} - permission_key: {:?} - chain_id: {:?}",
+                            err,
+                            permission_key,
+                            chain_id
+                        );
+                    }
                 }
             }
         });
     }
+
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -820,7 +887,7 @@ pub async fn handle_bid(
         // Add a 25% more for estimation errors
         gas_limit:       estimated_gas * U256::from(125) / U256::from(100),
     };
-    store.add_bid(simulated_bid).await?;
+    store.add_bid(chain_store, simulated_bid).await?;
     Ok(core_fields.id)
 }
 
@@ -983,7 +1050,7 @@ pub async fn handle_bid_svm(
         core_fields: core_fields.clone(),
         transaction: bid.transaction,
     };
-    store.add_bid(simulated_bid).await?;
+    store.add_bid(chain_store, simulated_bid).await?;
     Ok(core_fields.id)
 }
 
@@ -1033,7 +1100,7 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
 
 /// The trait for the chain store to be implemented for each chain type
 /// These functions are chain specific and should be implemented for each chain in order to handle auctions
-pub trait ChainStore {
+pub trait ChainStore: Copy {
     /// The trigger type for the chain. This is the type that is used to trigger the auction submission and conclusion
     type Trigger: DebugTrait;
     /// The trigger stream type when subscribing to new triggers on the ws client for the chain
@@ -1051,7 +1118,7 @@ pub trait ChainStore {
     const AUCTION_MINIMUM_LIFETIME: Duration;
 
     /// Get the ws client for the chain
-    fn get_ws_client(&self) -> impl Future<Output = Result<Self::WsClient>> + Send;
+    fn get_ws_client(&self) -> impl Future<Output = Result<Self::WsClient>>;
     /// Get the trigger stream for the ws client to subscribe to new triggers
     fn get_trigger_stream<'a>(
         client: &'a Self::WsClient,
@@ -1081,7 +1148,149 @@ pub trait ChainStore {
         &self,
         bids: Vec<Self::SimulatedBid>,
         tx_hash: Vec<u8>,
-    ) -> impl Future<Output = Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>>>;
+    ) -> impl Future<
+        Output = Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>>,
+    > + Send;
+    fn get_core_fields(&self) -> &ChainStoreCoreFields<Self::SimulatedBid>;
+
+    async fn get_bids(&self, key: &PermissionKey) -> Vec<Self::SimulatedBid> {
+        self.get_core_fields()
+            .bids
+            .read()
+            .await
+            .get(key)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    async fn add_bid(&self, bid: Self::SimulatedBid) {
+        self.get_core_fields()
+            .bids
+            .write()
+            .await
+            .entry(bid.get_core_fields().permission_key.clone())
+            .or_insert_with(Vec::new)
+            .push(bid);
+    }
+
+    async fn remove_bid(&self, bid: Self::SimulatedBid) {
+        let mut write_guard = self.get_core_fields().bids.write().await;
+        let core_fields = bid.get_core_fields();
+        let key = core_fields.permission_key;
+        if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
+            let bids = entry.get_mut();
+            bids.retain(|b| b.get_core_fields().id != core_fields.id);
+            if bids.is_empty() {
+                entry.remove();
+            }
+        }
+    }
+
+    async fn update_bid(&self, bid: Self::SimulatedBid) {
+        let mut write_guard = self.get_core_fields().bids.write().await;
+        let core_fields = bid.clone().get_core_fields();
+        let key = core_fields.permission_key.clone();
+        match write_guard.entry(key.clone()) {
+            Entry::Occupied(mut entry) => {
+                let bids = entry.get_mut();
+                match bids
+                    .iter()
+                    .position(|b| b.get_core_fields().id == core_fields.id)
+                {
+                    Some(index) => bids[index] = bid,
+                    None => {
+                        tracing::error!("Update bid failed - bid not found for: {:?}", bid);
+                    }
+                }
+            }
+            Entry::Vacant(_) => {
+                tracing::error!("Update bid failed - entry not found for key: {:?}", key);
+            }
+        }
+    }
+
+    async fn add_submitted_auction(&self, auction: models::Auction) {
+        self.get_core_fields()
+            .submitted_auctions
+            .write()
+            .await
+            .push(auction.clone());
+    }
+
+    async fn get_submitted_auctions(&self) -> Vec<models::Auction> {
+        self.get_core_fields()
+            .submitted_auctions
+            .read()
+            .await
+            .to_vec()
+    }
+
+    async fn get_permission_keys_for_auction(&self) -> Vec<PermissionKey> {
+        self.get_core_fields()
+            .bids
+            .read()
+            .await
+            .keys()
+            .cloned()
+            .collect()
+    }
+
+    async fn bids_for_submitted_auction(
+        &self,
+        auction: models::Auction,
+    ) -> Vec<Self::SimulatedBid> {
+        let bids = self.get_bids(&auction.permission_key.clone().into()).await;
+        match auction.tx_hash {
+            Some(tx_hash) => bids
+                .into_iter()
+                .filter(|bid| {
+                    let status = bid.get_core_fields().status;
+                    if models::BidStatus::Submitted == status.clone().into() {
+                        if let Some(status_tx_hash) = status.get_tx_hash() {
+                            return <Self::SimulatedBid as SimulatedBidTrait>::StatusType::convert_tx_hash(&status_tx_hash)
+                                == tx_hash;
+                        }
+                    }
+                    false
+                })
+                .collect(),
+            None => vec![],
+        }
+    }
+
+    async fn remove_submitted_auction(&self, auction: models::Auction) {
+        if !self
+            .bids_for_submitted_auction(auction.clone())
+            .await
+            .is_empty()
+        {
+            return;
+        }
+
+        let mut write_guard = self.get_core_fields().submitted_auctions.write().await;
+        write_guard.retain(|a| a.id != auction.id);
+    }
+
+    async fn get_auction_lock(&self, key: PermissionKey) -> AuctionLock {
+        self.get_core_fields()
+            .auction_lock
+            .lock()
+            .await
+            .entry(key)
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
+    }
+
+    async fn remove_auction_lock(&self, key: &PermissionKey) {
+        let mut mutex_gaurd = self.get_core_fields().auction_lock.lock().await;
+        let auction_lock = mutex_gaurd.get(key);
+        if let Some(auction_lock) = auction_lock {
+            // Whenever there is no thread borrowing a lock for this key, we can remove it from the locks HashMap.
+            if Arc::strong_count(auction_lock) == 1 {
+                mutex_gaurd.remove(key);
+            }
+        }
+    }
 }
 
 // While we are submitting bids together, increasing this number will have the following effects:
@@ -1212,6 +1421,10 @@ impl ChainStore for &ChainStoreEvm {
             None => Ok(None),
         }
     }
+
+    fn get_core_fields(&self) -> &ChainStoreCoreFields<Self::SimulatedBid> {
+        &self.core_fields
+    }
 }
 
 impl ChainStore for &ChainStoreSvm {
@@ -1333,6 +1546,10 @@ impl ChainStore for &ChainStoreSvm {
             }
         }
     }
+
+    fn get_core_fields(&self) -> &ChainStoreCoreFields<Self::SimulatedBid> {
+        &self.core_fields
+    }
 }
 
 async fn run_submission_loop<T: ChainStore>(
@@ -1354,15 +1571,49 @@ async fn run_submission_loop<T: ChainStore>(
                 }
 
                 tracing::debug!("New trigger received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), trigger);
-                store.task_tracker.spawn(
-                    submit_auctions(
-                        store.clone(),
-                        chain_id.clone(),
-                    )
-                );
-                store.task_tracker.spawn(
-                    conclude_submitted_auctions(store.clone(), chain_id.clone())
-                );
+                store.task_tracker.spawn({
+                    let (store, chain_id) = (store.clone(), chain_id.clone());
+                    async move {
+                        match T::CHAIN_TYPE {
+                            models::ChainType::Evm => {
+                                let chain_store = store
+                                    .chains
+                                    .get(&chain_id)
+                                    .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+                                submit_auctions(store.clone(), chain_store, chain_id).await
+                            }
+                            models::ChainType::Svm => {
+                                let chain_store = store
+                                    .chains
+                                    .get(&chain_id)
+                                    .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+                                submit_auctions(store.clone(), chain_store, chain_id).await
+                            }
+                        }
+                    }
+                });
+
+                store.task_tracker.spawn({
+                    let (store, chain_id) = (store.clone(), chain_id.clone());
+                    async move {
+                        match T::CHAIN_TYPE {
+                            models::ChainType::Evm => {
+                                let chain_store = store
+                                    .chains
+                                    .get(&chain_id)
+                                    .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+                                conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone()).await
+                            }
+                            models::ChainType::Svm => {
+                                let chain_store = store
+                                    .chains
+                                    .get(&chain_id)
+                                    .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+                                conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone()).await
+                            }
+                        }
+                    }
+                });
             }
             _ = exit_check_interval.tick() => {}
         }
