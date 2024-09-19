@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = 'pending'",
+  "query": "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
   "describe": {
     "columns": [],
     "parameters": {
@@ -19,10 +19,22 @@
           }
         },
         "Uuid",
-        "Uuid"
+        {
+          "Custom": {
+            "name": "bid_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "lost",
+                "submitted",
+                "won"
+              ]
+            }
+          }
+        }
       ]
     },
     "nullable": []
   },
-  "hash": "1a07b19befac7096f62aa512f2c33f6282c0565025ba9ede3325705de09ea145"
+  "hash": "71a59d9696f9bac1b6d31ce4926b497337c599c11c9cf3d29c58fbbf7501779d"
 }

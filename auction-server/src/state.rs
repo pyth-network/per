@@ -34,6 +34,7 @@ use {
         types::{
             Address,
             Bytes,
+            H256,
             U256,
         },
     },
@@ -43,15 +44,21 @@ use {
         Serialize,
     },
     serde_json::json,
+    serde_with::{
+        serde_as,
+        DisplayFromStr,
+    },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
-        signature::Keypair,
+        signature::{
+            Keypair,
+            Signature,
+        },
         transaction::VersionedTransaction,
     },
     sqlx::{
-        database::HasArguments,
-        encode::IsNull,
-        postgres::PgQueryResult,
+        postgres::PgArguments,
+        query::Query,
         types::{
             time::{
                 OffsetDateTime,
@@ -61,7 +68,6 @@ use {
         },
         Postgres,
         QueryBuilder,
-        TypeInfo,
     },
     std::{
         collections::{
@@ -90,7 +96,7 @@ pub type BidAmount = U256;
 pub type GetOrCreate<T> = (T, bool);
 
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
-pub struct SimulatedBidCoreFields {
+pub struct SimulatedBidCoreFields<T: BidStatusTrait> {
     /// The unique id for bid.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub id:              BidId,
@@ -106,7 +112,7 @@ pub struct SimulatedBidCoreFields {
     pub chain_id:        ChainId,
     /// The latest status for bid.
     #[schema(example = "op_sepolia", value_type = BidStatus)]
-    pub status:          BidStatus,
+    pub status:          T,
     /// The time server received the bid formatted in rfc3339.
     #[schema(example = "2024-05-23T21:26:57.329954Z", value_type = String)]
     #[serde(with = "time::serde::rfc3339")]
@@ -121,9 +127,10 @@ pub struct SimulatedBidCoreFields {
 pub struct SimulatedBidSvm {
     #[serde(flatten)]
     #[schema(inline)]
-    pub core_fields: SimulatedBidCoreFields,
+    pub core_fields: SimulatedBidCoreFields<BidStatusSvm>,
     /// The transaction of the bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
+    #[serde(with = "crate::serde::transaction_svm")]
     pub transaction: VersionedTransaction,
 }
 
@@ -132,7 +139,7 @@ pub struct SimulatedBidSvm {
 pub struct SimulatedBidEvm {
     #[serde(flatten)]
     #[schema(inline)]
-    pub core_fields:     SimulatedBidCoreFields,
+    pub core_fields:     SimulatedBidCoreFields<BidStatusEvm>,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: Address,
@@ -153,9 +160,15 @@ pub enum SimulatedBid {
     Svm(SimulatedBidSvm),
 }
 
-pub trait SimulatedBidTrait: Clone + Into<SimulatedBid> + std::fmt::Debug {
-    fn get_core_fields(&self) -> SimulatedBidCoreFields;
-    fn update_status(self, status: BidStatus) -> Self;
+pub trait SimulatedBidTrait:
+    Clone + Into<SimulatedBid> + std::fmt::Debug + TryFrom<(models::Bid, Option<models::Auction>)>
+{
+    type StatusType: BidStatusTrait;
+
+    fn get_core_fields(&self) -> SimulatedBidCoreFields<Self::StatusType>;
+    fn update_status(self, status: Self::StatusType) -> Self;
+    fn get_metadata(&self) -> anyhow::Result<models::BidMetadata>;
+    fn get_chain_type(&self) -> models::ChainType;
     fn get_auction_key(&self) -> AuctionKey {
         let core_fields = self.get_core_fields();
         (
@@ -163,14 +176,21 @@ pub trait SimulatedBidTrait: Clone + Into<SimulatedBid> + std::fmt::Debug {
             core_fields.chain_id.clone(),
         )
     }
+    fn get_bid_status(
+        status: models::BidStatus,
+        index: Option<u32>,
+        result: Option<<Self::StatusType as BidStatusTrait>::TxHash>,
+    ) -> anyhow::Result<Self::StatusType>;
 }
 
 impl SimulatedBidTrait for SimulatedBidEvm {
-    fn get_core_fields(&self) -> SimulatedBidCoreFields {
+    type StatusType = BidStatusEvm;
+
+    fn get_core_fields(&self) -> SimulatedBidCoreFields<Self::StatusType> {
         self.core_fields.clone()
     }
 
-    fn update_status(self, status: BidStatus) -> Self {
+    fn update_status(self, status: Self::StatusType) -> Self {
         let mut core_fields = self.core_fields;
         core_fields.status = status;
         Self {
@@ -178,19 +198,184 @@ impl SimulatedBidTrait for SimulatedBidEvm {
             ..self
         }
     }
+
+    fn get_metadata(&self) -> anyhow::Result<models::BidMetadata> {
+        Ok(models::BidMetadata::Evm(models::BidMetadataEvm {
+            target_contract: self.target_contract,
+            target_calldata: self.target_calldata.clone(),
+            gas_limit:       self
+                .gas_limit
+                .try_into()
+                .map_err(|e: &str| anyhow::anyhow!(e))?,
+            bundle_index:    models::BundleIndex(match self.core_fields.status {
+                BidStatusEvm::Pending => None,
+                BidStatusEvm::Lost { index, .. } => index,
+                BidStatusEvm::Submitted { index, .. } => Some(index),
+                BidStatusEvm::Won { index, .. } => Some(index),
+            }),
+        }))
+    }
+
+    fn get_chain_type(&self) -> models::ChainType {
+        models::ChainType::Evm
+    }
+
+    fn get_bid_status(
+        status: models::BidStatus,
+        index: Option<u32>,
+        result: Option<<Self::StatusType as BidStatusTrait>::TxHash>,
+    ) -> anyhow::Result<Self::StatusType> {
+        match status {
+            models::BidStatus::Pending => Ok(BidStatusEvm::Pending),
+            models::BidStatus::Submitted => {
+                if result.is_none() || index.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Submitted bid should have a result and index"
+                    ));
+                }
+                Ok(BidStatusEvm::Submitted {
+                    result: result.unwrap(),
+                    index:  index.unwrap(),
+                })
+            }
+            models::BidStatus::Won => {
+                if result.is_none() || index.is_none() {
+                    return Err(anyhow::anyhow!("Won bid should have a result and index"));
+                }
+                Ok(BidStatusEvm::Won {
+                    result: result.unwrap(),
+                    index:  index.unwrap(),
+                })
+            }
+            models::BidStatus::Lost => Ok(BidStatusEvm::Lost { result, index }),
+        }
+    }
+}
+
+impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBidEvm {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        (bid, auction): (models::Bid, Option<models::Auction>),
+    ) -> Result<Self, Self::Error> {
+        let core_fields = SimulatedBidCoreFields::try_from((bid.clone(), auction))?;
+        let metadata: models::BidMetadataEvm = bid.metadata.0.try_into()?;
+        Ok(SimulatedBidEvm {
+            core_fields,
+            target_contract: metadata.target_contract,
+            target_calldata: metadata.target_calldata,
+            gas_limit: U256::from(metadata.gas_limit),
+        })
+    }
+}
+
+impl<T: BidStatusTrait> TryFrom<(models::Bid, Option<models::Auction>)>
+    for SimulatedBidCoreFields<T>
+{
+    type Error = anyhow::Error;
+
+    fn try_from(
+        (bid, auction): (models::Bid, Option<models::Auction>),
+    ) -> Result<Self, Self::Error> {
+        if !bid.is_for_auction(&auction) {
+            return Err(anyhow::anyhow!("Bid is not for the given auction"));
+        }
+
+        let bid_amount = BidAmount::from_dec_str(bid.bid_amount.to_string().as_str())
+            .map_err(|e| anyhow::anyhow!(e))?;
+        let status = T::extract_by(bid.clone(), auction)?;
+
+        Ok(SimulatedBidCoreFields {
+            id: bid.id,
+            bid_amount,
+            permission_key: Bytes::from(bid.permission_key),
+            chain_id: bid.chain_id,
+            status,
+            initiation_time: bid.initiation_time.assume_offset(UtcOffset::UTC),
+            profile_id: bid.profile_id,
+        })
+    }
+}
+
+
+impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBidSvm {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        (bid, auction): (models::Bid, Option<models::Auction>),
+    ) -> Result<Self, Self::Error> {
+        let core_fields = SimulatedBidCoreFields::try_from((bid.clone(), auction))?;
+        let metadata: models::BidMetadataSvm = bid.metadata.0.try_into()?;
+        Ok(SimulatedBidSvm {
+            core_fields,
+            transaction: metadata.transaction,
+        })
+    }
+}
+
+impl TryInto<(models::BidMetadata, models::ChainType)> for SimulatedBidSvm {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<(models::BidMetadata, models::ChainType), Self::Error> {
+        Ok((
+            models::BidMetadata::Svm(models::BidMetadataSvm {
+                transaction: self.transaction,
+            }),
+            models::ChainType::Svm,
+        ))
+    }
 }
 
 impl SimulatedBidTrait for SimulatedBidSvm {
-    fn get_core_fields(&self) -> SimulatedBidCoreFields {
+    type StatusType = BidStatusSvm;
+
+    fn get_core_fields(&self) -> SimulatedBidCoreFields<Self::StatusType> {
         self.core_fields.clone()
     }
 
-    fn update_status(self, status: BidStatus) -> Self {
+    fn update_status(self, status: Self::StatusType) -> Self {
         let mut core_fields = self.core_fields;
         core_fields.status = status;
         Self {
             core_fields,
             ..self
+        }
+    }
+
+    fn get_metadata(&self) -> anyhow::Result<models::BidMetadata> {
+        Ok(models::BidMetadata::Svm(models::BidMetadataSvm {
+            transaction: self.transaction.clone(),
+        }))
+    }
+
+    fn get_chain_type(&self) -> models::ChainType {
+        models::ChainType::Svm
+    }
+
+    fn get_bid_status(
+        status: models::BidStatus,
+        _index: Option<u32>,
+        result: Option<<Self::StatusType as BidStatusTrait>::TxHash>,
+    ) -> anyhow::Result<Self::StatusType> {
+        match status {
+            models::BidStatus::Pending => Ok(BidStatusSvm::Pending),
+            models::BidStatus::Submitted => {
+                if result.is_none() {
+                    return Err(anyhow::anyhow!("Submitted bid should have a result"));
+                }
+                Ok(BidStatusSvm::Submitted {
+                    result: result.unwrap(),
+                })
+            }
+            models::BidStatus::Won => {
+                if result.is_none() {
+                    return Err(anyhow::anyhow!("Won bid should have a result"));
+                }
+                Ok(BidStatusSvm::Won {
+                    result: result.unwrap(),
+                })
+            }
+            models::BidStatus::Lost => Ok(BidStatusSvm::Lost { result }),
         }
     }
 }
@@ -301,18 +486,16 @@ impl OpportunityStore {
 
 pub type BidId = Uuid;
 
-// TODO update result type for evm and svm
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum BidStatus {
+pub enum BidStatusEvm {
     /// The temporary state which means the auction for this bid is pending
     Pending,
     /// The bid is submitted to the chain, which is placed at the given index of the transaction with the given hash
     /// This state is temporary and will be updated to either lost or won after conclusion of the auction
     Submitted {
-        result: Vec<u8>,
-        // #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-        // result: H256,
+        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
+        result: H256,
         #[schema(example = 1, value_type = u32)]
         index:  u32,
     },
@@ -322,50 +505,297 @@ pub enum BidStatus {
     /// There are cases where the result is not None and the index is None.
     /// It is because other bids were selected for submission to the chain, but not this one.
     Lost {
-        result: Option<Vec<u8>>,
-        // #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
-        // result: Option<H256>,
+        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
+        result: Option<H256>,
         #[schema(example = 1, value_type = Option<u32>)]
         index:  Option<u32>,
     },
     /// The bid won the auction, which is concluded with the transaction with the given hash and index
     Won {
-        result: Vec<u8>,
-        // #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-        // result: H256,
+        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
+        result: H256,
         #[schema(example = 1, value_type = u32)]
         index:  u32,
     },
 }
 
-impl sqlx::Encode<'_, sqlx::Postgres> for BidStatus {
-    fn encode_by_ref(&self, buf: &mut <Postgres as HasArguments<'_>>::ArgumentBuffer) -> IsNull {
-        let result = match self {
-            BidStatus::Pending => "pending",
-            BidStatus::Submitted {
-                result: _,
-                index: _,
-            } => "submitted",
-            BidStatus::Lost {
-                result: _,
-                index: _,
-            } => "lost",
-            BidStatus::Won {
-                result: _,
-                index: _,
-            } => "won",
-        };
-        <&str as sqlx::Encode<sqlx::Postgres>>::encode(result, buf)
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum BidStatusSvm {
+    /// The temporary state which means the auction for this bid is pending
+    Pending,
+    /// The bid is submitted to the chain, with the transaction with the signature
+    /// This state is temporary and will be updated to either lost or won after conclusion of the auction
+    Submitted {
+        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        result: Signature,
+    },
+    /// The bid lost the auction
+    /// The result will be None if the auction was concluded off-chain and no auction was submitted to the chain
+    /// The result will be not None if another bid were selected for submission to the chain. The signature of the transaction for the submitted bid is the result value.
+    Lost {
+        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = Option<String>)]
+        #[serde(with = "crate::serde::nullable_signature_svm")]
+        result: Option<Signature>,
+    },
+    /// The bid won the auction, with the transaction with the signature
+    Won {
+        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        result: Signature,
+    },
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(untagged)]
+pub enum BidStatus {
+    Evm(BidStatusEvm),
+    Svm(BidStatusSvm),
+}
+
+impl From<BidStatusEvm> for models::BidStatus {
+    fn from(status: BidStatusEvm) -> Self {
+        match status {
+            BidStatusEvm::Pending => models::BidStatus::Pending,
+            BidStatusEvm::Submitted { .. } => models::BidStatus::Submitted,
+            BidStatusEvm::Lost { .. } => models::BidStatus::Lost,
+            BidStatusEvm::Won { .. } => models::BidStatus::Won,
+        }
     }
 }
 
-impl sqlx::Type<sqlx::Postgres> for BidStatus {
-    fn type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("bid_status")
+impl From<BidStatusSvm> for models::BidStatus {
+    fn from(status: BidStatusSvm) -> Self {
+        match status {
+            BidStatusSvm::Pending => models::BidStatus::Pending,
+            BidStatusSvm::Submitted { .. } => models::BidStatus::Submitted,
+            BidStatusSvm::Lost { .. } => models::BidStatus::Lost,
+            BidStatusSvm::Won { .. } => models::BidStatus::Won,
+        }
+    }
+}
+
+impl From<BidStatus> for models::BidStatus {
+    fn from(status: BidStatus) -> Self {
+        match status {
+            BidStatus::Evm(status) => status.into(),
+            BidStatus::Svm(status) => status.into(),
+        }
+    }
+}
+
+pub trait BidStatusTrait:
+    Clone + Into<models::BidStatus> + std::fmt::Debug + Into<BidStatus>
+{
+    type TxHash: Clone + std::fmt::Debug + AsRef<[u8]>;
+
+    fn get_update_query(
+        &self,
+        id: BidId,
+        auction: Option<&models::Auction>,
+    ) -> anyhow::Result<Query<'_, Postgres, PgArguments>>;
+    fn extract_by(bid: models::Bid, auction: Option<models::Auction>) -> anyhow::Result<Self>;
+    fn convert_tx_hash(tx_hash: &Self::TxHash) -> Vec<u8> {
+        tx_hash.as_ref().to_vec()
+    }
+}
+
+impl Into<BidStatus> for BidStatusEvm {
+    fn into(self) -> BidStatus {
+        BidStatus::Evm(self)
+    }
+}
+
+impl Into<BidStatus> for BidStatusSvm {
+    fn into(self) -> BidStatus {
+        BidStatus::Svm(self)
+    }
+}
+
+impl BidStatusTrait for BidStatusEvm {
+    type TxHash = H256;
+
+    fn get_update_query(
+        &self,
+        id: BidId,
+        auction: Option<&models::Auction>,
+    ) -> anyhow::Result<Query<'_, Postgres, PgArguments>> {
+        match self {
+            BidStatusEvm::Pending => Err(anyhow::anyhow!("Cannot update pending bid status")),
+            BidStatusEvm::Submitted { index, .. } => {
+                match auction {
+                    Some(auction) =>
+                        Ok(sqlx::query!(
+                            "UPDATE bid SET status = $1, auction_id = $2, metadata = jsonb_set(metadata, '{bundle_index}', $3) WHERE id = $4 AND status = $5",
+                            models::BidStatus::Submitted as _,
+                            auction.id,
+                            json!(index),
+                            id,
+                            models::BidStatus::Pending as _,
+                        )),
+                    None => Err(anyhow::anyhow!(
+                        "Cannot update submitted bid status without auction."
+                    )),
+                }
+            }
+            BidStatusEvm::Lost { index, .. } => {
+                match auction {
+                    Some(auction) => {
+                        match index {
+                            Some(index) => {
+                                Ok(sqlx::query!(
+                                    "UPDATE bid SET status = $1, metadata = jsonb_set(metadata, '{bundle_index}', $2), auction_id = $3 WHERE id = $4 AND status = $5",
+                                    models::BidStatus::Lost as _,
+                                    json!(index),
+                                    auction.id,
+                                    id,
+                                    models::BidStatus::Submitted as _
+                                ))
+                            },
+                            None => Ok(sqlx::query!(
+                                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+                                models::BidStatus::Lost as _,
+                                auction.id,
+                                id,
+                                models::BidStatus::Pending as _,
+                            )),
+                        }
+                    },
+                    None => Ok(sqlx::query!(
+                        "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
+                        models::BidStatus::Lost as _,
+                        id,
+                        models::BidStatus::Pending as _
+                    )),
+                }
+            },
+            BidStatusEvm::Won { index, .. } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, metadata = jsonb_set(metadata, '{bundle_index}', $2) WHERE id = $3 AND status = $4",
+                models::BidStatus::Won as _,
+                json!(index),
+                id,
+                models::BidStatus::Submitted as _,
+            )),
+        }
     }
 
-    fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
-        ty.name() == "bid_status"
+    fn extract_by(bid: models::Bid, auction: Option<models::Auction>) -> anyhow::Result<Self> {
+        if !bid.is_for_auction(&auction) {
+            return Err(anyhow::anyhow!("Bid is not for the given auction"));
+        }
+        if bid.status == models::BidStatus::Pending {
+            Ok(BidStatusEvm::Pending)
+        } else {
+            let result = match auction {
+                Some(auction) => auction.tx_hash.map(|tx_hash| H256::from_slice(&tx_hash)),
+                None => None,
+            };
+            let index = bid.metadata.0.get_bundle_index();
+            if bid.status == models::BidStatus::Lost {
+                Ok(BidStatusEvm::Lost { result, index })
+            } else {
+                if result.is_none() || index.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Won or submitted bid must have a transaction hash and index"
+                    ));
+                }
+                let result = result.expect("Invalid result for won or submitted bid");
+                let index = index.expect("Invalid index for won or submitted bid");
+                if bid.status == models::BidStatus::Won {
+                    Ok(BidStatusEvm::Won { result, index })
+                } else if bid.status == models::BidStatus::Submitted {
+                    Ok(BidStatusEvm::Submitted { result, index })
+                } else {
+                    Err(anyhow::anyhow!("Invalid bid status".to_string()))
+                }
+            }
+        }
+    }
+}
+
+impl BidStatusTrait for BidStatusSvm {
+    type TxHash = Signature;
+
+    fn get_update_query(
+        &self,
+        id: BidId,
+        auction: Option<&models::Auction>,
+    ) -> anyhow::Result<Query<'_, Postgres, PgArguments>> {
+        match self {
+            BidStatusSvm::Pending => Err(anyhow::anyhow!("Cannot update pending bid status")),
+            BidStatusSvm::Submitted { .. } => match auction {
+                Some(auction) => Ok(sqlx::query!(
+                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+                    models::BidStatus::Submitted as _,
+                    auction.id,
+                    id,
+                    models::BidStatus::Pending as _,
+                )),
+                None => Err(anyhow::anyhow!(
+                    "Cannot update submitted bid status without auction."
+                )),
+            },
+            BidStatusSvm::Lost { .. } => match auction {
+                Some(auction) => Ok(sqlx::query!(
+                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+                    models::BidStatus::Lost as _,
+                    auction.id,
+                    id,
+                    models::BidStatus::Pending as _
+                )),
+                None => Ok(sqlx::query!(
+                    "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
+                    models::BidStatus::Lost as _,
+                    id,
+                    models::BidStatus::Pending as _
+                )),
+            },
+            BidStatusSvm::Won { .. } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
+                models::BidStatus::Won as _,
+                id,
+                models::BidStatus::Submitted as _,
+            )),
+        }
+    }
+
+    fn extract_by(bid: models::Bid, auction: Option<models::Auction>) -> anyhow::Result<Self> {
+        if !bid.is_for_auction(&auction) {
+            return Err(anyhow::anyhow!("Bid is not for the given auction"));
+        }
+        if bid.status == models::BidStatus::Pending {
+            Ok(BidStatusSvm::Pending)
+        } else {
+            let result = match auction {
+                Some(auction) => match auction.tx_hash {
+                    Some(tx_hash) => Some(
+                        Signature::try_from(tx_hash)
+                            .map_err(|_| anyhow::anyhow!("Error reading signature"))?,
+                    ),
+                    None => None,
+                },
+                None => None,
+            };
+            if bid.status == models::BidStatus::Lost {
+                Ok(BidStatusSvm::Lost { result })
+            } else {
+                if result.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Won or submitted bid must have a transaction hash and index"
+                    ));
+                }
+                let result = result.expect("Invalid result for won or submitted bid");
+                if bid.status == models::BidStatus::Won {
+                    Ok(BidStatusSvm::Won { result })
+                } else if bid.status == models::BidStatus::Submitted {
+                    Ok(BidStatusSvm::Submitted { result })
+                } else {
+                    Err(anyhow::anyhow!("Invalid bid status".to_string()))
+                }
+            }
+        }
     }
 }
 
@@ -401,19 +831,11 @@ pub struct Store {
     pub express_relay_svm:  ExpressRelaySvm,
 }
 
-impl From<SimulatedBid> for SimulatedBidCoreFields {
-    fn from(bid: SimulatedBid) -> Self {
-        match bid {
-            SimulatedBid::Evm(bid) => bid.core_fields,
-            SimulatedBid::Svm(bid) => bid.core_fields,
-        }
-    }
-}
-
-impl SimulatedBidCoreFields {
+impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {
     pub fn new(
         bid_amount: U256,
         chain_id: String,
+        status: T,
         permission_key: Bytes,
         initiation_time: OffsetDateTime,
         auth: Auth,
@@ -424,7 +846,7 @@ impl SimulatedBidCoreFields {
             permission_key,
             chain_id,
             initiation_time,
-            status: BidStatus::Pending,
+            status,
             profile_id: match auth {
                 Auth::Authorized(_, profile) => Some(profile.id),
                 _ => None,
@@ -434,27 +856,10 @@ impl SimulatedBidCoreFields {
 }
 
 impl SimulatedBid {
-    pub fn get_core_fields(&self) -> SimulatedBidCoreFields {
+    pub fn get_id(&self) -> BidId {
         match self {
-            SimulatedBid::Evm(bid) => bid.core_fields.clone(),
-            SimulatedBid::Svm(bid) => bid.core_fields.clone(),
-        }
-    }
-
-    pub fn get_auction_key(&self) -> AuctionKey {
-        let core_fields = self.get_core_fields();
-        (
-            core_fields.permission_key.clone(),
-            core_fields.chain_id.clone(),
-        )
-    }
-
-    pub fn update_status(self, status: BidStatus) -> Self {
-        let mut core_fields = self.get_core_fields();
-        core_fields.status = status;
-        match self {
-            SimulatedBid::Evm(bid) => SimulatedBid::Evm(SimulatedBidEvm { core_fields, ..bid }),
-            SimulatedBid::Svm(bid) => SimulatedBid::Svm(SimulatedBidSvm { core_fields, ..bid }),
+            SimulatedBid::Evm(bid) => bid.core_fields.id,
+            SimulatedBid::Svm(bid) => bid.core_fields.id,
         }
     }
 }
@@ -465,108 +870,13 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatus {
     fn try_from(
         (bid, auction): (models::Bid, Option<models::Auction>),
     ) -> Result<Self, Self::Error> {
-        if !bid.is_for_auction(&auction) {
-            return Err(anyhow::anyhow!("Bid is not for the given auction"));
-        }
-        if bid.status == models::BidStatus::Pending {
-            Ok(BidStatus::Pending)
-        } else {
-            let result = match auction {
-                Some(auction) => auction.tx_hash,
-                None => None,
-            };
-            let index = bid.metadata.0.get_bundle_index();
-            if bid.status == models::BidStatus::Lost {
-                Ok(BidStatus::Lost { result, index })
-            } else {
-                if result.is_none() || index.is_none() {
-                    return Err(anyhow::anyhow!(
-                        "Won or submitted bid must have a transaction hash and index"
-                    ));
-                }
-                let result = result.unwrap();
-                let index = index.unwrap();
-                if bid.status == models::BidStatus::Won {
-                    Ok(BidStatus::Won { result, index })
-                } else if bid.status == models::BidStatus::Submitted {
-                    Ok(BidStatus::Submitted { result, index })
-                } else {
-                    Err(anyhow::anyhow!("Invalid bid status".to_string()))
-                }
+        match bid.metadata.0 {
+            models::BidMetadata::Evm(_) => {
+                Ok(BidStatus::Evm(BidStatusEvm::extract_by(bid, auction)?))
             }
-        }
-    }
-}
-
-impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBid {
-    type Error = anyhow::Error;
-
-    fn try_from(
-        (bid, auction): (models::Bid, Option<models::Auction>),
-    ) -> Result<Self, Self::Error> {
-        if !bid.is_for_auction(&auction) {
-            return Err(anyhow::anyhow!("Bid is not for the given auction"));
-        }
-
-        let bid_amount = BidAmount::from_dec_str(bid.bid_amount.to_string().as_str())
-            .map_err(|e| anyhow::anyhow!(e))?;
-        let bid_with_auction = (bid.clone(), auction);
-
-        let core_fields = SimulatedBidCoreFields {
-            id: bid.id,
-            bid_amount,
-            permission_key: Bytes::from(bid.permission_key),
-            chain_id: bid.chain_id,
-            status: bid_with_auction.try_into()?,
-            initiation_time: bid.initiation_time.assume_offset(UtcOffset::UTC),
-            profile_id: bid.profile_id,
-        };
-
-        Ok(match bid.metadata.0 {
-            models::BidMetadata::Evm(metadata) => SimulatedBid::Evm(SimulatedBidEvm {
-                core_fields,
-                target_contract: metadata.target_contract,
-                target_calldata: metadata.target_calldata,
-                gas_limit: U256::from(metadata.gas_limit),
-            }),
-            models::BidMetadata::Svm(metadata) => SimulatedBid::Svm(SimulatedBidSvm {
-                core_fields,
-                transaction: metadata.transaction,
-            }),
-        })
-    }
-}
-
-impl TryFrom<SimulatedBid> for (models::BidMetadata, models::ChainType) {
-    type Error = anyhow::Error;
-
-    fn try_from(
-        bid: SimulatedBid,
-    ) -> Result<(models::BidMetadata, models::ChainType), Self::Error> {
-        match bid {
-            SimulatedBid::Evm(bid) => Ok((
-                models::BidMetadata::Evm(models::BidMetadataEvm {
-                    target_contract: bid.target_contract,
-                    target_calldata: bid.target_calldata,
-                    gas_limit:       bid
-                        .gas_limit
-                        .try_into()
-                        .map_err(|e: &str| anyhow::anyhow!(e))?,
-                    bundle_index:    models::BundleIndex(match bid.core_fields.status {
-                        BidStatus::Pending => None,
-                        BidStatus::Lost { index, .. } => index,
-                        BidStatus::Submitted { index, .. } => Some(index),
-                        BidStatus::Won { index, .. } => Some(index),
-                    }),
-                }),
-                models::ChainType::Evm,
-            )),
-            SimulatedBid::Svm(bid) => Ok((
-                models::BidMetadata::Svm(models::BidMetadataSvm {
-                    transaction: bid.transaction,
-                }),
-                models::ChainType::Svm,
-            )),
+            models::BidMetadata::Svm(_) => {
+                Ok(BidStatus::Svm(BidStatusSvm::extract_by(bid, auction)?))
+            }
         }
     }
 }
@@ -764,15 +1074,16 @@ impl Store {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn add_bid(&self, bid: SimulatedBid) -> Result<(), RestError> {
+    pub async fn add_bid<T: SimulatedBidTrait>(&self, bid: T) -> Result<(), RestError> {
         let core_fields = bid.get_core_fields();
         let now = OffsetDateTime::now_utc();
 
-        let (metadata, chain_type): (models::BidMetadata, models::ChainType) =
-            bid.clone().try_into().map_err(|e| {
-                tracing::error!("Failed to convert metadata: {}", e);
-                RestError::TemporarilyUnavailable
-            })?;
+        let metadata = bid.get_metadata().map_err(|e: anyhow::Error| {
+            tracing::error!("Failed to get metadata: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+        let chain_type = bid.get_chain_type();
+        let status: models::BidStatus = core_fields.status.clone().into();
 
         sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         core_fields.id,
@@ -781,7 +1092,7 @@ impl Store {
         core_fields.chain_id,
         chain_type as _,
         BigDecimal::from_str(&core_fields.bid_amount.to_string()).unwrap(),
-        core_fields.status as _,
+        status as _,
         PrimitiveDateTime::new(core_fields.initiation_time.date(), core_fields.initiation_time.time()),
         core_fields.profile_id,
         serde_json::to_value(metadata).expect("Failed to serialize metadata"))
@@ -796,16 +1107,17 @@ impl Store {
             .await
             .entry(bid.get_auction_key())
             .or_insert_with(Vec::new)
-            .push(bid.clone());
+            .push(bid.into().clone());
 
         self.broadcast_status_update(BidStatusWithId {
             id:         core_fields.id,
-            bid_status: core_fields.status.clone(),
+            bid_status: core_fields.status.clone().into(),
         });
         Ok(())
     }
 
     pub async fn get_bid_status(&self, bid_id: BidId) -> Result<Json<BidStatus>, RestError> {
+        // TODO handle it in a single query (Maybe with intermediate type)
         let bid: models::Bid = sqlx::query_as("SELECT * FROM bid WHERE id = $1")
             .bind(bid_id)
             .fetch_one(&self.db)
@@ -815,51 +1127,31 @@ impl Store {
                 RestError::BidNotFound
             })?;
 
-        if bid.status == models::BidStatus::Pending {
-            Ok(BidStatus::Pending.into())
-        } else {
-            let result = match bid.auction_id {
-                Some(auction_id) => {
-                    let auction: models::Auction =
-                        sqlx::query_as("SELECT * FROM auction WHERE id = $1")
-                            .bind(auction_id)
-                            .fetch_one(&self.db)
-                            .await
-                            .map_err(|e| {
-                                tracing::warn!(
-                                    "DB: Failed to get auction: {} - auction_id: {}",
-                                    e,
-                                    auction_id
-                                );
-                                RestError::TemporarilyUnavailable
-                            })?;
-                    auction.tx_hash
-                }
-                None => None,
-            };
-
-            let index = bid.metadata.0.get_bundle_index();
-            if bid.status == models::BidStatus::Lost {
-                Ok(BidStatus::Lost { result, index }.into())
-            } else {
-                if result.is_none() || index.is_none() {
-                    tracing::error!("Invalid bid status - Won or submitted bid must have a transaction hash and index - bid_id: {}", bid_id);
-                    return Err(RestError::BadParameters(
-                        "Won or submitted bid must have a transaction hash and index".to_string(),
-                    ));
-                }
-                let result = result.unwrap();
-                let index = index.unwrap();
-                if bid.status == models::BidStatus::Won {
-                    Ok(BidStatus::Won { result, index }.into())
-                } else if bid.status == models::BidStatus::Submitted {
-                    Ok(BidStatus::Submitted { result, index }.into())
-                } else {
-                    tracing::error!("Invalid bid status - bid_id: {}", bid_id);
-                    return Err(RestError::BadParameters("Invalid bid status".to_string()));
-                }
+        let auction = match bid.auction_id {
+            Some(auction_id) => {
+                let auction: models::Auction =
+                    sqlx::query_as("SELECT * FROM auction WHERE id = $1")
+                        .bind(auction_id)
+                        .fetch_one(&self.db)
+                        .await
+                        .map_err(|e| {
+                            tracing::warn!(
+                                "DB: Failed to get auction: {} - auction_id: {}",
+                                e,
+                                auction_id
+                            );
+                            RestError::TemporarilyUnavailable
+                        })?;
+                Some(auction)
             }
-        }
+            None => None,
+        };
+
+        let bid_status: BidStatus = (bid, auction).try_into().map_err(|e: anyhow::Error| {
+            tracing::warn!("Failed to convert bid status: {}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+        Ok(Json(bid_status))
     }
 
     async fn remove_bid<T: SimulatedBidTrait>(&self, bid: T) {
@@ -868,7 +1160,7 @@ impl Store {
         let core_fields = bid.get_core_fields();
         if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
             let bids = entry.get_mut();
-            bids.retain(|b| b.get_core_fields().id != core_fields.id);
+            bids.retain(|b| b.get_id() != core_fields.id);
             if bids.is_empty() {
                 entry.remove();
             }
@@ -885,9 +1177,19 @@ impl Store {
         match auction.tx_hash {
             Some(tx_hash) => bids
                 .into_iter()
-                .filter(|bid| match bid.get_core_fields().status {
-                    BidStatus::Submitted { result, .. } => result == tx_hash,
-                    _ => false,
+                .filter(|bid| match bid {
+                    SimulatedBid::Evm(bid) => match bid.core_fields.status {
+                        BidStatusEvm::Submitted { result, .. } => {
+                            BidStatusEvm::convert_tx_hash(&result) == tx_hash
+                        }
+                        _ => false,
+                    },
+                    SimulatedBid::Svm(bid) => match bid.core_fields.status {
+                        BidStatusSvm::Submitted { result } => {
+                            BidStatusSvm::convert_tx_hash(&result) == tx_hash
+                        }
+                        _ => false,
+                    },
                 })
                 .collect(),
             None => vec![],
@@ -921,10 +1223,7 @@ impl Store {
         match write_guard.entry(key.clone()) {
             Entry::Occupied(mut entry) => {
                 let bids = entry.get_mut();
-                match bids
-                    .iter()
-                    .position(|b| b.get_core_fields().id == core_fields.id)
-                {
+                match bids.iter().position(|b| b.get_id() == core_fields.id) {
                     Some(index) => bids[index] = bid.into(),
                     None => {
                         tracing::error!("Update bid failed - bid not found for: {:?}", bid);
@@ -940,84 +1239,21 @@ impl Store {
     pub async fn broadcast_bid_status_and_update<T: SimulatedBidTrait>(
         &self,
         bid: T,
-        updated_status: BidStatus,
+        updated_status: T::StatusType,
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
-        let query_result: PgQueryResult;
         let core_fields = bid.get_core_fields();
-        match updated_status {
-            BidStatus::Pending => {
-                return Err(anyhow::anyhow!(
-                    "Bid status cannot remain pending when removing a bid."
-                ));
+        let status: models::BidStatus = updated_status.clone().into();
+        let update_query = updated_status.get_update_query(core_fields.id, auction)?;
+        let query_result = update_query.execute(&self.db).await?;
+        match status {
+            models::BidStatus::Pending => {}
+            models::BidStatus::Submitted => {
+                let updated_bid = bid.update_status(updated_status.clone());
+                self.update_bid(updated_bid).await;
             }
-            BidStatus::Submitted { result: _, index } => {
-                if let Some(auction) = auction {
-                    query_result = sqlx::query!(
-                        "UPDATE bid SET status = $1, auction_id = $2, metadata = jsonb_set(metadata, '{bundle_index}', $3) WHERE id = $4 AND status = 'pending'",
-                        updated_status as _,
-                        auction.id,
-                        json!(index),
-                        core_fields.id
-                    )
-                    .execute(&self.db)
-                    .await?;
-
-                    let updated_bid = bid.update_status(updated_status.clone());
-                    self.update_bid(updated_bid).await;
-                } else {
-                    return Err(anyhow::anyhow!(
-                        "Cannot broadcast submitted bid status without auction."
-                    ));
-                }
-            }
-            BidStatus::Lost { result: _, index } => {
-                if let Some(auction) = auction {
-                    match index {
-                        Some(index) => {
-                            query_result = sqlx::query!(
-                                "UPDATE bid SET status = $1, metadata = jsonb_set(metadata, '{bundle_index}', $2), auction_id = $3 WHERE id = $4 AND status = 'submitted'",
-                                updated_status as _,
-                                json!(index),
-                                auction.id,
-                                core_fields.id
-                            )
-                            .execute(&self.db)
-                            .await?;
-                        }
-                        None => {
-                            query_result = sqlx::query!(
-                                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = 'pending'",
-                                updated_status as _,
-                                auction.id,
-                                core_fields.id
-                            )
-                            .execute(&self.db)
-                            .await?;
-                        }
-                    }
-                } else {
-                    query_result = sqlx::query!(
-                        "UPDATE bid SET status = $1 WHERE id = $2 AND status = 'pending'",
-                        updated_status as _,
-                        core_fields.id
-                    )
-                    .execute(&self.db)
-                    .await?;
-                }
-                self.remove_bid(bid.clone()).await;
-            }
-            BidStatus::Won { result: _, index } => {
-                query_result = sqlx::query!(
-                    "UPDATE bid SET status = $1, metadata = jsonb_set(metadata, '{bundle_index}', $2) WHERE id = $3 AND status = 'submitted'",
-                    updated_status as _,
-                    json!(index),
-                    core_fields.id
-                )
-                .execute(&self.db)
-                .await?;
-                self.remove_bid(bid.clone()).await;
-            }
+            models::BidStatus::Lost => self.remove_bid(bid.clone()).await,
+            models::BidStatus::Won => self.remove_bid(bid.clone()).await,
         }
 
         // It is possible to call this function multiple times from different threads if receipts are delayed
@@ -1026,7 +1262,7 @@ impl Store {
         if query_result.rows_affected() > 0 {
             self.broadcast_status_update(BidStatusWithId {
                 id:         core_fields.id,
-                bid_status: updated_status,
+                bid_status: updated_status.into(),
             });
         }
         Ok(())
@@ -1312,7 +1548,18 @@ impl Store {
                     Some(auction_id) => auctions.clone().into_iter().find(|a| a.id == auction_id),
                     None => None,
                 };
-                let result: anyhow::Result<SimulatedBid> = (b.clone(), auction).try_into();
+                let result: anyhow::Result<SimulatedBid> = match b.chain_type {
+                    models::ChainType::Evm => {
+                        let bid: anyhow::Result<SimulatedBidEvm> =
+                            (b.clone(), auction.clone()).try_into();
+                        bid.map(|b| b.into())
+                    }
+                    models::ChainType::Svm => {
+                        let bid: anyhow::Result<SimulatedBidSvm> =
+                            (b.clone(), auction.clone()).try_into();
+                        bid.map(|b| b.into())
+                    }
+                };
                 match result {
                     Ok(bid) => Some(bid),
                     Err(e) => {

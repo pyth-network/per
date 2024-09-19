@@ -180,3 +180,25 @@ impl BidMetadata {
         }
     }
 }
+
+impl TryInto<BidMetadataEvm> for BidMetadata {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<BidMetadataEvm, Self::Error> {
+        match self {
+            BidMetadata::Evm(metadata) => Ok(metadata),
+            _ => Err(anyhow::anyhow!("Invalid metadata type")),
+        }
+    }
+}
+
+impl TryInto<BidMetadataSvm> for BidMetadata {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<BidMetadataSvm, Self::Error> {
+        match self {
+            BidMetadata::Svm(metadata) => Ok(metadata),
+            _ => Err(anyhow::anyhow!("Invalid metadata type")),
+        }
+    }
+}
