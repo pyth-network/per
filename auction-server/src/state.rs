@@ -44,6 +44,10 @@ use {
         Serialize,
     },
     serde_json::json,
+    serde_with::{
+        serde_as,
+        DisplayFromStr,
+    },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
         signature::{
@@ -126,6 +130,7 @@ pub struct SimulatedBidSvm {
     pub core_fields: SimulatedBidCoreFields<BidStatusSvm>,
     /// The transaction of the bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
+    #[serde(with = "crate::serde::transaction_svm")]
     pub transaction: VersionedTransaction,
 }
 
@@ -278,10 +283,7 @@ impl<T: BidStatusTrait> TryFrom<(models::Bid, Option<models::Auction>)>
 
         let bid_amount = BidAmount::from_dec_str(bid.bid_amount.to_string().as_str())
             .map_err(|e| anyhow::anyhow!(e))?;
-        let bid_with_auction = (bid.clone(), auction);
-        let status = bid_with_auction
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("Error converting bid status"))?;
+        let status = T::extract_by(bid.clone(), auction)?;
 
         Ok(SimulatedBidCoreFields {
             id: bid.id,
@@ -517,6 +519,7 @@ pub enum BidStatusEvm {
     },
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatusSvm {
@@ -526,6 +529,7 @@ pub enum BidStatusSvm {
     /// This state is temporary and will be updated to either lost or won after conclusion of the auction
     Submitted {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
         result: Signature,
     },
     /// The bid lost the auction
@@ -533,11 +537,13 @@ pub enum BidStatusSvm {
     /// The result will be not None if another bid were selected for submission to the chain. The signature of the transaction for the submitted bid is the result value.
     Lost {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = Option<String>)]
+        #[serde(with = "crate::serde::nullable_signature_svm")]
         result: Option<Signature>,
     },
     /// The bid won the auction, with the transaction with the signature
     Won {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
         result: Signature,
     },
 }
@@ -581,20 +587,19 @@ impl From<BidStatus> for models::BidStatus {
 }
 
 pub trait BidStatusTrait:
-    Clone
-    + Into<models::BidStatus>
-    + std::fmt::Debug
-    + TryFrom<(models::Bid, Option<models::Auction>)>
-    + Into<BidStatus>
+    Clone + Into<models::BidStatus> + std::fmt::Debug + Into<BidStatus>
 {
-    type TxHash: Clone + std::fmt::Debug;
+    type TxHash: Clone + std::fmt::Debug + AsRef<[u8]>;
 
     fn get_update_query(
         &self,
         id: BidId,
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<Query<'_, Postgres, PgArguments>>;
-    fn convert_tx_hash(tx_hash: Self::TxHash) -> Vec<u8>;
+    fn extract_by(bid: models::Bid, auction: Option<models::Auction>) -> anyhow::Result<Self>;
+    fn convert_tx_hash(tx_hash: &Self::TxHash) -> Vec<u8> {
+        tx_hash.as_ref().to_vec()
+    }
 }
 
 impl Into<BidStatus> for BidStatusEvm {
@@ -676,8 +681,37 @@ impl BidStatusTrait for BidStatusEvm {
         }
     }
 
-    fn convert_tx_hash(tx_hash: Self::TxHash) -> Vec<u8> {
-        tx_hash.as_bytes().to_vec()
+    fn extract_by(bid: models::Bid, auction: Option<models::Auction>) -> anyhow::Result<Self> {
+        if !bid.is_for_auction(&auction) {
+            return Err(anyhow::anyhow!("Bid is not for the given auction"));
+        }
+        if bid.status == models::BidStatus::Pending {
+            Ok(BidStatusEvm::Pending)
+        } else {
+            let result = match auction {
+                Some(auction) => auction.tx_hash.map(|tx_hash| H256::from_slice(&tx_hash)),
+                None => None,
+            };
+            let index = bid.metadata.0.get_bundle_index();
+            if bid.status == models::BidStatus::Lost {
+                Ok(BidStatusEvm::Lost { result, index })
+            } else {
+                if result.is_none() || index.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Won or submitted bid must have a transaction hash and index"
+                    ));
+                }
+                let result = result.expect("Invalid result for won or submitted bid");
+                let index = index.expect("Invalid index for won or submitted bid");
+                if bid.status == models::BidStatus::Won {
+                    Ok(BidStatusEvm::Won { result, index })
+                } else if bid.status == models::BidStatus::Submitted {
+                    Ok(BidStatusEvm::Submitted { result, index })
+                } else {
+                    Err(anyhow::anyhow!("Invalid bid status".to_string()))
+                }
+            }
+        }
     }
 }
 
@@ -727,8 +761,41 @@ impl BidStatusTrait for BidStatusSvm {
         }
     }
 
-    fn convert_tx_hash(tx_hash: Self::TxHash) -> Vec<u8> {
-        tx_hash.as_ref().to_vec()
+    fn extract_by(bid: models::Bid, auction: Option<models::Auction>) -> anyhow::Result<Self> {
+        if !bid.is_for_auction(&auction) {
+            return Err(anyhow::anyhow!("Bid is not for the given auction"));
+        }
+        if bid.status == models::BidStatus::Pending {
+            Ok(BidStatusSvm::Pending)
+        } else {
+            let result = match auction {
+                Some(auction) => match auction.tx_hash {
+                    Some(tx_hash) => Some(
+                        Signature::try_from(tx_hash)
+                            .map_err(|_| anyhow::anyhow!("Error reading signature"))?,
+                    ),
+                    None => None,
+                },
+                None => None,
+            };
+            if bid.status == models::BidStatus::Lost {
+                Ok(BidStatusSvm::Lost { result })
+            } else {
+                if result.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Won or submitted bid must have a transaction hash and index"
+                    ));
+                }
+                let result = result.expect("Invalid result for won or submitted bid");
+                if bid.status == models::BidStatus::Won {
+                    Ok(BidStatusSvm::Won { result })
+                } else if bid.status == models::BidStatus::Submitted {
+                    Ok(BidStatusSvm::Submitted { result })
+                } else {
+                    Err(anyhow::anyhow!("Invalid bid status".to_string()))
+                }
+            }
+        }
     }
 }
 
@@ -797,89 +864,6 @@ impl SimulatedBid {
     }
 }
 
-impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatusEvm {
-    type Error = anyhow::Error;
-
-    fn try_from(
-        (bid, auction): (models::Bid, Option<models::Auction>),
-    ) -> Result<Self, Self::Error> {
-        if !bid.is_for_auction(&auction) {
-            return Err(anyhow::anyhow!("Bid is not for the given auction"));
-        }
-        if bid.status == models::BidStatus::Pending {
-            Ok(BidStatusEvm::Pending)
-        } else {
-            let result = match auction {
-                Some(auction) => auction.tx_hash.map(|tx_hash| H256::from_slice(&tx_hash)),
-                None => None,
-            };
-            let index = bid.metadata.0.get_bundle_index();
-            if bid.status == models::BidStatus::Lost {
-                Ok(BidStatusEvm::Lost { result, index })
-            } else {
-                if result.is_none() || index.is_none() {
-                    return Err(anyhow::anyhow!(
-                        "Won or submitted bid must have a transaction hash and index"
-                    ));
-                }
-                let result = result.expect("Invalid result for won or submitted bid");
-                let index = index.expect("Invalid index for won or submitted bid");
-                if bid.status == models::BidStatus::Won {
-                    Ok(BidStatusEvm::Won { result, index })
-                } else if bid.status == models::BidStatus::Submitted {
-                    Ok(BidStatusEvm::Submitted { result, index })
-                } else {
-                    Err(anyhow::anyhow!("Invalid bid status".to_string()))
-                }
-            }
-        }
-    }
-}
-
-impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatusSvm {
-    type Error = anyhow::Error;
-
-    fn try_from(
-        (bid, auction): (models::Bid, Option<models::Auction>),
-    ) -> Result<Self, Self::Error> {
-        if !bid.is_for_auction(&auction) {
-            return Err(anyhow::anyhow!("Bid is not for the given auction"));
-        }
-        if bid.status == models::BidStatus::Pending {
-            Ok(BidStatusSvm::Pending)
-        } else {
-            let result = match auction {
-                Some(auction) => match auction.tx_hash {
-                    Some(tx_hash) => Some(
-                        Signature::try_from(tx_hash)
-                            .map_err(|_| anyhow::anyhow!("Error reading signature"))?,
-                    ),
-                    None => None,
-                },
-                None => None,
-            };
-            if bid.status == models::BidStatus::Lost {
-                Ok(BidStatusSvm::Lost { result })
-            } else {
-                if result.is_none() {
-                    return Err(anyhow::anyhow!(
-                        "Won or submitted bid must have a transaction hash and index"
-                    ));
-                }
-                let result = result.expect("Invalid result for won or submitted bid");
-                if bid.status == models::BidStatus::Won {
-                    Ok(BidStatusSvm::Won { result })
-                } else if bid.status == models::BidStatus::Submitted {
-                    Ok(BidStatusSvm::Submitted { result })
-                } else {
-                    Err(anyhow::anyhow!("Invalid bid status".to_string()))
-                }
-            }
-        }
-    }
-}
-
-
 impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatus {
     type Error = anyhow::Error;
 
@@ -887,8 +871,12 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for BidStatus {
         (bid, auction): (models::Bid, Option<models::Auction>),
     ) -> Result<Self, Self::Error> {
         match bid.metadata.0 {
-            models::BidMetadata::Evm(_) => Ok(BidStatus::Evm((bid, auction).try_into()?)),
-            models::BidMetadata::Svm(_) => Ok(BidStatus::Svm((bid, auction).try_into()?)),
+            models::BidMetadata::Evm(_) => {
+                Ok(BidStatus::Evm(BidStatusEvm::extract_by(bid, auction)?))
+            }
+            models::BidMetadata::Svm(_) => {
+                Ok(BidStatus::Svm(BidStatusSvm::extract_by(bid, auction)?))
+            }
         }
     }
 }
@@ -1192,12 +1180,14 @@ impl Store {
                 .filter(|bid| match bid {
                     SimulatedBid::Evm(bid) => match bid.core_fields.status {
                         BidStatusEvm::Submitted { result, .. } => {
-                            result.as_bytes().to_vec() == tx_hash
+                            BidStatusEvm::convert_tx_hash(&result) == tx_hash
                         }
                         _ => false,
                     },
                     SimulatedBid::Svm(bid) => match bid.core_fields.status {
-                        BidStatusSvm::Submitted { result } => result.as_ref().to_vec() == tx_hash,
+                        BidStatusSvm::Submitted { result } => {
+                            BidStatusSvm::convert_tx_hash(&result) == tx_hash
+                        }
                         _ => false,
                     },
                 })

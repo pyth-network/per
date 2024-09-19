@@ -388,7 +388,7 @@ async fn broadcast_lost_bids<T: SimulatedBidTrait>(
 
         let (store, tx_hash) = (store.clone(), tx_hash.clone());
         Some(async move {
-            match T::get_bid_status(models::BidStatus::Submitted, None, tx_hash) {
+            match T::get_bid_status(models::BidStatus::Lost, None, tx_hash) {
                 Ok(status) => {
                     if let Err(err) = store
                         .broadcast_bid_status_and_update(bid.clone(), status, auction)
@@ -466,7 +466,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     {
         Ok(tx_hash) => {
             tracing::debug!("Submitted transaction: {:?}", tx_hash);
-            let converted_tx_hash = <<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::convert_tx_hash(tx_hash.clone());
+            let converted_tx_hash = <<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::convert_tx_hash(&tx_hash);
             auction = store.submit_auction(auction, converted_tx_hash).await?;
             tokio::join!(
                 broadcast_submitted_bids(
