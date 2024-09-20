@@ -120,6 +120,7 @@ use {
         collections::hash_map::Entry,
         fmt::Debug as DebugTrait,
         future::Future,
+        ops::Deref,
         pin::Pin,
         result,
         sync::{
@@ -262,14 +263,13 @@ fn is_ready_for_auction<T: ChainStore>(
     bids: Vec<T::SimulatedBid>,
     bid_collection_time: OffsetDateTime,
 ) -> bool {
-    bids.into_iter().any(|bid| {
-        bid_collection_time - bid.get_core_fields().initiation_time > T::AUCTION_MINIMUM_LIFETIME
-    })
+    bids.into_iter()
+        .any(|bid| bid_collection_time - bid.initiation_time > T::AUCTION_MINIMUM_LIFETIME)
 }
 
 async fn conclude_submitted_auction<T: ChainStore>(
     store: Arc<Store>,
-    chain_store: T,
+    chain_store: &T,
     auction: models::Auction,
 ) -> Result<()> {
     if let Some(tx_hash) = auction.tx_hash.clone() {
@@ -304,7 +304,7 @@ async fn conclude_submitted_auction<T: ChainStore>(
 
 async fn conclude_submitted_auctions<T: ChainStore>(
     store: Arc<Store>,
-    chain_store: T,
+    chain_store: &T,
     chain_id: String,
 ) -> Result<()> {
     let auctions = chain_store.get_submitted_auctions().await;
@@ -351,7 +351,7 @@ async fn conclude_submitted_auctions<T: ChainStore>(
 
 async fn broadcast_submitted_bids<T: ChainStore>(
     store: Arc<Store>,
-    chain_store: T,
+    chain_store: &T,
     bids: Vec<T::SimulatedBid>,
     tx_hash: <<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash,
     auction: models::Auction,
@@ -393,7 +393,7 @@ async fn broadcast_submitted_bids<T: ChainStore>(
 
 async fn broadcast_lost_bids<T: ChainStore>(
     store: Arc<Store>,
-    chain_store: T,
+    chain_store: &T,
     bids: Vec<T::SimulatedBid>,
     submitted_bids: Vec<T::SimulatedBid>,
     tx_hash: Option<<<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>,
@@ -402,7 +402,7 @@ async fn broadcast_lost_bids<T: ChainStore>(
     join_all(bids.iter().filter_map(|bid| {
         if submitted_bids
             .iter()
-            .any(|submitted_bid| bid.get_core_fields().id == submitted_bid.get_core_fields().id)
+            .any(|submitted_bid| bid.id == submitted_bid.id)
         {
             return None;
         }
@@ -441,15 +441,12 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     permission_key: Bytes,
     chain_id: String,
     store: Arc<Store>,
-    chain_store: T,
+    chain_store: &T,
     _auction_mutex_gaurd: MutexGuard<'a, ()>,
 ) -> Result<()> {
     let bids: Vec<T::SimulatedBid> = bids
         .into_iter()
-        .filter(|bid| {
-            let status: models::BidStatus = bid.get_core_fields().status.into();
-            status == models::BidStatus::Pending
-        })
+        .filter(|bid| models::BidStatus::Pending == bid.status.clone().into())
         .collect();
 
     if bids.is_empty() {
@@ -521,7 +518,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
 
 async fn submit_auction_for_lock<T: ChainStore>(
     store: Arc<Store>,
-    chain_store: T,
+    chain_store: &T,
     permission_key: Bytes,
     chain_id: String,
     auction_lock: AuctionLock,
@@ -546,7 +543,7 @@ async fn submit_auction_for_lock<T: ChainStore>(
 #[tracing::instrument(skip_all)]
 async fn submit_auction<T: ChainStore>(
     store: Arc<Store>,
-    chain_store: T,
+    chain_store: &T,
     permission_key: Bytes,
     chain_id: String,
 ) -> Result<()> {
@@ -586,7 +583,7 @@ pub fn get_express_relay_contract(
 
 async fn submit_auctions<T: ChainStore>(
     store: Arc<Store>,
-    chain_store: T,
+    chain_store: &T,
     chain_id: String,
 ) -> Result<()> {
     let permission_keys = chain_store.get_permission_keys_for_auction().await;
@@ -1078,7 +1075,7 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
 
 /// The trait for the chain store to be implemented for each chain type
 /// These functions are chain specific and should be implemented for each chain in order to handle auctions
-pub trait ChainStore: Copy {
+pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
     /// The trigger type for the chain. This is the type that is used to trigger the auction submission and conclusion
     type Trigger: DebugTrait;
     /// The trigger stream type when subscribing to new triggers on the ws client for the chain
@@ -1127,35 +1124,26 @@ pub trait ChainStore: Copy {
     ) -> impl Future<
         Output = Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>>,
     > + Send;
-    fn get_core_fields(&self) -> &ChainStoreCoreFields<Self::SimulatedBid>;
 
     async fn get_bids(&self, key: &PermissionKey) -> Vec<Self::SimulatedBid> {
-        self.get_core_fields()
-            .bids
-            .read()
-            .await
-            .get(key)
-            .cloned()
-            .unwrap_or_default()
+        self.bids.read().await.get(key).cloned().unwrap_or_default()
     }
 
     async fn add_bid(&self, bid: Self::SimulatedBid) {
-        self.get_core_fields()
-            .bids
+        self.bids
             .write()
             .await
-            .entry(bid.get_core_fields().permission_key.clone())
+            .entry(bid.permission_key.clone())
             .or_insert_with(Vec::new)
             .push(bid);
     }
 
     async fn remove_bid(&self, bid: Self::SimulatedBid) {
-        let mut write_guard = self.get_core_fields().bids.write().await;
-        let core_fields = bid.get_core_fields();
-        let key = core_fields.permission_key;
+        let mut write_guard = self.bids.write().await;
+        let key = bid.permission_key.clone();
         if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
             let bids = entry.get_mut();
-            bids.retain(|b| b.get_core_fields().id != core_fields.id);
+            bids.retain(|b| b.id != bid.id);
             if bids.is_empty() {
                 entry.remove();
             }
@@ -1163,16 +1151,12 @@ pub trait ChainStore: Copy {
     }
 
     async fn update_bid(&self, bid: Self::SimulatedBid) {
-        let mut write_guard = self.get_core_fields().bids.write().await;
-        let core_fields = bid.clone().get_core_fields();
-        let key = core_fields.permission_key.clone();
+        let mut write_guard = self.bids.write().await;
+        let key = bid.permission_key.clone();
         match write_guard.entry(key.clone()) {
             Entry::Occupied(mut entry) => {
                 let bids = entry.get_mut();
-                match bids
-                    .iter()
-                    .position(|b| b.get_core_fields().id == core_fields.id)
-                {
+                match bids.iter().position(|b| b.id == bid.id) {
                     Some(index) => bids[index] = bid,
                     None => {
                         tracing::error!("Update bid failed - bid not found for: {:?}", bid);
@@ -1186,29 +1170,15 @@ pub trait ChainStore: Copy {
     }
 
     async fn add_submitted_auction(&self, auction: models::Auction) {
-        self.get_core_fields()
-            .submitted_auctions
-            .write()
-            .await
-            .push(auction.clone());
+        self.submitted_auctions.write().await.push(auction.clone());
     }
 
     async fn get_submitted_auctions(&self) -> Vec<models::Auction> {
-        self.get_core_fields()
-            .submitted_auctions
-            .read()
-            .await
-            .to_vec()
+        self.submitted_auctions.read().await.to_vec()
     }
 
     async fn get_permission_keys_for_auction(&self) -> Vec<PermissionKey> {
-        self.get_core_fields()
-            .bids
-            .read()
-            .await
-            .keys()
-            .cloned()
-            .collect()
+        self.bids.read().await.keys().cloned().collect()
     }
 
     async fn bids_for_submitted_auction(
@@ -1220,9 +1190,8 @@ pub trait ChainStore: Copy {
             Some(tx_hash) => bids
                 .into_iter()
                 .filter(|bid| {
-                    let status = bid.get_core_fields().status;
-                    if models::BidStatus::Submitted == status.clone().into() {
-                        if let Some(status_tx_hash) = status.get_tx_hash() {
+                    if models::BidStatus::Submitted == bid.status.clone().into() {
+                        if let Some(status_tx_hash) = bid.status.get_tx_hash() {
                             return <Self::SimulatedBid as SimulatedBidTrait>::StatusType::convert_tx_hash(&status_tx_hash)
                                 == tx_hash;
                         }
@@ -1243,13 +1212,12 @@ pub trait ChainStore: Copy {
             return;
         }
 
-        let mut write_guard = self.get_core_fields().submitted_auctions.write().await;
+        let mut write_guard = self.submitted_auctions.write().await;
         write_guard.retain(|a| a.id != auction.id);
     }
 
     async fn get_auction_lock(&self, key: PermissionKey) -> AuctionLock {
-        self.get_core_fields()
-            .auction_lock
+        self.auction_lock
             .lock()
             .await
             .entry(key)
@@ -1258,7 +1226,7 @@ pub trait ChainStore: Copy {
     }
 
     async fn remove_auction_lock(&self, key: &PermissionKey) {
-        let mut mutex_gaurd = self.get_core_fields().auction_lock.lock().await;
+        let mut mutex_gaurd = self.auction_lock.lock().await;
         let auction_lock = mutex_gaurd.get(key);
         if let Some(auction_lock) = auction_lock {
             // Whenever there is no thread borrowing a lock for this key, we can remove it from the locks HashMap.
@@ -1275,7 +1243,7 @@ pub trait ChainStore: Copy {
 // 3. Gas consumption limit will decrease for the bid
 const TOTAL_BIDS_PER_AUCTION: usize = 3;
 
-impl ChainStore for &ChainStoreEvm {
+impl ChainStore for ChainStoreEvm {
     type Trigger = Block<H256>;
     type TriggerStream<'a> = SubscriptionStream<'a, Ws, Block<H256>>;
     type WsClient = Provider<Ws>;
@@ -1387,13 +1355,9 @@ impl ChainStore for &ChainStoreEvm {
             None => Ok(None),
         }
     }
-
-    fn get_core_fields(&self) -> &ChainStoreCoreFields<Self::SimulatedBid> {
-        &self.core_fields
-    }
 }
 
-impl ChainStore for &ChainStoreSvm {
+impl ChainStore for ChainStoreSvm {
     type Trigger = SlotInfo;
     type TriggerStream<'a> = Pin<Box<dyn Stream<Item = Self::Trigger> + Send + 'a>>;
     type WsClient = PubsubClient;
@@ -1503,15 +1467,27 @@ impl ChainStore for &ChainStoreSvm {
             }
         }
     }
+}
 
-    fn get_core_fields(&self) -> &ChainStoreCoreFields<Self::SimulatedBid> {
+impl Deref for ChainStoreEvm {
+    type Target = ChainStoreCoreFields<SimulatedBidEvm>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.core_fields
+    }
+}
+
+impl Deref for ChainStoreSvm {
+    type Target = ChainStoreCoreFields<SimulatedBidSvm>;
+
+    fn deref(&self) -> &Self::Target {
         &self.core_fields
     }
 }
 
 async fn run_submission_loop<T: ChainStore>(
     store: Arc<Store>,
-    chain_store: T,
+    chain_store: &T,
     chain_id: String,
 ) -> Result<()> {
     tracing::info!(chain_id = chain_id, "Starting transaction submitter...");

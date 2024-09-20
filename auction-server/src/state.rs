@@ -71,6 +71,7 @@ use {
     },
     std::{
         collections::HashMap,
+        ops::Deref,
         str::FromStr,
         sync::Arc,
     },
@@ -158,11 +159,14 @@ pub enum SimulatedBid {
 }
 
 pub trait SimulatedBidTrait:
-    Clone + Into<SimulatedBid> + std::fmt::Debug + TryFrom<(models::Bid, Option<models::Auction>)>
+    Clone
+    + Into<SimulatedBid>
+    + std::fmt::Debug
+    + TryFrom<(models::Bid, Option<models::Auction>)>
+    + Deref<Target = SimulatedBidCoreFields<<Self as SimulatedBidTrait>::StatusType>>
 {
     type StatusType: BidStatusTrait;
 
-    fn get_core_fields(&self) -> SimulatedBidCoreFields<Self::StatusType>;
     fn update_status(self, status: Self::StatusType) -> Self;
     fn get_metadata(&self) -> anyhow::Result<models::BidMetadata>;
     fn get_chain_type(&self) -> models::ChainType;
@@ -175,10 +179,6 @@ pub trait SimulatedBidTrait:
 
 impl SimulatedBidTrait for SimulatedBidEvm {
     type StatusType = BidStatusEvm;
-
-    fn get_core_fields(&self) -> SimulatedBidCoreFields<Self::StatusType> {
-        self.core_fields.clone()
-    }
 
     fn update_status(self, status: Self::StatusType) -> Self {
         let mut core_fields = self.core_fields;
@@ -316,12 +316,24 @@ impl TryInto<(models::BidMetadata, models::ChainType)> for SimulatedBidSvm {
     }
 }
 
+impl Deref for SimulatedBidEvm {
+    type Target = SimulatedBidCoreFields<BidStatusEvm>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.core_fields
+    }
+}
+
+impl Deref for SimulatedBidSvm {
+    type Target = SimulatedBidCoreFields<BidStatusSvm>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.core_fields
+    }
+}
+
 impl SimulatedBidTrait for SimulatedBidSvm {
     type StatusType = BidStatusSvm;
-
-    fn get_core_fields(&self) -> SimulatedBidCoreFields<Self::StatusType> {
-        self.core_fields.clone()
-    }
 
     fn update_status(self, status: Self::StatusType) -> Self {
         let mut core_fields = self.core_fields;
@@ -1013,7 +1025,7 @@ impl Store {
     #[tracing::instrument(skip_all)]
     pub async fn submit_auction<T: ChainStore>(
         &self,
-        chain_store: T,
+        chain_store: &T,
         mut auction: models::Auction,
         transaction_hash: Vec<u8>,
     ) -> anyhow::Result<models::Auction> {
@@ -1051,10 +1063,9 @@ impl Store {
     #[tracing::instrument(skip_all)]
     pub async fn add_bid<T: ChainStore>(
         &self,
-        chain_store: T,
+        chain_store: &T,
         bid: T::SimulatedBid,
     ) -> Result<(), RestError> {
-        let core_fields = bid.get_core_fields();
         let now = OffsetDateTime::now_utc();
 
         let metadata = bid.get_metadata().map_err(|e: anyhow::Error| {
@@ -1062,18 +1073,18 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
         let chain_type = bid.get_chain_type();
-        let status: models::BidStatus = core_fields.status.clone().into();
+        let status: models::BidStatus = bid.status.clone().into();
 
         sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-        core_fields.id,
+        bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
-        core_fields.permission_key.to_vec(),
-        core_fields.chain_id,
+        bid.permission_key.to_vec(),
+        bid.chain_id,
         chain_type as _,
-        BigDecimal::from_str(&core_fields.bid_amount.to_string()).unwrap(),
+        BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
         status as _,
-        PrimitiveDateTime::new(core_fields.initiation_time.date(), core_fields.initiation_time.time()),
-        core_fields.profile_id,
+        PrimitiveDateTime::new(bid.initiation_time.date(), bid.initiation_time.time()),
+        bid.profile_id,
         serde_json::to_value(metadata).expect("Failed to serialize metadata"))
             .execute(&self.db)
             .await.map_err(|e| {
@@ -1081,11 +1092,11 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
-        chain_store.add_bid(bid).await;
+        chain_store.add_bid(bid.clone()).await;
 
         self.broadcast_status_update(BidStatusWithId {
-            id:         core_fields.id,
-            bid_status: core_fields.status.clone().into(),
+            id:         bid.id,
+            bid_status: bid.status.clone().into(),
         });
         Ok(())
     }
@@ -1130,14 +1141,14 @@ impl Store {
 
     pub async fn broadcast_bid_status_and_update<T: ChainStore>(
         &self,
-        chain_store: T,
+        chain_store: &T,
         bid: T::SimulatedBid,
         updated_status: <T::SimulatedBid as SimulatedBidTrait>::StatusType,
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
-        let core_fields = bid.get_core_fields();
         let status: models::BidStatus = updated_status.clone().into();
-        let update_query = updated_status.get_update_query(core_fields.id, auction)?;
+        let bid_id = bid.id;
+        let update_query = updated_status.get_update_query(bid_id, auction)?;
         let query_result = update_query.execute(&self.db).await?;
         match status {
             models::BidStatus::Pending => {}
@@ -1154,7 +1165,7 @@ impl Store {
         // To ensure we do not broadcast the update more than once, we need to check the below "if"
         if query_result.rows_affected() > 0 {
             self.broadcast_status_update(BidStatusWithId {
-                id:         core_fields.id,
+                id:         bid_id,
                 bid_status: updated_status.into(),
             });
         }
