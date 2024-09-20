@@ -1020,9 +1020,11 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
                 err,
                 result.context
             );
+            let mut msgs = result.value.logs.unwrap_or_default();
+            msgs.push(err.to_string());
             Err(RestError::SimulationError {
                 result: Default::default(),
-                reason: err.to_string(),
+                reason: msgs.join("\n"),
             })
         }
         None => Ok(()),
