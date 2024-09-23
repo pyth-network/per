@@ -306,7 +306,7 @@ async fn conclude_submitted_auctions<T: ChainStore>(
     store: Arc<Store>,
     chain_store: &T,
     chain_id: String,
-) -> Result<()> {
+) {
     let auctions = chain_store.get_submitted_auctions().await;
 
     tracing::info!(
@@ -346,7 +346,6 @@ async fn conclude_submitted_auctions<T: ChainStore>(
             }
         });
     }
-    Ok(())
 }
 
 async fn broadcast_submitted_bids<T: ChainStore>(
@@ -581,11 +580,7 @@ pub fn get_express_relay_contract(
     SignableExpressRelayContract::new(address, client)
 }
 
-async fn submit_auctions<T: ChainStore>(
-    store: Arc<Store>,
-    chain_store: &T,
-    chain_id: String,
-) -> Result<()> {
+async fn submit_auctions<T: ChainStore>(store: Arc<Store>, chain_store: &T, chain_id: String) {
     let permission_keys = chain_store.get_permission_keys_for_auction().await;
 
     tracing::info!(
@@ -600,46 +595,42 @@ async fn submit_auctions<T: ChainStore>(
                 (store.clone(), permission_key.clone(), chain_id.clone());
             async move {
                 let result = match T::CHAIN_TYPE {
-                    models::ChainType::Evm => {
-                        let chain_store = store
-                            .chains
-                            .get(&chain_id)
-                            .ok_or(anyhow!("Chain not found: {}", chain_id))?;
-                        submit_auction(
-                            store.clone(),
-                            chain_store,
-                            permission_key.clone(),
-                            chain_id.clone(),
-                        )
-                        .await
-                    }
-                    models::ChainType::Svm => {
-                        let chain_store = store
-                            .chains_svm
-                            .get(&chain_id)
-                            .ok_or(anyhow!("Chain not found: {}", chain_id))?;
-                        submit_auction(
-                            store.clone(),
-                            chain_store,
-                            permission_key.clone(),
-                            chain_id.clone(),
-                        )
-                        .await
-                    }
+                    models::ChainType::Evm => match store.chains.get(&chain_id) {
+                        Some(chain_store) => {
+                            submit_auction(
+                                store.clone(),
+                                chain_store,
+                                permission_key.clone(),
+                                chain_id.clone(),
+                            )
+                            .await
+                        }
+                        None => Err(anyhow!("Chain not found: {}", chain_id)),
+                    },
+                    models::ChainType::Svm => match store.chains_svm.get(&chain_id) {
+                        Some(chain_store) => {
+                            submit_auction(
+                                store.clone(),
+                                chain_store,
+                                permission_key.clone(),
+                                chain_id.clone(),
+                            )
+                            .await
+                        }
+                        None => Err(anyhow!("Chain not found: {}", chain_id)),
+                    },
                 };
                 if let Err(err) = result {
                     tracing::error!(
-                        "Failed to submit auction: {:?} - permission_key: {:?}",
+                        "Failed to submit auction: {:?} - permission_key: {:?} - chain_id: {:?}",
                         err,
-                        permission_key
+                        permission_key,
+                        chain_id,
                     );
                 }
-                Ok(()) as Result<(), anyhow::Error>
             }
         });
     }
-
-    Ok(())
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -1503,24 +1494,24 @@ async fn run_submission_loop<T: ChainStore>(
                     return Err(anyhow!("Trigger stream ended for chain: {}", chain_id));
                 }
 
-                tracing::debug!("New trigger received for {} at {}: {:?}", chain_id, OffsetDateTime::now_utc(), trigger);
+                tracing::debug!("New trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), trigger);
                 store.task_tracker.spawn({
                     let (store, chain_id) = (store.clone(), chain_id.clone());
                     async move {
                         match T::CHAIN_TYPE {
                             models::ChainType::Evm => {
-                                let chain_store = store
+                                if let Some(chain_store) = store
                                     .chains
-                                    .get(&chain_id)
-                                    .ok_or(anyhow!("Chain not found: {}", chain_id))?;
-                                submit_auctions(store.clone(), chain_store, chain_id).await
+                                    .get(&chain_id) {
+                                        submit_auctions(store.clone(), chain_store, chain_id).await
+                                    }
                             }
                             models::ChainType::Svm => {
-                                let chain_store = store
+                                if let Some(chain_store) = store
                                     .chains
-                                    .get(&chain_id)
-                                    .ok_or(anyhow!("Chain not found: {}", chain_id))?;
-                                submit_auctions(store.clone(), chain_store, chain_id).await
+                                    .get(&chain_id) {
+                                        submit_auctions(store.clone(), chain_store, chain_id).await
+                                    }
                             }
                         }
                     }
@@ -1531,18 +1522,18 @@ async fn run_submission_loop<T: ChainStore>(
                     async move {
                         match T::CHAIN_TYPE {
                             models::ChainType::Evm => {
-                                let chain_store = store
+                                if let Some(chain_store) = store
                                     .chains
-                                    .get(&chain_id)
-                                    .ok_or(anyhow!("Chain not found: {}", chain_id))?;
-                                conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone()).await
+                                    .get(&chain_id) {
+                                        conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone()).await
+                                    }
                             }
                             models::ChainType::Svm => {
-                                let chain_store = store
+                                if let Some(chain_store) = store
                                     .chains
-                                    .get(&chain_id)
-                                    .ok_or(anyhow!("Chain not found: {}", chain_id))?;
-                                conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone()).await
+                                    .get(&chain_id) {
+                                        conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone()).await
+                                    }
                             }
                         }
                     }
