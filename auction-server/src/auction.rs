@@ -822,7 +822,7 @@ pub async fn handle_bid(
     verify_bid_under_gas_limit(
         chain_store,
         estimated_gas,
-        U256::from(TOTAL_BIDS_PER_AUCTION * 2),
+        U256::from(TOTAL_BIDS_PER_AUCTION),
     )
     .await?;
 
