@@ -151,6 +151,12 @@ pub type SignableProvider = TransformerMiddleware<
 >;
 pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
 
+impl SignableExpressRelayContract {
+    pub fn get_relayer_address(&self) -> Address {
+        self.client().inner().inner().inner().signer().address()
+    }
+}
+
 impl From<([u8; 16], H160, Bytes, U256, U256, bool)> for MulticallData {
     fn from(x: ([u8; 16], H160, Bytes, U256, U256, bool)) -> Self {
         MulticallData {
@@ -458,7 +464,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     }
 
     let winner_bids = chain_store
-        .get_winner_bids(&bids, permission_key.clone(), store.clone())
+        .get_winner_bids(&bids, permission_key.clone())
         .await?;
     if winner_bids.is_empty() {
         broadcast_lost_bids(store.clone(), chain_store, bids, winner_bids, None, None).await;
@@ -481,7 +487,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     );
 
     match chain_store
-        .submit_bids(permission_key.clone(), winner_bids.clone(), store.clone())
+        .submit_bids(permission_key.clone(), winner_bids.clone())
         .await
     {
         Ok(tx_hash) => {
@@ -766,7 +772,7 @@ pub async fn handle_bid(
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
     let call = get_simulation_call(
-        store.relayer.address(),
+        chain_store.express_relay_contract.get_relayer_address(),
         chain_store.provider.clone(),
         chain_store.config.clone(),
         bid.permission_key.clone(),
@@ -871,7 +877,7 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             _ = submission_interval.tick() => {
-                match chain_store.provider.get_balance(store.relayer.address(), None).await {
+                match chain_store.provider.get_balance(chain_store.express_relay_contract.get_relayer_address(), None).await {
                     Ok(r) => {
                         // This conversion to u128 is fine as the total balance will never cross the limits
                         // of u128 practically.
@@ -880,7 +886,7 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
                         let balance = r.as_u128() as f64 / 1e18;
                         let label = [
                             ("chain_id", chain_id.clone()),
-                            ("address", format!("{:?}", store.relayer.address())),
+                            ("address", format!("{:?}", chain_store.express_relay_contract.get_relayer_address())),
                         ];
                         metrics::gauge!("relayer_balance", &label).set(balance);
                     }
@@ -996,12 +1002,12 @@ pub async fn handle_bid_svm(
     let submit_bid_instruction =
         verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
     let (bid_amount, permission_key) = extract_bid_data_svm(
-        store.express_relay_svm.clone(),
+        chain_store.express_relay_svm.clone(),
         bid.transaction.message.static_account_keys(),
         submit_bid_instruction,
     )?;
 
-    verify_signatures_svm(&bid, &store.express_relay_svm.relayer.pubkey())?;
+    verify_signatures_svm(&bid, &chain_store.express_relay_svm.relayer.pubkey())?;
     simulate_bid_svm(chain_store, &bid).await?;
 
     let core_fields = SimulatedBidCoreFields::new(
@@ -1094,14 +1100,12 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
         &self,
         bids: &[Self::SimulatedBid],
         permission_key: Bytes,
-        store: Arc<Store>,
     ) -> impl Future<Output = Result<Vec<Self::SimulatedBid>>>;
     /// Submit the bids for the auction on the chain
     fn submit_bids(
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
-        store: Arc<Store>,
     ) -> impl Future<
         Output = Result<
             <<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash,
@@ -1259,7 +1263,6 @@ impl ChainStore for ChainStoreEvm {
         &self,
         bids: &[Self::SimulatedBid],
         permission_key: Bytes,
-        store: Arc<Store>,
     ) -> Result<Vec<Self::SimulatedBid>> {
         // TODO How we want to perform simulation, pruning, and determination
         if bids.is_empty() {
@@ -1269,9 +1272,8 @@ impl ChainStore for ChainStoreEvm {
         let mut bids = bids.to_owned();
         bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
         let bids: Vec<SimulatedBidEvm> = bids.into_iter().take(TOTAL_BIDS_PER_AUCTION).collect();
-
         let simulation_result = get_simulation_call(
-            store.relayer.address(),
+            self.express_relay_contract.get_relayer_address(),
             self.provider.clone(),
             self.config.clone(),
             permission_key.clone(),
@@ -1296,7 +1298,6 @@ impl ChainStore for ChainStoreEvm {
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
-        _store: Arc<Store>,
     ) -> Result<<<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>
     {
         let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
@@ -1374,7 +1375,6 @@ impl ChainStore for ChainStoreSvm {
         &self,
         bids: &[Self::SimulatedBid],
         _permission_key: Bytes,
-        _store: Arc<Store>,
     ) -> Result<Vec<Self::SimulatedBid>> {
         let mut bids = bids.to_owned();
         bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
@@ -1404,10 +1404,9 @@ impl ChainStore for ChainStoreSvm {
         &self,
         _permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
-        store: Arc<Store>,
     ) -> Result<<<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>
     {
-        let relayer = store.express_relay_svm.relayer.clone();
+        let relayer = self.express_relay_svm.relayer.clone();
         let mut bid = bids[0].clone();
         let serialized_message = bid.transaction.message.serialize();
         let relayer_signature_pos = bid

@@ -152,30 +152,6 @@ pub fn setup_metrics_recorder() -> anyhow::Result<PrometheusHandle> {
         .map_err(|err| anyhow!("Failed to set up metrics recorder: {:?}", err))
 }
 
-fn setup_chain_store_svm(config_map: ConfigMap) -> HashMap<ChainId, ChainStoreSvm> {
-    config_map
-        .chains
-        .iter()
-        .filter_map(|(chain_id, config)| match config {
-            Config::Evm(_) => None,
-            Config::Svm(chain_config) => Some((
-                chain_id.clone(),
-                ChainStoreSvm {
-                    core_fields: ChainStoreCoreFields::<SimulatedBidSvm> {
-                        bids:               Default::default(),
-                        auction_lock:       Default::default(),
-                        submitted_auctions: Default::default(),
-                    },
-                    config:      chain_config.clone(),
-                    client:      RpcClient::new_with_commitment(
-                        chain_config.rpc_addr.clone(),
-                        CommitmentConfig::processed(),
-                    ),
-                },
-            )),
-        })
-        .collect()
-}
 
 async fn setup_chain_store(
     config_map: ConfigMap,
@@ -273,7 +249,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let chains = setup_chain_store(config_map.clone(), wallet.clone()).await?;
 
-    let (chains_svm, express_relay_svm) = setup_svm(&run_options, config_map)?;
+    let chains_svm = setup_svm(&run_options, config_map)?;
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -306,7 +282,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         chains_svm,
         opportunity_store: OpportunityStore::default(),
         event_sender: broadcast_sender.clone(),
-        relayer: wallet,
         ws: ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
             broadcast_sender,
@@ -316,7 +291,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         secret_key: run_options.secret_key.clone(),
         access_tokens: RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
-        express_relay_svm,
     });
 
     tokio::join!(
@@ -371,29 +345,55 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 fn setup_svm(
     run_options: &RunOptions,
     config_map: ConfigMap,
-) -> anyhow::Result<(HashMap<ChainId, ChainStoreSvm>, ExpressRelaySvm)> {
-    let chains_svm = setup_chain_store_svm(config_map);
-
-    if !chains_svm.is_empty() && run_options.private_key_svm.is_none() {
-        return Err(anyhow!("No svm private key provided for svm chains"));
+) -> anyhow::Result<HashMap<ChainId, ChainStoreSvm>> {
+    let svm_chains: Vec<_> = config_map
+        .chains
+        .iter()
+        .filter_map(|(chain_id, config)| match config {
+            Config::Evm(_) => None,
+            Config::Svm(chain_config) => Some((chain_id.clone(), chain_config.clone())),
+        })
+        .collect();
+    if svm_chains.is_empty() {
+        return Ok(HashMap::new());
     }
-
-    let relayer = Keypair::from_base58_string(
+    let relayer = Arc::new(Keypair::from_base58_string(
         &run_options
             .private_key_svm
             .clone()
-            .unwrap_or(Keypair::new().to_base58_string()),
-    );
-    let express_relay_svm = ExpressRelaySvm {
-        relayer:                     Arc::new(relayer),
-        permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
-            .parse::<usize>()
-            .expect("Failed to parse permission account position"),
-        router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
-            .parse::<usize>()
-            .expect("Failed to parse router account position"),
-    };
-    Ok((chains_svm, express_relay_svm))
+            .ok_or(anyhow!("No svm private key provided for svm chains"))?,
+    ));
+    Ok(svm_chains
+        .into_iter()
+        .map(|(chain_id, chain_config)| {
+            let express_relay_svm = ExpressRelaySvm {
+                relayer:                     relayer.clone(),
+                permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
+                    .parse::<usize>()
+                    .expect("Failed to parse permission account position"),
+                router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
+                    .parse::<usize>()
+                    .expect("Failed to parse router account position"),
+            };
+
+            (
+                chain_id.clone(),
+                ChainStoreSvm {
+                    core_fields: ChainStoreCoreFields::<SimulatedBidSvm> {
+                        bids:               Default::default(),
+                        auction_lock:       Default::default(),
+                        submitted_auctions: Default::default(),
+                    },
+                    client: RpcClient::new_with_commitment(
+                        chain_config.rpc_addr.clone(),
+                        CommitmentConfig::processed(),
+                    ),
+                    config: chain_config,
+                    express_relay_svm,
+                },
+            )
+        })
+        .collect())
 }
 
 pub fn get_chain_provider(
