@@ -34,7 +34,8 @@ export class OdosAdapter implements Adapter {
     chainId: string,
     tokenIn: Address,
     tokenOut: Address,
-    amountOut: bigint
+    amountOut: bigint,
+    threshold: number
   ) {
     const decimalsIn = this.getToken(chainId, tokenIn).decimals;
     const decimalsOut = this.getToken(chainId, tokenOut).decimals;
@@ -44,7 +45,6 @@ export class OdosAdapter implements Adapter {
       this.getPrice(chainId, tokenOut),
     ]);
 
-    const threshold = 1.005;
     const conversionRate =
       priceOut / 10 ** decimalsOut / (priceIn / 10 ** decimalsIn);
     return BigInt(Math.ceil(Number(amountOut) * conversionRate * threshold));
@@ -62,34 +62,44 @@ export class OdosAdapter implements Adapter {
     }
 
     const swapAdapterConfig = getSwapAdapterConfig(chainId);
-    let estimatedAmountIn =
-      amountIn ??
-      (await this.estimateAmountIn(chainId, tokenIn, tokenOut, amountOut!));
-    const responseQuote = await axios.post(`${this.baseUrl}/sor/quote/v2`, {
-      chainId: swapAdapterConfig.chainIdNum,
-      inputTokens: [
-        {
-          amount: estimatedAmountIn.toString(),
-          tokenAddress: tokenIn,
-        },
-      ],
-      outputTokens: [
-        {
-          proportion: 1,
-          tokenAddress: tokenOut,
-        },
-      ],
-      slippageLimitPercent: 0.5,
-      userAddr: swapAdapterConfig.multicallAdapter,
-    });
+    for (let threshold = 1; threshold <= 8; threshold *= 2) {
+      let estimatedAmountIn =
+        amountIn ??
+        (await this.estimateAmountIn(
+          chainId,
+          tokenIn,
+          tokenOut,
+          amountOut!,
+          1 + threshold * 0.005
+        ));
+      const responseQuote = await axios.post(`${this.baseUrl}/sor/quote/v2`, {
+        chainId: swapAdapterConfig.chainIdNum,
+        inputTokens: [
+          {
+            amount: estimatedAmountIn.toString(),
+            tokenAddress: tokenIn,
+          },
+        ],
+        outputTokens: [
+          {
+            proportion: 1,
+            tokenAddress: tokenOut,
+          },
+        ],
+        slippageLimitPercent: 0.5,
+        userAddr: swapAdapterConfig.multicallAdapter,
+      });
 
-    if (amountOut) {
-      if (responseQuote.data.outTokens[0] < amountOut) {
-        throw new OdosAdapterError("Not enough output tokens");
+      if (amountOut) {
+        if (responseQuote.data.outAmounts[0] < amountOut) {
+          continue;
+        }
       }
+
+      return responseQuote.data.pathId as string;
     }
 
-    return responseQuote.data.pathId as string;
+    throw new OdosAdapterError("Not enough output tokens");
   }
 
   async constructSwaps(
