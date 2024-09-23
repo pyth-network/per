@@ -70,10 +70,8 @@ use {
         QueryBuilder,
     },
     std::{
-        collections::{
-            hash_map::Entry,
-            HashMap,
-        },
+        collections::HashMap,
+        ops::Deref,
         str::FromStr,
         sync::Arc,
     },
@@ -161,21 +159,17 @@ pub enum SimulatedBid {
 }
 
 pub trait SimulatedBidTrait:
-    Clone + Into<SimulatedBid> + std::fmt::Debug + TryFrom<(models::Bid, Option<models::Auction>)>
+    Clone
+    + Into<SimulatedBid>
+    + std::fmt::Debug
+    + TryFrom<(models::Bid, Option<models::Auction>)>
+    + Deref<Target = SimulatedBidCoreFields<<Self as SimulatedBidTrait>::StatusType>>
 {
     type StatusType: BidStatusTrait;
 
-    fn get_core_fields(&self) -> SimulatedBidCoreFields<Self::StatusType>;
     fn update_status(self, status: Self::StatusType) -> Self;
     fn get_metadata(&self) -> anyhow::Result<models::BidMetadata>;
     fn get_chain_type(&self) -> models::ChainType;
-    fn get_auction_key(&self) -> AuctionKey {
-        let core_fields = self.get_core_fields();
-        (
-            core_fields.permission_key.clone(),
-            core_fields.chain_id.clone(),
-        )
-    }
     fn get_bid_status(
         status: models::BidStatus,
         index: Option<u32>,
@@ -185,10 +179,6 @@ pub trait SimulatedBidTrait:
 
 impl SimulatedBidTrait for SimulatedBidEvm {
     type StatusType = BidStatusEvm;
-
-    fn get_core_fields(&self) -> SimulatedBidCoreFields<Self::StatusType> {
-        self.core_fields.clone()
-    }
 
     fn update_status(self, status: Self::StatusType) -> Self {
         let mut core_fields = self.core_fields;
@@ -326,12 +316,24 @@ impl TryInto<(models::BidMetadata, models::ChainType)> for SimulatedBidSvm {
     }
 }
 
+impl Deref for SimulatedBidEvm {
+    type Target = SimulatedBidCoreFields<BidStatusEvm>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.core_fields
+    }
+}
+
+impl Deref for SimulatedBidSvm {
+    type Target = SimulatedBidCoreFields<BidStatusSvm>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.core_fields
+    }
+}
+
 impl SimulatedBidTrait for SimulatedBidSvm {
     type StatusType = BidStatusSvm;
-
-    fn get_core_fields(&self) -> SimulatedBidCoreFields<Self::StatusType> {
-        self.core_fields.clone()
-    }
 
     fn update_status(self, status: Self::StatusType) -> Self {
         let mut core_fields = self.core_fields;
@@ -428,7 +430,6 @@ pub enum OpportunityParams {
 }
 
 pub type OpportunityId = Uuid;
-pub type AuctionKey = (PermissionKey, ChainId);
 pub type AuctionLock = Arc<Mutex<()>>;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -447,10 +448,18 @@ pub enum SpoofInfo {
     UnableToSpoof,
 }
 
+pub struct ChainStoreCoreFields<T: SimulatedBidTrait> {
+    pub bids:               RwLock<HashMap<PermissionKey, Vec<T>>>,
+    pub auction_lock:       Mutex<HashMap<PermissionKey, AuctionLock>>,
+    pub submitted_auctions: RwLock<Vec<models::Auction>>,
+}
+
 pub struct ChainStoreEvm {
+    pub core_fields:            ChainStoreCoreFields<SimulatedBidEvm>,
     pub chain_id_num:           u64,
     pub provider:               Provider<TracedClient>,
     pub network_id:             u64,
+    // TODO move this to core fields
     pub config:                 ConfigEvm,
     pub permit2:                Address,
     pub adapter_bytecode_hash:  [u8; 32],
@@ -461,6 +470,8 @@ pub struct ChainStoreEvm {
 }
 
 pub struct ChainStoreSvm {
+    pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
+
     pub client: RpcClient,
     pub config: ConfigSvm,
 }
@@ -600,6 +611,7 @@ pub trait BidStatusTrait:
     fn convert_tx_hash(tx_hash: &Self::TxHash) -> Vec<u8> {
         tx_hash.as_ref().to_vec()
     }
+    fn get_tx_hash(&self) -> Option<&Self::TxHash>;
 }
 
 impl Into<BidStatus> for BidStatusEvm {
@@ -713,6 +725,15 @@ impl BidStatusTrait for BidStatusEvm {
             }
         }
     }
+
+    fn get_tx_hash(&self) -> Option<&Self::TxHash> {
+        match self {
+            BidStatusEvm::Submitted { result, .. } => Some(result),
+            BidStatusEvm::Lost { result, .. } => result.as_ref(),
+            BidStatusEvm::Won { result, .. } => Some(result),
+            _ => None,
+        }
+    }
 }
 
 impl BidStatusTrait for BidStatusSvm {
@@ -797,6 +818,15 @@ impl BidStatusTrait for BidStatusSvm {
             }
         }
     }
+
+    fn get_tx_hash(&self) -> Option<&Self::TxHash> {
+        match self {
+            BidStatusSvm::Submitted { result } => Some(result),
+            BidStatusSvm::Lost { result } => result.as_ref(),
+            BidStatusSvm::Won { result } => Some(result),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
@@ -814,21 +844,18 @@ pub struct ExpressRelaySvm {
 }
 
 pub struct Store {
-    pub chains:             HashMap<ChainId, ChainStoreEvm>,
-    pub chains_svm:         HashMap<ChainId, ChainStoreSvm>,
-    pub bids:               RwLock<HashMap<AuctionKey, Vec<SimulatedBid>>>,
-    pub event_sender:       broadcast::Sender<UpdateEvent>,
-    pub opportunity_store:  OpportunityStore,
-    pub relayer:            LocalWallet,
-    pub ws:                 WsState,
-    pub db:                 sqlx::PgPool,
-    pub task_tracker:       TaskTracker,
-    pub auction_lock:       Mutex<HashMap<AuctionKey, AuctionLock>>,
-    pub submitted_auctions: RwLock<HashMap<ChainId, Vec<models::Auction>>>,
-    pub secret_key:         String,
-    pub access_tokens:      RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
-    pub metrics_recorder:   PrometheusHandle,
-    pub express_relay_svm:  ExpressRelaySvm,
+    pub chains:            HashMap<ChainId, ChainStoreEvm>,
+    pub chains_svm:        HashMap<ChainId, ChainStoreSvm>,
+    pub event_sender:      broadcast::Sender<UpdateEvent>,
+    pub opportunity_store: OpportunityStore,
+    pub relayer:           LocalWallet,
+    pub ws:                WsState,
+    pub db:                sqlx::PgPool,
+    pub task_tracker:      TaskTracker,
+    pub secret_key:        String,
+    pub access_tokens:     RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
+    pub metrics_recorder:  PrometheusHandle,
+    pub express_relay_svm: ExpressRelaySvm,
 }
 
 impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {
@@ -851,15 +878,6 @@ impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {
                 Auth::Authorized(_, profile) => Some(profile.id),
                 _ => None,
             },
-        }
-    }
-}
-
-impl SimulatedBid {
-    pub fn get_id(&self) -> BidId {
-        match self {
-            SimulatedBid::Evm(bid) => bid.core_fields.id,
-            SimulatedBid::Svm(bid) => bid.core_fields.id,
         }
     }
 }
@@ -1005,8 +1023,9 @@ impl Store {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn submit_auction(
+    pub async fn submit_auction<T: ChainStore>(
         &self,
+        chain_store: &T,
         mut auction: models::Auction,
         transaction_hash: Vec<u8>,
     ) -> anyhow::Result<models::Auction> {
@@ -1020,12 +1039,7 @@ impl Store {
             .execute(&self.db)
             .await?;
 
-        self.submitted_auctions
-            .write()
-            .await
-            .entry(auction.clone().chain_id)
-            .or_insert_with(Vec::new)
-            .push(auction.clone());
+        chain_store.add_submitted_auction(auction.clone()).await;
         Ok(auction)
     }
 
@@ -1046,36 +1060,12 @@ impl Store {
         Ok(auction)
     }
 
-    pub async fn get_bids(&self, key: &AuctionKey) -> Vec<SimulatedBid> {
-        self.bids.read().await.get(key).cloned().unwrap_or_default()
-    }
-
-    pub async fn get_permission_keys_for_auction(&self, chain_id: &ChainId) -> Vec<PermissionKey> {
-        self.bids
-            .read()
-            .await
-            .keys()
-            .filter_map(|(p, c)| {
-                if c != chain_id {
-                    return None;
-                }
-                Some(p.clone())
-            })
-            .collect()
-    }
-
-    pub async fn get_submitted_auctions(&self, chain_id: &ChainId) -> Vec<models::Auction> {
-        self.submitted_auctions
-            .read()
-            .await
-            .get(chain_id)
-            .cloned()
-            .unwrap_or_default()
-    }
-
     #[tracing::instrument(skip_all)]
-    pub async fn add_bid<T: SimulatedBidTrait>(&self, bid: T) -> Result<(), RestError> {
-        let core_fields = bid.get_core_fields();
+    pub async fn add_bid<T: ChainStore>(
+        &self,
+        chain_store: &T,
+        bid: T::SimulatedBid,
+    ) -> Result<(), RestError> {
         let now = OffsetDateTime::now_utc();
 
         let metadata = bid.get_metadata().map_err(|e: anyhow::Error| {
@@ -1083,18 +1073,18 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
         let chain_type = bid.get_chain_type();
-        let status: models::BidStatus = core_fields.status.clone().into();
+        let status: models::BidStatus = bid.status.clone().into();
 
         sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-        core_fields.id,
+        bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
-        core_fields.permission_key.to_vec(),
-        core_fields.chain_id,
+        bid.permission_key.to_vec(),
+        bid.chain_id,
         chain_type as _,
-        BigDecimal::from_str(&core_fields.bid_amount.to_string()).unwrap(),
+        BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
         status as _,
-        PrimitiveDateTime::new(core_fields.initiation_time.date(), core_fields.initiation_time.time()),
-        core_fields.profile_id,
+        PrimitiveDateTime::new(bid.initiation_time.date(), bid.initiation_time.time()),
+        bid.profile_id,
         serde_json::to_value(metadata).expect("Failed to serialize metadata"))
             .execute(&self.db)
             .await.map_err(|e| {
@@ -1102,16 +1092,11 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
-        self.bids
-            .write()
-            .await
-            .entry(bid.get_auction_key())
-            .or_insert_with(Vec::new)
-            .push(bid.into().clone());
+        chain_store.add_bid(bid.clone()).await;
 
         self.broadcast_status_update(BidStatusWithId {
-            id:         core_fields.id,
-            bid_status: core_fields.status.clone().into(),
+            id:         bid.id,
+            bid_status: bid.status.clone().into(),
         });
         Ok(())
     }
@@ -1154,106 +1139,25 @@ impl Store {
         Ok(Json(bid_status))
     }
 
-    async fn remove_bid<T: SimulatedBidTrait>(&self, bid: T) {
-        let mut write_guard = self.bids.write().await;
-        let key = bid.get_auction_key();
-        let core_fields = bid.get_core_fields();
-        if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
-            let bids = entry.get_mut();
-            bids.retain(|b| b.get_id() != core_fields.id);
-            if bids.is_empty() {
-                entry.remove();
-            }
-        }
-    }
-
-    pub async fn bids_for_submitted_auction(&self, auction: models::Auction) -> Vec<SimulatedBid> {
-        let bids = self
-            .get_bids(&(
-                auction.permission_key.clone().into(),
-                auction.chain_id.clone(),
-            ))
-            .await;
-        match auction.tx_hash {
-            Some(tx_hash) => bids
-                .into_iter()
-                .filter(|bid| match bid {
-                    SimulatedBid::Evm(bid) => match bid.core_fields.status {
-                        BidStatusEvm::Submitted { result, .. } => {
-                            BidStatusEvm::convert_tx_hash(&result) == tx_hash
-                        }
-                        _ => false,
-                    },
-                    SimulatedBid::Svm(bid) => match bid.core_fields.status {
-                        BidStatusSvm::Submitted { result } => {
-                            BidStatusSvm::convert_tx_hash(&result) == tx_hash
-                        }
-                        _ => false,
-                    },
-                })
-                .collect(),
-            None => vec![],
-        }
-    }
-
-    pub async fn remove_submitted_auction(&self, auction: models::Auction) {
-        if !self
-            .bids_for_submitted_auction(auction.clone())
-            .await
-            .is_empty()
-        {
-            return;
-        }
-
-        let mut write_guard = self.submitted_auctions.write().await;
-        let key: String = auction.chain_id;
-        if let Entry::Occupied(mut entry) = write_guard.entry(key) {
-            let auctions = entry.get_mut();
-            auctions.retain(|a| a.id != auction.id);
-            if auctions.is_empty() {
-                entry.remove();
-            }
-        }
-    }
-
-    async fn update_bid<T: SimulatedBidTrait>(&self, bid: T) {
-        let mut write_guard = self.bids.write().await;
-        let key = bid.get_auction_key();
-        let core_fields = bid.clone().get_core_fields();
-        match write_guard.entry(key.clone()) {
-            Entry::Occupied(mut entry) => {
-                let bids = entry.get_mut();
-                match bids.iter().position(|b| b.get_id() == core_fields.id) {
-                    Some(index) => bids[index] = bid.into(),
-                    None => {
-                        tracing::error!("Update bid failed - bid not found for: {:?}", bid);
-                    }
-                }
-            }
-            Entry::Vacant(_) => {
-                tracing::error!("Update bid failed - entry not found for key: {:?}", key);
-            }
-        }
-    }
-
-    pub async fn broadcast_bid_status_and_update<T: SimulatedBidTrait>(
+    pub async fn broadcast_bid_status_and_update<T: ChainStore>(
         &self,
-        bid: T,
-        updated_status: T::StatusType,
+        chain_store: &T,
+        bid: T::SimulatedBid,
+        updated_status: <T::SimulatedBid as SimulatedBidTrait>::StatusType,
         auction: Option<&models::Auction>,
     ) -> anyhow::Result<()> {
-        let core_fields = bid.get_core_fields();
         let status: models::BidStatus = updated_status.clone().into();
-        let update_query = updated_status.get_update_query(core_fields.id, auction)?;
+        let bid_id = bid.id;
+        let update_query = updated_status.get_update_query(bid_id, auction)?;
         let query_result = update_query.execute(&self.db).await?;
         match status {
             models::BidStatus::Pending => {}
             models::BidStatus::Submitted => {
                 let updated_bid = bid.update_status(updated_status.clone());
-                self.update_bid(updated_bid).await;
+                chain_store.update_bid(updated_bid).await;
             }
-            models::BidStatus::Lost => self.remove_bid(bid.clone()).await,
-            models::BidStatus::Won => self.remove_bid(bid.clone()).await,
+            models::BidStatus::Lost => chain_store.remove_bid(bid.clone()).await,
+            models::BidStatus::Won => chain_store.remove_bid(bid.clone()).await,
         }
 
         // It is possible to call this function multiple times from different threads if receipts are delayed
@@ -1261,7 +1165,7 @@ impl Store {
         // To ensure we do not broadcast the update more than once, we need to check the below "if"
         if query_result.rows_affected() > 0 {
             self.broadcast_status_update(BidStatusWithId {
-                id:         core_fields.id,
+                id:         bid_id,
                 bid_status: updated_status.into(),
             });
         }
@@ -1273,26 +1177,6 @@ impl Store {
             Ok(_) => (),
             Err(e) => tracing::error!("Failed to send bid status update: {}", e),
         };
-    }
-
-    pub async fn get_auction_lock(&self, key: AuctionKey) -> AuctionLock {
-        self.auction_lock
-            .lock()
-            .await
-            .entry(key)
-            .or_insert_with(|| Arc::new(Mutex::new(())))
-            .clone()
-    }
-
-    pub async fn remove_auction_lock(&self, key: &AuctionKey) {
-        let mut mutex_gaurd = self.auction_lock.lock().await;
-        let auction_lock = mutex_gaurd.get(key);
-        if let Some(auction_lock) = auction_lock {
-            // Whenever there is no thread borrowing a lock for this key, we can remove it from the locks HashMap.
-            if Arc::strong_count(auction_lock) == 1 {
-                mutex_gaurd.remove(key);
-            }
-        }
     }
 
     pub async fn create_profile(

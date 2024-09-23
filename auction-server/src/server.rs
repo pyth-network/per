@@ -26,10 +26,13 @@ use {
         },
         per_metrics,
         state::{
+            ChainStoreCoreFields,
             ChainStoreEvm,
             ChainStoreSvm,
             ExpressRelaySvm,
             OpportunityStore,
+            SimulatedBidEvm,
+            SimulatedBidSvm,
             Store,
         },
         traced_client::TracedClient,
@@ -158,8 +161,13 @@ fn setup_chain_store_svm(config_map: ConfigMap) -> HashMap<ChainId, ChainStoreSv
             Config::Svm(chain_config) => Some((
                 chain_id.clone(),
                 ChainStoreSvm {
-                    config: chain_config.clone(),
-                    client: RpcClient::new_with_commitment(
+                    core_fields: ChainStoreCoreFields::<SimulatedBidSvm> {
+                        bids:               Default::default(),
+                        auction_lock:       Default::default(),
+                        submitted_auctions: Default::default(),
+                    },
+                    config:      chain_config.clone(),
+                    client:      RpcClient::new_with_commitment(
                         chain_config.rpc_addr.clone(),
                         CommitmentConfig::processed(),
                     ),
@@ -217,6 +225,11 @@ async fn setup_chain_store(
                         Ok((
                             chain_id.clone(),
                             ChainStoreEvm {
+                                core_fields: ChainStoreCoreFields::<SimulatedBidEvm> {
+                                    bids:               Default::default(),
+                                    auction_lock:       Default::default(),
+                                    submitted_auctions: Default::default(),
+                                },
                                 chain_id_num: id,
                                 provider,
                                 network_id: id,
@@ -289,7 +302,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
         db: pool,
-        bids: Default::default(),
         chains,
         chains_svm,
         opportunity_store: OpportunityStore::default(),
@@ -301,8 +313,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             broadcast_receiver,
         },
         task_tracker: task_tracker.clone(),
-        auction_lock: Default::default(),
-        submitted_auctions: Default::default(),
         secret_key: run_options.secret_key.clone(),
         access_tokens: RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
