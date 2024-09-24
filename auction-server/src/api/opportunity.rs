@@ -107,7 +107,7 @@ pub async fn post_opportunity(
         params: versioned_params.clone(),
     };
 
-    verify_opportunity(params.clone(), chain_store, store.relayer.address())
+    verify_opportunity(params.clone(), chain_store)
         .await
         .map_err(|e| {
             tracing::warn!(

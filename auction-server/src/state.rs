@@ -472,8 +472,9 @@ pub struct ChainStoreEvm {
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
-    pub client: RpcClient,
-    pub config: ConfigSvm,
+    pub client:            RpcClient,
+    pub config:            ConfigSvm,
+    pub express_relay_svm: ExpressRelaySvm,
 }
 
 #[derive(Default)]
@@ -848,14 +849,12 @@ pub struct Store {
     pub chains_svm:        HashMap<ChainId, ChainStoreSvm>,
     pub event_sender:      broadcast::Sender<UpdateEvent>,
     pub opportunity_store: OpportunityStore,
-    pub relayer:           LocalWallet,
     pub ws:                WsState,
     pub db:                sqlx::PgPool,
     pub task_tracker:      TaskTracker,
     pub secret_key:        String,
     pub access_tokens:     RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
     pub metrics_recorder:  PrometheusHandle,
-    pub express_relay_svm: ExpressRelaySvm,
 }
 
 impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {

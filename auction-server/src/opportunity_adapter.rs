@@ -169,7 +169,6 @@ fn generate_random_u256() -> U256 {
 pub async fn verify_opportunity(
     opportunity: OpportunityParamsV1,
     chain_store: &ChainStoreEvm,
-    relayer: Address,
 ) -> Result<VerificationResult> {
     let client = Arc::new(chain_store.provider.clone());
     let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
@@ -207,7 +206,7 @@ pub async fn verify_opportunity(
     ))?;
 
     let call = get_simulation_call(
-        relayer,
+        chain_store.express_relay_contract.get_relayer_address(),
         chain_store.provider.clone(),
         chain_store.config.clone(),
         opportunity.permission_key,
@@ -527,8 +526,7 @@ async fn verify_with_store(
         .chains
         .get(&params.chain_id)
         .expect("Opportunity Chain not found in store");
-    let relayer = store.relayer.address();
-    match verify_opportunity(params.clone(), chain_store, relayer).await {
+    match verify_opportunity(params.clone(), chain_store).await {
         Ok(VerificationResult::Success) => None,
         Ok(VerificationResult::UnableToSpoof) => {
             let current_time = SystemTime::now()
