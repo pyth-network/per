@@ -22,14 +22,10 @@ use {
                 erc20,
                 OpportunityAdapterErrors,
             },
-            entities::opportunity::Opportunity,
         },
     },
     ethers::{
-        contract::{
-            abigen,
-            ContractRevert,
-        },
+        contract::ContractRevert,
         types::Bytes,
     },
     time::OffsetDateTime,

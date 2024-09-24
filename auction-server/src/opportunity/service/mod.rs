@@ -1,10 +1,7 @@
 use {
     super::{
         entities::{
-            opportunity::{
-                self,
-                Opportunity,
-            },
+            opportunity::Opportunity,
             opportunity_evm::OpportunityEvm,
             opportunity_svm::OpportunitySvm,
         },

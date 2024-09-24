@@ -4,31 +4,14 @@ use {
         Service,
     },
     crate::{
-        api::{
-            Auth,
-            RestError,
-        },
+        api::RestError,
         opportunity::{
-            api::{
-                OpportunityBid,
-                OpportunityId,
-            },
+            api::OpportunityBid,
             contracts::TokenPermissions,
-            entities::{
-                opportunity::Opportunity,
-                opportunity_evm::OpportunityEvm,
-            },
+            entities::opportunity_evm::OpportunityEvm,
         },
     },
-    ethers::{
-        contract::abigen,
-        types::{
-            Bytes,
-            U256,
-        },
-    },
-    time::OffsetDateTime,
-    uuid::Uuid,
+    ethers::types::U256,
 };
 
 pub struct MakePermittedTokensInput {

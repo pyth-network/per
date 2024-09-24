@@ -1,14 +1,7 @@
 use {
-    super::entities::{
-        opportunity::Opportunity,
-        opportunity_evm::OpportunityEvm,
-        opportunity_svm::OpportunitySvm,
-    },
+    super::entities::opportunity::Opportunity,
     crate::kernel::entities::PermissionKey,
-    std::{
-        collections::HashMap,
-        sync::Arc,
-    },
+    std::collections::HashMap,
     tokio::sync::RwLock,
 };
 

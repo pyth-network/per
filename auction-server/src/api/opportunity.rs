@@ -1,8 +1,6 @@
 use {
-    super::Auth,
     crate::{
         api::{
-            bid::BidResult,
             ws::UpdateEvent::NewOpportunity,
             ErrorBodyResponse,
             GetOpportunitiesQueryParams,
@@ -10,22 +8,17 @@ use {
             RestError,
         },
         config::ChainId,
-        opportunity_adapter::{
-            verify_opportunity,
-            OpportunityBid,
-        },
+        opportunity_adapter::verify_opportunity,
         state::{
             Opportunity,
             OpportunityId,
             OpportunityParams,
-            Store,
             StoreNew,
             UnixTimestampMicros,
         },
     },
     axum::{
         extract::{
-            Path,
             Query,
             State,
         },

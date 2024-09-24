@@ -43,7 +43,6 @@ use {
             SimulatedBid,
             SimulatedBidEvm,
             SimulatedBidSvm,
-            Store,
             StoreNew,
             TokenAmount,
         },

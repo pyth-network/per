@@ -6,10 +6,7 @@ use {
             RestError,
         },
         models::ProfileId,
-        state::{
-            Store,
-            StoreNew,
-        },
+        state::StoreNew,
     },
     axum::{
         extract::State,

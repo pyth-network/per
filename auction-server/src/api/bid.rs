@@ -14,7 +14,6 @@ use {
             BidId,
             BidStatus,
             SimulatedBid,
-            Store,
             StoreNew,
         },
     },

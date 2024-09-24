@@ -5,26 +5,15 @@ use {
         Service,
     },
     crate::{
-        api::{
-            Auth,
-            RestError,
-        },
+        api::RestError,
         opportunity::{
-            api::{
-                OpportunityBid,
-                OpportunityId,
-            },
+            api::OpportunityBid,
             contracts::OpportunityAdapter,
-            entities::{
-                opportunity::Opportunity,
-                opportunity_evm::OpportunityEvm,
-            },
+            entities::opportunity_evm::OpportunityEvm,
         },
     },
     ethers::types::Bytes,
     std::sync::Arc,
-    time::OffsetDateTime,
-    uuid::Uuid,
 };
 
 pub struct MakeAdapterCalldataInput {

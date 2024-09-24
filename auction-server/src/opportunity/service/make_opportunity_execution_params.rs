@@ -5,33 +5,18 @@ use {
         Service,
     },
     crate::{
-        api::{
-            Auth,
-            RestError,
-        },
+        api::RestError,
         opportunity::{
-            api::{
-                OpportunityBid,
-                OpportunityId,
-            },
+            api::OpportunityBid,
             contracts::{
                 ExecutionParams,
                 ExecutionWitness,
                 PermitBatchTransferFrom,
                 TokenAmount,
             },
-            entities::{
-                opportunity::Opportunity,
-                opportunity_evm::OpportunityEvm,
-            },
+            entities::opportunity_evm::OpportunityEvm,
         },
     },
-    ethers::{
-        contract::abigen,
-        utils::get_create2_address_from_hash,
-    },
-    time::OffsetDateTime,
-    uuid::Uuid,
 };
 
 pub struct MakeOpportunityExecutionParamsInput {

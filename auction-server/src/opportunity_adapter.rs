@@ -1,13 +1,7 @@
 use {
     crate::{
-        api::{
-            Auth,
-            RestError,
-        },
         auction::{
             get_simulation_call,
-            handle_bid,
-            BidEvm,
             MulticallData,
             MulticallReturn,
         },
@@ -19,7 +13,6 @@ use {
             BidAmount,
             ChainStoreEvm,
             Opportunity,
-            OpportunityId,
             OpportunityParams,
             OpportunityParamsV1,
             SpoofInfo,
@@ -35,10 +28,7 @@ use {
     },
     ethers::{
         abi::AbiDecode,
-        contract::{
-            abigen,
-            ContractRevert,
-        },
+        contract::abigen,
         core::{
             abi,
             rand,
@@ -70,11 +60,9 @@ use {
         Deserialize,
         Serialize,
     },
-    sqlx::types::time::OffsetDateTime,
     std::{
         collections::HashMap,
         ops::Add,
-        result,
         sync::{
             atomic::Ordering,
             Arc,
@@ -362,39 +350,6 @@ pub struct ExecutionParamsWithSignature {
     params:         ExecutionParams,
     eip_712_domain: EIP712Domain,
     spender:        Address, // Equal to the opportunity adapter contract
-    signature:      Bytes,
-}
-
-fn verify_signature(execution_params: ExecutionParamsWithSignature) -> Result<()> {
-    // TODO Maybe use ECDSA to recover the signer? https://docs.rs/k256/latest/k256/ecdsa/index.html
-    let typed_data: eip712::TypedData = execution_params.clone().into();
-    let structured_hash = typed_data.encode_eip712()?;
-    let params = execution_params.params;
-    let signature = Signature::try_from(execution_params.signature.to_vec().as_slice())
-        .map_err(|_x| anyhow!("Error reading signature"))?;
-    let signer = signature
-        .recover(structured_hash)
-        .map_err(|x| anyhow!(x.to_string()))?;
-    let is_matched = signer == params.witness.executor;
-    is_matched.then_some(()).ok_or_else(|| {
-        anyhow!(format!(
-            "Invalid signature. Expected signer: {}, Got: {}",
-            params.witness.executor, signer
-        ))
-    })
-}
-
-pub fn parse_revert_error(revert: &Bytes) -> Option<String> {
-    let apdapter_decoded =
-        OpportunityAdapterErrors::decode_with_selector(revert).map(|decoded_error| {
-            format!(
-                "Opportunity Adapter Contract Revert Error: {:#?}",
-                decoded_error
-            )
-        });
-    let erc20_decoded = erc20::ERC20Errors::decode_with_selector(revert)
-        .map(|decoded_error| format!("ERC20 Contract Revert Error: {:#?}", decoded_error));
-    apdapter_decoded.or(erc20_decoded)
 }
 
 impl From<crate::state::TokenAmount> for TokenAmount {
@@ -478,34 +433,9 @@ pub fn make_opportunity_execution_params(
                 bid_amount:        bid.amount,
             },
         },
-        signature: bid.signature.to_vec().into(),
         eip_712_domain,
         spender: executor_adapter_address,
     }
-}
-
-pub async fn make_adapter_calldata(
-    opportunity: OpportunityParamsV1,
-    bid: OpportunityBid,
-    chain_store: &ChainStoreEvm,
-) -> Result<Bytes> {
-    let adapter_contract = chain_store.config.adapter_factory_contract;
-    let execution_params = make_opportunity_execution_params(opportunity.clone(), bid, chain_store);
-    // TODO do we really need it here?
-    verify_signature(execution_params.clone())?;
-
-    let client = Arc::new(chain_store.provider.clone());
-    let calldata = OpportunityAdapter::new(adapter_contract, client.clone())
-        .execute_opportunity(
-            execution_params.params,
-            execution_params.signature.to_vec().into(),
-        )
-        .calldata()
-        .ok_or(anyhow!(
-            "Failed to generate calldata for opportunity adapter"
-        ))?;
-
-    Ok(calldata)
 }
 
 const MAX_STALE_OPPORTUNITY_MICROS: i128 = 60_000_000;
