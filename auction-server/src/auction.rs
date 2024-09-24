@@ -207,25 +207,6 @@ impl Transformer for LegacyTxTransformer {
     }
 }
 
-#[tracing::instrument(skip_all)]
-pub async fn submit_bids(
-    express_relay_contract: Arc<SignableExpressRelayContract>,
-    permission: Bytes,
-    bids: Vec<SimulatedBidEvm>,
-) -> Result<H256, ContractError<SignableProvider>> {
-    let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
-    let tx_hash = express_relay_contract
-        .multicall(
-            permission,
-            bids.into_iter().map(|b| (b, false).into()).collect(),
-        )
-        .gas(gas_estimate + EXTRA_GAS_FOR_SUBMISSION)
-        .send()
-        .await?
-        .tx_hash();
-    Ok(tx_hash)
-}
-
 impl From<(SimulatedBidEvm, bool)> for MulticallData {
     fn from((bid, revert_on_failure): (SimulatedBidEvm, bool)) -> Self {
         MulticallData {
