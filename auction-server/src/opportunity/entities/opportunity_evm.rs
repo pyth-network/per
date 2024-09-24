@@ -14,7 +14,7 @@ use {
 };
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpportunityEvm {
     pub core_fields: OpportunityCoreFields<TokenAmountEvm>,
 

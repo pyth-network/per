@@ -1,21 +1,21 @@
 use {
-    super::Repository,
+    super::{
+        Cache,
+        Repository,
+    },
     crate::{
         kernel::entities::PermissionKey,
-        opportunity::entities::opportunity::{
-            Opportunity,
-            OpportunityId,
-        },
+        opportunity::entities::opportunity::OpportunityId,
     },
 };
 
-impl<T: Opportunity> Repository<T> {
+impl<T: Cache> Repository<T> {
     pub async fn get_opportunities_by_permission_key_and_id(
         &self,
         id: OpportunityId,
         permission_key: &PermissionKey,
-    ) -> Option<T> {
-        let opportunities = self.opportunities.read().await;
+    ) -> Option<T::Opportunity> {
+        let opportunities = self.cache.opportunities.read().await;
         opportunities
             .get(permission_key)?
             .iter()

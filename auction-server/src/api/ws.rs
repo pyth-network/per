@@ -1,17 +1,17 @@
 use {
     super::Auth,
     crate::{
-        api::{
-            bid::{
-                process_bid,
-                BidResult,
-            },
-            opportunity::OpportunityParamsWithMetadata,
+        api::bid::{
+            process_bid,
+            BidResult,
         },
         auction::Bid,
         config::ChainId,
         opportunity::{
-            api::OpportunityBid,
+            api::{
+                OpportunityBid,
+                OpportunityParamsWithMetadata,
+            },
             service::handle_opportunity_bid::HandleOpportunityBidInput,
         },
         server::{

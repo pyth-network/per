@@ -33,13 +33,11 @@ mod config;
 mod kernel;
 mod models;
 mod opportunity;
-mod opportunity_adapter;
 mod per_metrics;
 mod serde;
 mod server;
 mod state;
 mod subwallet;
-mod token_spoof;
 mod traced_client;
 
 #[tokio::main]

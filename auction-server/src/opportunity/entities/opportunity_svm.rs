@@ -10,7 +10,7 @@ use {
     std::ops::Deref,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvm {
     pub core_fields: OpportunityCoreFields<TokenAmountSvm>,
 

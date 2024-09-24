@@ -5,7 +5,6 @@ use {
                 BidResult,
                 SimulatedBids,
             },
-            opportunity::OpportunityParamsWithMetadata,
             ws::{
                 APIResponse,
                 ClientMessage,
@@ -26,8 +25,12 @@ use {
         },
         models,
         opportunity::api::{
+            get_opportunities,
             opportunity_bid,
+            post_opportunity,
             OpportunityBid,
+            OpportunityMode,
+            OpportunityParamsWithMetadata,
         },
         server::{
             EXIT_CHECK_INTERVAL,
@@ -85,15 +88,11 @@ use {
     },
     clap::crate_version,
     ethers::types::Bytes,
-    serde::{
-        Deserialize,
-        Serialize,
-    },
+    serde::Serialize,
     std::sync::{
         atomic::Ordering,
         Arc,
     },
-    time::OffsetDateTime,
     tower_http::cors::CorsLayer,
     utoipa::{
         openapi::security::{
@@ -101,7 +100,6 @@ use {
             HttpAuthScheme,
             SecurityScheme,
         },
-        IntoParams,
         Modify,
         OpenApi,
         ToResponse,
@@ -119,7 +117,6 @@ async fn root() -> String {
 }
 
 mod bid;
-pub(crate) mod opportunity;
 pub mod profile;
 pub(crate) mod ws;
 
@@ -185,35 +182,6 @@ impl RestError {
 #[response(description = "An error occurred processing the request")]
 pub struct ErrorBodyResponse {
     error: String,
-}
-
-
-#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum OpportunityMode {
-    Live,
-    Historical,
-}
-
-fn default_opportunity_mode() -> OpportunityMode {
-    OpportunityMode::Live
-}
-
-#[derive(Serialize, Deserialize, IntoParams)]
-pub struct GetOpportunitiesQueryParams {
-    #[param(example = "op_sepolia", value_type = Option < String >)]
-    pub chain_id:       Option<ChainId>,
-    /// Get opportunities in live or historical mode
-    #[param(default = "live")]
-    #[serde(default = "default_opportunity_mode")]
-    pub mode:           OpportunityMode,
-    /// The permission key to filter the opportunities by. Used only in historical mode.
-    #[param(example = "0xdeadbeef", value_type = Option< String >)]
-    pub permission_key: Option<Bytes>,
-    /// The time to get the opportunities from. Used only in historical mode.
-    #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
-    #[serde(default, with = "crate::serde::nullable_datetime")]
-    pub from_time:      Option<OffsetDateTime>,
 }
 
 impl IntoResponse for RestError {
@@ -314,9 +282,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     bid::bid,
     bid::bid_status,
     bid::get_bids_by_time,
-    opportunity::post_opportunity,
+    crate::opportunity::api::post_opportunity,
     crate::opportunity::api::opportunity_bid,
-    opportunity::get_opportunities,
+    crate::opportunity::api::get_opportunities,
     profile::delete_profile_access_token,
     ),
     components(
@@ -382,8 +350,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         .route("/", login_required!(store, get(bid::get_bids_by_time)))
         .route("/:bid_id", get(bid::bid_status));
     let opportunity_routes = Router::new()
-        .route("/", post(opportunity::post_opportunity))
-        .route("/", get(opportunity::get_opportunities))
+        .route("/", post(post_opportunity))
+        .route("/", get(get_opportunities))
         .route("/:opportunity_id/bids", post(opportunity_bid));
 
     let profile_routes = Router::new()

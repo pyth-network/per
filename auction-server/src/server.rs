@@ -18,12 +18,13 @@ use {
             RunOptions,
         },
         models,
-        opportunity::service as opportunity_service,
-        opportunity_adapter::{
-            get_adapter_bytecode_hash,
-            get_permit2_address,
-            get_weth_address,
-            run_verification_loop,
+        opportunity::{
+            contracts::{
+                adapter_factory,
+                AdapterFactory,
+            },
+            service as opportunity_service,
+            workers::run_verification_loop,
         },
         per_metrics,
         state::{
@@ -58,10 +59,16 @@ use {
             Signer,
             Wallet,
         },
-        types::BlockNumber,
+        types::{
+            Address,
+            BlockNumber,
+        },
     },
     futures::{
-        future::join_all,
+        future::{
+            join_all,
+            try_join_all,
+        },
         Future,
     },
     solana_client::nonblocking::rpc_client::RpcClient,
@@ -184,21 +191,6 @@ async fn setup_chain_store(
                             chain_config.legacy_tx,
                             id,
                         );
-                        let permit2 = get_permit2_address(
-                            chain_config.adapter_factory_contract,
-                            provider.clone(),
-                        )
-                        .await?;
-                        let weth = get_weth_address(
-                            chain_config.adapter_factory_contract,
-                            provider.clone(),
-                        )
-                        .await?;
-                        let adapter_bytecode_hash = get_adapter_bytecode_hash(
-                            chain_config.adapter_factory_contract,
-                            provider.clone(),
-                        )
-                        .await?;
 
                         Ok((
                             chain_id.clone(),
@@ -208,14 +200,9 @@ async fn setup_chain_store(
                                     auction_lock:       Default::default(),
                                     submitted_auctions: Default::default(),
                                 },
-                                chain_id_num: id,
                                 provider,
                                 network_id: id,
-                                token_spoof_info: Default::default(),
                                 config: chain_config.clone(),
-                                permit2,
-                                weth,
-                                adapter_bytecode_hash,
                                 express_relay_contract: Arc::new(express_relay_contract),
                                 block_gas_limit: block.gas_limit,
                             },
@@ -227,6 +214,43 @@ async fn setup_chain_store(
     .await
     .into_iter()
     .collect()
+}
+
+
+pub async fn get_weth_address(
+    adapter_contract: Address,
+    provider: Provider<TracedClient>,
+) -> anyhow::Result<Address> {
+    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+    adapter
+        .get_weth()
+        .call()
+        .await
+        .map_err(|e| anyhow::anyhow!("Error getting WETH address from adapter: {:?}", e))
+}
+
+pub async fn get_adapter_bytecode_hash(
+    adapter_contract: Address,
+    provider: Provider<TracedClient>,
+) -> anyhow::Result<[u8; 32]> {
+    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+    adapter
+        .get_opportunity_adapter_creation_code_hash()
+        .call()
+        .await
+        .map_err(|e| anyhow::anyhow!("Error getting adapter code hash from adapter: {:?}", e))
+}
+
+pub async fn get_permit2_address(
+    adapter_contract: Address,
+    provider: Provider<TracedClient>,
+) -> anyhow::Result<Address> {
+    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+    adapter
+        .get_permit_2()
+        .call()
+        .await
+        .map_err(|e| anyhow::anyhow!("Error getting permit2 address from adapter: {:?}", e))
 }
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
@@ -277,22 +301,37 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     }
     let task_tracker = TaskTracker::new();
 
-    let config_opportunity_service_evm: HashMap<ChainId, opportunity_service::ConfigEvm> = chains
-        .iter()
-        .map(|(chain_id, chain_store)| {
-            (
-                chain_id.clone(),
+    let config_opportunity_service_evm = chains.iter().map(|(chain_id, chain_store)| {
+        let chain_id_cloned = chain_id.clone();
+        let adapter_factory_contract = chain_store.config.adapter_factory_contract;
+        let provider_cloned = chain_store.provider.clone();
+
+        async move {
+            let adapter_bytecode_hash =
+                get_adapter_bytecode_hash(adapter_factory_contract, provider_cloned.clone())
+                    .await?;
+            let permit2 =
+                get_permit2_address(adapter_factory_contract, provider_cloned.clone()).await?;
+            let weth = get_weth_address(adapter_factory_contract, provider_cloned.clone()).await?;
+
+            Ok::<(ChainId, opportunity_service::ConfigEvm), anyhow::Error>((
+                chain_id_cloned,
                 opportunity_service::ConfigEvm {
-                    adapter_factory_contract: chain_store.config.adapter_factory_contract,
-                    adapter_bytecode_hash:    chain_store.adapter_bytecode_hash,
-                    chain_id_num:             chain_store.chain_id_num,
-                    permit2:                  chain_store.permit2,
-                    provider:                 chain_store.provider.clone(),
-                    weth:                     chain_store.weth,
+                    adapter_factory_contract,
+                    adapter_bytecode_hash,
+                    chain_id_num: chain_store.network_id,
+                    permit2,
+                    provider: provider_cloned,
+                    weth,
                 },
-            )
-        })
-        .collect();
+            ))
+        }
+    });
+    let config_opportunity_service_evm: HashMap<ChainId, opportunity_service::ConfigEvm> =
+        try_join_all(config_opportunity_service_evm)
+            .await?
+            .into_iter()
+            .collect();
 
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
@@ -351,7 +390,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             join_all(tracker_loops).await;
         },
         fault_tolerant_handler("verification loop".to_string(), || run_verification_loop(
-            store.clone()
+            store_new.opportunity_service_evm.clone()
         )),
         fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),

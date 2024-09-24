@@ -1,11 +1,12 @@
 use {
     super::{
-        entities::{
-            opportunity::Opportunity,
-            opportunity_evm::OpportunityEvm,
-            opportunity_svm::OpportunitySvm,
+        contracts::AdapterFactory,
+        repository::{
+            Cache,
+            CacheEvm,
+            CacheSvm,
+            Repository,
         },
-        repository::Repository,
     },
     crate::{
         kernel::{
@@ -19,6 +20,8 @@ use {
         providers::Provider,
         types::Address,
     },
+    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_sdk::client,
     std::{
         collections::HashMap,
         sync::Arc,
@@ -26,10 +29,12 @@ use {
 };
 
 pub mod get_config;
+pub mod get_spoof_info;
 pub mod handle_opportunity_bid;
 pub mod make_adapter_calldata;
 pub mod make_opportunity_execution_params;
 pub mod make_permitted_tokens;
+pub mod verify_opportunity;
 
 #[derive(Debug)]
 pub struct ConfigEvm {
@@ -53,7 +58,7 @@ impl Config for ConfigSvm {
 
 pub trait ChainType {
     type Config: Config;
-    type Opportunity: Opportunity;
+    type Cache: Cache;
 }
 
 pub struct ChainTypeEvm;
@@ -61,19 +66,19 @@ pub struct ChainTypeSvm;
 
 impl ChainType for ChainTypeEvm {
     type Config = ConfigEvm;
-    type Opportunity = OpportunityEvm;
+    type Cache = CacheEvm;
 }
 
 impl ChainType for ChainTypeSvm {
     type Config = ConfigSvm;
-    type Opportunity = OpportunitySvm;
+    type Cache = CacheSvm;
 }
 
 pub struct Service<T: ChainType> {
-    store:  Arc<Store>,
-    db:     DB,
-    repo:   Repository<T::Opportunity>,
-    config: HashMap<ChainId, T::Config>,
+    store:    Arc<Store>,
+    pub db:   DB,
+    pub repo: Repository<T::Cache>,
+    config:   HashMap<ChainId, T::Config>,
 }
 
 impl<T: ChainType> Service<T> {
@@ -81,7 +86,7 @@ impl<T: ChainType> Service<T> {
         Arc::new(Service {
             store,
             db,
-            repo: Repository::<T::Opportunity>::new(),
+            repo: Repository::<T::Cache>::new(),
             config,
         })
     }

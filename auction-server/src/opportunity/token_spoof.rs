@@ -9,9 +9,12 @@
 /// and checking if the output of the balance or allowance is the expected value
 use ethers::addressbook::Address;
 use {
+    super::contracts::ERC20,
     crate::{
-        opportunity_adapter::ERC20,
-        state::SpoofInfo,
+        opportunity::entities::spoof_info::{
+            SpoofInfo,
+            SpoofState,
+        },
         traced_client::TracedClient,
     },
     anyhow::anyhow,
@@ -153,8 +156,11 @@ pub async fn find_spoof_info(
 ) -> anyhow::Result<SpoofInfo> {
     let balance_slot = find_spoof_balance_slot(token, client.clone()).await?;
     let allowance_slot = find_spoof_allowance_slot(token, client.clone()).await?;
-    Ok(SpoofInfo::Spoofed {
-        balance_slot,
-        allowance_slot,
+    Ok(SpoofInfo {
+        token,
+        state: SpoofState::Spoofed {
+            balance_slot,
+            allowance_slot,
+        },
     })
 }
