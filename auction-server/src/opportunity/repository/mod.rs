@@ -3,10 +3,7 @@ use {
         opportunity::Opportunity,
         opportunity_evm::OpportunityEvm,
         opportunity_svm::OpportunitySvm,
-        spoof_info::{
-            SpoofInfo,
-            SpoofState,
-        },
+        spoof_info::SpoofState,
     },
     crate::kernel::entities::PermissionKey,
     ethers::types::Address,

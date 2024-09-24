@@ -438,14 +438,6 @@ pub struct Opportunity {
     pub params:        OpportunityParams,
 }
 
-#[derive(Clone)]
-pub enum SpoofInfo {
-    Spoofed {
-        balance_slot:   U256,
-        allowance_slot: U256,
-    },
-    UnableToSpoof,
-}
 
 pub struct ChainStoreCoreFields<T: SimulatedBidTrait> {
     pub bids:               RwLock<HashMap<PermissionKey, Vec<T>>>,
@@ -473,25 +465,6 @@ pub struct ChainStoreSvm {
     pub client:            RpcClient,
     pub config:            ConfigSvm,
     pub express_relay_svm: ExpressRelaySvm,
-}
-
-#[derive(Default)]
-pub struct OpportunityStore {
-    pub opportunities: RwLock<HashMap<PermissionKey, Vec<Opportunity>>>,
-}
-
-impl OpportunityStore {
-    pub async fn add_opportunity(&self, opportunity: Opportunity) {
-        let key = match &opportunity.params {
-            OpportunityParams::V1(params) => params.permission_key.clone(),
-        };
-        self.opportunities
-            .write()
-            .await
-            .entry(key)
-            .or_insert_with(Vec::new)
-            .push(opportunity);
-    }
 }
 
 pub type BidId = Uuid;
@@ -843,16 +816,15 @@ pub struct ExpressRelaySvm {
 }
 
 pub struct Store {
-    pub chains:            HashMap<ChainId, ChainStoreEvm>,
-    pub chains_svm:        HashMap<ChainId, ChainStoreSvm>,
-    pub event_sender:      broadcast::Sender<UpdateEvent>,
-    pub opportunity_store: OpportunityStore,
-    pub ws:                WsState,
-    pub db:                sqlx::PgPool,
-    pub task_tracker:      TaskTracker,
-    pub secret_key:        String,
-    pub access_tokens:     RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
-    pub metrics_recorder:  PrometheusHandle,
+    pub chains:           HashMap<ChainId, ChainStoreEvm>,
+    pub chains_svm:       HashMap<ChainId, ChainStoreSvm>,
+    pub event_sender:     broadcast::Sender<UpdateEvent>,
+    pub ws:               WsState,
+    pub db:               sqlx::PgPool,
+    pub task_tracker:     TaskTracker,
+    pub secret_key:       String,
+    pub access_tokens:    RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
+    pub metrics_recorder: PrometheusHandle,
 }
 
 #[derive(Clone)]

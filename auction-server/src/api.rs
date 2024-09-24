@@ -19,10 +19,7 @@ use {
             BidEvm,
             BidSvm,
         },
-        config::{
-            ChainId,
-            RunOptions,
-        },
+        config::RunOptions,
         models,
         opportunity::api::{
             get_opportunities,

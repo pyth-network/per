@@ -1,12 +1,9 @@
 use {
-    super::{
-        contracts::AdapterFactory,
-        repository::{
-            Cache,
-            CacheEvm,
-            CacheSvm,
-            Repository,
-        },
+    super::repository::{
+        Cache,
+        CacheEvm,
+        CacheSvm,
+        Repository,
     },
     crate::{
         kernel::{
@@ -20,8 +17,6 @@ use {
         providers::Provider,
         types::Address,
     },
-    solana_client::nonblocking::rpc_client::RpcClient,
-    solana_sdk::client,
     std::{
         collections::HashMap,
         sync::Arc,

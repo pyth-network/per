@@ -1,7 +1,6 @@
 use {
     super::{
         models,
-        Cache,
         CacheEvm,
         Repository,
     },
@@ -11,10 +10,7 @@ use {
             ChainId,
             PermissionKey,
         },
-        opportunity::entities::{
-            opportunity::OpportunityId,
-            opportunity_evm::OpportunityEvm,
-        },
+        opportunity::entities::opportunity_evm::OpportunityEvm,
     },
     sqlx::QueryBuilder,
     time::OffsetDateTime,

@@ -19,10 +19,7 @@ use {
         },
         models,
         opportunity::{
-            contracts::{
-                adapter_factory,
-                AdapterFactory,
-            },
+            contracts::AdapterFactory,
             service as opportunity_service,
             workers::run_verification_loop,
         },
@@ -32,7 +29,6 @@ use {
             ChainStoreEvm,
             ChainStoreSvm,
             ExpressRelaySvm,
-            OpportunityStore,
             SimulatedBidEvm,
             SimulatedBidSvm,
             Store,
@@ -338,7 +334,6 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         db: pool.clone(),
         chains,
         chains_svm,
-        opportunity_store: OpportunityStore::default(),
         event_sender: broadcast_sender.clone(),
         ws: ws::WsState {
             subscriber_counter: AtomicUsize::new(0),

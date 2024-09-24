@@ -3,20 +3,7 @@ use {
         CacheEvm,
         Repository,
     },
-    crate::{
-        kernel::entities::PermissionKey,
-        opportunity::{
-            entities::{
-                opportunity::{
-                    Opportunity,
-                    OpportunityId,
-                },
-                opportunity_evm::OpportunityEvm,
-                spoof_info::SpoofInfo,
-            },
-            token_spoof,
-        },
-    },
+    crate::opportunity::entities::spoof_info::SpoofInfo,
     ethers::types::Address,
 };
 

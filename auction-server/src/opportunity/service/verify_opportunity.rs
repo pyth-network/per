@@ -15,17 +15,12 @@ use {
         opportunity::{
             api::OpportunityBid,
             contracts::{
-                AdapterFactory,
                 ExecutionParams,
                 MulticallReturn,
             },
             entities::{
-                opportunity::Opportunity,
                 opportunity_evm::OpportunityEvm,
-                spoof_info::{
-                    SpoofInfo,
-                    SpoofState,
-                },
+                spoof_info::SpoofState,
             },
             token_spoof,
         },
