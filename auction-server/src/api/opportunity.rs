@@ -11,7 +11,6 @@ use {
         },
         config::ChainId,
         opportunity_adapter::{
-            handle_opportunity_bid,
             verify_opportunity,
             OpportunityBid,
         },
@@ -20,6 +19,7 @@ use {
             OpportunityId,
             OpportunityParams,
             Store,
+            StoreNew,
             UnixTimestampMicros,
         },
     },
@@ -90,11 +90,12 @@ impl From<Opportunity> for OpportunityParamsWithMetadata {
 (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn post_opportunity(
-    State(store): State<Arc<Store>>,
+    State(store): State<Arc<StoreNew>>,
     Json(versioned_params): Json<OpportunityParams>,
 ) -> Result<Json<OpportunityParamsWithMetadata>, RestError> {
     let OpportunityParams::V1(params) = versioned_params.clone();
     let chain_store = store
+        .store
         .chains
         .get(&params.chain_id)
         .ok_or(RestError::InvalidChainId)?;
@@ -107,7 +108,7 @@ pub async fn post_opportunity(
         params: versioned_params.clone(),
     };
 
-    verify_opportunity(params.clone(), chain_store)
+    verify_opportunity(params.clone(), chain_store, store.store.relayer.address())
         .await
         .map_err(|e| {
             tracing::warn!(
@@ -118,15 +119,16 @@ pub async fn post_opportunity(
             RestError::InvalidOpportunity(e.to_string())
         })?;
 
-    if store.opportunity_exists(&opportunity).await {
+    if store.store.opportunity_exists(&opportunity).await {
         tracing::warn!("Duplicate opportunity submission: {:?}", opportunity);
         return Err(RestError::BadParameters(
             "Duplicate opportunity submission".to_string(),
         ));
     }
-    store.add_opportunity(opportunity.clone()).await?;
+    store.store.add_opportunity(opportunity.clone()).await?;
 
     store
+        .store
         .ws
         .broadcast_sender
         .send(NewOpportunity(OpportunityParamsWithMetadata::from(
@@ -142,7 +144,7 @@ pub async fn post_opportunity(
         })?;
 
     {
-        let opportunities_map = &store.opportunity_store.opportunities.read().await;
+        let opportunities_map = &store.store.opportunity_store.opportunities.read().await;
         tracing::debug!("number of permission keys: {}", opportunities_map.len());
         tracing::debug!(
             "number of opportunities for key: {}",
@@ -167,12 +169,13 @@ pub async fn post_opportunity(
 ),
 params(GetOpportunitiesQueryParams))]
 pub async fn get_opportunities(
-    State(store): State<Arc<Store>>,
+    State(store): State<Arc<StoreNew>>,
     query_params: Query<GetOpportunitiesQueryParams>,
 ) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
     // make sure the chain id is valid
     if let Some(chain_id) = query_params.chain_id.clone() {
         store
+            .store
             .chains
             .get(&chain_id)
             .ok_or(RestError::InvalidChainId)?;
@@ -181,6 +184,7 @@ pub async fn get_opportunities(
     match query_params.mode.clone() {
         OpportunityMode::Live => {
             let opportunities: Vec<OpportunityParamsWithMetadata> = store
+                .store
                 .opportunity_store
                 .opportunities
                 .read()
@@ -209,6 +213,7 @@ pub async fn get_opportunities(
                 RestError::BadParameters("Chain id is required on historical mode".to_string())
             })?;
             let opps = store
+                .store
                 .get_opportunities_by_permission_key(
                     chain_id,
                     query_params.permission_key.clone(),
@@ -217,45 +222,5 @@ pub async fn get_opportunities(
                 .await?;
             Ok(opps.into())
         }
-    }
-}
-
-/// Bid on opportunity
-#[utoipa::path(post, path = "/v1/opportunities/{opportunity_id}/bids", request_body = OpportunityBid,
-params(("opportunity_id" = String, description = "Opportunity id to bid on")), responses(
-(status = 200, description = "Bid Result", body = BidResult, example = json ! ({"status": "OK"})),
-(status = 400, response = ErrorBodyResponse),
-(status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
-),)]
-pub async fn opportunity_bid(
-    auth: Auth,
-    State(store): State<Arc<Store>>,
-    Path(opportunity_id): Path<OpportunityId>,
-    Json(opportunity_bid): Json<OpportunityBid>,
-) -> Result<Json<BidResult>, RestError> {
-    process_opportunity_bid(store, opportunity_id, &opportunity_bid, auth).await
-}
-
-pub async fn process_opportunity_bid(
-    store: Arc<Store>,
-    opportunity_id: OpportunityId,
-    opportunity_bid: &OpportunityBid,
-    auth: Auth,
-) -> Result<Json<BidResult>, RestError> {
-    match handle_opportunity_bid(
-        store,
-        opportunity_id,
-        opportunity_bid,
-        OffsetDateTime::now_utc(),
-        auth,
-    )
-    .await
-    {
-        Ok(id) => Ok(BidResult {
-            status: "OK".to_string(),
-            id,
-        }
-        .into()),
-        Err(e) => Err(e),
     }
 }

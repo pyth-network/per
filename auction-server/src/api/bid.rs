@@ -15,6 +15,7 @@ use {
             BidStatus,
             SimulatedBid,
             Store,
+            StoreNew,
         },
     },
     axum::{
@@ -58,20 +59,36 @@ pub struct BidResult {
 ),)]
 pub async fn bid(
     auth: Auth,
-    State(store): State<Arc<Store>>,
+    State(store): State<Arc<StoreNew>>,
     Json(bid): Json<Bid>,
 ) -> Result<Json<BidResult>, RestError> {
     process_bid(store, bid, auth).await
 }
 
 pub async fn process_bid(
-    store: Arc<Store>,
+    store: Arc<StoreNew>,
     bid: Bid,
     auth: Auth,
 ) -> Result<Json<BidResult>, RestError> {
     let result = match bid {
-        Bid::Evm(bid_evm) => handle_bid(store, bid_evm, OffsetDateTime::now_utc(), auth).await,
-        Bid::Svm(bid_svm) => handle_bid_svm(store, bid_svm, OffsetDateTime::now_utc(), auth).await,
+        Bid::Evm(bid_evm) => {
+            handle_bid(
+                store.store.clone(),
+                bid_evm,
+                OffsetDateTime::now_utc(),
+                auth,
+            )
+            .await
+        }
+        Bid::Svm(bid_svm) => {
+            handle_bid_svm(
+                store.store.clone(),
+                bid_svm,
+                OffsetDateTime::now_utc(),
+                auth,
+            )
+            .await
+        }
     };
     match result {
         Ok(id) => Ok(BidResult {
@@ -92,12 +109,10 @@ pub async fn process_bid(
     (status = 404, description = "Bid was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn bid_status(
-    State(store): State<Arc<Store>>,
+    State(store): State<Arc<StoreNew>>,
     Path(bid_id): Path<BidId>,
 ) -> Result<Json<BidStatus>, RestError> {
-    let status_json = store.get_bid_status(bid_id).await?;
-
-    Ok(status_json)
+    store.store.get_bid_status(bid_id).await
 }
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
@@ -126,12 +141,13 @@ pub struct GetBidsByTimeQueryParams {
 )]
 pub async fn get_bids_by_time(
     auth: Auth,
-    State(store): State<Arc<Store>>,
+    State(store): State<Arc<StoreNew>>,
     query: Query<GetBidsByTimeQueryParams>,
 ) -> Result<Json<SimulatedBids>, RestError> {
     match auth {
         Auth::Authorized(_, profile) => {
             let bids = store
+                .store
                 .get_simulated_bids_by_time(profile.id, query.from_time)
                 .await?;
             Ok(Json(SimulatedBids { items: bids }))

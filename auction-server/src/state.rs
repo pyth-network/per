@@ -20,6 +20,7 @@ use {
             ConfigSvm,
         },
         models,
+        opportunity::service as opportunity_service,
         traced_client::TracedClient,
     },
     axum::Json,
@@ -855,6 +856,13 @@ pub struct Store {
     pub secret_key:        String,
     pub access_tokens:     RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
     pub metrics_recorder:  PrometheusHandle,
+}
+
+#[derive(Clone)]
+pub struct StoreNew {
+    pub opportunity_service_evm:
+        Arc<opportunity_service::Service<opportunity_service::ChainTypeEvm>>,
+    pub store:                   Arc<Store>,
 }
 
 impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {

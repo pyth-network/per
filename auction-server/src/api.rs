@@ -25,7 +25,10 @@ use {
             RunOptions,
         },
         models,
-        opportunity_adapter::OpportunityBid,
+        opportunity::api::{
+            opportunity_bid,
+            OpportunityBid,
+        },
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -41,6 +44,7 @@ use {
             SimulatedBidEvm,
             SimulatedBidSvm,
             Store,
+            StoreNew,
             TokenAmount,
         },
     },
@@ -180,7 +184,7 @@ impl RestError {
 
 #[derive(ToResponse, ToSchema, Serialize)]
 #[response(description = "An error occurred processing the request")]
-struct ErrorBodyResponse {
+pub struct ErrorBodyResponse {
     error: String,
 }
 
@@ -232,24 +236,24 @@ pub enum Auth {
 }
 
 #[async_trait]
-impl FromRequestParts<Arc<Store>> for Auth {
+impl FromRequestParts<Arc<StoreNew>> for Auth {
     type Rejection = RestError;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &Arc<Store>,
+        state: &Arc<StoreNew>,
     ) -> Result<Self, Self::Rejection> {
         match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
             Ok(token) => {
                 let state = Arc::from_ref(state);
                 let token: models::AccessTokenToken = token.token().to_string();
 
-                let is_admin = state.secret_key == token;
+                let is_admin = state.store.secret_key == token;
                 if is_admin {
                     return Ok(Auth::Admin);
                 }
 
-                match state.get_profile_by_token(&token).await {
+                match state.store.get_profile_by_token(&token).await {
                     Ok(profile) => Ok(Auth::Authorized(token, profile)),
                     Err(e) => Err(e),
                 }
@@ -303,7 +307,7 @@ macro_rules! login_required {
     };
 }
 
-pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
+pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
     #[openapi(
@@ -312,7 +316,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     bid::bid_status,
     bid::get_bids_by_time,
     opportunity::post_opportunity,
-    opportunity::opportunity_bid,
+    crate::opportunity::api::opportunity_bid,
     opportunity::get_opportunities,
     profile::delete_profile_access_token,
     ),
@@ -381,7 +385,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     let opportunity_routes = Router::new()
         .route("/", post(opportunity::post_opportunity))
         .route("/", get(opportunity::get_opportunities))
-        .route("/:opportunity_id/bids", post(opportunity::opportunity_bid));
+        .route("/:opportunity_id/bids", post(opportunity_bid));
+
     let profile_routes = Router::new()
         .route("/", admin_only!(store, post(profile::post_profile)))
         .route(
@@ -403,7 +408,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     );
 
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
-        .with_metrics_from_fn(|| store.metrics_recorder.clone())
+        .with_metrics_from_fn(|| store.store.metrics_recorder.clone())
         .with_endpoint_label_type(EndpointLabel::MatchedPathWithFallbackFn(|_| {
             "unknown".to_string()
         }))
@@ -415,9 +420,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .route("/", get(root))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
-        .layer(middleware::from_extractor_with_state::<Auth, Arc<Store>>(
-            store.clone(),
-        ))
+        .layer(middleware::from_extractor_with_state::<Auth, Arc<StoreNew>>(store.clone()))
         .layer(prometheus_layer)
         .with_state(store);
 

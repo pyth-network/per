@@ -18,6 +18,7 @@ use {
             RunOptions,
         },
         models,
+        opportunity::service as opportunity_service,
         opportunity_adapter::{
             get_adapter_bytecode_hash,
             get_permit2_address,
@@ -34,6 +35,7 @@ use {
             SimulatedBidEvm,
             SimulatedBidSvm,
             Store,
+            StoreNew,
         },
         traced_client::TracedClient,
     },
@@ -275,9 +277,26 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     }
     let task_tracker = TaskTracker::new();
 
+    let config_opportunity_service_evm: HashMap<ChainId, opportunity_service::ConfigEvm> = chains
+        .iter()
+        .map(|(chain_id, chain_store)| {
+            (
+                chain_id.clone(),
+                opportunity_service::ConfigEvm {
+                    adapter_factory_contract: chain_store.config.adapter_factory_contract,
+                    adapter_bytecode_hash:    chain_store.adapter_bytecode_hash,
+                    chain_id_num:             chain_store.chain_id_num,
+                    permit2:                  chain_store.permit2,
+                    provider:                 chain_store.provider.clone(),
+                    weth:                     chain_store.weth,
+                },
+            )
+        })
+        .collect();
+
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
-        db: pool,
+        db: pool.clone(),
         chains,
         chains_svm,
         opportunity_store: OpportunityStore::default(),
@@ -291,6 +310,16 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         secret_key: run_options.secret_key.clone(),
         access_tokens: RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
+    });
+
+    let store_new = Arc::new(StoreNew {
+        store:                   store.clone(),
+        opportunity_service_evm:
+            opportunity_service::Service::<opportunity_service::ChainTypeEvm>::new(
+                store.clone(),
+                pool.clone(),
+                config_opportunity_service_evm,
+            ),
     });
 
     tokio::join!(
@@ -326,7 +355,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         )),
         fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),
-            store.clone()
+            store_new.clone(),
         )),
         fault_tolerant_handler("start metrics".to_string(), || per_metrics::start_metrics(
             run_options.clone(),

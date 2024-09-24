@@ -6,7 +6,10 @@ use {
             RestError,
         },
         models::ProfileId,
-        state::Store,
+        state::{
+            Store,
+            StoreNew,
+        },
     },
     axum::{
         extract::State,
@@ -72,10 +75,10 @@ security(
 (status = 400, response = ErrorBodyResponse),
 ),)]
 pub async fn post_profile(
-    State(store): State<Arc<Store>>,
+    State(store): State<Arc<StoreNew>>,
     Json(params): Json<CreateProfile>,
 ) -> Result<Json<Profile>, RestError> {
-    let profile = store.create_profile(params.clone()).await?;
+    let profile = store.store.create_profile(params.clone()).await?;
     Ok(Json(Profile {
         id:    profile.id,
         name:  profile.name,
@@ -94,10 +97,13 @@ security(
 (status = 400, response = ErrorBodyResponse),
 ),)]
 pub async fn post_profile_access_token(
-    State(store): State<Arc<Store>>,
+    State(store): State<Arc<StoreNew>>,
     Json(params): Json<CreateAccessToken>,
 ) -> Result<Json<AccessToken>, RestError> {
-    let (access_token, _) = store.get_or_create_access_token(params.profile_id).await?;
+    let (access_token, _) = store
+        .store
+        .get_or_create_access_token(params.profile_id)
+        .await?;
     Ok(Json(AccessToken {
         token: access_token.token,
     }))
@@ -116,10 +122,10 @@ responses(
 ),)]
 pub async fn delete_profile_access_token(
     auth: Auth,
-    State(store): State<Arc<Store>>,
+    State(store): State<Arc<StoreNew>>,
 ) -> Result<(), RestError> {
     match auth {
-        Auth::Authorized(token, _) => store.revoke_access_token(&token).await,
+        Auth::Authorized(token, _) => store.store.revoke_access_token(&token).await,
         _ => Ok(()),
     }
 }

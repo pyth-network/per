@@ -30,7 +30,9 @@ use {
 mod api;
 mod auction;
 mod config;
+mod kernel;
 mod models;
+mod opportunity;
 mod opportunity_adapter;
 mod per_metrics;
 mod serde;
