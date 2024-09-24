@@ -31,7 +31,6 @@ use {
     },
     ethers::{
         providers::Provider,
-        signers::LocalWallet,
         types::{
             Address,
             Bytes,
