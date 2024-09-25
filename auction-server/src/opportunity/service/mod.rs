@@ -23,12 +23,15 @@ use {
     },
 };
 
+pub mod add_opportunity;
 pub mod get_config;
+pub mod get_opportunities;
 pub mod get_spoof_info;
 pub mod handle_opportunity_bid;
 pub mod make_adapter_calldata;
 pub mod make_opportunity_execution_params;
 pub mod make_permitted_tokens;
+pub mod remove_invalid_or_expired_opportunities;
 pub mod verify_opportunity;
 
 #[derive(Debug)]
@@ -70,10 +73,10 @@ impl ChainType for ChainTypeSvm {
 }
 
 pub struct Service<T: ChainType> {
-    store:    Arc<Store>,
-    pub db:   DB,
-    pub repo: Repository<T::Cache>,
-    config:   HashMap<ChainId, T::Config>,
+    store:  Arc<Store>,
+    db:     DB,
+    repo:   Repository<T::Cache>,
+    config: HashMap<ChainId, T::Config>,
 }
 
 impl<T: ChainType> Service<T> {

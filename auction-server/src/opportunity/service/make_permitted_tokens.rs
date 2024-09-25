@@ -8,14 +8,14 @@ use {
         opportunity::{
             api::OpportunityBid,
             contracts::TokenPermissions,
-            entities::opportunity_evm::OpportunityEvm,
+            entities,
         },
     },
     ethers::types::U256,
 };
 
 pub struct MakePermittedTokensInput {
-    pub opportunity:     OpportunityEvm,
+    pub opportunity:     entities::OpportunityEvm,
     pub opportunity_bid: OpportunityBid,
 }
 

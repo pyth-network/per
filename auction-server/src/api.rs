@@ -270,9 +270,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     bid::bid,
     bid::bid_status,
     bid::get_bids_by_time,
-    crate::opportunity::api::post_opportunity,
-    crate::opportunity::api::opportunity_bid,
-    crate::opportunity::api::get_opportunities,
+
+    opportunity_api::post_opportunity,
+    opportunity_api::opportunity_bid,
+    opportunity_api::get_opportunities,
+
     profile::delete_profile_access_token,
     ),
     components(
@@ -290,12 +292,14 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     SimulatedBidEvm,
     SimulatedBidSvm,
     SimulatedBids,
+
     opportunity_api::OpportunityParamsV1,
     opportunity_api::OpportunityBid,
     opportunity_api::OpportunityBidResult,
     opportunity_api::OpportunityMode,
     opportunity_api::OpportunityParams,
     opportunity_api::OpportunityParamsWithMetadata,
+
     TokenAmount,
     ErrorBodyResponse,
     ClientRequest,
@@ -338,13 +342,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         .route("/", post(bid::bid))
         .route("/", login_required!(store, get(bid::get_bids_by_time)))
         .route("/:bid_id", get(bid::bid_status));
-    let opportunity_routes = Router::new()
-        .route("/", post(opportunity_api::post_opportunity))
-        .route("/", get(opportunity_api::get_opportunities))
-        .route(
-            "/:opportunity_id/bids",
-            post(opportunity_api::opportunity_bid),
-        );
 
     let profile_routes = Router::new()
         .route("/", admin_only!(store, post(profile::post_profile)))
@@ -361,7 +358,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         "/v1",
         Router::new()
             .nest("/bids", bid_routes)
-            .nest("/opportunities", opportunity_routes)
+            .nest("/opportunities", opportunity_api::get_routes())
             .nest("/profiles", profile_routes)
             .route("/ws", get(ws::ws_route_handler)),
     );

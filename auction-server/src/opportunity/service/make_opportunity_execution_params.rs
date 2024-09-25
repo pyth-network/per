@@ -14,13 +14,13 @@ use {
                 PermitBatchTransferFrom,
                 TokenAmount,
             },
-            entities::opportunity_evm::OpportunityEvm,
+            entities,
         },
     },
 };
 
 pub struct MakeOpportunityExecutionParamsInput {
-    pub opportunity:     OpportunityEvm,
+    pub opportunity:     entities::OpportunityEvm,
     pub opportunity_bid: OpportunityBid,
 }
 

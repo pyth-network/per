@@ -18,10 +18,7 @@ use {
                 ExecutionParams,
                 MulticallReturn,
             },
-            entities::{
-                opportunity_evm::OpportunityEvm,
-                spoof_info::SpoofState,
-            },
+            entities,
             token_spoof,
         },
     },
@@ -55,12 +52,7 @@ use {
 };
 
 pub struct VerifyOpportunityInput {
-    pub opportunity: OpportunityEvm,
-}
-
-pub enum VerificationResult {
-    Success,
-    UnableToSpoof,
+    pub opportunity: entities::OpportunityEvm,
 }
 
 fn generate_random_u256() -> U256 {
@@ -137,7 +129,7 @@ impl Service<ChainTypeEvm> {
     pub async fn verify_opportunity(
         &self,
         input: VerifyOpportunityInput,
-    ) -> Result<VerificationResult, RestError> {
+    ) -> Result<entities::OpportunityVerificationResult, RestError> {
         let config = self.get_config(&input.opportunity.chain_id)?;
         let client = Arc::new(config.provider.clone());
         let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
@@ -231,8 +223,10 @@ impl Service<ChainTypeEvm> {
                 })
                 .await?;
             match spoof_info.state {
-                SpoofState::UnableToSpoof => return Ok(VerificationResult::UnableToSpoof),
-                SpoofState::Spoofed {
+                entities::SpoofState::UnableToSpoof => {
+                    return Ok(entities::OpportunityVerificationResult::UnableToSpoof)
+                }
+                entities::SpoofState::Spoofed {
                     balance_slot,
                     allowance_slot,
                 } => {
@@ -261,7 +255,7 @@ impl Service<ChainTypeEvm> {
             Ok(result) => match MulticallReturn::decode(&result) {
                 Ok(result) => {
                     if result.multicall_statuses[0].external_success {
-                        Ok(VerificationResult::Success)
+                        Ok(entities::OpportunityVerificationResult::Success)
                     } else {
                         tracing::info!(
                             "Opportunity simulation failed: {:?}",

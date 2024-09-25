@@ -10,7 +10,7 @@ use {
             ChainId,
             PermissionKey,
         },
-        opportunity::entities::opportunity_evm::OpportunityEvm,
+        opportunity::entities,
     },
     sqlx::QueryBuilder,
     time::OffsetDateTime,
@@ -23,7 +23,7 @@ impl Repository<CacheEvm> {
         chain_id: ChainId,
         permission_key: Option<PermissionKey>,
         from_time: Option<OffsetDateTime>,
-    ) -> Result<Vec<OpportunityEvm>, RestError> {
+    ) -> Result<Vec<entities::OpportunityEvm>, RestError> {
         let mut query = QueryBuilder::new("SELECT * from opportunity where chain_id = ");
         query.push_bind(chain_id.clone());
         if let Some(permission_key) = permission_key.clone() {
@@ -49,7 +49,7 @@ impl Repository<CacheEvm> {
                 );
                 RestError::TemporarilyUnavailable
             })?;
-        let parsed_opps: anyhow::Result<Vec<OpportunityEvm>> =
+        let parsed_opps: anyhow::Result<Vec<entities::OpportunityEvm>> =
             opps.into_iter().map(|opp| opp.try_into()).collect();
         parsed_opps.map_err(|e| {
             tracing::error!(

@@ -1,6 +1,7 @@
 use {
     super::token_amount::TokenAmount,
     crate::{
+        api::RestError,
         kernel::entities::ChainId,
         state::UnixTimestampMicros,
     },
@@ -25,4 +26,16 @@ pub trait Opportunity:
     Clone + Deref<Target = OpportunityCoreFields<<Self as Opportunity>::TokenAmount>> + PartialEq
 {
     type TokenAmount: TokenAmount;
+}
+
+#[derive(Debug)]
+pub enum OpportunityRemovalReason {
+    Expired,
+    // TODO use internal errors instead of RestError
+    Invalid(RestError),
+}
+
+pub enum OpportunityVerificationResult {
+    Success,
+    UnableToSpoof,
 }

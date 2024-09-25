@@ -1,7 +1,8 @@
-pub mod api;
-pub mod contracts;
 mod entities;
 mod repository;
-pub mod service;
 mod token_spoof;
+
+pub mod api;
+pub mod contracts;
+pub mod service;
 pub mod workers;

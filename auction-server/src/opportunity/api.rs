@@ -1,18 +1,14 @@
 use {
     super::{
-        entities::{
-            opportunity::OpportunityCoreFields,
-            opportunity_evm::OpportunityEvm,
-            token_amount_evm::TokenAmountEvm,
-        },
+        entities,
         service::{
+            add_opportunity::AddOpportunityInput,
+            get_opportunities::GetOpportunitiesInput,
             handle_opportunity_bid::HandleOpportunityBidInput,
-            verify_opportunity::VerifyOpportunityInput,
         },
     },
     crate::{
         api::{
-            ws::UpdateEvent::NewOpportunity,
             Auth,
             ErrorBodyResponse,
             RestError,
@@ -33,7 +29,12 @@ use {
             Query,
             State,
         },
+        routing::{
+            get,
+            post,
+        },
         Json,
+        Router,
     },
     ethers::types::{
         Address,
@@ -137,8 +138,8 @@ impl OpportunityParamsWithMetadata {
     }
 }
 
-impl From<TokenAmountEvm> for TokenAmount {
-    fn from(val: TokenAmountEvm) -> Self {
+impl From<entities::TokenAmountEvm> for TokenAmount {
+    fn from(val: entities::TokenAmountEvm) -> Self {
         TokenAmount {
             token:  val.token,
             amount: val.amount,
@@ -146,8 +147,8 @@ impl From<TokenAmountEvm> for TokenAmount {
     }
 }
 
-impl From<OpportunityEvm> for OpportunityParamsWithMetadata {
-    fn from(val: OpportunityEvm) -> Self {
+impl From<entities::OpportunityEvm> for OpportunityParamsWithMetadata {
+    fn from(val: entities::OpportunityEvm) -> Self {
         OpportunityParamsWithMetadata {
             opportunity_id: val.id,
             creation_time:  val.creation_time,
@@ -174,21 +175,21 @@ impl From<OpportunityEvm> for OpportunityParamsWithMetadata {
     }
 }
 
-impl From<TokenAmount> for TokenAmountEvm {
+impl From<TokenAmount> for entities::TokenAmountEvm {
     fn from(val: TokenAmount) -> Self {
-        TokenAmountEvm {
+        entities::TokenAmountEvm {
             token:  val.token,
             amount: val.amount,
         }
     }
 }
 
-impl From<OpportunityParamsV1> for OpportunityEvm {
+impl From<OpportunityParamsV1> for entities::OpportunityEvm {
     fn from(val: OpportunityParamsV1) -> Self {
         let id = Uuid::new_v4();
         let now_odt = OffsetDateTime::now_utc();
-        OpportunityEvm {
-            core_fields:       OpportunityCoreFields::<TokenAmountEvm> {
+        entities::OpportunityEvm {
+            core_fields:       entities::OpportunityCoreFields::<entities::TokenAmountEvm> {
                 id,
                 permission_key: val.permission_key.clone(),
                 chain_id: val.chain_id.clone(),
@@ -287,62 +288,14 @@ pub async fn post_opportunity(
     Json(versioned_params): Json<OpportunityParams>,
 ) -> Result<Json<OpportunityParamsWithMetadata>, RestError> {
     let OpportunityParams::V1(params) = versioned_params.clone();
-    let opportunity: OpportunityEvm = params.into();
-    let service = store.opportunity_service_evm.clone();
-    service
-        .verify_opportunity(VerifyOpportunityInput {
-            opportunity: opportunity.clone(),
+    // TODO Need a new entity for CreateOpportunity
+    let opportunity = store
+        .opportunity_service_evm
+        .add_opportunity(AddOpportunityInput {
+            opportunity: params.into(),
         })
-        .await
-        .map_err(|e| {
-            tracing::warn!(
-                "Failed to verify opportunity: {:?} - params: {:?}",
-                e,
-                versioned_params
-            );
-            e
-        })?;
-
-    if service.repo.opportunity_exists(&opportunity).await {
-        tracing::warn!("Duplicate opportunity submission: {:?}", opportunity);
-        return Err(RestError::BadParameters(
-            "Duplicate opportunity submission".to_string(),
-        ));
-    }
-    service
-        .repo
-        .add_opportunity(&service.db, opportunity.clone())
         .await?;
-
-    store
-        .store
-        .ws
-        .broadcast_sender
-        .send(NewOpportunity(OpportunityParamsWithMetadata::from(
-            opportunity.clone(),
-        )))
-        .map_err(|e| {
-            tracing::error!(
-                "Failed to send update: {} - opportunity: {:?}",
-                e,
-                opportunity
-            );
-            RestError::TemporarilyUnavailable
-        })?;
-
-    {
-        let opportunities_map = &service.repo.get_opportunities().await;
-        tracing::debug!("number of permission keys: {}", opportunities_map.len());
-        tracing::debug!(
-            "number of opportunities for key: {}",
-            opportunities_map
-                .get(&opportunity.permission_key)
-                .map_or(0, |opps| opps.len())
-        );
-    }
-
     let opportunity_with_metadata: OpportunityParamsWithMetadata = opportunity.into();
-
     Ok(opportunity_with_metadata.into())
 }
 
@@ -388,53 +341,18 @@ pub async fn get_opportunities(
     State(store): State<Arc<StoreNew>>,
     query_params: Query<GetOpportunitiesQueryParams>,
 ) -> Result<axum::Json<Vec<OpportunityParamsWithMetadata>>, RestError> {
-    // make sure the chain id is valid
-    let service = store.opportunity_service_evm.clone();
-    if let Some(chain_id) = query_params.chain_id.clone() {
-        service.get_config(&chain_id)?;
-    }
+    let opportunities = store
+        .opportunity_service_evm
+        .get_opportunities(GetOpportunitiesInput {
+            query_params: query_params.0,
+        })
+        .await?;
+    Ok(Json(opportunities.into_iter().map(|o| o.into()).collect()))
+}
 
-    match query_params.mode.clone() {
-        OpportunityMode::Live => {
-            let opportunities: Vec<OpportunityParamsWithMetadata> = service
-                .repo
-                .get_opportunities()
-                .await
-                .iter()
-                .map(|(_key, opportunities)| {
-                    let opportunity = opportunities
-                        .last()
-                        .expect("A permission key vector should have at least one opportunity");
-                    OpportunityParamsWithMetadata::from(opportunity.clone())
-                })
-                .filter(|params_with_id: &OpportunityParamsWithMetadata| {
-                    let OpportunityParams::V1(params) = &params_with_id.params;
-                    if let Some(chain_id) = &query_params.chain_id {
-                        params.chain_id == *chain_id
-                    } else {
-                        true
-                    }
-                })
-                .collect();
-
-            Ok(opportunities.into())
-        }
-        OpportunityMode::Historical => {
-            let chain_id = query_params.chain_id.clone().ok_or_else(|| {
-                RestError::BadParameters("Chain id is required on historical mode".to_string())
-            })?;
-            let opps = service
-                .repo
-                .get_opportunities_by_permission_key(
-                    &service.db,
-                    chain_id,
-                    query_params.permission_key.clone(),
-                    query_params.from_time,
-                )
-                .await?;
-            let opps: Vec<OpportunityParamsWithMetadata> =
-                opps.into_iter().map(|opp| opp.into()).collect();
-            Ok(opps.into())
-        }
-    }
+pub fn get_routes() -> Router<Arc<StoreNew>> {
+    Router::new()
+        .route("/", post(post_opportunity))
+        .route("/", get(get_opportunities))
+        .route("/:opportunity_id/bids", post(opportunity_bid))
 }

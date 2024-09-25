@@ -5,14 +5,14 @@ use {
     },
     crate::{
         kernel::entities::PermissionKey,
-        opportunity::entities::opportunity::OpportunityId,
+        opportunity::entities,
     },
 };
 
 impl<T: Cache> Repository<T> {
     pub async fn get_opportunities_by_permission_key_and_id(
         &self,
-        id: OpportunityId,
+        id: entities::OpportunityId,
         permission_key: &PermissionKey,
     ) -> Option<T::Opportunity> {
         let opportunities = self.cache.opportunities.read().await;

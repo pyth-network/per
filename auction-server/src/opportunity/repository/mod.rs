@@ -1,10 +1,5 @@
 use {
-    super::entities::{
-        opportunity::Opportunity,
-        opportunity_evm::OpportunityEvm,
-        opportunity_svm::OpportunitySvm,
-        spoof_info::SpoofState,
-    },
+    super::entities,
     crate::kernel::entities::PermissionKey,
     ethers::types::Address,
     std::{
@@ -20,7 +15,7 @@ mod get_opportunities;
 mod get_opportunities_by_permission_key;
 mod get_opportunities_by_permission_key_and_id;
 mod get_spoof_info;
-pub mod models;
+mod models;
 mod opportunity_exists;
 mod remove_opportunity;
 
@@ -30,16 +25,16 @@ pub struct Repository<T: Cache> {
 }
 
 pub trait Cache: Deref<Target = CacheCoreFields<Self::Opportunity>> {
-    type Opportunity: Opportunity;
+    type Opportunity: entities::Opportunity;
 
     fn new() -> Self;
 }
 
-pub struct CacheCoreFields<T: Opportunity> {
+pub struct CacheCoreFields<T: entities::Opportunity> {
     pub opportunities: RwLock<HashMap<PermissionKey, Vec<T>>>,
 }
 
-impl<T: Opportunity> CacheCoreFields<T> {
+impl<T: entities::Opportunity> CacheCoreFields<T> {
     pub fn new() -> Self {
         Self {
             opportunities: RwLock::new(HashMap::new()),
@@ -48,15 +43,15 @@ impl<T: Opportunity> CacheCoreFields<T> {
 }
 
 pub struct CacheEvm {
-    pub core_fields: CacheCoreFields<OpportunityEvm>,
-    pub spoof_info:  RwLock<HashMap<Address, SpoofState>>,
+    pub core_fields: CacheCoreFields<entities::OpportunityEvm>,
+    pub spoof_info:  RwLock<HashMap<Address, entities::SpoofState>>,
 }
 pub struct CacheSvm {
-    pub core_fields: CacheCoreFields<OpportunitySvm>,
+    pub core_fields: CacheCoreFields<entities::OpportunitySvm>,
 }
 
 impl Cache for CacheEvm {
-    type Opportunity = OpportunityEvm;
+    type Opportunity = entities::OpportunityEvm;
 
     fn new() -> Self {
         Self {
@@ -67,7 +62,7 @@ impl Cache for CacheEvm {
 }
 
 impl Cache for CacheSvm {
-    type Opportunity = OpportunitySvm;
+    type Opportunity = entities::OpportunitySvm;
 
     fn new() -> Self {
         Self {
@@ -77,7 +72,7 @@ impl Cache for CacheSvm {
 }
 
 impl Deref for CacheEvm {
-    type Target = CacheCoreFields<OpportunityEvm>;
+    type Target = CacheCoreFields<entities::OpportunityEvm>;
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields
@@ -85,7 +80,7 @@ impl Deref for CacheEvm {
 }
 
 impl Deref for CacheSvm {
-    type Target = CacheCoreFields<OpportunitySvm>;
+    type Target = CacheCoreFields<entities::OpportunitySvm>;
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields

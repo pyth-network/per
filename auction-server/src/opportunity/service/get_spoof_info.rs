@@ -7,10 +7,7 @@ use {
         api::RestError,
         kernel::entities::ChainId,
         opportunity::{
-            entities::spoof_info::{
-                SpoofInfo,
-                SpoofState,
-            },
+            entities,
             token_spoof::find_spoof_info,
         },
     },
@@ -27,7 +24,10 @@ impl Service<ChainTypeEvm> {
     /// Find the spoof info for an ERC20 token. This includes the balance slot and the allowance slot
     /// Returns an error if no balance or allowance slot is found
     #[tracing::instrument(skip_all, fields(token=%input.token))]
-    pub async fn get_spoof_info(&self, input: GetSpoofInfoInput) -> Result<SpoofInfo, RestError> {
+    pub async fn get_spoof_info(
+        &self,
+        input: GetSpoofInfoInput,
+    ) -> Result<entities::SpoofInfo, RestError> {
         let config = self.get_config(&input.chain_id)?;
         match self.repo.get_spoof_info(input.token).await {
             Some(info) => Ok(info),
@@ -36,9 +36,9 @@ impl Service<ChainTypeEvm> {
                     .await
                     .unwrap_or_else(|e| {
                         tracing::error!("Error finding spoof info: {:?}", e);
-                        SpoofInfo {
+                        entities::SpoofInfo {
                             token: input.token,
-                            state: SpoofState::UnableToSpoof,
+                            state: entities::SpoofState::UnableToSpoof,
                         }
                     });
 

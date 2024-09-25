@@ -9,7 +9,7 @@ use {
         opportunity::{
             api::OpportunityBid,
             contracts::OpportunityAdapter,
-            entities::opportunity_evm::OpportunityEvm,
+            entities,
         },
     },
     ethers::types::Bytes,
@@ -17,7 +17,7 @@ use {
 };
 
 pub struct MakeAdapterCalldataInput {
-    pub opportunity:     OpportunityEvm,
+    pub opportunity:     entities::OpportunityEvm,
     pub opportunity_bid: OpportunityBid,
 }
 

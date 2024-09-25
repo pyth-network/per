@@ -5,7 +5,7 @@ use {
     },
     crate::{
         api::RestError,
-        opportunity::entities::opportunity_evm::OpportunityEvm,
+        opportunity::entities,
     },
     sqlx::{
         types::BigDecimal,
@@ -22,7 +22,7 @@ impl Repository<CacheEvm> {
     pub async fn add_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
-        opportunity: OpportunityEvm,
+        opportunity: entities::OpportunityEvm,
     ) -> Result<(), RestError> {
         let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
             .expect("creation_time is valid");

@@ -3,11 +3,11 @@ use {
         CacheEvm,
         Repository,
     },
-    crate::opportunity::entities::spoof_info::SpoofInfo,
+    crate::opportunity::entities,
 };
 
 impl Repository<CacheEvm> {
-    pub async fn add_spoof_info(&self, spoof_info: SpoofInfo) {
+    pub async fn add_spoof_info(&self, spoof_info: entities::SpoofInfo) {
         self.cache
             .spoof_info
             .write()

@@ -1,10 +1,7 @@
 use {
     crate::{
         kernel::entities::PermissionKey,
-        opportunity::entities::{
-            opportunity::OpportunityCoreFields,
-            opportunity_evm::OpportunityEvm,
-        },
+        opportunity::entities,
     },
     ethers::types::Bytes,
     sqlx::{
@@ -40,12 +37,12 @@ pub struct Opportunity {
     pub removal_reason:    Option<OpportunityRemovalReason>,
 }
 
-impl TryFrom<Opportunity> for OpportunityEvm {
+impl TryFrom<Opportunity> for entities::OpportunityEvm {
     type Error = anyhow::Error;
 
     fn try_from(val: Opportunity) -> Result<Self, Self::Error> {
-        Ok(OpportunityEvm {
-            core_fields:       OpportunityCoreFields {
+        Ok(entities::OpportunityEvm {
+            core_fields:       entities::OpportunityCoreFields {
                 id:             val.id,
                 creation_time:  val.creation_time.assume_utc().unix_timestamp_nanos(),
                 permission_key: PermissionKey::from(val.permission_key.clone()),
@@ -59,5 +56,14 @@ impl TryFrom<Opportunity> for OpportunityEvm {
             target_call_value: val.target_call_value.to_string().parse().unwrap(),
             target_calldata:   Bytes::from(val.target_calldata),
         })
+    }
+}
+
+impl From<entities::OpportunityRemovalReason> for OpportunityRemovalReason {
+    fn from(reason: entities::OpportunityRemovalReason) -> Self {
+        match reason {
+            entities::OpportunityRemovalReason::Expired => OpportunityRemovalReason::Expired,
+            entities::OpportunityRemovalReason::Invalid(_) => OpportunityRemovalReason::Invalid,
+        }
     }
 }
