@@ -56,7 +56,7 @@ impl Service<ChainTypeEvm> {
     pub async fn handle_opportunity_bid(
         &self,
         input: HandleOpportunityBidInput,
-    ) -> anyhow::Result<Uuid, RestError> {
+    ) -> Result<Uuid, RestError> {
         let opportunity = self
             .repo
             .get_opportunities_by_permission_key_and_id(

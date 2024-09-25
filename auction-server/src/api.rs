@@ -21,15 +21,7 @@ use {
         },
         config::RunOptions,
         models,
-        opportunity::api::{
-            get_opportunities,
-            opportunity_bid,
-            post_opportunity,
-            OpportunityBid,
-            OpportunityBidResult,
-            OpportunityMode,
-            OpportunityParamsWithMetadata,
-        },
+        opportunity::api as opportunity_api,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -39,8 +31,6 @@ use {
             BidStatusEvm,
             BidStatusSvm,
             BidStatusWithId,
-            OpportunityParams,
-            OpportunityParamsV1,
             SimulatedBid,
             SimulatedBidEvm,
             SimulatedBidSvm,
@@ -300,12 +290,12 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     SimulatedBidEvm,
     SimulatedBidSvm,
     SimulatedBids,
-    OpportunityParamsV1,
-    OpportunityBid,
-    OpportunityBidResult,
-    OpportunityMode,
-    OpportunityParams,
-    OpportunityParamsWithMetadata,
+    opportunity_api::OpportunityParamsV1,
+    opportunity_api::OpportunityBid,
+    opportunity_api::OpportunityBidResult,
+    opportunity_api::OpportunityMode,
+    opportunity_api::OpportunityParams,
+    opportunity_api::OpportunityParamsWithMetadata,
     TokenAmount,
     ErrorBodyResponse,
     ClientRequest,
@@ -316,7 +306,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     ),
     responses(
     ErrorBodyResponse,
-    OpportunityParamsWithMetadata,
+    opportunity_api::OpportunityParamsWithMetadata,
     BidResult,
     SimulatedBids,
     ),
@@ -349,9 +339,12 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         .route("/", login_required!(store, get(bid::get_bids_by_time)))
         .route("/:bid_id", get(bid::bid_status));
     let opportunity_routes = Router::new()
-        .route("/", post(post_opportunity))
-        .route("/", get(get_opportunities))
-        .route("/:opportunity_id/bids", post(opportunity_bid));
+        .route("/", post(opportunity_api::post_opportunity))
+        .route("/", get(opportunity_api::get_opportunities))
+        .route(
+            "/:opportunity_id/bids",
+            post(opportunity_api::opportunity_bid),
+        );
 
     let profile_routes = Router::new()
         .route("/", admin_only!(store, post(profile::post_profile)))

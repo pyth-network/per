@@ -10,6 +10,7 @@ use {
         opportunity::{
             api::{
                 OpportunityBid,
+                OpportunityId,
                 OpportunityParamsWithMetadata,
             },
             service::handle_opportunity_bid::HandleOpportunityBidInput,
@@ -21,7 +22,6 @@ use {
         state::{
             BidId,
             BidStatusWithId,
-            OpportunityId,
             StoreNew,
         },
     },

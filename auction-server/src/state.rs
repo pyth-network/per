@@ -394,50 +394,7 @@ pub struct TokenAmount {
     pub amount: U256,
 }
 
-/// Opportunity parameters needed for on-chain execution
-/// If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
-/// by calling this target contract with the given target calldata and structures, they will
-/// send the tokens specified in the sell_tokens field and receive the tokens specified in the buy_tokens field.
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct OpportunityParamsV1 {
-    /// The permission key required for successful execution of the opportunity.
-    #[schema(example = "0xdeadbeefcafe", value_type = String)]
-    pub permission_key:    Bytes,
-    /// The chain id where the opportunity will be executed.
-    #[schema(example = "op_sepolia", value_type = String)]
-    pub chain_id:          ChainId,
-    /// The contract address to call for execution of the opportunity.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub target_contract:   ethers::abi::Address,
-    /// Calldata for the target contract call.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub target_calldata:   Bytes,
-    /// The value to send with the contract call.
-    #[schema(example = "1", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub target_call_value: U256,
-
-    pub sell_tokens: Vec<TokenAmount>,
-    pub buy_tokens:  Vec<TokenAmount>,
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(tag = "version")]
-pub enum OpportunityParams {
-    #[serde(rename = "v1")]
-    V1(OpportunityParamsV1),
-}
-
-pub type OpportunityId = Uuid;
 pub type AuctionLock = Arc<Mutex<()>>;
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct Opportunity {
-    pub id:            OpportunityId,
-    pub creation_time: UnixTimestampMicros,
-    pub params:        OpportunityParams,
-}
-
 
 pub struct ChainStoreCoreFields<T: SimulatedBidTrait> {
     pub bids:               RwLock<HashMap<PermissionKey, Vec<T>>>,
@@ -451,10 +408,6 @@ pub struct ChainStoreEvm {
     pub network_id:             u64,
     // TODO move this to core fields
     pub config:                 ConfigEvm,
-    // pub permit2:                Address,
-    // pub adapter_bytecode_hash:  [u8; 32],
-    // pub weth:                   Address,
-    // pub token_spoof_info:       RwLock<HashMap<Address, SpoofInfo>>,
     pub express_relay_contract: Arc<SignableExpressRelayContract>,
     pub block_gas_limit:        U256,
 }
@@ -827,7 +780,6 @@ pub struct Store {
     pub metrics_recorder: PrometheusHandle,
 }
 
-#[derive(Clone)]
 pub struct StoreNew {
     pub opportunity_service_evm:
         Arc<opportunity_service::Service<opportunity_service::ChainTypeEvm>>,

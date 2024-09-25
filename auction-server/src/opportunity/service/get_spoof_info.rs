@@ -26,10 +26,6 @@ pub struct GetSpoofInfoInput {
 impl Service<ChainTypeEvm> {
     /// Find the spoof info for an ERC20 token. This includes the balance slot and the allowance slot
     /// Returns an error if no balance or allowance slot is found
-    /// # Arguments
-    ///
-    /// * `token`: ERC20 token address
-    /// * `client`: Client to interact with the blockchain
     #[tracing::instrument(skip_all, fields(token=%input.token))]
     pub async fn get_spoof_info(&self, input: GetSpoofInfoInput) -> Result<SpoofInfo, RestError> {
         let config = self.get_config(&input.chain_id)?;
