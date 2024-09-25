@@ -60,6 +60,7 @@ pub type OpportunityId = Uuid;
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
 pub struct OpportunityBidResult {
+    #[schema(example = "OK", value_type=String)]
     pub status: String,
     /// The unique id created to identify the bid. This id can be used to query the status of the bid.
     #[schema(example = "beedbeed-58cc-4372-a567-0e02b2c3d479", value_type=String)]
