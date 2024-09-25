@@ -1,11 +1,11 @@
 use super::{
-    Cache,
+    InMemoryStore,
     Repository,
 };
 
-impl<T: Cache> Repository<T> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn opportunity_exists(&self, opportunity: &T::Opportunity) -> bool {
-        self.cache
+        self.in_memory_store
             .opportunities
             .read()
             .await

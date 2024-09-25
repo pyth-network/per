@@ -1,6 +1,6 @@
 use {
     super::{
-        CacheEvm,
+        InMemoryStoreEvm,
         Repository,
     },
     crate::{
@@ -18,7 +18,7 @@ use {
     },
 };
 
-impl Repository<CacheEvm> {
+impl Repository<InMemoryStoreEvm> {
     pub async fn add_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
@@ -51,7 +51,7 @@ impl Repository<CacheEvm> {
                 RestError::TemporarilyUnavailable
             })?;
 
-        self.cache
+        self.in_memory_store
             .opportunities
             .write()
             .await

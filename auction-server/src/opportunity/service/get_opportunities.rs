@@ -30,28 +30,25 @@ impl Service<ChainTypeEvm> {
         }
 
         match query_params.mode.clone() {
-            OpportunityMode::Live => {
-                Ok(self
-                    .repo
-                    .get_opportunities()
-                    .await
-                    .iter()
-                    .map(|(_key, opportunities)| {
-                        let opportunity = opportunities
-                            .last()
-                            .expect("A permission key vector should have at least one opportunity");
-                        opportunity.clone()
-                    })
-                    .filter(|opportunity| {
-                        // let OpportunityParams::V1(params) = &params_with_id.params;
-                        if let Some(chain_id) = &query_params.chain_id {
-                            opportunity.chain_id == *chain_id
-                        } else {
-                            true
-                        }
-                    })
-                    .collect())
-            }
+            OpportunityMode::Live => Ok(self
+                .repo
+                .get_opportunities()
+                .await
+                .iter()
+                .map(|(_key, opportunities)| {
+                    let opportunity = opportunities
+                        .last()
+                        .expect("A permission key vector should have at least one opportunity");
+                    opportunity.clone()
+                })
+                .filter(|opportunity| {
+                    if let Some(chain_id) = &query_params.chain_id {
+                        opportunity.chain_id == *chain_id
+                    } else {
+                        true
+                    }
+                })
+                .collect()),
             OpportunityMode::Historical => {
                 let chain_id = query_params.chain_id.clone().ok_or_else(|| {
                     RestError::BadParameters("Chain id is required on historical mode".to_string())

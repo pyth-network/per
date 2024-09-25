@@ -1,7 +1,7 @@
 use {
     super::{
         models,
-        CacheEvm,
+        InMemoryStoreEvm,
         Repository,
     },
     crate::{
@@ -16,7 +16,7 @@ use {
     time::OffsetDateTime,
 };
 
-impl Repository<CacheEvm> {
+impl Repository<InMemoryStoreEvm> {
     pub async fn get_opportunities_by_permission_key(
         &self,
         db: &sqlx::Pool<sqlx::Postgres>,

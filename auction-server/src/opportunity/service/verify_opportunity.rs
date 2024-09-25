@@ -126,7 +126,7 @@ impl Service<ChainTypeEvm> {
     /// Returns Ok(VerificationResult) if the simulation is successful or if the tokens cannot be spoofed
     /// Returns Err if the simulation fails despite spoofing or if any other error occurs
     #[tracing::instrument(skip_all)]
-    pub async fn verify_opportunity(
+    pub(super) async fn verify_opportunity(
         &self,
         input: VerifyOpportunityInput,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {

@@ -1,15 +1,21 @@
 use {
     super::{
-        CacheEvm,
+        InMemoryStoreEvm,
         Repository,
     },
     crate::opportunity::entities,
     ethers::types::Address,
 };
 
-impl Repository<CacheEvm> {
+impl Repository<InMemoryStoreEvm> {
     pub async fn get_spoof_info(&self, token: Address) -> Option<entities::SpoofInfo> {
-        let state = self.cache.spoof_info.read().await.get(&token).cloned();
+        let state = self
+            .in_memory_store
+            .spoof_info
+            .read()
+            .await
+            .get(&token)
+            .cloned();
         state.map(|state| entities::SpoofInfo { token, state })
     }
 }

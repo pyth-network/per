@@ -19,7 +19,6 @@ use {
         },
         models,
         opportunity::{
-            contracts::AdapterFactory,
             service as opportunity_service,
             workers::run_verification_loop,
         },
@@ -55,16 +54,10 @@ use {
             Signer,
             Wallet,
         },
-        types::{
-            Address,
-            BlockNumber,
-        },
+        types::BlockNumber,
     },
     futures::{
-        future::{
-            join_all,
-            try_join_all,
-        },
+        future::join_all,
         Future,
     },
     solana_client::nonblocking::rpc_client::RpcClient,
@@ -212,43 +205,6 @@ async fn setup_chain_store(
     .collect()
 }
 
-
-pub async fn get_weth_address(
-    adapter_contract: Address,
-    provider: Provider<TracedClient>,
-) -> anyhow::Result<Address> {
-    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
-    adapter
-        .get_weth()
-        .call()
-        .await
-        .map_err(|e| anyhow::anyhow!("Error getting WETH address from adapter: {:?}", e))
-}
-
-pub async fn get_adapter_bytecode_hash(
-    adapter_contract: Address,
-    provider: Provider<TracedClient>,
-) -> anyhow::Result<[u8; 32]> {
-    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
-    adapter
-        .get_opportunity_adapter_creation_code_hash()
-        .call()
-        .await
-        .map_err(|e| anyhow::anyhow!("Error getting adapter code hash from adapter: {:?}", e))
-}
-
-pub async fn get_permit2_address(
-    adapter_contract: Address,
-    provider: Provider<TracedClient>,
-) -> anyhow::Result<Address> {
-    let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
-    adapter
-        .get_permit_2()
-        .call()
-        .await
-        .map_err(|e| anyhow::anyhow!("Error getting permit2 address from adapter: {:?}", e))
-}
-
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     tokio::spawn(async move {
@@ -297,38 +253,8 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     }
     let task_tracker = TaskTracker::new();
 
-    let config_opportunity_service_evm = chains.iter().map(|(chain_id, chain_store)| {
-        let chain_id_cloned = chain_id.clone();
-        let adapter_factory_contract = chain_store.config.adapter_factory_contract;
-        let provider_cloned = chain_store.provider.clone();
-
-        async move {
-            let adapter_bytecode_hash =
-                get_adapter_bytecode_hash(adapter_factory_contract, provider_cloned.clone())
-                    .await?;
-            let permit2 =
-                get_permit2_address(adapter_factory_contract, provider_cloned.clone()).await?;
-            let weth = get_weth_address(adapter_factory_contract, provider_cloned.clone()).await?;
-
-            Ok::<(ChainId, opportunity_service::ConfigEvm), anyhow::Error>((
-                chain_id_cloned,
-                opportunity_service::ConfigEvm {
-                    adapter_factory_contract,
-                    adapter_bytecode_hash,
-                    chain_id_num: chain_store.network_id,
-                    permit2,
-                    provider: provider_cloned,
-                    weth,
-                },
-            ))
-        }
-    });
-    let config_opportunity_service_evm: HashMap<ChainId, opportunity_service::ConfigEvm> =
-        try_join_all(config_opportunity_service_evm)
-            .await?
-            .into_iter()
-            .collect();
-
+    let config_opportunity_service_evm =
+        opportunity_service::ConfigEvm::from_chains(&chains).await?;
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
         db: pool.clone(),
@@ -348,12 +274,13 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let store_new = Arc::new(StoreNew {
         store:                   store.clone(),
-        opportunity_service_evm:
-            opportunity_service::Service::<opportunity_service::ChainTypeEvm>::new(
-                store.clone(),
-                pool.clone(),
-                config_opportunity_service_evm,
-            ),
+        opportunity_service_evm: Arc::new(opportunity_service::Service::<
+            opportunity_service::ChainTypeEvm,
+        >::new(
+            store.clone(),
+            pool.clone(),
+            config_opportunity_service_evm,
+        )),
     });
 
     tokio::join!(

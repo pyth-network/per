@@ -1,6 +1,6 @@
 use {
     super::{
-        Cache,
+        InMemoryStore,
         Repository,
     },
     crate::{
@@ -9,13 +9,13 @@ use {
     },
 };
 
-impl<T: Cache> Repository<T> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn get_opportunities_by_permission_key_and_id(
         &self,
         id: entities::OpportunityId,
         permission_key: &PermissionKey,
     ) -> Option<T::Opportunity> {
-        let opportunities = self.cache.opportunities.read().await;
+        let opportunities = self.in_memory_store.opportunities.read().await;
         opportunities
             .get(permission_key)?
             .iter()

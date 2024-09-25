@@ -1,22 +1,29 @@
 use {
-    super::repository::{
-        Cache,
-        CacheEvm,
-        CacheSvm,
-        Repository,
+    super::{
+        contracts::AdapterFactory,
+        repository::{
+            InMemoryStore,
+            InMemoryStoreEvm,
+            InMemoryStoreSvm,
+            Repository,
+        },
     },
     crate::{
         kernel::{
             db::DB,
             entities::ChainId,
         },
-        state::Store,
+        state::{
+            ChainStoreEvm,
+            Store,
+        },
         traced_client::TracedClient,
     },
     ethers::{
         providers::Provider,
         types::Address,
     },
+    futures::future::try_join_all,
     std::{
         collections::HashMap,
         sync::Arc,
@@ -26,13 +33,14 @@ use {
 pub mod add_opportunity;
 pub mod get_config;
 pub mod get_opportunities;
-pub mod get_spoof_info;
 pub mod handle_opportunity_bid;
-pub mod make_adapter_calldata;
-pub mod make_opportunity_execution_params;
-pub mod make_permitted_tokens;
 pub mod remove_invalid_or_expired_opportunities;
-pub mod verify_opportunity;
+
+mod get_spoof_info;
+mod make_adapter_calldata;
+mod make_opportunity_execution_params;
+mod make_permitted_tokens;
+mod verify_opportunity;
 
 #[derive(Debug)]
 pub struct ConfigEvm {
@@ -54,9 +62,89 @@ impl Config for ConfigEvm {
 impl Config for ConfigSvm {
 }
 
+impl ConfigEvm {
+    async fn get_weth_address(
+        adapter_contract: Address,
+        provider: Provider<TracedClient>,
+    ) -> anyhow::Result<Address> {
+        let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+        adapter
+            .get_weth()
+            .call()
+            .await
+            .map_err(|e| anyhow::anyhow!("Error getting WETH address from adapter: {:?}", e))
+    }
+
+    async fn get_adapter_bytecode_hash(
+        adapter_contract: Address,
+        provider: Provider<TracedClient>,
+    ) -> anyhow::Result<[u8; 32]> {
+        let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+        adapter
+            .get_opportunity_adapter_creation_code_hash()
+            .call()
+            .await
+            .map_err(|e| anyhow::anyhow!("Error getting adapter code hash from adapter: {:?}", e))
+    }
+
+    async fn get_permit2_address(
+        adapter_contract: Address,
+        provider: Provider<TracedClient>,
+    ) -> anyhow::Result<Address> {
+        let adapter = AdapterFactory::new(adapter_contract, Arc::new(provider));
+        adapter
+            .get_permit_2()
+            .call()
+            .await
+            .map_err(|e| anyhow::anyhow!("Error getting permit2 address from adapter: {:?}", e))
+    }
+
+    async fn try_new(
+        adapter_factory_contract: Address,
+        provider: Provider<TracedClient>,
+        chain_id_num: u64,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            adapter_bytecode_hash: Self::get_adapter_bytecode_hash(
+                adapter_factory_contract,
+                provider.clone(),
+            )
+            .await?,
+            permit2: Self::get_permit2_address(adapter_factory_contract, provider.clone()).await?,
+            weth: Self::get_weth_address(adapter_factory_contract, provider.clone()).await?,
+            adapter_factory_contract,
+            chain_id_num,
+            provider,
+        })
+    }
+
+    pub async fn from_chains(
+        chains: &HashMap<ChainId, ChainStoreEvm>,
+    ) -> anyhow::Result<HashMap<ChainId, Self>> {
+        let config_opportunity_service_evm = chains.iter().map(|(chain_id, chain_store)| {
+            let chain_id_cloned = chain_id.clone();
+            let adapter_factory_contract = chain_store.config.adapter_factory_contract;
+            let provider_cloned = chain_store.provider.clone();
+            async move {
+                let config = Self::try_new(
+                    adapter_factory_contract,
+                    provider_cloned.clone(),
+                    chain_store.network_id,
+                )
+                .await?;
+                Ok::<(ChainId, Self), anyhow::Error>((chain_id_cloned, config))
+            }
+        });
+        Ok(try_join_all(config_opportunity_service_evm)
+            .await?
+            .into_iter()
+            .collect())
+    }
+}
+
 pub trait ChainType {
     type Config: Config;
-    type Cache: Cache;
+    type InMemoryStore: InMemoryStore;
 }
 
 pub struct ChainTypeEvm;
@@ -64,28 +152,28 @@ pub struct ChainTypeSvm;
 
 impl ChainType for ChainTypeEvm {
     type Config = ConfigEvm;
-    type Cache = CacheEvm;
+    type InMemoryStore = InMemoryStoreEvm;
 }
 
 impl ChainType for ChainTypeSvm {
     type Config = ConfigSvm;
-    type Cache = CacheSvm;
+    type InMemoryStore = InMemoryStoreSvm;
 }
 
 pub struct Service<T: ChainType> {
     store:  Arc<Store>,
     db:     DB,
-    repo:   Repository<T::Cache>,
+    repo:   Repository<T::InMemoryStore>,
     config: HashMap<ChainId, T::Config>,
 }
 
 impl<T: ChainType> Service<T> {
-    pub fn new(store: Arc<Store>, db: DB, config: HashMap<ChainId, T::Config>) -> Arc<Self> {
-        Arc::new(Service {
+    pub fn new(store: Arc<Store>, db: DB, config: HashMap<ChainId, T::Config>) -> Self {
+        Self {
             store,
             db,
-            repo: Repository::<T::Cache>::new(),
+            repo: Repository::<T::InMemoryStore>::new(),
             config,
-        })
+        }
     }
 }

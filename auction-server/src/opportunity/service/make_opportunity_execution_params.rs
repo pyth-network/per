@@ -25,7 +25,7 @@ pub struct MakeOpportunityExecutionParamsInput {
 }
 
 impl Service<ChainTypeEvm> {
-    pub fn make_opportunity_execution_params(
+    pub(super) fn make_opportunity_execution_params(
         &self,
         input: MakeOpportunityExecutionParamsInput,
     ) -> Result<ExecutionParams, RestError> {

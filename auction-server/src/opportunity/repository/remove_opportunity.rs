@@ -1,7 +1,7 @@
 use {
     super::{
         models::OpportunityRemovalReason,
-        Cache,
+        InMemoryStore,
         Repository,
     },
     sqlx::Postgres,
@@ -11,7 +11,7 @@ use {
     },
 };
 
-impl<T: Cache> Repository<T> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn remove_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
@@ -19,7 +19,7 @@ impl<T: Cache> Repository<T> {
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let key = opportunity.permission_key.clone();
-        let mut write_guard = self.cache.opportunities.write().await;
+        let mut write_guard = self.in_memory_store.opportunities.write().await;
         let entry = write_guard.entry(key.clone());
         if entry
             .and_modify(|opps| opps.retain(|o| o.id != opportunity.id))

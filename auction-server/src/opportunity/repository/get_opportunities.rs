@@ -1,14 +1,14 @@
 use {
     super::{
-        Cache,
+        InMemoryStore,
         Repository,
     },
     crate::kernel::entities::PermissionKey,
     std::collections::HashMap,
 };
 
-impl<T: Cache> Repository<T> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn get_opportunities(&self) -> HashMap<PermissionKey, Vec<T::Opportunity>> {
-        self.cache.opportunities.read().await.clone()
+        self.in_memory_store.opportunities.read().await.clone()
     }
 }

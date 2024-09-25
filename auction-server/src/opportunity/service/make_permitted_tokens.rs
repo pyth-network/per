@@ -20,7 +20,7 @@ pub struct MakePermittedTokensInput {
 }
 
 impl Service<ChainTypeEvm> {
-    pub fn make_permitted_tokens(
+    pub(super) fn make_permitted_tokens(
         &self,
         input: MakePermittedTokensInput,
     ) -> Result<Vec<TokenPermissions>, RestError> {

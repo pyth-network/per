@@ -1,14 +1,14 @@
 use {
     super::{
-        CacheEvm,
+        InMemoryStoreEvm,
         Repository,
     },
     crate::opportunity::entities,
 };
 
-impl Repository<CacheEvm> {
+impl Repository<InMemoryStoreEvm> {
     pub async fn add_spoof_info(&self, spoof_info: entities::SpoofInfo) {
-        self.cache
+        self.in_memory_store
             .spoof_info
             .write()
             .await

@@ -45,7 +45,7 @@ impl TryFrom<Opportunity> for entities::OpportunityEvm {
             core_fields:       entities::OpportunityCoreFields {
                 id:             val.id,
                 creation_time:  val.creation_time.assume_utc().unix_timestamp_nanos(),
-                permission_key: PermissionKey::from(val.permission_key.clone()),
+                permission_key: PermissionKey::from(val.permission_key),
                 chain_id:       val.chain_id,
                 sell_tokens:    serde_json::from_value(val.sell_tokens)
                     .map_err(|e| anyhow::anyhow!(e))?,

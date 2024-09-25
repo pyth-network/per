@@ -20,21 +20,21 @@ mod opportunity_exists;
 mod remove_opportunity;
 
 #[derive(Debug)]
-pub struct Repository<T: Cache> {
-    pub cache: T,
+pub struct Repository<T: InMemoryStore> {
+    pub in_memory_store: T,
 }
 
-pub trait Cache: Deref<Target = CacheCoreFields<Self::Opportunity>> {
+pub trait InMemoryStore: Deref<Target = InMemoryStoreCoreFields<Self::Opportunity>> {
     type Opportunity: entities::Opportunity;
 
     fn new() -> Self;
 }
 
-pub struct CacheCoreFields<T: entities::Opportunity> {
+pub struct InMemoryStoreCoreFields<T: entities::Opportunity> {
     pub opportunities: RwLock<HashMap<PermissionKey, Vec<T>>>,
 }
 
-impl<T: entities::Opportunity> CacheCoreFields<T> {
+impl<T: entities::Opportunity> InMemoryStoreCoreFields<T> {
     pub fn new() -> Self {
         Self {
             opportunities: RwLock::new(HashMap::new()),
@@ -42,53 +42,55 @@ impl<T: entities::Opportunity> CacheCoreFields<T> {
     }
 }
 
-pub struct CacheEvm {
-    pub core_fields: CacheCoreFields<entities::OpportunityEvm>,
+pub struct InMemoryStoreEvm {
+    pub core_fields: InMemoryStoreCoreFields<entities::OpportunityEvm>,
     pub spoof_info:  RwLock<HashMap<Address, entities::SpoofState>>,
 }
-pub struct CacheSvm {
-    pub core_fields: CacheCoreFields<entities::OpportunitySvm>,
+pub struct InMemoryStoreSvm {
+    pub core_fields: InMemoryStoreCoreFields<entities::OpportunitySvm>,
 }
 
-impl Cache for CacheEvm {
+impl InMemoryStore for InMemoryStoreEvm {
     type Opportunity = entities::OpportunityEvm;
 
     fn new() -> Self {
         Self {
-            core_fields: CacheCoreFields::new(),
+            core_fields: InMemoryStoreCoreFields::new(),
             spoof_info:  RwLock::new(HashMap::new()),
         }
     }
 }
 
-impl Cache for CacheSvm {
+impl InMemoryStore for InMemoryStoreSvm {
     type Opportunity = entities::OpportunitySvm;
 
     fn new() -> Self {
         Self {
-            core_fields: CacheCoreFields::new(),
+            core_fields: InMemoryStoreCoreFields::new(),
         }
     }
 }
 
-impl Deref for CacheEvm {
-    type Target = CacheCoreFields<entities::OpportunityEvm>;
+impl Deref for InMemoryStoreEvm {
+    type Target = InMemoryStoreCoreFields<entities::OpportunityEvm>;
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields
     }
 }
 
-impl Deref for CacheSvm {
-    type Target = CacheCoreFields<entities::OpportunitySvm>;
+impl Deref for InMemoryStoreSvm {
+    type Target = InMemoryStoreCoreFields<entities::OpportunitySvm>;
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields
     }
 }
 
-impl<T: Cache> Repository<T> {
+impl<T: InMemoryStore> Repository<T> {
     pub fn new() -> Self {
-        Self { cache: T::new() }
+        Self {
+            in_memory_store: T::new(),
+        }
     }
 }

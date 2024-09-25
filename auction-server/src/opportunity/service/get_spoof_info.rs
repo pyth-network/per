@@ -24,7 +24,7 @@ impl Service<ChainTypeEvm> {
     /// Find the spoof info for an ERC20 token. This includes the balance slot and the allowance slot
     /// Returns an error if no balance or allowance slot is found
     #[tracing::instrument(skip_all, fields(token=%input.token))]
-    pub async fn get_spoof_info(
+    pub(super) async fn get_spoof_info(
         &self,
         input: GetSpoofInfoInput,
     ) -> Result<entities::SpoofInfo, RestError> {
