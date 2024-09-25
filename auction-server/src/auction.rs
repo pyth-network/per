@@ -1488,7 +1488,7 @@ async fn run_submission_loop<T: ChainStore>(
                             }
                             models::ChainType::Svm => {
                                 if let Some(chain_store) = store
-                                    .chains
+                                    .chains_svm
                                     .get(&chain_id) {
                                         submit_auctions(store.clone(), chain_store, chain_id).await
                                     }
@@ -1510,7 +1510,7 @@ async fn run_submission_loop<T: ChainStore>(
                             }
                             models::ChainType::Svm => {
                                 if let Some(chain_store) = store
-                                    .chains
+                                    .chains_svm
                                     .get(&chain_id) {
                                         conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone()).await
                                     }
