@@ -1,42 +1,18 @@
 use {
     super::{
-        make_adapter_calldata::MakeAdapterCalldataInput,
-        verify_opportunity::VerifyOpportunityInput,
         ChainTypeEvm,
         Service,
     },
     crate::{
-        api::{
-            ws::UpdateEvent::NewOpportunity,
-            Auth,
-            RestError,
-        },
-        auction::{
-            handle_bid,
-            BidEvm,
-        },
-        kernel::entities::ChainId,
+        api::RestError,
         opportunity::{
             api::{
                 GetOpportunitiesQueryParams,
-                OpportunityBid,
-                OpportunityId,
                 OpportunityMode,
-                OpportunityParamsWithMetadata,
-            },
-            contracts::{
-                erc20,
-                OpportunityAdapterErrors,
             },
             entities,
         },
     },
-    ethers::{
-        contract::ContractRevert,
-        types::Bytes,
-    },
-    time::OffsetDateTime,
-    uuid::Uuid,
 };
 
 pub struct GetOpportunitiesInput {

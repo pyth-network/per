@@ -1,6 +1,5 @@
 use {
     super::{
-        make_adapter_calldata::MakeAdapterCalldataInput,
         verify_opportunity::VerifyOpportunityInput,
         ChainTypeEvm,
         Service,
@@ -8,32 +7,13 @@ use {
     crate::{
         api::{
             ws::UpdateEvent::NewOpportunity,
-            Auth,
             RestError,
         },
-        auction::{
-            handle_bid,
-            BidEvm,
-        },
         opportunity::{
-            api::{
-                OpportunityBid,
-                OpportunityId,
-                OpportunityParamsWithMetadata,
-            },
-            contracts::{
-                erc20,
-                OpportunityAdapterErrors,
-            },
+            api::OpportunityParamsWithMetadata,
             entities,
         },
     },
-    ethers::{
-        contract::ContractRevert,
-        types::Bytes,
-    },
-    time::OffsetDateTime,
-    uuid::Uuid,
 };
 
 pub struct AddOpportunityInput {
