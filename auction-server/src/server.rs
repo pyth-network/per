@@ -18,11 +18,9 @@ use {
             RunOptions,
         },
         models,
-        opportunity_adapter::{
-            get_adapter_bytecode_hash,
-            get_permit2_address,
-            get_weth_address,
-            run_verification_loop,
+        opportunity::{
+            service as opportunity_service,
+            workers::run_verification_loop,
         },
         per_metrics,
         state::{
@@ -30,10 +28,10 @@ use {
             ChainStoreEvm,
             ChainStoreSvm,
             ExpressRelaySvm,
-            OpportunityStore,
             SimulatedBidEvm,
             SimulatedBidSvm,
             Store,
+            StoreNew,
         },
         traced_client::TracedClient,
     },
@@ -182,21 +180,6 @@ async fn setup_chain_store(
                             chain_config.legacy_tx,
                             id,
                         );
-                        let permit2 = get_permit2_address(
-                            chain_config.adapter_factory_contract,
-                            provider.clone(),
-                        )
-                        .await?;
-                        let weth = get_weth_address(
-                            chain_config.adapter_factory_contract,
-                            provider.clone(),
-                        )
-                        .await?;
-                        let adapter_bytecode_hash = get_adapter_bytecode_hash(
-                            chain_config.adapter_factory_contract,
-                            provider.clone(),
-                        )
-                        .await?;
 
                         Ok((
                             chain_id.clone(),
@@ -206,14 +189,9 @@ async fn setup_chain_store(
                                     auction_lock:       Default::default(),
                                     submitted_auctions: Default::default(),
                                 },
-                                chain_id_num: id,
                                 provider,
                                 network_id: id,
-                                token_spoof_info: Default::default(),
                                 config: chain_config.clone(),
-                                permit2,
-                                weth,
-                                adapter_bytecode_hash,
                                 express_relay_contract: Arc::new(express_relay_contract),
                                 block_gas_limit: block.gas_limit,
                             },
@@ -275,12 +253,13 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     }
     let task_tracker = TaskTracker::new();
 
+    let config_opportunity_service_evm =
+        opportunity_service::ConfigEvm::from_chains(&chains).await?;
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
-        db: pool,
+        db: pool.clone(),
         chains,
         chains_svm,
-        opportunity_store: OpportunityStore::default(),
         event_sender: broadcast_sender.clone(),
         ws: ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
@@ -291,6 +270,17 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
         secret_key: run_options.secret_key.clone(),
         access_tokens: RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
+    });
+
+    let store_new = Arc::new(StoreNew {
+        store:                   store.clone(),
+        opportunity_service_evm: Arc::new(opportunity_service::Service::<
+            opportunity_service::ChainTypeEvm,
+        >::new(
+            store.clone(),
+            pool.clone(),
+            config_opportunity_service_evm,
+        )),
     });
 
     tokio::join!(
@@ -322,11 +312,11 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             join_all(tracker_loops).await;
         },
         fault_tolerant_handler("verification loop".to_string(), || run_verification_loop(
-            store.clone()
+            store_new.opportunity_service_evm.clone()
         )),
         fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),
-            store.clone()
+            store_new.clone(),
         )),
         fault_tolerant_handler("start metrics".to_string(), || per_metrics::start_metrics(
             run_options.clone(),

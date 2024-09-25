@@ -1,19 +1,20 @@
 use {
     super::Auth,
     crate::{
-        api::{
-            bid::{
-                process_bid,
-                BidResult,
-            },
-            opportunity::{
-                process_opportunity_bid,
-                OpportunityParamsWithMetadata,
-            },
+        api::bid::{
+            process_bid,
+            BidResult,
         },
         auction::Bid,
         config::ChainId,
-        opportunity_adapter::OpportunityBid,
+        opportunity::{
+            api::{
+                OpportunityBid,
+                OpportunityId,
+                OpportunityParamsWithMetadata,
+            },
+            service::handle_opportunity_bid::HandleOpportunityBidInput,
+        },
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -21,8 +22,7 @@ use {
         state::{
             BidId,
             BidStatusWithId,
-            OpportunityId,
-            Store,
+            StoreNew,
         },
     },
     anyhow::{
@@ -63,6 +63,7 @@ use {
         },
         time::Duration,
     },
+    time::OffsetDateTime,
     tokio::sync::broadcast,
     tracing::{
         instrument,
@@ -146,13 +147,13 @@ pub struct ServerResultResponse {
 pub async fn ws_route_handler(
     auth: Auth,
     ws: WebSocketUpgrade,
-    State(store): State<Arc<Store>>,
+    State(store): State<Arc<StoreNew>>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| websocket_handler(socket, store, auth))
 }
 
-async fn websocket_handler(stream: WebSocket, state: Arc<Store>, auth: Auth) {
-    let ws_state = &state.ws;
+async fn websocket_handler(stream: WebSocket, state: Arc<StoreNew>, auth: Auth) {
+    let ws_state = &state.store.ws;
     let id = ws_state.subscriber_counter.fetch_add(1, Ordering::SeqCst);
     let (sender, receiver) = stream.split();
     let new_receiver = ws_state.broadcast_receiver.resubscribe();
@@ -173,7 +174,7 @@ pub type SubscriberId = usize;
 pub struct Subscriber {
     id:                  SubscriberId,
     closed:              bool,
-    store:               Arc<Store>,
+    store:               Arc<StoreNew>,
     notify_receiver:     broadcast::Receiver<UpdateEvent>,
     receiver:            SplitStream<WebSocket>,
     sender:              SplitSink<WebSocket, Message>,
@@ -197,7 +198,7 @@ fn ok_response(id: String) -> ServerResultResponse {
 impl Subscriber {
     pub fn new(
         id: SubscriberId,
-        store: Arc<Store>,
+        store: Arc<StoreNew>,
         notify_receiver: broadcast::Receiver<UpdateEvent>,
         receiver: SplitStream<WebSocket>,
         sender: SplitSink<WebSocket, Message>,
@@ -244,7 +245,7 @@ impl Subscriber {
             },
             _  = self.ping_interval.tick() => {
                 if let Auth::Authorized(token, _) = self.auth.clone() {
-                    if self.store.get_profile_by_token(&token).await.is_err() {
+                    if self.store.store.get_profile_by_token(&token).await.is_err() {
                         return Err(anyhow!("Invalid token. Closing connection."));
                     }
                 }
@@ -319,7 +320,7 @@ impl Subscriber {
         chain_ids: Vec<String>,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         tracing::Span::current().record("name", "handle_subscribe");
-        let available_chain_ids: Vec<&ChainId> = self.store.chains.keys().collect();
+        let available_chain_ids: Vec<&ChainId> = self.store.store.chains.keys().collect();
         let not_found_chain_ids: Vec<&ChainId> = chain_ids
             .iter()
             .filter(|chain_id| !available_chain_ids.contains(chain_id))
@@ -382,21 +383,25 @@ impl Subscriber {
         opportunity_id: OpportunityId,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         tracing::Span::current().record("name", "post_opportunity_bid");
-        match process_opportunity_bid(
-            self.store.clone(),
-            opportunity_id,
-            &opportunity_bid,
-            self.auth.clone(),
-        )
-        .await
+        match self
+            .store
+            .opportunity_service_evm
+            .handle_opportunity_bid(HandleOpportunityBidInput {
+                opportunity_id,
+                opportunity_bid,
+                initiation_time: OffsetDateTime::now_utc(),
+                auth: self.auth.clone(),
+            })
+            .await
         {
             Ok(bid_result) => {
-                self.bid_ids.insert(bid_result.id);
+                self.bid_ids.insert(bid_result);
                 Ok(ServerResultResponse {
                     id:     Some(id.clone()),
-                    result: ServerResultMessage::Success(Some(APIResponse::BidResult(
-                        bid_result.0,
-                    ))),
+                    result: ServerResultMessage::Success(Some(APIResponse::BidResult(BidResult {
+                        status: "OK".to_string(),
+                        id:     bid_result,
+                    }))),
                 })
             }
             Err(e) => Err(ServerResultResponse {

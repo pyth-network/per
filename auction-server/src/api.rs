@@ -5,7 +5,6 @@ use {
                 BidResult,
                 SimulatedBids,
             },
-            opportunity::OpportunityParamsWithMetadata,
             ws::{
                 APIResponse,
                 ClientMessage,
@@ -20,12 +19,9 @@ use {
             BidEvm,
             BidSvm,
         },
-        config::{
-            ChainId,
-            RunOptions,
-        },
+        config::RunOptions,
         models,
-        opportunity_adapter::OpportunityBid,
+        opportunity::api as opportunity_api,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -35,12 +31,10 @@ use {
             BidStatusEvm,
             BidStatusSvm,
             BidStatusWithId,
-            OpportunityParams,
-            OpportunityParamsV1,
             SimulatedBid,
             SimulatedBidEvm,
             SimulatedBidSvm,
-            Store,
+            StoreNew,
             TokenAmount,
         },
     },
@@ -82,15 +76,11 @@ use {
     },
     clap::crate_version,
     ethers::types::Bytes,
-    serde::{
-        Deserialize,
-        Serialize,
-    },
+    serde::Serialize,
     std::sync::{
         atomic::Ordering,
         Arc,
     },
-    time::OffsetDateTime,
     tower_http::cors::CorsLayer,
     utoipa::{
         openapi::security::{
@@ -98,7 +88,6 @@ use {
             HttpAuthScheme,
             SecurityScheme,
         },
-        IntoParams,
         Modify,
         OpenApi,
         ToResponse,
@@ -116,7 +105,6 @@ async fn root() -> String {
 }
 
 mod bid;
-pub(crate) mod opportunity;
 pub mod profile;
 pub(crate) mod ws;
 
@@ -180,37 +168,8 @@ impl RestError {
 
 #[derive(ToResponse, ToSchema, Serialize)]
 #[response(description = "An error occurred processing the request")]
-struct ErrorBodyResponse {
+pub struct ErrorBodyResponse {
     error: String,
-}
-
-
-#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum OpportunityMode {
-    Live,
-    Historical,
-}
-
-fn default_opportunity_mode() -> OpportunityMode {
-    OpportunityMode::Live
-}
-
-#[derive(Serialize, Deserialize, IntoParams)]
-pub struct GetOpportunitiesQueryParams {
-    #[param(example = "op_sepolia", value_type = Option < String >)]
-    pub chain_id:       Option<ChainId>,
-    /// Get opportunities in live or historical mode
-    #[param(default = "live")]
-    #[serde(default = "default_opportunity_mode")]
-    pub mode:           OpportunityMode,
-    /// The permission key to filter the opportunities by. Used only in historical mode.
-    #[param(example = "0xdeadbeef", value_type = Option< String >)]
-    pub permission_key: Option<Bytes>,
-    /// The time to get the opportunities from. Used only in historical mode.
-    #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
-    #[serde(default, with = "crate::serde::nullable_datetime")]
-    pub from_time:      Option<OffsetDateTime>,
 }
 
 impl IntoResponse for RestError {
@@ -232,24 +191,24 @@ pub enum Auth {
 }
 
 #[async_trait]
-impl FromRequestParts<Arc<Store>> for Auth {
+impl FromRequestParts<Arc<StoreNew>> for Auth {
     type Rejection = RestError;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &Arc<Store>,
+        state: &Arc<StoreNew>,
     ) -> Result<Self, Self::Rejection> {
         match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
             Ok(token) => {
                 let state = Arc::from_ref(state);
                 let token: models::AccessTokenToken = token.token().to_string();
 
-                let is_admin = state.secret_key == token;
+                let is_admin = state.store.secret_key == token;
                 if is_admin {
                     return Ok(Auth::Admin);
                 }
 
-                match state.get_profile_by_token(&token).await {
+                match state.store.get_profile_by_token(&token).await {
                     Ok(profile) => Ok(Auth::Authorized(token, profile)),
                     Err(e) => Err(e),
                 }
@@ -303,7 +262,7 @@ macro_rules! login_required {
     };
 }
 
-pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
+pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
     #[openapi(
@@ -311,9 +270,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     bid::bid,
     bid::bid_status,
     bid::get_bids_by_time,
-    opportunity::post_opportunity,
-    opportunity::opportunity_bid,
-    opportunity::get_opportunities,
+
+    opportunity_api::post_opportunity,
+    opportunity_api::opportunity_bid,
+    opportunity_api::get_opportunities,
+
     profile::delete_profile_access_token,
     ),
     components(
@@ -331,11 +292,14 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     SimulatedBidEvm,
     SimulatedBidSvm,
     SimulatedBids,
-    OpportunityParamsV1,
-    OpportunityBid,
-    OpportunityMode,
-    OpportunityParams,
-    OpportunityParamsWithMetadata,
+
+    opportunity_api::OpportunityParamsV1,
+    opportunity_api::OpportunityBid,
+    opportunity_api::OpportunityBidResult,
+    opportunity_api::OpportunityMode,
+    opportunity_api::OpportunityParams,
+    opportunity_api::OpportunityParamsWithMetadata,
+
     TokenAmount,
     ErrorBodyResponse,
     ClientRequest,
@@ -346,7 +310,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
     ),
     responses(
     ErrorBodyResponse,
-    OpportunityParamsWithMetadata,
+    opportunity_api::OpportunityParamsWithMetadata,
     BidResult,
     SimulatedBids,
     ),
@@ -378,10 +342,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .route("/", post(bid::bid))
         .route("/", login_required!(store, get(bid::get_bids_by_time)))
         .route("/:bid_id", get(bid::bid_status));
-    let opportunity_routes = Router::new()
-        .route("/", post(opportunity::post_opportunity))
-        .route("/", get(opportunity::get_opportunities))
-        .route("/:opportunity_id/bids", post(opportunity::opportunity_bid));
+
     let profile_routes = Router::new()
         .route("/", admin_only!(store, post(profile::post_profile)))
         .route(
@@ -397,13 +358,13 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         "/v1",
         Router::new()
             .nest("/bids", bid_routes)
-            .nest("/opportunities", opportunity_routes)
+            .nest("/opportunities", opportunity_api::get_routes())
             .nest("/profiles", profile_routes)
             .route("/ws", get(ws::ws_route_handler)),
     );
 
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
-        .with_metrics_from_fn(|| store.metrics_recorder.clone())
+        .with_metrics_from_fn(|| store.store.metrics_recorder.clone())
         .with_endpoint_label_type(EndpointLabel::MatchedPathWithFallbackFn(|_| {
             "unknown".to_string()
         }))
@@ -415,9 +376,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<Store>) -> Result<()>
         .route("/", get(root))
         .route("/live", get(live))
         .layer(CorsLayer::permissive())
-        .layer(middleware::from_extractor_with_state::<Auth, Arc<Store>>(
-            store.clone(),
-        ))
+        .layer(middleware::from_extractor_with_state::<Auth, Arc<StoreNew>>(store.clone()))
         .layer(prometheus_layer)
         .with_state(store);
 

@@ -1,7 +1,6 @@
 use {
     crate::{
         api::{
-            opportunity::OpportunityParamsWithMetadata,
             profile as ApiProfile,
             ws::{
                 UpdateEvent,
@@ -20,6 +19,7 @@ use {
             ConfigSvm,
         },
         models,
+        opportunity::service as opportunity_service,
         traced_client::TracedClient,
     },
     axum::Json,
@@ -30,7 +30,6 @@ use {
     },
     ethers::{
         providers::Provider,
-        signers::LocalWallet,
         types::{
             Address,
             Bytes,
@@ -395,58 +394,7 @@ pub struct TokenAmount {
     pub amount: U256,
 }
 
-/// Opportunity parameters needed for on-chain execution
-/// If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
-/// by calling this target contract with the given target calldata and structures, they will
-/// send the tokens specified in the sell_tokens field and receive the tokens specified in the buy_tokens field.
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct OpportunityParamsV1 {
-    /// The permission key required for successful execution of the opportunity.
-    #[schema(example = "0xdeadbeefcafe", value_type = String)]
-    pub permission_key:    Bytes,
-    /// The chain id where the opportunity will be executed.
-    #[schema(example = "op_sepolia", value_type = String)]
-    pub chain_id:          ChainId,
-    /// The contract address to call for execution of the opportunity.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub target_contract:   ethers::abi::Address,
-    /// Calldata for the target contract call.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub target_calldata:   Bytes,
-    /// The value to send with the contract call.
-    #[schema(example = "1", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub target_call_value: U256,
-
-    pub sell_tokens: Vec<TokenAmount>,
-    pub buy_tokens:  Vec<TokenAmount>,
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(tag = "version")]
-pub enum OpportunityParams {
-    #[serde(rename = "v1")]
-    V1(OpportunityParamsV1),
-}
-
-pub type OpportunityId = Uuid;
 pub type AuctionLock = Arc<Mutex<()>>;
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct Opportunity {
-    pub id:            OpportunityId,
-    pub creation_time: UnixTimestampMicros,
-    pub params:        OpportunityParams,
-}
-
-#[derive(Clone)]
-pub enum SpoofInfo {
-    Spoofed {
-        balance_slot:   U256,
-        allowance_slot: U256,
-    },
-    UnableToSpoof,
-}
 
 pub struct ChainStoreCoreFields<T: SimulatedBidTrait> {
     pub bids:               RwLock<HashMap<PermissionKey, Vec<T>>>,
@@ -456,15 +404,10 @@ pub struct ChainStoreCoreFields<T: SimulatedBidTrait> {
 
 pub struct ChainStoreEvm {
     pub core_fields:            ChainStoreCoreFields<SimulatedBidEvm>,
-    pub chain_id_num:           u64,
     pub provider:               Provider<TracedClient>,
     pub network_id:             u64,
     // TODO move this to core fields
     pub config:                 ConfigEvm,
-    pub permit2:                Address,
-    pub adapter_bytecode_hash:  [u8; 32],
-    pub weth:                   Address,
-    pub token_spoof_info:       RwLock<HashMap<Address, SpoofInfo>>,
     pub express_relay_contract: Arc<SignableExpressRelayContract>,
     pub block_gas_limit:        U256,
 }
@@ -475,25 +418,6 @@ pub struct ChainStoreSvm {
     pub client:            RpcClient,
     pub config:            ConfigSvm,
     pub express_relay_svm: ExpressRelaySvm,
-}
-
-#[derive(Default)]
-pub struct OpportunityStore {
-    pub opportunities: RwLock<HashMap<PermissionKey, Vec<Opportunity>>>,
-}
-
-impl OpportunityStore {
-    pub async fn add_opportunity(&self, opportunity: Opportunity) {
-        let key = match &opportunity.params {
-            OpportunityParams::V1(params) => params.permission_key.clone(),
-        };
-        self.opportunities
-            .write()
-            .await
-            .entry(key)
-            .or_insert_with(Vec::new)
-            .push(opportunity);
-    }
 }
 
 pub type BidId = Uuid;
@@ -845,16 +769,21 @@ pub struct ExpressRelaySvm {
 }
 
 pub struct Store {
-    pub chains:            HashMap<ChainId, ChainStoreEvm>,
-    pub chains_svm:        HashMap<ChainId, ChainStoreSvm>,
-    pub event_sender:      broadcast::Sender<UpdateEvent>,
-    pub opportunity_store: OpportunityStore,
-    pub ws:                WsState,
-    pub db:                sqlx::PgPool,
-    pub task_tracker:      TaskTracker,
-    pub secret_key:        String,
-    pub access_tokens:     RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
-    pub metrics_recorder:  PrometheusHandle,
+    pub chains:           HashMap<ChainId, ChainStoreEvm>,
+    pub chains_svm:       HashMap<ChainId, ChainStoreSvm>,
+    pub event_sender:     broadcast::Sender<UpdateEvent>,
+    pub ws:               WsState,
+    pub db:               sqlx::PgPool,
+    pub task_tracker:     TaskTracker,
+    pub secret_key:       String,
+    pub access_tokens:    RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
+    pub metrics_recorder: PrometheusHandle,
+}
+
+pub struct StoreNew {
+    pub opportunity_service_evm:
+        Arc<opportunity_service::Service<opportunity_service::ChainTypeEvm>>,
+    pub store:                   Arc<Store>,
 }
 
 impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {
@@ -911,80 +840,6 @@ impl From<SimulatedBidSvm> for SimulatedBid {
 }
 
 impl Store {
-    pub async fn opportunity_exists(&self, opportunity: &Opportunity) -> bool {
-        let key = match &opportunity.params {
-            OpportunityParams::V1(params) => params.permission_key.clone(),
-        };
-        self.opportunity_store
-            .opportunities
-            .read()
-            .await
-            .get(&key)
-            .map_or(false, |opps| opps.contains(opportunity))
-    }
-
-    pub async fn add_opportunity(&self, opportunity: Opportunity) -> Result<(), RestError> {
-        let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
-            .expect("creation_time is valid");
-        let OpportunityParams::V1(params) = &opportunity.params;
-        sqlx::query!("INSERT INTO opportunity (id,
-                                                        creation_time,
-                                                        permission_key,
-                                                        chain_id,
-                                                        target_contract,
-                                                        target_call_value,
-                                                        target_calldata,
-                                                        sell_tokens,
-                                                        buy_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-        opportunity.id,
-        PrimitiveDateTime::new(odt.date(), odt.time()),
-        params.permission_key.to_vec(),
-        params.chain_id,
-        &params.target_contract.to_fixed_bytes(),
-        BigDecimal::from_str(&params.target_call_value.to_string()).unwrap(),
-        params.target_calldata.to_vec(),
-        serde_json::to_value(&params.sell_tokens).unwrap(),
-        serde_json::to_value(&params.buy_tokens).unwrap())
-            .execute(&self.db)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB: Failed to insert opportunity: {}", e);
-                RestError::TemporarilyUnavailable
-            })?;
-        self.opportunity_store.add_opportunity(opportunity).await;
-        Ok(())
-    }
-
-    pub async fn remove_opportunity(
-        &self,
-        opportunity: &Opportunity,
-        reason: models::OpportunityRemovalReason,
-    ) -> anyhow::Result<()> {
-        let key = match &opportunity.params {
-            OpportunityParams::V1(params) => params.permission_key.clone(),
-        };
-        let mut write_guard = self.opportunity_store.opportunities.write().await;
-        let entry = write_guard.entry(key.clone());
-        if entry
-            .and_modify(|opps| opps.retain(|o| o != opportunity))
-            .or_default()
-            .is_empty()
-        {
-            write_guard.remove(&key);
-        }
-        drop(write_guard);
-        let now = OffsetDateTime::now_utc();
-        sqlx::query!(
-            "UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL",
-            PrimitiveDateTime::new(now.date(), now.time()),
-            reason as _,
-            opportunity.id
-        )
-            .execute(&self.db)
-            .await?;
-        Ok(())
-    }
-
     #[tracing::instrument(skip_all)]
     pub async fn init_auction<T: ChainStore>(
         &self,
@@ -1333,71 +1188,6 @@ impl Store {
                 tracing::error!("DB: Failed to fetch bids: {}", e);
                 RestError::TemporarilyUnavailable
             })
-    }
-
-    pub async fn get_opportunities_by_permission_key(
-        &self,
-        chain_id: ChainId,
-        permission_key: Option<PermissionKey>,
-        from_time: Option<OffsetDateTime>,
-    ) -> Result<Vec<OpportunityParamsWithMetadata>, RestError> {
-        let mut query = QueryBuilder::new("SELECT * from opportunity where chain_id = ");
-        query.push_bind(chain_id.clone());
-        if let Some(permission_key) = permission_key.clone() {
-            query.push(" AND permission_key = ");
-            query.push_bind(permission_key.to_vec());
-        }
-        if let Some(from_time) = from_time {
-            query.push(" AND creation_time >= ");
-            query.push_bind(from_time);
-        }
-        query.push(" ORDER BY creation_time ASC LIMIT 20");
-        let opps: Vec<models::Opportunity> = query
-            .build_query_as()
-            .fetch_all(&self.db)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    "DB: Failed to fetch opportunities: {} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
-                    e,
-                    chain_id,
-                    permission_key,
-                    from_time,
-                );
-                RestError::TemporarilyUnavailable
-            })?;
-        let parsed_opps: anyhow::Result<Vec<OpportunityParamsWithMetadata>> = opps
-            .into_iter()
-            .map(|opp| {
-                let params: OpportunityParams = OpportunityParams::V1(OpportunityParamsV1 {
-                    permission_key:    Bytes::from(opp.permission_key.clone()),
-                    chain_id:          opp.chain_id,
-                    target_contract:   ethers::abi::Address::from_slice(&opp.target_contract),
-                    target_calldata:   Bytes::from(opp.target_calldata),
-                    target_call_value: U256::from_dec_str(
-                        opp.target_call_value.to_string().as_str(),
-                    )?,
-                    sell_tokens:       serde_json::from_value(opp.sell_tokens)?,
-                    buy_tokens:        serde_json::from_value(opp.buy_tokens)?,
-                });
-                let opp = Opportunity {
-                    id: opp.id,
-                    creation_time: opp.creation_time.assume_utc().unix_timestamp_nanos(),
-                    params,
-                };
-                Ok(opp.into())
-            })
-            .collect();
-        parsed_opps.map_err(|e| {
-            tracing::error!(
-                "Failed to convert opportunity to OpportunityParamsWithMetadata: {} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
-                e,
-                chain_id,
-                permission_key,
-                from_time,
-            );
-            RestError::TemporarilyUnavailable
-        })
     }
 
     async fn get_auctions_by_bids(

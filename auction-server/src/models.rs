@@ -14,7 +14,6 @@ use {
             time::PrimitiveDateTime,
             BigDecimal,
             Json,
-            JsonValue,
         },
     },
     std::{
@@ -37,29 +36,6 @@ pub struct Auction {
     pub bid_collection_time: Option<PrimitiveDateTime>,
     pub submission_time:     Option<PrimitiveDateTime>,
 }
-
-#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
-#[sqlx(type_name = "opportunity_removal_reason", rename_all = "lowercase")]
-pub enum OpportunityRemovalReason {
-    Expired,
-    Invalid,
-}
-
-#[derive(Clone, FromRow, Debug)]
-pub struct Opportunity {
-    pub id:                Uuid,
-    pub creation_time:     PrimitiveDateTime,
-    pub permission_key:    Vec<u8>,
-    pub chain_id:          String,
-    pub target_contract:   Vec<u8>,
-    pub target_call_value: BigDecimal,
-    pub target_calldata:   Vec<u8>,
-    pub removal_time:      Option<PrimitiveDateTime>,
-    pub sell_tokens:       JsonValue,
-    pub buy_tokens:        JsonValue,
-    pub removal_reason:    Option<OpportunityRemovalReason>,
-}
-
 
 #[derive(Clone)]
 pub struct EmailAddress(pub email_address::EmailAddress);

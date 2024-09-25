@@ -30,14 +30,14 @@ use {
 mod api;
 mod auction;
 mod config;
+mod kernel;
 mod models;
-mod opportunity_adapter;
+mod opportunity;
 mod per_metrics;
 mod serde;
 mod server;
 mod state;
 mod subwallet;
-mod token_spoof;
 mod traced_client;
 
 #[tokio::main]
