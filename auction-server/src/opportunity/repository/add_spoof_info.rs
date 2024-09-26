@@ -3,10 +3,7 @@ use {
         InMemoryStoreEvm,
         Repository,
     },
-    crate::opportunity::{
-        entities,
-        service::ChainTypeEvm,
-    },
+    crate::opportunity::entities,
 };
 
 impl Repository<InMemoryStoreEvm> {

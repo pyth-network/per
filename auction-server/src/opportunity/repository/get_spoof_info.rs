@@ -3,13 +3,7 @@ use {
         InMemoryStoreEvm,
         Repository,
     },
-    crate::opportunity::{
-        entities,
-        service::{
-            ChainTypeEvm,
-            ChainTypeSvm,
-        },
-    },
+    crate::opportunity::entities,
     ethers::types::Address,
 };
 

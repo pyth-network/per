@@ -2,7 +2,6 @@ use {
     super::{
         verification::Verification,
         ChainType,
-        ChainTypeEvm,
         Service,
     },
     crate::{
@@ -11,10 +10,6 @@ use {
             RestError,
         },
         opportunity::{
-            api::{
-                OpportunityParamsWithMetadata,
-                OpportunityParamsWithMetadataEvm,
-            },
             entities::{
                 self,
             },

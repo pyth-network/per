@@ -5,8 +5,6 @@ use {
             add_opportunity::AddOpportunityInput,
             get_opportunities::GetOpportunitiesInput,
             handle_opportunity_bid::HandleOpportunityBidInput,
-            ChainType,
-            Service,
         },
     },
     crate::{

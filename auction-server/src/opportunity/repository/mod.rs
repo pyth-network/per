@@ -1,8 +1,5 @@
 use {
-    super::{
-        entities,
-        service::ChainType,
-    },
+    super::entities,
     crate::kernel::entities::PermissionKey,
     ethers::types::Address,
     std::{

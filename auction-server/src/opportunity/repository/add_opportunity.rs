@@ -2,21 +2,13 @@ use {
     super::{
         models::OpportunityMetadata,
         InMemoryStore,
-        InMemoryStoreEvm,
         Repository,
     },
     crate::{
         api::RestError,
-        opportunity::{
-            entities,
-            service::ChainType,
-        },
+        opportunity::entities,
     },
-    sqlx::{
-        types::BigDecimal,
-        Postgres,
-    },
-    std::str::FromStr,
+    sqlx::Postgres,
     time::{
         OffsetDateTime,
         PrimitiveDateTime,

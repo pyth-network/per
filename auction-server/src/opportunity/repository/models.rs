@@ -14,20 +14,15 @@ use {
         Deserialize,
         Serialize,
     },
-    serde_with::{
-        serde_as,
-        DisplayFromStr,
-    },
+    serde_with::serde_as,
     solana_sdk::pubkey::Pubkey,
     sqlx::{
         prelude::FromRow,
         types::{
             time::PrimitiveDateTime,
-            BigDecimal,
             Json,
             JsonValue,
         },
-        Postgres,
     },
     uuid::Uuid,
 };

@@ -1,13 +1,7 @@
 use {
     super::{
         contracts::AdapterFactory,
-        entities,
         repository::{
-            models::{
-                OpportunityMetadata,
-                OpportunityMetadataEvm,
-                OpportunityMetadataSvm,
-            },
             InMemoryStore,
             InMemoryStoreEvm,
             InMemoryStoreSvm,
@@ -15,7 +9,6 @@ use {
         },
     },
     crate::{
-        api::RestError,
         kernel::{
             db::DB,
             entities::ChainId,
@@ -27,9 +20,7 @@ use {
         },
         traced_client::TracedClient,
     },
-    axum::async_trait,
     ethers::{
-        abi::Item,
         providers::Provider,
         types::Address,
     },

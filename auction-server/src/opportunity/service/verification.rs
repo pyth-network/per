@@ -294,7 +294,7 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
 impl Verification<ChainTypeSvm> for Service<ChainTypeSvm> {
     async fn verify_opportunity(
         &self,
-        input: VerifyOpportunityInput<<InMemoryStoreSvm as InMemoryStore>::Opportunity>,
+        _input: VerifyOpportunityInput<<InMemoryStoreSvm as InMemoryStore>::Opportunity>,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {
         Err(RestError::TemporarilyUnavailable)
     }

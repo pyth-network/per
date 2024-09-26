@@ -13,10 +13,7 @@ use {
             ChainId,
             PermissionKey,
         },
-        opportunity::{
-            entities,
-            service::ChainTypeEvm,
-        },
+        opportunity::entities,
     },
     sqlx::QueryBuilder,
     time::OffsetDateTime,

@@ -7,10 +7,7 @@ use {
         token_amount_svm::TokenAmountSvm,
     },
     crate::opportunity::repository::models::OpportunityMetadataSvm,
-    solana_sdk::{
-        pubkey::Pubkey,
-        transaction::VersionedTransaction,
-    },
+    solana_sdk::pubkey::Pubkey,
     std::ops::Deref,
 };
 
