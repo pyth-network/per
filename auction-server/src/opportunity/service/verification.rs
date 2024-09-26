@@ -3,7 +3,9 @@ use {
         get_spoof_info::GetSpoofInfoInput,
         make_adapter_calldata::MakeAdapterCalldataInput,
         make_opportunity_execution_params::MakeOpportunityExecutionParamsInput,
+        ChainType,
         ChainTypeEvm,
+        ChainTypeSvm,
         Service,
     },
     crate::{
@@ -13,12 +15,17 @@ use {
             MulticallData,
         },
         opportunity::{
-            api::OpportunityBid,
+            api::OpportunityBidEvm,
             contracts::{
                 ExecutionParams,
                 MulticallReturn,
             },
             entities,
+            repository::{
+                InMemoryStore,
+                InMemoryStoreEvm,
+                InMemoryStoreSvm,
+            },
             token_spoof,
         },
     },
@@ -45,15 +52,24 @@ use {
     rand::Rng,
     std::{
         collections::HashMap,
+        future::Future,
         ops::Add,
         sync::Arc,
     },
     uuid::Uuid,
 };
 
-pub struct VerifyOpportunityInput {
-    pub opportunity: entities::OpportunityEvm,
+pub struct VerifyOpportunityInput<T: entities::Opportunity> {
+    pub opportunity: T,
 }
+
+pub trait Verification<T: ChainType> {
+    fn verify_opportunity(
+        &self,
+        input: VerifyOpportunityInput<<T::InMemoryStore as InMemoryStore>::Opportunity>,
+    ) -> impl Future<Output = Result<entities::OpportunityVerificationResult, RestError>>;
+}
+
 
 fn generate_random_u256() -> U256 {
     let mut rng = rand::thread_rng();
@@ -120,21 +136,16 @@ fn get_typed_data(
     }
 }
 
-impl Service<ChainTypeEvm> {
-    /// Verify an opportunity by simulating the execution call and checking the result
-    /// Simulation is done by spoofing the balances and allowances of a random executor
-    /// Returns Ok(VerificationResult) if the simulation is successful or if the tokens cannot be spoofed
-    /// Returns Err if the simulation fails despite spoofing or if any other error occurs
-    #[tracing::instrument(skip_all)]
-    pub(super) async fn verify_opportunity(
+impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
+    async fn verify_opportunity(
         &self,
-        input: VerifyOpportunityInput,
+        input: VerifyOpportunityInput<<InMemoryStoreEvm as InMemoryStore>::Opportunity>,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {
         let config = self.get_config(&input.opportunity.chain_id)?;
         let client = Arc::new(config.provider.clone());
         let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
 
-        let mut fake_bid = OpportunityBid {
+        let mut fake_bid = OpportunityBidEvm {
             executor:       fake_wallet.address(),
             deadline:       U256::max_value(),
             nonce:          generate_random_u256(),
@@ -277,5 +288,14 @@ impl Service<ChainTypeEvm> {
                 Err(RestError::TemporarilyUnavailable)
             }
         }
+    }
+}
+
+impl Verification<ChainTypeSvm> for Service<ChainTypeSvm> {
+    async fn verify_opportunity(
+        &self,
+        input: VerifyOpportunityInput<<InMemoryStoreSvm as InMemoryStore>::Opportunity>,
+    ) -> Result<entities::OpportunityVerificationResult, RestError> {
+        Err(RestError::TemporarilyUnavailable)
     }
 }

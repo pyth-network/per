@@ -1,6 +1,9 @@
-use super::{
-    InMemoryStore,
-    Repository,
+use {
+    super::{
+        InMemoryStore,
+        Repository,
+    },
+    crate::opportunity::service::ChainType,
 };
 
 impl<T: InMemoryStore> Repository<T> {

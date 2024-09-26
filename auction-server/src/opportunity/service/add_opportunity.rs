@@ -1,6 +1,7 @@
 use {
     super::{
-        verify_opportunity::VerifyOpportunityInput,
+        verification::Verification,
+        ChainType,
         ChainTypeEvm,
         Service,
     },
@@ -10,21 +11,31 @@ use {
             RestError,
         },
         opportunity::{
-            api::OpportunityParamsWithMetadata,
-            entities,
+            api::{
+                OpportunityParamsWithMetadata,
+                OpportunityParamsWithMetadataEvm,
+            },
+            entities::{
+                self,
+            },
+            repository::InMemoryStore,
+            service::verification::VerifyOpportunityInput,
         },
     },
 };
 
-pub struct AddOpportunityInput {
-    pub opportunity: entities::OpportunityEvm,
+pub struct AddOpportunityInput<T: entities::Opportunity> {
+    pub opportunity: T,
 }
 
-impl Service<ChainTypeEvm> {
+impl<T: ChainType> Service<T>
+where
+    Service<T>: Verification<T>,
+{
     pub async fn add_opportunity(
         &self,
-        input: AddOpportunityInput,
-    ) -> Result<entities::OpportunityEvm, RestError> {
+        input: AddOpportunityInput<<T::InMemoryStore as InMemoryStore>::Opportunity>,
+    ) -> Result<<T::InMemoryStore as InMemoryStore>::Opportunity, RestError> {
         let opportunity = input.opportunity;
         self.verify_opportunity(VerifyOpportunityInput {
             opportunity: opportunity.clone(),
@@ -52,9 +63,7 @@ impl Service<ChainTypeEvm> {
         self.store
             .ws
             .broadcast_sender
-            .send(NewOpportunity(OpportunityParamsWithMetadata::from(
-                opportunity.clone(),
-            )))
+            .send(NewOpportunity(opportunity.clone().into()))
             .map_err(|e| {
                 tracing::error!(
                     "Failed to send update: {} - opportunity: {:?}",

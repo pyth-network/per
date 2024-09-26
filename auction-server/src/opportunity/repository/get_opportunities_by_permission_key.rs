@@ -1,6 +1,9 @@
 use {
     super::{
-        models,
+        models::{
+            self,
+            OpportunityMetadataEvm,
+        },
         InMemoryStoreEvm,
         Repository,
     },
@@ -10,7 +13,10 @@ use {
             ChainId,
             PermissionKey,
         },
-        opportunity::entities,
+        opportunity::{
+            entities,
+            service::ChainTypeEvm,
+        },
     },
     sqlx::QueryBuilder,
     time::OffsetDateTime,
@@ -35,7 +41,7 @@ impl Repository<InMemoryStoreEvm> {
             query.push_bind(from_time);
         }
         query.push(" ORDER BY creation_time ASC LIMIT 20");
-        let opps: Vec<models::Opportunity> = query
+        let opps: Vec<models::Opportunity<OpportunityMetadataEvm>> = query
             .build_query_as()
             .fetch_all(db)
             .await

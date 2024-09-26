@@ -1,16 +1,33 @@
 use {
     crate::{
         kernel::entities::PermissionKey,
+        models::ChainType,
         opportunity::entities,
     },
-    ethers::types::Bytes,
+    ethers::types::{
+        Address,
+        Bytes,
+        U256,
+    },
+    serde::{
+        de::DeserializeOwned,
+        Deserialize,
+        Serialize,
+    },
+    serde_with::{
+        serde_as,
+        DisplayFromStr,
+    },
+    solana_sdk::pubkey::Pubkey,
     sqlx::{
         prelude::FromRow,
         types::{
             time::PrimitiveDateTime,
             BigDecimal,
+            Json,
             JsonValue,
         },
+        Postgres,
     },
     uuid::Uuid,
 };
@@ -22,25 +39,55 @@ pub enum OpportunityRemovalReason {
     Invalid,
 }
 
-#[derive(Clone, FromRow, Debug)]
-pub struct Opportunity {
-    pub id:                Uuid,
-    pub creation_time:     PrimitiveDateTime,
-    pub permission_key:    Vec<u8>,
-    pub chain_id:          String,
-    pub target_contract:   Vec<u8>,
-    pub target_call_value: BigDecimal,
-    pub target_calldata:   Vec<u8>,
-    pub removal_time:      Option<PrimitiveDateTime>,
-    pub sell_tokens:       JsonValue,
-    pub buy_tokens:        JsonValue,
-    pub removal_reason:    Option<OpportunityRemovalReason>,
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OpportunityMetadataEvm {
+    pub target_contract:   Address,
+    #[serde(with = "crate::serde::u256")]
+    pub target_call_value: U256,
+    pub target_calldata:   Bytes,
 }
 
-impl TryFrom<Opportunity> for entities::OpportunityEvm {
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OpportunityMetadataSvm {
+    pub router:     Pubkey,
+    pub permission: Pubkey,
+}
+
+pub trait OpportunityMetadata: Serialize + DeserializeOwned {
+    fn get_chain_type() -> ChainType;
+}
+
+impl OpportunityMetadata for OpportunityMetadataEvm {
+    fn get_chain_type() -> ChainType {
+        ChainType::Evm
+    }
+}
+
+impl OpportunityMetadata for OpportunityMetadataSvm {
+    fn get_chain_type() -> ChainType {
+        ChainType::Svm
+    }
+}
+
+#[derive(Clone, FromRow, Debug)]
+pub struct Opportunity<T: OpportunityMetadata> {
+    pub id:             Uuid,
+    pub creation_time:  PrimitiveDateTime,
+    pub permission_key: Vec<u8>,
+    pub chain_id:       String,
+    pub chain_type:     ChainType,
+    pub removal_time:   Option<PrimitiveDateTime>,
+    pub sell_tokens:    JsonValue,
+    pub buy_tokens:     JsonValue,
+    pub removal_reason: Option<OpportunityRemovalReason>,
+    pub metadata:       Json<T>,
+}
+
+impl TryFrom<Opportunity<OpportunityMetadataEvm>> for entities::OpportunityEvm {
     type Error = anyhow::Error;
 
-    fn try_from(val: Opportunity) -> Result<Self, Self::Error> {
+    fn try_from(val: Opportunity<OpportunityMetadataEvm>) -> Result<Self, Self::Error> {
         Ok(entities::OpportunityEvm {
             core_fields:       entities::OpportunityCoreFields {
                 id:             val.id,
@@ -52,9 +99,9 @@ impl TryFrom<Opportunity> for entities::OpportunityEvm {
                 buy_tokens:     serde_json::from_value(val.buy_tokens)
                     .map_err(|e| anyhow::anyhow!(e))?,
             },
-            target_contract:   ethers::abi::Address::from_slice(&val.target_contract),
-            target_call_value: val.target_call_value.to_string().parse().unwrap(),
-            target_calldata:   Bytes::from(val.target_calldata),
+            target_contract:   val.metadata.target_contract,
+            target_call_value: val.metadata.target_call_value,
+            target_calldata:   val.metadata.target_calldata.clone(),
         })
     }
 }
@@ -64,6 +111,25 @@ impl From<entities::OpportunityRemovalReason> for OpportunityRemovalReason {
         match reason {
             entities::OpportunityRemovalReason::Expired => OpportunityRemovalReason::Expired,
             entities::OpportunityRemovalReason::Invalid(_) => OpportunityRemovalReason::Invalid,
+        }
+    }
+}
+
+impl From<entities::OpportunityEvm> for OpportunityMetadataEvm {
+    fn from(metadata: entities::OpportunityEvm) -> Self {
+        Self {
+            target_contract:   metadata.target_contract,
+            target_call_value: metadata.target_call_value,
+            target_calldata:   metadata.target_calldata,
+        }
+    }
+}
+
+impl From<entities::OpportunitySvm> for OpportunityMetadataSvm {
+    fn from(metadata: entities::OpportunitySvm) -> Self {
+        Self {
+            router:     metadata.router,
+            permission: metadata.permission,
         }
     }
 }

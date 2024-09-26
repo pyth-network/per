@@ -255,6 +255,9 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let config_opportunity_service_evm =
         opportunity_service::ConfigEvm::from_chains(&chains).await?;
+    let config_opportunity_service_svm =
+        opportunity_service::ConfigSvm::from_chains(&chains_svm).await?;
+
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
         db: pool.clone(),
@@ -280,6 +283,13 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             store.clone(),
             pool.clone(),
             config_opportunity_service_evm,
+        )),
+        opportunity_service_svm: Arc::new(opportunity_service::Service::<
+            opportunity_service::ChainTypeSvm,
+        >::new(
+            store.clone(),
+            pool.clone(),
+            config_opportunity_service_svm,
         )),
     });
 

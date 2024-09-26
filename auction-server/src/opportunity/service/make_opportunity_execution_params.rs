@@ -7,7 +7,7 @@ use {
     crate::{
         api::RestError,
         opportunity::{
-            api::OpportunityBid,
+            api::OpportunityBidEvm,
             contracts::{
                 ExecutionParams,
                 ExecutionWitness,
@@ -21,7 +21,7 @@ use {
 
 pub struct MakeOpportunityExecutionParamsInput {
     pub opportunity:     entities::OpportunityEvm,
-    pub opportunity_bid: OpportunityBid,
+    pub opportunity_bid: OpportunityBidEvm,
 }
 
 impl Service<ChainTypeEvm> {

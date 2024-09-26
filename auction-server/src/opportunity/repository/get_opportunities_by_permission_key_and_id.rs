@@ -5,7 +5,10 @@ use {
     },
     crate::{
         kernel::entities::PermissionKey,
-        opportunity::entities,
+        opportunity::{
+            entities,
+            service::ChainType,
+        },
     },
 };
 

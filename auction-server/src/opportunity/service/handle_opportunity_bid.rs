@@ -15,7 +15,7 @@ use {
         },
         opportunity::{
             api::{
-                OpportunityBid,
+                OpportunityBidEvm,
                 OpportunityId,
             },
             contracts::{
@@ -34,7 +34,7 @@ use {
 
 pub struct HandleOpportunityBidInput {
     pub opportunity_id:  OpportunityId,
-    pub opportunity_bid: OpportunityBid,
+    pub opportunity_bid: OpportunityBidEvm,
     pub initiation_time: OffsetDateTime,
     pub auth:            Auth,
 }

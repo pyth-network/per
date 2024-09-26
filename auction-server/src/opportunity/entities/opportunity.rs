@@ -3,6 +3,10 @@ use {
     crate::{
         api::RestError,
         kernel::entities::ChainId,
+        opportunity::{
+            api::OpportunityParamsWithMetadata,
+            repository::models::OpportunityMetadata,
+        },
         state::UnixTimestampMicros,
     },
     ethers::types::Bytes,
@@ -23,9 +27,15 @@ pub struct OpportunityCoreFields<T: TokenAmount> {
 }
 
 pub trait Opportunity:
-    Clone + Deref<Target = OpportunityCoreFields<<Self as Opportunity>::TokenAmount>> + PartialEq
+    std::fmt::Debug
+    + Clone
+    + Deref<Target = OpportunityCoreFields<<Self as Opportunity>::TokenAmount>>
+    + PartialEq
+    + Into<Self::Metadata>
+    + Into<OpportunityParamsWithMetadata>
 {
     type TokenAmount: TokenAmount;
+    type Metadata: OpportunityMetadata;
 }
 
 #[derive(Debug)]

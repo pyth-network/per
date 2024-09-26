@@ -6,6 +6,7 @@ use {
         },
         token_amount_evm::TokenAmountEvm,
     },
+    crate::opportunity::repository::models::OpportunityMetadataEvm,
     ethers::types::{
         Bytes,
         U256,
@@ -25,6 +26,7 @@ pub struct OpportunityEvm {
 
 impl Opportunity for OpportunityEvm {
     type TokenAmount = TokenAmountEvm;
+    type Metadata = OpportunityMetadataEvm;
 }
 
 impl Deref for OpportunityEvm {

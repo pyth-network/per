@@ -9,7 +9,7 @@ use {
         config::ChainId,
         opportunity::{
             api::{
-                OpportunityBid,
+                OpportunityBidEvm,
                 OpportunityId,
                 OpportunityParamsWithMetadata,
             },
@@ -98,7 +98,7 @@ pub enum ClientMessage {
     PostOpportunityBid {
         #[schema(value_type = String)]
         opportunity_id:  OpportunityId,
-        opportunity_bid: OpportunityBid,
+        opportunity_bid: OpportunityBidEvm,
     },
 }
 
@@ -379,7 +379,7 @@ impl Subscriber {
     async fn handle_post_opportunity_bid(
         &mut self,
         id: String,
-        opportunity_bid: OpportunityBid,
+        opportunity_bid: OpportunityBidEvm,
         opportunity_id: OpportunityId,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         tracing::Span::current().record("name", "post_opportunity_bid");

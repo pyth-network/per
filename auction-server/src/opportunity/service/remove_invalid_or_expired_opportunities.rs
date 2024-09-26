@@ -1,6 +1,9 @@
 use {
     super::{
-        verify_opportunity::VerifyOpportunityInput,
+        verification::{
+            Verification,
+            VerifyOpportunityInput,
+        },
         ChainTypeEvm,
         Service,
     },
@@ -17,7 +20,10 @@ use {
 
 const MAX_STALE_OPPORTUNITY_MICROS: i128 = 60_000_000;
 
-impl Service<ChainTypeEvm> {
+impl Service<ChainTypeEvm>
+where
+    Service<ChainTypeEvm>: Verification<ChainTypeEvm>,
+{
     pub async fn remove_invalid_or_expired_opportunities(&self) {
         let all_opportunities = self.repo.get_opportunities().await;
         for (_permission_key, opportunities) in all_opportunities.iter() {

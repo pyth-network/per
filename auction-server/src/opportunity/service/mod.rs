@@ -1,7 +1,13 @@
 use {
     super::{
         contracts::AdapterFactory,
+        entities,
         repository::{
+            models::{
+                OpportunityMetadata,
+                OpportunityMetadataEvm,
+                OpportunityMetadataSvm,
+            },
             InMemoryStore,
             InMemoryStoreEvm,
             InMemoryStoreSvm,
@@ -9,17 +15,21 @@ use {
         },
     },
     crate::{
+        api::RestError,
         kernel::{
             db::DB,
             entities::ChainId,
         },
         state::{
             ChainStoreEvm,
+            ChainStoreSvm,
             Store,
         },
         traced_client::TracedClient,
     },
+    axum::async_trait,
     ethers::{
+        abi::Item,
         providers::Provider,
         types::Address,
     },
@@ -40,7 +50,7 @@ mod get_spoof_info;
 mod make_adapter_calldata;
 mod make_opportunity_execution_params;
 mod make_permitted_tokens;
-mod verify_opportunity;
+mod verification;
 
 #[derive(Debug)]
 pub struct ConfigEvm {
@@ -138,6 +148,17 @@ impl ConfigEvm {
         Ok(try_join_all(config_opportunity_service_evm)
             .await?
             .into_iter()
+            .collect())
+    }
+}
+
+impl ConfigSvm {
+    pub async fn from_chains(
+        chains: &HashMap<ChainId, ChainStoreSvm>,
+    ) -> anyhow::Result<HashMap<ChainId, Self>> {
+        Ok(chains
+            .iter()
+            .map(|(chain_id, _)| (chain_id.clone(), Self {}))
             .collect())
     }
 }

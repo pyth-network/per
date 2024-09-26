@@ -7,7 +7,7 @@ use {
     crate::{
         api::RestError,
         opportunity::{
-            api::OpportunityBid,
+            api::OpportunityBidEvm,
             contracts::OpportunityAdapter,
             entities,
         },
@@ -18,7 +18,7 @@ use {
 
 pub struct MakeAdapterCalldataInput {
     pub opportunity:     entities::OpportunityEvm,
-    pub opportunity_bid: OpportunityBid,
+    pub opportunity_bid: OpportunityBidEvm,
 }
 
 impl Service<ChainTypeEvm> {

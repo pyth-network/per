@@ -382,18 +382,6 @@ impl SimulatedBidTrait for SimulatedBidSvm {
 }
 
 pub type UnixTimestampMicros = i128;
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct TokenAmount {
-    /// Token contract address
-    #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", value_type = String)]
-    pub token:  ethers::abi::Address,
-    /// Token amount
-    #[schema(example = "1000", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub amount: U256,
-}
-
 pub type AuctionLock = Arc<Mutex<()>>;
 
 pub struct ChainStoreCoreFields<T: SimulatedBidTrait> {
@@ -783,6 +771,8 @@ pub struct Store {
 pub struct StoreNew {
     pub opportunity_service_evm:
         Arc<opportunity_service::Service<opportunity_service::ChainTypeEvm>>,
+    pub opportunity_service_svm:
+        Arc<opportunity_service::Service<opportunity_service::ChainTypeSvm>>,
     pub store:                   Arc<Store>,
 }
 

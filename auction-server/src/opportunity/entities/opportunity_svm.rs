@@ -6,7 +6,11 @@ use {
         },
         token_amount_svm::TokenAmountSvm,
     },
-    solana_sdk::transaction::VersionedTransaction,
+    crate::opportunity::repository::models::OpportunityMetadataSvm,
+    solana_sdk::{
+        pubkey::Pubkey,
+        transaction::VersionedTransaction,
+    },
     std::ops::Deref,
 };
 
@@ -14,11 +18,13 @@ use {
 pub struct OpportunitySvm {
     pub core_fields: OpportunityCoreFields<TokenAmountSvm>,
 
-    pub transaction: VersionedTransaction,
+    pub router:     Pubkey,
+    pub permission: Pubkey,
 }
 
 impl Opportunity for OpportunitySvm {
     type TokenAmount = TokenAmountSvm;
+    type Metadata = OpportunityMetadataSvm;
 }
 
 impl Deref for OpportunitySvm {

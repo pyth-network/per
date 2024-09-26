@@ -1,5 +1,8 @@
 use {
-    super::entities,
+    super::{
+        entities,
+        service::ChainType,
+    },
     crate::kernel::entities::PermissionKey,
     ethers::types::Address,
     std::{
@@ -15,7 +18,7 @@ mod get_opportunities;
 mod get_opportunities_by_permission_key;
 mod get_opportunities_by_permission_key_and_id;
 mod get_spoof_info;
-mod models;
+pub mod models;
 mod opportunity_exists;
 mod remove_opportunity;
 

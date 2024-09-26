@@ -6,7 +6,7 @@ use {
     crate::{
         api::RestError,
         opportunity::{
-            api::OpportunityBid,
+            api::OpportunityBidEvm,
             contracts::TokenPermissions,
             entities,
         },
@@ -16,7 +16,7 @@ use {
 
 pub struct MakePermittedTokensInput {
     pub opportunity:     entities::OpportunityEvm,
-    pub opportunity_bid: OpportunityBid,
+    pub opportunity_bid: OpportunityBidEvm,
 }
 
 impl Service<ChainTypeEvm> {

@@ -3,7 +3,10 @@ use {
         InMemoryStore,
         Repository,
     },
-    crate::kernel::entities::PermissionKey,
+    crate::{
+        kernel::entities::PermissionKey,
+        opportunity::service::ChainType,
+    },
     std::collections::HashMap,
 };
 

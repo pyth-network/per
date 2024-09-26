@@ -1,11 +1,16 @@
 use {
     super::{
+        models::OpportunityMetadata,
+        InMemoryStore,
         InMemoryStoreEvm,
         Repository,
     },
     crate::{
         api::RestError,
-        opportunity::entities,
+        opportunity::{
+            entities,
+            service::ChainType,
+        },
     },
     sqlx::{
         types::BigDecimal,
@@ -18,30 +23,31 @@ use {
     },
 };
 
-impl Repository<InMemoryStoreEvm> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn add_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
-        opportunity: entities::OpportunityEvm,
+        opportunity: T::Opportunity,
     ) -> Result<(), RestError> {
         let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
             .expect("creation_time is valid");
+        let metadata: <T::Opportunity as entities::Opportunity>::Metadata =
+            opportunity.clone().into();
+        let chain_type = <T::Opportunity as entities::Opportunity>::Metadata::get_chain_type();
         sqlx::query!("INSERT INTO opportunity (id,
                                                         creation_time,
                                                         permission_key,
                                                         chain_id,
-                                                        target_contract,
-                                                        target_call_value,
-                                                        target_calldata,
+                                                        chain_type,
+                                                        metadata,
                                                         sell_tokens,
-                                                        buy_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                                                        buy_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         opportunity.id,
         PrimitiveDateTime::new(odt.date(), odt.time()),
         opportunity.permission_key.to_vec(),
         opportunity.chain_id,
-        &opportunity.target_contract.to_fixed_bytes(),
-        BigDecimal::from_str(&opportunity.target_call_value.to_string()).unwrap(),
-        opportunity.target_calldata.to_vec(),
+        chain_type as _,
+        serde_json::to_value(metadata).expect("Failed to serialize metadata"),
         serde_json::to_value(&opportunity.sell_tokens).unwrap(),
         serde_json::to_value(&opportunity.buy_tokens).unwrap())
             .execute(db)

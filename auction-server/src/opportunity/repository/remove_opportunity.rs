@@ -4,6 +4,7 @@ use {
         InMemoryStore,
         Repository,
     },
+    crate::opportunity::service::ChainType,
     sqlx::Postgres,
     time::{
         OffsetDateTime,
