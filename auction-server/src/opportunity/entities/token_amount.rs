@@ -1,9 +1,6 @@
-use {
-    crate::opportunity::api,
-    serde::{
-        de::DeserializeOwned,
-        Serialize,
-    },
+use serde::{
+    de::DeserializeOwned,
+    Serialize,
 };
 
 pub trait TokenAmount:

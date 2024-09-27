@@ -11,6 +11,4 @@ pub use {
     opportunity_evm::*,
     opportunity_svm::*,
     spoof_info::*,
-    token_amount_evm::*,
-    token_amount_svm::*,
 };
