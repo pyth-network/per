@@ -18,6 +18,7 @@ impl TokenAmount for TokenAmountEvm {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TokenAmountEvm {
     pub token:  Address,
+    #[serde(with = "crate::serde::u256")]
     pub amount: U256,
 }
 

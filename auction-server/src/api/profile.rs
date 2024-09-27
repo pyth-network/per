@@ -5,7 +5,7 @@ use {
             ErrorBodyResponse,
             RestError,
         },
-        models::ProfileId,
+        models,
         state::StoreNew,
     },
     axum::{
@@ -25,6 +25,31 @@ use {
 };
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum ProfileRole {
+    Searcher,
+    Protocol,
+}
+
+impl From<models::ProfileRole> for ProfileRole {
+    fn from(role: models::ProfileRole) -> Self {
+        match role {
+            models::ProfileRole::Searcher => ProfileRole::Searcher,
+            models::ProfileRole::Protocol => ProfileRole::Protocol,
+        }
+    }
+}
+
+impl Into<models::ProfileRole> for ProfileRole {
+    fn into(self) -> models::ProfileRole {
+        match self {
+            ProfileRole::Searcher => models::ProfileRole::Searcher,
+            ProfileRole::Protocol => models::ProfileRole::Protocol,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse, Debug)]
 pub struct CreateProfile {
     /// The name of the profile to create
     #[schema(example = "John Doe")]
@@ -32,26 +57,30 @@ pub struct CreateProfile {
     /// The email of the profile to create
     #[schema(example = "example@example.com", value_type = String)]
     pub email: String,
+    /// The role of the profile to create
+    pub role:  ProfileRole,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct Profile {
     /// The id of the profile
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
-    id:    ProfileId,
+    id:       models::ProfileId,
     /// The name of the profile
     #[schema(example = "John Doe")]
-    name:  String,
+    name:     String,
     /// The email of the profile
     #[schema(example = "example@example.com", value_type = String)]
-    email: EmailAddress,
+    email:    EmailAddress,
+    /// The role of the profile
+    pub role: ProfileRole,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct CreateAccessToken {
     /// The id of the profile to create token for
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
-    profile_id: ProfileId,
+    profile_id: models::ProfileId,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
@@ -80,6 +109,7 @@ pub async fn post_profile(
         id:    profile.id,
         name:  profile.name,
         email: profile.email.0,
+        role:  profile.role.into(),
     }))
 }
 

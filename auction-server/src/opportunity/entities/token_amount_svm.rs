@@ -5,11 +5,17 @@ use {
         Deserialize,
         Serialize,
     },
+    serde_with::{
+        serde_as,
+        DisplayFromStr,
+    },
     solana_sdk::pubkey::Pubkey,
 };
 
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TokenAmountSvm {
+    #[serde_as(as = "DisplayFromStr")]
     pub token:  Pubkey,
     pub amount: u64,
 }

@@ -13,7 +13,10 @@ use {
                 self,
             },
         },
-        state::UnixTimestampMicros,
+        state::{
+            PermissionKey,
+            UnixTimestampMicros,
+        },
     },
     ethers::types::{
         Bytes,
@@ -114,5 +117,29 @@ impl From<api::OpportunityCreateEvm> for OpportunityEvm {
             target_calldata:   params.target_calldata,
             target_call_value: params.target_call_value,
         }
+    }
+}
+
+impl TryFrom<repository::Opportunity<repository::OpportunityMetadataEvm>> for OpportunityEvm {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        val: repository::Opportunity<repository::OpportunityMetadataEvm>,
+    ) -> Result<Self, Self::Error> {
+        Ok(OpportunityEvm {
+            core_fields:       OpportunityCoreFields {
+                id:             val.id,
+                creation_time:  val.creation_time.assume_utc().unix_timestamp_nanos(),
+                permission_key: PermissionKey::from(val.permission_key),
+                chain_id:       val.chain_id,
+                sell_tokens:    serde_json::from_value(val.sell_tokens)
+                    .map_err(|e| anyhow::anyhow!(e))?,
+                buy_tokens:     serde_json::from_value(val.buy_tokens)
+                    .map_err(|e| anyhow::anyhow!(e))?,
+            },
+            target_contract:   val.metadata.target_contract,
+            target_call_value: val.metadata.target_call_value,
+            target_calldata:   val.metadata.target_calldata.clone(),
+        })
     }
 }

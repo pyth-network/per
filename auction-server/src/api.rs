@@ -125,6 +125,10 @@ pub enum RestError {
     TemporarilyUnavailable,
     /// Invalid auth token
     InvalidToken,
+    /// Forbidden
+    Forbidden,
+    /// Unauthorized
+    Unauthorized,
 }
 
 impl RestError {
@@ -161,6 +165,8 @@ impl RestError {
                 StatusCode::UNAUTHORIZED,
                 "Invalid authorization token".to_string(),
             ),
+            RestError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
+            RestError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
         }
     }
 }
@@ -300,7 +306,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity_api::OpportunityCreateSvm,
     opportunity_api::OpportunityCreateV1Evm,
     opportunity_api::OpportunityCreateV1Svm,
-    opportunity_api::OpportunityCreateV1KaminoSvm,
+    opportunity_api::OpportunityCreateClientParamsV1Svm,
+    opportunity_api::OpportunityCreateClientParamsV1KaminoSvm,
     opportunity_api::Opportunity,
     opportunity_api::OpportunityEvm,
     opportunity_api::OpportunitySvm,

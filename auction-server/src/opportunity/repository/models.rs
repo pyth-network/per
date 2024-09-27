@@ -1,9 +1,5 @@
 use {
-    crate::{
-        kernel::entities::PermissionKey,
-        models::ChainType,
-        opportunity::entities,
-    },
+    crate::models::ChainType,
     ethers::types::{
         Address,
         Bytes,
@@ -50,11 +46,25 @@ pub struct OpportunityMetadataEvm {
 }
 
 #[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OpportunityMetadataSvmClientKamino {
+    #[serde_as(as = "Base64")]
+    pub order: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "name", rename_all = "lowercase")]
+pub enum OpportunityMetadataSvmClient {
+    Kamino(OpportunityMetadataSvmClientKamino),
+}
+
+#[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpportunityMetadataSvm {
-    #[serde_as(as = "Base64")]
-    pub order:      Vec<u8>,
+    pub client:     OpportunityMetadataSvmClient,
+    #[serde_as(as = "DisplayFromStr")]
     pub router:     Pubkey,
+    #[serde_as(as = "DisplayFromStr")]
     pub permission: Pubkey,
     #[serde_as(as = "DisplayFromStr")]
     pub block_hash: Hash,
@@ -88,28 +98,6 @@ pub struct Opportunity<T: OpportunityMetadata> {
     pub buy_tokens:     JsonValue,
     pub removal_reason: Option<OpportunityRemovalReason>,
     pub metadata:       Json<T>,
-}
-
-impl TryFrom<Opportunity<OpportunityMetadataEvm>> for entities::OpportunityEvm {
-    type Error = anyhow::Error;
-
-    fn try_from(val: Opportunity<OpportunityMetadataEvm>) -> Result<Self, Self::Error> {
-        Ok(entities::OpportunityEvm {
-            core_fields:       entities::OpportunityCoreFields {
-                id:             val.id,
-                creation_time:  val.creation_time.assume_utc().unix_timestamp_nanos(),
-                permission_key: PermissionKey::from(val.permission_key),
-                chain_id:       val.chain_id,
-                sell_tokens:    serde_json::from_value(val.sell_tokens)
-                    .map_err(|e| anyhow::anyhow!(e))?,
-                buy_tokens:     serde_json::from_value(val.buy_tokens)
-                    .map_err(|e| anyhow::anyhow!(e))?,
-            },
-            target_contract:   val.metadata.target_contract,
-            target_call_value: val.metadata.target_call_value,
-            target_calldata:   val.metadata.target_calldata.clone(),
-        })
-    }
 }
 
 // Add blockhash

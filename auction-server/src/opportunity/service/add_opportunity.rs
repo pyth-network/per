@@ -45,6 +45,7 @@ where
             e
         })?;
 
+        // TODO: bug No two opportunities can have the same id and creation time
         if self.repo.opportunity_exists(&opportunity).await {
             tracing::warn!("Duplicate opportunity submission: {:?}", opportunity);
             return Err(RestError::BadParameters(

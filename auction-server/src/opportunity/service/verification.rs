@@ -294,8 +294,11 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
 impl Verification<ChainTypeSvm> for Service<ChainTypeSvm> {
     async fn verify_opportunity(
         &self,
-        _input: VerifyOpportunityInput<<InMemoryStoreSvm as InMemoryStore>::Opportunity>,
+        input: VerifyOpportunityInput<<InMemoryStoreSvm as InMemoryStore>::Opportunity>,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {
-        Err(RestError::TemporarilyUnavailable)
+        self.get_config(&input.opportunity.chain_id)?;
+
+        // To make sure it'll be expired after a minute
+        Ok(entities::OpportunityVerificationResult::UnableToSpoof)
     }
 }

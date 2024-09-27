@@ -25,13 +25,23 @@ use {
 };
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct OpportunitySvmClientKamino {
+    pub order: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OpportunitySvmClient {
+    Kamino(OpportunitySvmClientKamino),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvm {
     pub core_fields: OpportunityCoreFields<TokenAmountSvm>,
 
-    pub order:      Vec<u8>,
     pub router:     Pubkey,
     pub permission: Pubkey,
     pub block_hash: Hash,
+    pub client:     OpportunitySvmClient,
 }
 
 impl Opportunity for OpportunitySvm {
@@ -51,9 +61,18 @@ impl Deref for OpportunitySvm {
 // Model conversions
 impl From<OpportunitySvm> for repository::OpportunityMetadataSvm {
     fn from(metadata: OpportunitySvm) -> Self {
+        let client = match metadata.client {
+            OpportunitySvmClient::Kamino(client) => {
+                repository::OpportunityMetadataSvmClient::Kamino(
+                    repository::OpportunityMetadataSvmClientKamino {
+                        order: client.order,
+                    },
+                )
+            }
+        };
         Self {
-            order:      metadata.order,
-            router:     metadata.router,
+            client,
+            router: metadata.router,
             permission: metadata.permission,
             block_hash: metadata.block_hash,
         }
@@ -69,15 +88,20 @@ impl From<OpportunitySvm> for api::Opportunity {
 
 impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
+        let client = match val.client.clone() {
+            OpportunitySvmClient::Kamino(client) => {
+                api::OpportunityParamsV1ClientSvm::Kamino(api::OpportunityParamsV1KaminoSvm {
+                    order: client.order,
+                })
+            }
+        };
         api::OpportunitySvm {
-            opportunity_id: val.id,
+            opportunity_id: val.id.clone(),
             creation_time:  val.creation_time,
-            params:         api::OpportunityParamsSvm::V1(api::OpportunityParamsV1Svm::Kamino(
-                api::OpportunityParamsV1KaminoSvm {
-                    order:    val.order.clone(),
-                    chain_id: val.chain_id.clone(),
-                },
-            )),
+            params:         api::OpportunityParamsSvm::V1(api::OpportunityParamsV1Svm {
+                client,
+                chain_id: val.chain_id.clone(),
+            }),
         }
     }
 }
@@ -85,7 +109,14 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
 impl From<api::OpportunityCreateSvm> for OpportunitySvm {
     fn from(val: api::OpportunityCreateSvm) -> Self {
         let params = match val {
-            api::OpportunityCreateSvm::V1(api::OpportunityCreateV1Svm::Kamino(val)) => val,
+            api::OpportunityCreateSvm::V1(params) => params,
+        };
+        let client = match params.client_params {
+            api::OpportunityCreateClientParamsV1Svm::Kamino(params) => {
+                OpportunitySvmClient::Kamino(OpportunitySvmClientKamino {
+                    order: params.order,
+                })
+            }
         };
         let id = Uuid::new_v4();
         let now_odt = OffsetDateTime::now_utc();
@@ -100,10 +131,10 @@ impl From<api::OpportunityCreateSvm> for OpportunitySvm {
                 buy_tokens: params.buy_tokens.into_iter().map(|t| t.into()).collect(),
                 creation_time: now_odt.unix_timestamp_nanos() / 1000 as UnixTimestampMicros,
             },
-            order:       params.order,
-            permission:  params.permission,
-            router:      params.router,
-            block_hash:  params.block_hash,
+            client,
+            permission: params.permission,
+            router: params.router,
+            block_hash: params.block_hash,
         }
     }
 }

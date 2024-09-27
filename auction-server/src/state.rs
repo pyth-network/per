@@ -1028,11 +1028,14 @@ impl Store {
         create_profile: ApiProfile::CreateProfile,
     ) -> Result<models::Profile, RestError> {
         let id = Uuid::new_v4();
+        let role: models::ProfileRole = create_profile.role.clone().into();
         let profile: models::Profile = sqlx::query_as(
-            "INSERT INTO profile (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, created_at, updated_at",
+            "INSERT INTO profile (id, name, email, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, created_at, updated_at",
         ).bind(id)
         .bind(create_profile.name.clone())
-        .bind(create_profile.email.to_string()).fetch_one(&self.db).await
+        .bind(create_profile.email.to_string())
+        .bind(role)
+        .fetch_one(&self.db).await
         .map_err(|e| {
             if let Some(true) = e.as_database_error().map(|e| e.is_unique_violation()) {
                 return RestError::BadParameters("Profile with this email already exists".to_string());
