@@ -9,9 +9,9 @@ use {
         config::ChainId,
         opportunity::{
             api::{
+                Opportunity,
                 OpportunityBidEvm,
                 OpportunityId,
-                OpportunityParamsWithMetadata,
             },
             service::handle_opportunity_bid::HandleOpportunityBidInput,
         },
@@ -114,9 +114,7 @@ pub struct ClientRequest {
 #[serde(tag = "type")]
 pub enum ServerUpdateResponse {
     #[serde(rename = "new_opportunity")]
-    NewOpportunity {
-        opportunity: OpportunityParamsWithMetadata,
-    },
+    NewOpportunity { opportunity: Opportunity },
     #[serde(rename = "bid_status_update")]
     BidStatusUpdate { status: BidStatusWithId },
 }
@@ -163,7 +161,7 @@ async fn websocket_handler(stream: WebSocket, state: Arc<StoreNew>, auth: Auth) 
 
 #[derive(Clone)]
 pub enum UpdateEvent {
-    NewOpportunity(OpportunityParamsWithMetadata),
+    NewOpportunity(Opportunity),
     BidStatusUpdate(BidStatusWithId),
 }
 
@@ -267,10 +265,7 @@ impl Subscriber {
         }
     }
 
-    async fn handle_new_opportunity(
-        &mut self,
-        opportunity: OpportunityParamsWithMetadata,
-    ) -> Result<()> {
+    async fn handle_new_opportunity(&mut self, opportunity: Opportunity) -> Result<()> {
         tracing::Span::current().record("name", "new_opportunity");
         if !self.chain_ids.contains(opportunity.get_chain_id()) {
             // Irrelevant update

@@ -23,9 +23,9 @@ impl<T: InMemoryStore> Repository<T> {
     ) -> Result<(), RestError> {
         let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
             .expect("creation_time is valid");
-        let metadata: <T::Opportunity as entities::Opportunity>::Metadata =
+        let metadata: <T::Opportunity as entities::Opportunity>::ModelMetadata =
             opportunity.clone().into();
-        let chain_type = <T::Opportunity as entities::Opportunity>::Metadata::get_chain_type();
+        let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
         sqlx::query!("INSERT INTO opportunity (id,
                                                         creation_time,
                                                         permission_key,

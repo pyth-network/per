@@ -15,9 +15,11 @@ mod get_opportunities;
 mod get_opportunities_by_permission_key;
 mod get_opportunities_by_permission_key_and_id;
 mod get_spoof_info;
-pub mod models;
+mod models;
 mod opportunity_exists;
 mod remove_opportunity;
+
+pub use models::*;
 
 #[derive(Debug)]
 pub struct Repository<T: InMemoryStore> {

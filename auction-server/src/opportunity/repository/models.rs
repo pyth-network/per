@@ -14,8 +14,15 @@ use {
         Deserialize,
         Serialize,
     },
-    serde_with::serde_as,
-    solana_sdk::pubkey::Pubkey,
+    serde_with::{
+        base64::Base64,
+        serde_as,
+        DisplayFromStr,
+    },
+    solana_sdk::{
+        hash::Hash,
+        pubkey::Pubkey,
+    },
     sqlx::{
         prelude::FromRow,
         types::{
@@ -45,8 +52,12 @@ pub struct OpportunityMetadataEvm {
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpportunityMetadataSvm {
+    #[serde_as(as = "Base64")]
+    pub order:      Vec<u8>,
     pub router:     Pubkey,
     pub permission: Pubkey,
+    #[serde_as(as = "DisplayFromStr")]
+    pub block_hash: Hash,
 }
 
 pub trait OpportunityMetadata: Serialize + DeserializeOwned {
@@ -101,30 +112,6 @@ impl TryFrom<Opportunity<OpportunityMetadataEvm>> for entities::OpportunityEvm {
     }
 }
 
-impl From<entities::OpportunityRemovalReason> for OpportunityRemovalReason {
-    fn from(reason: entities::OpportunityRemovalReason) -> Self {
-        match reason {
-            entities::OpportunityRemovalReason::Expired => OpportunityRemovalReason::Expired,
-            entities::OpportunityRemovalReason::Invalid(_) => OpportunityRemovalReason::Invalid,
-        }
-    }
-}
-
-impl From<entities::OpportunityEvm> for OpportunityMetadataEvm {
-    fn from(metadata: entities::OpportunityEvm) -> Self {
-        Self {
-            target_contract:   metadata.target_contract,
-            target_call_value: metadata.target_call_value,
-            target_calldata:   metadata.target_calldata,
-        }
-    }
-}
-
-impl From<entities::OpportunitySvm> for OpportunityMetadataSvm {
-    fn from(metadata: entities::OpportunitySvm) -> Self {
-        Self {
-            router:     metadata.router,
-            permission: metadata.permission,
-        }
-    }
-}
+// Add blockhash
+// remove tokens from svm opps
+// Move impl

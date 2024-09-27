@@ -1,11 +1,8 @@
 use {
-    super::{
-        entities,
-        service::{
-            add_opportunity::AddOpportunityInput,
-            get_opportunities::GetOpportunitiesInput,
-            handle_opportunity_bid::HandleOpportunityBidInput,
-        },
+    super::service::{
+        add_opportunity::AddOpportunityInput,
+        get_opportunities::GetOpportunitiesInput,
+        handle_opportunity_bid::HandleOpportunityBidInput,
     },
     crate::{
         api::{
@@ -47,10 +44,14 @@ use {
         Serialize,
     },
     serde_with::{
+        base64::Base64,
         serde_as,
         DisplayFromStr,
     },
-    solana_sdk::pubkey::Pubkey,
+    solana_sdk::{
+        hash::Hash,
+        pubkey::Pubkey,
+    },
     std::sync::Arc,
     time::OffsetDateTime,
     utoipa::{
@@ -61,8 +62,15 @@ use {
     uuid::Uuid,
 };
 
-
+// Base types
 pub type OpportunityId = Uuid;
+
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum OpportunityMode {
+    Live,
+    Historical,
+}
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
 pub struct OpportunityBidResult {
@@ -73,6 +81,41 @@ pub struct OpportunityBidResult {
     pub id:     BidId,
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(untagged)]
+pub enum OpportunityCreate {
+    Evm(OpportunityCreateEvm),
+    Svm(OpportunityCreateSvm),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
+#[serde(untagged)]
+pub enum Opportunity {
+    Evm(OpportunityEvm),
+    Svm(OpportunitySvm),
+}
+
+fn default_opportunity_mode() -> OpportunityMode {
+    OpportunityMode::Live
+}
+#[derive(Serialize, Deserialize, IntoParams)]
+pub struct GetOpportunitiesQueryParams {
+    #[param(example = "op_sepolia", value_type = Option < String >)]
+    pub chain_id:       Option<ChainId>,
+    /// Get opportunities in live or historical mode
+    #[param(default = "live")]
+    #[serde(default = "default_opportunity_mode")]
+    pub mode:           OpportunityMode,
+    /// The permission key to filter the opportunities by. Used only in historical mode.
+    #[param(example = "0xdeadbeef", value_type = Option< String >)]
+    pub permission_key: Option<Bytes>,
+    /// The time to get the opportunities from. Used only in historical mode.
+    #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
+    #[serde(default, with = "crate::serde::nullable_datetime")]
+    pub from_time:      Option<OffsetDateTime>,
+}
+
+// ----- Evm types -----
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct TokenAmountEvm {
     /// Token contract address
@@ -89,7 +132,7 @@ pub struct TokenAmountEvm {
 /// by calling this target contract with the given target calldata and structures, they will
 /// send the tokens specified in the sell_tokens field and receive the tokens specified in the buy_tokens field.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct OpportunityParamsV1Evm {
+pub struct OpportunityCreateV1Evm {
     /// The permission key required for successful execution of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
     pub permission_key:    Bytes,
@@ -113,18 +156,28 @@ pub struct OpportunityParamsV1Evm {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "version")]
-pub enum OpportunityParamsEvm {
+pub enum OpportunityCreateEvm {
     #[serde(rename = "v1")]
-    V1(OpportunityParamsV1Evm),
+    V1(OpportunityCreateV1Evm),
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(untagged)]
-pub enum OpportunityParams {
-    Evm(OpportunityParamsEvm),
-    Svm(OpportunityParamsSvm),
+/// Similar to OpportunityParams, but with the opportunity id included.
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
+pub struct OpportunityEvm {
+    /// The opportunity unique id
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
+    pub opportunity_id: OpportunityId,
+    /// Creation time of the opportunity (in microseconds since the Unix epoch)
+    #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
+    pub creation_time:  UnixTimestampMicros,
+    /// opportunity data
+    #[serde(flatten)]
+    // expands params into component fields in the generated client schemas
+    #[schema(inline)]
+    pub params:         OpportunityCreateEvm,
 }
 
+// ----- Svm types -----
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct TokenAmountSvm {
@@ -140,7 +193,10 @@ pub struct TokenAmountSvm {
 // TODO descibe it
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct OpportunityParamsV1KaminoSvm {
+pub struct OpportunityCreateV1KaminoSvm {
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "Base64")]
+    pub order:      Vec<u8>,
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub permission: Pubkey,
@@ -149,9 +205,36 @@ pub struct OpportunityParamsV1KaminoSvm {
     pub router:     Pubkey,
     #[schema(example = "solana", value_type = String)]
     pub chain_id:   ChainId,
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub block_hash: Hash,
 
     pub sell_tokens: Vec<TokenAmountSvm>,
     pub buy_tokens:  Vec<TokenAmountSvm>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(tag = "client")]
+pub enum OpportunityCreateV1Svm {
+    #[serde(rename = "kamino")]
+    Kamino(OpportunityCreateV1KaminoSvm),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(tag = "version")]
+pub enum OpportunityCreateSvm {
+    #[serde(rename = "v1")]
+    V1(OpportunityCreateV1Svm),
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct OpportunityParamsV1KaminoSvm {
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "Base64")]
+    pub order:    Vec<u8>,
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id: ChainId,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
@@ -168,66 +251,33 @@ pub enum OpportunityParamsSvm {
     V1(OpportunityParamsV1Svm),
 }
 
+
 /// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
-pub struct OpportunityParamsWithMetadataEvm {
+pub struct OpportunitySvm {
     /// The opportunity unique id
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
-    opportunity_id: OpportunityId,
+    pub opportunity_id: OpportunityId,
     /// Creation time of the opportunity (in microseconds since the Unix epoch)
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
-    creation_time:  UnixTimestampMicros,
+    pub creation_time:  UnixTimestampMicros,
     /// opportunity data
     #[serde(flatten)]
     // expands params into component fields in the generated client schemas
     #[schema(inline)]
-    params:         OpportunityParamsEvm,
+    pub params:         OpportunityParamsSvm,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
-#[serde(untagged)]
-pub enum OpportunityParamsWithMetadata {
-    Evm(OpportunityParamsWithMetadataEvm),
-    Svm(OpportunityParamsWithMetadataSvm),
-}
-
-impl From<entities::OpportunityEvm> for OpportunityParamsWithMetadata {
-    fn from(val: entities::OpportunityEvm) -> Self {
-        OpportunityParamsWithMetadata::Evm(val.into())
-    }
-}
-
-impl From<entities::OpportunitySvm> for OpportunityParamsWithMetadata {
-    fn from(val: entities::OpportunitySvm) -> Self {
-        OpportunityParamsWithMetadata::Svm(val.into())
-    }
-}
-
-/// Similar to OpportunityParams, but with the opportunity id included.
-#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
-pub struct OpportunityParamsWithMetadataSvm {
-    /// The opportunity unique id
-    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
-    opportunity_id: OpportunityId,
-    /// Creation time of the opportunity (in microseconds since the Unix epoch)
-    #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
-    creation_time:  UnixTimestampMicros,
-    /// opportunity data
-    #[serde(flatten)]
-    // expands params into component fields in the generated client schemas
-    #[schema(inline)]
-    params:         OpportunityParamsSvm,
-}
-
-impl OpportunityParamsWithMetadataEvm {
+// ----- Implementations -----
+impl OpportunityEvm {
     pub fn get_chain_id(&self) -> &ChainId {
         match &self.params {
-            OpportunityParamsEvm::V1(params) => &params.chain_id,
+            OpportunityCreateEvm::V1(params) => &params.chain_id,
         }
     }
 }
 
-impl OpportunityParamsWithMetadataSvm {
+impl OpportunitySvm {
     pub fn get_chain_id(&self) -> &ChainId {
         match &self.params {
             OpportunityParamsSvm::V1(params) => match params {
@@ -237,153 +287,16 @@ impl OpportunityParamsWithMetadataSvm {
     }
 }
 
-impl OpportunityParamsWithMetadata {
+impl Opportunity {
     pub fn get_chain_id(&self) -> &ChainId {
         match self {
-            OpportunityParamsWithMetadata::Evm(opportunity) => opportunity.get_chain_id(),
-            OpportunityParamsWithMetadata::Svm(opportunity) => opportunity.get_chain_id(),
+            Opportunity::Evm(opportunity) => opportunity.get_chain_id(),
+            Opportunity::Svm(opportunity) => opportunity.get_chain_id(),
         }
     }
 }
 
-impl From<entities::TokenAmountEvm> for TokenAmountEvm {
-    fn from(val: entities::TokenAmountEvm) -> Self {
-        TokenAmountEvm {
-            token:  val.token,
-            amount: val.amount,
-        }
-    }
-}
-
-impl From<entities::TokenAmountSvm> for TokenAmountSvm {
-    fn from(val: entities::TokenAmountSvm) -> Self {
-        TokenAmountSvm {
-            token:  val.token,
-            amount: val.amount,
-        }
-    }
-}
-
-impl From<entities::OpportunityEvm> for OpportunityParamsWithMetadataEvm {
-    fn from(val: entities::OpportunityEvm) -> Self {
-        OpportunityParamsWithMetadataEvm {
-            opportunity_id: val.id,
-            creation_time:  val.creation_time,
-            params:         OpportunityParamsEvm::V1(OpportunityParamsV1Evm {
-                permission_key:    val.permission_key.clone(),
-                chain_id:          val.chain_id.clone(),
-                target_contract:   val.target_contract,
-                target_calldata:   val.target_calldata.clone(),
-                target_call_value: val.target_call_value,
-                sell_tokens:       val
-                    .sell_tokens
-                    .clone()
-                    .into_iter()
-                    .map(|t| t.into())
-                    .collect(),
-                buy_tokens:        val
-                    .buy_tokens
-                    .clone()
-                    .into_iter()
-                    .map(|t| t.into())
-                    .collect(),
-            }),
-        }
-    }
-}
-
-impl From<entities::OpportunitySvm> for OpportunityParamsWithMetadataSvm {
-    fn from(val: entities::OpportunitySvm) -> Self {
-        OpportunityParamsWithMetadataSvm {
-            opportunity_id: val.id,
-            creation_time:  val.creation_time,
-            params:         OpportunityParamsSvm::V1(OpportunityParamsV1Svm::Kamino(
-                OpportunityParamsV1KaminoSvm {
-                    permission:  val.permission.clone(),
-                    chain_id:    val.chain_id.clone(),
-                    router:      val.router.clone(),
-                    sell_tokens: val
-                        .sell_tokens
-                        .clone()
-                        .into_iter()
-                        .map(|t| t.into())
-                        .collect(),
-                    buy_tokens:  val
-                        .buy_tokens
-                        .clone()
-                        .into_iter()
-                        .map(|t| t.into())
-                        .collect(),
-                },
-            )),
-        }
-    }
-}
-
-impl From<TokenAmountEvm> for entities::TokenAmountEvm {
-    fn from(val: TokenAmountEvm) -> Self {
-        entities::TokenAmountEvm {
-            token:  val.token,
-            amount: val.amount,
-        }
-    }
-}
-
-impl From<TokenAmountSvm> for entities::TokenAmountSvm {
-    fn from(val: TokenAmountSvm) -> Self {
-        entities::TokenAmountSvm {
-            token:  val.token,
-            amount: val.amount,
-        }
-    }
-}
-
-impl From<OpportunityParamsV1Evm> for entities::OpportunityEvm {
-    fn from(val: OpportunityParamsV1Evm) -> Self {
-        let id = Uuid::new_v4();
-        let now_odt = OffsetDateTime::now_utc();
-        entities::OpportunityEvm {
-            core_fields:       entities::OpportunityCoreFields::<entities::TokenAmountEvm> {
-                id,
-                permission_key: val.permission_key.clone(),
-                chain_id: val.chain_id.clone(),
-                sell_tokens: val.sell_tokens.into_iter().map(|t| t.into()).collect(),
-                buy_tokens: val.buy_tokens.into_iter().map(|t| t.into()).collect(),
-                creation_time: now_odt.unix_timestamp_nanos() / 1000 as UnixTimestampMicros,
-            },
-            target_contract:   val.target_contract,
-            target_calldata:   val.target_calldata,
-            target_call_value: val.target_call_value,
-        }
-    }
-}
-
-
-impl From<OpportunityParamsV1Svm> for entities::OpportunitySvm {
-    fn from(val: OpportunityParamsV1Svm) -> Self {
-        let val = match val {
-            OpportunityParamsV1Svm::Kamino(val) => val,
-        };
-        let id = Uuid::new_v4();
-        let now_odt = OffsetDateTime::now_utc();
-        entities::OpportunitySvm {
-            core_fields: entities::OpportunityCoreFields::<entities::TokenAmountSvm> {
-                id,
-                permission_key: [val.permission.to_bytes(), val.router.to_bytes()]
-                    .concat()
-                    .into(),
-                chain_id: val.chain_id,
-                sell_tokens: val.sell_tokens.into_iter().map(|t| t.into()).collect(),
-                buy_tokens: val.buy_tokens.into_iter().map(|t| t.into()).collect(),
-                creation_time: now_odt.unix_timestamp_nanos() / 1000 as UnixTimestampMicros,
-            },
-            permission:  val.permission,
-            router:      val.router,
-        }
-    }
-}
-
-
+// ----- APIs -----
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct OpportunityBidEvm {
     /// The opportunity permission key
@@ -455,62 +368,25 @@ pub async fn opportunity_bid(
 ),)]
 pub async fn post_opportunity(
     State(store): State<Arc<StoreNew>>,
-    Json(params): Json<OpportunityParams>,
-) -> Result<Json<OpportunityParamsWithMetadata>, RestError> {
-    let opportunity_with_metadata: OpportunityParamsWithMetadata = match params {
-        OpportunityParams::Evm(versioned_params) => {
-            let OpportunityParamsEvm::V1(params) = versioned_params.clone();
-            // TODO Need a new entity for CreateOpportunity
-            store
-                .opportunity_service_evm
-                .add_opportunity(AddOpportunityInput {
-                    opportunity: params.into(),
-                })
-                .await?
-                .into()
-        }
-        OpportunityParams::Svm(versioned_params) => {
-            let OpportunityParamsSvm::V1(params) = versioned_params.clone();
-            // TODO Need a new entity for CreateOpportunity
-            store
-                .opportunity_service_svm
-                .add_opportunity(AddOpportunityInput {
-                    opportunity: params.into(),
-                })
-                .await?
-                .into()
-        }
+    Json(params): Json<OpportunityCreate>,
+) -> Result<Json<Opportunity>, RestError> {
+    let opportunity_with_metadata: Opportunity = match params {
+        OpportunityCreate::Evm(params) => store
+            .opportunity_service_evm
+            .add_opportunity(AddOpportunityInput {
+                opportunity: params.into(),
+            })
+            .await?
+            .into(),
+        OpportunityCreate::Svm(params) => store
+            .opportunity_service_svm
+            .add_opportunity(AddOpportunityInput {
+                opportunity: params.into(),
+            })
+            .await?
+            .into(),
     };
     Ok(opportunity_with_metadata.into())
-}
-
-
-#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum OpportunityMode {
-    Live,
-    Historical,
-}
-
-fn default_opportunity_mode() -> OpportunityMode {
-    OpportunityMode::Live
-}
-
-#[derive(Serialize, Deserialize, IntoParams)]
-pub struct GetOpportunitiesQueryParams {
-    #[param(example = "op_sepolia", value_type = Option < String >)]
-    pub chain_id:       Option<ChainId>,
-    /// Get opportunities in live or historical mode
-    #[param(default = "live")]
-    #[serde(default = "default_opportunity_mode")]
-    pub mode:           OpportunityMode,
-    /// The permission key to filter the opportunities by. Used only in historical mode.
-    #[param(example = "0xdeadbeef", value_type = Option< String >)]
-    pub permission_key: Option<Bytes>,
-    /// The time to get the opportunities from. Used only in historical mode.
-    #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
-    #[serde(default, with = "crate::serde::nullable_datetime")]
-    pub from_time:      Option<OffsetDateTime>,
 }
 
 /// Fetch opportunities ready for execution or historical opportunities
@@ -525,7 +401,7 @@ params(GetOpportunitiesQueryParams))]
 pub async fn get_opportunities(
     State(store): State<Arc<StoreNew>>,
     query_params: Query<GetOpportunitiesQueryParams>,
-) -> Result<axum::Json<Vec<OpportunityParamsWithMetadataEvm>>, RestError> {
+) -> Result<axum::Json<Vec<OpportunityEvm>>, RestError> {
     let opportunities = store
         .opportunity_service_evm
         .get_opportunities(GetOpportunitiesInput {

@@ -4,8 +4,8 @@ use {
         api::RestError,
         kernel::entities::ChainId,
         opportunity::{
-            api::OpportunityParamsWithMetadata,
-            repository::models::OpportunityMetadata,
+            api,
+            repository,
         },
         state::UnixTimestampMicros,
     },
@@ -26,16 +26,19 @@ pub struct OpportunityCoreFields<T: TokenAmount> {
     pub creation_time:  UnixTimestampMicros,
 }
 
+// TODO Need a new entity for CreateOpportunity
 pub trait Opportunity:
     std::fmt::Debug
     + Clone
     + Deref<Target = OpportunityCoreFields<<Self as Opportunity>::TokenAmount>>
     + PartialEq
-    + Into<Self::Metadata>
-    + Into<OpportunityParamsWithMetadata>
+    + Into<Self::ModelMetadata>
+    + Into<api::Opportunity>
+    + From<Self::ApiOpportunityCreate>
 {
     type TokenAmount: TokenAmount;
-    type Metadata: OpportunityMetadata;
+    type ModelMetadata: repository::OpportunityMetadata;
+    type ApiOpportunityCreate;
 }
 
 #[derive(Debug)]
@@ -48,4 +51,13 @@ pub enum OpportunityRemovalReason {
 pub enum OpportunityVerificationResult {
     Success,
     UnableToSpoof,
+}
+
+impl From<OpportunityRemovalReason> for repository::OpportunityRemovalReason {
+    fn from(reason: OpportunityRemovalReason) -> Self {
+        match reason {
+            OpportunityRemovalReason::Expired => repository::OpportunityRemovalReason::Expired,
+            OpportunityRemovalReason::Invalid(_) => repository::OpportunityRemovalReason::Invalid,
+        }
+    }
 }
