@@ -89,6 +89,47 @@ local_resource(
     dir="contracts/svm",
 )
 
+# creates mints for sell and buy tokens, creates and funds ATAs for searcher and admin
+local_resource(
+    "svm-create-mints",
+        """solana-keygen new -o keypairs/mint_buy.json -f --no-bip39-passphrase \
+        && solana-keygen new -o keypairs/mint_sell.json -f --no-bip39-passphrase \
+        && spl-token create-token -u localhost --fee-payer keypairs/admin.json --mint-authority keypairs/admin.json keypairs/mint_sell.json \
+        && spl-token create-token -u localhost --fee-payer keypairs/admin.json --mint-authority keypairs/admin.json keypairs/mint_buy.json \
+        && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher.json \
+        && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher.json \
+        && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/admin.json \
+        && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_buy.json 1000000000 --recipient-owner keypairs/searcher.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_sell.json 1000000000 --recipient-owner keypairs/searcher.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_buy.json 1000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_sell.json 1000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json""",
+    resource_deps=["svm-setup-accounts"]
+)
+
+# setup limo global config and vaults for buy and sell tokens
+RUN_CLI= "ADMIN=../../keypairs/admin.json RPC_ENV=localnet npm exec limo-cli --"
+SET_GLOBAL_CONFIG = "LIMO_GLOBAL_CONFIG=$(solana-keygen pubkey ../../keypairs/limo_global_config.json)"
+MINT_SELL= "$(solana-keygen pubkey ../../keypairs/mint_sell.json)"
+MINT_BUY= "$(solana-keygen pubkey ../../keypairs/mint_buy.json)"
+local_resource(
+    "svm-limo-setup",
+        """solana-keygen new -o ../../keypairs/limo_global_config.json -f --no-bip39-passphrase \
+        && {RUN_CLI} init-global-config --global-config-file-path ../../keypairs/limo_global_config.json \
+        && {SET_GLOBAL_CONFIG} {RUN_CLI} init-vault --mint {MINT_SELL} --mode execute \
+        && {SET_GLOBAL_CONFIG} {RUN_CLI} init-vault --mint {MINT_BUY} --mode execute"""
+        .format(RUN_CLI=RUN_CLI, SET_GLOBAL_CONFIG=SET_GLOBAL_CONFIG, MINT_SELL=MINT_SELL, MINT_BUY=MINT_BUY),
+    resource_deps=["svm-create-mints"], dir="contracts/svm",
+)
+
+# create a single limo order for the searcher to bid on
+local_resource(
+    "svm-limo-create-order",
+        "{SET_GLOBAL_CONFIG} {RUN_CLI} place-ask --quote {MINT_SELL} --base {MINT_BUY} --price 10000 --quote-amount 20"
+        .format(RUN_CLI=RUN_CLI, SET_GLOBAL_CONFIG=SET_GLOBAL_CONFIG, MINT_SELL=MINT_SELL, MINT_BUY=MINT_BUY),
+    resource_deps=["svm-limo-setup"], dir="contracts/svm",
+)
+
 local_resource(
     "auction-server",
     serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --subwallet-private-key $RELAYER_PRIVATE_KEY --secret-key $SECRET_KEY",
