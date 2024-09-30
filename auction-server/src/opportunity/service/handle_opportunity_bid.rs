@@ -69,7 +69,7 @@ impl Service<ChainTypeEvm> {
 
         let adapter_calldata = self
             .make_adapter_calldata(MakeAdapterCalldataInput {
-                opportunity:     opportunity.clone(),
+                opportunity:     opportunity.clone().into(),
                 opportunity_bid: input.opportunity_bid.clone(),
             })
             .await

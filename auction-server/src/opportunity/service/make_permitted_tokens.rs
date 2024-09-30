@@ -15,7 +15,7 @@ use {
 };
 
 pub struct MakePermittedTokensInput {
-    pub opportunity:     entities::OpportunityEvm,
+    pub opportunity:     entities::OpportunityCreateEvm,
     pub opportunity_bid: OpportunityBidEvm,
 }
 
@@ -24,9 +24,10 @@ impl Service<ChainTypeEvm> {
         &self,
         input: MakePermittedTokensInput,
     ) -> Result<Vec<TokenPermissions>, RestError> {
-        let config = self.get_config(&input.opportunity.chain_id)?;
+        let config = self.get_config(&input.opportunity.core_fields.chain_id)?;
         let mut permitted_tokens: Vec<TokenPermissions> = input
             .opportunity
+            .core_fields
             .sell_tokens
             .clone()
             .into_iter()

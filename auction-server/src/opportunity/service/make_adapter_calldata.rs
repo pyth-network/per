@@ -17,7 +17,7 @@ use {
 };
 
 pub struct MakeAdapterCalldataInput {
-    pub opportunity:     entities::OpportunityEvm,
+    pub opportunity:     entities::OpportunityCreateEvm,
     pub opportunity_bid: OpportunityBidEvm,
 }
 
@@ -26,7 +26,7 @@ impl Service<ChainTypeEvm> {
         &self,
         input: MakeAdapterCalldataInput,
     ) -> Result<Bytes, RestError> {
-        let config = self.get_config(&input.opportunity.chain_id)?;
+        let config = self.get_config(&input.opportunity.core_fields.chain_id)?;
         let adapter_contract = config.adapter_factory_contract;
         let signature = input.opportunity_bid.signature.clone();
         let execution_params =

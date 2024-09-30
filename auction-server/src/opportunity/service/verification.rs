@@ -21,11 +21,7 @@ use {
                 MulticallReturn,
             },
             entities,
-            repository::{
-                InMemoryStore,
-                InMemoryStoreEvm,
-                InMemoryStoreSvm,
-            },
+            repository::InMemoryStore,
             token_spoof,
         },
     },
@@ -59,17 +55,16 @@ use {
     uuid::Uuid,
 };
 
-pub struct VerifyOpportunityInput<T: entities::Opportunity> {
+pub struct VerifyOpportunityInput<T: entities::OpportunityCreate> {
     pub opportunity: T,
 }
 
 pub trait Verification<T: ChainType> {
     fn verify_opportunity(
         &self,
-        input: VerifyOpportunityInput<<T::InMemoryStore as InMemoryStore>::Opportunity>,
+        input: VerifyOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as entities::Opportunity>::OpportunityCreate>,
     ) -> impl Future<Output = Result<entities::OpportunityVerificationResult, RestError>>;
 }
-
 
 fn generate_random_u256() -> U256 {
     let mut rng = rand::thread_rng();
@@ -139,9 +134,9 @@ fn get_typed_data(
 impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
     async fn verify_opportunity(
         &self,
-        input: VerifyOpportunityInput<<InMemoryStoreEvm as InMemoryStore>::Opportunity>,
+        input: VerifyOpportunityInput<entities::OpportunityCreateEvm>,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {
-        let config = self.get_config(&input.opportunity.chain_id)?;
+        let config = self.get_config(&input.opportunity.core_fields.chain_id)?;
         let client = Arc::new(config.provider.clone());
         let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
 
@@ -149,7 +144,7 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
             executor:       fake_wallet.address(),
             deadline:       U256::max_value(),
             nonce:          generate_random_u256(),
-            permission_key: input.opportunity.permission_key.clone(),
+            permission_key: input.opportunity.core_fields.permission_key.clone(),
             amount:         U256::zero(),
             signature:      Signature {
                 v: 0,
@@ -201,13 +196,13 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
         let chain_store = self
             .store
             .chains
-            .get(&input.opportunity.chain_id)
+            .get(&input.opportunity.core_fields.chain_id)
             .ok_or(RestError::BadParameters("Chain not found".to_string()))?;
         let call = get_simulation_call(
             chain_store.express_relay_contract.get_relayer_address(),
             config.provider.clone(),
             chain_store.config.clone(),
-            input.opportunity.permission_key.clone(),
+            input.opportunity.core_fields.permission_key.clone(),
             vec![MulticallData::from((
                 Uuid::new_v4().to_bytes_le(),
                 config.adapter_factory_contract,
@@ -229,7 +224,7 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
         for (token, amount) in tokens_map {
             let spoof_info = self
                 .get_spoof_info(GetSpoofInfoInput {
-                    chain_id: input.opportunity.chain_id.clone(),
+                    chain_id: input.opportunity.core_fields.chain_id.clone(),
                     token,
                 })
                 .await?;
@@ -294,11 +289,12 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
 impl Verification<ChainTypeSvm> for Service<ChainTypeSvm> {
     async fn verify_opportunity(
         &self,
-        input: VerifyOpportunityInput<<InMemoryStoreSvm as InMemoryStore>::Opportunity>,
+        input: VerifyOpportunityInput<entities::OpportunityCreateSvm>,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {
-        self.get_config(&input.opportunity.chain_id)?;
+        self.get_config(&input.opportunity.core_fields.chain_id)?;
 
         // To make sure it'll be expired after a minute
+        // TODO - change this to a more realistic value
         Ok(entities::OpportunityVerificationResult::UnableToSpoof)
     }
 }

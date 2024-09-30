@@ -70,7 +70,9 @@ pub struct OpportunityMetadataSvm {
     pub block_hash: Hash,
 }
 
-pub trait OpportunityMetadata: Serialize + DeserializeOwned {
+pub trait OpportunityMetadata:
+    std::fmt::Debug + Clone + Serialize + DeserializeOwned + Send + Sync + Unpin + 'static
+{
     fn get_chain_type() -> ChainType;
 }
 
@@ -99,7 +101,3 @@ pub struct Opportunity<T: OpportunityMetadata> {
     pub removal_reason: Option<OpportunityRemovalReason>,
     pub metadata:       Json<T>,
 }
-
-// Add blockhash
-// remove tokens from svm opps
-// Move impl

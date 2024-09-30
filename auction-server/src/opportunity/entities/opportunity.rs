@@ -2,7 +2,10 @@ use {
     super::token_amount::TokenAmount,
     crate::{
         api::RestError,
-        kernel::entities::ChainId,
+        kernel::entities::{
+            ChainId,
+            PermissionKey,
+        },
         opportunity::{
             api,
             repository,
@@ -26,7 +29,15 @@ pub struct OpportunityCoreFields<T: TokenAmount> {
     pub creation_time:  UnixTimestampMicros,
 }
 
-// TODO Need a new entity for CreateOpportunity
+#[derive(Debug, Clone)]
+pub struct OpportunityCoreFieldsCreate<T: TokenAmount> {
+    pub permission_key: Bytes,
+    pub chain_id:       ChainId,
+    pub sell_tokens:    Vec<T>,
+    pub buy_tokens:     Vec<T>,
+}
+
+// TODO Think more about structure. Isn't it better to have a generic Opportunity struct with a field of type OpportunityParams?
 pub trait Opportunity:
     std::fmt::Debug
     + Clone
@@ -34,11 +45,20 @@ pub trait Opportunity:
     + PartialEq
     + Into<Self::ModelMetadata>
     + Into<api::Opportunity>
-    + From<Self::ApiOpportunityCreate>
+    + From<Self::OpportunityCreate>
+    + Into<Self::OpportunityCreate>
+    + PartialEq<Self::OpportunityCreate>
+    + TryFrom<repository::Opportunity<Self::ModelMetadata>>
 {
     type TokenAmount: TokenAmount;
     type ModelMetadata: repository::OpportunityMetadata;
+    type OpportunityCreate: OpportunityCreate;
+}
+
+pub trait OpportunityCreate: std::fmt::Debug + Clone + From<Self::ApiOpportunityCreate> {
     type ApiOpportunityCreate;
+
+    fn permission_key(&self) -> PermissionKey;
 }
 
 #[derive(Debug)]

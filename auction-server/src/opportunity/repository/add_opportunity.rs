@@ -19,8 +19,9 @@ impl<T: InMemoryStore> Repository<T> {
     pub async fn add_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
-        opportunity: T::Opportunity,
-    ) -> Result<(), RestError> {
+        opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreate,
+    ) -> Result<T::Opportunity, RestError> {
+        let opportunity: T::Opportunity = opportunity.into();
         let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
             .expect("creation_time is valid");
         let metadata: <T::Opportunity as entities::Opportunity>::ModelMetadata =
@@ -55,7 +56,8 @@ impl<T: InMemoryStore> Repository<T> {
             .await
             .entry(opportunity.permission_key.clone())
             .or_insert_with(Vec::new)
-            .push(opportunity);
-        Ok(())
+            .push(opportunity.clone());
+
+        Ok(opportunity)
     }
 }

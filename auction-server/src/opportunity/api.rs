@@ -1,8 +1,11 @@
 use {
-    super::service::{
-        add_opportunity::AddOpportunityInput,
-        get_opportunities::GetOpportunitiesInput,
-        handle_opportunity_bid::HandleOpportunityBidInput,
+    super::{
+        repository,
+        service::{
+            add_opportunity::AddOpportunityInput,
+            get_opportunities::GetOpportunitiesInput,
+            handle_opportunity_bid::HandleOpportunityBidInput,
+        },
     },
     crate::{
         api::{
@@ -99,7 +102,7 @@ pub enum Opportunity {
 fn default_opportunity_mode() -> OpportunityMode {
     OpportunityMode::Live
 }
-#[derive(Serialize, Deserialize, IntoParams)]
+#[derive(Clone, Serialize, Deserialize, IntoParams)]
 pub struct GetOpportunitiesQueryParams {
     #[param(example = "op_sepolia", value_type = Option < String >)]
     pub chain_id:       Option<ChainId>,
@@ -336,6 +339,13 @@ impl Opportunity {
             Opportunity::Svm(opportunity) => opportunity.get_chain_id(),
         }
     }
+
+    pub fn creation_time(&self) -> UnixTimestampMicros {
+        match self {
+            Opportunity::Evm(opportunity) => opportunity.creation_time,
+            Opportunity::Svm(opportunity) => opportunity.creation_time,
+        }
+    }
 }
 
 // ----- APIs -----
@@ -441,14 +451,51 @@ params(GetOpportunitiesQueryParams))]
 pub async fn get_opportunities(
     State(store): State<Arc<StoreNew>>,
     query_params: Query<GetOpportunitiesQueryParams>,
-) -> Result<axum::Json<Vec<OpportunityEvm>>, RestError> {
-    let opportunities = store
+) -> Result<axum::Json<Vec<Opportunity>>, RestError> {
+    let opportunities_evm = store
         .opportunity_service_evm
+        .get_opportunities(GetOpportunitiesInput {
+            query_params: query_params.clone().0,
+        })
+        .await;
+    let opportunities_svm = store
+        .opportunity_service_svm
         .get_opportunities(GetOpportunitiesInput {
             query_params: query_params.0,
         })
-        .await?;
-    Ok(Json(opportunities.into_iter().map(|o| o.into()).collect()))
+        .await;
+
+    if opportunities_evm.is_err() && opportunities_svm.is_err() {
+        return Err(opportunities_evm
+            .err()
+            .expect("Failed to get error from opportunities_evm"));
+    } else {
+        let mut opportunities: Vec<Opportunity> = vec![];
+        if let Ok(opportunities_evm) = opportunities_evm {
+            opportunities.extend(
+                opportunities_evm
+                    .into_iter()
+                    .map(|o| o.into())
+                    .collect::<Vec<Opportunity>>(),
+            );
+        }
+        if let Ok(opportunities_svm) = opportunities_svm {
+            opportunities.extend(
+                opportunities_svm
+                    .into_iter()
+                    .map(|o| o.into())
+                    .collect::<Vec<Opportunity>>(),
+            );
+        }
+
+        opportunities.sort_by(|a, b| a.creation_time().cmp(&b.creation_time()));
+        Ok(Json(
+            opportunities
+                .into_iter()
+                .take(repository::OPPORTUNITY_PAGE_SIZE as usize)
+                .collect(),
+        ))
+    }
 }
 
 pub fn get_routes() -> Router<Arc<StoreNew>> {

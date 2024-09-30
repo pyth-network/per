@@ -19,7 +19,7 @@ use {
     },
 };
 
-pub struct AddOpportunityInput<T: entities::Opportunity> {
+pub struct AddOpportunityInput<T: entities::OpportunityCreate> {
     pub opportunity: T,
 }
 
@@ -29,31 +29,32 @@ where
 {
     pub async fn add_opportunity(
         &self,
-        input: AddOpportunityInput<<T::InMemoryStore as InMemoryStore>::Opportunity>,
+        input: AddOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as entities::Opportunity>::OpportunityCreate>,
     ) -> Result<<T::InMemoryStore as InMemoryStore>::Opportunity, RestError> {
-        let opportunity = input.opportunity;
+        let opportunity_create = input.opportunity;
+        if self.repo.opportunity_exists(&opportunity_create).await {
+            tracing::warn!("Duplicate opportunity submission: {:?}", opportunity_create);
+            return Err(RestError::BadParameters(
+                "Duplicate opportunity submission".to_string(),
+            ));
+        }
+
         self.verify_opportunity(VerifyOpportunityInput {
-            opportunity: opportunity.clone(),
+            opportunity: opportunity_create.clone(),
         })
         .await
         .map_err(|e| {
             tracing::warn!(
                 "Failed to verify opportunity: {:?} - opportunity: {:?}",
                 e,
-                opportunity,
+                opportunity_create,
             );
             e
         })?;
 
-        // TODO: bug No two opportunities can have the same id and creation time
-        if self.repo.opportunity_exists(&opportunity).await {
-            tracing::warn!("Duplicate opportunity submission: {:?}", opportunity);
-            return Err(RestError::BadParameters(
-                "Duplicate opportunity submission".to_string(),
-            ));
-        }
-        self.repo
-            .add_opportunity(&self.db, opportunity.clone())
+        let opportunity = self
+            .repo
+            .add_opportunity(&self.db, opportunity_create.clone())
             .await?;
 
         self.store

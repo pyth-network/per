@@ -31,7 +31,7 @@ where
             for opportunity in opportunities.iter() {
                 let reason = match self
                     .verify_opportunity(VerifyOpportunityInput {
-                        opportunity: opportunity.clone(),
+                        opportunity: opportunity.clone().into(),
                     })
                     .await
                 {
