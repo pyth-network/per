@@ -2,10 +2,8 @@ use {
     super::{
         models::{
             self,
-            OpportunityMetadataEvm,
         },
         InMemoryStore,
-        InMemoryStoreEvm,
         Repository,
     },
     crate::{

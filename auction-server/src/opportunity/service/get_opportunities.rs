@@ -1,7 +1,6 @@
 use {
     super::{
         ChainType,
-        ChainTypeEvm,
         Service,
     },
     crate::{
@@ -11,11 +10,7 @@ use {
                 GetOpportunitiesQueryParams,
                 OpportunityMode,
             },
-            entities,
-            repository::{
-                self,
-                InMemoryStore,
-            },
+            repository::InMemoryStore,
         },
     },
 };
