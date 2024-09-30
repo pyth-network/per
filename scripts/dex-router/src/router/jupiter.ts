@@ -1,4 +1,3 @@
-import { token } from "@coral-xyz/anchor/dist/cjs/utils";
 import { Router, RouterOutput } from "../types";
 import { PublicKey } from "@solana/web3.js";
 
