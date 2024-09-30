@@ -458,7 +458,7 @@ pub async fn post_opportunity(
 /// Opportunities are sorted by creation time in ascending order in historical mode.
 /// Total number of opportunities returned is limited by 20.
 #[utoipa::path(get, path = "/v1/opportunities", responses(
-(status = 200, description = "Array of opportunities ready for bidding", body = Vec < OpportunityEvm >),
+(status = 200, description = "Array of opportunities ready for bidding", body = Vec < Opportunity >),
 (status = 400, response = ErrorBodyResponse),
 (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),
