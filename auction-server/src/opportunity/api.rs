@@ -87,6 +87,7 @@ pub struct OpportunityBidResult {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(untagged)]
+/// The input type for creating a new opportunity
 pub enum OpportunityCreate {
     Evm(OpportunityCreateEvm),
     Svm(OpportunityCreateSvm),
@@ -193,7 +194,6 @@ pub enum OpportunityCreateEvm {
     V1(OpportunityCreateV1Evm),
 }
 
-/// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct OpportunityEvm {
     /// The opportunity unique id
@@ -202,7 +202,6 @@ pub struct OpportunityEvm {
     /// Creation time of the opportunity (in microseconds since the Unix epoch)
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     pub creation_time:  UnixTimestampMicros,
-    /// opportunity data
     #[serde(flatten)]
     // expands params into component fields in the generated client schemas
     #[schema(inline)]
@@ -217,20 +216,24 @@ pub struct TokenAmountSvm {
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub token:  Pubkey,
-    /// Token amount
+    /// Token amount in lamports
     #[schema(example = 1000)]
     pub amount: u64,
 }
 
-// TODO descibe it
+/// Kamino client specific parameters for the opportunity
+/// It contains the Kamino order to be executed, encoded in base64
+/// SDKs will decode this order and create transaction for bidding on the opportunity
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct OpportunityCreateClientParamsV1KaminoSvm {
+    /// The Kamino order to be executed, encoded in base64
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "Base64")]
     pub order: Vec<u8>,
 }
 
+/// Client specific parameters for the opportunity
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "client")]
 pub enum OpportunityCreateClientParamsV1Svm {
@@ -238,17 +241,23 @@ pub enum OpportunityCreateClientParamsV1Svm {
     Kamino(OpportunityCreateClientParamsV1KaminoSvm),
 }
 
+/// Opportunity parameters needed for on-chain execution.
+/// Parameters may differ for each client
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct OpportunityCreateV1Svm {
+    /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub permission: Pubkey,
+    /// The router account to be used for the opportunity execution of the protocol
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub router:     Pubkey,
+    /// The chain id where the opportunity will be executed.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:   ChainId,
+    /// The block hash to be used for the opportunity execution
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub block_hash: Hash,
@@ -268,6 +277,9 @@ pub enum OpportunityCreateSvm {
     V1(OpportunityCreateV1Svm),
 }
 
+/// Kamino client specific parameters for the opportunity
+/// It contains the Kamino order to be executed, encoded in base64
+/// SDKs will decode this order and create transaction for bidding on the opportunity
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct OpportunityParamsV1KaminoSvm {
@@ -276,6 +288,7 @@ pub struct OpportunityParamsV1KaminoSvm {
     pub order: Vec<u8>,
 }
 
+/// Client specific parameters for the opportunity
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(tag = "client")]
 pub enum OpportunityParamsV1ClientSvm {
@@ -283,6 +296,8 @@ pub enum OpportunityParamsV1ClientSvm {
     Kamino(OpportunityParamsV1KaminoSvm),
 }
 
+/// Opportunity parameters needed for on-chain execution.
+/// Parameters may differ for each client
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct OpportunityParamsV1Svm {
     #[serde(flatten)]
@@ -299,7 +314,6 @@ pub enum OpportunityParamsSvm {
     V1(OpportunityParamsV1Svm),
 }
 
-/// Similar to OpportunityParams, but with the opportunity id included.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct OpportunitySvm {
     /// The opportunity unique id
@@ -308,11 +322,11 @@ pub struct OpportunitySvm {
     /// Creation time of the opportunity (in microseconds since the Unix epoch)
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     pub creation_time:  UnixTimestampMicros,
-    /// opportunity data
+
     #[serde(flatten)]
     // expands params into component fields in the generated client schemas
     #[schema(inline)]
-    pub params:         OpportunityParamsSvm,
+    pub params: OpportunityParamsSvm,
 }
 
 // ----- Implementations -----
@@ -442,6 +456,7 @@ pub async fn post_opportunity(
 /// Fetch opportunities ready for execution or historical opportunities
 /// depending on the mode. You need to provide `chain_id` for historical mode.
 /// Opportunities are sorted by creation time in ascending order in historical mode.
+/// Total number of opportunities returned is limited by 20.
 #[utoipa::path(get, path = "/v1/opportunities", responses(
 (status = 200, description = "Array of opportunities ready for bidding", body = Vec < OpportunityEvm >),
 (status = 400, response = ErrorBodyResponse),
