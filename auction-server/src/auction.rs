@@ -964,7 +964,7 @@ fn extract_bid_data_svm(
         express_relay_svm.router_account_position,
     )?;
 
-    let concat = [permission_account.to_bytes(), router_account.to_bytes()].concat();
+    let concat = [router_account.to_bytes(), permission_account.to_bytes()].concat();
     Ok((submit_bid_data.bid_amount, concat.into()))
 }
 
