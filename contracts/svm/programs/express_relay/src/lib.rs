@@ -252,7 +252,7 @@ pub struct SubmitBid<'info> {
 
     pub relayer_signer: Signer<'info>,
 
-    /// CHECK: this is the permission_key
+    /// CHECK: this is the permission_key. This is included as an account to save transaction size via caching in case of repeated use; account contestation is not a concern because this account should never be written to.
     pub permission: UncheckedAccount<'info>,
 
     /// CHECK: don't care what this looks like
@@ -283,7 +283,7 @@ pub struct CheckPermission<'info> {
     #[account(address = sysvar_instructions::ID)]
     pub sysvar_instructions: UncheckedAccount<'info>,
 
-    /// CHECK: this is the permission_key
+    /// CHECK: this is the permission_key. This is included as an account to save transaction size via caching in case of repeated use; account contestation is not a concern because this account should never be written to.
     pub permission: UncheckedAccount<'info>,
 
     /// CHECK: this is the router address

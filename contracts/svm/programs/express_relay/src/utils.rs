@@ -154,6 +154,7 @@ pub fn perform_fee_splits(
 
 /// Performs instruction introspection on the current transaction to query SubmitBid instructions that match the specified permission and router
 /// Returns the number of matching instructions and the total fees paid to the router
+/// The config_router and express_relay_metadata accounts passed in permission_info are assumed to have already been validated. Note these are not validated in this function.
 pub fn inspect_permissions_in_tx(
     sysvar_instructions: UncheckedAccount,
     permission_info: PermissionInfo,
