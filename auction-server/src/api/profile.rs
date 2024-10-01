@@ -40,9 +40,9 @@ impl From<models::ProfileRole> for ProfileRole {
     }
 }
 
-impl Into<models::ProfileRole> for ProfileRole {
-    fn into(self) -> models::ProfileRole {
-        match self {
+impl From<ProfileRole> for models::ProfileRole {
+    fn from(role: ProfileRole) -> Self {
+        match role {
             ProfileRole::Searcher => models::ProfileRole::Searcher,
             ProfileRole::Protocol => models::ProfileRole::Protocol,
         }

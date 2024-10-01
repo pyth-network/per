@@ -34,8 +34,8 @@ impl<T: ChainType> Service<T> {
                 .repo
                 .get_opportunities()
                 .await
-                .iter()
-                .map(|(_key, opportunities)| {
+                .values()
+                .map(|opportunities| {
                     let opportunity = opportunities
                         .last()
                         .expect("A permission key vector should have at least one opportunity");

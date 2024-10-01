@@ -172,6 +172,7 @@ impl ChainType for ChainTypeSvm {
     type InMemoryStore = InMemoryStoreSvm;
 }
 
+// TODO maybe just create a service per chain_id?
 pub struct Service<T: ChainType> {
     store:  Arc<Store>,
     db:     DB,

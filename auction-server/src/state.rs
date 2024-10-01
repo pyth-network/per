@@ -527,15 +527,15 @@ pub trait BidStatusTrait:
     fn get_tx_hash(&self) -> Option<&Self::TxHash>;
 }
 
-impl Into<BidStatus> for BidStatusEvm {
-    fn into(self) -> BidStatus {
-        BidStatus::Evm(self)
+impl From<BidStatusEvm> for BidStatus {
+    fn from(bid_status: BidStatusEvm) -> BidStatus {
+        BidStatus::Evm(bid_status)
     }
 }
 
-impl Into<BidStatus> for BidStatusSvm {
-    fn into(self) -> BidStatus {
-        BidStatus::Svm(self)
+impl From<BidStatusSvm> for BidStatus {
+    fn from(bid_status: BidStatusSvm) -> BidStatus {
+        BidStatus::Svm(bid_status)
     }
 }
 

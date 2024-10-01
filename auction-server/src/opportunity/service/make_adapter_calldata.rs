@@ -28,7 +28,7 @@ impl Service<ChainTypeEvm> {
     ) -> Result<Bytes, RestError> {
         let config = self.get_config(&input.opportunity.core_fields.chain_id)?;
         let adapter_contract = config.adapter_factory_contract;
-        let signature = input.opportunity_bid.signature.clone();
+        let signature = input.opportunity_bid.signature;
         let execution_params =
             self.make_opportunity_execution_params(MakeOpportunityExecutionParamsInput {
                 opportunity: input.opportunity,

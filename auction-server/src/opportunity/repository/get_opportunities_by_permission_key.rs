@@ -60,7 +60,7 @@ impl<T: InMemoryStore> Repository<T> {
                 RestError::TemporarilyUnavailable
             })?;
 
-        let opportunities: Result<Vec<T::Opportunity>, RestError> = opps.clone().into_iter().map(|opp| opp.clone().try_into().map_err(
+        opps.into_iter().map(|opp| opp.clone().try_into().map_err(
             |_| {
                 tracing::error!(
                     "Failed to convert database opportunity to entity opportunity: {:?} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
@@ -71,7 +71,6 @@ impl<T: InMemoryStore> Repository<T> {
                 );
                 RestError::TemporarilyUnavailable
             }
-        )).collect();
-        opportunities
+        )).collect()
     }
 }

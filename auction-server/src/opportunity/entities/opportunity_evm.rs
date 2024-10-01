@@ -15,21 +15,16 @@ use {
                 self,
             },
         },
-        state::{
-            PermissionKey,
-            UnixTimestampMicros,
-        },
+        state::PermissionKey,
     },
     ethers::types::{
         Bytes,
         U256,
     },
     std::ops::Deref,
-    time::OffsetDateTime,
-    uuid::Uuid,
 };
 
-
+// TODO revise the entities for opportunity, Maybe generic opportunity with params
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunityEvm {
     pub core_fields: OpportunityCoreFields<TokenAmountEvm>,
@@ -39,7 +34,7 @@ pub struct OpportunityEvm {
     pub target_call_value: U256,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpportunityCreateEvm {
     pub core_fields: OpportunityCoreFieldsCreate<TokenAmountEvm>,
 
@@ -52,6 +47,23 @@ impl Opportunity for OpportunityEvm {
     type TokenAmount = TokenAmountEvm;
     type ModelMetadata = repository::OpportunityMetadataEvm;
     type OpportunityCreate = OpportunityCreateEvm;
+
+    fn new_with_current_time(val: Self::OpportunityCreate) -> Self {
+        Self {
+            core_fields:       OpportunityCoreFields::new_with_current_time(val.core_fields),
+            target_contract:   val.target_contract,
+            target_call_value: val.target_call_value,
+            target_calldata:   val.target_calldata,
+        }
+    }
+
+    fn get_models_metadata(&self) -> Self::ModelMetadata {
+        Self::ModelMetadata {
+            target_contract:   self.target_contract,
+            target_call_value: self.target_call_value,
+            target_calldata:   self.target_calldata.clone(),
+        }
+    }
 }
 
 impl OpportunityCreate for OpportunityCreateEvm {
@@ -70,18 +82,6 @@ impl Deref for OpportunityEvm {
     }
 }
 
-// Model conversions
-impl From<OpportunityEvm> for repository::OpportunityMetadataEvm {
-    fn from(metadata: OpportunityEvm) -> Self {
-        Self {
-            target_contract:   metadata.target_contract,
-            target_call_value: metadata.target_call_value,
-            target_calldata:   metadata.target_calldata,
-        }
-    }
-}
-
-// API conversions
 impl From<OpportunityEvm> for api::Opportunity {
     fn from(val: OpportunityEvm) -> Self {
         api::Opportunity::Evm(val.into())
@@ -93,7 +93,7 @@ impl From<OpportunityEvm> for api::OpportunityEvm {
         api::OpportunityEvm {
             opportunity_id: val.id,
             creation_time:  val.creation_time,
-            params:         api::OpportunityCreateEvm::V1(api::OpportunityCreateV1Evm {
+            params:         api::OpportunityParamsEvm::V1(api::OpportunityParamsV1Evm {
                 permission_key:    val.permission_key.clone(),
                 chain_id:          val.chain_id.clone(),
                 target_contract:   val.target_contract,
@@ -118,19 +118,13 @@ impl From<OpportunityEvm> for api::OpportunityEvm {
 
 impl From<api::OpportunityCreateEvm> for OpportunityCreateEvm {
     fn from(val: api::OpportunityCreateEvm) -> Self {
-        // let id = Uuid::new_v4();
-        // let now_odt = OffsetDateTime::now_utc();
-        let params = match val {
-            api::OpportunityCreateEvm::V1(params) => params,
-        };
+        let api::OpportunityCreateEvm::V1(params) = val;
         OpportunityCreateEvm {
             core_fields:       OpportunityCoreFieldsCreate::<TokenAmountEvm> {
-                // id,
-                permission_key: params.permission_key.clone(),
-                chain_id:       params.chain_id.clone(),
+                permission_key: params.permission_key,
+                chain_id:       params.chain_id,
                 sell_tokens:    params.sell_tokens.into_iter().map(|t| t.into()).collect(),
                 buy_tokens:     params.buy_tokens.into_iter().map(|t| t.into()).collect(),
-                // creation_time: now_odt.unix_timestamp_nanos() / 1000 as UnixTimestampMicros,
             },
             target_contract:   params.target_contract,
             target_calldata:   params.target_calldata,
@@ -177,50 +171,18 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataEvm>> for Op
     }
 }
 
-impl From<OpportunityCreateEvm> for OpportunityEvm {
-    fn from(val: OpportunityCreateEvm) -> Self {
-        let id = Uuid::new_v4();
-        let odt = OffsetDateTime::now_utc();
-        OpportunityEvm {
-            core_fields:       OpportunityCoreFields::<TokenAmountEvm> {
-                id,
-                creation_time: odt.unix_timestamp_nanos() / 1000 as UnixTimestampMicros,
-                permission_key: val.core_fields.permission_key.clone(),
-                chain_id: val.core_fields.chain_id.clone(),
-                sell_tokens: val.core_fields.sell_tokens.clone(),
-                buy_tokens: val.core_fields.buy_tokens.clone(),
-            },
-            target_contract:   val.target_contract,
-            target_call_value: val.target_call_value,
-            target_calldata:   val.target_calldata.clone(),
-        }
-    }
-}
-
 impl From<OpportunityEvm> for OpportunityCreateEvm {
     fn from(val: OpportunityEvm) -> Self {
         OpportunityCreateEvm {
             core_fields:       OpportunityCoreFieldsCreate::<TokenAmountEvm> {
-                permission_key: val.core_fields.permission_key.clone(),
-                chain_id:       val.core_fields.chain_id.clone(),
-                sell_tokens:    val.core_fields.sell_tokens.clone(),
-                buy_tokens:     val.core_fields.buy_tokens.clone(),
+                permission_key: val.core_fields.permission_key,
+                chain_id:       val.core_fields.chain_id,
+                sell_tokens:    val.core_fields.sell_tokens,
+                buy_tokens:     val.core_fields.buy_tokens,
             },
             target_contract:   val.target_contract,
             target_call_value: val.target_call_value,
-            target_calldata:   val.target_calldata.clone(),
+            target_calldata:   val.target_calldata,
         }
-    }
-}
-
-impl PartialEq<OpportunityCreateEvm> for OpportunityEvm {
-    fn eq(&self, other: &OpportunityCreateEvm) -> bool {
-        self.target_contract == other.target_contract
-            && self.target_call_value == other.target_call_value
-            && self.target_calldata == other.target_calldata
-            && self.core_fields.buy_tokens == other.core_fields.buy_tokens
-            && self.core_fields.sell_tokens == other.core_fields.sell_tokens
-            && self.core_fields.chain_id == other.core_fields.chain_id
-            && self.core_fields.permission_key == other.core_fields.permission_key
     }
 }

@@ -315,11 +315,12 @@ impl Subscriber {
         chain_ids: Vec<String>,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         tracing::Span::current().record("name", "handle_subscribe");
-        let chain_ids_evm: Vec<&ChainId> = self.store.store.chains.keys().collect();
-        let chain_ids_svm: Vec<&ChainId> = self.store.store.chains_svm.keys().collect();
-        let available_chain_ids: Vec<&ChainId> = chain_ids_evm
-            .into_iter()
-            .chain(chain_ids_svm.into_iter())
+        let available_chain_ids: Vec<&ChainId> = self
+            .store
+            .store
+            .chains
+            .keys()
+            .chain(self.store.store.chains_svm.keys())
             .collect();
         let not_found_chain_ids: Vec<&ChainId> = chain_ids
             .iter()

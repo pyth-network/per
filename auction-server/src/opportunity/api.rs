@@ -53,6 +53,7 @@ use {
         DisplayFromStr,
     },
     solana_sdk::{
+        clock::Slot,
         hash::Hash,
         pubkey::Pubkey,
     },
@@ -85,9 +86,9 @@ pub struct OpportunityBidResult {
     pub id:     BidId,
 }
 
+/// The input type for creating a new opportunity
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(untagged)]
-/// The input type for creating a new opportunity
 pub enum OpportunityCreate {
     Evm(OpportunityCreateEvm),
     Svm(OpportunityCreateSvm),
@@ -194,6 +195,16 @@ pub enum OpportunityCreateEvm {
     V1(OpportunityCreateV1Evm),
 }
 
+
+pub type OpportunityParamsV1Evm = OpportunityCreateV1Evm;
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+#[serde(tag = "version")]
+pub enum OpportunityParamsEvm {
+    #[serde(rename = "v1")]
+    V1(OpportunityParamsV1Evm),
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct OpportunityEvm {
     /// The opportunity unique id
@@ -203,9 +214,8 @@ pub struct OpportunityEvm {
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     pub creation_time:  UnixTimestampMicros,
     #[serde(flatten)]
-    // expands params into component fields in the generated client schemas
     #[schema(inline)]
-    pub params:         OpportunityCreateEvm,
+    pub params:         OpportunityParamsEvm,
 }
 
 // ----- Svm types -----
@@ -221,53 +231,53 @@ pub struct TokenAmountSvm {
     pub amount: u64,
 }
 
-/// Kamino client specific parameters for the opportunity
-/// It contains the Kamino order to be executed, encoded in base64
-/// SDKs will decode this order and create transaction for bidding on the opportunity
+/// Program specific parameters for the opportunity
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct OpportunityCreateClientParamsV1KaminoSvm {
-    /// The Kamino order to be executed, encoded in base64
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-    #[serde_as(as = "Base64")]
-    pub order: Vec<u8>,
-}
-
-/// Client specific parameters for the opportunity
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(tag = "client")]
-pub enum OpportunityCreateClientParamsV1Svm {
-    #[serde(rename = "kamino")]
-    Kamino(OpportunityCreateClientParamsV1KaminoSvm),
+#[serde(tag = "program")]
+pub enum OpportunityCreateProgramParamsV1Svm {
+    /// Limo program specific parameters for the opportunity
+    /// It contains the Limo order to be executed, encoded in base64
+    /// SDKs will decode this order and create transaction for bidding on the opportunity
+    #[serde(rename = "limo")]
+    Limo {
+        /// The Limo order to be executed, encoded in base64
+        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[serde_as(as = "Base64")]
+        order: Vec<u8>,
+    },
 }
 
 /// Opportunity parameters needed for on-chain execution.
-/// Parameters may differ for each client
+/// Parameters may differ for each program
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct OpportunityCreateV1Svm {
     /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub permission: Pubkey,
+    pub permission_account: Pubkey,
     /// The router account to be used for the opportunity execution of the protocol
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub router:     Pubkey,
+    pub router:             Pubkey,
     /// The chain id where the opportunity will be executed.
     #[schema(example = "solana", value_type = String)]
-    pub chain_id:   ChainId,
+    pub chain_id:           ChainId,
     /// The block hash to be used for the opportunity execution
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub block_hash: Hash,
+    pub block_hash:         Hash,
+    /// The slot where the program params were fetched from using the RPC
+    #[schema(example = 293106477, value_type = u64)]
+    pub slot:               Slot,
 
     pub sell_tokens: Vec<TokenAmountSvm>,
     pub buy_tokens:  Vec<TokenAmountSvm>,
 
     #[serde(flatten)]
     #[schema(inline)]
-    pub client_params: OpportunityCreateClientParamsV1Svm,
+    pub program_params: OpportunityCreateProgramParamsV1Svm,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
@@ -277,32 +287,30 @@ pub enum OpportunityCreateSvm {
     V1(OpportunityCreateV1Svm),
 }
 
-/// Kamino client specific parameters for the opportunity
-/// It contains the Kamino order to be executed, encoded in base64
-/// SDKs will decode this order and create transaction for bidding on the opportunity
+/// Program specific parameters for the opportunity
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-pub struct OpportunityParamsV1KaminoSvm {
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-    #[serde_as(as = "Base64")]
-    pub order: Vec<u8>,
-}
-
-/// Client specific parameters for the opportunity
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-#[serde(tag = "client")]
-pub enum OpportunityParamsV1ClientSvm {
-    #[serde(rename = "kamino")]
-    Kamino(OpportunityParamsV1KaminoSvm),
+#[serde(tag = "program")]
+pub enum OpportunityParamsV1ProgramSvm {
+    /// Limo program specific parameters for the opportunity
+    /// It contains the Limo order to be executed, encoded in base64
+    /// SDKs will decode this order and create transaction for bidding on the opportunity
+    #[serde(rename = "limo")]
+    Limo {
+        /// The Limo order to be executed, encoded in base64
+        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[serde_as(as = "Base64")]
+        order: Vec<u8>,
+    },
 }
 
 /// Opportunity parameters needed for on-chain execution.
-/// Parameters may differ for each client
+/// Parameters may differ for each program
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct OpportunityParamsV1Svm {
     #[serde(flatten)]
     #[schema(inline)]
-    pub client:   OpportunityParamsV1ClientSvm,
+    pub program:  OpportunityParamsV1ProgramSvm,
     #[schema(example = "solana", value_type = String)]
     pub chain_id: ChainId,
 }
@@ -314,6 +322,7 @@ pub enum OpportunityParamsSvm {
     V1(OpportunityParamsV1Svm),
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct OpportunitySvm {
     /// The opportunity unique id
@@ -322,9 +331,15 @@ pub struct OpportunitySvm {
     /// Creation time of the opportunity (in microseconds since the Unix epoch)
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     pub creation_time:  UnixTimestampMicros,
+    /// The block hash to be used for the opportunity execution
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub block_hash:     Hash,
+    /// The slot where the program params were fetched from using the RPC
+    #[schema(example = 293106477, value_type = u64)]
+    pub slot:           Slot,
 
     #[serde(flatten)]
-    // expands params into component fields in the generated client schemas
     #[schema(inline)]
     pub params: OpportunityParamsSvm,
 }
@@ -333,7 +348,7 @@ pub struct OpportunitySvm {
 impl OpportunityEvm {
     pub fn get_chain_id(&self) -> &ChainId {
         match &self.params {
-            OpportunityCreateEvm::V1(params) => &params.chain_id,
+            OpportunityParamsEvm::V1(params) => &params.chain_id,
         }
     }
 }
@@ -425,13 +440,13 @@ pub async fn post_opportunity(
                         return Err(RestError::Forbidden);
                     }
 
-                    let client = match params.clone() {
-                        OpportunityCreateSvm::V1(params) => params.client_params,
+                    let program_params = match params.clone() {
+                        OpportunityCreateSvm::V1(params) => params.program_params,
                     };
-                    match client {
-                        OpportunityCreateClientParamsV1Svm::Kamino(_) => {
+                    match program_params {
+                        OpportunityCreateProgramParamsV1Svm::Limo { .. } => {
                             // TODO is there any better way to handle this part?
-                            if profile.name != "kamino" {
+                            if profile.name != "limo" {
                                 return Err(RestError::Forbidden);
                             }
                         }
@@ -481,9 +496,8 @@ pub async fn get_opportunities(
         .await;
 
     if opportunities_evm.is_err() && opportunities_svm.is_err() {
-        return Err(opportunities_evm
-            .err()
-            .expect("Failed to get error from opportunities_evm"));
+        // TODO better error handling, if the chain_id is svm and we have some serious error there, we would just return chain_id is not found on evm side
+        Err(opportunities_evm.expect_err("Failed to get error from opportunities_evm"))
     } else {
         let mut opportunities: Vec<Opportunity> = vec![];
         if let Ok(opportunities_evm) = opportunities_evm {
@@ -503,7 +517,7 @@ pub async fn get_opportunities(
             );
         }
 
-        opportunities.sort_by(|a, b| a.creation_time().cmp(&b.creation_time()));
+        opportunities.sort_by_key(|a| a.creation_time());
         Ok(Json(
             opportunities
                 .into_iter()

@@ -19,6 +19,8 @@ impl<T: InMemoryStore> Repository<T> {
             .read()
             .await
             .get(&opportunity.permission_key())
-            .map_or(false, |opps| opps.iter().any(|opp| opp == opportunity))
+            .map_or(false, |opps| {
+                opps.iter().any(|opp| *opportunity == opp.clone().into())
+            })
     }
 }

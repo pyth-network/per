@@ -16,6 +16,7 @@ use {
         DisplayFromStr,
     },
     solana_sdk::{
+        clock::Slot,
         hash::Hash,
         pubkey::Pubkey,
     },
@@ -47,27 +48,29 @@ pub struct OpportunityMetadataEvm {
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct OpportunityMetadataSvmClientKamino {
+pub struct OpportunityMetadataSvmProgramLimo {
     #[serde_as(as = "Base64")]
     pub order: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "name", rename_all = "lowercase")]
-pub enum OpportunityMetadataSvmClient {
-    Kamino(OpportunityMetadataSvmClientKamino),
+#[serde(tag = "program", rename_all = "lowercase")]
+pub enum OpportunityMetadataSvmProgram {
+    Limo(OpportunityMetadataSvmProgramLimo),
 }
 
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpportunityMetadataSvm {
-    pub client:     OpportunityMetadataSvmClient,
+    #[serde(flatten)]
+    pub program:            OpportunityMetadataSvmProgram,
     #[serde_as(as = "DisplayFromStr")]
-    pub router:     Pubkey,
+    pub router:             Pubkey,
     #[serde_as(as = "DisplayFromStr")]
-    pub permission: Pubkey,
+    pub permission_account: Pubkey,
     #[serde_as(as = "DisplayFromStr")]
-    pub block_hash: Hash,
+    pub block_hash:         Hash,
+    pub slot:               Slot,
 }
 
 pub trait OpportunityMetadata:
@@ -88,6 +91,7 @@ impl OpportunityMetadata for OpportunityMetadataSvm {
     }
 }
 
+// TODO Update metdata to exection_params
 #[derive(Clone, FromRow, Debug)]
 pub struct Opportunity<T: OpportunityMetadata> {
     pub id:             Uuid,

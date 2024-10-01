@@ -6,7 +6,10 @@ use {
     },
     crate::{
         api::RestError,
-        opportunity::entities,
+        opportunity::{
+            entities,
+            entities::Opportunity,
+        },
     },
     sqlx::Postgres,
     time::{
@@ -21,11 +24,11 @@ impl<T: InMemoryStore> Repository<T> {
         db: &sqlx::Pool<Postgres>,
         opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreate,
     ) -> Result<T::Opportunity, RestError> {
-        let opportunity: T::Opportunity = opportunity.into();
+        let opportunity: T::Opportunity =
+            <T::Opportunity as entities::Opportunity>::new_with_current_time(opportunity);
         let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
             .expect("creation_time is valid");
-        let metadata: <T::Opportunity as entities::Opportunity>::ModelMetadata =
-            opportunity.clone().into();
+        let metadata = opportunity.get_models_metadata();
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
         sqlx::query!("INSERT INTO opportunity (id,
                                                         creation_time,

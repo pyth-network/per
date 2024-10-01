@@ -4,7 +4,7 @@ use serde::{
 };
 
 pub trait TokenAmount:
-    Serialize + DeserializeOwned + From<Self::ApiTokenAmount> + Into<Self::ApiTokenAmount>
+    Serialize + DeserializeOwned + From<Self::ApiTokenAmount> + Into<Self::ApiTokenAmount> + PartialEq
 {
     type ApiTokenAmount;
 }
