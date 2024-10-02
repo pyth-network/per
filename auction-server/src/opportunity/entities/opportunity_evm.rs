@@ -93,25 +93,27 @@ impl From<OpportunityEvm> for api::OpportunityEvm {
         api::OpportunityEvm {
             opportunity_id: val.id,
             creation_time:  val.creation_time,
-            params:         api::OpportunityParamsEvm::V1(api::OpportunityParamsV1Evm {
-                permission_key:    val.permission_key.clone(),
-                chain_id:          val.chain_id.clone(),
-                target_contract:   val.target_contract,
-                target_calldata:   val.target_calldata.clone(),
-                target_call_value: val.target_call_value,
-                sell_tokens:       val
-                    .sell_tokens
-                    .clone()
-                    .into_iter()
-                    .map(|t| t.into())
-                    .collect(),
-                buy_tokens:        val
-                    .buy_tokens
-                    .clone()
-                    .into_iter()
-                    .map(|t| t.into())
-                    .collect(),
-            }),
+            params:         api::OpportunityParamsEvm::V1(api::OpportunityParamsV1Evm(
+                api::OpportunityCreateV1Evm {
+                    permission_key:    val.permission_key.clone(),
+                    chain_id:          val.chain_id.clone(),
+                    target_contract:   val.target_contract,
+                    target_calldata:   val.target_calldata.clone(),
+                    target_call_value: val.target_call_value,
+                    sell_tokens:       val
+                        .sell_tokens
+                        .clone()
+                        .into_iter()
+                        .map(|t| t.into())
+                        .collect(),
+                    buy_tokens:        val
+                        .buy_tokens
+                        .clone()
+                        .into_iter()
+                        .map(|t| t.into())
+                        .collect(),
+                },
+            )),
         }
     }
 }

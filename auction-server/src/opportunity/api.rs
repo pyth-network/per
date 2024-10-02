@@ -60,6 +60,11 @@ use {
     std::sync::Arc,
     time::OffsetDateTime,
     utoipa::{
+        openapi::{
+            schema,
+            Schema,
+        },
+        schema,
         IntoParams,
         ToResponse,
         ToSchema,
@@ -166,6 +171,7 @@ pub struct TokenAmountEvm {
 /// by calling this target contract with the given target calldata and structures, they will
 /// send the tokens specified in the sell_tokens field and receive the tokens specified in the buy_tokens field.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+#[aliases(OpportunityParamsV1Evm = OpportunityCreateV1Evm)]
 pub struct OpportunityCreateV1Evm {
     /// The permission key required for successful execution of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
@@ -195,7 +201,9 @@ pub enum OpportunityCreateEvm {
     V1(OpportunityCreateV1Evm),
 }
 
-pub type OpportunityParamsV1Evm = OpportunityCreateV1Evm;
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+pub struct OpportunityParamsV1Evm(pub OpportunityCreateV1Evm);
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(tag = "version")]
@@ -347,7 +355,7 @@ pub struct OpportunitySvm {
 impl OpportunityEvm {
     pub fn get_chain_id(&self) -> &ChainId {
         match &self.params {
-            OpportunityParamsEvm::V1(params) => &params.chain_id,
+            OpportunityParamsEvm::V1(params) => &params.0.chain_id,
         }
     }
 }
