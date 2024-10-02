@@ -50,12 +50,20 @@ impl TryFrom<String> for EmailAddress {
 }
 
 pub type ProfileId = Uuid;
+#[derive(Clone, Debug, sqlx::Type, PartialEq, PartialOrd)]
+#[sqlx(type_name = "profile_role", rename_all = "lowercase")]
+pub enum ProfileRole {
+    Searcher,
+    Protocol,
+}
+
 #[derive(Clone, FromRow)]
 pub struct Profile {
     pub id:    ProfileId,
     pub name:  String,
     #[sqlx(try_from = "String")]
     pub email: EmailAddress,
+    pub role:  ProfileRole,
 
     pub created_at: PrimitiveDateTime,
     pub updated_at: PrimitiveDateTime,

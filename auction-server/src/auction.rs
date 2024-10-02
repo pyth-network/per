@@ -1168,7 +1168,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
                 .filter(|bid| {
                     if models::BidStatus::Submitted == bid.status.clone().into() {
                         if let Some(status_tx_hash) = bid.status.get_tx_hash() {
-                            return <Self::SimulatedBid as SimulatedBidTrait>::StatusType::convert_tx_hash(&status_tx_hash)
+                            return <Self::SimulatedBid as SimulatedBidTrait>::StatusType::convert_tx_hash(status_tx_hash)
                                 == tx_hash;
                         }
                     }

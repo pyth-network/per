@@ -3,7 +3,9 @@ use {
         get_spoof_info::GetSpoofInfoInput,
         make_adapter_calldata::MakeAdapterCalldataInput,
         make_opportunity_execution_params::MakeOpportunityExecutionParamsInput,
+        ChainType,
         ChainTypeEvm,
+        ChainTypeSvm,
         Service,
     },
     crate::{
@@ -13,12 +15,13 @@ use {
             MulticallData,
         },
         opportunity::{
-            api::OpportunityBid,
+            api::OpportunityBidEvm,
             contracts::{
                 ExecutionParams,
                 MulticallReturn,
             },
             entities,
+            repository::InMemoryStore,
             token_spoof,
         },
     },
@@ -45,14 +48,22 @@ use {
     rand::Rng,
     std::{
         collections::HashMap,
+        future::Future,
         ops::Add,
         sync::Arc,
     },
     uuid::Uuid,
 };
 
-pub struct VerifyOpportunityInput {
-    pub opportunity: entities::OpportunityEvm,
+pub struct VerifyOpportunityInput<T: entities::OpportunityCreate> {
+    pub opportunity: T,
+}
+
+pub trait Verification<T: ChainType> {
+    fn verify_opportunity(
+        &self,
+        input: VerifyOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as entities::Opportunity>::OpportunityCreate>,
+    ) -> impl Future<Output = Result<entities::OpportunityVerificationResult, RestError>>;
 }
 
 fn generate_random_u256() -> U256 {
@@ -120,25 +131,20 @@ fn get_typed_data(
     }
 }
 
-impl Service<ChainTypeEvm> {
-    /// Verify an opportunity by simulating the execution call and checking the result
-    /// Simulation is done by spoofing the balances and allowances of a random executor
-    /// Returns Ok(VerificationResult) if the simulation is successful or if the tokens cannot be spoofed
-    /// Returns Err if the simulation fails despite spoofing or if any other error occurs
-    #[tracing::instrument(skip_all)]
-    pub(super) async fn verify_opportunity(
+impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
+    async fn verify_opportunity(
         &self,
-        input: VerifyOpportunityInput,
+        input: VerifyOpportunityInput<entities::OpportunityCreateEvm>,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {
-        let config = self.get_config(&input.opportunity.chain_id)?;
+        let config = self.get_config(&input.opportunity.core_fields.chain_id)?;
         let client = Arc::new(config.provider.clone());
         let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
 
-        let mut fake_bid = OpportunityBid {
+        let mut fake_bid = OpportunityBidEvm {
             executor:       fake_wallet.address(),
             deadline:       U256::max_value(),
             nonce:          generate_random_u256(),
-            permission_key: input.opportunity.permission_key.clone(),
+            permission_key: input.opportunity.core_fields.permission_key.clone(),
             amount:         U256::zero(),
             signature:      Signature {
                 v: 0,
@@ -190,13 +196,13 @@ impl Service<ChainTypeEvm> {
         let chain_store = self
             .store
             .chains
-            .get(&input.opportunity.chain_id)
+            .get(&input.opportunity.core_fields.chain_id)
             .ok_or(RestError::BadParameters("Chain not found".to_string()))?;
         let call = get_simulation_call(
             chain_store.express_relay_contract.get_relayer_address(),
             config.provider.clone(),
             chain_store.config.clone(),
-            input.opportunity.permission_key.clone(),
+            input.opportunity.core_fields.permission_key.clone(),
             vec![MulticallData::from((
                 Uuid::new_v4().to_bytes_le(),
                 config.adapter_factory_contract,
@@ -218,7 +224,7 @@ impl Service<ChainTypeEvm> {
         for (token, amount) in tokens_map {
             let spoof_info = self
                 .get_spoof_info(GetSpoofInfoInput {
-                    chain_id: input.opportunity.chain_id.clone(),
+                    chain_id: input.opportunity.core_fields.chain_id.clone(),
                     token,
                 })
                 .await?;
@@ -277,5 +283,18 @@ impl Service<ChainTypeEvm> {
                 Err(RestError::TemporarilyUnavailable)
             }
         }
+    }
+}
+
+impl Verification<ChainTypeSvm> for Service<ChainTypeSvm> {
+    async fn verify_opportunity(
+        &self,
+        input: VerifyOpportunityInput<entities::OpportunityCreateSvm>,
+    ) -> Result<entities::OpportunityVerificationResult, RestError> {
+        self.get_config(&input.opportunity.core_fields.chain_id)?;
+
+        // To make sure it'll be expired after a minute
+        // TODO - change this to a more realistic value
+        Ok(entities::OpportunityVerificationResult::UnableToSpoof)
     }
 }

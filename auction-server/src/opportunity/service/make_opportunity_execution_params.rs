@@ -7,7 +7,7 @@ use {
     crate::{
         api::RestError,
         opportunity::{
-            api::OpportunityBid,
+            api::OpportunityBidEvm,
             contracts::{
                 ExecutionParams,
                 ExecutionWitness,
@@ -20,8 +20,8 @@ use {
 };
 
 pub struct MakeOpportunityExecutionParamsInput {
-    pub opportunity:     entities::OpportunityEvm,
-    pub opportunity_bid: OpportunityBid,
+    pub opportunity:     entities::OpportunityCreateEvm,
+    pub opportunity_bid: OpportunityBidEvm,
 }
 
 impl Service<ChainTypeEvm> {
@@ -41,6 +41,7 @@ impl Service<ChainTypeEvm> {
             witness: ExecutionWitness {
                 buy_tokens:        input
                     .opportunity
+                    .core_fields
                     .buy_tokens
                     .clone()
                     .into_iter()

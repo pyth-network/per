@@ -1,14 +1,30 @@
 use {
-    crate::{
-        kernel::entities::PermissionKey,
-        opportunity::entities,
+    crate::models::ChainType,
+    ethers::types::{
+        Address,
+        Bytes,
+        U256,
     },
-    ethers::types::Bytes,
+    serde::{
+        de::DeserializeOwned,
+        Deserialize,
+        Serialize,
+    },
+    serde_with::{
+        base64::Base64,
+        serde_as,
+        DisplayFromStr,
+    },
+    solana_sdk::{
+        clock::Slot,
+        hash::Hash,
+        pubkey::Pubkey,
+    },
     sqlx::{
         prelude::FromRow,
         types::{
             time::PrimitiveDateTime,
-            BigDecimal,
+            Json,
             JsonValue,
         },
     },
@@ -22,48 +38,70 @@ pub enum OpportunityRemovalReason {
     Invalid,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OpportunityMetadataEvm {
+    pub target_contract:   Address,
+    #[serde(with = "crate::serde::u256")]
+    pub target_call_value: U256,
+    pub target_calldata:   Bytes,
+}
+
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OpportunityMetadataSvmProgramLimo {
+    #[serde_as(as = "Base64")]
+    pub order: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "program", rename_all = "lowercase")]
+pub enum OpportunityMetadataSvmProgram {
+    Limo(OpportunityMetadataSvmProgramLimo),
+}
+
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OpportunityMetadataSvm {
+    #[serde(flatten)]
+    pub program:            OpportunityMetadataSvmProgram,
+    #[serde_as(as = "DisplayFromStr")]
+    pub router:             Pubkey,
+    #[serde_as(as = "DisplayFromStr")]
+    pub permission_account: Pubkey,
+    #[serde_as(as = "DisplayFromStr")]
+    pub block_hash:         Hash,
+    pub slot:               Slot,
+}
+
+pub trait OpportunityMetadata:
+    std::fmt::Debug + Clone + Serialize + DeserializeOwned + Send + Sync + Unpin + 'static
+{
+    fn get_chain_type() -> ChainType;
+}
+
+impl OpportunityMetadata for OpportunityMetadataEvm {
+    fn get_chain_type() -> ChainType {
+        ChainType::Evm
+    }
+}
+
+impl OpportunityMetadata for OpportunityMetadataSvm {
+    fn get_chain_type() -> ChainType {
+        ChainType::Svm
+    }
+}
+
+// TODO Update metdata to exection_params
 #[derive(Clone, FromRow, Debug)]
-pub struct Opportunity {
-    pub id:                Uuid,
-    pub creation_time:     PrimitiveDateTime,
-    pub permission_key:    Vec<u8>,
-    pub chain_id:          String,
-    pub target_contract:   Vec<u8>,
-    pub target_call_value: BigDecimal,
-    pub target_calldata:   Vec<u8>,
-    pub removal_time:      Option<PrimitiveDateTime>,
-    pub sell_tokens:       JsonValue,
-    pub buy_tokens:        JsonValue,
-    pub removal_reason:    Option<OpportunityRemovalReason>,
-}
-
-impl TryFrom<Opportunity> for entities::OpportunityEvm {
-    type Error = anyhow::Error;
-
-    fn try_from(val: Opportunity) -> Result<Self, Self::Error> {
-        Ok(entities::OpportunityEvm {
-            core_fields:       entities::OpportunityCoreFields {
-                id:             val.id,
-                creation_time:  val.creation_time.assume_utc().unix_timestamp_nanos(),
-                permission_key: PermissionKey::from(val.permission_key),
-                chain_id:       val.chain_id,
-                sell_tokens:    serde_json::from_value(val.sell_tokens)
-                    .map_err(|e| anyhow::anyhow!(e))?,
-                buy_tokens:     serde_json::from_value(val.buy_tokens)
-                    .map_err(|e| anyhow::anyhow!(e))?,
-            },
-            target_contract:   ethers::abi::Address::from_slice(&val.target_contract),
-            target_call_value: val.target_call_value.to_string().parse().unwrap(),
-            target_calldata:   Bytes::from(val.target_calldata),
-        })
-    }
-}
-
-impl From<entities::OpportunityRemovalReason> for OpportunityRemovalReason {
-    fn from(reason: entities::OpportunityRemovalReason) -> Self {
-        match reason {
-            entities::OpportunityRemovalReason::Expired => OpportunityRemovalReason::Expired,
-            entities::OpportunityRemovalReason::Invalid(_) => OpportunityRemovalReason::Invalid,
-        }
-    }
+pub struct Opportunity<T: OpportunityMetadata> {
+    pub id:             Uuid,
+    pub creation_time:  PrimitiveDateTime,
+    pub permission_key: Vec<u8>,
+    pub chain_id:       String,
+    pub chain_type:     ChainType,
+    pub removal_time:   Option<PrimitiveDateTime>,
+    pub sell_tokens:    JsonValue,
+    pub buy_tokens:     JsonValue,
+    pub removal_reason: Option<OpportunityRemovalReason>,
+    pub metadata:       Json<T>,
 }

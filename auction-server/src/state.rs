@@ -382,18 +382,6 @@ impl SimulatedBidTrait for SimulatedBidSvm {
 }
 
 pub type UnixTimestampMicros = i128;
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct TokenAmount {
-    /// Token contract address
-    #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", value_type = String)]
-    pub token:  ethers::abi::Address,
-    /// Token amount
-    #[schema(example = "1000", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub amount: U256,
-}
-
 pub type AuctionLock = Arc<Mutex<()>>;
 
 pub struct ChainStoreCoreFields<T: SimulatedBidTrait> {
@@ -539,15 +527,15 @@ pub trait BidStatusTrait:
     fn get_tx_hash(&self) -> Option<&Self::TxHash>;
 }
 
-impl Into<BidStatus> for BidStatusEvm {
-    fn into(self) -> BidStatus {
-        BidStatus::Evm(self)
+impl From<BidStatusEvm> for BidStatus {
+    fn from(bid_status: BidStatusEvm) -> BidStatus {
+        BidStatus::Evm(bid_status)
     }
 }
 
-impl Into<BidStatus> for BidStatusSvm {
-    fn into(self) -> BidStatus {
-        BidStatus::Svm(self)
+impl From<BidStatusSvm> for BidStatus {
+    fn from(bid_status: BidStatusSvm) -> BidStatus {
+        BidStatus::Svm(bid_status)
     }
 }
 
@@ -783,6 +771,8 @@ pub struct Store {
 pub struct StoreNew {
     pub opportunity_service_evm:
         Arc<opportunity_service::Service<opportunity_service::ChainTypeEvm>>,
+    pub opportunity_service_svm:
+        Arc<opportunity_service::Service<opportunity_service::ChainTypeSvm>>,
     pub store:                   Arc<Store>,
 }
 
@@ -1038,11 +1028,14 @@ impl Store {
         create_profile: ApiProfile::CreateProfile,
     ) -> Result<models::Profile, RestError> {
         let id = Uuid::new_v4();
+        let role: models::ProfileRole = create_profile.role.clone().into();
         let profile: models::Profile = sqlx::query_as(
-            "INSERT INTO profile (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, created_at, updated_at",
+            "INSERT INTO profile (id, name, email, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, created_at, updated_at",
         ).bind(id)
         .bind(create_profile.name.clone())
-        .bind(create_profile.email.to_string()).fetch_one(&self.db).await
+        .bind(create_profile.email.to_string())
+        .bind(role)
+        .fetch_one(&self.db).await
         .map_err(|e| {
             if let Some(true) = e.as_database_error().map(|e| e.is_unique_violation()) {
                 return RestError::BadParameters("Profile with this email already exists".to_string());

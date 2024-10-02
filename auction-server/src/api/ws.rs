@@ -9,9 +9,9 @@ use {
         config::ChainId,
         opportunity::{
             api::{
-                OpportunityBid,
+                Opportunity,
+                OpportunityBidEvm,
                 OpportunityId,
-                OpportunityParamsWithMetadata,
             },
             service::handle_opportunity_bid::HandleOpportunityBidInput,
         },
@@ -98,7 +98,7 @@ pub enum ClientMessage {
     PostOpportunityBid {
         #[schema(value_type = String)]
         opportunity_id:  OpportunityId,
-        opportunity_bid: OpportunityBid,
+        opportunity_bid: OpportunityBidEvm,
     },
 }
 
@@ -114,9 +114,7 @@ pub struct ClientRequest {
 #[serde(tag = "type")]
 pub enum ServerUpdateResponse {
     #[serde(rename = "new_opportunity")]
-    NewOpportunity {
-        opportunity: OpportunityParamsWithMetadata,
-    },
+    NewOpportunity { opportunity: Opportunity },
     #[serde(rename = "bid_status_update")]
     BidStatusUpdate { status: BidStatusWithId },
 }
@@ -163,7 +161,7 @@ async fn websocket_handler(stream: WebSocket, state: Arc<StoreNew>, auth: Auth) 
 
 #[derive(Clone)]
 pub enum UpdateEvent {
-    NewOpportunity(OpportunityParamsWithMetadata),
+    NewOpportunity(Opportunity),
     BidStatusUpdate(BidStatusWithId),
 }
 
@@ -267,10 +265,7 @@ impl Subscriber {
         }
     }
 
-    async fn handle_new_opportunity(
-        &mut self,
-        opportunity: OpportunityParamsWithMetadata,
-    ) -> Result<()> {
+    async fn handle_new_opportunity(&mut self, opportunity: Opportunity) -> Result<()> {
         tracing::Span::current().record("name", "new_opportunity");
         if !self.chain_ids.contains(opportunity.get_chain_id()) {
             // Irrelevant update
@@ -320,7 +315,13 @@ impl Subscriber {
         chain_ids: Vec<String>,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         tracing::Span::current().record("name", "handle_subscribe");
-        let available_chain_ids: Vec<&ChainId> = self.store.store.chains.keys().collect();
+        let available_chain_ids: Vec<&ChainId> = self
+            .store
+            .store
+            .chains
+            .keys()
+            .chain(self.store.store.chains_svm.keys())
+            .collect();
         let not_found_chain_ids: Vec<&ChainId> = chain_ids
             .iter()
             .filter(|chain_id| !available_chain_ids.contains(chain_id))
@@ -379,7 +380,7 @@ impl Subscriber {
     async fn handle_post_opportunity_bid(
         &mut self,
         id: String,
-        opportunity_bid: OpportunityBid,
+        opportunity_bid: OpportunityBidEvm,
         opportunity_id: OpportunityId,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         tracing::Span::current().record("name", "post_opportunity_bid");

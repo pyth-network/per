@@ -15,6 +15,7 @@ use {
         },
         state::{
             ChainStoreEvm,
+            ChainStoreSvm,
             Store,
         },
         traced_client::TracedClient,
@@ -40,7 +41,7 @@ mod get_spoof_info;
 mod make_adapter_calldata;
 mod make_opportunity_execution_params;
 mod make_permitted_tokens;
-mod verify_opportunity;
+mod verification;
 
 #[derive(Debug)]
 pub struct ConfigEvm {
@@ -142,6 +143,17 @@ impl ConfigEvm {
     }
 }
 
+impl ConfigSvm {
+    pub async fn from_chains(
+        chains: &HashMap<ChainId, ChainStoreSvm>,
+    ) -> anyhow::Result<HashMap<ChainId, Self>> {
+        Ok(chains
+            .iter()
+            .map(|(chain_id, _)| (chain_id.clone(), Self {}))
+            .collect())
+    }
+}
+
 pub trait ChainType {
     type Config: Config;
     type InMemoryStore: InMemoryStore;
@@ -160,6 +172,7 @@ impl ChainType for ChainTypeSvm {
     type InMemoryStore = InMemoryStoreSvm;
 }
 
+// TODO maybe just create a service per chain_id?
 pub struct Service<T: ChainType> {
     store:  Arc<Store>,
     db:     DB,

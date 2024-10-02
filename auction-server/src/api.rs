@@ -35,7 +35,6 @@ use {
             SimulatedBidEvm,
             SimulatedBidSvm,
             StoreNew,
-            TokenAmount,
         },
     },
     anyhow::Result,
@@ -126,6 +125,10 @@ pub enum RestError {
     TemporarilyUnavailable,
     /// Invalid auth token
     InvalidToken,
+    /// Forbidden
+    Forbidden,
+    /// Unauthorized
+    Unauthorized,
 }
 
 impl RestError {
@@ -162,6 +165,8 @@ impl RestError {
                 StatusCode::UNAUTHORIZED,
                 "Invalid authorization token".to_string(),
             ),
+            RestError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
+            RestError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
         }
     }
 }
@@ -293,14 +298,24 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     SimulatedBidSvm,
     SimulatedBids,
 
-    opportunity_api::OpportunityParamsV1,
-    opportunity_api::OpportunityBid,
+    opportunity_api::OpportunityBidEvm,
     opportunity_api::OpportunityBidResult,
     opportunity_api::OpportunityMode,
-    opportunity_api::OpportunityParams,
-    opportunity_api::OpportunityParamsWithMetadata,
+    opportunity_api::OpportunityCreate,
+    opportunity_api::OpportunityCreateEvm,
+    opportunity_api::OpportunityCreateSvm,
+    opportunity_api::OpportunityCreateV1Evm,
+    opportunity_api::OpportunityCreateV1Svm,
+    opportunity_api::OpportunityCreateProgramParamsV1Svm,
+    opportunity_api::Opportunity,
+    opportunity_api::OpportunityEvm,
+    opportunity_api::OpportunitySvm,
+    opportunity_api::TokenAmountEvm,
+    opportunity_api::TokenAmountSvm,
+    opportunity_api::OpportunityParamsSvm,
+    opportunity_api::OpportunityParamsEvm,
+    opportunity_api::OpportunityParamsV1Svm,
 
-    TokenAmount,
     ErrorBodyResponse,
     ClientRequest,
     ClientMessage,
@@ -310,7 +325,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     ),
     responses(
     ErrorBodyResponse,
-    opportunity_api::OpportunityParamsWithMetadata,
+    opportunity_api::Opportunity,
     BidResult,
     SimulatedBids,
     ),
