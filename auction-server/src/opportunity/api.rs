@@ -60,10 +60,6 @@ use {
     std::sync::Arc,
     time::OffsetDateTime,
     utoipa::{
-        openapi::{
-            schema,
-            Schema,
-        },
         schema,
         IntoParams,
         ToResponse,
