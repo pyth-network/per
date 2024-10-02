@@ -196,8 +196,8 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
         OpportunityCreateSvm {
             core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
                 permission_key: [
-                    params.permission_account.to_bytes(),
                     params.router.to_bytes(),
+                    params.permission_account.to_bytes(),
                 ]
                 .concat()
                 .into(),
