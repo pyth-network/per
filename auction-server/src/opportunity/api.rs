@@ -171,7 +171,6 @@ pub struct TokenAmountEvm {
 /// by calling this target contract with the given target calldata and structures, they will
 /// send the tokens specified in the sell_tokens field and receive the tokens specified in the buy_tokens field.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-#[aliases(OpportunityParamsV1Evm = OpportunityCreateV1Evm)]
 pub struct OpportunityCreateV1Evm {
     /// The permission key required for successful execution of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
