@@ -315,6 +315,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity_api::OpportunityParamsSvm,
     opportunity_api::OpportunityParamsEvm,
     opportunity_api::OpportunityParamsV1Svm,
+    opportunity_api::OpportunityParamsV1Evm,
 
     ErrorBodyResponse,
     ClientRequest,

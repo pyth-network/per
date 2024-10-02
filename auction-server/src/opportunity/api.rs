@@ -60,6 +60,7 @@ use {
     std::sync::Arc,
     time::OffsetDateTime,
     utoipa::{
+        schema,
         IntoParams,
         ToResponse,
         ToSchema,
@@ -196,7 +197,8 @@ pub enum OpportunityCreateEvm {
 }
 
 
-pub type OpportunityParamsV1Evm = OpportunityCreateV1Evm;
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+pub struct OpportunityParamsV1Evm(pub OpportunityCreateV1Evm);
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(tag = "version")]
@@ -348,7 +350,7 @@ pub struct OpportunitySvm {
 impl OpportunityEvm {
     pub fn get_chain_id(&self) -> &ChainId {
         match &self.params {
-            OpportunityParamsEvm::V1(params) => &params.chain_id,
+            OpportunityParamsEvm::V1(params) => &params.0.chain_id,
         }
     }
 }
