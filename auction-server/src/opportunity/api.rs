@@ -195,7 +195,6 @@ pub enum OpportunityCreateEvm {
     V1(OpportunityCreateV1Evm),
 }
 
-
 pub type OpportunityParamsV1Evm = OpportunityCreateV1Evm;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
