@@ -252,7 +252,7 @@ pub struct SubmitBid<'info> {
 
     pub relayer_signer: Signer<'info>,
 
-    /// CHECK: this is the permission_key
+    /// CHECK: this is the permission key. Often the permission key refers to an on-chain account storing the opportunity; other times, it could refer to the 32 byte hash of identifying opportunity data. We include the permission as an account instead of putting it in the instruction data to save transaction size via caching in case of repeated use.
     pub permission: UncheckedAccount<'info>,
 
     /// CHECK: don't care what this looks like
@@ -283,7 +283,7 @@ pub struct CheckPermission<'info> {
     #[account(address = sysvar_instructions::ID)]
     pub sysvar_instructions: UncheckedAccount<'info>,
 
-    /// CHECK: this is the permission_key
+    /// CHECK: this is the permission key. Often the permission key refers to an on-chain account storing the opportunity; other times, it could refer to the 32 byte hash of identifying opportunity data. We include the permission as an account instead of putting it in the instruction data to save transaction size via caching in case of repeated use.
     pub permission: UncheckedAccount<'info>,
 
     /// CHECK: this is the router address
