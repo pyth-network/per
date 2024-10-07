@@ -50,7 +50,9 @@ pub struct OpportunityMetadataEvm {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OpportunityMetadataSvmProgramLimo {
     #[serde_as(as = "Base64")]
-    pub order: Vec<u8>,
+    pub order:         Vec<u8>,
+    #[serde_as(as = "DisplayFromStr")]
+    pub order_address: Pubkey,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
