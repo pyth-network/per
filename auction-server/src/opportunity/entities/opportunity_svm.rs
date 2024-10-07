@@ -27,7 +27,8 @@ use {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramLimo {
-    pub order: Vec<u8>,
+    pub order:         Vec<u8>,
+    pub order_address: Pubkey,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -80,7 +81,8 @@ impl Opportunity for OpportunitySvm {
             OpportunitySvmProgram::Limo(program) => {
                 repository::OpportunityMetadataSvmProgram::Limo(
                     repository::OpportunityMetadataSvmProgramLimo {
-                        order: program.order,
+                        order:         program.order,
+                        order_address: program.order_address,
                     },
                 )
             }
@@ -121,7 +123,8 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
         let program = match val.program.clone() {
             OpportunitySvmProgram::Limo(prgoram) => api::OpportunityParamsV1ProgramSvm::Limo {
-                order: prgoram.order,
+                order:         prgoram.order,
+                order_address: prgoram.order_address,
             },
         };
         api::OpportunitySvm {
@@ -163,7 +166,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
         let program = match val.metadata.program.clone() {
             repository::OpportunityMetadataSvmProgram::Limo(program) => {
                 OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
-                    order: program.order,
+                    order:         program.order,
+                    order_address: program.order_address,
                 })
             }
         };
@@ -189,9 +193,13 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
     fn from(val: api::OpportunityCreateSvm) -> Self {
         let api::OpportunityCreateSvm::V1(params) = val;
         let program = match params.program_params {
-            api::OpportunityCreateProgramParamsV1Svm::Limo { order } => {
-                OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo { order })
-            }
+            api::OpportunityCreateProgramParamsV1Svm::Limo {
+                order,
+                order_address,
+            } => OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
+                order,
+                order_address,
+            }),
         };
         OpportunityCreateSvm {
             core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
