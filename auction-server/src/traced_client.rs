@@ -40,7 +40,10 @@ impl JsonRpcClient for TracedClient {
 
         let result_label = match &res {
             Ok(_) => "success",
-            Err(_) => "error",
+            Err(e) => {
+                tracing::error!(error = ?e, "rpc request failed");
+                "error"
+            }
         };
 
         let labels = [
