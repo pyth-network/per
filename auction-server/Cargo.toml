@@ -49,6 +49,7 @@ bincode = "1.3.3"
 serde_with = { version = "3.9.0", features = ["base64"] }
 anchor-lang = "0.30.1"
 express-relay = { path = "../contracts/svm/programs/express_relay" }
+solana-rpc-client = "2.0.13"
 
 # The curve25519-dalek crate is a dependency of solana-sdk.
 # This crate relies on a specific version of zeroize that is incompatible with many other packages.

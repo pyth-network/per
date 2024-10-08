@@ -34,6 +34,7 @@ use {
             StoreNew,
         },
         traced_client::TracedClient,
+        traced_sender_svm::TracedSenderSvm,
     },
     anyhow::anyhow,
     axum_prometheus::{
@@ -60,7 +61,7 @@ use {
         future::join_all,
         Future,
     },
-    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_client::rpc_client::RpcClientConfig,
     solana_sdk::{
         commitment_config::CommitmentConfig,
         signature::Keypair,
@@ -384,9 +385,11 @@ fn setup_svm(
                         auction_lock:       Default::default(),
                         submitted_auctions: Default::default(),
                     },
-                    client: RpcClient::new_with_commitment(
-                        chain_config.rpc_addr.clone(),
-                        CommitmentConfig::processed(),
+                    client: TracedSenderSvm::new_client(
+                        chain_id.clone(),
+                        chain_config.rpc_addr.as_str(),
+                        chain_config.rpc_timeout,
+                        RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                     ),
                     config: chain_config,
                     express_relay_svm,
