@@ -66,30 +66,33 @@ async function run() {
   let { blockhash: latestBlockhash } = await connection.getLatestBlockhash(
     "confirmed"
   );
-  const response = await connection.getProgramAccounts(limoId, {
-    commitment: "confirmed",
-    filters,
-    withContext: true,
-  });
-  const payloads = [];
-  for (const account of response.value) {
-    const order = Order.decode(account.account.data);
-    if (order.remainingInputAmount.toNumber() === 0) {
-      continue;
+  const submitExistingOpportunities = async () => {
+    const response = await connection.getProgramAccounts(limoId, {
+      commitment: "confirmed",
+      filters,
+      withContext: true,
+    });
+    const payloads: OpportunityCreate[] = response.value
+      .map((account) => ({
+        program: "limo" as const,
+        blockHash: latestBlockhash,
+        chainId: argv.chainId,
+        slot: response.context.slot,
+        order: {
+          state: Order.decode(account.account.data),
+          address: account.pubkey,
+        },
+      }))
+      .filter(
+        (opportunityCreate) =>
+          opportunityCreate.order.state.remainingInputAmount.toNumber() !== 0
+      );
+
+    console.log("Initial opportunities", payloads.length);
+    for (const payload of payloads) {
+      await client.submitOpportunity(payload);
     }
-    const payload: OpportunityCreate = {
-      program: "limo",
-      blockHash: latestBlockhash,
-      chainId: argv.chainId,
-      slot: response.context.slot,
-      order: { state: order, address: account.pubkey },
-    };
-    payloads.push(payload);
-  }
-  console.log("Initial opportunities", payloads.length);
-  for (const payload of payloads) {
-    await client.submitOpportunity(payload);
-  }
+  };
 
   connection.onProgramAccountChange(
     limoId,
@@ -121,7 +124,7 @@ async function run() {
       await new Promise((resolve) => setTimeout(resolve, 10000));
     }
   };
-  await updateLatestBlockhash();
+  await Promise.all([updateLatestBlockhash(), submitExistingOpportunities()]);
 }
 
 run();
