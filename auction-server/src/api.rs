@@ -266,15 +266,14 @@ macro_rules! login_required {
     };
 }
 
-fn remove_discriminators(mut doc: serde_json::Value) -> serde_json::Value {
+fn remove_discriminators(doc: &mut serde_json::Value) {
     // Recursively remove all "discriminator" fields from the OpenAPI document
     if let Some(obj) = doc.as_object_mut() {
         obj.retain(|key, _| key != "discriminator");
         for value in obj.values_mut() {
-            *value = remove_discriminators(value.clone());
+            remove_discriminators(value);
         }
     }
-    doc
 }
 
 pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<()> {
@@ -398,15 +397,17 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
 
     // The generated OpenAPI document contains "discriminator" fields which are not generated correctly to be supported by redoc
     // We need to remove them from the document to make sure redoc can render the document correctly
-    let mut doc = serde_json::to_value(&ApiDoc::openapi()).unwrap();
-    doc = remove_discriminators(doc);
+    let original_doc = serde_json::to_value(&ApiDoc::openapi())
+        .expect("Failed to serialize OpenAPI document to json value");
+    let mut redoc_doc = original_doc.clone();
+    remove_discriminators(&mut redoc_doc);
 
     let app: Router<()> = Router::new()
-        .merge(Redoc::with_url("/docs", doc.clone()))
+        .merge(Redoc::with_url("/docs", redoc_doc.clone()))
         .merge(v1_routes)
         .route("/", get(root))
         .route("/live", get(live))
-        .route("/docs/openapi.json", get(doc.to_string()))
+        .route("/docs/openapi.json", get(original_doc.to_string()))
         .layer(CorsLayer::permissive())
         .layer(middleware::from_extractor_with_state::<Auth, Arc<StoreNew>>(store.clone()))
         .layer(prometheus_layer)
