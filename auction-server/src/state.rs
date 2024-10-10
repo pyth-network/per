@@ -22,6 +22,7 @@ use {
         opportunity::service as opportunity_service,
         traced_client::TracedClient,
     },
+    anchor_lang::prelude::borsh::schema,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -414,9 +415,11 @@ pub type BidId = Uuid;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatusEvm {
     /// The temporary state which means the auction for this bid is pending
+    #[schema(title = "Pending")]
     Pending,
     /// The bid is submitted to the chain, which is placed at the given index of the transaction with the given hash
     /// This state is temporary and will be updated to either lost or won after conclusion of the auction
+    #[schema(title = "Submitted")]
     Submitted {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
@@ -428,6 +431,7 @@ pub enum BidStatusEvm {
     /// The index will be None if the bid was not submitted to the chain and lost the auction by off-chain calculation
     /// There are cases where the result is not None and the index is None.
     /// It is because other bids were selected for submission to the chain, but not this one.
+    #[schema(title = "Lost")]
     Lost {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
         result: Option<H256>,
@@ -435,6 +439,7 @@ pub enum BidStatusEvm {
         index:  Option<u32>,
     },
     /// The bid won the auction, which is concluded with the transaction with the given hash and index
+    #[schema(title = "Won")]
     Won {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
@@ -448,9 +453,11 @@ pub enum BidStatusEvm {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatusSvm {
     /// The temporary state which means the auction for this bid is pending
+    #[schema(title = "Pending")]
     Pending,
     /// The bid is submitted to the chain, with the transaction with the signature
     /// This state is temporary and will be updated to either lost or won after conclusion of the auction
+    #[schema(title = "Submitted")]
     Submitted {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
@@ -459,12 +466,14 @@ pub enum BidStatusSvm {
     /// The bid lost the auction
     /// The result will be None if the auction was concluded off-chain and no auction was submitted to the chain
     /// The result will be not None if another bid were selected for submission to the chain. The signature of the transaction for the submitted bid is the result value.
+    #[schema(title = "Lost")]
     Lost {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = Option<String>)]
         #[serde(with = "crate::serde::nullable_signature_svm")]
         result: Option<Signature>,
     },
     /// The bid won the auction, with the transaction with the signature
+    #[schema(title = "Won")]
     Won {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]

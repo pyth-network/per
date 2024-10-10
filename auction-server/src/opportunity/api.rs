@@ -193,6 +193,7 @@ pub struct OpportunityCreateV1Evm {
 #[serde(tag = "version")]
 pub enum OpportunityCreateEvm {
     #[serde(rename = "v1")]
+    #[schema(title = "v1")]
     V1(OpportunityCreateV1Evm),
 }
 
@@ -204,6 +205,7 @@ pub struct OpportunityParamsV1Evm(pub OpportunityCreateV1Evm);
 #[serde(tag = "version")]
 pub enum OpportunityParamsEvm {
     #[serde(rename = "v1")]
+    #[schema(title = "v1")]
     V1(OpportunityParamsV1Evm),
 }
 
@@ -242,6 +244,7 @@ pub enum OpportunityCreateProgramParamsV1Svm {
     /// It contains the Limo order to be executed, encoded in base64
     /// SDKs will decode this order and create transaction for bidding on the opportunity
     #[serde(rename = "limo")]
+    #[schema(title = "limo")]
     Limo {
         /// The Limo order to be executed, encoded in base64
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
@@ -291,6 +294,7 @@ pub struct OpportunityCreateV1Svm {
 #[serde(tag = "version")]
 pub enum OpportunityCreateSvm {
     #[serde(rename = "v1")]
+    #[schema(title = "v1")]
     V1(OpportunityCreateV1Svm),
 }
 
@@ -303,6 +307,7 @@ pub enum OpportunityParamsV1ProgramSvm {
     /// It contains the Limo order to be executed, encoded in base64
     /// SDKs will decode this order and create transaction for bidding on the opportunity
     #[serde(rename = "limo")]
+    #[schema(title = "limo")]
     Limo {
         /// The Limo order to be executed, encoded in base64
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
@@ -330,6 +335,7 @@ pub struct OpportunityParamsV1Svm {
 #[serde(tag = "version")]
 pub enum OpportunityParamsSvm {
     #[serde(rename = "v1")]
+    #[schema(title = "v1")]
     V1(OpportunityParamsV1Svm),
 }
 

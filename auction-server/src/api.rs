@@ -21,7 +21,7 @@ use {
         },
         config::RunOptions,
         models,
-        opportunity::api as opportunity_api,
+        opportunity::api as opportunity,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -96,7 +96,6 @@ use {
         Redoc,
         Servable,
     },
-    utoipa_swagger_ui::SwaggerUi,
 };
 
 async fn root() -> String {
@@ -267,6 +266,16 @@ macro_rules! login_required {
     };
 }
 
+fn remove_discriminators(doc: &mut serde_json::Value) {
+    // Recursively remove all "discriminator" fields from the OpenAPI document
+    if let Some(obj) = doc.as_object_mut() {
+        obj.retain(|key, _| key != "discriminator");
+        for value in obj.values_mut() {
+            remove_discriminators(value);
+        }
+    }
+}
+
 pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
@@ -276,9 +285,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     bid::bid_status,
     bid::get_bids_by_time,
 
-    opportunity_api::post_opportunity,
-    opportunity_api::opportunity_bid,
-    opportunity_api::get_opportunities,
+    opportunity::post_opportunity,
+    opportunity::opportunity_bid,
+    opportunity::get_opportunities,
 
     profile::delete_profile_access_token,
     ),
@@ -288,9 +297,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     Bid,
     BidSvm,
     BidEvm,
-    BidStatus,
     BidStatusEvm,
     BidStatusSvm,
+    BidStatus,
     BidStatusWithId,
     BidResult,
     SimulatedBid,
@@ -298,24 +307,24 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     SimulatedBidSvm,
     SimulatedBids,
 
-    opportunity_api::OpportunityBidEvm,
-    opportunity_api::OpportunityBidResult,
-    opportunity_api::OpportunityMode,
-    opportunity_api::OpportunityCreate,
-    opportunity_api::OpportunityCreateEvm,
-    opportunity_api::OpportunityCreateSvm,
-    opportunity_api::OpportunityCreateV1Evm,
-    opportunity_api::OpportunityCreateV1Svm,
-    opportunity_api::OpportunityCreateProgramParamsV1Svm,
-    opportunity_api::Opportunity,
-    opportunity_api::OpportunityEvm,
-    opportunity_api::OpportunitySvm,
-    opportunity_api::TokenAmountEvm,
-    opportunity_api::TokenAmountSvm,
-    opportunity_api::OpportunityParamsSvm,
-    opportunity_api::OpportunityParamsEvm,
-    opportunity_api::OpportunityParamsV1Svm,
-    opportunity_api::OpportunityParamsV1Evm,
+    opportunity::OpportunityBidEvm,
+    opportunity::OpportunityBidResult,
+    opportunity::OpportunityMode,
+    opportunity::OpportunityCreate,
+    opportunity::OpportunityCreateEvm,
+    opportunity::OpportunityCreateSvm,
+    opportunity::OpportunityCreateV1Evm,
+    opportunity::OpportunityCreateV1Svm,
+    opportunity::OpportunityCreateProgramParamsV1Svm,
+    opportunity::Opportunity,
+    opportunity::OpportunityEvm,
+    opportunity::OpportunitySvm,
+    opportunity::TokenAmountEvm,
+    opportunity::TokenAmountSvm,
+    opportunity::OpportunityParamsSvm,
+    opportunity::OpportunityParamsEvm,
+    opportunity::OpportunityParamsV1Svm,
+    opportunity::OpportunityParamsV1Evm,
 
     ErrorBodyResponse,
     ClientRequest,
@@ -326,13 +335,13 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     ),
     responses(
     ErrorBodyResponse,
-    opportunity_api::Opportunity,
+    opportunity::Opportunity,
     BidResult,
     SimulatedBids,
     ),
     ),
     tags(
-    (name = "Express Relay Auction Server", description = "Auction Server handles all the necessary communications\
+    (name = "Express Relay Auction Server", description = "Auction Server handles all the necessary communications \
     between searchers and protocols. It conducts the auctions and submits the winning bids on chain.")
     ),
     modifiers(&SecurityAddon)
@@ -374,7 +383,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         "/v1",
         Router::new()
             .nest("/bids", bid_routes)
-            .nest("/opportunities", opportunity_api::get_routes())
+            .nest("/opportunities", opportunity::get_routes())
             .nest("/profiles", profile_routes)
             .route("/ws", get(ws::ws_route_handler)),
     );
@@ -385,12 +394,20 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
             "unknown".to_string()
         }))
         .build_pair();
+
+    // The generated OpenAPI document contains "discriminator" fields which are not generated correctly to be supported by redoc
+    // We need to remove them from the document to make sure redoc can render the document correctly
+    let original_doc = serde_json::to_value(&ApiDoc::openapi())
+        .expect("Failed to serialize OpenAPI document to json value");
+    let mut redoc_doc = original_doc.clone();
+    remove_discriminators(&mut redoc_doc);
+
     let app: Router<()> = Router::new()
-        .merge(SwaggerUi::new("/docs").url("/docs/openapi.json", ApiDoc::openapi()))
-        .merge(Redoc::with_url("/redoc", ApiDoc::openapi()))
+        .merge(Redoc::with_url("/docs", redoc_doc.clone()))
         .merge(v1_routes)
         .route("/", get(root))
         .route("/live", get(live))
+        .route("/docs/openapi.json", get(original_doc.to_string()))
         .layer(CorsLayer::permissive())
         .layer(middleware::from_extractor_with_state::<Auth, Arc<StoreNew>>(store.clone()))
         .layer(prometheus_layer)
