@@ -91,7 +91,11 @@ async function run() {
 
     console.log("Initial opportunities", payloads.length);
     for (const payload of payloads) {
-      await client.submitOpportunity(payload);
+      try {
+        await client.submitOpportunity(payload);
+      } catch (e) {
+        console.error(e);
+      }
     }
   };
   let lastSlotChange = Date.now();
@@ -118,7 +122,11 @@ async function run() {
         order: { state: order, address: info.accountId },
       };
 
-      await client.submitOpportunity(payload);
+      try {
+        await client.submitOpportunity(payload);
+      } catch (e) {
+        console.error(e);
+      }
     },
     "processed",
     filters
@@ -129,12 +137,15 @@ async function run() {
         .blockhash;
       await new Promise((resolve) => setTimeout(resolve, 10000));
       if (Date.now() - lastSlotChange > 5000) {
-        console.log("Did not receive slot change in 5 seconds, exiting");
+        console.log(
+          "Did not receive slot change in 5 seconds, because of rpc or websocket issues. Exiting"
+        );
         process.exit(1);
       }
     }
   };
-  await Promise.all([updateLatestBlockhash(), submitExistingOpportunities()]);
+  submitExistingOpportunities().catch(console.error);
+  updateLatestBlockhash().catch(console.error);
 }
 
 run();
