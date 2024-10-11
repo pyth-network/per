@@ -7,8 +7,10 @@ import random
 
 def main():
     headers = {'Authorization':'Bearer admin'}
-    random_id = random.randint(0, 10000000)
-    response = requests.post('http://localhost:9000/v1/profiles', json={'name': 'limo', 'email':f'limo{random_id}@dourolabs.com','role':'protocol'}, headers=headers)
+    limo_email='limo@dourolabs.com'
+    response = requests.post('http://localhost:9000/v1/profiles', json={'name': 'limo', 'email':limo_email,'role':'protocol'}, headers=headers)
+    if response.status_code == 400:
+        response = requests.get('http://localhost:9000/v1/profiles', headers=headers, params={'email':limo_email})
     profile_id = response.json()['id']
 
     response = requests.post('http://localhost:9000/v1/profiles/access_tokens', json={'profile_id':profile_id}, headers=headers)

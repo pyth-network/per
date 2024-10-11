@@ -129,6 +129,8 @@ pub enum RestError {
     Forbidden,
     /// Unauthorized
     Unauthorized,
+    /// Profile not found
+    ProfileNotFound,
 }
 
 impl RestError {
@@ -164,6 +166,10 @@ impl RestError {
             RestError::InvalidToken => (
                 StatusCode::UNAUTHORIZED,
                 "Invalid authorization token".to_string(),
+            ),
+            RestError::ProfileNotFound => (
+                StatusCode::NOT_FOUND,
+                "Profile with the specified email was not found".to_string(),
             ),
             RestError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
             RestError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
@@ -361,6 +367,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
 
     let profile_routes = Router::new()
         .route("/", admin_only!(store, post(profile::post_profile)))
+        .route("/", admin_only!(store, get(profile::get_profile)))
         .route(
             "/access_tokens",
             admin_only!(store, post(profile::post_profile_access_token)),

@@ -1052,13 +1052,27 @@ impl Store {
         Ok(URL_SAFE_NO_PAD.encode(bytes))
     }
 
+    pub async fn get_profile_by_email(
+        &self,
+        email: models::EmailAddress,
+    ) -> Result<Option<models::Profile>, RestError> {
+        sqlx::query_as("SELECT * FROM profile WHERE email = $1")
+            .bind(email.0.to_string())
+            .fetch_optional(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch profile: {} - email: {}", e, email.0);
+                RestError::TemporarilyUnavailable
+            })
+    }
+
     pub async fn get_profile_by_id(
         &self,
         id: models::ProfileId,
-    ) -> Result<models::Profile, RestError> {
+    ) -> Result<Option<models::Profile>, RestError> {
         sqlx::query_as("SELECT * FROM profile WHERE id = $1")
             .bind(id)
-            .fetch_one(&self.db)
+            .fetch_optional(&self.db)
             .await
             .map_err(|e| {
                 tracing::error!("DB: Failed to fetch profile: {} - id: {}", e, id);
@@ -1120,7 +1134,10 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
-        let profile = self.get_profile_by_id(profile_id).await?;
+        let profile = self
+            .get_profile_by_id(profile_id)
+            .await?
+            .ok_or_else(|| RestError::BadParameters("Profile id not found".to_string()))?;
         self.access_tokens
             .write()
             .await
