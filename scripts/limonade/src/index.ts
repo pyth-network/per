@@ -23,7 +23,8 @@ const argv = yargs(hideBin(process.argv))
     default: "http://127.0.0.1:8899",
   })
   .option("global-config", {
-    description: "Global config of limo program to filter for.",
+    description:
+      "Pubkey of the global config to filter for in limo program orders",
     type: "string",
     demandOption: true,
   })
@@ -114,7 +115,7 @@ async function run() {
 
       await client.submitOpportunity(payload);
     },
-    "confirmed",
+    "processed",
     filters
   );
   const updateLatestBlockhash = async () => {
