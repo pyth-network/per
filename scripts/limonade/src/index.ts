@@ -107,12 +107,16 @@ async function run() {
   connection.onProgramAccountChange(
     limoId,
     async (info, context) => {
-      console.log("Program account changed", info);
       const order = Order.decode(info.accountInfo.data);
       if (order.remainingInputAmount.toNumber() === 0) {
         return;
       }
-      console.log(order);
+      console.log(
+        "Fetched order with address:",
+        info.accountId.toBase58(),
+        "slot:",
+        context.slot
+      );
 
       const payload: OpportunityCreate = {
         program: "limo",
@@ -137,7 +141,7 @@ async function run() {
         .blockhash;
       await new Promise((resolve) => setTimeout(resolve, 10000));
       if (Date.now() - lastSlotChange > 5000) {
-        console.log(
+        console.error(
           "Did not receive slot change in 5 seconds, because of rpc or websocket issues. Exiting"
         );
         process.exit(1);
