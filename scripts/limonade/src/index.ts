@@ -94,6 +94,11 @@ async function run() {
       await client.submitOpportunity(payload);
     }
   };
+  let lastSlotChange = Date.now();
+
+  connection.onSlotChange(async (_slotInfo) => {
+    lastSlotChange = Date.now();
+  });
 
   connection.onProgramAccountChange(
     limoId,
@@ -123,6 +128,10 @@ async function run() {
       latestBlockhash = (await connection.getLatestBlockhash("confirmed"))
         .blockhash;
       await new Promise((resolve) => setTimeout(resolve, 10000));
+      if (Date.now() - lastSlotChange > 5000) {
+        console.log("Did not receive slot change in 5 seconds, exiting");
+        process.exit(1);
+      }
     }
   };
   await Promise.all([updateLatestBlockhash(), submitExistingOpportunities()]);
