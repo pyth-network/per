@@ -113,7 +113,7 @@ jobs:
           tags: |
             type=sha,event=branch
             type=ref,event=tag
-      - name: Build and push swap beacon docker image
+      - name: Build and push limonade docker image
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
         with:
           context: ./scripts/limonade
