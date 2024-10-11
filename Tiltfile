@@ -207,3 +207,9 @@ local_resource(
     "poetry -C per_sdk run python3 -m per_sdk.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100000000 --auction-server-url http://localhost:9000 --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --dummy-program DUmmYXYFZugRn2DS4REc5F9UbQNoxYsHP1VMZ6j5U7kZ",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
+
+local_resource(
+    "svm-limonade",
+    serve_cmd="npm run --prefix scripts/limonade limonade -- --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id development-solana --api-key $(poetry -C per_sdk run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
+    resource_deps=["svm-initialize-programs", "auction-server"],
+)

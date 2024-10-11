@@ -9,7 +9,10 @@ use {
         state::StoreNew,
     },
     axum::{
-        extract::State,
+        extract::{
+            Query,
+            State,
+        },
         Json,
     },
     email_address::EmailAddress,
@@ -19,6 +22,7 @@ use {
     },
     std::sync::Arc,
     utoipa::{
+        IntoParams,
         ToResponse,
         ToSchema,
     },
@@ -61,6 +65,13 @@ pub struct CreateProfile {
     pub role:  ProfileRole,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, IntoParams)]
+pub struct GetProfile {
+    /// The email of the profile to fetch
+    #[param(example = "example@example.com", value_type = String)]
+    pub email: String,
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct Profile {
     /// The id of the profile
@@ -95,7 +106,7 @@ pub struct AccessToken {
 /// Returns the created profile object.
 #[utoipa::path(post, path = "/v1/profiles",
 security(
-    ("bearerAuth" = []),
+("bearerAuth" = []),
 ),request_body = CreateProfile, responses(
 (status = 200, description = "The created profile", body = Profile),
 (status = 400, response = ErrorBodyResponse),
@@ -111,6 +122,38 @@ pub async fn post_profile(
         email: profile.email.0,
         role:  profile.role.into(),
     }))
+}
+
+/// Get a profile by email
+///
+/// Returns the created profile object.
+#[utoipa::path(get, path = "/v1/profiles",
+security(
+("bearerAuth" = []),
+), params(GetProfile), responses(
+(status = 200, description = "The fetched profile with the matching email", body = Profile),
+(status = 400, response = ErrorBodyResponse),
+),)]
+pub async fn get_profile(
+    State(store): State<Arc<StoreNew>>,
+    params: Query<GetProfile>,
+) -> Result<Json<Profile>, RestError> {
+    let email = params
+        .email
+        .clone()
+        .try_into()
+        .map_err(|_| RestError::BadParameters("Invalid email".to_string()))?;
+    let profile = store
+        .store
+        .get_profile_by_email(email)
+        .await?
+        .map(|profile| Profile {
+            id:    profile.id,
+            name:  profile.name,
+            email: profile.email.0,
+            role:  profile.role.into(),
+        });
+    Ok(Json(profile.ok_or_else(|| RestError::ProfileNotFound)?))
 }
 
 /// Create a new profile access token if no valid token exists.
