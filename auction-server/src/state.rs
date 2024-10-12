@@ -882,12 +882,14 @@ impl Store {
         mut auction: models::Auction,
         transaction_hash: Vec<u8>,
     ) -> anyhow::Result<models::Auction> {
+        let slot_auction_concluded = chain_store.get_current_slot().await?;
         auction.tx_hash = Some(transaction_hash);
         let now = OffsetDateTime::now_utc();
         auction.submission_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
-        sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
+        sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2, slot_auction_conclusion = $3 WHERE id = $4 AND submission_time IS NULL",
             auction.submission_time,
             auction.tx_hash,
+            BigDecimal::from_str(&slot_auction_concluded.to_string()).unwrap(),
             auction.id)
             .execute(&self.db)
             .await?;
@@ -897,19 +899,34 @@ impl Store {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn conclude_auction(
+    pub async fn conclude_auction<T: ChainStore>(
         &self,
         mut auction: models::Auction,
+        chain_store: &T,
     ) -> anyhow::Result<models::Auction> {
         let now = OffsetDateTime::now_utc();
         auction.conclusion_time = Some(PrimitiveDateTime::new(now.date(), now.time()));
-        sqlx::query!(
-            "UPDATE auction SET conclusion_time = $1 WHERE id = $2 AND conclusion_time IS NULL",
-            auction.conclusion_time,
-            auction.id
-        )
-        .execute(&self.db)
-        .await?;
+        let slot_landed = match &auction.tx_hash {
+            Some(tx_hash) => chain_store.get_slot_for_tx_hash(tx_hash.to_vec()).await?,
+            None => None,
+        };
+        match slot_landed {
+            Some(slot_landed) => sqlx::query!(
+                "UPDATE auction SET conclusion_time = $1, slot_landed = $2 WHERE id = $3 AND conclusion_time IS NULL",
+                auction.conclusion_time,
+                BigDecimal::from_str(&slot_landed.to_string()).unwrap(),
+                auction.id
+            )
+            .execute(&self.db)
+            .await?,
+
+            None => sqlx::query!(
+                "UPDATE auction SET conclusion_time = $1 WHERE id = $2 AND conclusion_time IS NULL",
+                auction.conclusion_time,
+                auction.id
+            ).execute(&self.db).await?,
+        };
+
         Ok(auction)
     }
 

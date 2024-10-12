@@ -115,6 +115,7 @@ use {
             VersionedTransaction,
         },
     },
+    solana_transaction_status::UiTransactionEncoding,
     sqlx::types::time::OffsetDateTime,
     std::{
         collections::hash_map::Entry,
@@ -265,7 +266,7 @@ async fn conclude_submitted_auction<T: ChainStore>(
             .await;
         if let Some(bid_statuses) = chain_store.get_bid_results(bids.clone(), tx_hash).await? {
             let auction = store
-                .conclude_auction(auction)
+                .conclude_auction(auction, chain_store)
                 .await
                 .map_err(|e| anyhow!("Failed to conclude auction: {:?}", e))?;
 
@@ -1100,6 +1101,10 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
     ) -> impl Future<
         Output = Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>>,
     > + Send;
+    /// Get current slot/block number for the chain
+    fn get_current_slot(&self) -> impl Future<Output = Result<u64>>;
+    /// Get slot/block number based on tx_hash
+    fn get_slot_for_tx_hash(&self, tx_hash: Vec<u8>) -> impl Future<Output = Result<Option<u64>>>;
 
     async fn get_bids(&self, key: &PermissionKey) -> Vec<Self::SimulatedBid> {
         self.bids.read().await.get(key).cloned().unwrap_or_default()
@@ -1328,6 +1333,20 @@ impl ChainStore for ChainStoreEvm {
             None => Ok(None),
         }
     }
+
+    async fn get_current_slot(&self) -> Result<u64> {
+        let block = self.provider.get_block_number().await?;
+        Ok(block.as_u64())
+    }
+
+    async fn get_slot_for_tx_hash(&self, tx_hash: Vec<u8>) -> Result<Option<u64>> {
+        let tx_hash = H256::from_slice(tx_hash.as_slice());
+        let tx = self.provider.get_transaction(tx_hash).await?;
+        match tx {
+            Some(tx) => Ok(tx.block_number.map(|block| block.as_u64())),
+            None => Ok(None),
+        }
+    }
 }
 
 impl ChainStore for ChainStoreSvm {
@@ -1436,6 +1455,30 @@ impl ChainStore for ChainStoreSvm {
                 // not yet confirmed
                 Ok(None)
             }
+        }
+    }
+
+    async fn get_current_slot(&self) -> Result<u64> {
+        let slot = self.client.get_slot().await?;
+        Ok(slot)
+    }
+
+    async fn get_slot_for_tx_hash(&self, tx_hash: Vec<u8>) -> Result<Option<u64>> {
+        let tx_hash: SignatureSvm = tx_hash
+            .try_into()
+            .map_err(|_| anyhow!("Invalid svm signature"))?;
+        let status = self
+            .client
+            .get_signature_status_with_commitment(&tx_hash, CommitmentConfig::confirmed())
+            .await?;
+        match status {
+            Some(Ok(())) => Ok(Some(
+                self.client
+                    .get_transaction(&tx_hash, UiTransactionEncoding::Json)
+                    .await?
+                    .slot,
+            )),
+            _ => Ok(None),
         }
     }
 }
