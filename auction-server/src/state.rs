@@ -22,7 +22,6 @@ use {
         opportunity::service as opportunity_service,
         traced_client::TracedClient,
     },
-    anchor_lang::prelude::borsh::schema,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{

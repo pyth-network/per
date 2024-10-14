@@ -32,6 +32,7 @@ use {
 };
 
 pub mod add_opportunity;
+pub mod estimate_price;
 pub mod get_config;
 pub mod get_opportunities;
 pub mod handle_opportunity_bid;

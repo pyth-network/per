@@ -3,6 +3,7 @@ use {
         repository,
         service::{
             add_opportunity::AddOpportunityInput,
+            estimate_price::EstimatePriceInput,
             get_opportunities::GetOpportunitiesInput,
             handle_opportunity_bid::HandleOpportunityBidInput,
         },
@@ -235,6 +236,31 @@ pub struct TokenAmountSvm {
     pub amount: u64,
 }
 
+/// Parameters needed to create a new opportunity from the Phantom wallet
+/// Auction server will extract the output token price for the auction
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct OpportunityCreatePhantomV1 {
+    /// The user wallet address which requested the quote from the wallet
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    user_wallet_address:         Pubkey,
+    /// The token mint address of the input token
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    input_token_mint:            Pubkey,
+    /// The token mint address of the output token
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    output_token_mint:           Pubkey,
+    /// The input token amount that the user wants to swap
+    #[schema(example = 100, value_type = u64)]
+    input_token_amount:          u64,
+    /// The maximum slippage percentage that the user is willing to accept
+    #[schema(example = 0.5, value_type = f64)]
+    maximum_slippage_percentage: f64,
+}
+
 /// Program specific parameters for the opportunity
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
@@ -255,6 +281,19 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
+    },
+    /// Phantom program specific parameters for the opportunity
+    #[serde(rename = "phantom")]
+    #[schema(title = "phantom")]
+    Phantom {
+        /// The user wallet address which requested the quote from the wallet
+        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        user_wallet_address: Pubkey,
+
+        /// The maximum slippage percentage that the user is willing to accept
+        #[schema(example = 0.5, value_type = f64)]
+        maximum_slippage_percentage: f64,
     },
 }
 
@@ -298,6 +337,41 @@ pub enum OpportunityCreateSvm {
     V1(OpportunityCreateV1Svm),
 }
 
+#[derive(PartialEq)]
+enum Program {
+    Phantom,
+    Limo,
+}
+
+fn get_program(auth: &Auth) -> Result<Program, RestError> {
+    match auth {
+        Auth::Authorized(_, profile) => {
+            if profile.role == models::ProfileRole::Searcher {
+                return Err(RestError::Forbidden);
+            }
+
+            match profile.name.as_str() {
+                "limo" => Ok(Program::Limo),
+                "phantom" => Ok(Program::Phantom),
+                _ => Err(RestError::Forbidden),
+            }
+        }
+        Auth::Admin => Err(RestError::Forbidden),
+        Auth::Unauthorized => Err(RestError::Unauthorized),
+    }
+}
+
+impl OpportunityCreateSvm {
+    fn get_program(&self) -> Program {
+        match self {
+            OpportunityCreateSvm::V1(params) => match &params.program_params {
+                OpportunityCreateProgramParamsV1Svm::Limo { .. } => Program::Limo,
+                OpportunityCreateProgramParamsV1Svm::Phantom { .. } => Program::Phantom,
+            },
+        }
+    }
+}
+
 /// Program specific parameters for the opportunity
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
@@ -317,6 +391,19 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
+    },
+    /// Phantom program specific parameters for the opportunity
+    #[serde(rename = "phantom")]
+    #[schema(title = "phantom")]
+    Phantom {
+        /// The user wallet address which requested the quote from the wallet
+        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        user_wallet_address: Pubkey,
+
+        /// The maximum slippage percentage that the user is willing to accept
+        #[schema(example = 0.5, value_type = f64)]
+        maximum_slippage_percentage: f64,
     },
 }
 
@@ -451,35 +538,17 @@ pub async fn post_opportunity(
             .await?
             .into(),
         OpportunityCreate::Svm(params) => {
-            match auth {
-                Auth::Authorized(_, profile) => {
-                    if profile.role == models::ProfileRole::Searcher {
-                        return Err(RestError::Forbidden);
-                    }
-
-                    let program_params = match params.clone() {
-                        OpportunityCreateSvm::V1(params) => params.program_params,
-                    };
-                    match program_params {
-                        OpportunityCreateProgramParamsV1Svm::Limo { .. } => {
-                            // TODO is there any better way to handle this part?
-                            if profile.name != "limo" {
-                                return Err(RestError::Forbidden);
-                            }
-                        }
-                    }
-
-                    store
-                        .opportunity_service_svm
-                        .add_opportunity(AddOpportunityInput {
-                            opportunity: params.into(),
-                        })
-                        .await?
-                        .into()
-                }
-                Auth::Admin => return Err(RestError::Forbidden),
-                Auth::Unauthorized => return Err(RestError::Unauthorized),
+            if get_program(&auth)? != params.get_program() {
+                return Err(RestError::Forbidden);
             }
+
+            store
+                .opportunity_service_svm
+                .add_opportunity(AddOpportunityInput {
+                    opportunity: params.into(),
+                })
+                .await?
+                .into()
         }
     };
     Ok(opportunity_with_metadata.into())
@@ -544,9 +613,68 @@ pub async fn get_opportunities(
     }
 }
 
+/// Submit a quote request.
+///
+/// The server will estimate the quote price, which will then be used to create an opportunity. This opportunity, containing the estimated price, will be submitted for bidding.
+#[utoipa::path(post, path = "/v1/opportunities/phantom", request_body = OpportunityCreatePhantomV1, responses(
+    (status = 200, description = "The created opportunity", body = Opportunity),
+    (status = 400, response = ErrorBodyResponse),
+    (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
+),)]
+pub async fn post_quote_request(
+    auth: Auth,
+    State(store): State<Arc<StoreNew>>,
+    Json(params): Json<OpportunityCreatePhantomV1>,
+) -> Result<Json<Opportunity>, RestError> {
+    if get_program(&auth)? != Program::Phantom {
+        return Err(RestError::Forbidden);
+    }
+
+    let opportunity: OpportunityCreateSvm = OpportunityCreateSvm::V1(OpportunityCreateV1Svm {
+        permission_account: params.user_wallet_address,
+        router:             Pubkey::default(),
+        chain_id:           ChainId::default(),
+        // TODO should be removed later
+        block_hash:         Hash::default(),
+        // TODO should be removed later
+        slot:               Slot::default(),
+        sell_tokens:        vec![TokenAmountSvm {
+            token:  params.input_token_mint,
+            amount: params.input_token_amount,
+        }],
+        buy_tokens:         vec![TokenAmountSvm {
+            token:  params.output_token_mint,
+            amount: store
+                .opportunity_service_svm
+                .estimate_price(EstimatePriceInput {
+                    input_token_mint:            params.input_token_mint,
+                    output_token_mint:           params.output_token_mint,
+                    input_token_amount:          params.input_token_amount,
+                    maximum_slippage_percentage: params.maximum_slippage_percentage,
+                })
+                .await?,
+        }],
+        program_params:     OpportunityCreateProgramParamsV1Svm::Phantom {
+            user_wallet_address:         params.user_wallet_address,
+            maximum_slippage_percentage: params.maximum_slippage_percentage,
+        },
+    });
+
+    Ok(Json(
+        store
+            .opportunity_service_svm
+            .add_opportunity(AddOpportunityInput {
+                opportunity: opportunity.into(),
+            })
+            .await?
+            .into(),
+    ))
+}
+
 pub fn get_routes() -> Router<Arc<StoreNew>> {
     Router::new()
         .route("/", post(post_opportunity))
+        .route("/phantom", post(post_quote_request))
         .route("/", get(get_opportunities))
         .route("/:opportunity_id/bids", post(opportunity_bid))
 }
