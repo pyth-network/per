@@ -294,6 +294,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
+    opportunity::post_quote_request,
 
     profile::delete_profile_access_token,
     ),
@@ -331,7 +332,10 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::OpportunityParamsEvm,
     opportunity::OpportunityParamsV1Svm,
     opportunity::OpportunityParamsV1Evm,
-    opportunity::OpportunityCreatePhantomV1,
+    opportunity::QuoteRequestCreate,
+    opportunity::QuoteRequestCreateSvm,
+    opportunity::QuoteRequestCreateV1Svm,
+    opportunity::QuoteRequestCreatePhantomV1Svm,
 
     ErrorBodyResponse,
     ClientRequest,
