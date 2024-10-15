@@ -199,7 +199,7 @@ pub async fn live() -> Response {
     (StatusCode::OK, "OK").into_response()
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Auth {
     Admin,
     Authorized(models::AccessTokenToken, models::Profile),
@@ -300,7 +300,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
-    opportunity::post_quote_request,
+    opportunity::post_quote,
 
     profile::delete_profile_access_token,
     ),
@@ -342,6 +342,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::QuoteCreateSvm,
     opportunity::QuoteCreateV1Svm,
     opportunity::QuoteCreatePhantomV1Svm,
+    opportunity::Quote,
+    opportunity::QuoteSvm,
+    opportunity::QuoteV1Svm,
 
     ErrorBodyResponse,
     ClientRequest,

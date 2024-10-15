@@ -37,7 +37,7 @@ pub struct Auction {
     pub submission_time:     Option<PrimitiveDateTime>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EmailAddress(pub email_address::EmailAddress);
 
 impl TryFrom<String> for EmailAddress {
@@ -57,7 +57,7 @@ pub enum ProfileRole {
     Protocol,
 }
 
-#[derive(Clone, FromRow)]
+#[derive(Clone, FromRow, Debug)]
 pub struct Profile {
     pub id:    ProfileId,
     pub name:  String,

@@ -683,12 +683,12 @@ pub async fn get_opportunities(
 /// The server will estimate the quote price, which will be used to create an opportunity.
 /// This opportunity, containing the estimated price, will then be submitted for bidding.
 /// Once all searcher bids are collected, the winning signed bid will be returned along with the estimated price.
-#[utoipa::path(post, path = "/v1/quote_request", request_body = QuoteCreate, responses(
-    (status = 200, description = "The created opportunity", body = Quote),
+#[utoipa::path(post, path = "/v1/opportunities/quote", request_body = QuoteCreate, responses(
+    (status = 200, description = "The created quote", body = Quote),
     (status = 400, response = ErrorBodyResponse),
-    (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
+    (status = 404, description = "No quote available right now", body = ErrorBodyResponse),
 ),)]
-pub async fn post_quote_request(
+pub async fn post_quote(
     auth: Auth,
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
@@ -710,7 +710,7 @@ pub async fn post_quote_request(
 pub fn get_routes() -> Router<Arc<StoreNew>> {
     Router::new()
         .route("/", post(post_opportunity))
-        .route("/phantom", post(post_quote_request))
+        .route("/quote", post(post_quote))
         .route("/", get(get_opportunities))
         .route("/:opportunity_id/bids", post(opportunity_bid))
 }

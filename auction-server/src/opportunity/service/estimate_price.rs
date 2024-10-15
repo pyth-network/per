@@ -14,6 +14,7 @@ pub struct EstimatePriceInput {
 }
 
 impl Service<ChainTypeSvm> {
+    #[tracing::instrument(skip_all)]
     pub async fn estimate_price(&self, _input: EstimatePriceInput) -> Result<u64, RestError> {
         // TODO implement
         return Ok(0);

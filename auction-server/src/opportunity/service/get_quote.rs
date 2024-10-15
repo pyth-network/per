@@ -17,10 +17,7 @@ use {
             entities,
             service::estimate_price::EstimatePriceInput,
         },
-        state::{
-            ChainStoreSvm,
-            UnixTimestampMicros,
-        },
+        state::UnixTimestampMicros,
     },
     axum_prometheus::metrics,
     solana_sdk::{
@@ -28,11 +25,14 @@ use {
         hash::Hash,
         pubkey::Pubkey,
     },
+    std::time::Duration,
     time::OffsetDateTime,
     tokio::time::sleep,
-    tracing::instrument,
     uuid::Uuid,
 };
+
+// Time to wait for searchers to submit bids
+const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
 
 pub struct GetQuoteInput {
     pub quote_create: entities::QuoteCreate,
@@ -80,11 +80,7 @@ impl Service<ChainTypeSvm> {
         })
     }
 
-    #[instrument(
-        target = "metrics",
-        fields(category = "get_quote", name = "phantom"),
-        skip_all
-    )]
+    #[tracing::instrument(skip_all)]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
         let chain_store = self
             .store
@@ -115,7 +111,7 @@ impl Service<ChainTypeSvm> {
             })?;
 
         // Wait to make sure searchers had enough time to submit bids
-        sleep(ChainStoreSvm::AUCTION_MINIMUM_LIFETIME).await;
+        sleep(BID_COLLECTION_TIME).await;
 
         let mut bids = chain_store.get_bids(&opportunity.permission_key).await;
 
