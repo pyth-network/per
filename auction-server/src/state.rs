@@ -45,8 +45,15 @@ use {
     },
     serde_json::json,
     serde_with::{
+        base64::{
+            Base64,
+            Standard,
+        },
+        formats::Padded,
         serde_as,
+        DeserializeAs,
         DisplayFromStr,
+        SerializeAs,
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
@@ -91,6 +98,30 @@ use {
 };
 
 pub type PermissionKey = Bytes;
+
+#[derive(Clone, Debug)]
+pub struct PermissionKeySvm(pub [u8; 64]);
+
+impl Serialize for PermissionKeySvm {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        Base64::<Standard, Padded>::serialize_as(&self.0, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for PermissionKeySvm {
+    fn deserialize<D>(deserializer: D) -> Result<PermissionKeySvm, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let bytes: [u8; 64] = Base64::<Standard, Padded>::deserialize_as(deserializer)?;
+        let mut key = [0; 64];
+        key.copy_from_slice(&bytes);
+        Ok(PermissionKeySvm(key))
+    }
+}
 pub type BidAmount = U256;
 pub type BidAmountSvm = u64;
 pub type GetOrCreate<T> = (T, bool);
@@ -100,9 +131,6 @@ pub struct SimulatedBidCoreFields<T: BidStatusTrait> {
     /// The unique id for bid.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub id:              BidId,
-    /// The permission key for bid.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub permission_key:  PermissionKey,
     /// The chain id for bid.
     #[schema(example = "op_sepolia", value_type = String)]
     pub chain_id:        ChainId,
@@ -123,14 +151,18 @@ pub struct SimulatedBidCoreFields<T: BidStatusTrait> {
 pub struct SimulatedBidSvm {
     #[serde(flatten)]
     #[schema(inline)]
-    pub core_fields: SimulatedBidCoreFields<BidStatusSvm>,
+    pub core_fields:    SimulatedBidCoreFields<BidStatusSvm>,
     /// The transaction of the bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde(with = "crate::serde::transaction_svm")]
-    pub transaction: VersionedTransaction,
+    pub transaction:    VersionedTransaction,
     /// Amount of bid in lamports.
-    #[schema(example = "1000")]
-    pub bid_amount:  BidAmountSvm,
+    #[schema(example = "1000", value_type = u64)]
+    pub bid_amount:     BidAmountSvm,
+    /// The permission key for bid in base64 format.
+    /// This is the concatenation of the permission account and the router account.
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    pub permission_key: PermissionKeySvm,
 }
 
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
@@ -153,6 +185,9 @@ pub struct SimulatedBidEvm {
     #[schema(example = "10", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub bid_amount:      BidAmount,
+    /// The permission key for bid.
+    #[schema(example = "0xdeadbeef", value_type = String)]
+    pub permission_key:  PermissionKey,
 }
 
 // TODO - we should delete this enum and use the SimulatedBidTrait instead. We may need it for API.
@@ -176,6 +211,12 @@ pub trait SimulatedBidTrait:
     fn get_metadata(&self) -> anyhow::Result<models::BidMetadata>;
     fn get_chain_type(&self) -> models::ChainType;
     fn get_bid_amount_string(&self) -> String;
+
+    fn get_permission_key(&self) -> &[u8];
+
+    fn get_permission_key_as_bytes(&self) -> Bytes {
+        Bytes::from(self.get_permission_key().to_vec())
+    }
     fn get_bid_status(
         status: models::BidStatus,
         index: Option<u32>,
@@ -193,6 +234,10 @@ impl SimulatedBidTrait for SimulatedBidEvm {
             core_fields,
             ..self
         }
+    }
+
+    fn get_permission_key(&self) -> &[u8] {
+        &self.permission_key
     }
 
     fn get_bid_amount_string(&self) -> String {
@@ -268,6 +313,7 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBidEvm {
             target_calldata: metadata.target_calldata,
             gas_limit: U256::from(metadata.gas_limit),
             bid_amount,
+            permission_key: Bytes::from(bid.permission_key),
         })
     }
 }
@@ -287,7 +333,6 @@ impl<T: BidStatusTrait> TryFrom<(models::Bid, Option<models::Auction>)>
 
         Ok(SimulatedBidCoreFields {
             id: bid.id,
-            permission_key: Bytes::from(bid.permission_key),
             chain_id: bid.chain_id,
             status,
             initiation_time: bid.initiation_time.assume_offset(UtcOffset::UTC),
@@ -310,10 +355,16 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBidSvm {
             .to_string()
             .parse()
             .map_err(|e: ParseIntError| anyhow::anyhow!(e))?;
+        let mut permission_key: [u8; 64] = [0; 64];
+        if bid.permission_key.len() != 64 {
+            return Err(anyhow::anyhow!("Invalid permission key length"));
+        }
+        permission_key.copy_from_slice(&bid.permission_key);
         Ok(SimulatedBidSvm {
             core_fields,
             transaction: metadata.transaction,
             bid_amount,
+            permission_key: PermissionKeySvm(permission_key),
         })
     }
 }
@@ -357,6 +408,10 @@ impl SimulatedBidTrait for SimulatedBidSvm {
             core_fields,
             ..self
         }
+    }
+
+    fn get_permission_key(&self) -> &[u8] {
+        &self.permission_key.0
     }
 
     fn get_bid_amount_string(&self) -> String {
@@ -805,16 +860,9 @@ pub struct StoreNew {
 }
 
 impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {
-    pub fn new(
-        chain_id: String,
-        status: T,
-        permission_key: Bytes,
-        initiation_time: OffsetDateTime,
-        auth: Auth,
-    ) -> Self {
+    pub fn new(chain_id: String, status: T, initiation_time: OffsetDateTime, auth: Auth) -> Self {
         Self {
             id: Uuid::new_v4(),
-            permission_key,
             chain_id,
             initiation_time,
             status,
@@ -948,7 +996,7 @@ impl Store {
         sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
-        bid.permission_key.to_vec(),
+        bid.get_permission_key().to_vec(),
         bid.chain_id,
         chain_type as _,
         BigDecimal::from_str(&bid.get_bid_amount_string()).unwrap(),

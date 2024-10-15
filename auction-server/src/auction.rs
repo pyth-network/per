@@ -24,6 +24,7 @@ use {
             ChainStoreSvm,
             ExpressRelaySvm,
             PermissionKey,
+            PermissionKeySvm,
             SimulatedBidCoreFields,
             SimulatedBidEvm,
             SimulatedBidSvm,
@@ -825,13 +826,8 @@ pub async fn handle_bid(
     )
     .await?;
 
-    let core_fields = SimulatedBidCoreFields::new(
-        bid.chain_id,
-        BidStatusEvm::Pending,
-        bid.permission_key,
-        initiation_time,
-        auth,
-    );
+    let core_fields =
+        SimulatedBidCoreFields::new(bid.chain_id, BidStatusEvm::Pending, initiation_time, auth);
     let simulated_bid = SimulatedBidEvm {
         core_fields:     core_fields.clone(),
         target_contract: bid.target_contract,
@@ -839,6 +835,7 @@ pub async fn handle_bid(
         // Add a 25% more for estimation errors
         gas_limit:       estimated_gas * U256::from(125) / U256::from(100),
         bid_amount:      bid.amount,
+        permission_key:  bid.permission_key,
     };
     store.add_bid(chain_store, simulated_bid).await?;
     Ok(core_fields.id)
@@ -946,7 +943,7 @@ fn extract_bid_data_svm(
     express_relay_svm: ExpressRelaySvm,
     accounts: &[Pubkey],
     instruction: CompiledInstruction,
-) -> Result<(u64, PermissionKey), RestError> {
+) -> Result<(u64, PermissionKeySvm), RestError> {
     let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
     let submit_bid_data = express_relay_svm::SubmitBidArgs::try_from_slice(
         &instruction.data.as_slice()[discriminator.len()..],
@@ -963,9 +960,10 @@ fn extract_bid_data_svm(
         instruction.clone(),
         express_relay_svm.router_account_position,
     )?;
-
-    let concat = [router_account.to_bytes(), permission_account.to_bytes()].concat();
-    Ok((submit_bid_data.bid_amount, concat.into()))
+    let mut permission_key = [0; 64];
+    permission_key[..32].copy_from_slice(&router_account.to_bytes());
+    permission_key[32..].copy_from_slice(&permission_account.to_bytes());
+    Ok((submit_bid_data.bid_amount, PermissionKeySvm(permission_key)))
 }
 
 #[tracing::instrument(skip_all)]
@@ -991,17 +989,13 @@ pub async fn handle_bid_svm(
     verify_signatures_svm(&bid, &chain_store.express_relay_svm.relayer.pubkey())?;
     simulate_bid_svm(chain_store, &bid).await?;
 
-    let core_fields = SimulatedBidCoreFields::new(
-        bid.chain_id,
-        BidStatusSvm::Pending,
-        permission_key,
-        initiation_time,
-        auth,
-    );
+    let core_fields =
+        SimulatedBidCoreFields::new(bid.chain_id, BidStatusSvm::Pending, initiation_time, auth);
     let simulated_bid = SimulatedBidSvm {
         core_fields: core_fields.clone(),
         transaction: bid.transaction,
         bid_amount,
+        permission_key,
     };
     store.add_bid(chain_store, simulated_bid).await?;
     Ok(core_fields.id)
@@ -1109,14 +1103,14 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
         self.bids
             .write()
             .await
-            .entry(bid.permission_key.clone())
+            .entry(bid.get_permission_key_as_bytes())
             .or_insert_with(Vec::new)
             .push(bid);
     }
 
     async fn remove_bid(&self, bid: Self::SimulatedBid) {
         let mut write_guard = self.bids.write().await;
-        let key = bid.permission_key.clone();
+        let key = bid.get_permission_key_as_bytes();
         if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
             let bids = entry.get_mut();
             bids.retain(|b| b.id != bid.id);
@@ -1128,7 +1122,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
 
     async fn update_bid(&self, bid: Self::SimulatedBid) {
         let mut write_guard = self.bids.write().await;
-        let key = bid.permission_key.clone();
+        let key = bid.get_permission_key_as_bytes();
         match write_guard.entry(key.clone()) {
             Entry::Occupied(mut entry) => {
                 let bids = entry.get_mut();
