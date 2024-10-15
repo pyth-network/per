@@ -19,7 +19,6 @@ use {
     },
     solana_sdk::{
         clock::Slot,
-        hash::Hash,
         pubkey::Pubkey,
     },
     std::ops::Deref,
@@ -42,9 +41,7 @@ pub struct OpportunitySvm {
 
     pub router:             Pubkey,
     pub permission_account: Pubkey,
-    pub block_hash:         Hash,
     pub program:            OpportunitySvmProgram,
-    pub slot:               Slot,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -53,9 +50,7 @@ pub struct OpportunityCreateSvm {
 
     pub router:             Pubkey,
     pub permission_account: Pubkey,
-    pub block_hash:         Hash,
     pub program:            OpportunitySvmProgram,
-    pub slot:               Slot,
 }
 
 impl Opportunity for OpportunitySvm {
@@ -70,9 +65,7 @@ impl Opportunity for OpportunitySvm {
             ),
             router:             val.router,
             permission_account: val.permission_account,
-            block_hash:         val.block_hash,
             program:            val.program,
-            slot:               val.slot,
         }
     }
 
@@ -91,8 +84,6 @@ impl Opportunity for OpportunitySvm {
             program,
             router: self.router,
             permission_account: self.permission_account,
-            block_hash: self.block_hash,
-            slot: self.slot,
         }
     }
 }
@@ -130,8 +121,6 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
         api::OpportunitySvm {
             opportunity_id: val.id,
             creation_time:  val.creation_time,
-            slot:           val.slot,
-            block_hash:     val.block_hash,
             params:         api::OpportunityParamsSvm::V1(api::OpportunityParamsV1Svm {
                 program,
                 chain_id: val.chain_id.clone(),
@@ -182,9 +171,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             },
             router: val.metadata.router,
             permission_account: val.metadata.permission_account,
-            block_hash: val.metadata.block_hash,
             program,
-            slot: val.metadata.slot,
         })
     }
 }
@@ -216,8 +203,6 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             program,
             permission_account: params.permission_account,
             router: params.router,
-            block_hash: params.block_hash,
-            slot: params.slot,
         }
     }
 }
@@ -233,9 +218,7 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
             },
             router:             val.router,
             permission_account: val.permission_account,
-            block_hash:         val.block_hash,
             program:            val.program,
-            slot:               val.slot,
         }
     }
 }
