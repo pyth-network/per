@@ -130,6 +130,8 @@ pub enum RestError {
     Unauthorized,
     /// Profile not found
     ProfileNotFound,
+    /// Quote not found
+    QuoteNotFound,
 }
 
 impl RestError {
@@ -172,6 +174,10 @@ impl RestError {
             ),
             RestError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
             RestError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
+            RestError::QuoteNotFound => (
+                StatusCode::NOT_FOUND,
+                "No quote is currently available".to_string(),
+            ),
         }
     }
 }
@@ -332,10 +338,10 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::OpportunityParamsEvm,
     opportunity::OpportunityParamsV1Svm,
     opportunity::OpportunityParamsV1Evm,
-    opportunity::QuoteRequestCreate,
-    opportunity::QuoteRequestCreateSvm,
-    opportunity::QuoteRequestCreateV1Svm,
-    opportunity::QuoteRequestCreatePhantomV1Svm,
+    opportunity::QuoteCreate,
+    opportunity::QuoteCreateSvm,
+    opportunity::QuoteCreateV1Svm,
+    opportunity::QuoteCreatePhantomV1Svm,
 
     ErrorBodyResponse,
     ClientRequest,

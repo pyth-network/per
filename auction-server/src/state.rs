@@ -56,6 +56,7 @@ use {
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
+        pubkey::Pubkey,
         signature::{
             Keypair,
             Signature,
@@ -473,9 +474,10 @@ pub struct ChainStoreEvm {
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
-    pub client:            RpcClient,
-    pub config:            ConfigSvm,
-    pub express_relay_svm: ExpressRelaySvm,
+    pub client:                 RpcClient,
+    pub config:                 ConfigSvm,
+    pub express_relay_svm:      ExpressRelaySvm,
+    pub phantom_router_account: Pubkey,
 }
 
 pub type BidId = Uuid;

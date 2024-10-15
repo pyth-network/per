@@ -3,15 +3,14 @@ use {
         ChainTypeSvm,
         Service,
     },
-    crate::api::RestError,
-    solana_sdk::pubkey::Pubkey,
+    crate::{
+        api::RestError,
+        opportunity::entities,
+    },
 };
 
 pub struct EstimatePriceInput {
-    pub input_token_amount:          u64,
-    pub input_token_mint:            Pubkey,
-    pub output_token_mint:           Pubkey,
-    pub maximum_slippage_percentage: f64,
+    pub quote_create: entities::QuoteCreate,
 }
 
 impl Service<ChainTypeSvm> {

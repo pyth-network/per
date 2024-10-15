@@ -939,16 +939,22 @@ fn extract_account_svm(
     Ok(*account)
 }
 
+pub fn extract_submit_bid_data(
+    instruction: CompiledInstruction,
+) -> Result<express_relay_svm::SubmitBidArgs, RestError> {
+    let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
+    express_relay_svm::SubmitBidArgs::try_from_slice(
+        &instruction.data.as_slice()[discriminator.len()..],
+    )
+    .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))
+}
+
 fn extract_bid_data_svm(
     express_relay_svm: ExpressRelaySvm,
     accounts: &[Pubkey],
     instruction: CompiledInstruction,
 ) -> Result<(u64, PermissionKeySvm), RestError> {
-    let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
-    let submit_bid_data = express_relay_svm::SubmitBidArgs::try_from_slice(
-        &instruction.data.as_slice()[discriminator.len()..],
-    )
-    .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))?;
+    let submit_bid_data = extract_submit_bid_data(instruction.clone())?;
 
     let permission_account = extract_account_svm(
         accounts,

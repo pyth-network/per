@@ -3,8 +3,8 @@ use {
         repository,
         service::{
             add_opportunity::AddOpportunityInput,
-            estimate_price::EstimatePriceInput,
             get_opportunities::GetOpportunitiesInput,
+            get_quote::GetQuoteInput,
             handle_opportunity_bid::HandleOpportunityBidInput,
         },
     },
@@ -57,6 +57,7 @@ use {
         clock::Slot,
         hash::Hash,
         pubkey::Pubkey,
+        transaction::VersionedTransaction,
     },
     std::sync::Arc,
     time::OffsetDateTime,
@@ -242,48 +243,87 @@ pub struct TokenAmountSvm {
 /// Auction server will extract the output token price for the auction
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct QuoteRequestCreatePhantomV1Svm {
-    /// The user wallet address which requested the quote from the wallet
+pub struct QuoteCreatePhantomV1Svm {
+    /// The user wallet address which requested the quote from the wallet.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    user_wallet_address:         Pubkey,
-    /// The token mint address of the input token
+    pub user_wallet_address:         Pubkey,
+    /// The token mint address of the input token.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    input_token_mint:            Pubkey,
-    /// The token mint address of the output token
+    pub input_token_mint:            Pubkey,
+    /// The token mint address of the output token.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    output_token_mint:           Pubkey,
-    /// The input token amount that the user wants to swap
+    pub output_token_mint:           Pubkey,
+    /// The input token amount that the user wants to swap.
     #[schema(example = 100, value_type = u64)]
-    input_token_amount:          u64,
-    /// The maximum slippage percentage that the user is willing to accept
+    pub input_token_amount:          u64,
+    /// The maximum slippage percentage that the user is willing to accept.
     #[schema(example = 0.5, value_type = f64)]
-    maximum_slippage_percentage: f64,
+    pub maximum_slippage_percentage: f64,
+    /// The chain id for creating the quote.
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id:                    ChainId,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "program")]
-pub enum QuoteRequestCreateV1Svm {
+pub enum QuoteCreateV1Svm {
     #[serde(rename = "phantom")]
     #[schema(title = "phantom")]
-    Phantom(QuoteRequestCreatePhantomV1Svm),
+    Phantom(QuoteCreatePhantomV1Svm),
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "version")]
-pub enum QuoteRequestCreateSvm {
+pub enum QuoteCreateSvm {
     #[serde(rename = "v1")]
     #[schema(title = "v1")]
-    V1(QuoteRequestCreateV1Svm),
+    V1(QuoteCreateV1Svm),
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(untagged)]
-pub enum QuoteRequestCreate {
+pub enum QuoteCreate {
     #[schema(title = "svm")]
-    Svm(QuoteRequestCreateSvm),
+    Svm(QuoteCreateSvm),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct QuoteV1Svm {
+    /// The signed transaction for the quote to be executed on chain which is valid until the expiration time
+    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
+    #[serde(with = "crate::serde::transaction_svm")]
+    pub transaction:                 VersionedTransaction,
+    /// The expiration time of the quote (in seconds since the Unix epoch)
+    #[schema(example = 1_700_000_000_000_000i64, value_type = i64)]
+    pub expiration_time:             i64,
+    /// The input token amount that the user wants to swap
+    pub input_token:                 TokenAmountSvm,
+    /// The output token amount that the user will receive
+    pub output_token:                TokenAmountSvm,
+    /// The maximum slippage percentage that the user is willing to accept
+    #[schema(example = 0.5)]
+    pub maximum_slippage_percentage: f64,
+    /// The chain id for the quote
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id:                    ChainId,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(tag = "version")]
+pub enum QuoteSvm {
+    #[serde(rename = "v1")]
+    #[schema(title = "v1")]
+    V1(QuoteV1Svm),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(untagged)]
+pub enum Quote {
+    #[schema(title = "svm")]
+    Svm(QuoteSvm),
 }
 
 /// Program specific parameters for the opportunity
@@ -291,9 +331,9 @@ pub enum QuoteRequestCreate {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "program")]
 pub enum OpportunityCreateProgramParamsV1Svm {
-    /// Limo program specific parameters for the opportunity
-    /// It contains the Limo order to be executed, encoded in base64
-    /// SDKs will decode this order and create transaction for bidding on the opportunity
+    /// Limo program specific parameters for the opportunity.
+    /// It contains the Limo order to be executed, encoded in base64.
+    /// SDKs will decode this order and create transaction for bidding on the opportunity.
     #[serde(rename = "limo")]
     #[schema(title = "limo")]
     Limo {
@@ -302,21 +342,21 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[serde_as(as = "Base64")]
         order: Vec<u8>,
 
-        /// Address of the order account
+        /// Address of the order account.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
     },
-    /// Phantom program specific parameters for the opportunity
+    /// Phantom program specific parameters for the opportunity.
     #[serde(rename = "phantom")]
     #[schema(title = "phantom")]
     Phantom {
-        /// The user wallet address which requested the quote from the wallet
+        /// The user wallet address which requested the quote from the wallet.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
 
-        /// The maximum slippage percentage that the user is willing to accept
+        /// The maximum slippage percentage that the user is willing to accept.
         #[schema(example = 0.5, value_type = f64)]
         maximum_slippage_percentage: f64,
     },
@@ -643,63 +683,28 @@ pub async fn get_opportunities(
 /// The server will estimate the quote price, which will be used to create an opportunity.
 /// This opportunity, containing the estimated price, will then be submitted for bidding.
 /// Once all searcher bids are collected, the winning signed bid will be returned along with the estimated price.
-#[utoipa::path(post, path = "/v1/quote_request", request_body = QuoteRequestCreate, responses(
-    (status = 200, description = "The created opportunity", body = Opportunity),
+#[utoipa::path(post, path = "/v1/quote_request", request_body = QuoteCreate, responses(
+    (status = 200, description = "The created opportunity", body = Quote),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
 pub async fn post_quote_request(
     auth: Auth,
     State(store): State<Arc<StoreNew>>,
-    Json(params): Json<QuoteRequestCreate>,
-) -> Result<Json<Opportunity>, RestError> {
+    Json(params): Json<QuoteCreate>,
+) -> Result<Json<Quote>, RestError> {
     if get_program(&auth)? != Program::Phantom {
         return Err(RestError::Forbidden);
     }
 
-    let QuoteRequestCreate::Svm(QuoteRequestCreateSvm::V1(QuoteRequestCreateV1Svm::Phantom(
-        params,
-    ))) = params;
+    let quote = store
+        .opportunity_service_svm
+        .get_quote(GetQuoteInput {
+            quote_create: params.into(),
+        })
+        .await?;
 
-    let opportunity = OpportunityCreateSvm::V1(OpportunityCreateV1Svm {
-        permission_account: params.user_wallet_address,
-        router:             Pubkey::default(),
-        chain_id:           ChainId::default(),
-        // TODO should be removed later
-        block_hash:         Hash::default(),
-        // TODO should be removed later
-        slot:               Slot::default(),
-        sell_tokens:        vec![TokenAmountSvm {
-            token:  params.input_token_mint,
-            amount: params.input_token_amount,
-        }],
-        buy_tokens:         vec![TokenAmountSvm {
-            token:  params.output_token_mint,
-            amount: store
-                .opportunity_service_svm
-                .estimate_price(EstimatePriceInput {
-                    input_token_mint:            params.input_token_mint,
-                    output_token_mint:           params.output_token_mint,
-                    input_token_amount:          params.input_token_amount,
-                    maximum_slippage_percentage: params.maximum_slippage_percentage,
-                })
-                .await?,
-        }],
-        program_params:     OpportunityCreateProgramParamsV1Svm::Phantom {
-            user_wallet_address:         params.user_wallet_address,
-            maximum_slippage_percentage: params.maximum_slippage_percentage,
-        },
-    });
-
-    Ok(Json(
-        store
-            .opportunity_service_svm
-            .add_opportunity(AddOpportunityInput {
-                opportunity: opportunity.into(),
-            })
-            .await?
-            .into(),
-    ))
+    Ok(Json(quote.into()))
 }
 
 pub fn get_routes() -> Router<Arc<StoreNew>> {
