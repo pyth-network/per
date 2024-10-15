@@ -213,7 +213,7 @@ impl From<(SimulatedBidEvm, bool)> for MulticallData {
             bid_id: bid.core_fields.id.into_bytes(),
             target_contract: bid.target_contract,
             target_calldata: bid.target_calldata,
-            bid_amount: bid.core_fields.bid_amount,
+            bid_amount: bid.bid_amount,
             gas_limit: bid.gas_limit,
             revert_on_failure,
         }
@@ -826,7 +826,6 @@ pub async fn handle_bid(
     .await?;
 
     let core_fields = SimulatedBidCoreFields::new(
-        bid.amount,
         bid.chain_id,
         BidStatusEvm::Pending,
         bid.permission_key,
@@ -839,6 +838,7 @@ pub async fn handle_bid(
         target_calldata: bid.target_calldata.clone(),
         // Add a 25% more for estimation errors
         gas_limit:       estimated_gas * U256::from(125) / U256::from(100),
+        bid_amount:      bid.amount,
     };
     store.add_bid(chain_store, simulated_bid).await?;
     Ok(core_fields.id)
@@ -992,7 +992,6 @@ pub async fn handle_bid_svm(
     simulate_bid_svm(chain_store, &bid).await?;
 
     let core_fields = SimulatedBidCoreFields::new(
-        U256::from(bid_amount),
         bid.chain_id,
         BidStatusSvm::Pending,
         permission_key,
@@ -1002,6 +1001,7 @@ pub async fn handle_bid_svm(
     let simulated_bid = SimulatedBidSvm {
         core_fields: core_fields.clone(),
         transaction: bid.transaction,
+        bid_amount,
     };
     store.add_bid(chain_store, simulated_bid).await?;
     Ok(core_fields.id)
@@ -1251,7 +1251,7 @@ impl ChainStore for ChainStoreEvm {
         }
 
         let mut bids = bids.to_owned();
-        bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
+        bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
         let bids: Vec<SimulatedBidEvm> = bids.into_iter().take(TOTAL_BIDS_PER_AUCTION).collect();
         let simulation_result = get_simulation_call(
             self.express_relay_contract.get_relayer_address(),
@@ -1358,7 +1358,7 @@ impl ChainStore for ChainStoreSvm {
         _permission_key: Bytes,
     ) -> Result<Vec<Self::SimulatedBid>> {
         let mut bids = bids.to_owned();
-        bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
+        bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
         for bid in bids.iter() {
             match simulate_bid_svm(
                 self,
