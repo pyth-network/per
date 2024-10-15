@@ -433,7 +433,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
 ) -> Result<()> {
     let bids: Vec<T::SimulatedBid> = bids
         .into_iter()
-        .filter(|bid| models::BidStatus::Pending == bid.status.clone().into())
+        .filter(|bid| models::BidStatus::Pending == bid.get_status().clone().into())
         .collect();
 
     if bids.is_empty() {
@@ -826,8 +826,7 @@ pub async fn handle_bid(
     )
     .await?;
 
-    let core_fields =
-        SimulatedBidCoreFields::new(bid.chain_id, BidStatusEvm::Pending, initiation_time, auth);
+    let core_fields = SimulatedBidCoreFields::new(bid.chain_id, initiation_time, auth);
     let simulated_bid = SimulatedBidEvm {
         core_fields:     core_fields.clone(),
         target_contract: bid.target_contract,
@@ -836,6 +835,7 @@ pub async fn handle_bid(
         gas_limit:       estimated_gas * U256::from(125) / U256::from(100),
         bid_amount:      bid.amount,
         permission_key:  bid.permission_key,
+        status:          BidStatusEvm::Pending,
     };
     store.add_bid(chain_store, simulated_bid).await?;
     Ok(core_fields.id)
@@ -989,9 +989,9 @@ pub async fn handle_bid_svm(
     verify_signatures_svm(&bid, &chain_store.express_relay_svm.relayer.pubkey())?;
     simulate_bid_svm(chain_store, &bid).await?;
 
-    let core_fields =
-        SimulatedBidCoreFields::new(bid.chain_id, BidStatusSvm::Pending, initiation_time, auth);
+    let core_fields = SimulatedBidCoreFields::new(bid.chain_id, initiation_time, auth);
     let simulated_bid = SimulatedBidSvm {
+        status: BidStatusSvm::Pending,
         core_fields: core_fields.clone(),
         transaction: bid.transaction,
         bid_amount,
@@ -1160,8 +1160,8 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
             Some(tx_hash) => bids
                 .into_iter()
                 .filter(|bid| {
-                    if models::BidStatus::Submitted == bid.status.clone().into() {
-                        if let Some(status_tx_hash) = bid.status.get_tx_hash() {
+                    if models::BidStatus::Submitted == bid.get_status().clone().into() {
+                        if let Some(status_tx_hash) = bid.get_status().get_tx_hash() {
                             return <Self::SimulatedBid as SimulatedBidTrait>::StatusType::convert_tx_hash(status_tx_hash)
                                 == tx_hash;
                         }
