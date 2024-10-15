@@ -22,6 +22,7 @@ use {
             UnixTimestampMicros,
         },
     },
+    axum_prometheus::metrics,
     solana_sdk::{
         clock::Slot,
         hash::Hash,
@@ -29,6 +30,7 @@ use {
     },
     time::OffsetDateTime,
     tokio::time::sleep,
+    tracing::instrument,
     uuid::Uuid,
 };
 
@@ -78,6 +80,11 @@ impl Service<ChainTypeSvm> {
         })
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(category = "get_quote", name = "phantom"),
+        skip_all
+    )]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
         let chain_store = self
             .store
@@ -109,14 +116,33 @@ impl Service<ChainTypeSvm> {
 
         // Wait to make sure searchers had enough time to submit bids
         sleep(ChainStoreSvm::AUCTION_MINIMUM_LIFETIME).await;
+
         let mut bids = chain_store.get_bids(&opportunity.permission_key).await;
+
+        // Add logs and metrics
+        tracing::info!(
+            opportunity = ?opportunity,
+            bids = ?bids,
+            "Bids received for quote opportunity",
+        );
+        let labels = [
+            ("chain_id", input.quote_create.chain_id.to_string()),
+            ("wallet", "phantom".to_string()),
+            ("total_bids", bids.len().to_string()),
+        ];
+        metrics::counter!("get_quote_total_bids", &labels).increment(1);
+
         if bids.len() == 0 {
+            tracing::warn!(opportunity = ?opportunity, "No bids found for quote opportunity");
+
             return Err(RestError::QuoteNotFound);
         }
-        // Find bid with highest bid amount
+
+        // Find winner bid: the bid with the highest bid amount
         bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
         let winner_bid = bids.first().expect("failed to get first bid");
 
+        // Find the submit bid instruction from bid transaction to extract the deadline
         let submit_bid_instruction =
             verify_submit_bid_instruction_svm(chain_store, winner_bid.transaction.clone())
                 .map_err(|e| {
