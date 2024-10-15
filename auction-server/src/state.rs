@@ -116,10 +116,8 @@ impl<'de> Deserialize<'de> for PermissionKeySvm {
     where
         D: serde::Deserializer<'de>,
     {
-        let bytes: [u8; 64] = Base64::<Standard, Padded>::deserialize_as(deserializer)?;
-        let mut key = [0; 64];
-        key.copy_from_slice(&bytes);
-        Ok(PermissionKeySvm(key))
+        let bytes = Base64::<Standard, Padded>::deserialize_as(deserializer)?;
+        Ok(PermissionKeySvm(bytes))
     }
 }
 pub type BidAmount = U256;
