@@ -108,6 +108,7 @@ use {
         instruction::CompiledInstruction,
         pubkey::Pubkey,
         signature::{
+            Keypair,
             Signature as SignatureSvm,
             Signer as SignerSvm,
         },
@@ -264,6 +265,7 @@ async fn conclude_submitted_auction<T: ChainStore>(
         let bids: Vec<T::SimulatedBid> = chain_store
             .bids_for_submitted_auction(auction.clone())
             .await;
+
         if let Some(bid_statuses) = chain_store.get_bid_results(bids.clone(), tx_hash).await? {
             let auction = store
                 .conclude_auction(auction)
@@ -336,7 +338,7 @@ async fn conclude_submitted_auctions<T: ChainStore>(
     }
 }
 
-async fn broadcast_submitted_bids<T: ChainStore>(
+pub async fn broadcast_submitted_bids<T: ChainStore>(
     store: Arc<Store>,
     chain_store: &T,
     bids: Vec<T::SimulatedBid>,
@@ -378,7 +380,7 @@ async fn broadcast_submitted_bids<T: ChainStore>(
     .await;
 }
 
-async fn broadcast_lost_bids<T: ChainStore>(
+pub async fn broadcast_lost_bids<T: ChainStore>(
     store: Arc<Store>,
     chain_store: &T,
     bids: Vec<T::SimulatedBid>,
@@ -534,6 +536,10 @@ async fn submit_auction<T: ChainStore>(
     permission_key: Bytes,
     chain_id: String,
 ) -> Result<()> {
+    if !chain_store.should_submit_auction(&permission_key) {
+        return Ok(());
+    }
+
     let auction_lock = chain_store.get_auction_lock(permission_key.clone()).await;
     let result = submit_auction_for_lock(
         store.clone(),
@@ -1101,6 +1107,9 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
         Output = Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>>,
     > + Send;
 
+    /// Check if the auction winner transaction should be submitted on chain for the permission key
+    fn should_submit_auction(&self, permission_key: &Bytes) -> bool;
+
     async fn get_bids(&self, key: &PermissionKey) -> Vec<Self::SimulatedBid> {
         self.bids.read().await.get(key).cloned().unwrap_or_default()
     }
@@ -1328,6 +1337,24 @@ impl ChainStore for ChainStoreEvm {
             None => Ok(None),
         }
     }
+
+    fn should_submit_auction(&self, _permission_key: &Bytes) -> bool {
+        true
+    }
+}
+
+const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(60);
+
+pub fn add_relayer_signature_svm(relayer: Arc<Keypair>, bid: &mut SimulatedBidSvm) {
+    let serialized_message = bid.transaction.message.serialize();
+    let relayer_signature_pos = bid
+        .transaction
+        .message
+        .static_account_keys()
+        .iter()
+        .position(|p| p.eq(&relayer.pubkey()))
+        .expect("Relayer not found in static account keys");
+    bid.transaction.signatures[relayer_signature_pos] = relayer.sign_message(&serialized_message);
 }
 
 impl ChainStore for ChainStoreSvm {
@@ -1380,6 +1407,7 @@ impl ChainStore for ChainStoreSvm {
         Ok(vec![])
     }
 
+
     #[tracing::instrument(skip_all)]
     async fn submit_bids(
         &self,
@@ -1389,16 +1417,7 @@ impl ChainStore for ChainStoreSvm {
     {
         let relayer = self.express_relay_svm.relayer.clone();
         let mut bid = bids[0].clone();
-        let serialized_message = bid.transaction.message.serialize();
-        let relayer_signature_pos = bid
-            .transaction
-            .message
-            .static_account_keys()
-            .iter()
-            .position(|p| p.eq(&relayer.pubkey()))
-            .expect("Relayer not found in static account keys");
-        bid.transaction.signatures[relayer_signature_pos] =
-            relayer.sign_message(&serialized_message);
+        add_relayer_signature_svm(relayer, &mut bid);
         match self.client.send_transaction(&bid.transaction).await {
             Ok(response) => Ok(response),
             Err(e) => {
@@ -1434,9 +1453,21 @@ impl ChainStore for ChainStoreSvm {
             }])),
             None => {
                 // not yet confirmed
-                Ok(None)
+                if !self.should_submit_auction(&bids[0].permission_key)
+                    && bids[0].initiation_time + BID_MAXIMUM_LIFE_TIME_SVM
+                        < OffsetDateTime::now_utc()
+                {
+                    // If the bid is not submitted by the relayer and the bid is older than the maximum lifetime, we can consider it as expired
+                    Ok(Some(vec![BidStatusSvm::Expired { result: tx_hash }]))
+                } else {
+                    Ok(None)
+                }
             }
         }
+    }
+
+    fn should_submit_auction(&self, permission_key: &Bytes) -> bool {
+        !permission_key.starts_with(&self.phantom_router_account.to_bytes())
     }
 }
 

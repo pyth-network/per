@@ -4,22 +4,30 @@ use {
         Service,
     },
     crate::{
-        api::{
-            ws::UpdateEvent::NewOpportunity,
-            RestError,
-        },
+        api::RestError,
         auction::{
+            add_relayer_signature_svm,
+            broadcast_lost_bids,
+            broadcast_submitted_bids,
             extract_submit_bid_data,
             verify_submit_bid_instruction_svm,
             ChainStore,
         },
         opportunity::{
             entities,
-            service::estimate_price::EstimatePriceInput,
+            service::{
+                add_opportunity::AddOpportunityInput,
+                estimate_price::EstimatePriceInput,
+            },
         },
-        state::UnixTimestampMicros,
+        state::{
+            BidStatusSvm,
+            BidStatusTrait,
+            ChainStoreSvm,
+        },
     },
     axum_prometheus::metrics,
+    futures::TryFutureExt,
     solana_sdk::{
         clock::Slot,
         hash::Hash,
@@ -28,7 +36,6 @@ use {
     std::time::Duration,
     time::OffsetDateTime,
     tokio::time::sleep,
-    uuid::Uuid,
 };
 
 // Time to wait for searchers to submit bids
@@ -39,18 +46,16 @@ pub struct GetQuoteInput {
 }
 
 impl Service<ChainTypeSvm> {
-    fn get_opportunity_for_quote(
+    fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
         output_amount: u64,
-    ) -> Result<entities::OpportunitySvm, RestError> {
+    ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let chain_config = self.get_config(&quote_create.chain_id)?;
         let router = chain_config.phantom_router_account;
         let permission_account = Pubkey::new_unique();
-        let odt = OffsetDateTime::now_utc();
 
-        let core_fields = entities::OpportunityCoreFields {
-            id:             Uuid::new_v4(),
+        let core_fields = entities::OpportunityCoreFieldsCreate {
             permission_key: [router.to_bytes(), permission_account.to_bytes()]
                 .concat()
                 .into(),
@@ -60,10 +65,9 @@ impl Service<ChainTypeSvm> {
                 token:  quote_create.output_mint_token,
                 amount: output_amount,
             }],
-            creation_time:  odt.unix_timestamp_nanos() / 1000 as UnixTimestampMicros,
         };
 
-        Ok(entities::OpportunitySvm {
+        Ok(entities::OpportunityCreateSvm {
             core_fields,
             router,
             permission_account,
@@ -95,32 +99,21 @@ impl Service<ChainTypeSvm> {
             })
             .await?;
 
-        let opportunity =
-            self.get_opportunity_for_quote(input.quote_create.clone(), output_amount)?;
-        self.store
-            .ws
-            .broadcast_sender
-            .send(NewOpportunity(opportunity.clone().into()))
-            .map_err(|e| {
-                tracing::error!(
-                    "Failed to send update: {} - opportunity: {:?}",
-                    e,
-                    opportunity
-                );
-                RestError::TemporarilyUnavailable
-            })?;
+        let opportunity_create =
+            self.get_opportunity_create_for_quote(input.quote_create.clone(), output_amount)?;
+        let opportunity = self
+            .add_opportunity(AddOpportunityInput {
+                opportunity: opportunity_create.clone(),
+            })
+            .await?;
 
         // Wait to make sure searchers had enough time to submit bids
         sleep(BID_COLLECTION_TIME).await;
 
+        let bid_collection_time = OffsetDateTime::now_utc();
         let mut bids = chain_store.get_bids(&opportunity.permission_key).await;
 
-        // Add logs and metrics
-        tracing::info!(
-            opportunity = ?opportunity,
-            bids = ?bids,
-            "Bids received for quote opportunity",
-        );
+        // Add metrics
         let labels = [
             ("chain_id", input.quote_create.chain_id.to_string()),
             ("wallet", "phantom".to_string()),
@@ -149,6 +142,64 @@ impl Service<ChainTypeSvm> {
             tracing::error!("Failed to extract submit bid data: {:?}", e);
             RestError::TemporarilyUnavailable
         })?;
+
+        let mut auction = self
+            .store
+            .init_auction::<ChainStoreSvm>(
+                opportunity.permission_key.clone(),
+                opportunity.chain_id.clone(),
+                bid_collection_time,
+            )
+            .map_err(|e| {
+                tracing::error!("Failed to init auction: {:?}", e);
+                RestError::TemporarilyUnavailable
+            })
+            .await?;
+
+        let relayer = chain_store.express_relay_svm.relayer.clone();
+        let mut bid = winner_bid.clone();
+        add_relayer_signature_svm(relayer, &mut bid);
+
+        let signature = bid.transaction.signatures[0].clone();
+        let converted_tx_hash = BidStatusSvm::convert_tx_hash(&signature);
+        auction = self
+            .store
+            .submit_auction(chain_store, auction, converted_tx_hash)
+            .map_err(|e| {
+                tracing::error!("Failed to submit auction: {:?}", e);
+                RestError::TemporarilyUnavailable
+            })
+            .await?;
+
+        self.store.task_tracker.spawn({
+            let (store, chain_id, winner_bid, bids) = (
+                self.store.clone(),
+                input.quote_create.chain_id.clone(),
+                winner_bid.clone(),
+                bids.clone(),
+            );
+            async move {
+                if let Some(chain_store) = store.chains_svm.get(&chain_id) {
+                    tokio::join!(
+                        broadcast_submitted_bids(
+                            store.clone(),
+                            chain_store,
+                            vec![winner_bid.clone()],
+                            signature,
+                            auction.clone()
+                        ),
+                        broadcast_lost_bids(
+                            store.clone(),
+                            chain_store,
+                            bids,
+                            vec![winner_bid],
+                            Some(signature),
+                            Some(&auction)
+                        ),
+                    );
+                }
+            }
+        });
 
         Ok(entities::Quote {
             transaction:                 winner_bid.transaction.clone(),

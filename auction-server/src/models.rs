@@ -24,6 +24,7 @@ use {
 };
 
 pub type AuctionId = Uuid;
+
 #[derive(Clone, FromRow, Debug)]
 pub struct Auction {
     pub id:                  AuctionId,
@@ -92,6 +93,7 @@ pub enum BidStatus {
     Submitted,
     Lost,
     Won,
+    Expired,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

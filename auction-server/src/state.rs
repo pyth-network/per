@@ -290,6 +290,9 @@ impl SimulatedBidTrait for SimulatedBidEvm {
                 })
             }
             models::BidStatus::Lost => Ok(BidStatusEvm::Lost { result, index }),
+            models::BidStatus::Expired => {
+                return Err(anyhow::anyhow!("Evm bid cannot be expired"));
+            }
         }
     }
 }
@@ -431,23 +434,19 @@ impl SimulatedBidTrait for SimulatedBidSvm {
     ) -> anyhow::Result<Self::StatusType> {
         match status {
             models::BidStatus::Pending => Ok(BidStatusSvm::Pending),
-            models::BidStatus::Submitted => {
-                if result.is_none() {
-                    return Err(anyhow::anyhow!("Submitted bid should have a result"));
-                }
-                Ok(BidStatusSvm::Submitted {
-                    result: result.unwrap(),
-                })
-            }
-            models::BidStatus::Won => {
-                if result.is_none() {
-                    return Err(anyhow::anyhow!("Won bid should have a result"));
-                }
-                Ok(BidStatusSvm::Won {
-                    result: result.unwrap(),
-                })
-            }
+            models::BidStatus::Submitted => match result {
+                Some(result) => Ok(BidStatusSvm::Submitted { result }),
+                None => Err(anyhow::anyhow!("Submitted bid should have a result")),
+            },
+            models::BidStatus::Won => match result {
+                Some(result) => Ok(BidStatusSvm::Won { result }),
+                None => Err(anyhow::anyhow!("Won bid should have a result")),
+            },
             models::BidStatus::Lost => Ok(BidStatusSvm::Lost { result }),
+            models::BidStatus::Expired => match result {
+                Some(result) => Ok(BidStatusSvm::Expired { result }),
+                None => Err(anyhow::anyhow!("Expired bid should have a result")),
+            },
         }
     }
 }
@@ -550,6 +549,14 @@ pub enum BidStatusSvm {
         #[serde_as(as = "DisplayFromStr")]
         result: Signature,
     },
+    /// The bid expired without being submitted on chain.
+    /// It can happen for the bids for wallet opportunities.
+    #[schema(title = "Expired")]
+    Expired {
+        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        result: Signature,
+    },
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
@@ -577,6 +584,7 @@ impl From<BidStatusSvm> for models::BidStatus {
             BidStatusSvm::Submitted { .. } => models::BidStatus::Submitted,
             BidStatusSvm::Lost { .. } => models::BidStatus::Lost,
             BidStatusSvm::Won { .. } => models::BidStatus::Won,
+            BidStatusSvm::Expired { .. } => models::BidStatus::Expired,
         }
     }
 }
@@ -769,6 +777,12 @@ impl BidStatusTrait for BidStatusSvm {
             BidStatusSvm::Won { .. } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
                 models::BidStatus::Won as _,
+                id,
+                models::BidStatus::Submitted as _,
+            )),
+            BidStatusSvm::Expired { .. } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
+                models::BidStatus::Expired as _,
                 id,
                 models::BidStatus::Submitted as _,
             )),
@@ -967,7 +981,7 @@ impl Store {
         sqlx::query!(
             "UPDATE auction SET conclusion_time = $1 WHERE id = $2 AND conclusion_time IS NULL",
             auction.conclusion_time,
-            auction.id
+            auction.id,
         )
         .execute(&self.db)
         .await?;
@@ -1072,6 +1086,7 @@ impl Store {
             }
             models::BidStatus::Lost => chain_store.remove_bid(bid.clone()).await,
             models::BidStatus::Won => chain_store.remove_bid(bid.clone()).await,
+            models::BidStatus::Expired => chain_store.remove_bid(bid.clone()).await,
         }
 
         // It is possible to call this function multiple times from different threads if receipts are delayed
