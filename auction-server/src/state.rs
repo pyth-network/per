@@ -137,7 +137,7 @@ pub struct SimulatedBidCoreFields {
     #[serde(with = "time::serde::rfc3339")]
     pub initiation_time: OffsetDateTime,
     /// The profile id for the bid owner.
-    #[schema(example = "", value_type = String)]
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub profile_id:      Option<models::ProfileId>,
 }
 
