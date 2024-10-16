@@ -52,7 +52,11 @@ pub fn transfer_lamports_cpi<'info>(
 pub fn check_fee_hits_min_rent(account: &AccountInfo, fee: u64) -> Result<()> {
     let balance = account.lamports();
     let rent = Rent::get()?.minimum_balance(account.data_len());
-    if balance + fee < rent {
+    if balance
+        .checked_add(fee)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        < rent
+    {
         return err!(ErrorCode::InsufficientRent);
     }
 
@@ -120,7 +124,10 @@ pub fn extract_bid_from_submit_bid_ix(submit_bid_ix: &Instruction) -> Result<u64
 
 /// Computes the fee to pay the router based on the specified bid_amount and the split_router
 fn perform_fee_split_router(bid_amount: u64, split_router: u64) -> Result<u64> {
-    let fee_router = bid_amount * split_router / FEE_SPLIT_PRECISION;
+    let fee_router = bid_amount
+        .checked_mul(split_router)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        / FEE_SPLIT_PRECISION;
     if fee_router > bid_amount {
         // this error should never be reached due to fee split checks, but kept as a matter of defensive programming
         return err!(ErrorCode::FeesHigherThanBid);
@@ -138,7 +145,11 @@ pub fn perform_fee_splits(
     let fee_router = perform_fee_split_router(bid_amount, split_router)?;
     // we inline the fee_relayer calculation because it is not straightforward and is only used here
     // fee_relayer is computed as a proportion of the bid amount minus the fee paid to the router
-    let fee_relayer = bid_amount.saturating_sub(fee_router) * split_relayer / FEE_SPLIT_PRECISION;
+    let fee_relayer = bid_amount
+        .saturating_sub(fee_router)
+        .checked_mul(split_relayer)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        / FEE_SPLIT_PRECISION;
 
     if fee_relayer
         .checked_add(fee_router)
@@ -154,6 +165,7 @@ pub fn perform_fee_splits(
 
 /// Performs instruction introspection on the current transaction to query SubmitBid instructions that match the specified permission and router
 /// Returns the number of matching instructions and the total fees paid to the router
+/// The config_router and express_relay_metadata accounts passed in permission_info are assumed to have already been validated. Note these are not validated in this function.
 pub fn inspect_permissions_in_tx(
     sysvar_instructions: UncheckedAccount,
     permission_info: PermissionInfo,
@@ -179,7 +191,9 @@ pub fn inspect_permissions_in_tx(
     };
     for ix in matching_ixs {
         let bid = extract_bid_from_submit_bid_ix(&ix)?;
-        total_fees += perform_fee_split_router(bid, split_router)?;
+        total_fees = total_fees
+            .checked_add(perform_fee_split_router(bid, split_router)?)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
     }
 
     Ok((n_ixs, total_fees))
@@ -188,7 +202,11 @@ pub fn inspect_permissions_in_tx(
 pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()> {
     let searcher = &ctx.accounts.searcher;
     let rent_searcher = Rent::get()?.minimum_balance(searcher.to_account_info().data_len());
-    if bid_amount + rent_searcher > searcher.lamports() {
+    if bid_amount
+        .checked_add(rent_searcher)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        > searcher.lamports()
+    {
         return err!(ErrorCode::InsufficientSearcherFunds);
     }
 

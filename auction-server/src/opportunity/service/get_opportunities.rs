@@ -1,6 +1,6 @@
 use {
     super::{
-        ChainTypeEvm,
+        ChainType,
         Service,
     },
     crate::{
@@ -10,7 +10,7 @@ use {
                 GetOpportunitiesQueryParams,
                 OpportunityMode,
             },
-            entities,
+            repository::InMemoryStore,
         },
     },
 };
@@ -19,11 +19,11 @@ pub struct GetOpportunitiesInput {
     pub query_params: GetOpportunitiesQueryParams,
 }
 
-impl Service<ChainTypeEvm> {
+impl<T: ChainType> Service<T> {
     pub async fn get_opportunities(
         &self,
         input: GetOpportunitiesInput,
-    ) -> Result<Vec<entities::OpportunityEvm>, RestError> {
+    ) -> Result<Vec<<T::InMemoryStore as InMemoryStore>::Opportunity>, RestError> {
         let query_params = input.query_params;
         if let Some(chain_id) = query_params.chain_id.clone() {
             self.get_config(&chain_id)?;
@@ -34,8 +34,8 @@ impl Service<ChainTypeEvm> {
                 .repo
                 .get_opportunities()
                 .await
-                .iter()
-                .map(|(_key, opportunities)| {
+                .values()
+                .map(|opportunities| {
                     let opportunity = opportunities
                         .last()
                         .expect("A permission key vector should have at least one opportunity");

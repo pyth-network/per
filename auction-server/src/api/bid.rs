@@ -40,6 +40,8 @@ use {
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
 pub struct BidResult {
+    /// The status of the request. If the bid was placed successfully, the status will be "OK".
+    #[schema(example = "OK")]
     pub status: String,
     /// The unique id created to identify the bid. This id can be used to query the status of the bid.
     #[schema(example = "beedbeed-58cc-4372-a567-0e02b2c3d479", value_type=String)]
@@ -51,8 +53,7 @@ pub struct BidResult {
 /// Your bid will be verified by the server. Depending on the outcome of the auction, a transaction
 /// containing your bid will be sent to the blockchain expecting the bid amount to be paid in the transaction.
 #[utoipa::path(post, path = "/v1/bids", request_body = Bid, responses(
-    (status = 200, description = "Bid was placed successfully", body = BidResult,
-    example = json!({"status": "OK", "id": "beedbeed-b346-4fa1-8fab-2541a9e1872d"})),
+    (status = 200, description = "Bid was placed successfully", body = BidResult),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
 ),)]
@@ -103,7 +104,7 @@ pub async fn process_bid(
 #[utoipa::path(get, path = "/v1/bids/{bid_id}",
     params(("bid_id"=String, description = "Bid id to query for")),
     responses(
-    (status = 200, description = "Latest status of the bid", body = BidStatus),
+    (status = 200, body = BidStatus),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Bid was not found", body = ErrorBodyResponse),
 ),)]

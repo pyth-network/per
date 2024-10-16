@@ -39,6 +39,7 @@ mod server;
 mod state;
 mod subwallet;
 mod traced_client;
+mod traced_sender_svm;
 
 #[tokio::main]
 async fn main() -> Result<()> {

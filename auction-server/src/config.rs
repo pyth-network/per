@@ -135,6 +135,10 @@ pub struct ConfigEvm {
     pub legacy_tx: bool,
 }
 
+fn default_rpc_timeout_svm() -> u64 {
+    2
+}
+
 #[serde_as]
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ConfigSvm {
@@ -145,4 +149,7 @@ pub struct ConfigSvm {
     pub rpc_addr:                 String,
     /// WS endpoint to use for interacting with the blockchain.
     pub ws_addr:                  String,
+    /// Timeout for RPC requests in seconds.
+    #[serde(default = "default_rpc_timeout_svm")]
+    pub rpc_timeout:              u64,
 }

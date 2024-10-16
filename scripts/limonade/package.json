@@ -1,0 +1,29 @@
+{
+  "name": "limonade",
+  "version": "0.1.0",
+  "description": "This script is used to submit new opportunities fetched from the limo program to the express relay.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "limonade": "npm run build && node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "APACHE-2.0",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/yargs": "^17.0.33",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@coral-xyz/anchor-cli": "^0.30.1",
+    "@kamino-finance/limo-sdk": "^0.2.1",
+    "@pythnetwork/express-relay-js": "^0.11.0",
+    "@solana/web3.js": "^1.95.3",
+    "axios": "^1.7.3",
+    "bs58": "^6.0.0",
+    "yargs": "^17.7.2"
+  }
+}

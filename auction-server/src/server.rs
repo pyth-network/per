@@ -34,6 +34,7 @@ use {
             StoreNew,
         },
         traced_client::TracedClient,
+        traced_sender_svm::TracedSenderSvm,
     },
     anyhow::anyhow,
     axum_prometheus::{
@@ -60,7 +61,7 @@ use {
         future::join_all,
         Future,
     },
-    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_client::rpc_client::RpcClientConfig,
     solana_sdk::{
         commitment_config::CommitmentConfig,
         signature::Keypair,
@@ -255,6 +256,9 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let config_opportunity_service_evm =
         opportunity_service::ConfigEvm::from_chains(&chains).await?;
+    let config_opportunity_service_svm =
+        opportunity_service::ConfigSvm::from_chains(&chains_svm).await?;
+
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
         db: pool.clone(),
@@ -280,6 +284,13 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             store.clone(),
             pool.clone(),
             config_opportunity_service_evm,
+        )),
+        opportunity_service_svm: Arc::new(opportunity_service::Service::<
+            opportunity_service::ChainTypeSvm,
+        >::new(
+            store.clone(),
+            pool.clone(),
+            config_opportunity_service_svm,
         )),
     });
 
@@ -374,9 +385,11 @@ fn setup_svm(
                         auction_lock:       Default::default(),
                         submitted_auctions: Default::default(),
                     },
-                    client: RpcClient::new_with_commitment(
-                        chain_config.rpc_addr.clone(),
-                        CommitmentConfig::processed(),
+                    client: TracedSenderSvm::new_client(
+                        chain_id.clone(),
+                        chain_config.rpc_addr.as_str(),
+                        chain_config.rpc_timeout,
+                        RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                     ),
                     config: chain_config,
                     express_relay_svm,

@@ -7,7 +7,7 @@ use {
     crate::{
         api::RestError,
         opportunity::{
-            api::OpportunityBid,
+            api::OpportunityBidEvm,
             contracts::OpportunityAdapter,
             entities,
         },
@@ -17,8 +17,8 @@ use {
 };
 
 pub struct MakeAdapterCalldataInput {
-    pub opportunity:     entities::OpportunityEvm,
-    pub opportunity_bid: OpportunityBid,
+    pub opportunity:     entities::OpportunityCreateEvm,
+    pub opportunity_bid: OpportunityBidEvm,
 }
 
 impl Service<ChainTypeEvm> {
@@ -26,9 +26,9 @@ impl Service<ChainTypeEvm> {
         &self,
         input: MakeAdapterCalldataInput,
     ) -> Result<Bytes, RestError> {
-        let config = self.get_config(&input.opportunity.chain_id)?;
+        let config = self.get_config(&input.opportunity.core_fields.chain_id)?;
         let adapter_contract = config.adapter_factory_contract;
-        let signature = input.opportunity_bid.signature.clone();
+        let signature = input.opportunity_bid.signature;
         let execution_params =
             self.make_opportunity_execution_params(MakeOpportunityExecutionParamsInput {
                 opportunity: input.opportunity,

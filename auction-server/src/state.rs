@@ -22,6 +22,7 @@ use {
         opportunity::service as opportunity_service,
         traced_client::TracedClient,
     },
+    anchor_lang::prelude::borsh::schema,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -44,8 +45,15 @@ use {
     },
     serde_json::json,
     serde_with::{
+        base64::{
+            Base64,
+            Standard,
+        },
+        formats::Padded,
         serde_as,
+        DeserializeAs,
         DisplayFromStr,
+        SerializeAs,
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
@@ -70,6 +78,7 @@ use {
     },
     std::{
         collections::HashMap,
+        num::ParseIntError,
         ops::Deref,
         str::FromStr,
         sync::Arc,
@@ -89,33 +98,46 @@ use {
 };
 
 pub type PermissionKey = Bytes;
+
+#[derive(Clone, Debug)]
+pub struct PermissionKeySvm(pub [u8; 64]);
+
+impl Serialize for PermissionKeySvm {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        Base64::<Standard, Padded>::serialize_as(&self.0, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for PermissionKeySvm {
+    fn deserialize<D>(deserializer: D) -> Result<PermissionKeySvm, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let bytes = Base64::<Standard, Padded>::deserialize_as(deserializer)?;
+        Ok(PermissionKeySvm(bytes))
+    }
+}
 pub type BidAmount = U256;
+pub type BidAmountSvm = u64;
 pub type GetOrCreate<T> = (T, bool);
 
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
-pub struct SimulatedBidCoreFields<T: BidStatusTrait> {
+pub struct SimulatedBidCoreFields {
     /// The unique id for bid.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub id:              BidId,
-    /// Amount of bid in wei.
-    #[schema(example = "10", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub bid_amount:      BidAmount,
-    /// The permission key for bid.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub permission_key:  PermissionKey,
     /// The chain id for bid.
     #[schema(example = "op_sepolia", value_type = String)]
     pub chain_id:        ChainId,
-    /// The latest status for bid.
-    #[schema(example = "op_sepolia", value_type = BidStatus)]
-    pub status:          T,
     /// The time server received the bid formatted in rfc3339.
     #[schema(example = "2024-05-23T21:26:57.329954Z", value_type = String)]
     #[serde(with = "time::serde::rfc3339")]
     pub initiation_time: OffsetDateTime,
     /// The profile id for the bid owner.
-    #[schema(example = "", value_type = String)]
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub profile_id:      Option<models::ProfileId>,
 }
 
@@ -124,11 +146,20 @@ pub struct SimulatedBidCoreFields<T: BidStatusTrait> {
 pub struct SimulatedBidSvm {
     #[serde(flatten)]
     #[schema(inline)]
-    pub core_fields: SimulatedBidCoreFields<BidStatusSvm>,
+    pub core_fields:    SimulatedBidCoreFields,
+    /// The latest status for bid.
+    pub status:         BidStatusSvm,
     /// The transaction of the bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde(with = "crate::serde::transaction_svm")]
-    pub transaction: VersionedTransaction,
+    pub transaction:    VersionedTransaction,
+    /// Amount of bid in lamports.
+    #[schema(example = "1000", value_type = u64)]
+    pub bid_amount:     BidAmountSvm,
+    /// The permission key for bid in base64 format.
+    /// This is the concatenation of the permission account and the router account.
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    pub permission_key: PermissionKeySvm,
 }
 
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
@@ -136,7 +167,9 @@ pub struct SimulatedBidSvm {
 pub struct SimulatedBidEvm {
     #[serde(flatten)]
     #[schema(inline)]
-    pub core_fields:     SimulatedBidCoreFields<BidStatusEvm>,
+    pub core_fields:     SimulatedBidCoreFields,
+    /// The latest status for bid.
+    pub status:          BidStatusEvm,
     /// The contract address to call.
     #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
     pub target_contract: Address,
@@ -147,6 +180,13 @@ pub struct SimulatedBidEvm {
     #[schema(example = "2000000", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub gas_limit:       U256,
+    /// Amount of bid in wei.
+    #[schema(example = "10", value_type = String)]
+    #[serde(with = "crate::serde::u256")]
+    pub bid_amount:      BidAmount,
+    /// The permission key for bid.
+    #[schema(example = "0xdeadbeef", value_type = String)]
+    pub permission_key:  PermissionKey,
 }
 
 // TODO - we should delete this enum and use the SimulatedBidTrait instead. We may need it for API.
@@ -162,13 +202,19 @@ pub trait SimulatedBidTrait:
     + Into<SimulatedBid>
     + std::fmt::Debug
     + TryFrom<(models::Bid, Option<models::Auction>)>
-    + Deref<Target = SimulatedBidCoreFields<<Self as SimulatedBidTrait>::StatusType>>
+    + Deref<Target = SimulatedBidCoreFields>
 {
     type StatusType: BidStatusTrait;
 
     fn update_status(self, status: Self::StatusType) -> Self;
     fn get_metadata(&self) -> anyhow::Result<models::BidMetadata>;
     fn get_chain_type(&self) -> models::ChainType;
+    fn get_bid_amount_string(&self) -> String;
+    fn get_status(&self) -> &Self::StatusType;
+    fn get_permission_key(&self) -> &[u8];
+    fn get_permission_key_as_bytes(&self) -> Bytes {
+        Bytes::from(self.get_permission_key().to_vec())
+    }
     fn get_bid_status(
         status: models::BidStatus,
         index: Option<u32>,
@@ -180,12 +226,19 @@ impl SimulatedBidTrait for SimulatedBidEvm {
     type StatusType = BidStatusEvm;
 
     fn update_status(self, status: Self::StatusType) -> Self {
-        let mut core_fields = self.core_fields;
-        core_fields.status = status;
-        Self {
-            core_fields,
-            ..self
-        }
+        Self { status, ..self }
+    }
+
+    fn get_status(&self) -> &Self::StatusType {
+        &self.status
+    }
+
+    fn get_permission_key(&self) -> &[u8] {
+        &self.permission_key
+    }
+
+    fn get_bid_amount_string(&self) -> String {
+        self.bid_amount.to_string()
     }
 
     fn get_metadata(&self) -> anyhow::Result<models::BidMetadata> {
@@ -196,7 +249,7 @@ impl SimulatedBidTrait for SimulatedBidEvm {
                 .gas_limit
                 .try_into()
                 .map_err(|e: &str| anyhow::anyhow!(e))?,
-            bundle_index:    models::BundleIndex(match self.core_fields.status {
+            bundle_index:    models::BundleIndex(match self.status {
                 BidStatusEvm::Pending => None,
                 BidStatusEvm::Lost { index, .. } => index,
                 BidStatusEvm::Submitted { index, .. } => Some(index),
@@ -247,20 +300,24 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBidEvm {
     fn try_from(
         (bid, auction): (models::Bid, Option<models::Auction>),
     ) -> Result<Self, Self::Error> {
-        let core_fields = SimulatedBidCoreFields::try_from((bid.clone(), auction))?;
+        let core_fields = SimulatedBidCoreFields::try_from((bid.clone(), auction.clone()))?;
+        let status = BidStatusEvm::extract_by(bid.clone(), auction)?;
         let metadata: models::BidMetadataEvm = bid.metadata.0.try_into()?;
+        let bid_amount = BidAmount::from_dec_str(bid.bid_amount.to_string().as_str())
+            .map_err(|e| anyhow::anyhow!(e))?;
         Ok(SimulatedBidEvm {
             core_fields,
             target_contract: metadata.target_contract,
             target_calldata: metadata.target_calldata,
             gas_limit: U256::from(metadata.gas_limit),
+            bid_amount,
+            status,
+            permission_key: Bytes::from(bid.permission_key),
         })
     }
 }
 
-impl<T: BidStatusTrait> TryFrom<(models::Bid, Option<models::Auction>)>
-    for SimulatedBidCoreFields<T>
-{
+impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBidCoreFields {
     type Error = anyhow::Error;
 
     fn try_from(
@@ -270,18 +327,11 @@ impl<T: BidStatusTrait> TryFrom<(models::Bid, Option<models::Auction>)>
             return Err(anyhow::anyhow!("Bid is not for the given auction"));
         }
 
-        let bid_amount = BidAmount::from_dec_str(bid.bid_amount.to_string().as_str())
-            .map_err(|e| anyhow::anyhow!(e))?;
-        let status = T::extract_by(bid.clone(), auction)?;
-
         Ok(SimulatedBidCoreFields {
-            id: bid.id,
-            bid_amount,
-            permission_key: Bytes::from(bid.permission_key),
-            chain_id: bid.chain_id,
-            status,
+            id:              bid.id,
+            chain_id:        bid.chain_id,
             initiation_time: bid.initiation_time.assume_offset(UtcOffset::UTC),
-            profile_id: bid.profile_id,
+            profile_id:      bid.profile_id,
         })
     }
 }
@@ -293,11 +343,25 @@ impl TryFrom<(models::Bid, Option<models::Auction>)> for SimulatedBidSvm {
     fn try_from(
         (bid, auction): (models::Bid, Option<models::Auction>),
     ) -> Result<Self, Self::Error> {
-        let core_fields = SimulatedBidCoreFields::try_from((bid.clone(), auction))?;
+        let core_fields = SimulatedBidCoreFields::try_from((bid.clone(), auction.clone()))?;
+        let status = BidStatusSvm::extract_by(bid.clone(), auction)?;
         let metadata: models::BidMetadataSvm = bid.metadata.0.try_into()?;
+        let bid_amount = bid
+            .bid_amount
+            .to_string()
+            .parse()
+            .map_err(|e: ParseIntError| anyhow::anyhow!(e))?;
+        let mut permission_key: [u8; 64] = [0; 64];
+        if bid.permission_key.len() != 64 {
+            return Err(anyhow::anyhow!("Invalid permission key length"));
+        }
+        permission_key.copy_from_slice(&bid.permission_key);
         Ok(SimulatedBidSvm {
             core_fields,
+            status,
             transaction: metadata.transaction,
+            bid_amount,
+            permission_key: PermissionKeySvm(permission_key),
         })
     }
 }
@@ -316,7 +380,7 @@ impl TryInto<(models::BidMetadata, models::ChainType)> for SimulatedBidSvm {
 }
 
 impl Deref for SimulatedBidEvm {
-    type Target = SimulatedBidCoreFields<BidStatusEvm>;
+    type Target = SimulatedBidCoreFields;
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields
@@ -324,7 +388,7 @@ impl Deref for SimulatedBidEvm {
 }
 
 impl Deref for SimulatedBidSvm {
-    type Target = SimulatedBidCoreFields<BidStatusSvm>;
+    type Target = SimulatedBidCoreFields;
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields
@@ -335,12 +399,19 @@ impl SimulatedBidTrait for SimulatedBidSvm {
     type StatusType = BidStatusSvm;
 
     fn update_status(self, status: Self::StatusType) -> Self {
-        let mut core_fields = self.core_fields;
-        core_fields.status = status;
-        Self {
-            core_fields,
-            ..self
-        }
+        Self { status, ..self }
+    }
+
+    fn get_status(&self) -> &Self::StatusType {
+        &self.status
+    }
+
+    fn get_permission_key(&self) -> &[u8] {
+        &self.permission_key.0
+    }
+
+    fn get_bid_amount_string(&self) -> String {
+        self.bid_amount.to_string()
     }
 
     fn get_metadata(&self) -> anyhow::Result<models::BidMetadata> {
@@ -382,18 +453,6 @@ impl SimulatedBidTrait for SimulatedBidSvm {
 }
 
 pub type UnixTimestampMicros = i128;
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct TokenAmount {
-    /// Token contract address
-    #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", value_type = String)]
-    pub token:  ethers::abi::Address,
-    /// Token amount
-    #[schema(example = "1000", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub amount: U256,
-}
-
 pub type AuctionLock = Arc<Mutex<()>>;
 
 pub struct ChainStoreCoreFields<T: SimulatedBidTrait> {
@@ -426,9 +485,11 @@ pub type BidId = Uuid;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatusEvm {
     /// The temporary state which means the auction for this bid is pending
+    #[schema(title = "Pending")]
     Pending,
     /// The bid is submitted to the chain, which is placed at the given index of the transaction with the given hash
     /// This state is temporary and will be updated to either lost or won after conclusion of the auction
+    #[schema(title = "Submitted")]
     Submitted {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
@@ -440,6 +501,7 @@ pub enum BidStatusEvm {
     /// The index will be None if the bid was not submitted to the chain and lost the auction by off-chain calculation
     /// There are cases where the result is not None and the index is None.
     /// It is because other bids were selected for submission to the chain, but not this one.
+    #[schema(title = "Lost")]
     Lost {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
         result: Option<H256>,
@@ -447,6 +509,7 @@ pub enum BidStatusEvm {
         index:  Option<u32>,
     },
     /// The bid won the auction, which is concluded with the transaction with the given hash and index
+    #[schema(title = "Won")]
     Won {
         #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
         result: H256,
@@ -460,9 +523,11 @@ pub enum BidStatusEvm {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatusSvm {
     /// The temporary state which means the auction for this bid is pending
+    #[schema(title = "Pending")]
     Pending,
     /// The bid is submitted to the chain, with the transaction with the signature
     /// This state is temporary and will be updated to either lost or won after conclusion of the auction
+    #[schema(title = "Submitted")]
     Submitted {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
@@ -471,12 +536,14 @@ pub enum BidStatusSvm {
     /// The bid lost the auction
     /// The result will be None if the auction was concluded off-chain and no auction was submitted to the chain
     /// The result will be not None if another bid were selected for submission to the chain. The signature of the transaction for the submitted bid is the result value.
+    #[schema(title = "Lost")]
     Lost {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = Option<String>)]
         #[serde(with = "crate::serde::nullable_signature_svm")]
         result: Option<Signature>,
     },
     /// The bid won the auction, with the transaction with the signature
+    #[schema(title = "Won")]
     Won {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
@@ -539,15 +606,15 @@ pub trait BidStatusTrait:
     fn get_tx_hash(&self) -> Option<&Self::TxHash>;
 }
 
-impl Into<BidStatus> for BidStatusEvm {
-    fn into(self) -> BidStatus {
-        BidStatus::Evm(self)
+impl From<BidStatusEvm> for BidStatus {
+    fn from(bid_status: BidStatusEvm) -> BidStatus {
+        BidStatus::Evm(bid_status)
     }
 }
 
-impl Into<BidStatus> for BidStatusSvm {
-    fn into(self) -> BidStatus {
-        BidStatus::Svm(self)
+impl From<BidStatusSvm> for BidStatus {
+    fn from(bid_status: BidStatusSvm) -> BidStatus {
+        BidStatus::Svm(bid_status)
     }
 }
 
@@ -783,25 +850,17 @@ pub struct Store {
 pub struct StoreNew {
     pub opportunity_service_evm:
         Arc<opportunity_service::Service<opportunity_service::ChainTypeEvm>>,
+    pub opportunity_service_svm:
+        Arc<opportunity_service::Service<opportunity_service::ChainTypeSvm>>,
     pub store:                   Arc<Store>,
 }
 
-impl<T: BidStatusTrait> SimulatedBidCoreFields<T> {
-    pub fn new(
-        bid_amount: U256,
-        chain_id: String,
-        status: T,
-        permission_key: Bytes,
-        initiation_time: OffsetDateTime,
-        auth: Auth,
-    ) -> Self {
+impl SimulatedBidCoreFields {
+    pub fn new(chain_id: String, initiation_time: OffsetDateTime, auth: Auth) -> Self {
         Self {
             id: Uuid::new_v4(),
-            bid_amount,
-            permission_key,
             chain_id,
             initiation_time,
-            status,
             profile_id: match auth {
                 Auth::Authorized(_, profile) => Some(profile.id),
                 _ => None,
@@ -927,15 +986,15 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
         let chain_type = bid.get_chain_type();
-        let status: models::BidStatus = bid.status.clone().into();
+        let status: models::BidStatus = bid.get_status().clone().into();
 
         sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         bid.id,
         PrimitiveDateTime::new(now.date(), now.time()),
-        bid.permission_key.to_vec(),
+        bid.get_permission_key().to_vec(),
         bid.chain_id,
         chain_type as _,
-        BigDecimal::from_str(&bid.bid_amount.to_string()).unwrap(),
+        BigDecimal::from_str(&bid.get_bid_amount_string()).unwrap(),
         status as _,
         PrimitiveDateTime::new(bid.initiation_time.date(), bid.initiation_time.time()),
         bid.profile_id,
@@ -950,7 +1009,7 @@ impl Store {
 
         self.broadcast_status_update(BidStatusWithId {
             id:         bid.id,
-            bid_status: bid.status.clone().into(),
+            bid_status: bid.get_status().clone().into(),
         });
         Ok(())
     }
@@ -1038,11 +1097,14 @@ impl Store {
         create_profile: ApiProfile::CreateProfile,
     ) -> Result<models::Profile, RestError> {
         let id = Uuid::new_v4();
+        let role: models::ProfileRole = create_profile.role.clone().into();
         let profile: models::Profile = sqlx::query_as(
-            "INSERT INTO profile (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, created_at, updated_at",
+            "INSERT INTO profile (id, name, email, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, created_at, updated_at",
         ).bind(id)
         .bind(create_profile.name.clone())
-        .bind(create_profile.email.to_string()).fetch_one(&self.db).await
+        .bind(create_profile.email.to_string())
+        .bind(role)
+        .fetch_one(&self.db).await
         .map_err(|e| {
             if let Some(true) = e.as_database_error().map(|e| e.is_unique_violation()) {
                 return RestError::BadParameters("Profile with this email already exists".to_string());
@@ -1059,13 +1121,27 @@ impl Store {
         Ok(URL_SAFE_NO_PAD.encode(bytes))
     }
 
+    pub async fn get_profile_by_email(
+        &self,
+        email: models::EmailAddress,
+    ) -> Result<Option<models::Profile>, RestError> {
+        sqlx::query_as("SELECT * FROM profile WHERE email = $1")
+            .bind(email.0.to_string())
+            .fetch_optional(&self.db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch profile: {} - email: {}", e, email.0);
+                RestError::TemporarilyUnavailable
+            })
+    }
+
     pub async fn get_profile_by_id(
         &self,
         id: models::ProfileId,
-    ) -> Result<models::Profile, RestError> {
+    ) -> Result<Option<models::Profile>, RestError> {
         sqlx::query_as("SELECT * FROM profile WHERE id = $1")
             .bind(id)
-            .fetch_one(&self.db)
+            .fetch_optional(&self.db)
             .await
             .map_err(|e| {
                 tracing::error!("DB: Failed to fetch profile: {} - id: {}", e, id);
@@ -1127,7 +1203,10 @@ impl Store {
             RestError::TemporarilyUnavailable
         })?;
 
-        let profile = self.get_profile_by_id(profile_id).await?;
+        let profile = self
+            .get_profile_by_id(profile_id)
+            .await?
+            .ok_or_else(|| RestError::BadParameters("Profile id not found".to_string()))?;
         self.access_tokens
             .write()
             .await
