@@ -482,7 +482,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
         .await
     {
         Ok(tx_hash) => {
-            tracing::info!("Submitted transaction: {:?}", tx_hash);
+            tracing::debug!("Submitted transaction: {:?}", tx_hash);
             let converted_tx_hash = <<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::convert_tx_hash(&tx_hash);
             auction = store
                 .submit_auction(chain_store, auction, converted_tx_hash)
@@ -1502,10 +1502,7 @@ async fn run_submission_loop<T: ChainStore>(
                     return Err(anyhow!("Trigger stream ended for chain: {}", chain_id));
                 }
 
-                match T::CHAIN_TYPE {
-                    models::ChainType::Evm => {},
-                    models::ChainType::Svm => tracing::info!("New trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), trigger),
-                }
+                tracing::debug!("New trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), trigger);
 
                 store.task_tracker.spawn({
                     let (store, chain_id) = (store.clone(), chain_id.clone());
