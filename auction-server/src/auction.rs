@@ -1503,7 +1503,6 @@ async fn run_submission_loop<T: ChainStore>(
                 }
 
                 tracing::debug!("New trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), trigger);
-
                 store.task_tracker.spawn({
                     let (store, chain_id) = (store.clone(), chain_id.clone());
                     async move {
