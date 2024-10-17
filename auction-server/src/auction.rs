@@ -556,7 +556,7 @@ async fn handle_auction<T: ChainStore>(
                 .get_bids(&permission_key)
                 .await
                 .into_iter()
-                .filter(|bid| models::BidStatus::Pending == bid.status.clone().into())
+                .filter(|bid| models::BidStatus::Pending == bid.get_status().clone().into())
                 .collect();
             broadcast_lost_bids(store.clone(), chain_store, bids, vec![], None, None).await;
         }
@@ -1027,12 +1027,13 @@ pub async fn handle_bid_svm(
         submit_bid_instruction,
     )?;
 
+    let bytes_permission_key = Bytes::from(&permission_key.0);
     verify_signatures_svm(&bid, &chain_store.express_relay_svm.relayer.pubkey())?;
     simulate_bid_svm(chain_store, &bid).await?;
-    if !chain_store.should_submit_auction(&permission_key) {
+    if !chain_store.should_submit_auction(&bytes_permission_key) {
         // TODO Look at get_quote in opportunity module
         if !chain_store
-            .opportunity_exists(store_new.clone(), &permission_key)
+            .opportunity_exists(store_new.clone(), &bytes_permission_key)
             .await
         {
             return Err(RestError::BadParameters(format!(
@@ -1221,7 +1222,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
             .iter()
             .filter(|(_, bids)| {
                 bids.iter()
-                    .any(|bid| models::BidStatus::Pending == bid.status.clone().into())
+                    .any(|bid| models::BidStatus::Pending == bid.get_status().clone().into())
             })
             .map(|(key, _)| key.clone())
             .collect()

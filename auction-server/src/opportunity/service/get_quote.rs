@@ -135,7 +135,7 @@ impl Service<ChainTypeSvm> {
         }
 
         // Find winner bid: the bid with the highest bid amount
-        bids.sort_by(|a, b| b.core_fields.bid_amount.cmp(&a.core_fields.bid_amount));
+        bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
         let winner_bid = bids.first().expect("failed to get first bid");
 
         // Find the submit bid instruction from bid transaction to extract the deadline
