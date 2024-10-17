@@ -101,7 +101,12 @@ use {
     },
     solana_client::{
         nonblocking::pubsub_client::PubsubClient,
-        rpc_response::SlotInfo,
+        rpc_config::RpcBlockSubscribeConfig,
+        rpc_response::{
+            Response,
+            RpcBlockUpdate,
+            SlotInfo,
+        },
     },
     solana_sdk::{
         commitment_config::CommitmentConfig,
@@ -115,6 +120,10 @@ use {
             TransactionError,
             VersionedTransaction,
         },
+    },
+    solana_transaction_status::{
+        TransactionDetails,
+        UiTransactionEncoding,
     },
     sqlx::types::time::OffsetDateTime,
     std::{
@@ -137,6 +146,7 @@ use {
     utoipa::ToSchema,
     uuid::Uuid,
 };
+
 
 abigen!(
     ExpressRelay,
@@ -1070,6 +1080,13 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
     fn get_trigger_stream<'a>(
         client: &'a Self::WsClient,
     ) -> impl Future<Output = Result<Self::TriggerStream<'a>>>;
+    /// Get the next trigger from the trigger stream
+    fn get_next_trigger<'a>(
+        &self,
+        trigger_stream: &'a mut Self::TriggerStream<'a>,
+    ) -> impl Future<Output = Option<Self::Trigger>> {
+        return trigger_stream.next();
+    }
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     fn get_winner_bids(
         &self,
@@ -1325,7 +1342,7 @@ impl ChainStore for ChainStoreEvm {
 }
 
 impl ChainStore for ChainStoreSvm {
-    type Trigger = SlotInfo;
+    type Trigger = Response<RpcBlockUpdate>;
     type TriggerStream<'a> = Pin<Box<dyn Stream<Item = Self::Trigger> + Send + 'a>>;
     type WsClient = PubsubClient;
     type SimulatedBid = SimulatedBidSvm;
@@ -1342,8 +1359,19 @@ impl ChainStore for ChainStoreSvm {
     }
 
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>> {
-        let (slot_subscribe, _) = client.slot_subscribe().await?;
-        Ok(slot_subscribe)
+        let (block_subscribe, _) = client
+            .block_subscribe(
+                solana_client::rpc_config::RpcBlockSubscribeFilter::All,
+                Some(RpcBlockSubscribeConfig {
+                    encoding:                          None,
+                    transaction_details:               Some(TransactionDetails::None),
+                    show_rewards:                      Some(false),
+                    max_supported_transaction_version: None,
+                    commitment:                        Some(CommitmentConfig::confirmed()),
+                }),
+            )
+            .await?;
+        Ok(block_subscribe)
     }
 
     async fn get_winner_bids(
@@ -1463,7 +1491,7 @@ async fn run_submission_loop<T: ChainStore>(
 
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
-            trigger = stream.next() => {
+            trigger = {chain_store.get_next_trigger(&mut stream)} => {
                 if trigger.is_none() {
                     return Err(anyhow!("Trigger stream ended for chain: {}", chain_id));
                 }

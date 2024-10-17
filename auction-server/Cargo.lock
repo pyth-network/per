@@ -695,6 +695,7 @@ dependencies = [
  "solana-client",
  "solana-rpc-client",
  "solana-sdk",
+ "solana-transaction-status",
  "sqlx",
  "time",
  "tokio",
