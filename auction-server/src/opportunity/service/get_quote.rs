@@ -28,6 +28,7 @@ use {
     },
     axum_prometheus::metrics,
     futures::TryFutureExt,
+    rand::Rng,
     solana_sdk::{
         clock::Slot,
         hash::Hash,
@@ -45,6 +46,12 @@ pub struct GetQuoteInput {
     pub quote_create: entities::QuoteCreate,
 }
 
+fn generate_random_bytes() -> [u8; 32] {
+    let mut rng = rand::thread_rng();
+    let bytes: [u8; 32] = rng.gen();
+    bytes
+}
+
 impl Service<ChainTypeSvm> {
     fn get_opportunity_create_for_quote(
         &self,
@@ -53,7 +60,7 @@ impl Service<ChainTypeSvm> {
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let chain_config = self.get_config(&quote_create.chain_id)?;
         let router = chain_config.phantom_router_account;
-        let permission_account = Pubkey::new_unique();
+        let permission_account = Pubkey::new_from_array(generate_random_bytes());
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
             permission_key: [router.to_bytes(), permission_account.to_bytes()]
@@ -172,8 +179,10 @@ impl Service<ChainTypeSvm> {
             .await?;
 
         self.store.task_tracker.spawn({
-            let (store, chain_id, winner_bid, bids) = (
+            let (store, repo, db, chain_id, winner_bid, bids) = (
                 self.store.clone(),
+                self.repo.clone(),
+                self.db.clone(),
                 input.quote_create.chain_id.clone(),
                 winner_bid.clone(),
                 bids.clone(),
@@ -197,6 +206,24 @@ impl Service<ChainTypeSvm> {
                             Some(&auction)
                         ),
                     );
+                }
+                // Remove opportunity to prevent further bids
+                // The handle auction loop will take care of the bids that were submitted late
+
+                // TODO
+                // Maybe we should add state for opportunity.
+                // Right now logic for removing halted/expired bids, checks if opportunity exists.
+                // We should remove opportunity only after the auction bid result is broadcasted.
+                // This is to make sure we are not gonna remove the bids that are currently in the auction in the handle_auction loop.
+                let removal_reason =
+                    entities::OpportunityRemovalReason::Invalid(RestError::InvalidOpportunity(
+                        "Auction finished for the opportunity".to_string(),
+                    ));
+                if let Err(e) = repo
+                    .remove_opportunity(&db, &opportunity, removal_reason.into())
+                    .await
+                {
+                    tracing::error!("Failed to remove opportunity: {:?}", e);
                 }
             }
         });

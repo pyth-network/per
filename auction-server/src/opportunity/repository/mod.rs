@@ -11,6 +11,7 @@ use {
 
 mod add_opportunity;
 mod add_spoof_info;
+mod get_live_opportunities_by_permission_key;
 mod get_opportunities;
 mod get_opportunities_by_permission_key;
 mod get_opportunities_by_permission_key_and_id;

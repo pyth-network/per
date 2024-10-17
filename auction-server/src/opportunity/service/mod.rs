@@ -34,6 +34,7 @@ use {
 
 pub mod add_opportunity;
 pub mod get_config;
+pub mod get_live_opportunities_by_permission_key;
 pub mod get_opportunities;
 pub mod get_quote;
 pub mod handle_opportunity_bid;
@@ -188,7 +189,8 @@ impl ChainType for ChainTypeSvm {
 pub struct Service<T: ChainType> {
     store:  Arc<Store>,
     db:     DB,
-    repo:   Repository<T::InMemoryStore>,
+    // TODO maybe after adding state for opportunity we can remove the arc
+    repo:   Arc<Repository<T::InMemoryStore>>,
     config: HashMap<ChainId, T::Config>,
 }
 
@@ -197,7 +199,7 @@ impl<T: ChainType> Service<T> {
         Self {
             store,
             db,
-            repo: Repository::<T::InMemoryStore>::new(),
+            repo: Arc::new(Repository::<T::InMemoryStore>::new()),
             config,
         }
     }
