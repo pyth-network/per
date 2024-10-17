@@ -81,13 +81,7 @@ pub async fn process_bid(
             .await
         }
         Bid::Svm(bid_svm) => {
-            handle_bid_svm(
-                store.store.clone(),
-                bid_svm,
-                OffsetDateTime::now_utc(),
-                auth,
-            )
-            .await
+            handle_bid_svm(store.clone(), bid_svm, OffsetDateTime::now_utc(), auth).await
         }
     };
     match result {

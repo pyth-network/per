@@ -299,7 +299,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let submission_loops = store.chains.keys().map(|chain_id| {
                 fault_tolerant_handler(
                     format!("submission loop for evm chain {}", chain_id.clone()),
-                    || run_submission_loop_evm(store.clone(), chain_id.clone()),
+                    || run_submission_loop_evm(store_new.clone(), chain_id.clone()),
                 )
             });
             join_all(submission_loops).await;
@@ -308,7 +308,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let submission_loops = store.chains_svm.keys().map(|chain_id| {
                 fault_tolerant_handler(
                     format!("submission loop for svm chain {}", chain_id.clone()),
-                    || run_submission_loop_svm(store.clone(), chain_id.clone()),
+                    || run_submission_loop_svm(store_new.clone(), chain_id.clone()),
                 )
             });
             join_all(submission_loops).await;
@@ -391,6 +391,7 @@ fn setup_svm(
                         chain_config.rpc_timeout,
                         RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                     ),
+                    phantom_router_account: chain_config.phantom_router_account,
                     config: chain_config,
                     express_relay_svm,
                 },
