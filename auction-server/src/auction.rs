@@ -100,7 +100,12 @@ use {
     },
     solana_client::{
         nonblocking::pubsub_client::PubsubClient,
-        rpc_response::SlotInfo,
+        rpc_config::RpcBlockSubscribeConfig,
+        rpc_response::{
+            Response,
+            RpcBlockUpdate,
+            SlotInfo,
+        },
     },
     solana_sdk::{
         commitment_config::CommitmentConfig,
@@ -114,6 +119,10 @@ use {
             TransactionError,
             VersionedTransaction,
         },
+    },
+    solana_transaction_status::{
+        TransactionDetails,
+        UiTransactionEncoding,
     },
     sqlx::types::time::OffsetDateTime,
     std::{
@@ -136,6 +145,7 @@ use {
     utoipa::ToSchema,
     uuid::Uuid,
 };
+
 
 abigen!(
     ExpressRelay,
@@ -296,7 +306,7 @@ async fn conclude_submitted_auctions<T: ChainStore>(
 ) {
     let auctions = chain_store.get_submitted_auctions().await;
 
-    tracing::info!(
+    tracing::debug!(
         "Chain: {chain_id} Auctions to conclude {auction_len}",
         chain_id = chain_id,
         auction_len = auctions.len()
@@ -440,7 +450,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     }
 
     if !is_ready_for_auction::<T>(bids.clone(), bid_collection_time) {
-        tracing::info!("Auction for {} is not ready yet", permission_key);
+        tracing::debug!("Auction for {} is not ready yet", permission_key);
         return Ok(());
     }
 
@@ -460,7 +470,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
         )
         .await?;
 
-    tracing::info!(
+    tracing::debug!(
         "Submission for {} on chain {} started at {}",
         permission_key,
         chain_id,
@@ -570,7 +580,7 @@ pub fn get_express_relay_contract(
 async fn submit_auctions<T: ChainStore>(store: Arc<Store>, chain_store: &T, chain_id: String) {
     let permission_keys = chain_store.get_permission_keys_for_auction().await;
 
-    tracing::info!(
+    tracing::debug!(
         "Chain: {chain_id} Auctions to process {auction_len}",
         chain_id = chain_id,
         auction_len = permission_keys.len()
@@ -702,7 +712,7 @@ where
     if bid_amount >= minimum_bid_amount {
         Ok(())
     } else {
-        tracing::info!(
+        tracing::debug!(
             estimated_gas = estimated_gas.to_string(),
             maximum_gas_fee = maximum_gas_fee.to_string(),
             priority_fee = priority_fee.to_string(),
@@ -723,7 +733,7 @@ async fn verify_bid_under_gas_limit(
 ) -> Result<(), RestError> {
     if chain_store.block_gas_limit < estimated_gas * multiplier {
         let maximum_allowed_gas = chain_store.block_gas_limit / multiplier;
-        tracing::info!(
+        tracing::debug!(
             estimated_gas = estimated_gas.to_string(),
             maximum_allowed_gas = maximum_allowed_gas.to_string(),
             "Bid gas usage is too high"
@@ -845,7 +855,7 @@ pub async fn handle_bid(
 }
 
 pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
-    tracing::info!(chain_id = chain_id, "Starting tracker...");
+    tracing::debug!(chain_id = chain_id, "Starting tracker...");
     let chain_store = store
         .chains
         .get(&chain_id)
@@ -880,7 +890,7 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
             }
         }
     }
-    tracing::info!("Shutting down tracker...");
+    tracing::debug!("Shutting down tracker...");
     Ok(())
 }
 
@@ -1076,6 +1086,13 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
     fn get_trigger_stream<'a>(
         client: &'a Self::WsClient,
     ) -> impl Future<Output = Result<Self::TriggerStream<'a>>>;
+    /// Get the next trigger from the trigger stream
+    fn get_next_trigger<'a>(
+        &self,
+        trigger_stream: &mut Self::TriggerStream<'a>,
+    ) -> impl Future<Output = Option<Self::Trigger>> {
+        return trigger_stream.next();
+    }
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     fn get_winner_bids(
         &self,
@@ -1331,7 +1348,7 @@ impl ChainStore for ChainStoreEvm {
 }
 
 impl ChainStore for ChainStoreSvm {
-    type Trigger = SlotInfo;
+    type Trigger = Response<RpcBlockUpdate>;
     type TriggerStream<'a> = Pin<Box<dyn Stream<Item = Self::Trigger> + Send + 'a>>;
     type WsClient = PubsubClient;
     type SimulatedBid = SimulatedBidSvm;
@@ -1348,8 +1365,19 @@ impl ChainStore for ChainStoreSvm {
     }
 
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>> {
-        let (slot_subscribe, _) = client.slot_subscribe().await?;
-        Ok(slot_subscribe)
+        let (block_subscribe, _) = client
+            .block_subscribe(
+                solana_client::rpc_config::RpcBlockSubscribeFilter::All,
+                Some(RpcBlockSubscribeConfig {
+                    encoding:                          None,
+                    transaction_details:               Some(TransactionDetails::None),
+                    show_rewards:                      Some(false),
+                    max_supported_transaction_version: None,
+                    commitment:                        Some(CommitmentConfig::confirmed()),
+                }),
+            )
+            .await?;
+        Ok(block_subscribe)
     }
 
     async fn get_winner_bids(
@@ -1461,7 +1489,7 @@ async fn run_submission_loop<T: ChainStore>(
     chain_store: &T,
     chain_id: String,
 ) -> Result<()> {
-    tracing::info!(chain_id = chain_id, "Starting transaction submitter...");
+    tracing::debug!(chain_id = chain_id, "Starting transaction submitter...");
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
     let ws_client = chain_store.get_ws_client().await?;
@@ -1469,12 +1497,16 @@ async fn run_submission_loop<T: ChainStore>(
 
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
-            trigger = stream.next() => {
+            trigger = chain_store.get_next_trigger(&mut stream) => {
                 if trigger.is_none() {
                     return Err(anyhow!("Trigger stream ended for chain: {}", chain_id));
                 }
 
-                tracing::debug!("New trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), trigger);
+                match T::CHAIN_TYPE {
+                    models::ChainType::Evm => {},
+                    models::ChainType::Svm => tracing::info!("New trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), trigger),
+                }
+
                 store.task_tracker.spawn({
                     let (store, chain_id) = (store.clone(), chain_id.clone());
                     async move {
@@ -1522,7 +1554,7 @@ async fn run_submission_loop<T: ChainStore>(
             _ = exit_check_interval.tick() => {}
         }
     }
-    tracing::info!("Shutting down transaction submitter...");
+    tracing::debug!("Shutting down transaction submitter...");
     Ok(())
 }
 
