@@ -1,67 +1,229 @@
-import { Client, Opportunity } from "@pythnetwork/express-relay-js";
-import { SVM_RPC_ENDPOINTS } from "./const";
+import {
+  BidStatusUpdate,
+  BidSvm,
+  Client,
+  ExpressRelaySvmConfig,
+  Opportunity,
+  OpportunitySvm,
+} from "@pythnetwork/express-relay-js";
 import { Router, RouterOutput } from "./types";
 import { JupiterRouter } from "./router/jupiter";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { Keypair } from "@solana/web3.js";
+import {
+  AddressLookupTableAccount,
+  Connection,
+  Keypair,
+  PublicKey,
+  TransactionMessage,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
+import { Decimal } from "decimal.js";
+import * as limo from "@kamino-finance/limo-sdk";
+import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 
 export class DexRouter {
   private client: Client;
   private pingTimeout: NodeJS.Timeout | undefined;
+  private connectionSvm: Connection;
+  private expressRelayConfig?: ExpressRelaySvmConfig;
   private readonly routers: Router[];
   private readonly executor: Keypair;
-  private readonly chainIds: string[];
+  private readonly chainId: string;
   private readonly PING_INTERVAL = 30000;
 
-  constructor(endpoint: string, skExecutor: string, chainIds: string[]) {
+  constructor(
+    endpoint: string,
+    skExecutor: string,
+    chainId: string,
+    endpointSvm: string
+  ) {
     this.client = new Client(
       {
         baseUrl: endpoint,
       },
       undefined,
-      this.opportunityHandler.bind(this)
+      this.opportunityHandler.bind(this),
+      this.bidStatusHandler.bind(this)
     );
     this.routers = [new JupiterRouter()];
     this.executor = Keypair.fromSecretKey(
       anchor.utils.bytes.bs58.decode(skExecutor)
     );
-    this.chainIds = chainIds;
+    this.chainId = chainId;
+    this.connectionSvm = new Connection(endpointSvm, "confirmed");
+  }
+
+  async bidStatusHandler(bidStatus: BidStatusUpdate) {
+    let resultDetails = "";
+    if (bidStatus.type == "submitted" || bidStatus.type == "won") {
+      resultDetails = `, transaction ${bidStatus.result}`;
+    } else if (bidStatus.type == "lost") {
+      if (bidStatus.result) {
+        resultDetails = `, transaction ${bidStatus.result}`;
+      }
+    }
+    console.log(
+      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`
+    );
   }
 
   async opportunityHandler(opportunity: Opportunity) {
     console.log("Received opportunity:", opportunity.opportunityId);
-
-    if (!(opportunity.chainId in SVM_RPC_ENDPOINTS)) {
-      return;
+    try {
+      const bid = await this.generateRouterBid(opportunity as OpportunitySvm);
+      const result = await this.client.requestViaWebsocket({
+        method: "post_bid",
+        params: {
+          bid: bid,
+        },
+      });
+      if (result === null) {
+        throw new Error("Empty response in websocket for bid submission");
+      }
+      console.log(
+        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${result.id}`
+      );
+    } catch (error) {
+      console.error(
+        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
+      );
     }
-    const rpcEndpoint = SVM_RPC_ENDPOINTS[opportunity.chainId];
+  }
 
-    // TODO: grab opportunity details from chain?
-    // TODO: route opportunity to appropriate routers
+  async generateRouterBid(opportunity: OpportunitySvm): Promise<{
+    transaction: VersionedTransaction;
+    chainId: string;
+    env: "svm";
+  }> {
+    const order = opportunity.order;
+    const clientLimo = new limo.LimoClient(
+      this.connectionSvm,
+      order.state.globalConfig
+    );
+    const inputMintDecimals = await clientLimo.getOrderInputMintDecimals(order);
+    const outputMintDecimals = await clientLimo.getOrderOutputMintDecimals(
+      order
+    );
+
     let routerOutputs: RouterOutput[] = [];
-    // for (const router of this.routers) {
-    //     const routerOutput = await router.route(
-    //         opportunity.chainId,
-    //         opportunity.tokenIn,
-    //         opportunity.tokenOut,
-    //         opportunity.amountIn,
-    //         this.executor
-    //     );
-    //     routerOutputs.push(routerOutput);
-    // }
-
-    // TODO: pick best router based on output
+    for (const router of this.routers) {
+      try {
+        const routerOutput = await router.route(
+          opportunity.chainId,
+          opportunity.order.state.inputMint,
+          opportunity.order.state.outputMint,
+          opportunity.order.state.remainingInputAmount,
+          this.executor.publicKey
+        );
+        routerOutputs.push(routerOutput);
+      } catch (error) {
+        console.error(`Failed to route order: ${error}`);
+      }
+    }
+    if (routerOutputs.length === 0) {
+      throw new Error("No routers available to route order");
+    }
     const routerBest = routerOutputs.reduce((prev, curr) => {
       return prev.amountOut > curr.amountOut ? prev : curr;
     });
+    let ixsRouter = routerBest.ixs;
 
-    // TODO: submit bid
-    let routerIxs = routerBest.ixs;
-    // await this.client.submitBid(bid, true);
+    const inputAmountDecimals = new Decimal(
+      order.state.remainingInputAmount.toNumber()
+    ).div(new Decimal(10).pow(inputMintDecimals));
+    // TODO: get output amount from best router output
+    const outputAmountDecimals = new Decimal(
+      order.state.expectedOutputAmount.toNumber()
+    ).div(new Decimal(10).pow(outputMintDecimals));
 
-    throw new Error("Method not implemented.");
+    // TODO: make this flashborrow instructions
+    const ixsTakeOrder = await clientLimo.takeOrderIx(
+      this.executor.publicKey,
+      order,
+      inputAmountDecimals,
+      new PublicKey("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"),
+      inputMintDecimals,
+      outputMintDecimals
+    );
+
+    const router = getPdaAuthority(
+      clientLimo.getProgramID(),
+      order.state.globalConfig
+    );
+    const bidAmount = new anchor.BN(0);
+    if (!this.expressRelayConfig) {
+      this.expressRelayConfig = await this.client.getExpressRelaySvmConfig(
+        this.chainId,
+        this.connectionSvm
+      );
+    }
+
+    const ixSubmitBid = await this.client.constructSubmitBidInstruction(
+      this.executor.publicKey,
+      router,
+      order.address,
+      bidAmount,
+      new anchor.BN(Math.round(Date.now() / 1000 + 60)),
+      this.chainId,
+      this.expressRelayConfig.relayerSigner,
+      this.expressRelayConfig.feeReceiverRelayer
+    );
+
+    console.log("1");
+
+    // TODO: order these instructions correctly
+    const txMsg = new TransactionMessage({
+      payerKey: this.executor.publicKey,
+      recentBlockhash: opportunity.blockHash,
+      instructions: [ixSubmitBid, ...ixsTakeOrder, ...ixsRouter],
+    });
+
+    console.log("2");
+
+    let lookupTableAccounts: AddressLookupTableAccount[] = [];
+    if (routerBest.lookupTableAddresses !== undefined) {
+      lookupTableAccounts = await this.getLookupTableAccounts(
+        routerBest.lookupTableAddresses
+      );
+    }
+    console.log("2.5");
+    const tx = new VersionedTransaction(
+      txMsg.compileToV0Message(lookupTableAccounts)
+    );
+    console.log("2.6");
+    tx.sign([this.executor]);
+
+    console.log("3");
+
+    return {
+      transaction: tx,
+      chainId: this.chainId,
+      env: "svm",
+    };
+  }
+
+  private async getLookupTableAccounts(
+    keys: PublicKey[]
+  ): Promise<AddressLookupTableAccount[]> {
+    const addressLookupTableAccountInfos =
+      await this.connectionSvm.getMultipleAccountsInfo(
+        keys.map((key) => new PublicKey(key))
+      );
+
+    return addressLookupTableAccountInfos.reduce((acc, accountInfo, index) => {
+      const addressLookupTableAddress = keys[index];
+      if (accountInfo) {
+        const addressLookupTableAccount = new AddressLookupTableAccount({
+          key: new PublicKey(addressLookupTableAddress),
+          state: AddressLookupTableAccount.deserialize(accountInfo.data),
+        });
+        acc.push(addressLookupTableAccount);
+      }
+
+      return acc;
+    }, new Array<AddressLookupTableAccount>());
   }
 
   heartbeat() {
@@ -75,9 +237,9 @@ export class DexRouter {
 
   async start() {
     try {
-      await this.client.subscribeChains(this.chainIds);
+      await this.client.subscribeChains([this.chainId]);
       console.log(
-        `Subscribed to chains ${this.chainIds}. Waiting for opportunities...`
+        `Subscribed to chains ${this.chainId}. Waiting for opportunities...`
       );
     } catch (error) {
       console.error(error);
@@ -87,7 +249,7 @@ export class DexRouter {
 }
 
 const argv = yargs(hideBin(process.argv))
-  .option("endpoint", {
+  .option("endpoint-express-relay", {
     description:
       "Express relay endpoint. e.g: https://per-staging.dourolabs.app/",
     type: "string",
@@ -99,10 +261,20 @@ const argv = yargs(hideBin(process.argv))
     type: "string",
     demandOption: true,
   })
-  .option("chain-ids", {
-    description: "Chain ids to listen and submit routed bids for.",
-    type: "array",
-    default: ["solana"],
+  .option("global-config", {
+    description: "Global config address",
+    type: "string",
+    demandOption: true,
+  })
+  .option("chain-id", {
+    description: "Chain id to listen and submit routed bids for.",
+    type: "string",
+    default: "development-solana",
+  })
+  .option("endpoint-svm", {
+    description: "SVM RPC endpoint",
+    type: "string",
+    demandOption: true,
   })
   .help()
   .alias("help", "h")
@@ -110,9 +282,10 @@ const argv = yargs(hideBin(process.argv))
 
 async function run() {
   const dexRouter = new DexRouter(
-    argv.endpoint,
+    argv["endpoint-express-relay"],
     argv["sk-executor"],
-    argv["chain-ids"].map(String)
+    argv["chain-id"],
+    argv["endpoint-svm"]
   );
   await dexRouter.start();
 }
