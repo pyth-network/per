@@ -306,7 +306,7 @@ async fn conclude_submitted_auctions<T: ChainStore>(
 ) {
     let auctions = chain_store.get_submitted_auctions().await;
 
-    tracing::debug!(
+    tracing::info!(
         "Chain: {chain_id} Auctions to conclude {auction_len}",
         chain_id = chain_id,
         auction_len = auctions.len()
@@ -450,7 +450,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     }
 
     if !is_ready_for_auction::<T>(bids.clone(), bid_collection_time) {
-        tracing::debug!("Auction for {} is not ready yet", permission_key);
+        tracing::info!("Auction for {} is not ready yet", permission_key);
         return Ok(());
     }
 
@@ -470,7 +470,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
         )
         .await?;
 
-    tracing::debug!(
+    tracing::info!(
         "Submission for {} on chain {} started at {}",
         permission_key,
         chain_id,
@@ -482,7 +482,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
         .await
     {
         Ok(tx_hash) => {
-            tracing::debug!("Submitted transaction: {:?}", tx_hash);
+            tracing::info!("Submitted transaction: {:?}", tx_hash);
             let converted_tx_hash = <<T::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::convert_tx_hash(&tx_hash);
             auction = store
                 .submit_auction(chain_store, auction, converted_tx_hash)
@@ -580,7 +580,7 @@ pub fn get_express_relay_contract(
 async fn submit_auctions<T: ChainStore>(store: Arc<Store>, chain_store: &T, chain_id: String) {
     let permission_keys = chain_store.get_permission_keys_for_auction().await;
 
-    tracing::debug!(
+    tracing::info!(
         "Chain: {chain_id} Auctions to process {auction_len}",
         chain_id = chain_id,
         auction_len = permission_keys.len()
@@ -712,7 +712,7 @@ where
     if bid_amount >= minimum_bid_amount {
         Ok(())
     } else {
-        tracing::debug!(
+        tracing::info!(
             estimated_gas = estimated_gas.to_string(),
             maximum_gas_fee = maximum_gas_fee.to_string(),
             priority_fee = priority_fee.to_string(),
@@ -733,7 +733,7 @@ async fn verify_bid_under_gas_limit(
 ) -> Result<(), RestError> {
     if chain_store.block_gas_limit < estimated_gas * multiplier {
         let maximum_allowed_gas = chain_store.block_gas_limit / multiplier;
-        tracing::debug!(
+        tracing::info!(
             estimated_gas = estimated_gas.to_string(),
             maximum_allowed_gas = maximum_allowed_gas.to_string(),
             "Bid gas usage is too high"
@@ -855,7 +855,7 @@ pub async fn handle_bid(
 }
 
 pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
-    tracing::debug!(chain_id = chain_id, "Starting tracker...");
+    tracing::info!(chain_id = chain_id, "Starting tracker...");
     let chain_store = store
         .chains
         .get(&chain_id)
@@ -890,7 +890,7 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
             }
         }
     }
-    tracing::debug!("Shutting down tracker...");
+    tracing::info!("Shutting down tracker...");
     Ok(())
 }
 
@@ -1489,7 +1489,7 @@ async fn run_submission_loop<T: ChainStore>(
     chain_store: &T,
     chain_id: String,
 ) -> Result<()> {
-    tracing::debug!(chain_id = chain_id, "Starting transaction submitter...");
+    tracing::info!(chain_id = chain_id, "Starting transaction submitter...");
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
     let ws_client = chain_store.get_ws_client().await?;
@@ -1554,7 +1554,7 @@ async fn run_submission_loop<T: ChainStore>(
             _ = exit_check_interval.tick() => {}
         }
     }
-    tracing::debug!("Shutting down transaction submitter...");
+    tracing::info!("Shutting down transaction submitter...");
     Ok(())
 }
 
