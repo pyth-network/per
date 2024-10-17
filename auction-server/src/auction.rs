@@ -1089,7 +1089,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
     /// Get the next trigger from the trigger stream
     fn get_next_trigger<'a>(
         &self,
-        trigger_stream: &mut Self::TriggerStream<'a>,
+        trigger_stream: &'a mut Self::TriggerStream<'a>,
     ) -> impl Future<Output = Option<Self::Trigger>> {
         return trigger_stream.next();
     }
@@ -1497,7 +1497,7 @@ async fn run_submission_loop<T: ChainStore>(
 
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
-            trigger = chain_store.get_next_trigger(&mut stream) => {
+            trigger = {chain_store.get_next_trigger(&mut stream)} => {
                 if trigger.is_none() {
                     return Err(anyhow!("Trigger stream ended for chain: {}", chain_id));
                 }
