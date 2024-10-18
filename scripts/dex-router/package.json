@@ -6,14 +6,15 @@
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dex-router": "npm run build && node dist/index.js"
+    "dex-router": "npm run build && node dist/index.js",
+    "lookup-table": "npm run build && node dist/utils/lookupTable.js"
   },
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
     "@kamino-finance/limo-sdk": "^0.2.3",
-    "@pythnetwork/express-relay-js": "^0.11.0",
+    "@pythnetwork/express-relay-js": "^0.11.1",
     "@solana/web3.js": "^1.95.3",
     "@types/yargs": "^17.0.33",
     "cross-fetch": "^4.0.0",
