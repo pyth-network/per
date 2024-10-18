@@ -109,6 +109,10 @@ use {
     },
     solana_client::{
         nonblocking::pubsub_client::PubsubClient,
+        rpc_config::{
+            RpcTransactionLogsConfig,
+            RpcTransactionLogsFilter,
+        },
         rpc_response::SlotInfo,
     },
     solana_sdk::{
@@ -1580,8 +1584,9 @@ impl Deref for ChainStoreSvm {
     }
 }
 
-// TODO Add ws to listen for per transactions and increase this number
-const CONCLUSION_TRIGGER_INTERVAL: u64 = 20;
+// This is to make sure we are not missing any transaction
+// We run this once every minute (150 slots)
+const CONCLUSION_TRIGGER_SLOT_INTERVAL: u64 = 150;
 
 async fn run_submission_loop<T: ChainStore>(
     store_new: Arc<StoreNew>,
@@ -1637,7 +1642,7 @@ async fn run_submission_loop<T: ChainStore>(
                             }
                             models::ChainType::Svm => {
                                 if let Some(trigger_number) = trigger_number {
-                                    if trigger_number % CONCLUSION_TRIGGER_INTERVAL != 0 {
+                                    if trigger_number % CONCLUSION_TRIGGER_SLOT_INTERVAL != 0 {
                                         return;
                                     }
                                     if let Some(chain_store) = store
@@ -1674,4 +1679,59 @@ pub async fn run_submission_loop_svm(store_new: Arc<StoreNew>, chain_id: String)
         .get(&chain_id)
         .ok_or(anyhow!("Chain not found: {}", chain_id))?;
     run_submission_loop(store_new.clone(), chain_store, chain_id).await
+}
+
+pub async fn run_log_listener_loop_svm(store_new: Arc<StoreNew>, chain_id: String) -> Result<()> {
+    let chain_store = store_new
+        .store
+        .chains_svm
+        .get(&chain_id)
+        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+
+    tracing::info!(chain_id = chain_id, "Starting log listener...");
+    let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+    let ws_client = chain_store.get_ws_client().await?;
+    let (mut stream, _) = ws_client
+        .logs_subscribe(
+            RpcTransactionLogsFilter::Mentions(vec![chain_store
+                .config
+                .express_relay_program_id
+                .to_string()]),
+            RpcTransactionLogsConfig {
+                commitment: Some(CommitmentConfig::confirmed()),
+            },
+        )
+        .await?;
+
+    while !SHOULD_EXIT.load(Ordering::Acquire) {
+        tokio::select! {
+            rpc_log = stream.next() => {
+                if rpc_log.is_none() {
+                    return Err(anyhow!("Log trigger stream ended for chain: {}", chain_id));
+                }
+                let rpc_log = rpc_log.expect("Failed to get log");
+                tracing::debug!("New log trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), rpc_log.clone());
+
+                store_new.store.task_tracker.spawn({
+                    let (store, chain_id) = (store_new.store.clone(), chain_id.clone());
+                    async move {
+                        if let Some(chain_store) = store
+                        .chains_svm
+                        .get(&chain_id) {
+                            let submitted_auctions = chain_store.get_submitted_auctions().await;
+                            if let Some(auction) = submitted_auctions.iter().find(|a| a.tx_hash.clone().map(|tx_hash| SignatureSvm::try_from(tx_hash).unwrap_or(SignatureSvm::default()).to_string()) == Some(rpc_log.value.signature.clone())) {
+                                if let Err(err) = conclude_submitted_auction(store.clone(), chain_store, auction.clone()).await {
+                                    tracing::error!(error = ?err, auction = ?auction, "Error while concluding submitted auction");
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            _ = exit_check_interval.tick() => {}
+        }
+    }
+    tracing::info!("Shutting down log listener svm...");
+
+    Ok(())
 }
