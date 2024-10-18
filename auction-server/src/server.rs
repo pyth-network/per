@@ -60,6 +60,7 @@ use {
     futures::{
         future::join_all,
         Future,
+        FutureExt,
     },
     solana_client::rpc_client::RpcClientConfig,
     solana_sdk::{
@@ -73,6 +74,10 @@ use {
     },
     std::{
         collections::HashMap,
+        panic::{
+            catch_unwind,
+            AssertUnwindSafe,
+        },
         sync::{
             atomic::{
                 AtomicBool,
@@ -93,11 +98,10 @@ use {
 async fn fault_tolerant_handler<F, Fut>(name: String, f: F)
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
-    Fut::Output: Send + 'static,
+    Fut: Future<Output = anyhow::Result<()>>,
 {
     loop {
-        let res = tokio::spawn(f()).await;
+        let res = AssertUnwindSafe(f()).catch_unwind().await;
         match res {
             Ok(result) => match result {
                 Ok(_) => break, // This will happen on graceful shutdown
@@ -304,15 +308,15 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             });
             join_all(submission_loops).await;
         },
-        async {
-            let submission_loops = store.chains_svm.keys().map(|chain_id| {
-                fault_tolerant_handler(
-                    format!("submission loop for svm chain {}", chain_id.clone()),
-                    || run_submission_loop_svm(store.clone(), chain_id.clone()),
-                )
-            });
-            join_all(submission_loops).await;
-        },
+        // async {
+        //     let submission_loops = store.chains_svm.keys().map(|chain_id| {
+        //         fault_tolerant_handler(
+        //             format!("submission loop for svm chain {}", chain_id.clone()),
+        //             || run_submission_loop_svm(store.clone(), chain_id.clone()),
+        //         )
+        //     });
+        //     join_all(submission_loops).await;
+        // },
         async {
             let tracker_loops = store.chains.keys().map(|chain_id| {
                 fault_tolerant_handler(
