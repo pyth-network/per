@@ -55,10 +55,19 @@ pub struct OpportunityMetadataSvmProgramLimo {
     pub order_address: Pubkey,
 }
 
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OpportunityMetadataSvmProgramWallet {
+    #[serde_as(as = "DisplayFromStr")]
+    pub user_wallet_address:         Pubkey,
+    pub maximum_slippage_percentage: f64,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "program", rename_all = "lowercase")]
 pub enum OpportunityMetadataSvmProgram {
     Limo(OpportunityMetadataSvmProgramLimo),
+    Phantom(OpportunityMetadataSvmProgramWallet),
 }
 
 #[serde_as]

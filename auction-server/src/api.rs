@@ -130,6 +130,8 @@ pub enum RestError {
     Unauthorized,
     /// Profile not found
     ProfileNotFound,
+    /// Quote not found
+    QuoteNotFound,
 }
 
 impl RestError {
@@ -172,6 +174,10 @@ impl RestError {
             ),
             RestError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
             RestError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
+            RestError::QuoteNotFound => (
+                StatusCode::NOT_FOUND,
+                "No quote is currently available".to_string(),
+            ),
         }
     }
 }
@@ -193,7 +199,7 @@ pub async fn live() -> Response {
     (StatusCode::OK, "OK").into_response()
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Auth {
     Admin,
     Authorized(models::AccessTokenToken, models::Profile),
@@ -294,6 +300,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
+    opportunity::post_quote,
 
     profile::delete_profile_access_token,
     ),
@@ -331,6 +338,13 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::OpportunityParamsEvm,
     opportunity::OpportunityParamsV1Svm,
     opportunity::OpportunityParamsV1Evm,
+    opportunity::QuoteCreate,
+    opportunity::QuoteCreateSvm,
+    opportunity::QuoteCreateV1Svm,
+    opportunity::QuoteCreatePhantomV1Svm,
+    opportunity::Quote,
+    opportunity::QuoteSvm,
+    opportunity::QuoteV1Svm,
 
     ErrorBodyResponse,
     ClientRequest,

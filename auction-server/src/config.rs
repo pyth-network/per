@@ -152,4 +152,7 @@ pub struct ConfigSvm {
     /// Timeout for RPC requests in seconds.
     #[serde(default = "default_rpc_timeout_svm")]
     pub rpc_timeout:              u64,
+    /// The router account for Phantom
+    #[serde_as(as = "DisplayFromStr")]
+    pub phantom_router_account:   Pubkey,
 }
