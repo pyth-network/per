@@ -4,7 +4,7 @@ import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 const jupiterBaseUrl = "https://quote-api.jup.ag/v6/";
 const jupiterQuoteUrl = new URL("quote", jupiterBaseUrl);
 const jupiterSwapIxsUrl = new URL("swap-instructions", jupiterBaseUrl);
-const maxAccounts = 64;
+const maxAccounts = 32;
 
 export class JupiterRouter implements Router {
   async route(
@@ -15,10 +15,10 @@ export class JupiterRouter implements Router {
     executor: PublicKey
   ): Promise<RouterOutput> {
     if (!["solana", "development-solana"].includes(chainId)) {
-      throw new Error("Chain Id not supported");
+      throw new Error("Jupiter error: chain id not supported");
     }
 
-    // TODO: REMOVE
+    // TODO: REMOVE THIS, ONLY FOR TESTING W FAKE TOKENS
     if (
       tokenIn.equals(
         new PublicKey("USDCHDcjejXG1tqnrX4SfvsB2TGp8xGgTHXqxcoSeF2")
@@ -53,9 +53,8 @@ export class JupiterRouter implements Router {
         `${jupiterQuoteUrl.toString()}?inputMint=${tokenIn.toBase58()}&outputMint=${tokenOut.toBase58()}&amount=${amountIn}&autoSlippage=true&maxAutoSlippageBps=50&maxAccounts=${maxAccounts}`
       )
     ).json();
-
-    if ("error" in quoteResponse) {
-      throw new Error(quoteResponse.error);
+    if (quoteResponse.error !== undefined) {
+      throw new Error(`Jupiter error: ${quoteResponse.error}`);
     }
 
     const instructions = await (
@@ -67,9 +66,13 @@ export class JupiterRouter implements Router {
         body: JSON.stringify({
           quoteResponse,
           userPublicKey: executor.toBase58(),
+          asLegacyTransaction: false,
         }),
       })
     ).json();
+    if (instructions.error !== undefined) {
+      throw new Error(`Jupiter error: ${instructions.error}`);
+    }
 
     const {
       tokenLedgerInstruction,
@@ -77,8 +80,9 @@ export class JupiterRouter implements Router {
       setupInstructions,
       swapInstruction,
       cleanupInstruction,
-      lookupTableAddresses,
+      addressLookupTableAddresses,
     } = instructions;
+
     const setupInstructionsJupiter: TransactionInstruction[] =
       setupInstructions.map((ix: JupiterInstruction) =>
         this.deserializeInstruction(ix)
@@ -92,7 +96,7 @@ export class JupiterRouter implements Router {
       ixs: ixsJupiter,
       amountIn,
       amountOut: BigInt(quoteResponse.outAmount),
-      lookupTableAddresses,
+      lookupTableAddresses: addressLookupTableAddresses,
     };
   }
 

@@ -1,6 +1,5 @@
 import {
   BidStatusUpdate,
-  BidSvm,
   Client,
   ExpressRelaySvmConfig,
   Opportunity,
@@ -22,6 +21,8 @@ import * as anchor from "@coral-xyz/anchor";
 import { Decimal } from "decimal.js";
 import * as limo from "@kamino-finance/limo-sdk";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
+import { getVersionedTxSize } from "./utils/size";
+import { LOOKUP_TABLE_ADDRESS, OPPORTUNITY_WAIT_TIME } from "./const";
 
 export class DexRouter {
   private client: Client;
@@ -71,6 +72,7 @@ export class DexRouter {
 
   async opportunityHandler(opportunity: Opportunity) {
     console.log("Received opportunity:", opportunity.opportunityId);
+    await new Promise((resolve) => setTimeout(resolve, OPPORTUNITY_WAIT_TIME));
     try {
       const bid = await this.generateRouterBid(opportunity as OpportunitySvm);
       const result = await this.client.requestViaWebsocket({
@@ -171,8 +173,6 @@ export class DexRouter {
       this.expressRelayConfig.feeReceiverRelayer
     );
 
-    console.log("1");
-
     // TODO: order these instructions correctly
     const txMsg = new TransactionMessage({
       payerKey: this.executor.publicKey,
@@ -180,22 +180,20 @@ export class DexRouter {
       instructions: [ixSubmitBid, ...ixsTakeOrder, ...ixsRouter],
     });
 
-    console.log("2");
-
-    let lookupTableAccounts: AddressLookupTableAccount[] = [];
+    let lookupTableAddresses: PublicKey[] = [];
     if (routerBest.lookupTableAddresses !== undefined) {
-      lookupTableAccounts = await this.getLookupTableAccounts(
-        routerBest.lookupTableAddresses
-      );
+      lookupTableAddresses.push(...routerBest.lookupTableAddresses);
     }
-    console.log("2.5");
+    if (LOOKUP_TABLE_ADDRESS[this.chainId] !== undefined) {
+      lookupTableAddresses.push(LOOKUP_TABLE_ADDRESS[this.chainId]);
+    }
+    const lookupTableAccounts = await this.getLookupTableAccounts(
+      lookupTableAddresses
+    );
     const tx = new VersionedTransaction(
       txMsg.compileToV0Message(lookupTableAccounts)
     );
-    console.log("2.6");
     tx.sign([this.executor]);
-
-    console.log("3");
 
     return {
       transaction: tx,
