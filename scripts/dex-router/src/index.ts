@@ -1,10 +1,12 @@
 import {
   BidStatusUpdate,
+  ChainId,
   Client,
   ExpressRelaySvmConfig,
   Opportunity,
   OpportunitySvm,
   SVM_CONSTANTS,
+  SvmChainUpdate,
 } from "@pythnetwork/express-relay-js";
 import { Router, RouterOutput } from "./types";
 import { JupiterRouter } from "./router/jupiter";
@@ -12,6 +14,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import {
   AddressLookupTableAccount,
+  Blockhash,
   Connection,
   Keypair,
   PublicKey,
@@ -32,6 +35,7 @@ export class DexRouter {
   private pingTimeout: NodeJS.Timeout | undefined;
   private connectionSvm: Connection;
   private expressRelayConfig?: ExpressRelaySvmConfig;
+  private recentBlockhash: Record<ChainId, Blockhash> = {};
   private readonly routers: Router[];
   private readonly executor: Keypair;
   private readonly chainId: string;
@@ -49,7 +53,8 @@ export class DexRouter {
       },
       undefined,
       this.opportunityHandler.bind(this),
-      this.bidStatusHandler.bind(this)
+      this.bidStatusHandler.bind(this),
+      this.svmChainUpdateHandler.bind(this)
     );
     this.executor = executor;
     this.chainId = chainId;
@@ -99,6 +104,10 @@ export class DexRouter {
         `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
       );
     }
+  }
+
+  async svmChainUpdateHandler(update: SvmChainUpdate) {
+    this.recentBlockhash[update.chain_id] = update.blockhash;
   }
 
   async generateRouterBid(opportunity: OpportunitySvm): Promise<{
@@ -179,9 +188,18 @@ export class DexRouter {
       this.expressRelayConfig.feeReceiverRelayer
     );
 
+    if (!this.recentBlockhash[this.chainId]) {
+      console.log(
+        `No recent blockhash for chain ${this.chainId}, getting manually`
+      );
+      this.recentBlockhash[this.chainId] = (
+        await this.connectionSvm.getLatestBlockhash("confirmed")
+      ).blockhash;
+    }
+
     const txMsg = new TransactionMessage({
       payerKey: this.executor.publicKey,
-      recentBlockhash: opportunity.blockHash,
+      recentBlockhash: this.recentBlockhash[this.chainId],
       instructions: [
         ...ixsFlashTakeOrder.createAtaIxs,
         ixsFlashTakeOrder.startFlashIx,
