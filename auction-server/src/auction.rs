@@ -31,20 +31,13 @@ use {
             Store,
         },
         traced_client::TracedClient,
-    },
-    ::express_relay::{
-        self as express_relay_svm,
-    },
-    anchor_lang::{
+    }, anchor_lang::{
         AnchorDeserialize,
         Discriminator,
-    },
-    anyhow::{
+    }, anyhow::{
         anyhow,
         Result,
-    },
-    axum_prometheus::metrics,
-    ethers::{
+    }, axum_prometheus::metrics, ethers::{
         abi,
         contract::{
             abigen,
@@ -86,19 +79,17 @@ use {
             H256,
             U256,
         },
-    },
-    futures::{
+    }, ::express_relay::{
+        self as express_relay_svm,
+    }, futures::{
         future::join_all,
         Stream,
         StreamExt,
-    },
-    gas_oracle::EthProviderOracle,
-    serde::{
+    }, gas_oracle::EthProviderOracle, serde::{
         Deserialize,
         Deserializer,
         Serialize,
-    },
-    solana_client::{
+    }, solana_client::{
         nonblocking::pubsub_client::PubsubClient,
         rpc_config::RpcBlockSubscribeConfig,
         rpc_response::{
@@ -106,44 +97,26 @@ use {
             RpcBlockUpdate,
             SlotInfo,
         },
-    },
-    solana_sdk::{
-        commitment_config::CommitmentConfig,
-        instruction::CompiledInstruction,
-        pubkey::Pubkey,
-        signature::{
+    }, solana_sdk::{
+        commitment_config::CommitmentConfig, hash::Hash, instruction::CompiledInstruction, pubkey::Pubkey, signature::{
             Signature as SignatureSvm,
             Signer as SignerSvm,
-        },
-        transaction::{
+        }, transaction::{
             TransactionError,
             VersionedTransaction,
-        },
-    },
-    solana_transaction_status::{
+        }
+    }, solana_transaction_status::{
         TransactionDetails,
         UiTransactionEncoding,
-    },
-    sqlx::types::time::OffsetDateTime,
-    std::{
-        collections::hash_map::Entry,
-        fmt::Debug as DebugTrait,
-        future::Future,
-        ops::Deref,
-        pin::Pin,
-        result,
-        sync::{
+    }, sqlx::types::time::OffsetDateTime, std::{
+        collections::hash_map::Entry, fmt::Debug as DebugTrait, future::Future, ops::Deref, pin::Pin, result, str::FromStr, sync::{
             atomic::Ordering,
             Arc,
-        },
-        time::Duration,
-    },
-    tokio::sync::{
+        }, time::Duration
+    }, tokio::sync::{
         Mutex,
         MutexGuard,
-    },
-    utoipa::ToSchema,
-    uuid::Uuid,
+    }, utoipa::ToSchema, uuid::Uuid
 };
 
 
@@ -1087,11 +1060,11 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
         client: &'a Self::WsClient,
     ) -> impl Future<Output = Result<Self::TriggerStream<'a>>>;
     /// Get the next trigger from the trigger stream
-    fn get_next_trigger<'a>(
-        &self,
+    async fn get_next_trigger<'a>(
+        &mut self,
         trigger_stream: &mut Self::TriggerStream<'a>,
-    ) -> impl Future<Output = Option<Self::Trigger>> {
-        return trigger_stream.next();
+    ) -> Option<Self::Trigger> {
+        return trigger_stream.next().await;
     }
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     fn get_winner_bids(
@@ -1357,6 +1330,17 @@ impl ChainStore for ChainStoreSvm {
     const CHAIN_TYPE: models::ChainType = models::ChainType::Svm;
     const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_millis(400);
 
+    async fn get_next_trigger<'a>(
+            &mut self,
+            trigger_stream: &mut Self::TriggerStream<'a>,
+        ) -> Option<Self::Trigger> {
+        let trigger = trigger_stream.next().await;
+        let new_blockhash = trigger.clone().map(|t| t.value.block.map(|b| b.blockhash)).flatten().map( |b| Hash::from_str(&b).ok()).flatten();
+        if let Some(new_blockhash) = new_blockhash {
+            self.recent_blockhash = Some(new_blockhash);
+        }
+        trigger
+    }
     async fn get_ws_client(&self) -> Result<Self::WsClient> {
         PubsubClient::new(&self.config.ws_addr).await.map_err(|e| {
             tracing::error!("Error while creating svm pub sub client: {:?}", e);
@@ -1486,7 +1470,7 @@ impl Deref for ChainStoreSvm {
 
 async fn run_submission_loop<T: ChainStore>(
     store: Arc<Store>,
-    chain_store: &T,
+    chain_store: &mut T,
     chain_id: String,
 ) -> Result<()> {
     tracing::info!(chain_id = chain_id, "Starting transaction submitter...");

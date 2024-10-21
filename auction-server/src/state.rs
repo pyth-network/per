@@ -22,7 +22,6 @@ use {
         opportunity::service as opportunity_service,
         traced_client::TracedClient,
     },
-    anchor_lang::prelude::borsh::schema,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -88,6 +87,7 @@ use {
     },
     uuid::Uuid,
 };
+use solana_sdk::hash::Hash;
 
 pub type PermissionKey = Bytes;
 pub type BidAmount = U256;
@@ -407,6 +407,7 @@ pub struct ChainStoreSvm {
     pub client:            RpcClient,
     pub config:            ConfigSvm,
     pub express_relay_svm: ExpressRelaySvm,
+    pub recent_blockhash:   Option<Hash>,
 }
 
 pub type BidId = Uuid;
