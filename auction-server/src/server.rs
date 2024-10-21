@@ -381,7 +381,7 @@ fn setup_svm(
             (
                 chain_id.clone(),
                 ChainStoreSvm {
-                    recent_blockhash: None,
+                    recent_blockhash: None.into(),
                     core_fields: ChainStoreCoreFields::<SimulatedBidSvm> {
                         bids:               Default::default(),
                         auction_lock:       Default::default(),

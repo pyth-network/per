@@ -49,6 +49,7 @@ use {
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
+        hash::Hash,
         signature::{
             Keypair,
             Signature,
@@ -87,7 +88,6 @@ use {
     },
     uuid::Uuid,
 };
-use solana_sdk::hash::Hash;
 
 pub type PermissionKey = Bytes;
 pub type BidAmount = U256;
@@ -407,7 +407,7 @@ pub struct ChainStoreSvm {
     pub client:            RpcClient,
     pub config:            ConfigSvm,
     pub express_relay_svm: ExpressRelaySvm,
-    pub recent_blockhash:   Option<Hash>,
+    pub recent_blockhash:  RwLock<Option<Hash>>,
 }
 
 pub type BidId = Uuid;
