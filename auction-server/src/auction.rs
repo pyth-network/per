@@ -104,7 +104,6 @@ use {
         rpc_response::{
             Response,
             RpcBlockUpdate,
-            SlotInfo,
         },
     },
     solana_sdk::{
@@ -121,10 +120,7 @@ use {
             VersionedTransaction,
         },
     },
-    solana_transaction_status::{
-        TransactionDetails,
-        UiTransactionEncoding,
-    },
+    solana_transaction_status::TransactionDetails,
     sqlx::types::time::OffsetDateTime,
     std::{
         collections::hash_map::Entry,
@@ -1093,7 +1089,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
         &self,
         trigger_stream: &mut Self::TriggerStream<'a>,
     ) -> Option<Self::Trigger> {
-        return trigger_stream.next().await;
+        trigger_stream.next().await
     }
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     fn get_winner_bids(
@@ -1366,10 +1362,8 @@ impl ChainStore for ChainStoreSvm {
         let trigger = trigger_stream.next().await;
         let new_blockhash = trigger
             .clone()
-            .map(|t| t.value.block.map(|b| b.blockhash))
-            .flatten()
-            .map(|b| Hash::from_str(&b).ok())
-            .flatten();
+            .and_then(|t| t.value.block.map(|b| b.blockhash))
+            .and_then(|b| Hash::from_str(&b).ok());
         if let Some(new_blockhash) = new_blockhash {
             let mut recent_block_hash = self.recent_blockhash.write().await;
             *recent_block_hash = Some(new_blockhash);
