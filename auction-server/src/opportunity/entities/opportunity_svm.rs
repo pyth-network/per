@@ -145,6 +145,25 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 api::OpportunityParamsV1ProgramSvm::Phantom {
                     user_wallet_address:         program.user_wallet_address,
                     maximum_slippage_percentage: program.maximum_slippage_percentage,
+                    permission_account:          val.permission_account,
+                    router_account:              val.router,
+                    // TODO can we make it type safe?
+                    sell_token:                  val
+                        .sell_tokens
+                        .first()
+                        .map(|t| t.clone().into())
+                        .ok_or(anyhow::anyhow!(
+                            "Failed to get sell token from opportunity svm"
+                        ))
+                        .expect("Failed to get sell token from opportunity svm"),
+                    buy_token:                   val
+                        .sell_tokens
+                        .first()
+                        .map(|t| t.clone().into())
+                        .ok_or(anyhow::anyhow!(
+                            "Failed to get sell token from opportunity svm"
+                        ))
+                        .expect("Failed to get sell token from opportunity svm"),
                 }
             }
         };

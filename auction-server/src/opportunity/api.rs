@@ -249,18 +249,18 @@ pub struct QuoteCreatePhantomV1Svm {
     #[serde_as(as = "DisplayFromStr")]
     pub user_wallet_address:         Pubkey,
     /// The token mint address of the input token.
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub input_token_mint:            Pubkey,
     /// The token mint address of the output token.
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub output_token_mint:           Pubkey,
     /// The input token amount that the user wants to swap.
-    #[schema(example = 100, value_type = u64)]
+    #[schema(example = 100)]
     pub input_token_amount:          u64,
     /// The maximum slippage percentage that the user is willing to accept.
-    #[schema(example = 0.5, value_type = f64)]
+    #[schema(example = 0.5)]
     pub maximum_slippage_percentage: f64,
     /// The chain id for creating the quote.
     #[schema(example = "solana", value_type = String)]
@@ -469,6 +469,22 @@ pub enum OpportunityParamsV1ProgramSvm {
         /// The maximum slippage percentage that the user is willing to accept
         #[schema(example = 0.5, value_type = f64)]
         maximum_slippage_percentage: f64,
+
+        /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol
+        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        permission_account: Pubkey,
+
+        /// The router account to be used for the opportunity execution of the protocol
+        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        router_account: Pubkey,
+
+        /// The token searcher will send
+        sell_token: TokenAmountSvm,
+
+        /// The token searcher will receive
+        buy_token: TokenAmountSvm,
     },
 }
 
@@ -681,8 +697,7 @@ pub async fn get_opportunities(
 /// Submit a quote request
 ///
 /// The server will estimate the quote price, which will be used to create an opportunity.
-/// This opportunity, containing the estimated price, will then be submitted for bidding.
-/// Once all searcher bids are collected, the winning signed bid will be returned along with the estimated price.
+/// After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.
 #[utoipa::path(post, path = "/v1/opportunities/quote", request_body = QuoteCreate, responses(
     (status = 200, description = "The created quote", body = Quote),
     (status = 400, response = ErrorBodyResponse),

@@ -31,7 +31,10 @@ use {
     rand::Rng,
     solana_sdk::{
         clock::Slot,
-        hash::Hash,
+        commitment_config::{
+            CommitmentConfig,
+            CommitmentLevel,
+        },
         pubkey::Pubkey,
     },
     std::time::Duration,
@@ -39,7 +42,7 @@ use {
     tokio::time::sleep,
 };
 
-// Time to wait for searchers to submit bids
+/// Time to wait for searchers to submit bids
 const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
 
 pub struct GetQuoteInput {
@@ -53,7 +56,7 @@ fn generate_random_bytes() -> [u8; 32] {
 }
 
 impl Service<ChainTypeSvm> {
-    fn get_opportunity_create_for_quote(
+    async fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
         output_amount: u64,
@@ -61,6 +64,11 @@ impl Service<ChainTypeSvm> {
         let chain_config = self.get_config(&quote_create.chain_id)?;
         let router = chain_config.phantom_router_account;
         let permission_account = Pubkey::new_from_array(generate_random_bytes());
+        let chain_store = self
+            .store
+            .chains_svm
+            .get(&quote_create.chain_id)
+            .ok_or(RestError::BadParameters("Chain not found".to_string()))?;
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
             permission_key: [router.to_bytes(), permission_account.to_bytes()]
@@ -74,19 +82,30 @@ impl Service<ChainTypeSvm> {
             }],
         };
 
+        // TODO use some in memory caching for this part
+        let (block_hash, _) = chain_store
+            .client
+            .get_latest_blockhash_with_commitment(CommitmentConfig {
+                commitment: CommitmentLevel::Finalized,
+            })
+            .map_err(|e| {
+                tracing::error!("Failed to get latest block hash: {:?}", e);
+                RestError::TemporarilyUnavailable
+            })
+            .await?;
+
         Ok(entities::OpportunityCreateSvm {
             core_fields,
             router,
             permission_account,
-            // TODO extract latest block hash
-            block_hash: Hash::default(),
+            block_hash,
             program: entities::OpportunitySvmProgram::Phantom(
                 entities::OpportunitySvmProgramWallet {
                     user_wallet_address:         quote_create.user_wallet_address,
                     maximum_slippage_percentage: quote_create.maximum_slippage_percentage,
                 },
             ),
-            // TODO extract latest slog
+            // TODO extract latest slot
             slot: Slot::default(),
         })
     }
@@ -106,8 +125,9 @@ impl Service<ChainTypeSvm> {
             })
             .await?;
 
-        let opportunity_create =
-            self.get_opportunity_create_for_quote(input.quote_create.clone(), output_amount)?;
+        let opportunity_create = self
+            .get_opportunity_create_for_quote(input.quote_create.clone(), output_amount)
+            .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {
                 opportunity: opportunity_create.clone(),
@@ -120,11 +140,16 @@ impl Service<ChainTypeSvm> {
         let bid_collection_time = OffsetDateTime::now_utc();
         let mut bids = chain_store.get_bids(&opportunity.permission_key).await;
 
+        let total_bids = if bids.len() < 10 {
+            bids.len().to_string()
+        } else {
+            "+9".to_string()
+        };
         // Add metrics
         let labels = [
             ("chain_id", input.quote_create.chain_id.to_string()),
             ("wallet", "phantom".to_string()),
-            ("total_bids", bids.len().to_string()),
+            ("total_bids", total_bids),
         ];
         metrics::counter!("get_quote_total_bids", &labels).increment(1);
 
@@ -229,7 +254,7 @@ impl Service<ChainTypeSvm> {
         });
 
         Ok(entities::Quote {
-            transaction:                 winner_bid.transaction.clone(),
+            transaction:                 bid.transaction.clone(),
             expiration_time:             submit_bid_data.deadline,
             input_token:                 input.quote_create.input_token,
             output_token:                entities::TokenAmountSvm {

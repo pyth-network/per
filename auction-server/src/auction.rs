@@ -447,7 +447,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
 ) -> Result<()> {
     let bids: Vec<T::SimulatedBid> = bids
         .into_iter()
-        .filter(|bid| models::BidStatus::Pending == bid.get_status().clone().into())
+        .filter(|bid| bid.get_status().clone() == models::BidStatus::Pending)
         .collect();
 
     if bids.is_empty() {
@@ -560,7 +560,7 @@ async fn handle_auction<T: ChainStore>(
                 .get_bids(&permission_key)
                 .await
                 .into_iter()
-                .filter(|bid| models::BidStatus::Pending == bid.get_status().clone().into())
+                .filter(|bid| bid.get_status().clone() == models::BidStatus::Pending)
                 .collect();
             broadcast_lost_bids(store.clone(), chain_store, bids, vec![], None, None).await;
         }
@@ -614,7 +614,6 @@ async fn handle_auctions<T: ChainStore>(
         auction_len = permission_keys.len()
     );
 
-    // let store = store_new.clone().store.clone();
     for permission_key in permission_keys.iter() {
         store_new.store.task_tracker.spawn({
             let (store_new, permission_key, chain_id) =
@@ -1032,7 +1031,12 @@ pub async fn handle_bid_svm(
     )?;
 
     let bytes_permission_key = Bytes::from(&permission_key.0);
-    verify_signatures_svm(&bid, &chain_store.express_relay_svm.relayer.pubkey())?;
+    verify_signatures_svm(
+        chain_store,
+        &bid,
+        &chain_store.express_relay_svm.relayer.pubkey(),
+        &bytes_permission_key,
+    )?;
     simulate_bid_svm(chain_store, &bid).await?;
     if !chain_store.should_submit_auction(&bytes_permission_key) {
         // TODO Look at get_quote in opportunity module
@@ -1059,20 +1063,35 @@ pub async fn handle_bid_svm(
     Ok(core_fields.id)
 }
 
-fn verify_signatures_svm(bid: &BidSvm, relayer_pubkey: &Pubkey) -> Result<(), RestError> {
+fn verify_signatures_svm(
+    chain_store: &ChainStoreSvm,
+    bid: &BidSvm,
+    relayer_pubkey: &Pubkey,
+    permission_key: &PermissionKey,
+) -> Result<(), RestError> {
     let message_bytes = bid.transaction.message.serialize();
-    let all_signatures_valid = bid
+    let valid_signatures_count = bid
         .transaction
         .signatures
         .iter()
         .zip(bid.transaction.message.static_account_keys().iter())
-        .all(|(signature, pubkey)| {
-            signature.verify(pubkey.as_ref(), &message_bytes) || pubkey.eq(relayer_pubkey)
-        });
+        .filter(|(signature, pubkey)| {
+            signature.verify(pubkey.as_ref(), &message_bytes) || (*pubkey).eq(relayer_pubkey)
+        })
+        .count();
 
-    match all_signatures_valid {
-        true => Ok(()),
-        false => Err(RestError::BadParameters("Invalid signatures".to_string())),
+    let missing_signatures = bid.transaction.signatures.len() - valid_signatures_count;
+    match missing_signatures {
+        0 => Ok(()),
+        1 => {
+            if chain_store.should_submit_auction(permission_key) {
+                Err(RestError::BadParameters("Invalid signatures".to_string()))
+            } else {
+                // In this case, some other signature maybe added to the transaction by the submitter.
+                Ok(())
+            }
+        }
+        _ => Err(RestError::BadParameters("Invalid signatures".to_string())),
     }
 }
 
@@ -1107,7 +1126,7 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
 /// These functions are chain specific and should be implemented for each chain in order to handle auctions
 pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
     /// The trigger type for the chain. This is the type that is used to trigger the auction submission and conclusion
-    type Trigger: DebugTrait;
+    type Trigger: DebugTrait + Clone;
     /// The trigger stream type when subscribing to new triggers on the ws client for the chain
     type TriggerStream<'a>: Stream<Item = Self::Trigger> + Unpin + Send + 'a;
     /// The ws client type for the chain
@@ -1130,8 +1149,8 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
     fn get_trigger_stream<'a>(
         client: &'a Self::WsClient,
     ) -> impl Future<Output = Result<Self::TriggerStream<'a>>>;
-    /// Get the number associated with the trigger
-    fn get_trigger_number(&self, trigger: &Self::Trigger) -> Option<u64>;
+    /// Check if the auction is ready to be concluded based on the trigger
+    fn is_ready_to_conclude(trigger: Self::Trigger) -> bool;
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     fn get_winner_bids(
         &self,
@@ -1218,7 +1237,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
         self.submitted_auctions.read().await.to_vec()
     }
 
-    // Return permission keys with at least one pending bid
+    /// Return permission keys with at least one pending bid
     async fn get_permission_keys_for_auction(&self) -> Vec<PermissionKey> {
         self.bids
             .read()
@@ -1226,7 +1245,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
             .iter()
             .filter(|(_, bids)| {
                 bids.iter()
-                    .any(|bid| models::BidStatus::Pending == bid.get_status().clone().into())
+                    .any(|bid| bid.get_status().clone() == models::BidStatus::Pending)
             })
             .map(|(key, _)| key.clone())
             .collect()
@@ -1241,7 +1260,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
             Some(tx_hash) => bids
                 .into_iter()
                 .filter(|bid| {
-                    if models::BidStatus::Submitted == bid.get_status().clone().into() {
+                    if bid.get_status().clone() == models::BidStatus::Submitted {
                         if let Some(status_tx_hash) = bid.get_status().get_tx_hash() {
                             return <Self::SimulatedBid as SimulatedBidTrait>::StatusType::convert_tx_hash(status_tx_hash)
                                 == tx_hash;
@@ -1325,8 +1344,8 @@ impl ChainStore for ChainStoreEvm {
         Ok(block_stream)
     }
 
-    fn get_trigger_number(&self, trigger: &Self::Trigger) -> Option<u64> {
-        trigger.number.map(|n| n.as_u64())
+    fn is_ready_to_conclude(_trigger: Self::Trigger) -> bool {
+        true
     }
 
     #[tracing::instrument(skip_all)]
@@ -1468,8 +1487,8 @@ impl ChainStore for ChainStoreSvm {
         Ok(slot_subscribe)
     }
 
-    fn get_trigger_number(&self, trigger: &Self::Trigger) -> Option<u64> {
-        Some(trigger.slot)
+    fn is_ready_to_conclude(trigger: Self::Trigger) -> bool {
+        trigger.slot % CONCLUSION_TRIGGER_SLOT_INTERVAL == 0
     }
 
     async fn get_winner_bids(
@@ -1546,6 +1565,9 @@ impl ChainStore for ChainStoreSvm {
             }])),
             None => {
                 // not yet confirmed
+                // TODO Use the correct version of the expiration algorithm, which is:
+                // the tx is not expired as long as the block hash is still recent.
+                // Assuming a certain block time, the two minute threshold is good enough but in some cases, it's not correct.
                 if bids[0].initiation_time + BID_MAXIMUM_LIFE_TIME_SVM < OffsetDateTime::now_utc() {
                     // If the bid is older than the maximum lifetime, it is expired even if it is submitted on chain
                     Ok(Some(vec![BidStatusSvm::Expired { result: tx_hash }]))
@@ -1602,10 +1624,7 @@ async fn run_submission_loop<T: ChainStore>(
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             trigger = stream.next() => {
-                if trigger.is_none() {
-                    return Err(anyhow!("Trigger stream ended for chain: {}", chain_id));
-                }
-                let trigger = trigger.expect("Failed to get trigger");
+                let trigger = trigger.ok_or(anyhow!("Trigger stream ended for chain: {}", chain_id))?;
                 tracing::debug!("New trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), trigger);
                 store_new.store.task_tracker.spawn({
                     let (store_new, chain_id) = (store_new.clone(), chain_id.clone());
@@ -1629,22 +1648,19 @@ async fn run_submission_loop<T: ChainStore>(
                     }
                 });
 
-                store_new.store.task_tracker.spawn({
-                    let (store, chain_id, trigger_number) = (store_new.store.clone(), chain_id.clone(), chain_store.get_trigger_number(&trigger));
-                    async move {
-                        match T::CHAIN_TYPE {
-                            models::ChainType::Evm => {
-                                if let Some(chain_store) = store
-                                    .chains
-                                    .get(&chain_id) {
-                                        conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone()).await
-                                    }
-                            }
-                            models::ChainType::Svm => {
-                                if let Some(trigger_number) = trigger_number {
-                                    if trigger_number % CONCLUSION_TRIGGER_SLOT_INTERVAL != 0 {
-                                        return;
-                                    }
+                if T::is_ready_to_conclude(trigger) {
+                    store_new.store.task_tracker.spawn({
+                        let (store, chain_id) = (store_new.store.clone(), chain_id.clone());
+                        async move {
+                            match T::CHAIN_TYPE {
+                                models::ChainType::Evm => {
+                                    if let Some(chain_store) = store
+                                        .chains
+                                        .get(&chain_id) {
+                                            conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone()).await
+                                        }
+                                }
+                                models::ChainType::Svm => {
                                     if let Some(chain_store) = store
                                     .chains_svm
                                     .get(&chain_id) {
@@ -1653,8 +1669,8 @@ async fn run_submission_loop<T: ChainStore>(
                                 }
                             }
                         }
-                    }
-                });
+                    });
+                }
             }
             _ = exit_check_interval.tick() => {}
         }
