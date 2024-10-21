@@ -95,9 +95,8 @@ export class DexRouter {
   }
 
   async generateRouterBid(opportunity: OpportunitySvm): Promise<{
-    transaction: VersionedTransaction;
-    chainId: string;
-    env: "svm";
+    transaction: string;
+    chain_id: string;
   }> {
     const order = opportunity.order;
     const clientLimo = new limo.LimoClient(
@@ -135,16 +134,15 @@ export class DexRouter {
     const inputAmountDecimals = new Decimal(
       order.state.remainingInputAmount.toNumber()
     ).div(new Decimal(10).pow(inputMintDecimals));
-    // TODO: get output amount from best router output
-    const outputAmountDecimals = new Decimal(
-      order.state.expectedOutputAmount.toNumber()
-    ).div(new Decimal(10).pow(outputMintDecimals));
+    const outputAmountDecimals = new Decimal(Number(routerBest.amountOut)).div(
+      new Decimal(10).pow(outputMintDecimals)
+    );
 
-    // TODO: make this flashborrow instructions
-    const ixsTakeOrder = await clientLimo.takeOrderIx(
+    const ixsFlashTakeOrder = await clientLimo.flashTakeOrderIxs(
       this.executor.publicKey,
       order,
       inputAmountDecimals,
+      outputAmountDecimals,
       new PublicKey("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"),
       inputMintDecimals,
       outputMintDecimals
@@ -173,11 +171,17 @@ export class DexRouter {
       this.expressRelayConfig.feeReceiverRelayer
     );
 
-    // TODO: order these instructions correctly
     const txMsg = new TransactionMessage({
       payerKey: this.executor.publicKey,
       recentBlockhash: opportunity.blockHash,
-      instructions: [ixSubmitBid, ...ixsTakeOrder, ...ixsRouter],
+      instructions: [
+        ixSubmitBid,
+        ...ixsFlashTakeOrder.createAtaIxs,
+        ixsFlashTakeOrder.startFlashIx,
+        ...ixsRouter,
+        ixsFlashTakeOrder.endFlashIx,
+        ...ixsFlashTakeOrder.closeWsolAtaIxs,
+      ],
     });
 
     let lookupTableAddresses: PublicKey[] = [];
@@ -196,9 +200,8 @@ export class DexRouter {
     tx.sign([this.executor]);
 
     return {
-      transaction: tx,
-      chainId: this.chainId,
-      env: "svm",
+      transaction: Buffer.from(tx.serialize()).toString("base64"),
+      chain_id: this.chainId,
     };
   }
 
