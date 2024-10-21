@@ -1088,7 +1088,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
     fn get_trigger_stream<'a>(
         client: &'a Self::WsClient,
     ) -> impl Future<Output = Result<Self::TriggerStream<'a>>>;
-    /// Get the next trigger from the trigger stream
+    /// Get the next trigger from the trigger stream, for SVM we intercept the trigger to get the recent blockhash
     async fn get_next_trigger<'a>(
         &self,
         trigger_stream: &mut Self::TriggerStream<'a>,
