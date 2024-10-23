@@ -119,7 +119,7 @@ pub enum ServerUpdateResponse {
     #[serde(rename = "bid_status_update")]
     BidStatusUpdate { status: BidStatusWithId },
     #[serde(rename = "svm_chain_update")]
-    SvmChainUpdate { svm_chain_update: SvmChainUpdate },
+    SvmChainUpdate { update: SvmChainUpdate },
 }
 
 #[derive(Serialize, Clone, ToSchema)]
@@ -298,7 +298,7 @@ impl Subscriber {
             return Ok(());
         }
         let message = serde_json::to_string(&ServerUpdateResponse::SvmChainUpdate {
-            svm_chain_update: svm_chain_update,
+            update: svm_chain_update,
         })?;
         self.sender.send(message.into()).await?;
         Ok(())
