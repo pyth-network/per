@@ -1354,3 +1354,9 @@ impl Store {
             .collect())
     }
 }
+
+#[derive(Serialize, Clone, ToSchema, ToResponse)]
+pub struct ChainUpdate {
+    pub chain_id: ChainId,
+    pub blockhash: Hash,
+}
