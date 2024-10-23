@@ -1610,7 +1610,7 @@ impl ChainStore for ChainStoreSvm {
                 // the tx is not expired as long as the block hash is still recent.
                 // Assuming a certain block time, the two minute threshold is good enough but in some cases, it's not correct.
                 if bids[0].initiation_time + BID_MAXIMUM_LIFE_TIME_SVM < OffsetDateTime::now_utc() {
-                    // If the bid is older than the maximum lifetime, it is expired even if it is submitted on chain
+                    // If the bid is older than the maximum lifetime, it means that the block hash is now too old and the transaction is expired.
                     Ok(Some(vec![BidStatusSvm::Expired { result: tx_hash }]))
                 } else {
                     Ok(None)
