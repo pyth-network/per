@@ -20,7 +20,10 @@ use {
             SHOULD_EXIT,
         },
         state::{
-            BidId, BidStatusWithId, ChainUpdate, StoreNew
+            BidId,
+            BidStatusWithId,
+            ChainUpdate,
+            StoreNew,
         },
     },
     anyhow::{
@@ -290,6 +293,10 @@ impl Subscriber {
 
     async fn handle_chain_update(&mut self, chain_update: ChainUpdate) -> Result<()> {
         tracing::Span::current().record("name", "chain_update");
+        if !self.chain_ids.contains(&chain_update.chain_id) {
+            // Irrelevant update
+            return Ok(());
+        }
         let message = serde_json::to_string(&ServerUpdateResponse::ChainUpdate { chain_update })?;
         self.sender.send(message.into()).await?;
         Ok(())

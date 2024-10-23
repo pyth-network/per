@@ -22,7 +22,6 @@ use {
         opportunity::service as opportunity_service,
         traced_client::TracedClient,
     },
-    solana_sdk::hash::Hash,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -57,6 +56,7 @@ use {
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
+        hash::Hash,
         signature::{
             Keypair,
             Signature,
@@ -477,7 +477,7 @@ pub struct ChainStoreSvm {
     pub client:            RpcClient,
     pub config:            ConfigSvm,
     pub express_relay_svm: ExpressRelaySvm,
-    pub recent_blockhash: RwLock<Option<Hash>>,
+    pub recent_blockhash:  RwLock<Option<Hash>>,
 }
 
 pub type BidId = Uuid;
@@ -1093,6 +1093,13 @@ impl Store {
         };
     }
 
+    pub fn broadcast_chain_update(&self, update: ChainUpdate) {
+        match self.event_sender.send(UpdateEvent::ChainUpdate(update)) {
+            Ok(_) => (),
+            Err(e) => tracing::error!("Failed to send chain update: {}", e),
+        };
+    }
+
     pub async fn create_profile(
         &self,
         create_profile: ApiProfile::CreateProfile,
@@ -1331,6 +1338,6 @@ impl Store {
 
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct ChainUpdate {
-    pub chain_id: ChainId,
+    pub chain_id:  ChainId,
     pub blockhash: Hash,
 }
