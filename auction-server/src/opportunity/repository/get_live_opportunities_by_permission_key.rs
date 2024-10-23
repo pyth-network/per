@@ -16,7 +16,7 @@ impl<T: InMemoryStore> Repository<T> {
             .read()
             .await
             .get(&permission_key)
-            .map(|opportunities| opportunities.clone())
+            .cloned()
             .unwrap_or_default()
     }
 }

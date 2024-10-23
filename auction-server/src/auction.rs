@@ -549,12 +549,25 @@ async fn handle_auction<T: ChainStore>(
     chain_id: String,
 ) -> Result<()> {
     let store = store_new.store.clone();
-    if !chain_store.should_submit_auction(&permission_key) {
-        // TODO Look at get_quote in opportunity module
-        if !chain_store
-            .opportunity_exists(store_new, &permission_key)
-            .await
-        {
+    match chain_store
+        .get_submission_state(store_new, &permission_key)
+        .await
+    {
+        SubmissionState::SubmitByOther => Ok(()),
+        SubmissionState::SubmitByServer => {
+            let auction_lock = chain_store.get_auction_lock(permission_key.clone()).await;
+            let result = submit_auction_for_lock(
+                store.clone(),
+                chain_store,
+                permission_key.clone(),
+                chain_id,
+                auction_lock,
+            )
+            .await;
+            chain_store.remove_auction_lock(&permission_key).await;
+            result
+        }
+        SubmissionState::Invalid => {
             // Fetch all pending bids and mark them as lost
             let bids = chain_store
                 .get_bids(&permission_key)
@@ -563,20 +576,8 @@ async fn handle_auction<T: ChainStore>(
                 .filter(|bid| bid.get_status().clone() == models::BidStatus::Pending)
                 .collect();
             broadcast_lost_bids(store.clone(), chain_store, bids, vec![], None, None).await;
+            Ok(())
         }
-        Ok(())
-    } else {
-        let auction_lock = chain_store.get_auction_lock(permission_key.clone()).await;
-        let result = submit_auction_for_lock(
-            store.clone(),
-            chain_store,
-            permission_key.clone(),
-            chain_id,
-            auction_lock,
-        )
-        .await;
-        chain_store.remove_auction_lock(&permission_key).await;
-        result
     }
 }
 
@@ -1032,24 +1033,14 @@ pub async fn handle_bid_svm(
 
     let bytes_permission_key = Bytes::from(&permission_key.0);
     verify_signatures_svm(
+        store_new,
         chain_store,
         &bid,
         &chain_store.express_relay_svm.relayer.pubkey(),
         &bytes_permission_key,
-    )?;
+    )
+    .await?;
     simulate_bid_svm(chain_store, &bid).await?;
-    if !chain_store.should_submit_auction(&bytes_permission_key) {
-        // TODO Look at get_quote in opportunity module
-        if !chain_store
-            .opportunity_exists(store_new.clone(), &bytes_permission_key)
-            .await
-        {
-            return Err(RestError::BadParameters(format!(
-                "No active opportunity exists for this permission key: {:?}",
-                permission_key
-            )));
-        }
-    }
 
     let core_fields = SimulatedBidCoreFields::new(bid.chain_id, initiation_time, auth);
     let simulated_bid = SimulatedBidSvm {
@@ -1063,35 +1054,73 @@ pub async fn handle_bid_svm(
     Ok(core_fields.id)
 }
 
-fn verify_signatures_svm(
+fn all_signature_exists_svm(
+    message_bytes: &[u8],
+    accounts: &[Pubkey],
+    signatures: Vec<SignatureSvm>,
+    missing_signers: Vec<Pubkey>,
+) -> bool {
+    signatures
+        .iter()
+        .zip(accounts.iter())
+        .all(|(signature, pubkey)| {
+            signature.verify(pubkey.as_ref(), message_bytes) || missing_signers.contains(pubkey)
+        })
+}
+
+async fn verify_signatures_svm(
+    store_new: Arc<StoreNew>,
     chain_store: &ChainStoreSvm,
     bid: &BidSvm,
     relayer_pubkey: &Pubkey,
     permission_key: &PermissionKey,
 ) -> Result<(), RestError> {
     let message_bytes = bid.transaction.message.serialize();
-    let valid_signatures_count = bid
-        .transaction
-        .signatures
-        .iter()
-        .zip(bid.transaction.message.static_account_keys().iter())
-        .filter(|(signature, pubkey)| {
-            signature.verify(pubkey.as_ref(), &message_bytes) || (*pubkey).eq(relayer_pubkey)
-        })
-        .count();
-
-    let missing_signatures = bid.transaction.signatures.len() - valid_signatures_count;
-    match missing_signatures {
-        0 => Ok(()),
-        1 => {
-            if chain_store.should_submit_auction(permission_key) {
-                Err(RestError::BadParameters("Invalid signatures".to_string()))
-            } else {
-                // In this case, some other signature maybe added to the transaction by the submitter.
-                Ok(())
-            }
+    let signatures = bid.transaction.signatures.clone();
+    let accounts = bid.transaction.message.static_account_keys();
+    let all_signature_exists = match chain_store
+        .get_submission_state(store_new.clone(), &permission_key)
+        .await
+    {
+        SubmissionState::Invalid => {
+            // TODO Look at the todo comment in get_quote.rs file in opportunity module
+            return Err(RestError::BadParameters(format!(
+                "The permission key is not valid for auction anymore: {:?}",
+                permission_key
+            )));
         }
-        _ => Err(RestError::BadParameters("Invalid signatures".to_string())),
+        SubmissionState::SubmitByOther => {
+            let opportunities = store_new
+                .opportunity_service_svm
+                .get_live_opportunities_by_permission_key(GetOpportunitiesByPermissionKeyInput {
+                    permission_key: permission_key.clone(),
+                })
+                .await;
+            opportunities.into_iter().any(|opportunity| {
+                let mut missing_signers = store_new
+                    .opportunity_service_svm
+                    .get_missing_signers(opportunity);
+                missing_signers.push(relayer_pubkey.clone());
+                all_signature_exists_svm(
+                    &message_bytes,
+                    accounts,
+                    signatures.clone(),
+                    missing_signers,
+                )
+            })
+        }
+        SubmissionState::SubmitByServer => all_signature_exists_svm(
+            &message_bytes,
+            accounts,
+            signatures,
+            vec![relayer_pubkey.clone()],
+        ),
+    };
+
+    if !all_signature_exists {
+        Err(RestError::BadParameters("Invalid signatures".to_string()))
+    } else {
+        Ok(())
     }
 }
 
@@ -1120,6 +1149,12 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
         }
         None => Ok(()),
     }
+}
+
+pub enum SubmissionState {
+    SubmitByServer,
+    SubmitByOther,
+    Invalid,
 }
 
 /// The trait for the chain store to be implemented for each chain type
@@ -1177,7 +1212,11 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
     > + Send;
 
     /// Check if the auction winner transaction should be submitted on chain for the permission key
-    fn should_submit_auction(&self, permission_key: &Bytes) -> bool;
+    fn get_submission_state(
+        &self,
+        store_new: Arc<StoreNew>,
+        permission_key: &Bytes,
+    ) -> impl Future<Output = SubmissionState>;
 
     /// Get the opportunity service for the chain
     fn get_opportunity_service(
@@ -1438,8 +1477,12 @@ impl ChainStore for ChainStoreEvm {
         }
     }
 
-    fn should_submit_auction(&self, _permission_key: &Bytes) -> bool {
-        true
+    async fn get_submission_state(
+        &self,
+        _store_new: Arc<StoreNew>,
+        _permission_key: &Bytes,
+    ) -> SubmissionState {
+        SubmissionState::SubmitByServer
     }
 
     fn get_opportunity_service(
@@ -1463,6 +1506,10 @@ pub fn add_relayer_signature_svm(relayer: Arc<Keypair>, bid: &mut SimulatedBidSv
         .expect("Relayer not found in static account keys");
     bid.transaction.signatures[relayer_signature_pos] = relayer.sign_message(&serialized_message);
 }
+
+/// This is to make sure we are not missing any transaction
+/// We run this once every minute (150 slots)
+const CONCLUSION_TRIGGER_SLOT_INTERVAL: u64 = 150;
 
 impl ChainStore for ChainStoreSvm {
     type Trigger = SlotInfo;
@@ -1578,8 +1625,20 @@ impl ChainStore for ChainStoreSvm {
         }
     }
 
-    fn should_submit_auction(&self, permission_key: &Bytes) -> bool {
-        !permission_key.starts_with(&self.phantom_router_account.to_bytes())
+    async fn get_submission_state(
+        &self,
+        store_new: Arc<StoreNew>,
+        permission_key: &Bytes,
+    ) -> SubmissionState {
+        if permission_key.starts_with(&self.phantom_router_account.to_bytes()) {
+            SubmissionState::SubmitByOther
+        } else {
+            if self.opportunity_exists(store_new, &permission_key).await {
+                SubmissionState::SubmitByOther
+            } else {
+                SubmissionState::Invalid
+            }
+        }
     }
 
     fn get_opportunity_service(
@@ -1605,10 +1664,6 @@ impl Deref for ChainStoreSvm {
         &self.core_fields
     }
 }
-
-// This is to make sure we are not missing any transaction
-// We run this once every minute (150 slots)
-const CONCLUSION_TRIGGER_SLOT_INTERVAL: u64 = 150;
 
 async fn run_submission_loop<T: ChainStore>(
     store_new: Arc<StoreNew>,
@@ -1722,27 +1777,37 @@ pub async fn run_log_listener_loop_svm(store_new: Arc<StoreNew>, chain_id: Strin
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             rpc_log = stream.next() => {
-                if rpc_log.is_none() {
-                    return Err(anyhow!("Log trigger stream ended for chain: {}", chain_id));
-                }
-                let rpc_log = rpc_log.expect("Failed to get log");
-                tracing::debug!("New log trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), rpc_log.clone());
-
-                store_new.store.task_tracker.spawn({
-                    let (store, chain_id) = (store_new.store.clone(), chain_id.clone());
-                    async move {
-                        if let Some(chain_store) = store
-                        .chains_svm
-                        .get(&chain_id) {
-                            let submitted_auctions = chain_store.get_submitted_auctions().await;
-                            if let Some(auction) = submitted_auctions.iter().find(|a| a.tx_hash.clone().map(|tx_hash| SignatureSvm::try_from(tx_hash).unwrap_or(SignatureSvm::default()).to_string()) == Some(rpc_log.value.signature.clone())) {
-                                if let Err(err) = conclude_submitted_auction(store.clone(), chain_store, auction.clone()).await {
-                                    tracing::error!(error = ?err, auction = ?auction, "Error while concluding submitted auction");
+                match rpc_log {
+                    None => return Err(anyhow!("Log trigger stream ended for chain: {}", chain_id)),
+                    Some(rpc_log) => {
+                        tracing::debug!("New log trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), rpc_log.clone());
+                        store_new.store.task_tracker.spawn({
+                            let (store, chain_id) = (store_new.store.clone(), chain_id.clone());
+                            async move {
+                                if let Some(chain_store) = store
+                                .chains_svm
+                                .get(&chain_id) {
+                                    let submitted_auctions = chain_store.get_submitted_auctions().await;
+                                    if let Some(auction) = submitted_auctions.iter().find(|auction| {
+                                        auction.tx_hash.clone().map(|tx_hash| {
+                                            match SignatureSvm::try_from(tx_hash) {
+                                                Ok(tx_hash) => tx_hash.to_string() == rpc_log.value.signature.clone(),
+                                                Err(err) => {
+                                                    tracing::error!(error = ?err, "Error while converting tx_hash to SignatureSvm");
+                                                    false
+                                                },
+                                            }
+                                        }).unwrap_or(false)
+                                    }) {
+                                        if let Err(err) = conclude_submitted_auction(store.clone(), chain_store, auction.clone()).await {
+                                            tracing::error!(error = ?err, auction = ?auction, "Error while concluding submitted auction");
+                                        }
+                                    }
                                 }
                             }
-                        }
+                        });
                     }
-                });
+                }
             }
             _ = exit_check_interval.tick() => {}
         }
