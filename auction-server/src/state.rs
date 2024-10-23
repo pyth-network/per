@@ -1120,8 +1120,8 @@ impl Store {
         };
     }
 
-    pub fn broadcast_chain_update(&self, update: ChainUpdate) {
-        match self.event_sender.send(UpdateEvent::ChainUpdate(update)) {
+    pub fn broadcast_chain_update(&self, update: SvmChainUpdate) {
+        match self.event_sender.send(UpdateEvent::SvmChainUpdate(update)) {
             Ok(_) => (),
             Err(e) => tracing::error!("Failed to send chain update: {}", e),
         };
@@ -1364,7 +1364,7 @@ impl Store {
 }
 
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
-pub struct ChainUpdate {
+pub struct SvmChainUpdate {
     pub chain_id:  ChainId,
     pub blockhash: Hash,
 }

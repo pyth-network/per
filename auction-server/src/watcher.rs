@@ -7,8 +7,8 @@ use {
         },
         state::{
             ChainStoreSvm,
-            ChainUpdate,
             Store,
+            SvmChainUpdate,
         },
     },
     anyhow::{
@@ -60,7 +60,7 @@ pub async fn run_svm_watcher_loop(store: Arc<Store>, chain_id: String) -> Result
                         .and_then(|b| Hash::from_str(&b).ok());
                 tracing::info!("New blockhash received: {:?}", blockhash);
                 if let Some(blockhash) = blockhash {
-                store.broadcast_chain_update(ChainUpdate {
+                store.broadcast_chain_update(SvmChainUpdate {
                     chain_id: chain_id.clone(),
                     blockhash,
                     });
