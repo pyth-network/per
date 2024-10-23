@@ -1363,8 +1363,10 @@ impl Store {
     }
 }
 
+#[serde_as]
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct SvmChainUpdate {
     pub chain_id:  ChainId,
+    #[serde_as(as = "DisplayFromStr")]
     pub blockhash: Hash,
 }
