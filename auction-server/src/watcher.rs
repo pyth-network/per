@@ -59,12 +59,6 @@ pub async fn run_svm_watcher_loop(store: Arc<Store>, chain_id: String) -> Result
             .and_then(|t| t.value.block.map(|b| b.blockhash))
                         .and_then(|b| Hash::from_str(&b).ok());
                 tracing::info!("New blockhash received: {:?}", blockhash);
-                {
-                let mut recent_block_hash =
-                chain_store.recent_blockhash.write().await;
-                *recent_block_hash =blockhash;
-                }
-
                 if let Some(blockhash) = blockhash {
                 store.broadcast_chain_update(ChainUpdate {
                     chain_id: chain_id.clone(),
