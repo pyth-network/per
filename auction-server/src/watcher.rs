@@ -6,7 +6,6 @@ use {
             SHOULD_EXIT,
         },
         state::{
-            ChainStoreSvm,
             Store,
             SvmChainUpdate,
         },
