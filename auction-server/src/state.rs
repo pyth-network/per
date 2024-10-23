@@ -1120,7 +1120,7 @@ impl Store {
         };
     }
 
-    pub fn broadcast_chain_update(&self, update: SvmChainUpdate) {
+    pub fn broadcast_svm_chain_update(&self, update: SvmChainUpdate) {
         match self.event_sender.send(UpdateEvent::SvmChainUpdate(update)) {
             Ok(_) => (),
             Err(e) => tracing::error!("Failed to send chain update: {}", e),
