@@ -35,7 +35,6 @@ use {
 pub mod add_opportunity;
 pub mod get_config;
 pub mod get_live_opportunities_by_permission_key;
-pub mod get_missing_signers;
 pub mod get_opportunities;
 pub mod get_quote;
 pub mod handle_opportunity_bid;
@@ -60,7 +59,7 @@ pub struct ConfigEvm {
 
 #[derive(Debug)]
 pub struct ConfigSvm {
-    pub phantom_router_account: Pubkey,
+    pub wallet_program_router_account: Pubkey,
 }
 
 pub trait Config {}
@@ -160,7 +159,7 @@ impl ConfigSvm {
                 (
                     chain_id.clone(),
                     Self {
-                        phantom_router_account: config.phantom_router_account,
+                        wallet_program_router_account: config.wallet_program_router_account,
                     },
                 )
             })

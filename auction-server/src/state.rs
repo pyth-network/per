@@ -473,10 +473,10 @@ pub struct ChainStoreEvm {
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
-    pub client:                 RpcClient,
-    pub config:                 ConfigSvm,
-    pub express_relay_svm:      ExpressRelaySvm,
-    pub phantom_router_account: Pubkey,
+    pub client:                        RpcClient,
+    pub config:                        ConfigSvm,
+    pub express_relay_svm:             ExpressRelaySvm,
+    pub wallet_program_router_account: Pubkey,
 }
 
 pub type BidId = Uuid;

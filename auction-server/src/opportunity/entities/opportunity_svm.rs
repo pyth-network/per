@@ -293,3 +293,12 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
         }
     }
 }
+
+impl OpportunitySvm {
+    pub fn get_missing_signers(&self) -> Vec<Pubkey> {
+        match self.program.clone() {
+            OpportunitySvmProgram::Phantom(data) => vec![data.user_wallet_address],
+            OpportunitySvmProgram::Limo(_) => vec![],
+        }
+    }
+}

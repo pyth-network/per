@@ -49,12 +49,6 @@ pub struct GetQuoteInput {
     pub quote_create: entities::QuoteCreate,
 }
 
-fn generate_random_bytes() -> [u8; 32] {
-    let mut rng = rand::thread_rng();
-    let bytes: [u8; 32] = rng.gen();
-    bytes
-}
-
 impl Service<ChainTypeSvm> {
     async fn get_opportunity_create_for_quote(
         &self,
@@ -62,8 +56,8 @@ impl Service<ChainTypeSvm> {
         output_amount: u64,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let chain_config = self.get_config(&quote_create.chain_id)?;
-        let router = chain_config.phantom_router_account;
-        let permission_account = Pubkey::new_from_array(generate_random_bytes());
+        let router = chain_config.wallet_program_router_account;
+        let permission_account = Pubkey::new_from_array(rand::thread_rng().gen());
         let chain_store = self
             .store
             .chains_svm
@@ -130,7 +124,7 @@ impl Service<ChainTypeSvm> {
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {
-                opportunity: opportunity_create.clone(),
+                opportunity: opportunity_create,
             })
             .await?;
 
@@ -170,7 +164,7 @@ impl Service<ChainTypeSvm> {
                     tracing::error!("Failed to verify submit bid instruction: {:?}", e);
                     RestError::TemporarilyUnavailable
                 })?;
-        let submit_bid_data = extract_submit_bid_data(submit_bid_instruction).map_err(|e| {
+        let submit_bid_data = extract_submit_bid_data(&submit_bid_instruction).map_err(|e| {
             tracing::error!("Failed to extract submit bid data: {:?}", e);
             RestError::TemporarilyUnavailable
         })?;

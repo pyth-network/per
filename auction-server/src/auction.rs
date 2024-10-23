@@ -553,8 +553,8 @@ async fn handle_auction<T: ChainStore>(
         .get_submission_state(store_new, &permission_key)
         .await
     {
-        SubmissionState::SubmitByOther => Ok(()),
-        SubmissionState::SubmitByServer => {
+        SubmitType::SubmitByOther => Ok(()),
+        SubmitType::SubmitByServer => {
             let auction_lock = chain_store.get_auction_lock(permission_key.clone()).await;
             let result = submit_auction_for_lock(
                 store.clone(),
@@ -567,7 +567,7 @@ async fn handle_auction<T: ChainStore>(
             chain_store.remove_auction_lock(&permission_key).await;
             result
         }
-        SubmissionState::Invalid => {
+        SubmitType::Invalid => {
             // Fetch all pending bids and mark them as lost
             let bids = chain_store
                 .get_bids(&permission_key)
@@ -978,7 +978,7 @@ fn extract_account_svm(
 }
 
 pub fn extract_submit_bid_data(
-    instruction: CompiledInstruction,
+    instruction: &CompiledInstruction,
 ) -> Result<express_relay_svm::SubmitBidArgs, RestError> {
     let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
     express_relay_svm::SubmitBidArgs::try_from_slice(
@@ -992,7 +992,7 @@ fn extract_bid_data_svm(
     accounts: &[Pubkey],
     instruction: CompiledInstruction,
 ) -> Result<(u64, PermissionKeySvm), RestError> {
-    let submit_bid_data = extract_submit_bid_data(instruction.clone())?;
+    let submit_bid_data = extract_submit_bid_data(&instruction)?;
 
     let permission_account = extract_account_svm(
         accounts,
@@ -1040,6 +1040,7 @@ pub async fn handle_bid_svm(
         &bytes_permission_key,
     )
     .await?;
+    // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
     simulate_bid_svm(chain_store, &bid).await?;
 
     let core_fields = SimulatedBidCoreFields::new(bid.chain_id, initiation_time, auth);
@@ -1057,8 +1058,8 @@ pub async fn handle_bid_svm(
 fn all_signature_exists_svm(
     message_bytes: &[u8],
     accounts: &[Pubkey],
-    signatures: Vec<SignatureSvm>,
-    missing_signers: Vec<Pubkey>,
+    signatures: &[SignatureSvm],
+    missing_signers: &[Pubkey],
 ) -> bool {
     signatures
         .iter()
@@ -1082,14 +1083,14 @@ async fn verify_signatures_svm(
         .get_submission_state(store_new.clone(), &permission_key)
         .await
     {
-        SubmissionState::Invalid => {
+        SubmitType::Invalid => {
             // TODO Look at the todo comment in get_quote.rs file in opportunity module
             return Err(RestError::BadParameters(format!(
                 "The permission key is not valid for auction anymore: {:?}",
                 permission_key
             )));
         }
-        SubmissionState::SubmitByOther => {
+        SubmitType::SubmitByOther => {
             let opportunities = store_new
                 .opportunity_service_svm
                 .get_live_opportunities_by_permission_key(GetOpportunitiesByPermissionKeyInput {
@@ -1097,23 +1098,16 @@ async fn verify_signatures_svm(
                 })
                 .await;
             opportunities.into_iter().any(|opportunity| {
-                let mut missing_signers = store_new
-                    .opportunity_service_svm
-                    .get_missing_signers(opportunity);
+                let mut missing_signers = opportunity.get_missing_signers();
                 missing_signers.push(relayer_pubkey.clone());
-                all_signature_exists_svm(
-                    &message_bytes,
-                    accounts,
-                    signatures.clone(),
-                    missing_signers,
-                )
+                all_signature_exists_svm(&message_bytes, accounts, &signatures, &missing_signers)
             })
         }
-        SubmissionState::SubmitByServer => all_signature_exists_svm(
+        SubmitType::SubmitByServer => all_signature_exists_svm(
             &message_bytes,
             accounts,
-            signatures,
-            vec![relayer_pubkey.clone()],
+            &signatures,
+            &[relayer_pubkey.clone()],
         ),
     };
 
@@ -1151,7 +1145,7 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
     }
 }
 
-pub enum SubmissionState {
+pub enum SubmitType {
     SubmitByServer,
     SubmitByOther,
     Invalid,
@@ -1216,7 +1210,7 @@ pub trait ChainStore: Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> {
         &self,
         store_new: Arc<StoreNew>,
         permission_key: &Bytes,
-    ) -> impl Future<Output = SubmissionState>;
+    ) -> impl Future<Output = SubmitType>;
 
     /// Get the opportunity service for the chain
     fn get_opportunity_service(
@@ -1481,8 +1475,8 @@ impl ChainStore for ChainStoreEvm {
         &self,
         _store_new: Arc<StoreNew>,
         _permission_key: &Bytes,
-    ) -> SubmissionState {
-        SubmissionState::SubmitByServer
+    ) -> SubmitType {
+        SubmitType::SubmitByServer
     }
 
     fn get_opportunity_service(
@@ -1629,15 +1623,15 @@ impl ChainStore for ChainStoreSvm {
         &self,
         store_new: Arc<StoreNew>,
         permission_key: &Bytes,
-    ) -> SubmissionState {
-        if permission_key.starts_with(&self.phantom_router_account.to_bytes()) {
-            SubmissionState::SubmitByOther
-        } else {
+    ) -> SubmitType {
+        if permission_key.starts_with(&self.wallet_program_router_account.to_bytes()) {
             if self.opportunity_exists(store_new, &permission_key).await {
-                SubmissionState::SubmitByOther
+                SubmitType::SubmitByOther
             } else {
-                SubmissionState::Invalid
+                SubmitType::Invalid
             }
+        } else {
+            SubmitType::SubmitByServer
         }
     }
 
@@ -1774,6 +1768,7 @@ pub async fn run_log_listener_loop_svm(store_new: Arc<StoreNew>, chain_id: Strin
         )
         .await?;
 
+    // TODO Handle the case where connection is lost and we need to reconnect
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             rpc_log = stream.next() => {
@@ -1791,7 +1786,7 @@ pub async fn run_log_listener_loop_svm(store_new: Arc<StoreNew>, chain_id: Strin
                                     if let Some(auction) = submitted_auctions.iter().find(|auction| {
                                         auction.tx_hash.clone().map(|tx_hash| {
                                             match SignatureSvm::try_from(tx_hash) {
-                                                Ok(tx_hash) => tx_hash.to_string() == rpc_log.value.signature.clone(),
+                                                Ok(tx_hash) => tx_hash.to_string() == rpc_log.value.signature,
                                                 Err(err) => {
                                                     tracing::error!(error = ?err, "Error while converting tx_hash to SignatureSvm");
                                                     false

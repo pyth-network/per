@@ -401,7 +401,7 @@ fn setup_svm(
                         chain_config.rpc_timeout,
                         RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                     ),
-                    phantom_router_account: chain_config.phantom_router_account,
+                    wallet_program_router_account: chain_config.wallet_program_router_account,
                     config: chain_config,
                     express_relay_svm,
                 },
