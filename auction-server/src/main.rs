@@ -30,6 +30,7 @@ use {
 mod api;
 mod auction;
 mod config;
+mod watcher;
 mod kernel;
 mod models;
 mod opportunity;

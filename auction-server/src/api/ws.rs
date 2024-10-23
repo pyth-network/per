@@ -20,9 +20,7 @@ use {
             SHOULD_EXIT,
         },
         state::{
-            BidId,
-            BidStatusWithId,
-            StoreNew,
+            BidId, BidStatusWithId, ChainUpdate, StoreNew
         },
     },
     anyhow::{
@@ -117,6 +115,8 @@ pub enum ServerUpdateResponse {
     NewOpportunity { opportunity: Opportunity },
     #[serde(rename = "bid_status_update")]
     BidStatusUpdate { status: BidStatusWithId },
+    #[serde(rename = "chain_update")]
+    ChainUpdate { chain_update: ChainUpdate },
 }
 
 #[derive(Serialize, Clone, ToSchema)]
@@ -163,6 +163,7 @@ async fn websocket_handler(stream: WebSocket, state: Arc<StoreNew>, auth: Auth) 
 pub enum UpdateEvent {
     NewOpportunity(Opportunity),
     BidStatusUpdate(BidStatusWithId),
+    ChainUpdate(ChainUpdate),
 }
 
 pub type SubscriberId = usize;
@@ -287,6 +288,13 @@ impl Subscriber {
         Ok(())
     }
 
+    async fn handle_chain_update(&mut self, chain_update: ChainUpdate) -> Result<()> {
+        tracing::Span::current().record("name", "chain_update");
+        let message = serde_json::to_string(&ServerUpdateResponse::ChainUpdate { chain_update })?;
+        self.sender.send(message.into()).await?;
+        Ok(())
+    }
+
     #[instrument(
         target = "metrics",
         fields(category = "ws_update", result = "success", name),
@@ -301,6 +309,10 @@ impl Subscriber {
             UpdateEvent::BidStatusUpdate(status) => {
                 tracing::Span::current().record("name", "bid_status_update");
                 self.handle_bid_status_update(status).await
+            }
+            UpdateEvent::ChainUpdate(chain_update) => {
+                tracing::Span::current().record("name", "chain_update");
+                self.handle_chain_update(chain_update).await
             }
         };
         if result.is_err() {

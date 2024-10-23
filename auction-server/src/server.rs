@@ -228,7 +228,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let chains = setup_chain_store(config_map.clone(), wallet.clone()).await?;
 
-    let chains_svm = setup_svm(&run_options, config_map)?;
+    let chains_svm = setup_svm(&run_options, config_map).await?;
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -343,7 +343,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn setup_svm(
+async fn setup_svm(
     run_options: &RunOptions,
     config_map: ConfigMap,
 ) -> anyhow::Result<HashMap<ChainId, ChainStoreSvm>> {
@@ -364,39 +364,46 @@ fn setup_svm(
             .clone()
             .ok_or(anyhow!("No svm private key provided for svm chains"))?,
     ));
-    Ok(svm_chains
-        .into_iter()
-        .map(|(chain_id, chain_config)| {
-            let express_relay_svm = ExpressRelaySvm {
-                relayer:                     relayer.clone(),
-                permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
-                    .parse::<usize>()
-                    .expect("Failed to parse permission account position"),
-                router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
-                    .parse::<usize>()
-                    .expect("Failed to parse router account position"),
-            };
+    Ok(futures::future::join_all(svm_chains.into_iter().map(|(chain_id, chain_config)| {
+        let (chain_id, chain_config, relayer) = (chain_id.clone(), chain_config.clone(), relayer.clone());
+        async move {
+            let client = TracedSenderSvm::new_client(
+            chain_id.clone(),
+            chain_config.rpc_addr.as_str(),
+            chain_config.rpc_timeout,
+            RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+        );
 
-            (
-                chain_id.clone(),
-                ChainStoreSvm {
-                    core_fields: ChainStoreCoreFields::<SimulatedBidSvm> {
-                        bids:               Default::default(),
-                        auction_lock:       Default::default(),
-                        submitted_auctions: Default::default(),
-                    },
-                    client: TracedSenderSvm::new_client(
-                        chain_id.clone(),
-                        chain_config.rpc_addr.as_str(),
-                        chain_config.rpc_timeout,
-                        RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-                    ),
-                    config: chain_config,
-                    express_relay_svm,
+        let recent_blockhash = client.get_latest_blockhash().await.ok();
+
+        let express_relay_svm = ExpressRelaySvm {
+            relayer,
+            permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
+                               .parse::<usize>()
+                .expect("Failed to parse permission account position"),
+            router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
+                .parse::<usize>()
+                .expect("Failed to parse router account position"),
+        };
+
+        (
+            chain_id,
+            ChainStoreSvm {
+                core_fields: ChainStoreCoreFields::<SimulatedBidSvm> {
+                    bids:               Default::default(),
+                    auction_lock:       Default::default(),
+                    submitted_auctions: Default::default(),
                 },
-            )
-        })
-        .collect())
+                client,
+                config: chain_config,
+                express_relay_svm,
+                recent_blockhash: recent_blockhash.into(),
+            },
+        )
+    }}))
+    .await
+    .into_iter()
+    .collect())
 }
 
 pub fn get_chain_provider(

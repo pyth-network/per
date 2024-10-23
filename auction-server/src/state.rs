@@ -22,7 +22,7 @@ use {
         opportunity::service as opportunity_service,
         traced_client::TracedClient,
     },
-    anchor_lang::prelude::borsh::schema,
+    solana_sdk::hash::Hash,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -477,6 +477,7 @@ pub struct ChainStoreSvm {
     pub client:            RpcClient,
     pub config:            ConfigSvm,
     pub express_relay_svm: ExpressRelaySvm,
+    pub recent_blockhash: RwLock<Option<Hash>>,
 }
 
 pub type BidId = Uuid;
@@ -1326,4 +1327,10 @@ impl Store {
             })
             .collect())
     }
+}
+
+#[derive(Serialize, Clone, ToSchema, ToResponse)]
+pub struct ChainUpdate {
+    pub chain_id: ChainId,
+    pub blockhash: Hash,
 }
