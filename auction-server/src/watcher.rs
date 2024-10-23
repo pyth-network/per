@@ -44,7 +44,7 @@ pub async fn run_svm_watcher_loop(store: Arc<Store>, chain_id: String) -> Result
             solana_client::rpc_config::RpcBlockSubscribeFilter::All,
             Some(solana_client::rpc_config::RpcBlockSubscribeConfig {
                 encoding:                          None,
-                transaction_details:               Some(TransactionDetails::None),
+                transaction_details:               Some(TransactionDetails::None), // we don't need transaction data
                 show_rewards:                      Some(false),
                 max_supported_transaction_version: None,
                 commitment:                        Some(CommitmentConfig::finalized()),
@@ -54,19 +54,25 @@ pub async fn run_svm_watcher_loop(store: Arc<Store>, chain_id: String) -> Result
 
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
-            block_update = stream.next() => {
-                    let blockhash = block_update
-            .and_then(|t| t.value.block.map(|b| b.blockhash))
-                        .and_then(|b| Hash::from_str(&b).ok());
-                tracing::info!("New blockhash received: {:?}", blockhash);
-                if let Some(blockhash) = blockhash {
-                store.broadcast_svm_chain_update(SvmChainUpdate {
-                    chain_id: chain_id.clone(),
-                    blockhash,
-                    });
+            update = stream.next() => {
+                if let Some(block_update) = update {
+                    let blockhash = block_update.value.block.map(|b| b.blockhash).map(|b| Hash::from_str(&b)).transpose()?;
+                    if let Some(blockhash) = blockhash {
+                        store.broadcast_svm_chain_update(SvmChainUpdate {
+                            chain_id: chain_id.clone(),
+                            blockhash,
+                            });
+
+                            return Ok(());
+                        }
+                    else {
+                        tracing::warn!("Blockhash not found for slot {} on chain: {}", block_update.value.slot, chain_id);
+                    }
+                }
+                else{
+                    return Err(anyhow!("Watcher ended for chain: {}", chain_id));
                 }
             }
-
             _ = exit_check_interval.tick() => {}
         }
     }
