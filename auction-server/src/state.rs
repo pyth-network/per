@@ -57,6 +57,7 @@ use {
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
         pubkey::Pubkey,
+        hash::Hash,
         signature::{
             Keypair,
             Signature,
@@ -1119,6 +1120,13 @@ impl Store {
         };
     }
 
+    pub fn broadcast_chain_update(&self, update: ChainUpdate) {
+        match self.event_sender.send(UpdateEvent::ChainUpdate(update)) {
+            Ok(_) => (),
+            Err(e) => tracing::error!("Failed to send chain update: {}", e),
+        };
+    }
+
     pub async fn create_profile(
         &self,
         create_profile: ApiProfile::CreateProfile,
@@ -1357,6 +1365,6 @@ impl Store {
 
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct ChainUpdate {
-    pub chain_id: ChainId,
+    pub chain_id:  ChainId,
     pub blockhash: Hash,
 }
