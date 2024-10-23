@@ -230,7 +230,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     let chains = setup_chain_store(config_map.clone(), wallet.clone()).await?;
 
-    let chains_svm = setup_svm(&run_options, config_map).await?;
+    let chains_svm = setup_svm(&run_options, config_map)?;
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -334,13 +334,13 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             join_all(tracker_loops).await;
         },
         async {
-            let watcher_loops = store.chains_svm.keys().map(|chain_id| {
+            let tracker_loops = store.chains_svm.keys().map(|chain_id| {
                 fault_tolerant_handler(
                     format!("watcher loop for chain {}", chain_id.clone()),
                     || run_svm_watcher_loop(store.clone(), chain_id.clone()),
                 )
             });
-            join_all(watcher_loops).await;
+            join_all(tracker_loops).await;
         },
         fault_tolerant_handler("verification loop".to_string(), || run_verification_loop(
             store_new.opportunity_service_evm.clone()
@@ -363,7 +363,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn setup_svm(
+fn setup_svm(
     run_options: &RunOptions,
     config_map: ConfigMap,
 ) -> anyhow::Result<HashMap<ChainId, ChainStoreSvm>> {
@@ -384,17 +384,18 @@ async fn setup_svm(
             .clone()
             .ok_or(anyhow!("No svm private key provided for svm chains"))?,
     ));
-    Ok(
-        futures::future::join_all(svm_chains.into_iter().map(|(chain_id, chain_config)| {
-            let (chain_id, chain_config, relayer) =
-                (chain_id.clone(), chain_config.clone(), relayer.clone());
-            async move {
-                let client = TracedSenderSvm::new_client(
-                    chain_id.clone(),
-                    chain_config.rpc_addr.as_str(),
-                    chain_config.rpc_timeout,
-                    RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-                );
+    Ok(svm_chains
+        .into_iter()
+        .map(|(chain_id, chain_config)| {
+            let express_relay_svm = ExpressRelaySvm {
+                relayer:                     relayer.clone(),
+                permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
+                    .parse::<usize>()
+                    .expect("Failed to parse permission account position"),
+                router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
+                    .parse::<usize>()
+                    .expect("Failed to parse router account position"),
+            };
 
             (
                 chain_id.clone(),
@@ -410,20 +411,12 @@ async fn setup_svm(
                         chain_config.rpc_timeout,
                         RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                     ),
-                    wallet_program_router_account: chain_config.wallet_program_router_account,
                     config: chain_config,
                     express_relay_svm,
                 },
-                client,
-                config: chain_config,
-                express_relay_svm,
-                recent_blockhash: recent_blockhash.into(),
-            },
-        )
-    }}))
-    .await
-    .into_iter()
-    .collect())
+            )
+        })
+        .collect())
 }
 
 pub fn get_chain_provider(
