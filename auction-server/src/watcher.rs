@@ -46,7 +46,7 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
                 transaction_details:               Some(TransactionDetails::None), // we don't need transaction data
                 show_rewards:                      Some(false),
                 max_supported_transaction_version: None,
-                commitment:                        Some(CommitmentConfig::finalized()),
+                commitment:                        Some(CommitmentConfig::confirmed()),
             }),
         )
         .await?;
