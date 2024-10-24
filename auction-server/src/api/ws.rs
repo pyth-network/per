@@ -270,7 +270,6 @@ impl Subscriber {
     }
 
     async fn handle_new_opportunity(&mut self, opportunity: Opportunity) -> Result<()> {
-        tracing::Span::current().record("name", "new_opportunity");
         if !self.chain_ids.contains(opportunity.get_chain_id()) {
             // Irrelevant update
             return Ok(());
@@ -281,7 +280,6 @@ impl Subscriber {
     }
 
     async fn handle_bid_status_update(&mut self, status: BidStatusWithId) -> Result<()> {
-        tracing::Span::current().record("name", "bid_status_update");
         if !self.bid_ids.contains(&status.id) {
             // Irrelevant update
             return Ok(());
