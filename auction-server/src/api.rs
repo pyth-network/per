@@ -418,7 +418,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
 
     // The generated OpenAPI document contains "discriminator" fields which are not generated correctly to be supported by redoc
     // We need to remove them from the document to make sure redoc can render the document correctly
-    let original_doc = serde_json::to_value(&ApiDoc::openapi())
+    let original_doc = serde_json::to_value(ApiDoc::openapi())
         .expect("Failed to serialize OpenAPI document to json value");
     let mut redoc_doc = original_doc.clone();
     remove_discriminators(&mut redoc_doc);

@@ -203,6 +203,8 @@ pub trait SimulatedBidTrait:
     + std::fmt::Debug
     + TryFrom<(models::Bid, Option<models::Auction>)>
     + Deref<Target = SimulatedBidCoreFields>
+    + Send
+    + Sync
 {
     type StatusType: BidStatusTrait;
 
@@ -290,9 +292,7 @@ impl SimulatedBidTrait for SimulatedBidEvm {
                 })
             }
             models::BidStatus::Lost => Ok(BidStatusEvm::Lost { result, index }),
-            models::BidStatus::Expired => {
-                return Err(anyhow::anyhow!("Evm bid cannot be expired"));
-            }
+            models::BidStatus::Expired => Err(anyhow::anyhow!("Evm bid cannot be expired")),
         }
     }
 }
@@ -598,9 +598,15 @@ impl From<BidStatus> for models::BidStatus {
 }
 
 pub trait BidStatusTrait:
-    Clone + std::fmt::Debug + PartialEq<models::BidStatus> + Into<BidStatus> + Into<models::BidStatus>
+    Clone
+    + std::fmt::Debug
+    + PartialEq<models::BidStatus>
+    + Into<BidStatus>
+    + Into<models::BidStatus>
+    + Send
+    + Sync
 {
-    type TxHash: Clone + std::fmt::Debug + AsRef<[u8]>;
+    type TxHash: Clone + std::fmt::Debug + AsRef<[u8]> + Send + Sync;
 
     fn get_update_query(
         &self,
@@ -862,8 +868,8 @@ pub struct ExpressRelaySvm {
 }
 
 pub struct Store {
-    pub chains:           HashMap<ChainId, ChainStoreEvm>,
-    pub chains_svm:       HashMap<ChainId, ChainStoreSvm>,
+    pub chains:           HashMap<ChainId, Arc<ChainStoreEvm>>,
+    pub chains_svm:       HashMap<ChainId, Arc<ChainStoreSvm>>,
     pub event_sender:     broadcast::Sender<UpdateEvent>,
     pub ws:               WsState,
     pub db:               sqlx::PgPool,

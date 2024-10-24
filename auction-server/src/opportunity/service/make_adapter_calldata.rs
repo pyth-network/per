@@ -22,7 +22,7 @@ pub struct MakeAdapterCalldataInput {
 }
 
 impl Service<ChainTypeEvm> {
-    pub(super) async fn make_adapter_calldata(
+    pub(super) fn make_adapter_calldata(
         &self,
         input: MakeAdapterCalldataInput,
     ) -> Result<Bytes, RestError> {
