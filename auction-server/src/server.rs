@@ -336,7 +336,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let tracker_loops = store.chains.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("tracker loop for chain {}", chain_id.clone()),
-                    || run_tracker_loop(store.clone(), chain_store.clone()),
+                    || run_tracker_loop(chain_store.clone()),
                 )
             });
             join_all(tracker_loops).await;

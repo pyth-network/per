@@ -848,7 +848,7 @@ pub async fn handle_bid(
     Ok(core_fields.id)
 }
 
-pub async fn run_tracker_loop(store: Arc<Store>, chain_store: Arc<ChainStoreEvm>) -> Result<()> {
+pub async fn run_tracker_loop(chain_store: Arc<ChainStoreEvm>) -> Result<()> {
     tracing::info!(chain_id = chain_store.get_name(), "Starting tracker...");
 
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
