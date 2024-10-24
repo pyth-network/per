@@ -292,7 +292,6 @@ impl Subscriber {
     }
 
     async fn handle_svm_chain_update(&mut self, svm_chain_update: SvmChainUpdate) -> Result<()> {
-        tracing::Span::current().record("name", "svm_chain_update");
         if !self.chain_ids.contains(&svm_chain_update.chain_id) {
             // Irrelevant update
             return Ok(());

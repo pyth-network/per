@@ -29,7 +29,7 @@ use {
     },
 };
 
-pub async fn run_svm_watcher_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
+pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result<()> {
     let chain_store = store
         .chains_svm
         .get(&chain_id)
@@ -58,14 +58,14 @@ pub async fn run_svm_watcher_loop(store: Arc<Store>, chain_id: String) -> Result
                     let blockhash = block_update.value.block.map(|b| b.blockhash).map(|b| Hash::from_str(&b)).transpose()?;
                     if let Some(blockhash) = blockhash {
                         store.broadcast_svm_chain_update(SvmChainUpdate {
-                            chain_id: chain_id.clone(),
-                            blockhash,
-                            });
+                        chain_id: chain_id.clone(),
+                        blockhash,
+                        });
 
-                            return Ok(());
+                        return Ok(());
                         }
                     else {
-                        tracing::warn!("Blockhash not found for slot {} on chain: {}", block_update.value.slot, chain_id);
+                        tracing::warn!(slot = block_update.value.slot, chain = chain_id, "Blockhash not found for slot");
                     }
                 }
                 else{

@@ -36,7 +36,7 @@ use {
         },
         traced_client::TracedClient,
         traced_sender_svm::TracedSenderSvm,
-        watcher::run_svm_watcher_loop,
+        watcher::run_watcher_loop_svm,
     },
     anyhow::anyhow,
     axum_prometheus::{
@@ -337,7 +337,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let watcher_loops = store.chains_svm.keys().map(|chain_id| {
                 fault_tolerant_handler(
                     format!("watcher loop for chain {}", chain_id.clone()),
-                    || run_svm_watcher_loop(store.clone(), chain_id.clone()),
+                    || run_watcher_loop_svm(store.clone(), chain_id.clone()),
                 )
             });
             join_all(watcher_loops).await;
