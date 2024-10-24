@@ -378,13 +378,6 @@ pub struct OpportunityCreateV1Svm {
     /// The chain id where the opportunity will be executed.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:           ChainId,
-    /// The block hash to be used for the opportunity execution
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-    #[serde_as(as = "DisplayFromStr")]
-    pub block_hash:         Hash,
-    /// The slot where the program params were fetched from using the RPC
-    #[schema(example = 293106477, value_type = u64)]
-    pub slot:               Slot,
 
     pub sell_tokens: Vec<TokenAmountSvm>,
     pub buy_tokens:  Vec<TokenAmountSvm>,
@@ -516,13 +509,6 @@ pub struct OpportunitySvm {
     /// Creation time of the opportunity (in microseconds since the Unix epoch)
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     pub creation_time:  UnixTimestampMicros,
-    /// The block hash to be used for the opportunity execution
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-    #[serde_as(as = "DisplayFromStr")]
-    pub block_hash:     Hash,
-    /// The slot where the program params were fetched from using the RPC
-    #[schema(example = 293106477, value_type = u64)]
-    pub slot:           Slot,
 
     #[serde(flatten)]
     #[schema(inline)]
