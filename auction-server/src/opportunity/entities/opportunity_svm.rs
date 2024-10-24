@@ -32,8 +32,15 @@ pub struct OpportunitySvmProgramLimo {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct OpportunitySvmProgramWallet {
+    pub user_wallet_address:         Pubkey,
+    pub maximum_slippage_percentage: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum OpportunitySvmProgram {
     Limo(OpportunitySvmProgramLimo),
+    Phantom(OpportunitySvmProgramWallet),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,6 +93,14 @@ impl Opportunity for OpportunitySvm {
                     },
                 )
             }
+            OpportunitySvmProgram::Phantom(program) => {
+                repository::OpportunityMetadataSvmProgram::Phantom(
+                    repository::OpportunityMetadataSvmProgramWallet {
+                        user_wallet_address:         program.user_wallet_address,
+                        maximum_slippage_percentage: program.maximum_slippage_percentage,
+                    },
+                )
+            }
         };
         Self::ModelMetadata {
             program,
@@ -126,6 +141,31 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 order:         prgoram.order,
                 order_address: prgoram.order_address,
             },
+            OpportunitySvmProgram::Phantom(program) => {
+                api::OpportunityParamsV1ProgramSvm::Phantom {
+                    user_wallet_address:         program.user_wallet_address,
+                    maximum_slippage_percentage: program.maximum_slippage_percentage,
+                    permission_account:          val.permission_account,
+                    router_account:              val.router,
+                    // TODO can we make it type safe?
+                    sell_token:                  val
+                        .sell_tokens
+                        .first()
+                        .map(|t| t.clone().into())
+                        .ok_or(anyhow::anyhow!(
+                            "Failed to get sell token from opportunity svm"
+                        ))
+                        .expect("Failed to get sell token from opportunity svm"),
+                    buy_token:                   val
+                        .sell_tokens
+                        .first()
+                        .map(|t| t.clone().into())
+                        .ok_or(anyhow::anyhow!(
+                            "Failed to get sell token from opportunity svm"
+                        ))
+                        .expect("Failed to get sell token from opportunity svm"),
+                }
+            }
         };
         api::OpportunitySvm {
             opportunity_id: val.id,
@@ -170,6 +210,12 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     order_address: program.order_address,
                 })
             }
+            repository::OpportunityMetadataSvmProgram::Phantom(program) => {
+                OpportunitySvmProgram::Phantom(OpportunitySvmProgramWallet {
+                    user_wallet_address:         program.user_wallet_address,
+                    maximum_slippage_percentage: program.maximum_slippage_percentage,
+                })
+            }
         };
         Ok(OpportunitySvm {
             core_fields: OpportunityCoreFields {
@@ -200,7 +246,15 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 order,
                 order_address,
             }),
+            api::OpportunityCreateProgramParamsV1Svm::Phantom {
+                user_wallet_address,
+                maximum_slippage_percentage,
+            } => OpportunitySvmProgram::Phantom(OpportunitySvmProgramWallet {
+                user_wallet_address,
+                maximum_slippage_percentage,
+            }),
         };
+
         OpportunityCreateSvm {
             core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
                 permission_key: [
@@ -236,6 +290,15 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
             block_hash:         val.block_hash,
             program:            val.program,
             slot:               val.slot,
+        }
+    }
+}
+
+impl OpportunitySvm {
+    pub fn get_missing_signers(&self) -> Vec<Pubkey> {
+        match self.program.clone() {
+            OpportunitySvmProgram::Phantom(data) => vec![data.user_wallet_address],
+            OpportunitySvmProgram::Limo(_) => vec![],
         }
     }
 }

@@ -144,12 +144,15 @@ fn default_rpc_timeout_svm() -> u64 {
 pub struct ConfigSvm {
     /// Id of the express relay program.
     #[serde_as(as = "DisplayFromStr")]
-    pub express_relay_program_id: Pubkey,
+    pub express_relay_program_id:      Pubkey,
     /// RPC endpoint to use for interacting with the blockchain.
-    pub rpc_addr:                 String,
+    pub rpc_addr:                      String,
     /// WS endpoint to use for interacting with the blockchain.
-    pub ws_addr:                  String,
+    pub ws_addr:                       String,
     /// Timeout for RPC requests in seconds.
     #[serde(default = "default_rpc_timeout_svm")]
-    pub rpc_timeout:              u64,
+    pub rpc_timeout:                   u64,
+    /// The router account for Phantom
+    #[serde_as(as = "DisplayFromStr")]
+    pub wallet_program_router_account: Pubkey,
 }
