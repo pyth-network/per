@@ -23,6 +23,7 @@ use {
             BidId,
             BidStatusWithId,
             StoreNew,
+            SvmChainUpdate,
         },
     },
     anyhow::{
@@ -117,6 +118,8 @@ pub enum ServerUpdateResponse {
     NewOpportunity { opportunity: Opportunity },
     #[serde(rename = "bid_status_update")]
     BidStatusUpdate { status: BidStatusWithId },
+    #[serde(rename = "svm_chain_update")]
+    SvmChainUpdate { update: SvmChainUpdate },
 }
 
 #[derive(Serialize, Clone, ToSchema)]
@@ -163,6 +166,7 @@ async fn websocket_handler(stream: WebSocket, state: Arc<StoreNew>, auth: Auth) 
 pub enum UpdateEvent {
     NewOpportunity(Opportunity),
     BidStatusUpdate(BidStatusWithId),
+    SvmChainUpdate(SvmChainUpdate),
 }
 
 pub type SubscriberId = usize;
@@ -266,7 +270,6 @@ impl Subscriber {
     }
 
     async fn handle_new_opportunity(&mut self, opportunity: Opportunity) -> Result<()> {
-        tracing::Span::current().record("name", "new_opportunity");
         if !self.chain_ids.contains(opportunity.get_chain_id()) {
             // Irrelevant update
             return Ok(());
@@ -277,12 +280,23 @@ impl Subscriber {
     }
 
     async fn handle_bid_status_update(&mut self, status: BidStatusWithId) -> Result<()> {
-        tracing::Span::current().record("name", "bid_status_update");
         if !self.bid_ids.contains(&status.id) {
             // Irrelevant update
             return Ok(());
         }
         let message = serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { status })?;
+        self.sender.send(message.into()).await?;
+        Ok(())
+    }
+
+    async fn handle_svm_chain_update(&mut self, svm_chain_update: SvmChainUpdate) -> Result<()> {
+        if !self.chain_ids.contains(&svm_chain_update.chain_id) {
+            // Irrelevant update
+            return Ok(());
+        }
+        let message = serde_json::to_string(&ServerUpdateResponse::SvmChainUpdate {
+            update: svm_chain_update,
+        })?;
         self.sender.send(message.into()).await?;
         Ok(())
     }
@@ -301,6 +315,10 @@ impl Subscriber {
             UpdateEvent::BidStatusUpdate(status) => {
                 tracing::Span::current().record("name", "bid_status_update");
                 self.handle_bid_status_update(status).await
+            }
+            UpdateEvent::SvmChainUpdate(svm_chain_update) => {
+                tracing::Span::current().record("name", "svm_chain_update");
+                self.handle_svm_chain_update(svm_chain_update).await
             }
         };
         if result.is_err() {

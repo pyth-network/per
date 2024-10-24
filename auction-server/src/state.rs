@@ -56,6 +56,7 @@ use {
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
+        hash::Hash,
         pubkey::Pubkey,
         signature::{
             Keypair,
@@ -1113,9 +1114,14 @@ impl Store {
     }
 
     fn broadcast_status_update(&self, update: BidStatusWithId) {
-        match self.event_sender.send(UpdateEvent::BidStatusUpdate(update)) {
-            Ok(_) => (),
-            Err(e) => tracing::error!("Failed to send bid status update: {}", e),
+        if let Err(e) = self.event_sender.send(UpdateEvent::BidStatusUpdate(update)) {
+            tracing::error!("Failed to send bid status update: {}", e)
+        };
+    }
+
+    pub fn broadcast_svm_chain_update(&self, update: SvmChainUpdate) {
+        if let Err(e) = self.event_sender.send(UpdateEvent::SvmChainUpdate(update)) {
+            tracing::error!("Failed to send chain update: {}", e)
         };
     }
 
@@ -1353,4 +1359,12 @@ impl Store {
             })
             .collect())
     }
+}
+
+#[serde_as]
+#[derive(Serialize, Clone, ToSchema, ToResponse)]
+pub struct SvmChainUpdate {
+    pub chain_id:  ChainId,
+    #[serde_as(as = "DisplayFromStr")]
+    pub blockhash: Hash,
 }
