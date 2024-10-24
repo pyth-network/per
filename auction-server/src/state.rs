@@ -22,7 +22,6 @@ use {
         opportunity::service as opportunity_service,
         traced_client::TracedClient,
     },
-    anchor_lang::prelude::borsh::schema,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -57,6 +56,7 @@ use {
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
+        pubkey::Pubkey,
         signature::{
             Keypair,
             Signature,
@@ -290,6 +290,9 @@ impl SimulatedBidTrait for SimulatedBidEvm {
                 })
             }
             models::BidStatus::Lost => Ok(BidStatusEvm::Lost { result, index }),
+            models::BidStatus::Expired => {
+                return Err(anyhow::anyhow!("Evm bid cannot be expired"));
+            }
         }
     }
 }
@@ -431,23 +434,19 @@ impl SimulatedBidTrait for SimulatedBidSvm {
     ) -> anyhow::Result<Self::StatusType> {
         match status {
             models::BidStatus::Pending => Ok(BidStatusSvm::Pending),
-            models::BidStatus::Submitted => {
-                if result.is_none() {
-                    return Err(anyhow::anyhow!("Submitted bid should have a result"));
-                }
-                Ok(BidStatusSvm::Submitted {
-                    result: result.unwrap(),
-                })
-            }
-            models::BidStatus::Won => {
-                if result.is_none() {
-                    return Err(anyhow::anyhow!("Won bid should have a result"));
-                }
-                Ok(BidStatusSvm::Won {
-                    result: result.unwrap(),
-                })
-            }
+            models::BidStatus::Submitted => match result {
+                Some(result) => Ok(BidStatusSvm::Submitted { result }),
+                None => Err(anyhow::anyhow!("Submitted bid should have a result")),
+            },
+            models::BidStatus::Won => match result {
+                Some(result) => Ok(BidStatusSvm::Won { result }),
+                None => Err(anyhow::anyhow!("Won bid should have a result")),
+            },
             models::BidStatus::Lost => Ok(BidStatusSvm::Lost { result }),
+            models::BidStatus::Expired => match result {
+                Some(result) => Ok(BidStatusSvm::Expired { result }),
+                None => Err(anyhow::anyhow!("Expired bid should have a result")),
+            },
         }
     }
 }
@@ -474,9 +473,10 @@ pub struct ChainStoreEvm {
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
-    pub client:            RpcClient,
-    pub config:            ConfigSvm,
-    pub express_relay_svm: ExpressRelaySvm,
+    pub client:                        RpcClient,
+    pub config:                        ConfigSvm,
+    pub express_relay_svm:             ExpressRelaySvm,
+    pub wallet_program_router_account: Pubkey,
 }
 
 pub type BidId = Uuid;
@@ -549,6 +549,13 @@ pub enum BidStatusSvm {
         #[serde_as(as = "DisplayFromStr")]
         result: Signature,
     },
+    /// The bid expired without being submitted on chain.
+    #[schema(title = "Expired")]
+    Expired {
+        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        result: Signature,
+    },
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
@@ -576,6 +583,7 @@ impl From<BidStatusSvm> for models::BidStatus {
             BidStatusSvm::Submitted { .. } => models::BidStatus::Submitted,
             BidStatusSvm::Lost { .. } => models::BidStatus::Lost,
             BidStatusSvm::Won { .. } => models::BidStatus::Won,
+            BidStatusSvm::Expired { .. } => models::BidStatus::Expired,
         }
     }
 }
@@ -590,7 +598,7 @@ impl From<BidStatus> for models::BidStatus {
 }
 
 pub trait BidStatusTrait:
-    Clone + Into<models::BidStatus> + std::fmt::Debug + Into<BidStatus>
+    Clone + std::fmt::Debug + PartialEq<models::BidStatus> + Into<BidStatus> + Into<models::BidStatus>
 {
     type TxHash: Clone + std::fmt::Debug + AsRef<[u8]>;
 
@@ -615,6 +623,18 @@ impl From<BidStatusEvm> for BidStatus {
 impl From<BidStatusSvm> for BidStatus {
     fn from(bid_status: BidStatusSvm) -> BidStatus {
         BidStatus::Svm(bid_status)
+    }
+}
+
+impl PartialEq<models::BidStatus> for BidStatusEvm {
+    fn eq(&self, other: &models::BidStatus) -> bool {
+        *other == self.clone().into()
+    }
+}
+
+impl PartialEq<models::BidStatus> for BidStatusSvm {
+    fn eq(&self, other: &models::BidStatus) -> bool {
+        *other == self.clone().into()
     }
 }
 
@@ -768,6 +788,12 @@ impl BidStatusTrait for BidStatusSvm {
             BidStatusSvm::Won { .. } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
                 models::BidStatus::Won as _,
+                id,
+                models::BidStatus::Submitted as _,
+            )),
+            BidStatusSvm::Expired { .. } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
+                models::BidStatus::Expired as _,
                 id,
                 models::BidStatus::Submitted as _,
             )),
@@ -966,7 +992,7 @@ impl Store {
         sqlx::query!(
             "UPDATE auction SET conclusion_time = $1 WHERE id = $2 AND conclusion_time IS NULL",
             auction.conclusion_time,
-            auction.id
+            auction.id,
         )
         .execute(&self.db)
         .await?;
@@ -1071,6 +1097,7 @@ impl Store {
             }
             models::BidStatus::Lost => chain_store.remove_bid(bid.clone()).await,
             models::BidStatus::Won => chain_store.remove_bid(bid.clone()).await,
+            models::BidStatus::Expired => chain_store.remove_bid(bid.clone()).await,
         }
 
         // It is possible to call this function multiple times from different threads if receipts are delayed
