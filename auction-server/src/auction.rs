@@ -1010,6 +1010,12 @@ fn extract_bid_data_svm(
     Ok((submit_bid_data.bid_amount, PermissionKeySvm(permission_key)))
 }
 
+impl PartialEq<SimulatedBidSvm> for BidSvm {
+    fn eq(&self, other: &SimulatedBidSvm) -> bool {
+        self.transaction == other.transaction && self.chain_id == other.core_fields.chain_id
+    }
+}
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_bid_svm(
     store_new: Arc<StoreNew>,
@@ -1042,6 +1048,12 @@ pub async fn handle_bid_svm(
     .await?;
     // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
     simulate_bid_svm(chain_store, &bid).await?;
+
+    // Check if the bid does not exists
+    let bids = chain_store.get_bids(&bytes_permission_key).await;
+    if bids.iter().any(|b| bid == *b) {
+        return Err(RestError::BadParameters("Duplicate bid".to_string()));
+    }
 
     let core_fields = SimulatedBidCoreFields::new(bid.chain_id, initiation_time, auth);
     let simulated_bid = SimulatedBidSvm {
@@ -1589,7 +1601,7 @@ impl ChainStore for ChainStoreSvm {
             .try_into()
             .map_err(|_| anyhow!("Invalid svm signature"))?;
         if bids.len() != 1 {
-            return Err(anyhow!("Invalid number of bids: {}", bids.len()));
+            tracing::warn!(tx_hash = ?tx_hash, bids = ?bids, "multiple bids found for transaction hash");
         }
 
         let status = self
@@ -1597,13 +1609,13 @@ impl ChainStore for ChainStoreSvm {
             .get_signature_status_with_commitment(&tx_hash, CommitmentConfig::confirmed())
             .await?;
 
-        match status {
-            Some(res) => Ok(Some(vec![match res {
+        let status = match status {
+            Some(res) => match res {
                 Ok(()) => BidStatusSvm::Won { result: tx_hash },
                 Err(_) => BidStatusSvm::Lost {
                     result: Some(tx_hash),
                 },
-            }])),
+            },
             None => {
                 // not yet confirmed
                 // TODO Use the correct version of the expiration algorithm, which is:
@@ -1611,12 +1623,14 @@ impl ChainStore for ChainStoreSvm {
                 // Assuming a certain block time, the two minute threshold is good enough but in some cases, it's not correct.
                 if bids[0].initiation_time + BID_MAXIMUM_LIFE_TIME_SVM < OffsetDateTime::now_utc() {
                     // If the bid is older than the maximum lifetime, it means that the block hash is now too old and the transaction is expired.
-                    Ok(Some(vec![BidStatusSvm::Expired { result: tx_hash }]))
+                    BidStatusSvm::Expired { result: tx_hash }
                 } else {
-                    Ok(None)
+                    return Ok(None);
                 }
             }
-        }
+        };
+
+        Ok(Some(vec![status; bids.len()]))
     }
 
     async fn get_submission_state(
