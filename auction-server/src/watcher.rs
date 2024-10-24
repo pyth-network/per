@@ -66,8 +66,6 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
                             chain_id: chain_id.clone(),
                             blockhash,
                         });
-
-                        return Ok(());
                     } else {
                         tracing::warn!(
                             slot = block_update.value.slot,
