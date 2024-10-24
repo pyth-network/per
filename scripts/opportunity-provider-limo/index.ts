@@ -135,8 +135,8 @@ async function createOpportunities(
           skExecutor,
           inputToken.mint,
           outputToken.mint,
-          new Decimal(amountInput),
-          new Decimal(amountOutput)
+          new Decimal(amountInput.toFixed()),
+          new Decimal(amountOutput.toFixed())
         )
       )[0];
       console.log(`Created opportunity: ${signature}`);
