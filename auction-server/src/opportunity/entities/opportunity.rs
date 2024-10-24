@@ -61,6 +61,8 @@ pub trait Opportunity:
     + Into<api::Opportunity>
     + Into<Self::OpportunityCreate>
     + TryFrom<repository::Opportunity<Self::ModelMetadata>>
+    + Send
+    + Sync
 {
     type TokenAmount: TokenAmount;
     type ModelMetadata: repository::OpportunityMetadata;

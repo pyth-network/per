@@ -28,7 +28,9 @@ pub struct Repository<T: InMemoryStore> {
     pub in_memory_store: T,
 }
 
-pub trait InMemoryStore: Deref<Target = InMemoryStoreCoreFields<Self::Opportunity>> {
+pub trait InMemoryStore:
+    Deref<Target = InMemoryStoreCoreFields<Self::Opportunity>> + Send + Sync
+{
     type Opportunity: entities::Opportunity;
 
     fn new() -> Self;

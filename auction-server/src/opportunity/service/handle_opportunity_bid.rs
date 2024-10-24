@@ -72,7 +72,6 @@ impl Service<ChainTypeEvm> {
                 opportunity:     opportunity.clone().into(),
                 opportunity_bid: input.opportunity_bid.clone(),
             })
-            .await
             .map_err(|e| {
                 tracing::error!(
                     "Error making adapter calldata: {:?} - opportunity: {:?}",

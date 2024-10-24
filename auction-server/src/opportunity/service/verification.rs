@@ -186,18 +186,16 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
             RestError::TemporarilyUnavailable
         })?;
 
-        let adapter_calldata = self
-            .make_adapter_calldata(MakeAdapterCalldataInput {
-                opportunity:     input.opportunity.clone(),
-                opportunity_bid: fake_bid.clone(),
-            })
-            .await?;
+        let adapter_calldata = self.make_adapter_calldata(MakeAdapterCalldataInput {
+            opportunity:     input.opportunity.clone(),
+            opportunity_bid: fake_bid.clone(),
+        })?;
 
         let chain_store = self
             .store
             .chains
             .get(&input.opportunity.core_fields.chain_id)
-            .ok_or(RestError::BadParameters("Chain not found".to_string()))?;
+            .ok_or(RestError::InvalidChainId)?;
         let call = get_simulation_call(
             chain_store.express_relay_contract.get_relayer_address(),
             config.provider.clone(),

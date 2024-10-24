@@ -54,22 +54,18 @@ impl Service<ChainTypeSvm> {
         &self,
         quote_create: entities::QuoteCreate,
         output_amount: u64,
+        chain_store: &ChainStoreSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let chain_config = self.get_config(&quote_create.chain_id)?;
         let router = chain_config.wallet_program_router_account;
         let permission_account = Pubkey::new_from_array(rand::thread_rng().gen());
-        let chain_store = self
-            .store
-            .chains_svm
-            .get(&quote_create.chain_id)
-            .ok_or(RestError::BadParameters("Chain not found".to_string()))?;
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
             permission_key: [router.to_bytes(), permission_account.to_bytes()]
                 .concat()
                 .into(),
             chain_id:       quote_create.chain_id,
-            sell_tokens:    vec![quote_create.input_token.into()],
+            sell_tokens:    vec![quote_create.input_token],
             buy_tokens:     vec![entities::TokenAmountSvm {
                 token:  quote_create.output_mint_token,
                 amount: output_amount,
@@ -110,7 +106,7 @@ impl Service<ChainTypeSvm> {
             .store
             .chains_svm
             .get(&input.quote_create.chain_id)
-            .ok_or(RestError::BadParameters("Chain not found".to_string()))?;
+            .ok_or(RestError::InvalidChainId)?;
         // TODO Check for the input amount
         tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");
         let output_amount = self
@@ -120,7 +116,11 @@ impl Service<ChainTypeSvm> {
             .await?;
 
         let opportunity_create = self
-            .get_opportunity_create_for_quote(input.quote_create.clone(), output_amount)
+            .get_opportunity_create_for_quote(
+                input.quote_create.clone(),
+                output_amount,
+                chain_store.as_ref(),
+            )
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {
@@ -147,7 +147,7 @@ impl Service<ChainTypeSvm> {
         ];
         metrics::counter!("get_quote_total_bids", &labels).increment(1);
 
-        if bids.len() == 0 {
+        if bids.is_empty() {
             tracing::warn!(opportunity = ?opportunity, "No bids found for quote opportunity");
 
             return Err(RestError::QuoteNotFound);
@@ -186,11 +186,11 @@ impl Service<ChainTypeSvm> {
         let mut bid = winner_bid.clone();
         add_relayer_signature_svm(relayer, &mut bid);
 
-        let signature = bid.transaction.signatures[0].clone();
+        let signature = bid.transaction.signatures[0];
         let converted_tx_hash = BidStatusSvm::convert_tx_hash(&signature);
         auction = self
             .store
-            .submit_auction(chain_store, auction, converted_tx_hash)
+            .submit_auction(chain_store.as_ref(), auction, converted_tx_hash)
             .map_err(|e| {
                 tracing::error!("Failed to submit auction: {:?}", e);
                 RestError::TemporarilyUnavailable
@@ -198,34 +198,32 @@ impl Service<ChainTypeSvm> {
             .await?;
 
         self.store.task_tracker.spawn({
-            let (store, repo, db, chain_id, winner_bid, bids) = (
+            let (store, repo, db, winner_bid, bids) = (
                 self.store.clone(),
                 self.repo.clone(),
                 self.db.clone(),
-                input.quote_create.chain_id.clone(),
                 winner_bid.clone(),
                 bids.clone(),
             );
+            let chain_store = chain_store.clone();
             async move {
-                if let Some(chain_store) = store.chains_svm.get(&chain_id) {
-                    tokio::join!(
-                        broadcast_submitted_bids(
-                            store.clone(),
-                            chain_store,
-                            vec![winner_bid.clone()],
-                            signature,
-                            auction.clone()
-                        ),
-                        broadcast_lost_bids(
-                            store.clone(),
-                            chain_store,
-                            bids,
-                            vec![winner_bid],
-                            Some(signature),
-                            Some(&auction)
-                        ),
-                    );
-                }
+                tokio::join!(
+                    broadcast_submitted_bids(
+                        store.clone(),
+                        chain_store.as_ref(),
+                        vec![winner_bid.clone()],
+                        signature,
+                        auction.clone()
+                    ),
+                    broadcast_lost_bids(
+                        store.clone(),
+                        chain_store.as_ref(),
+                        bids,
+                        vec![winner_bid],
+                        Some(signature),
+                        Some(&auction)
+                    ),
+                );
                 // Remove opportunity to prevent further bids
                 // The handle auction loop will take care of the bids that were submitted late
 
