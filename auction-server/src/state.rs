@@ -56,8 +56,8 @@ use {
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
-        pubkey::Pubkey,
         hash::Hash,
+        pubkey::Pubkey,
         signature::{
             Keypair,
             Signature,
