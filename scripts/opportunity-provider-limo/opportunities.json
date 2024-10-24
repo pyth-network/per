@@ -1,0 +1,15 @@
+[
+  {
+    "token1": {
+      "mint": "So11111111111111111111111111111111111111112",
+      "symbol": "SOL"
+    },
+    "token2": {
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "symbol": "USDC"
+    },
+    "randomizeSides": true,
+    "minAmountNotional": 0.01,
+    "maxAmountNotional": 0.1
+  }
+]
