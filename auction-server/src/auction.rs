@@ -1648,16 +1648,14 @@ pub async fn run_submission_loop<T: ChainStore + 'static>(
             trigger = stream.next() => {
                 let trigger = trigger.ok_or(anyhow!("Trigger stream ended for chain: {}", chain_store.get_name()))?;
                 tracing::debug!("New trigger received for {} at {}: {:?}", chain_store.get_name().clone(), OffsetDateTime::now_utc(), trigger);
-                store_new.store.task_tracker.spawn({
-                    let (store_new, chain_store) = (store_new.clone(), chain_store.clone());
-                    handle_auctions(store_new.clone(), chain_store)
-                });
+                store_new.store.task_tracker.spawn(
+                    handle_auctions(store_new.clone(), chain_store.clone())
+                );
 
                 if T::is_ready_to_conclude(trigger) {
-                    store_new.store.task_tracker.spawn({
-                        let (store, chain_store) = (store_new.store.clone(), chain_store.clone());
-                        conclude_submitted_auctions(store.clone(), chain_store)
-                    });
+                    store_new.store.task_tracker.spawn(
+                        conclude_submitted_auctions(store_new.store.clone(), chain_store.clone())
+                    );
                 }
             }
             _ = exit_check_interval.tick() => {}
