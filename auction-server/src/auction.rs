@@ -1049,7 +1049,7 @@ pub async fn handle_bid_svm(
     // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
     simulate_bid_svm(chain_store, &bid).await?;
 
-    // Check if the bid does not exists
+    // Check if the bid is not duplicate
     let bids = chain_store.get_bids(&bytes_permission_key).await;
     if bids.iter().any(|b| bid == *b) {
         return Err(RestError::BadParameters("Duplicate bid".to_string()));
