@@ -62,7 +62,7 @@ pub struct ConfigSvm {
     pub wallet_program_router_account: Pubkey,
 }
 
-pub trait Config {}
+pub trait Config: Send + Sync {}
 
 impl Config for ConfigEvm {
 }
@@ -167,7 +167,7 @@ impl ConfigSvm {
     }
 }
 
-pub trait ChainType {
+pub trait ChainType: Send + Sync {
     type Config: Config;
     type InMemoryStore: InMemoryStore;
 }
