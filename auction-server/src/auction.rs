@@ -307,13 +307,12 @@ async fn conclude_submitted_auction<T: ChainStore>(
 async fn conclude_submitted_auctions<T: ChainStore + 'static>(
     store: Arc<Store>,
     chain_store: Arc<T>,
-    chain_id: String,
 ) {
     let auctions = chain_store.get_submitted_auctions().await;
 
     tracing::info!(
         "Chain: {chain_id} Auctions to conclude {auction_len}",
-        chain_id = chain_id,
+        chain_id = chain_store.get_name(),
         auction_len = auctions.len()
     );
 
@@ -430,7 +429,6 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     bids: Vec<T::SimulatedBid>,
     bid_collection_time: OffsetDateTime,
     permission_key: Bytes,
-    chain_id: String,
     store: Arc<Store>,
     chain_store: &T,
     _auction_mutex_gaurd: MutexGuard<'a, ()>,
@@ -460,7 +458,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     let mut auction = store
         .init_auction::<T>(
             permission_key.clone(),
-            chain_id.clone(),
+            chain_store.get_name().clone(),
             bid_collection_time,
         )
         .await?;
@@ -468,7 +466,7 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     tracing::info!(
         "Submission for {} on chain {} started at {}",
         permission_key,
-        chain_id,
+        chain_store.get_name(),
         OffsetDateTime::now_utc()
     );
 
@@ -511,7 +509,6 @@ async fn submit_auction_for_lock<T: ChainStore>(
     store: Arc<Store>,
     chain_store: &T,
     permission_key: Bytes,
-    chain_id: String,
     auction_lock: AuctionLock,
 ) -> Result<()> {
     let acquired_lock = auction_lock.lock().await;
@@ -523,7 +520,6 @@ async fn submit_auction_for_lock<T: ChainStore>(
         bids.clone(),
         bid_collection_time,
         permission_key.clone(),
-        chain_id.clone(),
         store.clone(),
         chain_store,
         acquired_lock,
@@ -536,7 +532,6 @@ async fn handle_auction<T: ChainStore>(
     store_new: Arc<StoreNew>,
     chain_store: Arc<T>,
     permission_key: Bytes,
-    chain_id: String,
 ) -> Result<()> {
     let store = store_new.store.clone();
     match chain_store
@@ -550,7 +545,6 @@ async fn handle_auction<T: ChainStore>(
                 store.clone(),
                 chain_store.as_ref(),
                 permission_key.clone(),
-                chain_id,
                 auction_lock,
             )
             .await;
@@ -600,30 +594,24 @@ pub fn get_express_relay_contract(
     SignableExpressRelayContract::new(address, client)
 }
 
-async fn handle_auctions<T: ChainStore + 'static>(
-    store_new: Arc<StoreNew>,
-    chain_store: Arc<T>,
-    chain_id: String,
-) {
+async fn handle_auctions<T: ChainStore + 'static>(store_new: Arc<StoreNew>, chain_store: Arc<T>) {
     let permission_keys = chain_store.get_permission_keys_for_auction().await;
 
     tracing::info!(
         "Chain: {chain_id} Auctions to process {auction_len}",
-        chain_id = chain_id,
+        chain_id = chain_store.get_name(),
         auction_len = permission_keys.len()
     );
 
     for permission_key in permission_keys.iter() {
         store_new.store.task_tracker.spawn({
-            let (store_new, permission_key, chain_id) =
-                (store_new.clone(), permission_key.clone(), chain_id.clone());
+            let (store_new, permission_key) = (store_new.clone(), permission_key.clone());
             let chain_store = chain_store.clone();
             async move {
                 let result = handle_auction(
                     store_new.clone(),
                     chain_store.clone(),
                     permission_key.clone(),
-                    chain_id.clone(),
                 )
                 .await;
                 if let Err(err) = result {
@@ -631,7 +619,7 @@ async fn handle_auctions<T: ChainStore + 'static>(
                         "Failed to submit auction: {:?} - permission_key: {:?} - chain_id: {:?}",
                         err,
                         permission_key,
-                        chain_id,
+                        chain_store.get_name(),
                     );
                 }
             }
@@ -860,12 +848,8 @@ pub async fn handle_bid(
     Ok(core_fields.id)
 }
 
-pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()> {
-    tracing::info!(chain_id = chain_id, "Starting tracker...");
-    let chain_store = store
-        .chains
-        .get(&chain_id)
-        .ok_or(anyhow!("Chain not found: {}", chain_id))?;
+pub async fn run_tracker_loop(store: Arc<Store>, chain_store: Arc<ChainStoreEvm>) -> Result<()> {
+    tracing::info!(chain_id = chain_store.get_name(), "Starting tracker...");
 
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
@@ -882,7 +866,7 @@ pub async fn run_tracker_loop(store: Arc<Store>, chain_id: String) -> Result<()>
                         // The balance is in wei, so we need to divide by 1e18 to convert it to eth.
                         let balance = r.as_u128() as f64 / 1e18;
                         let label = [
-                            ("chain_id", chain_id.clone()),
+                            ("chain_id", chain_store.get_name().clone()),
                             ("address", format!("{:?}", chain_store.express_relay_contract.get_relayer_address())),
                         ];
                         metrics::gauge!("relayer_balance", &label).set(balance);
@@ -1160,6 +1144,9 @@ pub trait ChainStore:
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>>;
     /// Check if the auction is ready to be concluded based on the trigger
     fn is_ready_to_conclude(trigger: Self::Trigger) -> bool;
+
+    /// Get the name of the chain according to the configuration
+    fn get_name(&self) -> &ChainId;
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     async fn get_winner_bids(
         &self,
@@ -1356,6 +1343,10 @@ impl ChainStore for ChainStoreEvm {
         true
     }
 
+    fn get_name(&self) -> &ChainId {
+        &self.name
+    }
+
     #[tracing::instrument(skip_all)]
     async fn get_winner_bids(
         &self,
@@ -1508,6 +1499,10 @@ impl ChainStore for ChainStoreSvm {
         trigger.slot % CONCLUSION_TRIGGER_SLOT_INTERVAL == 0
     }
 
+    fn get_name(&self) -> &ChainId {
+        &self.name
+    }
+
     async fn get_winner_bids(
         &self,
         bids: &[Self::SimulatedBid],
@@ -1638,9 +1633,11 @@ impl Deref for ChainStoreSvm {
 pub async fn run_submission_loop<T: ChainStore + 'static>(
     store_new: Arc<StoreNew>,
     chain_store: Arc<T>,
-    chain_id: String,
 ) -> Result<()> {
-    tracing::info!(chain_id = chain_id, "Starting transaction submitter...");
+    tracing::info!(
+        chain_id = chain_store.get_name(),
+        "Starting transaction submitter..."
+    );
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
     let ws_client = chain_store.get_ws_client().await?;
@@ -1649,17 +1646,17 @@ pub async fn run_submission_loop<T: ChainStore + 'static>(
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
             trigger = stream.next() => {
-                let trigger = trigger.ok_or(anyhow!("Trigger stream ended for chain: {}", chain_id))?;
-                tracing::debug!("New trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), trigger);
+                let trigger = trigger.ok_or(anyhow!("Trigger stream ended for chain: {}", chain_store.get_name()))?;
+                tracing::debug!("New trigger received for {} at {}: {:?}", chain_store.get_name().clone(), OffsetDateTime::now_utc(), trigger);
                 store_new.store.task_tracker.spawn({
-                    let (store_new, chain_id, chain_store) = (store_new.clone(), chain_id.clone(), chain_store.clone());
-                    handle_auctions(store_new.clone(), chain_store, chain_id.clone())
+                    let (store_new, chain_store) = (store_new.clone(), chain_store.clone());
+                    handle_auctions(store_new.clone(), chain_store)
                 });
 
                 if T::is_ready_to_conclude(trigger) {
                     store_new.store.task_tracker.spawn({
-                        let (store, chain_id, chain_store) = (store_new.store.clone(), chain_id.clone(), chain_store.clone());
-                        conclude_submitted_auctions(store.clone(), chain_store, chain_id.clone())
+                        let (store, chain_store) = (store_new.store.clone(), chain_store.clone());
+                        conclude_submitted_auctions(store.clone(), chain_store)
                     });
                 }
             }
@@ -1674,9 +1671,11 @@ pub async fn run_submission_loop<T: ChainStore + 'static>(
 pub async fn run_log_listener_loop_svm(
     store_new: Arc<StoreNew>,
     chain_store: Arc<ChainStoreSvm>,
-    chain_id: String,
 ) -> Result<()> {
-    tracing::info!(chain_id = chain_id, "Starting log listener...");
+    tracing::info!(
+        chain_id = chain_store.get_name(),
+        "Starting log listener..."
+    );
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
     let ws_client = chain_store.get_ws_client().await?;
     let (mut stream, _) = ws_client
@@ -1696,9 +1695,9 @@ pub async fn run_log_listener_loop_svm(
         tokio::select! {
             rpc_log = stream.next() => {
                 match rpc_log {
-                    None => return Err(anyhow!("Log trigger stream ended for chain: {}", chain_id)),
+                    None => return Err(anyhow!("Log trigger stream ended for chain: {}", chain_store.get_name())),
                     Some(rpc_log) => {
-                        tracing::debug!("New log trigger received for {} at {}: {:?}", chain_id.clone(), OffsetDateTime::now_utc(), rpc_log.clone());
+                        tracing::debug!("New log trigger received for {} at {}: {:?}", chain_store.get_name(), OffsetDateTime::now_utc(), rpc_log.clone());
                         store_new.store.task_tracker.spawn({
                             let (store, chain_store) = (store_new.store.clone(), chain_store.clone());
                             async move {

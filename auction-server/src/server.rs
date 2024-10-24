@@ -185,6 +185,7 @@ async fn setup_chain_store(
                         Ok((
                             chain_id.clone(),
                             ChainStoreEvm {
+                                name: chain_id.clone(),
                                 core_fields: ChainStoreCoreFields::<SimulatedBidEvm> {
                                     bids:               Default::default(),
                                     auction_lock:       Default::default(),
@@ -308,13 +309,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let submission_loops = store.chains.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("submission loop for evm chain {}", chain_id.clone()),
-                    || {
-                        run_submission_loop(
-                            store_new.clone(),
-                            chain_store.clone(),
-                            chain_id.clone(),
-                        )
-                    },
+                    || run_submission_loop(store_new.clone(), chain_store.clone()),
                 )
             });
             join_all(submission_loops).await;
@@ -323,13 +318,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let submission_loops = store.chains_svm.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("submission loop for svm chain {}", chain_id.clone()),
-                    || {
-                        run_submission_loop(
-                            store_new.clone(),
-                            chain_store.clone(),
-                            chain_id.clone(),
-                        )
-                    },
+                    || run_submission_loop(store_new.clone(), chain_store.clone()),
                 )
             });
             join_all(submission_loops).await;
@@ -338,22 +327,16 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             let log_listener_loops = store.chains_svm.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("log listener loop for svm chain {}", chain_id.clone()),
-                    || {
-                        run_log_listener_loop_svm(
-                            store_new.clone(),
-                            chain_store.clone(),
-                            chain_id.clone(),
-                        )
-                    },
+                    || run_log_listener_loop_svm(store_new.clone(), chain_store.clone()),
                 )
             });
             join_all(log_listener_loops).await;
         },
         async {
-            let tracker_loops = store.chains.keys().map(|chain_id| {
+            let tracker_loops = store.chains.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("tracker loop for chain {}", chain_id.clone()),
-                    || run_tracker_loop(store.clone(), chain_id.clone()),
+                    || run_tracker_loop(store.clone(), chain_store.clone()),
                 )
             });
             join_all(tracker_loops).await;
@@ -416,6 +399,7 @@ fn setup_svm(
             (
                 chain_id.clone(),
                 ChainStoreSvm {
+                    name: chain_id.clone(),
                     core_fields: ChainStoreCoreFields::<SimulatedBidSvm> {
                         bids:               Default::default(),
                         auction_lock:       Default::default(),

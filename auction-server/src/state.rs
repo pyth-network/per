@@ -468,6 +468,7 @@ pub struct ChainStoreEvm {
     pub config:                 ConfigEvm,
     pub express_relay_contract: Arc<SignableExpressRelayContract>,
     pub block_gas_limit:        U256,
+    pub name:                   String,
 }
 
 pub struct ChainStoreSvm {
@@ -477,6 +478,7 @@ pub struct ChainStoreSvm {
     pub config:                        ConfigSvm,
     pub express_relay_svm:             ExpressRelaySvm,
     pub wallet_program_router_account: Pubkey,
+    pub name:                          String,
 }
 
 pub type BidId = Uuid;
