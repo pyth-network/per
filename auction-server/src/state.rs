@@ -1114,16 +1114,14 @@ impl Store {
     }
 
     fn broadcast_status_update(&self, update: BidStatusWithId) {
-        match self.event_sender.send(UpdateEvent::BidStatusUpdate(update)) {
-            Ok(_) => (),
-            Err(e) => tracing::error!("Failed to send bid status update: {}", e),
+        if let Err(e) = self.event_sender.send(UpdateEvent::BidStatusUpdate(update)) {
+            tracing::error!("Failed to send bid status update: {}", e)
         };
     }
 
     pub fn broadcast_svm_chain_update(&self, update: SvmChainUpdate) {
-        match self.event_sender.send(UpdateEvent::SvmChainUpdate(update)) {
-            Ok(_) => (),
-            Err(e) => tracing::error!("Failed to send chain update: {}", e),
+        if let Err(e) = self.event_sender.send(UpdateEvent::SvmChainUpdate(update)) {
+            tracing::error!("Failed to send chain update: {}", e)
         };
     }
 
