@@ -5,7 +5,10 @@ pub mod utils;
 
 use {
     crate::{
+        cpi::accounts::CheckPermission as CheckPermissionCPI,
         error::ErrorCode,
+        program::ExpressRelay,
+        sdk::cpi::check_permission_cpi,
         state::*,
         utils::*,
     },
@@ -19,6 +22,11 @@ use {
             sysvar::instructions as sysvar_instructions,
         },
         system_program::System,
+    },
+    anchor_spl::token::{
+        Mint,
+        Token,
+        TokenAccount,
     },
 };
 
@@ -146,6 +154,63 @@ pub mod express_relay {
             &fee_receiver_admin.to_account_info(),
             amount,
         )
+    }
+
+    pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
+        // check permission
+        let check_permission_accounts = CheckPermissionCPI {
+            sysvar_instructions:    ctx.accounts.sysvar_instructions.to_account_info(),
+            permission:             ctx.accounts.permission.to_account_info(),
+            router:                 ctx.accounts.router.to_account_info(),
+            config_router:          ctx.accounts.config_router.to_account_info(),
+            express_relay_metadata: ctx.accounts.express_relay_metadata.to_account_info(),
+        };
+        check_permission_cpi(
+            check_permission_accounts,
+            ctx.accounts.express_relay_program.to_account_info(),
+        )?;
+
+        let fees_referral = data
+            .referral_fee_ppm
+            .checked_mul(data.amount_input)
+            .ok_or(ProgramError::ArithmeticOverflow)?
+            / 1_000_000;
+
+        if fees_referral > 0 {
+            transfer_spl(
+                &ctx.accounts.ta_input_searcher.to_account_info(),
+                &ctx.accounts.ta_input_router.to_account_info(),
+                &ctx.accounts.token_program.to_account_info(),
+                &ctx.accounts.router.to_account_info(),
+                fees_referral,
+            )?;
+        }
+
+        let amount_to_trader = data
+            .amount_input
+            .checked_sub(fees_referral)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        if amount_to_trader > 0 {
+            transfer_spl(
+                &ctx.accounts.ta_input_searcher.to_account_info(),
+                &ctx.accounts.ta_input_trader.to_account_info(),
+                &ctx.accounts.token_program.to_account_info(),
+                &ctx.accounts.searcher.to_account_info(),
+                amount_to_trader,
+            )?;
+        }
+
+        if data.amount_output > 0 {
+            transfer_spl(
+                &ctx.accounts.ta_output_trader.to_account_info(),
+                &ctx.accounts.ta_output_searcher.to_account_info(),
+                &ctx.accounts.token_program.to_account_info(),
+                &ctx.accounts.trader.to_account_info(),
+                data.amount_output,
+            )?;
+        }
+
+        Ok(())
     }
 }
 
@@ -308,4 +373,79 @@ pub struct WithdrawFees<'info> {
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+}
+
+/// For all swap instructions and contexts, input and output are defined with respect to the searcher
+/// So mint_input refers to the token that the searcher provides to the trader
+/// mint_output refers to the token that the searcher receives from the trader
+/// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
+pub struct SwapArgs {
+    pub amount_input:     u64,
+    pub amount_output:    u64,
+    pub nonce:            u64,
+    // The referral fee is specified in parts per million (e.g. 100 = 1 bp)
+    pub referral_fee_ppm: u64,
+}
+
+#[derive(Accounts)]
+#[instruction(data: Box<SwapArgs>)]
+pub struct Swap<'info> {
+    #[account(mut)]
+    pub searcher: Signer<'info>,
+
+    pub trader: Signer<'info>,
+
+    pub relayer_signer: Signer<'info>,
+
+    #[account(seeds = [
+        SEED_SWAP,
+        searcher.key().as_ref(),
+        trader.key().as_ref(),
+        mint_input.key().as_ref(),
+        mint_output.key().as_ref(),
+        &data.nonce.to_le_bytes(),
+    ], bump)]
+    pub permission: AccountInfo<'info>,
+
+    /// CHECK: don't care what this looks like
+    #[account(mut)]
+    pub router: UncheckedAccount<'info>,
+
+    /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist
+    #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
+    pub config_router: UncheckedAccount<'info>,
+
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer)]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+
+    pub mint_input: Account<'info, Mint>,
+
+    pub mint_output: Account<'info, Mint>,
+
+    #[account(mut, token::mint = mint_input, token::authority = searcher)]
+    pub ta_input_searcher: Account<'info, TokenAccount>,
+
+    #[account(mut, token::mint = mint_output, token::authority = searcher)]
+    pub ta_output_searcher: Account<'info, TokenAccount>,
+
+    #[account(mut, token::mint = mint_input, token::authority = trader)]
+    pub ta_input_trader: Account<'info, TokenAccount>,
+
+    #[account(mut, token::mint = mint_output, token::authority = trader)]
+    pub ta_output_trader: Account<'info, TokenAccount>,
+
+    #[account(init_if_needed, payer = searcher, token::mint = mint_input, token::authority = router)]
+    pub ta_input_router: Account<'info, TokenAccount>,
+
+    #[account(address = ID)]
+    pub express_relay_program: Program<'info, ExpressRelay>,
+
+    pub token_program: Program<'info, Token>,
+
+    pub system_program: Program<'info, System>,
+
+    /// CHECK: this is the sysvar instructions account
+    #[account(address = sysvar_instructions::ID)]
+    pub sysvar_instructions: UncheckedAccount<'info>,
 }

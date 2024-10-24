@@ -18,6 +18,10 @@ use {
         },
         Discriminator,
     },
+    anchor_spl::token::{
+        self,
+        Transfer as SplTransfer,
+    },
 };
 
 pub fn validate_fee_split(split: u64) -> Result<()> {
@@ -46,6 +50,26 @@ pub fn transfer_lamports_cpi<'info>(
 
     transfer(CpiContext::new(system_program, cpi_accounts), amount)?;
 
+    Ok(())
+}
+
+pub fn transfer_spl<'info>(
+    from_ta: &AccountInfo<'info>,
+    to_ta: &AccountInfo<'info>,
+    token_program: &AccountInfo<'info>,
+    authority: &AccountInfo<'info>,
+    amount: u64,
+) -> Result<()> {
+    let cpi_accounts = SplTransfer {
+        from:      from_ta.clone(),
+        to:        to_ta.clone(),
+        authority: authority.clone(),
+    };
+
+    token::transfer(
+        CpiContext::new(token_program.to_account_info(), cpi_accounts),
+        amount,
+    )?;
     Ok(())
 }
 
