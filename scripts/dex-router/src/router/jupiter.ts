@@ -4,7 +4,7 @@ import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 const jupiterBaseUrl = "https://quote-api.jup.ag/v6/";
 const jupiterQuoteUrl = new URL("quote", jupiterBaseUrl);
 const jupiterSwapIxsUrl = new URL("swap-instructions", jupiterBaseUrl);
-const maxAccounts = 32;
+const maxAccounts = 20;
 
 export class JupiterRouter implements Router {
   async route(
@@ -18,35 +18,35 @@ export class JupiterRouter implements Router {
       throw new Error("Jupiter error: chain id not supported");
     }
 
-    // TODO: REMOVE THIS, ONLY FOR TESTING W FAKE TOKENS
-    if (
-      tokenIn.equals(
-        new PublicKey("USDCHDcjejXG1tqnrX4SfvsB2TGp8xGgTHXqxcoSeF2")
-      )
-    ) {
-      tokenIn = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-    }
-    if (
-      tokenOut.equals(
-        new PublicKey("USDCHDcjejXG1tqnrX4SfvsB2TGp8xGgTHXqxcoSeF2")
-      )
-    ) {
-      tokenOut = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-    }
-    if (
-      tokenIn.equals(
-        new PublicKey("WSoLZvwZh5mQDEpHUsvxwbnM1yGbW3Qd9rEya7GJCPX")
-      )
-    ) {
-      tokenIn = new PublicKey("So11111111111111111111111111111111111111112");
-    }
-    if (
-      tokenOut.equals(
-        new PublicKey("WSoLZvwZh5mQDEpHUsvxwbnM1yGbW3Qd9rEya7GJCPX")
-      )
-    ) {
-      tokenOut = new PublicKey("So11111111111111111111111111111111111111112");
-    }
+    // // TODO: REMOVE THIS, ONLY FOR TESTING W FAKE TOKENS
+    // if (
+    //   tokenIn.equals(
+    //     new PublicKey("USDCHDcjejXG1tqnrX4SfvsB2TGp8xGgTHXqxcoSeF2")
+    //   )
+    // ) {
+    //   tokenIn = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+    // }
+    // if (
+    //   tokenOut.equals(
+    //     new PublicKey("USDCHDcjejXG1tqnrX4SfvsB2TGp8xGgTHXqxcoSeF2")
+    //   )
+    // ) {
+    //   tokenOut = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+    // }
+    // if (
+    //   tokenIn.equals(
+    //     new PublicKey("WSoLZvwZh5mQDEpHUsvxwbnM1yGbW3Qd9rEya7GJCPX")
+    //   )
+    // ) {
+    //   tokenIn = new PublicKey("So11111111111111111111111111111111111111112");
+    // }
+    // if (
+    //   tokenOut.equals(
+    //     new PublicKey("WSoLZvwZh5mQDEpHUsvxwbnM1yGbW3Qd9rEya7GJCPX")
+    //   )
+    // ) {
+    //   tokenOut = new PublicKey("So11111111111111111111111111111111111111112");
+    // }
 
     const quoteResponse = await (
       await fetch(
