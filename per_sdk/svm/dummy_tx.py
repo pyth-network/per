@@ -160,27 +160,35 @@ async def main():
 
     client = AsyncClient(args.rpc_url, Confirmed)
     if args.use_lookup_table:
-        recent_slot = (await client.get_slot()).value
+        address_lookup_pid = Pubkey.from_string(
+            "AddressLookupTab1e1111111111111111111111111"
+        )
+
+        recent_slot = (await client.get_slot("finalized")).value
 
         (lookup_table_address, bump_lookup_table_address) = Pubkey.find_program_address(
-            [bytes(pk_relayer_signer), struct.pack("<Q", recent_slot)], system_pid
+            [bytes(pk_searcher), struct.pack("<Q", recent_slot)], address_lookup_pid
         )
 
         ix_create_lut = Instruction(
-            Pubkey.from_string("AddressLookupTab1e1111111111111111111111111"),
-            struct.pack("<BQB", 0, recent_slot, bump_lookup_table_address),
+            address_lookup_pid,
+            struct.pack("<LQB", 0, recent_slot, bump_lookup_table_address),
             [
                 AccountMeta(lookup_table_address, False, True),
-                AccountMeta(pk_relayer_signer, True, False),
-                AccountMeta(pk_relayer_signer, True, True),
+                AccountMeta(pk_searcher, True, False),
+                AccountMeta(pk_searcher, True, True),
                 AccountMeta(system_pid, False, False),
             ],
         )
 
-        tx_create_lut = Transaction(fee_payer=pk_relayer_signer)
+        print("recent slot", recent_slot)
+        for data in ix_create_lut.data:
+            print(data)
+
+        tx_create_lut = Transaction(fee_payer=pk_searcher)
         tx_create_lut.add(ix_create_lut)
         tx_create_lut_sig = (
-            await client.send_transaction(tx_create_lut, kp_relayer_signer)
+            await client.send_transaction(tx_create_lut, kp_searcher)
         ).value
         conf_create_lut = await client.confirm_transaction(tx_create_lut_sig)
 
@@ -189,7 +197,7 @@ async def main():
         ), "Create lookup table transaction failed"
 
         ix_extend_lut = Instruction(
-            Pubkey.from_string("AddressLookupTab1e1111111111111111111111111"),
+            address_lookup_pid,
             struct.pack("B", 2).join(
                 [
                     bytes(pubkey)
@@ -198,16 +206,16 @@ async def main():
             ),
             [
                 AccountMeta(lookup_table_address, False, True),
-                AccountMeta(pk_relayer_signer, True, False),
-                AccountMeta(pk_relayer_signer, True, True),
+                AccountMeta(pk_searcher, True, False),
+                AccountMeta(pk_searcher, True, True),
                 AccountMeta(system_pid, False, False),
             ],
         )
 
-        tx_extend_lut = Transaction(fee_payer=pk_relayer_signer)
+        tx_extend_lut = Transaction(fee_payer=pk_searcher)
         tx_extend_lut.add(ix_extend_lut)
         tx_extend_lut_sig = (
-            await client.send_transaction(tx_extend_lut, kp_relayer_signer)
+            await client.send_transaction(tx_extend_lut, kp_searcher)
         ).value
         conf_extend_lut = await client.confirm_transaction(tx_extend_lut_sig)
 
