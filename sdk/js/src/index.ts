@@ -277,7 +277,6 @@ export class Client {
 
         order: encoded_order.toString("base64"),
         slot: opportunity.slot,
-        block_hash: opportunity.blockHash,
         order_address: opportunity.order.address.toBase58(),
         buy_tokens: [
           {
@@ -426,7 +425,6 @@ export class Client {
     return {
       chainId: opportunity.chain_id,
       slot: opportunity.slot,
-      blockHash: opportunity.block_hash,
       opportunityId: opportunity.opportunity_id,
       order: {
         state: order,
