@@ -215,6 +215,7 @@ async fn setup_chain_store(
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 
 
+// TODO move to kernel repo
 async fn create_pg_pool(database_url: &str) -> Result<PgPool> {
     PgPoolOptions::new()
         .max_connections(10)
