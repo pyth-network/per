@@ -34,6 +34,16 @@ pub enum Options {
     Run(RunOptions),
     /// Sync the relayer subwallets
     SyncSubwallets(SubwalletOptions),
+    /// Run db migrations and exit
+    Migrate(MigrateOptions),
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct MigrateOptions {
+    /// database url to run the migrations for
+    #[arg(long = "database-url")]
+    #[arg(env = "DATABASE_URL")]
+    pub database_url: String,
 }
 
 #[derive(Args, Clone, Debug)]
