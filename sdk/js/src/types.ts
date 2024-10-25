@@ -1,6 +1,6 @@
 import { Address, Hex } from "viem";
 import type { components } from "./serverTypes";
-import { Blockhash, PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { OrderStateAndAddress } from "@kamino-finance/limo-sdk/dist/utils";
 
 /**
@@ -110,10 +110,6 @@ export type OpportunitySvm = {
    * Slot where the opportunity was found
    */
   slot: number;
-  /**
-   * Blockhash that can be used to sign transactions for this opportunity
-   */
-  blockHash: Blockhash;
   /**
    * Unique identifier for the opportunity
    */
