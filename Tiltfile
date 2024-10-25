@@ -77,6 +77,7 @@ cmd_button(
     resource="evm-deploy-contracts",
     env=["PRIVATE_KEY=" + private_key],
     icon_name="add",
+    text="Add Evm Opportunity",
 )
 
 local_resource(
