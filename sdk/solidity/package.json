@@ -4,15 +4,15 @@
   "description": "Solidity SDK for interacting with Express Relay contracts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pyth-network/pyth-crosschain",
-    "directory": "express_relay/sdk/solidity"
+    "url": "https://github.com/pyth-network/per",
+    "directory": "sdk/solidity"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
     "format": "prettier --write .",
-    "generate-abi": "generate-abis IExpressRelay IExpressRelayFeeReceiver",
+    "generate-abi": "forge inspect IExpressRelay abi > abis/IExpressRelay.json && forge inspect IExpressRelayFeeReceiver abi > abis/IExpressRelayFeeReceiver.json",
     "check-abi": "git diff --exit-code abis"
   },
   "keywords": [
@@ -23,12 +23,11 @@
   "author": "Douro Labs",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/pyth-network/pyth-crosschain/issues"
+    "url": "https://github.com/pyth-network/per/issues"
   },
-  "homepage": "https://github.com/pyth-network/pyth-crosschain/tree/main/express_relay/sdk/solidity",
+  "homepage": "https://github.com/pyth-network/per/tree/main/sdk/solidity",
   "devDependencies": {
     "prettier": "^2.7.1",
-    "prettier-plugin-solidity": "^1.0.0-rc.1",
-    "abi_generator": "workspace:*"
+    "prettier-plugin-solidity": "^1.0.0-rc.1"
   }
 }

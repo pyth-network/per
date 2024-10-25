@@ -1,26 +1,26 @@
 [
   {
+    "type": "function",
+    "name": "isPermissioned",
     "inputs": [
       {
-        "internalType": "address",
         "name": "protocolFeeReceiver",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       },
       {
-        "internalType": "bytes",
         "name": "permissionId",
-        "type": "bytes"
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
-    "name": "isPermissioned",
     "outputs": [
       {
-        "internalType": "bool",
         "name": "permissioned",
-        "type": "bool"
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   }
 ]

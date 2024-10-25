@@ -243,7 +243,7 @@ async def main():
         with open(args.private_key_json_file, "r") as f:
             searcher_keypair = Keypair.from_json(f.read())
 
-    logger.info("Using Keypair with pubkey:", searcher_keypair.pubkey())
+    logger.info("Using Keypair with pubkey: %s", searcher_keypair.pubkey())
     searcher = SimpleSearcherSvm(
         args.endpoint_express_relay,
         searcher_keypair,
