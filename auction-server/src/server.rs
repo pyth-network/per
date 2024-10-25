@@ -189,7 +189,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let wallet = run_options.subwallet_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {:?}", wallet.address());
 
-    let chains = setup_chainstore_evm(config_map.clone(), wallet.clone()).await?;
+    let chains_evm = setup_chainstore_evm(config_map.clone(), wallet.clone()).await?;
 
     let chains_svm = setup_chainstore_svm(&run_options, config_map)?;
 
@@ -218,11 +218,11 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let task_tracker = TaskTracker::new();
 
     let config_opportunity_service_evm =
-        opportunity_service::ConfigEvm::from_chains(&chains).await?;
+        opportunity_service::ConfigEvm::from_chains(&chains_evm).await?;
     let config_opportunity_service_svm =
         opportunity_service::ConfigSvm::from_chains(&chains_svm).await?;
 
-    let chains = chains
+    let chains_evm = chains_evm
         .into_iter()
         .map(|(k, v)| (k, Arc::new(v)))
         .collect::<HashMap<_, _>>();
@@ -234,7 +234,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
         db: pool.clone(),
-        chains,
+        chains_evm,
         chains_svm,
         event_sender: broadcast_sender.clone(),
         ws: ws::WsState {
@@ -268,7 +268,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 
     tokio::join!(
         async {
-            let submission_loops = store.chains.iter().map(|(chain_id, chain_store)| {
+            let submission_loops = store.chains_evm.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("submission loop for evm chain {}", chain_id.clone()),
                     || run_submission_loop(store_new.clone(), chain_store.clone()),
@@ -295,7 +295,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
             join_all(log_listener_loops).await;
         },
         async {
-            let tracker_loops = store.chains.iter().map(|(chain_id, chain_store)| {
+            let tracker_loops = store.chains_evm.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("tracker loop for chain {}", chain_id.clone()),
                     || run_tracker_loop(chain_store.clone()),

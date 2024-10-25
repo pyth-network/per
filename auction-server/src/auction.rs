@@ -756,7 +756,7 @@ pub async fn handle_bid(
     auth: Auth,
 ) -> result::Result<Uuid, RestError> {
     let chain_store = store
-        .chains
+        .chains_evm
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?
         .as_ref();

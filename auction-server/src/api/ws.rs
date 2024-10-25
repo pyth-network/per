@@ -336,7 +336,7 @@ impl Subscriber {
         let available_chain_ids: Vec<&ChainId> = self
             .store
             .store
-            .chains
+            .chains_evm
             .keys()
             .chain(self.store.store.chains_svm.keys())
             .collect();

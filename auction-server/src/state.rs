@@ -999,7 +999,7 @@ pub struct ExpressRelaySvm {
 }
 
 pub struct Store {
-    pub chains:           HashMap<ChainId, Arc<ChainStoreEvm>>,
+    pub chains_evm:       HashMap<ChainId, Arc<ChainStoreEvm>>,
     pub chains_svm:       HashMap<ChainId, Arc<ChainStoreSvm>>,
     pub event_sender:     broadcast::Sender<UpdateEvent>,
     pub ws:               WsState,

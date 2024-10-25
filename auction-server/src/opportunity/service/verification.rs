@@ -193,7 +193,7 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
 
         let chain_store = self
             .store
-            .chains
+            .chains_evm
             .get(&input.opportunity.core_fields.chain_id)
             .ok_or(RestError::InvalidChainId)?;
         let call = get_simulation_call(
