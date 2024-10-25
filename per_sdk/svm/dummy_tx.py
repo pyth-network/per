@@ -73,6 +73,12 @@ def parse_args() -> argparse.Namespace:
         help="Pubkey of the dummy program, as a base-58-encoded string",
     )
     parser.add_argument(
+        "--use-lookup-table",
+        action="store_true",
+        default=False,
+        help="Create and use a lookup table to store some commonly used accounts for the express relay program instruction",
+    )
+    parser.add_argument(
         "--submit-on-chain",
         action="store_true",
         default=False,
@@ -153,6 +159,62 @@ async def main():
     )
 
     client = AsyncClient(args.rpc_url, Confirmed)
+    if args.use_lookup_table:
+        recent_slot = (await client.get_slot()).value
+
+        (lookup_table_address, bump_lookup_table_address) = Pubkey.find_program_address(
+            [bytes(pk_relayer_signer), struct.pack("<Q", recent_slot)], system_pid
+        )
+
+        ix_create_lut = Instruction(
+            Pubkey.from_string("AddressLookupTab1e1111111111111111111111111"),
+            struct.pack("<BQB", 0, recent_slot, bump_lookup_table_address),
+            [
+                AccountMeta(lookup_table_address, False, True),
+                AccountMeta(pk_relayer_signer, True, False),
+                AccountMeta(pk_relayer_signer, True, True),
+                AccountMeta(system_pid, False, False),
+            ],
+        )
+
+        tx_create_lut = Transaction(fee_payer=pk_relayer_signer)
+        tx_create_lut.add(ix_create_lut)
+        tx_create_lut_sig = (
+            await client.send_transaction(tx_create_lut, kp_relayer_signer)
+        ).value
+        conf_create_lut = await client.confirm_transaction(tx_create_lut_sig)
+
+        assert (
+            conf_create_lut.value[0].status is None
+        ), "Create lookup table transaction failed"
+
+        ix_extend_lut = Instruction(
+            Pubkey.from_string("AddressLookupTab1e1111111111111111111111111"),
+            struct.pack("B", 2).join(
+                [
+                    bytes(pubkey)
+                    for pubkey in [router, config_router, pk_express_relay_metadata]
+                ]
+            ),
+            [
+                AccountMeta(lookup_table_address, False, True),
+                AccountMeta(pk_relayer_signer, True, False),
+                AccountMeta(pk_relayer_signer, True, True),
+                AccountMeta(system_pid, False, False),
+            ],
+        )
+
+        tx_extend_lut = Transaction(fee_payer=pk_relayer_signer)
+        tx_extend_lut.add(ix_extend_lut)
+        tx_extend_lut_sig = (
+            await client.send_transaction(tx_extend_lut, kp_relayer_signer)
+        ).value
+        conf_extend_lut = await client.confirm_transaction(tx_extend_lut_sig)
+
+        assert (
+            conf_extend_lut.value[0].status is None
+        ), "Extend lookup table transaction failed"
+
     if args.submit_on_chain:
         tx = Transaction(fee_payer=pk_searcher)
         tx.add(ix_submit_bid)
