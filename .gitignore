@@ -24,5 +24,7 @@ contracts/evm/latestEnvironment.json
 node_modules
 .idea
 
+tsconfig.tsbuildinfo
+
 # Ignore stored SVM keypairs
 keypairs/*.json
