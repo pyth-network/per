@@ -10,3 +10,9 @@ chains:
     subwallets:
       - 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
       - 0xdecafdecafdecafdecafdecafdecafdecafdecaf
+  development-solana:
+    express_relay_program_id: PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou
+    rpc_addr: http://localhost:8899
+    rpc_tx_addr: http://localhost:8899
+    ws_addr: ws://localhost:8900
+    wallet_program_router_account: 3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn
