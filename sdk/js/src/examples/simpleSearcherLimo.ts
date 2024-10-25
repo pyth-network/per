@@ -6,11 +6,11 @@ import {
   Opportunity,
   OpportunitySvm,
 } from "../index";
-import { BidStatusUpdate } from "../types";
+import { BidStatusUpdate, ChainId, SvmChainUpdate } from "../types";
 import { SVM_CONSTANTS } from "../const";
 
 import * as anchor from "@coral-xyz/anchor";
-import { Keypair, PublicKey, Connection } from "@solana/web3.js";
+import { Keypair, PublicKey, Connection, Blockhash } from "@solana/web3.js";
 
 import * as limo from "@kamino-finance/limo-sdk";
 import { Decimal } from "decimal.js";
@@ -26,6 +26,7 @@ class SimpleSearcherLimo {
   private readonly connectionSvm: Connection;
   private mintDecimals: Record<string, number> = {};
   private expressRelayConfig: ExpressRelaySvmConfig | undefined;
+  private recentBlockhash: Record<ChainId, Blockhash> = {};
   constructor(
     public endpointExpressRelay: string,
     public chainId: string,
@@ -41,7 +42,8 @@ class SimpleSearcherLimo {
       },
       undefined,
       this.opportunityHandler.bind(this),
-      this.bidStatusHandler.bind(this)
+      this.bidStatusHandler.bind(this),
+      this.svmChainUpdateHandler.bind(this)
     );
     this.connectionSvm = new Connection(endpointSvm, "confirmed");
   }
@@ -151,7 +153,9 @@ class SimpleSearcherLimo {
       this.expressRelayConfig.feeReceiverRelayer
     );
 
-    bid.transaction.recentBlockhash = opportunity.blockHash;
+    if (this.recentBlockhash[this.chainId]) {
+      bid.transaction.recentBlockhash = this.recentBlockhash[this.chainId];
+    }
     bid.transaction.sign(this.searcher);
     return bid;
   }
@@ -168,6 +172,10 @@ class SimpleSearcherLimo {
         `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
       );
     }
+  }
+
+  async svmChainUpdateHandler(update: SvmChainUpdate) {
+    this.recentBlockhash[update.chainId] = update.blockhash;
   }
 
   async start() {

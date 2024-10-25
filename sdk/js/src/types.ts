@@ -1,6 +1,6 @@
 import { Address, Hex } from "viem";
 import type { components } from "./serverTypes";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { Blockhash, PublicKey, Transaction } from "@solana/web3.js";
 import { OrderStateAndAddress } from "@kamino-finance/limo-sdk/dist/utils";
 
 /**
@@ -240,4 +240,9 @@ export type BidsResponse = {
 
 export type SvmConstantsConfig = {
   expressRelayProgram: PublicKey;
+};
+
+export type SvmChainUpdate = {
+  chainId: ChainId;
+  blockhash: Blockhash;
 };

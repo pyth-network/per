@@ -17,6 +17,7 @@ import {
   OpportunityEvm,
   OpportunityCreate,
   TokenAmount,
+  SvmChainUpdate,
 } from "./types";
 import {
   Connection,
@@ -92,6 +93,10 @@ export class Client {
     statusUpdate: BidStatusUpdate
   ) => Promise<void>;
 
+  private websocketSvmChainUpdateCallback?: (
+    update: SvmChainUpdate
+  ) => Promise<void>;
+
   private getAuthorization() {
     return this.clientOptions.apiKey
       ? {
@@ -104,7 +109,8 @@ export class Client {
     clientOptions: ClientOptions,
     wsOptions?: WsOptions,
     opportunityCallback?: (opportunity: Opportunity) => Promise<void>,
-    bidStatusCallback?: (statusUpdate: BidStatusUpdate) => Promise<void>
+    bidStatusCallback?: (statusUpdate: BidStatusUpdate) => Promise<void>,
+    svmChainUpdateCallback?: (update: SvmChainUpdate) => Promise<void>
   ) {
     this.clientOptions = clientOptions;
     this.clientOptions.headers = {
@@ -114,6 +120,7 @@ export class Client {
     this.wsOptions = { ...DEFAULT_WS_OPTIONS, ...wsOptions };
     this.websocketOpportunityCallback = opportunityCallback;
     this.websocketBidStatusCallback = bidStatusCallback;
+    this.websocketSvmChainUpdateCallback = svmChainUpdateCallback;
   }
 
   private connectWebsocket() {
@@ -146,6 +153,10 @@ export class Client {
             id: message.status.id,
             ...message.status.bid_status,
           });
+        }
+      } else if ("type" in message && message.type === "svm_chain_update") {
+        if (this.websocketSvmChainUpdateCallback !== undefined) {
+          await this.websocketSvmChainUpdateCallback(message.update);
         }
       } else if ("id" in message && message.id) {
         // Response to a request sent earlier via the websocket with the same id
