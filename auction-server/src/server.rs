@@ -12,7 +12,6 @@ use {
         config::{
             ChainId,
             Config,
-            ConfigEvm,
             ConfigMap,
             RunOptions,
         },
@@ -28,7 +27,6 @@ use {
             Store,
             StoreNew,
         },
-        traced_client::TracedClient,
         watcher::run_watcher_loop_svm,
     },
     anyhow::anyhow,
@@ -41,10 +39,7 @@ use {
     },
     ethers::{
         core::k256::ecdsa::SigningKey,
-        prelude::{
-            LocalWallet,
-            Provider,
-        },
+        prelude::LocalWallet,
         signers::{
             Signer,
             Wallet,
@@ -363,33 +358,6 @@ fn setup_chainstore_svm(
             )
         })
         .collect())
-}
-
-pub fn get_chain_provider(
-    chain_id: &String,
-    chain_config: &ConfigEvm,
-) -> anyhow::Result<Provider<TracedClient>> {
-    let mut provider = TracedClient::new(
-        chain_id.clone(),
-        &chain_config.geth_rpc_addr,
-        chain_config.rpc_timeout,
-    )
-    .map_err(|err| {
-        tracing::error!(
-            "Failed to create provider for chain({chain_id}) at {rpc_addr}: {:?}",
-            err,
-            chain_id = chain_id,
-            rpc_addr = chain_config.geth_rpc_addr
-        );
-        anyhow!(
-            "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
-            err,
-            chain_id = chain_id,
-            rpc_addr = chain_config.geth_rpc_addr
-        )
-    })?;
-    provider.set_interval(Duration::from_secs(chain_config.poll_interval));
-    Ok(provider)
 }
 
 // A static exit flag to indicate to running threads that we're shutting down. This is used to

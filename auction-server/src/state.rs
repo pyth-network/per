@@ -496,7 +496,7 @@ pub struct ChainStoreEvm {
 }
 
 impl ChainStoreEvm {
-    fn get_chain_provider(
+    pub fn get_chain_provider(
         chain_id: &String,
         chain_config: &ConfigEvm,
     ) -> anyhow::Result<Provider<TracedClient>> {
