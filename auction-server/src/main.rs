@@ -1,4 +1,5 @@
 use {
+    crate::server::run_migrations,
     anyhow::Result,
     clap::Parser,
     opentelemetry::KeyValue,
@@ -99,5 +100,6 @@ async fn main() -> Result<()> {
     match config::Options::parse() {
         config::Options::Run(opts) => start_server(opts).await,
         config::Options::SyncSubwallets(opts) => subwallet::sync_subwallets(opts).await,
+        config::Options::Migrate(opts) => run_migrations(opts).await,
     }
 }

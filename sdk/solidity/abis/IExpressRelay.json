@@ -1,0 +1,26 @@
+[
+  {
+    "type": "function",
+    "name": "isPermissioned",
+    "inputs": [
+      {
+        "name": "protocolFeeReceiver",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "permissionId",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "permissioned",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  }
+]

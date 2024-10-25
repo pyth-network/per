@@ -73,6 +73,8 @@ And access the jaeger UI at `http://127.0.0.1:16686`.
 
 ## DB & Migrations
 
+### Development
+
 sqlx checks the database schema at compile time, so you need to have the database schema up-to-date
 before building the project. You can create a `.env` file similar
 to the `.env.example` file and set `DATABASE_URL` to the URL of your PostgreSQL database. This file
@@ -94,6 +96,16 @@ sqlx migrate add -r <migration-name>
 Since we don't have a running db instance on CI, we use `cargo sqlx prepare` to generate the necessary
 info offline. This command will update the `.sqlx` folder.
 You need to commit the changes to this folder when adding or changing the queries.
+
+### Production
+
+You need to apply the migrations manually on the production database before starting the server.
+Migrations are backward compatible, so it's ok to apply them while the server is running with the old schema.
+You can apply the migrations by running the following command:
+
+```bash
+cargo run -- migrate --database-url <database-url>
+```
 
 ## Subwallet Management
 
