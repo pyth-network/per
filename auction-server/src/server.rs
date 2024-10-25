@@ -15,6 +15,7 @@ use {
             Config,
             ConfigEvm,
             ConfigMap,
+            MigrateOptions,
             RunOptions,
         },
         models,
@@ -37,7 +38,10 @@ use {
         traced_sender_svm::TracedSenderSvm,
         watcher::run_watcher_loop_svm,
     },
-    anyhow::anyhow,
+    anyhow::{
+        anyhow,
+        Result,
+    },
     axum_prometheus::{
         metrics_exporter_prometheus::{
             PrometheusBuilder,
@@ -94,7 +98,7 @@ use {
 async fn fault_tolerant_handler<F, Fut>(name: String, f: F)
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
+    Fut: Future<Output = Result<()>> + Send + 'static,
     Fut::Output: Send + 'static,
 {
     loop {
@@ -144,7 +148,7 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
         .collect()
 }
 
-pub fn setup_metrics_recorder() -> anyhow::Result<PrometheusHandle> {
+pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
     PrometheusBuilder::new()
         .set_buckets(SECONDS_DURATION_BUCKETS)
         .unwrap()
@@ -156,7 +160,7 @@ pub fn setup_metrics_recorder() -> anyhow::Result<PrometheusHandle> {
 async fn setup_chain_store(
     config_map: ConfigMap,
     wallet: Wallet<SigningKey>,
-) -> anyhow::Result<HashMap<ChainId, ChainStoreEvm>> {
+) -> Result<HashMap<ChainId, ChainStoreEvm>> {
     join_all(
         config_map
             .chains
@@ -209,7 +213,34 @@ async fn setup_chain_store(
 }
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
-pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
+
+
+async fn create_pg_pool(database_url: &str) -> Result<PgPool> {
+    PgPoolOptions::new()
+        .max_connections(10)
+        .connect(database_url)
+        .await
+        .map_err(|err| anyhow!("Failed to connect to database: {:?}", err))
+}
+
+pub async fn run_migrations(migrate_options: MigrateOptions) -> Result<()> {
+    let pool = create_pg_pool(&migrate_options.database_url).await?;
+    if let Err(err) = migrate!("./migrations").run(&pool).await {
+        match err {
+            sqlx::migrate::MigrateError::VersionMissing(version) => {
+                tracing::info!(
+                    "Found missing migration ({}) probably because of downgrade",
+                    version
+                );
+            }
+            _ => {
+                return Err(anyhow!("Failed to run migrations: {:?}", err));
+            }
+        }
+    }
+    Ok(())
+}
+pub async fn start_server(run_options: RunOptions) -> Result<()> {
     tokio::spawn(async move {
         tracing::info!("Registered shutdown signal handler...");
         tokio::signal::ctrl_c().await.unwrap();
@@ -235,25 +266,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
 
-    let pool = PgPoolOptions::new()
-        .max_connections(10)
-        .connect(&run_options.server.database_url)
-        .await
-        .expect("Server should start with a valid database connection.");
-    match migrate!("./migrations").run(&pool).await {
-        Ok(()) => {}
-        Err(err) => match err {
-            sqlx::migrate::MigrateError::VersionMissing(version) => {
-                tracing::info!(
-                    "Found missing migration ({}) probably because of downgrade",
-                    version
-                );
-            }
-            _ => {
-                return Err(anyhow!("Failed to run migrations: {:?}", err));
-            }
-        },
-    }
+    let pool = create_pg_pool(&run_options.server.database_url).await?;
     let task_tracker = TaskTracker::new();
 
     let config_opportunity_service_evm =
@@ -375,7 +388,7 @@ pub async fn start_server(run_options: RunOptions) -> anyhow::Result<()> {
 fn setup_svm(
     run_options: &RunOptions,
     config_map: ConfigMap,
-) -> anyhow::Result<HashMap<ChainId, ChainStoreSvm>> {
+) -> Result<HashMap<ChainId, ChainStoreSvm>> {
     let svm_chains: Vec<_> = config_map
         .chains
         .iter()
@@ -433,7 +446,7 @@ fn setup_svm(
 pub fn get_chain_provider(
     chain_id: &String,
     chain_config: &ConfigEvm,
-) -> anyhow::Result<Provider<TracedClient>> {
+) -> Result<Provider<TracedClient>> {
     let mut provider = TracedClient::new(
         chain_id.clone(),
         &chain_config.geth_rpc_addr,
