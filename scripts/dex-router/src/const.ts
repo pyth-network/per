@@ -6,6 +6,7 @@ export const OPPORTUNITY_WAIT_TIME = 800;
 
 export const LOOKUP_TABLE_ADDRESS: Record<string, PublicKey> = {
   "development-solana": new PublicKey(
-    "7VFFawdrwqGRJV3VaSoHYb8mrre5L7b1nQnQddMJCwRo"
+    "DmFnfPhTs4B4cqPyxLusbgBUhXPPP139TQNe71Yx9JvV"
+    // "7VFFawdrwqGRJV3VaSoHYb8mrre5L7b1nQnQddMJCwRo"
   ),
 };
