@@ -181,10 +181,6 @@ async def main():
             ],
         )
 
-        print("recent slot", recent_slot)
-        for data in ix_create_lut.data:
-            print(data)
-
         tx_create_lut = Transaction(fee_payer=pk_searcher)
         tx_create_lut.add(ix_create_lut)
         tx_create_lut_sig = (
@@ -196,9 +192,11 @@ async def main():
             conf_create_lut.value[0].status is None
         ), "Create lookup table transaction failed"
 
+        print(recent_slot, pk_searcher, lookup_table_address)
         ix_extend_lut = Instruction(
             address_lookup_pid,
-            struct.pack("B", 2).join(
+            struct.pack("<L", 2)
+            + b"".join(
                 [
                     bytes(pubkey)
                     for pubkey in [router, config_router, pk_express_relay_metadata]
