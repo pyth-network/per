@@ -940,8 +940,6 @@ async fn extract_account_svm(
     })?;
 
     let account_position: usize = (*account_position).into();
-    println!("account_position: {:?}", account_position);
-    println!("len of accounts: {:?}", accounts.len());
     if account_position < accounts.len() {
         let account = accounts.get(account_position).ok_or_else(|| {
             tracing::error!(
