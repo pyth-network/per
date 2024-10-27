@@ -1420,6 +1420,10 @@ impl ChainStore for ChainStoreEvm {
         bids: Vec<Self::SimulatedBid>,
         tx_hash: Vec<u8>,
     ) -> Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>> {
+        if bids.is_empty() {
+            return Ok(None);
+        }
+
         let tx_hash = H256::from_slice(tx_hash.as_slice());
         let reciept = self
             .provider
@@ -1568,6 +1572,10 @@ impl ChainStore for ChainStoreSvm {
         bids: Vec<Self::SimulatedBid>,
         tx_hash: Vec<u8>,
     ) -> Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>> {
+        if bids.is_empty() {
+            return Ok(None);
+        }
+
         let tx_hash: SignatureSvm = tx_hash
             .try_into()
             .map_err(|_| anyhow!("Invalid svm signature"))?;
