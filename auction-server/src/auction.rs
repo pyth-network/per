@@ -1126,38 +1126,38 @@ pub enum SubmitType {
     Invalid,
 }
 
-/// The trait for the chain store to be implemented for each chain type
-/// These functions are chain specific and should be implemented for each chain in order to handle auctions
+/// The trait for the chain store to be implemented for each chain type.
+/// These functions are chain specific and should be implemented for each chain in order to handle auctions.
 #[async_trait]
 pub trait ChainStore:
     Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> + Send + Sync
 {
-    /// The trigger type for the chain. This is the type that is used to trigger the auction submission and conclusion
+    /// The trigger type for the chain. This is the type that is used to trigger the auction submission and conclusion.
     type Trigger: DebugTrait + Clone;
-    /// The trigger stream type when subscribing to new triggers on the ws client for the chain
+    /// The trigger stream type when subscribing to new triggers on the ws client for the chain.
     type TriggerStream<'a>: Stream<Item = Self::Trigger> + Unpin + Send + 'a;
-    /// The ws client type for the chain
+    /// The ws client type for the chain.
     type WsClient;
-    /// The simulated bid type for the chain
+    /// The simulated bid type for the chain.
     type SimulatedBid: SimulatedBidTrait;
-    /// The conclusion result type when try to conclude the auction for the chain
+    /// The conclusion result type when try to conclude the auction for the chain.
     type ConclusionResult;
-    /// The opportunity service chain type for the chain
+    /// The opportunity service chain type for the chain.
     type OpportunityChainType: OpportunityChainType;
 
-    /// The chain type for the chain
+    /// The chain type for the chain.
     const CHAIN_TYPE: models::ChainType;
     /// The minimum lifetime for an auction. If any bid for auction is older than this, the auction is ready to be submitted.
     const AUCTION_MINIMUM_LIFETIME: Duration;
 
-    /// Get the ws client for the chain
+    /// Get the ws client for the chain.
     async fn get_ws_client(&self) -> Result<Self::WsClient>;
-    /// Get the trigger stream for the ws client to subscribe to new triggers
+    /// Get the trigger stream for the ws client to subscribe to new triggers.
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>>;
-    /// Check if the auction is ready to be concluded based on the trigger
+    /// Check if the auction is ready to be concluded based on the trigger.
     fn is_ready_to_conclude(trigger: Self::Trigger) -> bool;
 
-    /// Get the name of the chain according to the configuration
+    /// Get the name of the chain according to the configuration.
     fn get_name(&self) -> &ChainId;
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     async fn get_winner_bids(
@@ -1165,27 +1165,28 @@ pub trait ChainStore:
         bids: &[Self::SimulatedBid],
         permission_key: Bytes,
     ) -> Result<Vec<Self::SimulatedBid>>;
-    /// Submit the bids for the auction on the chain
+    /// Submit the bids for the auction on the chain.
     async fn submit_bids(
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
     ) -> Result<<<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>;
-    /// Get the bid results for the bids submitted for the auction after the transaction is concluded. Order of the returned BidStatus is as same as the order of the bids
+    /// Get the bid results for the bids submitted for the auction after the transaction is concluded.
+    /// Order of the returned BidStatus is as same as the order of the bids.
     async fn get_bid_results(
         &self,
         bids: Vec<Self::SimulatedBid>,
         tx_hash: Vec<u8>,
     ) -> Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>>;
 
-    /// Check if the auction winner transaction should be submitted on chain for the permission key
+    /// Check if the auction winner transaction should be submitted on chain for the permission key.
     async fn get_submission_state(
         &self,
         store_new: Arc<StoreNew>,
         permission_key: &Bytes,
     ) -> SubmitType;
 
-    /// Get the opportunity service for the chain
+    /// Get the opportunity service for the chain.
     fn get_opportunity_service(
         &self,
         store_new: Arc<StoreNew>,
@@ -1243,7 +1244,7 @@ pub trait ChainStore:
         self.submitted_auctions.read().await.to_vec()
     }
 
-    /// Return permission keys with at least one pending bid
+    /// Return permission keys with at least one pending bid.
     async fn get_permission_keys_for_auction(&self) -> Vec<PermissionKey> {
         self.bids
             .read()
@@ -1479,8 +1480,8 @@ pub fn add_relayer_signature_svm(relayer: Arc<Keypair>, bid: &mut SimulatedBidSv
     bid.transaction.signatures[relayer_signature_pos] = relayer.sign_message(&serialized_message);
 }
 
-/// This is to make sure we are not missing any transaction
-/// We run this once every minute (150 slots)
+/// This is to make sure we are not missing any transaction.
+/// We run this once every minute (150 slots).
 const CONCLUSION_TRIGGER_SLOT_INTERVAL: u64 = 150;
 
 #[async_trait]

@@ -42,7 +42,7 @@ use {
     tokio::time::sleep,
 };
 
-/// Time to wait for searchers to submit bids
+/// Time to wait for searchers to submit bids.
 const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
 
 pub struct GetQuoteInput {

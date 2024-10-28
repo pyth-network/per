@@ -32,15 +32,15 @@ mod server;
 pub enum Options {
     /// Run the auction server service.
     Run(RunOptions),
-    /// Sync the relayer subwallets
+    /// Sync the relayer subwallets.
     SyncSubwallets(SubwalletOptions),
-    /// Run db migrations and exit
+    /// Run db migrations and exit.
     Migrate(MigrateOptions),
 }
 
 #[derive(Args, Clone, Debug)]
 pub struct MigrateOptions {
-    /// database url to run the migrations for
+    /// database url to run the migrations for.
     #[arg(long = "database-url")]
     #[arg(env = "DATABASE_URL")]
     pub database_url: String,
@@ -59,7 +59,7 @@ pub struct SubwalletOptions {
 
 #[derive(Args, Clone, Debug)]
 pub struct RunOptions {
-    /// Server Options
+    /// The options for server.
     #[command(flatten)]
     pub server: server::Options,
 
@@ -72,7 +72,7 @@ pub struct RunOptions {
     #[arg(env = "SUBWALLET_PRIVATE_KEY")]
     pub subwallet_private_key: String,
 
-    /// SVM relayer private key in base58 format
+    /// SVM relayer private key in base58 format.
     #[arg(long = "private-key-svm")]
     #[arg(env = "PRIVATE_KEY_SVM")]
     pub private_key_svm: Option<String>,
@@ -86,7 +86,7 @@ pub struct RunOptions {
 #[command(next_help_heading = "Config Options")]
 #[group(id = "Config")]
 pub struct ConfigOptions {
-    /// Path to a configuration file containing the list of supported blockchains
+    /// Path to a configuration file containing the list of supported blockchains.
     #[arg(long = "config")]
     #[arg(env = "PER_CONFIG")]
     #[arg(default_value = "config.yaml")]
@@ -140,7 +140,7 @@ pub struct ConfigEvm {
     /// Subwallets available for relaying bids. Only used in the subwallet sync command.
     pub subwallets: Option<Vec<Address>>,
 
-    /// Use the legacy transaction format (for networks without EIP 1559)
+    /// Use the legacy transaction format (for networks without EIP 1559).
     #[serde(default)]
     pub legacy_tx: bool,
 }
@@ -162,7 +162,7 @@ pub struct ConfigSvm {
     /// Timeout for RPC requests in seconds.
     #[serde(default = "default_rpc_timeout_svm")]
     pub rpc_timeout:                   u64,
-    /// The router account for Phantom
+    /// The router account for Phantom.
     #[serde_as(as = "DisplayFromStr")]
     pub wallet_program_router_account: Pubkey,
 }
