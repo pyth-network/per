@@ -242,7 +242,4 @@ export type SvmConstantsConfig = {
   expressRelayProgram: PublicKey;
 };
 
-export type SvmChainUpdate = {
-  chainId: ChainId;
-  blockhash: Blockhash;
-};
+export type SvmChainUpdate = components["schemas"]["SvmChainUpdate"];

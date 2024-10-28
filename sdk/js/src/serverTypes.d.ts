@@ -711,6 +711,10 @@ export interface components {
     SimulatedBids: {
       items: components["schemas"]["SimulatedBid"][];
     };
+    SvmChainUpdate: {
+      blockhash: components["schemas"]["Hash"];
+      chain_id: components["schemas"]["ChainId"];
+    };
     TokenAmountEvm: {
       /**
        * @description Token amount

@@ -182,7 +182,7 @@ class SimpleSearcherLimo {
   }
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
-    this.recentBlockhash[update.chainId] = update.blockhash;
+    this.recentBlockhash[update.chain_id] = update.blockhash;
   }
 
   async start() {
