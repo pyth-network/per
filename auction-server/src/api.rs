@@ -35,6 +35,7 @@ use {
             SimulatedBidEvm,
             SimulatedBidSvm,
             StoreNew,
+            SvmChainUpdate,
         },
     },
     anyhow::Result,
@@ -319,6 +320,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     SimulatedBidEvm,
     SimulatedBidSvm,
     SimulatedBids,
+    SvmChainUpdate,
 
     opportunity::OpportunityBidEvm,
     opportunity::OpportunityBidResult,
