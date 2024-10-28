@@ -72,7 +72,7 @@ class SimpleSearcherLimo {
     return decimals;
   }
 
-  async generateBid(opportunity: OpportunitySvm) {
+  async generateBid(opportunity: OpportunitySvm, recentBlockhash?: Blockhash) {
     const order = opportunity.order;
     const limoClient = new limo.LimoClient(
       this.connectionSvm,
@@ -161,15 +161,24 @@ class SimpleSearcherLimo {
   }
 
   async opportunityHandler(opportunity: Opportunity) {
-    const bid = await this.generateBid(opportunity as OpportunitySvm);
-    try {
-      const bidId = await this.client.submitBid(bid);
-      console.log(
-        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`
+    if (!this.recentBlockhash[this.chainId]) {
+      const bid = await this.generateBid(
+        opportunity as OpportunitySvm,
+        this.recentBlockhash[this.chainId]
       );
-    } catch (error) {
-      console.error(
-        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
+      try {
+        const bidId = await this.client.submitBid(bid);
+        console.log(
+          `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`
+        );
+      } catch (error) {
+        console.error(
+          `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
+        );
+      }
+    } else {
+      console.log(
+        `No recent blockhash for chain ${this.chainId}, skipping bid`
       );
     }
   }
