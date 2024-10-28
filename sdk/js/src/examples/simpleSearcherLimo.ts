@@ -72,7 +72,7 @@ class SimpleSearcherLimo {
     return decimals;
   }
 
-  async generateBid(opportunity: OpportunitySvm, recentBlockhash?: Blockhash) {
+  async generateBid(opportunity: OpportunitySvm, recentBlockhash: Blockhash) {
     const order = opportunity.order;
     const limoClient = new limo.LimoClient(
       this.connectionSvm,
@@ -153,15 +153,13 @@ class SimpleSearcherLimo {
       this.expressRelayConfig.feeReceiverRelayer
     );
 
-    if (this.recentBlockhash[this.chainId]) {
-      bid.transaction.recentBlockhash = this.recentBlockhash[this.chainId];
-    }
+    bid.transaction.recentBlockhash = recentBlockhash;
     bid.transaction.sign(this.searcher);
     return bid;
   }
 
   async opportunityHandler(opportunity: Opportunity) {
-    if (!this.recentBlockhash[this.chainId]) {
+    if (this.recentBlockhash[this.chainId]) {
       const bid = await this.generateBid(
         opportunity as OpportunitySvm,
         this.recentBlockhash[this.chainId]

@@ -432,17 +432,22 @@ export class Client {
         buyTokens: opportunity.buy_tokens.map(checkTokenQty),
       };
     }
-    const order = Order.decode(Buffer.from(opportunity.order, "base64"));
-    return {
-      chainId: opportunity.chain_id,
-      slot: opportunity.slot,
-      opportunityId: opportunity.opportunity_id,
-      order: {
-        state: order,
-        address: new PublicKey(opportunity.order_address),
-      },
-      program: "limo",
-    };
+    if ("order" in opportunity) {
+      const order = Order.decode(Buffer.from(opportunity.order, "base64"));
+      return {
+        chainId: opportunity.chain_id,
+        slot: opportunity.slot,
+        opportunityId: opportunity.opportunity_id,
+        order: {
+          state: order,
+          address: new PublicKey(opportunity.order_address),
+        },
+        program: "limo",
+      };
+    } else {
+      console.warn("Cannot handle wallet opportunities");
+      return undefined;
+    }
   }
 
   // EVM specific functions
