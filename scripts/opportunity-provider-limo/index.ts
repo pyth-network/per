@@ -86,7 +86,7 @@ async function createOpportunities(
 ) {
   const opportunities = loadOpportunities(opportunitiesPath);
   for (const opportunity of opportunities) {
-    for (let j = 0; j < count; j++) {
+    for (let i = 0; i < count; i++) {
       let inputToken = opportunity.token1;
       let outputToken = opportunity.token2;
       if (opportunity.randomizeSides) {
@@ -169,7 +169,8 @@ const argv = yargs(hideBin(process.argv))
     default: "opportunities.json",
   })
   .option("count", {
-    description: "Number of instances to create of each opportunity",
+    description:
+      "Number of instances to create of each opportunity, per iteration of the main function",
     type: "number",
     default: 1,
   })
