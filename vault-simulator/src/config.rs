@@ -50,20 +50,20 @@ pub struct RunOptions {
 
 #[derive(Args, Clone, Debug)]
 pub struct SimulatorOptions {
-    /// Server Options
+    /// Server Options.
     #[command(flatten)]
     pub run_options: RunOptions,
 
-    /// The address of the token vault contract to interact with
+    /// The address of the token vault contract to interact with.
     #[arg(long = "vault-contract")]
     pub vault_contract: Address,
 
-    /// The endpoint to use for fetching pyth prices
+    /// The endpoint to use for fetching pyth prices.
     #[arg(long = "price-endpoint")]
     #[arg(default_value = "https://hermes.pyth.network")]
     pub price_endpoint: Url,
 
-    // Interval in seconds to create a new vault
+    // Interval in seconds to create a new vault.
     #[arg(long = "interval")]
     #[arg(default_value = "5")]
     pub interval: u64,
@@ -71,15 +71,15 @@ pub struct SimulatorOptions {
 
 #[derive(Args, Clone, Debug)]
 pub struct SearcherOptions {
-    /// Server Options
+    /// Server Options.
     #[command(flatten)]
     pub run_options: RunOptions,
 
-    /// The address of the opportunity adapter contract to use for approvals
+    /// The address of the opportunity adapter contract to use for approvals.
     #[arg(long = "adapter-contract")]
     pub adapter_contract: Address,
 
-    /// Private key of the searcher, used for minting and approving tokens
+    /// Private key of the searcher, used for minting and approving tokens.
     #[arg(long = "searcher-private-key")]
     pub searcher_private_key: String,
 }
@@ -96,11 +96,11 @@ pub struct DeployOptions {
     #[arg(env = "PRIVATE_KEY")]
     pub private_key: String,
 
-    /// The express relay contract address
+    /// The express relay contract address.
     #[arg(long = "relay-contract")]
     pub relay_contract: Address,
 
-    /// The oracle contract address
+    /// The oracle contract address.
     #[arg(long = "oracle-contract")]
     pub oracle_contract: Address,
 }

@@ -49,17 +49,17 @@ pub struct DoNothing<'info> {
     #[account(seeds = [SEED_METADATA], bump, seeds::program = express_relay.key())]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is the sysvar instructions account
+    /// CHECK: this is the sysvar instructions account.
     #[account(address = sysvar_instructions::ID)]
     pub sysvar_instructions: UncheckedAccount<'info>,
 
-    /// CHECK: this is the permission key
+    /// CHECK: this is the permission key.
     pub permission: UncheckedAccount<'info>,
 
-    /// CHECK: this is the address to receive express relay fees at
+    /// CHECK: this is the address to receive express relay fees at.
     pub router: UncheckedAccount<'info>,
 
-    /// CHECK: doesn't matter what this looks like
+    /// CHECK: doesn't matter what this looks like.
     #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump, seeds::program = express_relay.key())]
     pub config_router: UncheckedAccount<'info>,
 
