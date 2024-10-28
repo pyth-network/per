@@ -110,7 +110,7 @@ pub struct ClientRequest {
     msg: ClientMessage,
 }
 
-/// This enum is used to send an update to the client for any subscriptions made
+/// This enum is used to send an update to the client for any subscriptions made.
 #[derive(Serialize, Clone, ToSchema)]
 #[serde(tag = "type")]
 pub enum ServerUpdateResponse {
@@ -136,8 +136,8 @@ pub enum ServerResultMessage {
     Err(String),
 }
 
-/// This enum is used to send the result for a specific client request with the same id
-/// id is only None when the client message is invalid
+/// This enum is used to send the result for a specific client request with the same id.
+/// Id is only None when the client message is invalid.
 #[derive(Serialize, Clone, ToSchema)]
 pub struct ServerResultResponse {
     id:     Option<String>,
