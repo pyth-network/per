@@ -289,11 +289,6 @@ const argv = yargs(hideBin(process.argv))
     type: "string",
     demandOption: true,
   })
-  .option("global-config", {
-    description: "Global config address",
-    type: "string",
-    demandOption: true,
-  })
   .option("chain-id", {
     description: "Chain id to listen and submit routed bids for.",
     type: "string",
