@@ -78,14 +78,14 @@ async function getPrice(connection: Connection, token: Token): Promise<number> {
 
 async function createOpportunities(
   skExecutor: Keypair,
-  limoClient: limo.LimoClient,
+  connection: Connection,
+  globalConfig: PublicKey,
   opportunitiesPath: string,
   count: number,
-  edge: number
+  markup: number
 ) {
   const opportunities = loadOpportunities(opportunitiesPath);
-  for (let i = 0; i < opportunities.length; i++) {
-    const opportunity = opportunities[i];
+  for (const opportunity of opportunities) {
     for (let j = 0; j < count; j++) {
       let inputToken = opportunity.token1;
       let outputToken = opportunity.token2;
@@ -96,29 +96,26 @@ async function createOpportunities(
         }
       }
 
-      const priceInput = await getPrice(limoClient.getConnection(), inputToken);
-      const priceOutput = await getPrice(
-        limoClient.getConnection(),
-        outputToken
-      );
+      const priceInput = await getPrice(connection, inputToken);
+      const priceOutput = await getPrice(connection, outputToken);
+
+      if (opportunity.maxAmountNotional < opportunity.minAmountNotional) {
+        throw new Error(
+          `maxAmountNotional ${opportunity.maxAmountNotional} is less than minAmountNotional ${opportunity.minAmountNotional}`
+        );
+      }
 
       const notional =
         Math.random() *
           (opportunity.maxAmountNotional - opportunity.minAmountNotional) +
         opportunity.minAmountNotional;
 
-      const amountInput = (notional * (1 + edge / 10_000)) / priceInput;
+      const amountInput = (notional * (1 + markup / 10_000)) / priceInput;
       const amountOutput = notional / priceOutput;
 
       console.log("Creating opportunity:");
-      const decimalsInput = await getDecimals(
-        limoClient.getConnection(),
-        inputToken
-      );
-      const decimalsOutput = await getDecimals(
-        limoClient.getConnection(),
-        outputToken
-      );
+      const decimalsInput = await getDecimals(connection, inputToken);
+      const decimalsOutput = await getDecimals(connection, outputToken);
       console.log(
         `Input: ${inputToken.symbol}, ${
           amountInput / Math.pow(10, decimalsInput)
@@ -128,6 +125,11 @@ async function createOpportunities(
         `Output: ${outputToken.symbol}, ${
           amountOutput / Math.pow(10, decimalsOutput)
         }`
+      );
+
+      const limoClient = new limo.LimoClient(
+        new Connection(argv.endpointSvm),
+        globalConfig
       );
 
       const signature = (
@@ -147,7 +149,7 @@ async function createOpportunities(
 const argv = yargs(hideBin(process.argv))
   .option("sk-payer", {
     description:
-      "Secret key of address to submit transactions with. If action is 'create', this keypair creates the order in Limo. In 64-byte base58 format",
+      "Secret key of address to submit transactions with. In 64-byte base58 format",
     type: "string",
     demandOption: true,
   })
@@ -169,13 +171,23 @@ const argv = yargs(hideBin(process.argv))
   .option("count", {
     description: "Number of opportunities to create",
     type: "number",
-    default: 10,
+    default: 1,
   })
-  .option("edge", {
+  .option("markup", {
     description:
       "Markup of the sold-off assets relative to the purchased assets, in basis points. e.g.: 100 = 1%",
     type: "number",
     default: 100,
+  })
+  .option("interval", {
+    description: "Interval in seconds to wait between creating opportunities",
+    type: "number",
+    demandOption: false,
+  })
+  .option("verbose", {
+    description: "Print logs",
+    type: "boolean",
+    default: false,
   })
   .help()
   .alias("help", "h")
@@ -190,17 +202,24 @@ async function run() {
   const globalConfig = new PublicKey(argv.globalConfig);
   console.log(`Using global config: ${globalConfig.toBase58()}`);
 
-  const limoClient = new limo.LimoClient(
-    new Connection(argv.endpointSvm),
-    globalConfig
-  );
-  await createOpportunities(
-    skExecutor,
-    limoClient,
-    argv.opportunities,
-    argv.count,
-    argv.edge
-  );
+  const connection = new Connection(argv.endpointSvm);
+  const interval = argv.interval;
+
+  while (true) {
+    await createOpportunities(
+      skExecutor,
+      connection,
+      globalConfig,
+      argv.opportunities,
+      argv.count,
+      argv.markup
+    );
+    if (interval === undefined) {
+      break;
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, interval * 1000));
+    }
+  }
 }
 
 run();
