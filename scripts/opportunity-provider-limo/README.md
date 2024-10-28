@@ -46,6 +46,7 @@ After configuring your opportunities JSON, you can run the following command to 
 $ npm run create-order -- \
 --sk-payer $PRIVATE_KEY \
 --global-config $GLOBAL_CONFIG \
+--opportunities $OPPORTUNITIES_FILEPATH \
 --endpoint-svm $RPC_URL \
 --markup 100 \
 --interval 900

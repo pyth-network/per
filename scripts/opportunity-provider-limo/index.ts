@@ -169,7 +169,7 @@ const argv = yargs(hideBin(process.argv))
     default: "opportunities.json",
   })
   .option("count", {
-    description: "Number of opportunities to create",
+    description: "Number of instances to create of each opportunity",
     type: "number",
     default: 1,
   })
