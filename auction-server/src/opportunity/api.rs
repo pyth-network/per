@@ -88,7 +88,7 @@ pub struct OpportunityBidResult {
     pub id:     BidId,
 }
 
-/// The input type for creating a new opportunity
+/// The input type for creating a new opportunity.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(untagged)]
 pub enum OpportunityCreate {
@@ -112,7 +112,7 @@ fn default_opportunity_mode() -> OpportunityMode {
 pub struct GetOpportunitiesQueryParams {
     #[param(example = "op_sepolia", value_type = Option < String >)]
     pub chain_id:       Option<ChainId>,
-    /// Get opportunities in live or historical mode
+    /// Get opportunities in live or historical mode.
     #[param(default = "live")]
     #[serde(default = "default_opportunity_mode")]
     pub mode:           OpportunityMode,
@@ -128,22 +128,22 @@ pub struct GetOpportunitiesQueryParams {
 // ----- Evm types -----
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct OpportunityBidEvm {
-    /// The opportunity permission key
+    /// The opportunity permission key.
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
     pub permission_key: PermissionKey,
     /// The bid amount in wei.
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
     pub amount:         U256,
-    /// The latest unix timestamp in seconds until which the bid is valid
+    /// The latest unix timestamp in seconds until which the bid is valid.
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]
     pub deadline:       U256,
-    /// The nonce of the bid permit signature
+    /// The nonce of the bid permit signature.
     #[schema(example = "123", value_type=String)]
     #[serde(with = "crate::serde::u256")]
     pub nonce:          U256,
-    /// Executor address
+    /// The executor address.
     #[schema(example = "0x5FbDB2315678afecb367f032d93F642f64180aa2", value_type=String)]
     pub executor:       Address,
     #[schema(
@@ -156,19 +156,19 @@ pub struct OpportunityBidEvm {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct TokenAmountEvm {
-    /// Token contract address
+    /// The token contract address.
     #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", value_type = String)]
     pub token:  ethers::abi::Address,
-    /// Token amount
+    /// The token amount.
     #[schema(example = "1000", value_type = String)]
     #[serde(with = "crate::serde::u256")]
     pub amount: U256,
 }
 
-/// Opportunity parameters needed for on-chain execution
+/// Opportunity parameters needed for on-chain execution.
 /// If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
 /// by calling this target contract with the given target calldata and structures, they will
-/// send the tokens specified in the sell_tokens field and receive the tokens specified in the buy_tokens field.
+/// send the tokens specified in the `sell_tokens` field and receive the tokens specified in the `buy_tokens` field.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct OpportunityCreateV1Evm {
     /// The permission key required for successful execution of the opportunity.
@@ -214,10 +214,10 @@ pub enum OpportunityParamsEvm {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct OpportunityEvm {
-    /// The opportunity unique id
+    /// The opportunity unique id.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub opportunity_id: OpportunityId,
-    /// Creation time of the opportunity (in microseconds since the Unix epoch)
+    /// Creation time of the opportunity (in microseconds since the Unix epoch).
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     pub creation_time:  UnixTimestampMicros,
     #[serde(flatten)]
@@ -229,17 +229,17 @@ pub struct OpportunityEvm {
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct TokenAmountSvm {
-    /// Token contract address
+    /// The token contract address.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub token:  Pubkey,
-    /// Token amount in lamports
+    /// The token amount in lamports.
     #[schema(example = 1000)]
     pub amount: u64,
 }
 
-/// Parameters needed to create a new opportunity from the Phantom wallet
-/// Auction server will extract the output token price for the auction
+/// Parameters needed to create a new opportunity from the Phantom wallet.
+/// Auction server will extract the output token price for the auction.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteCreatePhantomV1Svm {
@@ -291,21 +291,21 @@ pub enum QuoteCreate {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteV1Svm {
-    /// The signed transaction for the quote to be executed on chain which is valid until the expiration time
+    /// The signed transaction for the quote to be executed on chain which is valid until the expiration time.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde(with = "crate::serde::transaction_svm")]
     pub transaction:                 VersionedTransaction,
-    /// The expiration time of the quote (in seconds since the Unix epoch)
+    /// The expiration time of the quote (in seconds since the Unix epoch).
     #[schema(example = 1_700_000_000_000_000i64, value_type = i64)]
     pub expiration_time:             i64,
-    /// The input token amount that the user wants to swap
+    /// The input token amount that the user wants to swap.
     pub input_token:                 TokenAmountSvm,
-    /// The output token amount that the user will receive
+    /// The output token amount that the user will receive.
     pub output_token:                TokenAmountSvm,
-    /// The maximum slippage percentage that the user is willing to accept
+    /// The maximum slippage percentage that the user is willing to accept.
     #[schema(example = 0.5)]
     pub maximum_slippage_percentage: f64,
-    /// The chain id for the quote
+    /// The chain id for the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:                    ChainId,
 }
@@ -325,7 +325,7 @@ pub enum Quote {
     Svm(QuoteSvm),
 }
 
-/// Program specific parameters for the opportunity
+/// Program specific parameters for the opportunity.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "program")]
@@ -336,7 +336,7 @@ pub enum OpportunityCreateProgramParamsV1Svm {
     #[serde(rename = "limo")]
     #[schema(title = "limo")]
     Limo {
-        /// The Limo order to be executed, encoded in base64
+        /// The Limo order to be executed, encoded in base64.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "Base64")]
         order: Vec<u8>,
@@ -362,15 +362,15 @@ pub enum OpportunityCreateProgramParamsV1Svm {
 }
 
 /// Opportunity parameters needed for on-chain execution.
-/// Parameters may differ for each program
+/// Parameters may differ for each program.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct OpportunityCreateV1Svm {
-    /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol
+    /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub permission_account: Pubkey,
-    /// The router account to be used for the opportunity execution of the protocol
+    /// The router account to be used for the opportunity execution of the protocol.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub router:             Pubkey,
@@ -432,59 +432,59 @@ impl OpportunityCreateSvm {
     }
 }
 
-/// Program specific parameters for the opportunity
+/// Program specific parameters for the opportunity.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(tag = "program")]
 pub enum OpportunityParamsV1ProgramSvm {
-    /// Limo program specific parameters for the opportunity
-    /// It contains the Limo order to be executed, encoded in base64
-    /// SDKs will decode this order and create transaction for bidding on the opportunity
+    /// Limo program specific parameters for the opportunity.
+    /// It contains the Limo order to be executed, encoded in base64.
+    /// SDKs will decode this order and create transaction for bidding on the opportunity.
     #[serde(rename = "limo")]
     #[schema(title = "limo")]
     Limo {
-        /// The Limo order to be executed, encoded in base64
+        /// The Limo order to be executed, encoded in base64.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "Base64")]
         order:         Vec<u8>,
-        /// Address of the order account
+        /// Address of the order account.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
     },
-    /// Phantom program specific parameters for the opportunity
+    /// Phantom program specific parameters for the opportunity.
     #[serde(rename = "phantom")]
     #[schema(title = "phantom")]
     Phantom {
-        /// The user wallet address which requested the quote from the wallet
+        /// The user wallet address which requested the quote from the wallet.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
 
-        /// The maximum slippage percentage that the user is willing to accept
+        /// The maximum slippage percentage that the user is willing to accept.
         #[schema(example = 0.5, value_type = f64)]
         maximum_slippage_percentage: f64,
 
-        /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol
+        /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         permission_account: Pubkey,
 
-        /// The router account to be used for the opportunity execution of the protocol
+        /// The router account to be used for the opportunity execution of the protocol.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         router_account: Pubkey,
 
-        /// The token searcher will send
+        /// The token searcher will send.
         sell_token: TokenAmountSvm,
 
-        /// The token searcher will receive
+        /// The token searcher will receive.
         buy_token: TokenAmountSvm,
     },
 }
 
 /// Opportunity parameters needed for on-chain execution.
-/// Parameters may differ for each program
+/// Parameters may differ for each program.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct OpportunityParamsV1Svm {
     #[serde(flatten)]
@@ -505,10 +505,10 @@ pub enum OpportunityParamsSvm {
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct OpportunitySvm {
-    /// The opportunity unique id
+    /// The opportunity unique id.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub opportunity_id: OpportunityId,
-    /// Creation time of the opportunity (in microseconds since the Unix epoch)
+    /// Creation time of the opportunity (in microseconds since the Unix epoch).
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     pub creation_time:  UnixTimestampMicros,
     /// The slot where the program params were fetched from using the RPC
@@ -555,7 +555,7 @@ impl Opportunity {
 
 // ----- APIs -----
 
-/// Bid on opportunity
+/// Bid on opportunity.
 #[utoipa::path(post, path = "/v1/opportunities/{opportunity_id}/bids", request_body = OpportunityBidEvm,
 params(("opportunity_id" = String, description = "Opportunity id to bid on")), responses(
 (status = 200, description = "Bid Result", body = OpportunityBidResult, example = json ! ({"status": "OK"})),
@@ -685,7 +685,7 @@ pub async fn get_opportunities(
     }
 }
 
-/// Submit a quote request
+/// Submit a quote request.
 ///
 /// The server will estimate the quote price, which will be used to create an opportunity.
 /// After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.

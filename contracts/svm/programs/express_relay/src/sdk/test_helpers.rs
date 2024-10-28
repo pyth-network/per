@@ -19,12 +19,12 @@ use {
     },
 };
 
-// This file contains setup helpers for integrating programs to set up express relay for Rust-based tests
+// This file contains setup helpers for integrating programs to set up express relay for Rust-based tests.
 
-/// Helper method to create an instruction to initialize the express relay program
-/// Should be able to sign transactions with the secret keys of the provided payer and relayer_signer
-/// The fee split is set to 100% for the router, since fee payments to relayer are not important for the integrating program's tests
-/// Instead it is more important for the integrating program to ensure their router account has enough rent to avoid InsufficientRent error
+/// Helper method to create an instruction to initialize the express relay program.
+/// Should be able to sign transactions with the secret keys of the provided payer and `relayer_signer`.
+/// The fee split is set to 100% for the router, since fee payments to relayer are not important for the integrating program's tests.
+/// Instead it is more important for the integrating program to ensure their router account has enough rent to avoid `InsufficientRent` error.
 pub fn create_initialize_express_relay_ix(
     payer: Pubkey,
     admin: Pubkey,
@@ -61,7 +61,7 @@ pub fn create_initialize_express_relay_ix(
     }
 }
 
-/// Creates and adds to the provided instructions a SubmitBid instruction
+/// Creates and adds to the provided instructions a `SubmitBid` instruction.
 pub fn add_express_relay_submit_bid_instruction(
     ixs: &mut Vec<Instruction>,
     searcher: Pubkey,
