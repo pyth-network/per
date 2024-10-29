@@ -39,6 +39,7 @@ pub mod get_opportunities;
 pub mod get_quote;
 pub mod handle_opportunity_bid;
 pub mod remove_invalid_or_expired_opportunities;
+pub mod remove_opportunities;
 
 mod estimate_price;
 mod get_spoof_info;

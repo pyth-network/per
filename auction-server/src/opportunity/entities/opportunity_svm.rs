@@ -292,4 +292,28 @@ impl OpportunitySvm {
             OpportunitySvmProgram::Limo(_) => vec![],
         }
     }
+
+    pub fn get_permission_key(router: Pubkey, permission_account: Pubkey) -> PermissionKey {
+        PermissionKey::from([router.to_bytes(), permission_account.to_bytes()].concat())
+    }
+}
+
+impl From<OpportunitySvm> for api::OpportunityDelete {
+    fn from(val: OpportunitySvm) -> Self {
+        api::OpportunityDelete::Svm(api::OpportunityDeleteSvm::V1(api::OpportunityDeleteV1Svm {
+            chain_id:           val.chain_id.clone(),
+            permission_account: val.permission_account,
+            router:             val.router,
+            program:            val.program.into(),
+        }))
+    }
+}
+
+impl From<OpportunitySvmProgram> for api::ProgramSvm {
+    fn from(val: OpportunitySvmProgram) -> Self {
+        match val {
+            OpportunitySvmProgram::Limo(_) => api::ProgramSvm::Limo,
+            OpportunitySvmProgram::Phantom(_) => api::ProgramSvm::Phantom,
+        }
+    }
 }

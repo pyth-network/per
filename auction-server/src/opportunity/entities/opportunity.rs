@@ -60,6 +60,7 @@ pub trait Opportunity:
     + PartialEq
     + Into<api::Opportunity>
     + Into<Self::OpportunityCreate>
+    + Into<api::OpportunityDelete>
     + TryFrom<repository::Opportunity<Self::ModelMetadata>>
     + Send
     + Sync

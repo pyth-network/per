@@ -9,13 +9,13 @@ use {
         OpportunityCreate,
     },
     crate::{
+        kernel::entities::PermissionKey,
         opportunity::{
             api,
             repository::{
                 self,
             },
         },
-        state::PermissionKey,
     },
     ethers::types::{
         Bytes,
@@ -186,5 +186,11 @@ impl From<OpportunityEvm> for OpportunityCreateEvm {
             target_call_value: val.target_call_value,
             target_calldata:   val.target_calldata,
         }
+    }
+}
+
+impl From<OpportunityEvm> for api::OpportunityDelete {
+    fn from(_val: OpportunityEvm) -> Self {
+        panic!("Not implemented")
     }
 }

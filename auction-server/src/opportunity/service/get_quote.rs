@@ -57,9 +57,10 @@ impl Service<ChainTypeSvm> {
         let permission_account = Pubkey::new_from_array(rand::thread_rng().gen());
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
-            permission_key: [router.to_bytes(), permission_account.to_bytes()]
-                .concat()
-                .into(),
+            permission_key: entities::OpportunitySvm::get_permission_key(
+                router,
+                permission_account,
+            ),
             chain_id:       quote_create.chain_id,
             sell_tokens:    vec![quote_create.input_token],
             buy_tokens:     vec![entities::TokenAmountSvm {

@@ -8,6 +8,10 @@ use {
             ChainId,
             ConfigEvm,
         },
+        kernel::entities::{
+            PermissionKey,
+            PermissionKeySvm,
+        },
         models,
         opportunity::service::{
             get_live_opportunities_by_permission_key::GetOpportunitiesByPermissionKeyInput,
@@ -30,8 +34,6 @@ use {
             ChainStoreEvm,
             ChainStoreSvm,
             LookupTableCache,
-            PermissionKey,
-            PermissionKeySvm,
             SimulatedBidCoreFields,
             SimulatedBidEvm,
             SimulatedBidSvm,

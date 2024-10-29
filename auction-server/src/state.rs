@@ -19,6 +19,10 @@ use {
             ConfigEvm,
             ConfigSvm,
         },
+        kernel::entities::{
+            PermissionKey,
+            PermissionKeySvm,
+        },
         models,
         opportunity::service as opportunity_service,
         traced_client::TracedClient,
@@ -53,15 +57,8 @@ use {
     },
     serde_json::json,
     serde_with::{
-        base64::{
-            Base64,
-            Standard,
-        },
-        formats::Padded,
         serde_as,
-        DeserializeAs,
         DisplayFromStr,
-        SerializeAs,
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_rpc_client::rpc_client::RpcClientConfig,
@@ -111,29 +108,6 @@ use {
     uuid::Uuid,
 };
 
-pub type PermissionKey = Bytes;
-
-#[derive(Clone, Debug)]
-pub struct PermissionKeySvm(pub [u8; 64]);
-
-impl Serialize for PermissionKeySvm {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        Base64::<Standard, Padded>::serialize_as(&self.0, serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for PermissionKeySvm {
-    fn deserialize<D>(deserializer: D) -> Result<PermissionKeySvm, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let bytes = Base64::<Standard, Padded>::deserialize_as(deserializer)?;
-        Ok(PermissionKeySvm(bytes))
-    }
-}
 pub type BidAmount = U256;
 pub type BidAmountSvm = u64;
 pub type GetOrCreate<T> = (T, bool);

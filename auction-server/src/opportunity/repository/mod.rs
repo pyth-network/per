@@ -18,6 +18,7 @@ mod get_opportunities_by_permission_key_and_id;
 mod get_spoof_info;
 mod models;
 mod opportunity_exists;
+mod remove_opportunities;
 mod remove_opportunity;
 
 pub use models::*;

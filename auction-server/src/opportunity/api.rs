@@ -6,10 +6,12 @@ use {
             get_opportunities::GetOpportunitiesInput,
             get_quote::GetQuoteInput,
             handle_opportunity_bid::HandleOpportunityBidInput,
+            remove_opportunities::RemoveOpportunitiesInput,
         },
     },
     crate::{
         api::{
+            require_login_middleware,
             Auth,
             ErrorBodyResponse,
             RestError,
@@ -18,6 +20,7 @@ use {
             ChainId,
             PermissionKey,
         },
+        login_required,
         models,
         state::{
             BidId,
@@ -31,7 +34,10 @@ use {
             Query,
             State,
         },
+        http::StatusCode,
+        middleware,
         routing::{
+            delete,
             get,
             post,
         },
@@ -86,6 +92,42 @@ pub struct OpportunityBidResult {
     /// The unique id created to identify the bid. This id can be used to query the status of the bid.
     #[schema(example = "beedbeed-58cc-4372-a567-0e02b2c3d479", value_type=String)]
     pub id:     BidId,
+}
+
+/// Opportunity parameters needed for deleting live opportunities.
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct OpportunityDeleteV1Svm {
+    /// The permission account for the opportunity.
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub permission_account: Pubkey,
+    /// The router account for the opportunity.
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub router:             Pubkey,
+    /// The chain id for the opportunity.
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id:           ChainId,
+    /// The program for the opportunity.
+    #[schema(example = "limo", value_type = ProgramSvm)]
+    #[serde()]
+    pub program:            ProgramSvm,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub enum OpportunityDeleteSvm {
+    #[serde(rename = "v1")]
+    #[schema(title = "v1")]
+    V1(OpportunityDeleteV1Svm),
+}
+
+/// The input type for deleting opportunities.
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(untagged)]
+pub enum OpportunityDelete {
+    #[schema(title = "svm")]
+    Svm(OpportunityDeleteSvm),
 }
 
 /// The input type for creating a new opportunity.
@@ -397,13 +439,14 @@ pub enum OpportunityCreateSvm {
     V1(OpportunityCreateV1Svm),
 }
 
-#[derive(PartialEq)]
-enum Program {
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum ProgramSvm {
     Phantom,
     Limo,
 }
 
-fn get_program(auth: &Auth) -> Result<Program, RestError> {
+fn get_program(auth: &Auth) -> Result<ProgramSvm, RestError> {
     match auth {
         Auth::Authorized(_, profile) => {
             if profile.role == models::ProfileRole::Searcher {
@@ -411,8 +454,8 @@ fn get_program(auth: &Auth) -> Result<Program, RestError> {
             }
 
             match profile.name.as_str() {
-                "limo" => Ok(Program::Limo),
-                "phantom" => Ok(Program::Phantom),
+                "limo" => Ok(ProgramSvm::Limo),
+                "phantom" => Ok(ProgramSvm::Phantom),
                 _ => Err(RestError::Forbidden),
             }
         }
@@ -422,11 +465,11 @@ fn get_program(auth: &Auth) -> Result<Program, RestError> {
 }
 
 impl OpportunityCreateSvm {
-    fn get_program(&self) -> Program {
+    fn get_program(&self) -> ProgramSvm {
         match self {
             OpportunityCreateSvm::V1(params) => match &params.program_params {
-                OpportunityCreateProgramParamsV1Svm::Limo { .. } => Program::Limo,
-                OpportunityCreateProgramParamsV1Svm::Phantom { .. } => Program::Phantom,
+                OpportunityCreateProgramParamsV1Svm::Limo { .. } => ProgramSvm::Limo,
+                OpportunityCreateProgramParamsV1Svm::Phantom { .. } => ProgramSvm::Phantom,
             },
         }
     }
@@ -699,7 +742,7 @@ pub async fn post_quote(
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
 ) -> Result<Json<Quote>, RestError> {
-    if get_program(&auth)? != Program::Phantom {
+    if get_program(&auth)? != ProgramSvm::Phantom {
         return Err(RestError::Forbidden);
     }
 
@@ -713,10 +756,43 @@ pub async fn post_quote(
     Ok(Json(quote.into()))
 }
 
-pub fn get_routes() -> Router<Arc<StoreNew>> {
+/// Delete all opportunities for specified data.
+#[utoipa::path(delete, path = "/v1/opportunities", request_body = OpportunityDelete,
+security(
+    ("bearerAuth" = []),
+),
+responses(
+(status = 204, description = "Opportunities deleted successfully"),
+(status = 400, response = ErrorBodyResponse),
+(status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
+),)]
+pub async fn delete_opportunities(
+    auth: Auth,
+    State(store): State<Arc<StoreNew>>,
+    Json(opportunity_delete): Json<OpportunityDelete>,
+) -> Result<StatusCode, RestError> {
+    let OpportunityDelete::Svm(OpportunityDeleteSvm::V1(params)) = opportunity_delete;
+    if get_program(&auth)? != params.program {
+        return Err(RestError::Forbidden);
+    }
+
+    store
+        .opportunity_service_svm
+        .remove_opportunities(RemoveOpportunitiesInput {
+            chain_id:           params.chain_id,
+            permission_account: params.permission_account,
+            router:             params.router,
+        })
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     Router::new()
         .route("/", post(post_opportunity))
         .route("/quote", post(post_quote))
         .route("/", get(get_opportunities))
         .route("/:opportunity_id/bids", post(opportunity_bid))
+        .route("/", login_required!(store, delete(delete_opportunities)))
 }
