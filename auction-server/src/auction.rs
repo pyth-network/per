@@ -987,9 +987,7 @@ async fn query_lookup_table(
     let table_data = client
         .get_account_with_commitment(table, CommitmentConfig::processed())
         .await
-        .map_err(|_e| {
-            RestError::BadParameters("Failed getting lookup table account data".to_string())
-        })?
+        .map_err(|_e| RestError::TemporarilyUnavailable)?
         .value
         .ok_or_else(|| RestError::BadParameters("Account not found".to_string()))?;
     let table_data_deserialized =
