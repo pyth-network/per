@@ -1,5 +1,5 @@
 import { Router, RouterOutput } from "../types";
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 const jupiterBaseUrl = "https://quote-api.jup.ag/v6/";
 const jupiterQuoteUrl = new URL("quote", jupiterBaseUrl);
@@ -7,14 +7,22 @@ const jupiterSwapIxsUrl = new URL("swap-instructions", jupiterBaseUrl);
 const maxAccounts = 20;
 
 export class JupiterRouter implements Router {
+  private chainId: string;
+  private connection: Connection;
+  private executor: PublicKey;
+
+  constructor(chainId: string, connection: Connection, executor: PublicKey) {
+    this.chainId = chainId;
+    this.connection = connection;
+    this.executor = executor;
+  }
+
   async route(
-    chainId: string,
     tokenIn: PublicKey,
     tokenOut: PublicKey,
-    amountIn: bigint,
-    executor: PublicKey
+    amountIn: bigint
   ): Promise<RouterOutput> {
-    if (!["solana", "development-solana"].includes(chainId)) {
+    if (!["solana", "development-solana"].includes(this.chainId)) {
       throw new Error("Jupiter error: chain id not supported");
     }
 
@@ -65,7 +73,7 @@ export class JupiterRouter implements Router {
         },
         body: JSON.stringify({
           quoteResponse,
-          userPublicKey: executor.toBase58(),
+          userPublicKey: this.executor.toBase58(),
           asLegacyTransaction: false,
         }),
       })

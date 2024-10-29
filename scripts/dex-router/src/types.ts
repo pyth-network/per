@@ -9,11 +9,8 @@ export type RouterOutput = {
 
 export interface Router {
   route: (
-    chainId: string,
     tokenIn: PublicKey,
     tokenOut: PublicKey,
-    amountIn: bigint,
-    executor: PublicKey,
-    connection?: Connection
+    amountIn: bigint
   ) => Promise<RouterOutput>;
 }
