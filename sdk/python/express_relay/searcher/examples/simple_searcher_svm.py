@@ -48,6 +48,7 @@ class SimpleSearcherSvm:
             api_key,
             self.opportunity_callback,
             self.bid_status_callback,
+            self.svm_chain_update_callback,
         )
         self.private_key = private_key
         self.bid_amount = bid_amount
@@ -167,7 +168,6 @@ class SimpleSearcherSvm:
             [submit_bid_ix] + ixs_take_order, self.private_key.pubkey()
         )
 
-        blockhash = (await self.rpc_client.get_latest_blockhash()).value
         transaction.partial_sign(
             [self.private_key], recent_blockhash=blockhash.blockhash
         )

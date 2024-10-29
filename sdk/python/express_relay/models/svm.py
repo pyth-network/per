@@ -313,3 +313,12 @@ class BidResponseSvm(BaseModel):
     initiation_time: datetime
     transaction: SvmTransaction
     profile_id: str | None = Field(default=None)
+
+class SvmChainUpdate(BaseModel):
+    """
+    Attributes:
+        chain_id: The chain ID corresponding to the update.
+        blockhash: A recent blockhash from the chain.
+    """
+    chain_id: str
+    blockhash: SvmHash

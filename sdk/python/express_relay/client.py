@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Callable, Any, Union, cast
 from uuid import UUID
 
+from express_relay.models.svm import SvmChainUpdate
 import httpx
 import web3
 import websockets
@@ -113,6 +114,9 @@ class ExpressRelayClient:
         bid_status_callback: (
             Callable[[BidStatusUpdate], Coroutine[Any, Any, Any]] | None
         ) = None,
+        svm_chain_update_callback: (
+            Callable[[SvmChainUpdate], Coroutine[Any, Any, Any]] | None
+        ) = None,
         timeout_response_secs: int = 10,
         ws_options: dict[str, Any] | None = None,
         http_options: dict[str, Any] | None = None,
@@ -122,6 +126,7 @@ class ExpressRelayClient:
             server_url: The URL of the auction server.
             opportunity_callback: An async function that serves as the callback on a new opportunity. Should take in one external argument of type Opportunity.
             bid_status_callback: An async function that serves as the callback on a new bid status update. Should take in one external argument of type BidStatusUpdate.
+            svm_chain_update_callback: An async function that serves as the callback on a new svm chain update. Should take in one external argument of type SvmChainUpdate.
             timeout_response_secs: The number of seconds to wait for a response message from the server.
             ws_options: Keyword arguments to pass to the websocket connection.
             http_options: Keyword arguments to pass to the HTTP client.
@@ -151,6 +156,7 @@ class ExpressRelayClient:
         self.http_options = http_options
         self.opportunity_callback = opportunity_callback
         self.bid_status_callback = bid_status_callback
+        self.svm_chain_update_callback = svm_chain_update_callback
         if self.api_key:
             authorization_header = f"Bearer {self.api_key}"
             if "headers" not in self.http_options:
@@ -170,7 +176,7 @@ class ExpressRelayClient:
 
             if not hasattr(self, "ws_loop"):
                 ws_call = self.ws_handler(
-                    self.opportunity_callback, self.bid_status_callback
+                    self.opportunity_callback, self.bid_status_callback, self.svm_chain_update_callback
                 )
                 self.ws_loop = asyncio.create_task(ws_call)
 
@@ -316,6 +322,9 @@ class ExpressRelayClient:
         bid_status_callback: (
             Callable[[BidStatusUpdate], Coroutine[Any, Any, Any]] | None
         ) = None,
+        svm_chain_update_callback: (
+            Callable[[SvmChainUpdate], Coroutine[Any, Any, Any]] | None
+        ) = None,
     ):
         """
         Continually handles new ws messages as they are received from the server via websocket.
@@ -323,6 +332,7 @@ class ExpressRelayClient:
         Args:
             opportunity_callback: An async function that serves as the callback on a new opportunity. Should take in one external argument of type Opportunity.
             bid_status_callback: An async function that serves as the callback on a new bid status update. Should take in one external argument of type BidStatusUpdate.
+            svm_chain_update_callback: An async function that serves as the callback on a new svm chain update. Should take in one external argument of type SvmChainUpdate.
         """
         if not self.ws:
             raise ExpressRelayClientException("Websocket not connected")
@@ -345,6 +355,13 @@ class ExpressRelayClient:
                             msg_json["status"]
                         )
                         asyncio.create_task(bid_status_callback(bid_status_update))
+
+                elif msg_json.get("type") == "svm_chain_update":
+                    if svm_chain_update_callback is not None:
+                        svm_chain_update = SvmChainUpdate.model_validate(
+                            msg_json["svm_chain_update"]
+                        )
+                        asyncio.create_task(svm_chain_update_callback(svm_chain_update))
 
             elif msg_json.get("id"):
                 future = self.ws_msg_futures.pop(msg_json["id"])
