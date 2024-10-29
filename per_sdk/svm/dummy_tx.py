@@ -11,6 +11,7 @@ import httpx
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
 from solana.transaction import Transaction
+from solders.address_lookup_table_account import AddressLookupTableAccount
 from solders.instruction import AccountMeta, Instruction
 from solders.message import MessageV0
 from solders.null_signer import NullSigner
@@ -71,6 +72,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         required=True,
         help="Pubkey of the dummy program, as a base-58-encoded string",
+    )
+    parser.add_argument(
+        "--use-lookup-table",
+        action="store_true",
+        default=False,
+        help="Create and use a lookup table to store some commonly used accounts for the express relay program instruction when submitting to server. Used to test that server can handle querying accounts in lookup tables.",
     )
     parser.add_argument(
         "--submit-on-chain",
@@ -153,6 +160,79 @@ async def main():
     )
 
     client = AsyncClient(args.rpc_url, Confirmed)
+    lookup_tables = []
+    if args.use_lookup_table:
+        address_lookup_pid = Pubkey.from_string(
+            "AddressLookupTab1e1111111111111111111111111"
+        )
+
+        recent_slot = (await client.get_slot("finalized")).value
+
+        (lookup_table_address, bump_lookup_table_address) = Pubkey.find_program_address(
+            [bytes(pk_searcher), struct.pack("<Q", recent_slot)], address_lookup_pid
+        )
+
+        ix_create_lut = Instruction(
+            address_lookup_pid,
+            struct.pack("<LQB", 0, recent_slot, bump_lookup_table_address),
+            [
+                AccountMeta(lookup_table_address, False, True),
+                AccountMeta(pk_searcher, True, False),
+                AccountMeta(pk_searcher, True, True),
+                AccountMeta(system_pid, False, False),
+            ],
+        )
+
+        tx_create_lut = Transaction(fee_payer=pk_searcher)
+        tx_create_lut.add(ix_create_lut)
+        tx_create_lut_sig = (
+            await client.send_transaction(tx_create_lut, kp_searcher)
+        ).value
+        conf_create_lut = await client.confirm_transaction(tx_create_lut_sig)
+
+        assert (
+            conf_create_lut.value[0].status is None
+        ), "Create lookup table transaction failed"
+
+        addresses_to_add = [router, config_router, pk_express_relay_metadata]
+        addresses_to_add_bytes = [bytes(pubkey) for pubkey in addresses_to_add]
+        data_extend = (
+            struct.pack("<L", 2)
+            + struct.pack("<Q", len(addresses_to_add_bytes))
+            + b"".join(addresses_to_add_bytes)
+        )
+        ix_extend_lut = Instruction(
+            address_lookup_pid,
+            data_extend,
+            [
+                AccountMeta(lookup_table_address, False, True),
+                AccountMeta(pk_searcher, True, False),
+                AccountMeta(pk_searcher, True, True),
+                AccountMeta(system_pid, False, False),
+            ],
+        )
+
+        tx_extend_lut = Transaction(fee_payer=pk_searcher)
+        tx_extend_lut.add(ix_extend_lut)
+        tx_extend_lut_sig = (
+            await client.send_transaction(tx_extend_lut, kp_searcher)
+        ).value
+        conf_extend_lut = await client.confirm_transaction(
+            tx_extend_lut_sig, "finalized"
+        )
+
+        assert (
+            conf_extend_lut.value[0].status is None
+        ), "Extend lookup table transaction failed"
+
+        logger.info(
+            f"Extended lookup table at {lookup_table_address} with {addresses_to_add}"
+        )
+
+        lookup_tables.append(
+            AddressLookupTableAccount(lookup_table_address, addresses_to_add)
+        )
+
     if args.submit_on_chain:
         tx = Transaction(fee_payer=pk_searcher)
         tx.add(ix_submit_bid)
@@ -175,7 +255,7 @@ async def main():
             ).decode()
         else:
             messagev0 = MessageV0.try_compile(
-                pk_searcher, [ix_submit_bid, ix_dummy], [], recent_blockhash
+                pk_searcher, [ix_submit_bid, ix_dummy], lookup_tables, recent_blockhash
             )
             signers = [kp_searcher, NullSigner(pk_relayer_signer)]
             partially_signed = VersionedTransaction(messagev0, signers)
