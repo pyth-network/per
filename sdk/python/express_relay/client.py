@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import Callable, Any, Union, cast
 from uuid import UUID
 
-from express_relay.models.svm import SvmChainUpdate
 import httpx
 import web3
 import websockets
@@ -33,6 +32,7 @@ from express_relay.models.evm import (
     TokenAmount,
     BidEvm,
 )
+from express_relay.models.svm import SvmChainUpdate
 from express_relay.models import (
     Bid,
     BidStatusUpdate,
