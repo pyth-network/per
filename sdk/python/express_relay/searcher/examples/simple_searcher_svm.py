@@ -169,7 +169,8 @@ class SimpleSearcherSvm:
             [submit_bid_ix] + ixs_take_order, self.private_key.pubkey()
         )
 
-        if self.chain_id not in self.recent_blockhash:
+        if opp.chain_id not in self.recent_blockhash:
+            logger.info(f"No recent blockhash for chain, {opp.chain_id} skipping bid")
             return None
 
         transaction.partial_sign(
