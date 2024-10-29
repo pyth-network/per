@@ -13,6 +13,7 @@ use {
         anyhow,
         Result,
     },
+    solana_sdk::commitment_config::CommitmentConfig,
     std::{
         sync::{
             atomic::Ordering,
@@ -35,11 +36,11 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::time::sleep(Duration::from_millis(GET_LATEST_BLOCKHASH_INTERVAL)).await;
         tokio::select! {
-            response = chain_store.client.get_latest_blockhash() => {
-                if let Ok(blockhash) = response {
+            response = chain_store.client.get_latest_blockhash_with_commitment(CommitmentConfig::finalized()) => {
+                if let Ok(result) = response {
                     store.broadcast_svm_chain_update(SvmChainUpdate {
                         chain_id: chain_id.clone(),
-                        blockhash,
+                        blockhash: result.0,
                     })
                 } else {
                     return Err(anyhow!("Polling blockhash failed for chain: {}", chain_id));
