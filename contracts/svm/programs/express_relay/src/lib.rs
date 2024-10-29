@@ -23,10 +23,10 @@ use {
         },
         system_program::System,
     },
-    anchor_spl::token::{
+    anchor_spl::token_interface::{
         Mint,
-        Token,
         TokenAccount,
+        TokenInterface,
     },
 };
 
@@ -180,8 +180,9 @@ pub mod express_relay {
                 let fees_referral = compute_and_transfer_fee(
                     &ctx.accounts.ta_input_searcher.to_account_info(),
                     &ctx.accounts.ta_input_router.to_account_info(),
-                    &ctx.accounts.token_program.to_account_info(),
+                    &ctx.accounts.token_program_input.to_account_info(),
                     &ctx.accounts.router.to_account_info(),
+                    &ctx.accounts.mint_input,
                     data.amount_input,
                     data.referral_fee_ppm,
                 )?;
@@ -192,8 +193,9 @@ pub mod express_relay {
                 let fees_referral = compute_and_transfer_fee(
                     &ctx.accounts.ta_output_trader.to_account_info(),
                     &ctx.accounts.ta_output_router.to_account_info(),
-                    &ctx.accounts.token_program.to_account_info(),
+                    &ctx.accounts.token_program_output.to_account_info(),
                     &ctx.accounts.trader.to_account_info(),
+                    &ctx.accounts.mint_output,
                     data.amount_output,
                     data.referral_fee_ppm,
                 )?;
@@ -210,8 +212,9 @@ pub mod express_relay {
             transfer_spl(
                 &ctx.accounts.ta_input_searcher.to_account_info(),
                 &ctx.accounts.ta_input_trader.to_account_info(),
-                &ctx.accounts.token_program.to_account_info(),
+                &ctx.accounts.token_program_input.to_account_info(),
                 &ctx.accounts.searcher.to_account_info(),
+                &ctx.accounts.mint_input,
                 amount_to_trader,
             )?;
         }
@@ -224,8 +227,9 @@ pub mod express_relay {
             transfer_spl(
                 &ctx.accounts.ta_output_trader.to_account_info(),
                 &ctx.accounts.ta_output_searcher.to_account_info(),
-                &ctx.accounts.token_program.to_account_info(),
+                &ctx.accounts.token_program_output.to_account_info(),
                 &ctx.accounts.trader.to_account_info(),
+                &ctx.accounts.mint_output,
                 amount_to_searcher,
             )?;
         }
@@ -441,32 +445,68 @@ pub struct Swap<'info> {
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    pub mint_input: Account<'info, Mint>,
+    #[account(mint::token_program = token_program_input)]
+    pub mint_input: InterfaceAccount<'info, Mint>,
 
-    pub mint_output: Account<'info, Mint>,
+    #[account(mint::token_program = token_program_output)]
+    pub mint_output: InterfaceAccount<'info, Mint>,
 
-    #[account(mut, token::mint = mint_input, token::authority = searcher)]
-    pub ta_input_searcher: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        token::mint = mint_input,
+        token::authority = searcher,
+        token::token_program = token_program_input
+    )]
+    pub ta_input_searcher: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(mut, token::mint = mint_output, token::authority = searcher)]
-    pub ta_output_searcher: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        token::mint = mint_output,
+        token::authority = searcher,
+        token::token_program = token_program_output
+    )]
+    pub ta_output_searcher: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(mut, token::mint = mint_input, token::authority = trader)]
-    pub ta_input_trader: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        token::mint = mint_input,
+        token::authority = trader,
+        token::token_program = token_program_input
+    )]
+    pub ta_input_trader: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(mut, token::mint = mint_output, token::authority = trader)]
-    pub ta_output_trader: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        token::mint = mint_output,
+        token::authority = trader,
+        token::token_program = token_program_output
+    )]
+    pub ta_output_trader: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(init_if_needed, payer = searcher, token::mint = mint_input, token::authority = router)]
-    pub ta_input_router: Account<'info, TokenAccount>,
+    #[account(
+        init_if_needed,
+        payer = searcher,
+        token::mint = mint_input,
+        token::authority = router,
+        token::token_program = token_program_input
+    )]
+    pub ta_input_router: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(init_if_needed, payer = searcher, token::mint = mint_output, token::authority = router)]
-    pub ta_output_router: Account<'info, TokenAccount>,
+    #[account(
+        init_if_needed,
+        payer = searcher,
+        token::mint = mint_output,
+        token::authority = router,
+        token::token_program = token_program_output
+    )]
+    pub ta_output_router: InterfaceAccount<'info, TokenAccount>,
 
     #[account(address = ID)]
     pub express_relay_program: Program<'info, ExpressRelay>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program_input: Interface<'info, TokenInterface>,
+
+    pub token_program_output: Interface<'info, TokenInterface>,
 
     pub system_program: Program<'info, System>,
 

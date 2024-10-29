@@ -18,9 +18,10 @@ use {
         },
         Discriminator,
     },
-    anchor_spl::token::{
+    anchor_spl::token_interface::{
         self,
-        Transfer as SplTransfer,
+        Mint,
+        TransferChecked as SplTransfer,
     },
 };
 
@@ -58,17 +59,20 @@ pub fn transfer_spl<'info>(
     to_ta: &AccountInfo<'info>,
     token_program: &AccountInfo<'info>,
     authority: &AccountInfo<'info>,
+    mint: &InterfaceAccount<'info, Mint>,
     amount: u64,
 ) -> Result<()> {
     let cpi_accounts = SplTransfer {
         from:      from_ta.clone(),
         to:        to_ta.clone(),
+        mint:      mint.to_account_info(),
         authority: authority.clone(),
     };
 
-    token::transfer(
-        CpiContext::new(token_program.to_account_info(), cpi_accounts),
+    token_interface::transfer_checked(
+        CpiContext::new(token_program.clone(), cpi_accounts),
         amount,
+        mint.decimals,
     )?;
     Ok(())
 }
@@ -78,6 +82,7 @@ pub fn compute_and_transfer_fee<'info>(
     to_ta: &AccountInfo<'info>,
     token_program: &AccountInfo<'info>,
     auth: &AccountInfo<'info>,
+    mint: &InterfaceAccount<'info, Mint>,
     amount: u64,
     fee_ppm: u64,
 ) -> Result<u64> {
@@ -87,7 +92,7 @@ pub fn compute_and_transfer_fee<'info>(
         / 1_000_000;
 
     if fee > 0 {
-        transfer_spl(from_ta, to_ta, token_program, auth, fee)?;
+        transfer_spl(from_ta, to_ta, token_program, auth, mint, fee)?;
     }
 
     Ok(fee)
