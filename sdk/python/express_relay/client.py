@@ -359,7 +359,7 @@ class ExpressRelayClient:
                 elif msg_json.get("type") == "svm_chain_update":
                     if svm_chain_update_callback is not None:
                         svm_chain_update = SvmChainUpdate.model_validate(
-                            msg_json["chain_update"]
+                            msg_json["update"]
                         )
                         asyncio.create_task(svm_chain_update_callback(svm_chain_update))
 
