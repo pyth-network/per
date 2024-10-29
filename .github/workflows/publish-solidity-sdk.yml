@@ -1,0 +1,41 @@
+name: Publish Express Relay Solidity SDK
+
+on:
+  push:
+    tags:
+      - "solidity-v*"
+jobs:
+  publish-solidity:
+    name: Publish Solidity SDK Package to NPM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: "package.json"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1.1.1
+        with:
+          version: nightly
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: sdk/solidity/
+
+      - name: Generate ABIs
+        run: npm run generate-abi
+        working-directory: sdk/solidity/
+
+      - name: Check ABIs
+        run: npm run check-abi
+        working-directory: sdk/solidity/
+
+      - name: Publish to npm
+        run: npm publish
+        working-directory: sdk/solidity/
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
