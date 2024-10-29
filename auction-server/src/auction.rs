@@ -29,6 +29,7 @@ use {
             ChainStoreCoreFields,
             ChainStoreEvm,
             ChainStoreSvm,
+            LookupTableCache,
             PermissionKey,
             PermissionKeySvm,
             SimulatedBidCoreFields,
@@ -922,6 +923,7 @@ async fn extract_account_svm(
     tx: &VersionedTransaction,
     submit_bid_instruction: &CompiledInstruction,
     position: usize,
+    lookup_table_cache: &LookupTableCache,
     client: &RpcClient,
 ) -> Result<Pubkey, RestError> {
     let static_accounts = tx.message.static_account_keys();
@@ -958,7 +960,13 @@ async fn extract_account_svm(
                 .collect();
 
             let account_position_lookups = account_position - static_accounts.len();
-            find_and_query_lookup_table(lookup_accounts, account_position_lookups, client).await
+            find_and_query_lookup_table(
+                lookup_accounts,
+                account_position_lookups,
+                client,
+                lookup_table_cache,
+            )
+            .await
         }
         None => Err(RestError::BadParameters(
             "No lookup tables found in submit_bid instruction".to_string(),
@@ -970,20 +978,37 @@ async fn find_and_query_lookup_table(
     lookup_accounts: Vec<(Pubkey, u8)>,
     account_position: usize,
     client: &RpcClient,
+    lookup_table_cache: &LookupTableCache,
 ) -> Result<Pubkey, RestError> {
     let (table_to_query, index_to_query) =
         lookup_accounts.get(account_position).ok_or_else(|| {
             RestError::BadParameters("Lookup table not found in lookup accounts".to_string())
         })?;
 
-    query_lookup_table(table_to_query, *index_to_query as usize, client).await
+    query_lookup_table(
+        table_to_query,
+        *index_to_query as usize,
+        client,
+        lookup_table_cache,
+    )
+    .await
 }
 
 async fn query_lookup_table(
     table: &Pubkey,
     index: usize,
     client: &RpcClient,
+    lookup_table_cache: &LookupTableCache,
 ) -> Result<Pubkey, RestError> {
+    if let Some(Some(cached_table)) = lookup_table_cache
+        .read()
+        .await
+        .get(table)
+        .map(|keys| keys.get(index).cloned())
+    {
+        return Ok(cached_table);
+    }
+
     let table_data = client
         .get_account_with_commitment(table, CommitmentConfig::processed())
         .await
@@ -998,6 +1023,13 @@ async fn query_lookup_table(
         .addresses
         .get(index)
         .ok_or_else(|| RestError::BadParameters("Account not found in lookup table".to_string()))?;
+
+    let keys_to_cache = table_data_deserialized.addresses.to_vec();
+    lookup_table_cache
+        .write()
+        .await
+        .insert(*table, keys_to_cache);
+
     Ok(*account)
 }
 
@@ -1026,6 +1058,7 @@ async fn extract_bid_data_svm(
         &tx,
         &submit_bid_instruction,
         chain_store.express_relay_svm.permission_account_position,
+        &chain_store.lookup_table_cache,
         client,
     )
     .await?;
@@ -1033,6 +1066,7 @@ async fn extract_bid_data_svm(
         &tx,
         &submit_bid_instruction,
         chain_store.express_relay_svm.router_account_position,
+        &chain_store.lookup_table_cache,
         client,
     )
     .await?;
