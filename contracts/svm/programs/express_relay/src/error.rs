@@ -14,8 +14,10 @@ pub enum ErrorCode {
     MissingPermission,
     #[msg("Multiple permissions")]
     MultiplePermissions,
-    #[msg("Insufficient Searcher Funds")]
+    #[msg("Insufficient searcher funds")]
     InsufficientSearcherFunds,
     #[msg("Insufficient funds for rent")]
     InsufficientRent,
+    #[msg("Invalid referral fee")]
+    InvalidReferralFee,
 }

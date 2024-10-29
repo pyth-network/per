@@ -170,25 +170,41 @@ pub mod express_relay {
             ctx.accounts.express_relay_program.to_account_info(),
         )?;
 
-        let fees_referral = data
-            .referral_fee_ppm
-            .checked_mul(data.amount_input)
-            .ok_or(ProgramError::ArithmeticOverflow)?
-            / 1_000_000;
-
-        if fees_referral > 0 {
-            transfer_spl(
-                &ctx.accounts.ta_input_searcher.to_account_info(),
-                &ctx.accounts.ta_input_router.to_account_info(),
-                &ctx.accounts.token_program.to_account_info(),
-                &ctx.accounts.router.to_account_info(),
-                fees_referral,
-            )?;
+        // this is just a defensive programming measure, since an excessive referral fee should fail the checked_sub calls below
+        if data.referral_fee_ppm > 1_000_000 {
+            return err!(ErrorCode::InvalidReferralFee);
         }
+
+        let (fees_input, fees_output) = match data.referral_fee_input {
+            true => {
+                let fees_referral = compute_and_transfer_fee(
+                    &ctx.accounts.ta_input_searcher.to_account_info(),
+                    &ctx.accounts.ta_input_router.to_account_info(),
+                    &ctx.accounts.token_program.to_account_info(),
+                    &ctx.accounts.router.to_account_info(),
+                    data.amount_input,
+                    data.referral_fee_ppm,
+                )?;
+
+                (fees_referral, 0)
+            }
+            false => {
+                let fees_referral = compute_and_transfer_fee(
+                    &ctx.accounts.ta_output_trader.to_account_info(),
+                    &ctx.accounts.ta_output_router.to_account_info(),
+                    &ctx.accounts.token_program.to_account_info(),
+                    &ctx.accounts.trader.to_account_info(),
+                    data.amount_output,
+                    data.referral_fee_ppm,
+                )?;
+
+                (0, fees_referral)
+            }
+        };
 
         let amount_to_trader = data
             .amount_input
-            .checked_sub(fees_referral)
+            .checked_sub(fees_input)
             .ok_or(ProgramError::ArithmeticOverflow)?;
         if amount_to_trader > 0 {
             transfer_spl(
@@ -200,13 +216,17 @@ pub mod express_relay {
             )?;
         }
 
-        if data.amount_output > 0 {
+        let amount_to_searcher = data
+            .amount_output
+            .checked_sub(fees_output)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        if amount_to_searcher > 0 {
             transfer_spl(
                 &ctx.accounts.ta_output_trader.to_account_info(),
                 &ctx.accounts.ta_output_searcher.to_account_info(),
                 &ctx.accounts.token_program.to_account_info(),
                 &ctx.accounts.trader.to_account_info(),
-                data.amount_output,
+                amount_to_searcher,
             )?;
         }
 
@@ -381,11 +401,13 @@ pub struct WithdrawFees<'info> {
 /// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapArgs {
-    pub amount_input:     u64,
-    pub amount_output:    u64,
-    pub nonce:            u64,
+    pub amount_input:       u64,
+    pub amount_output:      u64,
+    pub nonce:              u64,
     // The referral fee is specified in parts per million (e.g. 100 = 1 bp)
-    pub referral_fee_ppm: u64,
+    pub referral_fee_ppm:   u64,
+    // Whether the referral fee should be applied to the input token
+    pub referral_fee_input: bool,
 }
 
 #[derive(Accounts)]
@@ -437,6 +459,9 @@ pub struct Swap<'info> {
 
     #[account(init_if_needed, payer = searcher, token::mint = mint_input, token::authority = router)]
     pub ta_input_router: Account<'info, TokenAccount>,
+
+    #[account(init_if_needed, payer = searcher, token::mint = mint_output, token::authority = router)]
+    pub ta_output_router: Account<'info, TokenAccount>,
 
     #[account(address = ID)]
     pub express_relay_program: Program<'info, ExpressRelay>,

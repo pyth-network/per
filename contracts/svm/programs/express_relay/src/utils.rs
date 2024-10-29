@@ -73,6 +73,26 @@ pub fn transfer_spl<'info>(
     Ok(())
 }
 
+pub fn compute_and_transfer_fee<'info>(
+    from_ta: &AccountInfo<'info>,
+    to_ta: &AccountInfo<'info>,
+    token_program: &AccountInfo<'info>,
+    auth: &AccountInfo<'info>,
+    amount: u64,
+    fee_ppm: u64,
+) -> Result<u64> {
+    let fee = amount
+        .checked_mul(fee_ppm)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        / 1_000_000;
+
+    if fee > 0 {
+        transfer_spl(from_ta, to_ta, token_program, auth, fee)?;
+    }
+
+    Ok(fee)
+}
+
 pub fn check_fee_hits_min_rent(account: &AccountInfo, fee: u64) -> Result<()> {
     let balance = account.lamports();
     let rent = Rent::get()?.minimum_balance(account.data_len());
