@@ -1086,7 +1086,7 @@ impl PartialEq<SimulatedBidSvm> for BidSvm {
     }
 }
 
-const BID_MINIMUM_LIFE_TIME_SVM_SERVER: i64 = 2;
+const BID_MINIMUM_LIFE_TIME_SVM_SERVER: i64 = 5;
 const BID_MINIMUM_LIFE_TIME_SVM_OTHER: i64 = 10;
 const BID_MINIMUM_LIFE_TIME_SVM_INVALID: i64 = 0;
 
