@@ -1,9 +1,6 @@
 use {
     crate::{
-        server::{
-            EXIT_CHECK_INTERVAL,
-            SHOULD_EXIT,
-        },
+        server::SHOULD_EXIT,
         state::{
             Store,
             SvmChainUpdate,
@@ -23,7 +20,8 @@ use {
     },
 };
 
-pub const GET_LATEST_BLOCKHASH_INTERVAL: u64 = 1000;
+pub const GET_LATEST_BLOCKHASH_INTERVAL: Duration = Duration::from_secs(1);
+pub const GET_LATEST_BLOCKHASH_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result<()> {
     let chain_store = store
@@ -31,10 +29,7 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
         .get(&chain_id)
         .ok_or(anyhow!("Chain not found: {}", chain_id))?;
 
-    let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
-
     while !SHOULD_EXIT.load(Ordering::Acquire) {
-        tokio::time::sleep(Duration::from_millis(GET_LATEST_BLOCKHASH_INTERVAL)).await;
         tokio::select! {
             response = chain_store.client.get_latest_blockhash_with_commitment(CommitmentConfig::finalized()) => {
                 if let Ok(result) = response {
@@ -43,11 +38,15 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
                         blockhash: result.0,
                     })
                 } else {
+                    tracing::info!("Polling blockhash failed for chain: {}", chain_id);
                     return Err(anyhow!("Polling blockhash failed for chain: {}", chain_id));
                 }
             }
-            _ = exit_check_interval.tick() => {}
+            _ = tokio::time::sleep(GET_LATEST_BLOCKHASH_TIMEOUT) => {
+                return Err(anyhow!("Polling blockhash timed out for chain: {}", chain_id));
+            }
         }
+        tokio::time::sleep(GET_LATEST_BLOCKHASH_INTERVAL).await;
     }
     Ok(())
 }
