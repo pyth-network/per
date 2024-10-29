@@ -158,12 +158,14 @@ impl Service<ChainTypeSvm> {
         let winner_bid = bids.first().expect("failed to get first bid");
 
         // Find the submit bid instruction from bid transaction to extract the deadline
-        let submit_bid_instruction =
-            verify_submit_bid_instruction_svm(chain_store, winner_bid.transaction.clone())
-                .map_err(|e| {
-                    tracing::error!("Failed to verify submit bid instruction: {:?}", e);
-                    RestError::TemporarilyUnavailable
-                })?;
+        let submit_bid_instruction = verify_submit_bid_instruction_svm(
+            &chain_store.config.express_relay_program_id,
+            winner_bid.transaction.clone(),
+        )
+        .map_err(|e| {
+            tracing::error!("Failed to verify submit bid instruction: {:?}", e);
+            RestError::TemporarilyUnavailable
+        })?;
         let submit_bid_data = extract_submit_bid_data(&submit_bid_instruction).map_err(|e| {
             tracing::error!("Failed to extract submit bid data: {:?}", e);
             RestError::TemporarilyUnavailable

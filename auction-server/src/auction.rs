@@ -29,7 +29,6 @@ use {
             ChainStoreCoreFields,
             ChainStoreEvm,
             ChainStoreSvm,
-            ExpressRelaySvm,
             PermissionKey,
             PermissionKeySvm,
             SimulatedBidCoreFields,
@@ -123,10 +122,6 @@ use {
         address_lookup_table::state::AddressLookupTable,
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
-        message::{
-            v0::MessageAddressTableLookup,
-            VersionedMessage,
-        },
         pubkey::Pubkey,
         signature::{
             Keypair,
@@ -894,7 +889,7 @@ pub async fn run_tracker_loop(chain_store: Arc<ChainStoreEvm>) -> Result<()> {
 
 // Checks that the transaction includes exactly one submit_bid instruction to the Express Relay on-chain program
 pub fn verify_submit_bid_instruction_svm(
-    chain_store: &ChainStoreSvm,
+    express_relay_pid: &Pubkey,
     transaction: VersionedTransaction,
 ) -> Result<CompiledInstruction, RestError> {
     let submit_bid_instructions: Vec<CompiledInstruction> = transaction
@@ -903,7 +898,7 @@ pub fn verify_submit_bid_instruction_svm(
         .iter()
         .filter(|instruction| {
             let program_id = instruction.program_id(transaction.message.static_account_keys());
-            if *program_id != chain_store.config.express_relay_program_id {
+            if program_id != express_relay_pid {
                 return false;
             }
 
@@ -924,39 +919,29 @@ pub fn verify_submit_bid_instruction_svm(
 }
 
 async fn extract_account_svm(
-    accounts: &[Pubkey],
-    tx_lookup_tables: Option<&[MessageAddressTableLookup]>,
-    instruction: CompiledInstruction,
+    tx: &VersionedTransaction,
+    submit_bid_instruction: &CompiledInstruction,
     position: usize,
     client: &RpcClient,
 ) -> Result<Pubkey, RestError> {
-    let account_position = instruction.accounts.get(position).ok_or_else(|| {
-        tracing::error!(
-            "Account position not found in instruction: {:?} - {}",
-            instruction,
-            position,
-        );
-        RestError::BadParameters("Account not found in submit_bid instruction".to_string())
-    })?;
+    let static_accounts = tx.message.static_account_keys();
+    let tx_lookup_tables = tx.message.address_table_lookups();
 
-    let account_position: usize = (*account_position).into();
-    if account_position < accounts.len() {
-        let account = accounts.get(account_position).ok_or_else(|| {
-            tracing::error!(
-                "Account not found in static accounts: {:?} - {}",
-                accounts,
-                account_position,
-            );
-            RestError::BadParameters("Account not found in static accounts".to_string())
+    let account_position = submit_bid_instruction
+        .accounts
+        .get(position)
+        .ok_or_else(|| {
+            RestError::BadParameters("Account not found in submit_bid instruction".to_string())
         })?;
 
+    let account_position: usize = (*account_position).into();
+    if let Some(account) = static_accounts.get(account_position) {
         return Ok(*account);
     }
 
-    let account_position_lookups_writable = account_position - accounts.len();
     match tx_lookup_tables {
         Some(tx_lookup_tables) => {
-            let writable_accounts: Vec<(Pubkey, u8)> = tx_lookup_tables
+            let lookup_accounts: Vec<(Pubkey, u8)> = tx_lookup_tables
                 .iter()
                 .flat_map(|x| {
                     x.writable_indexes
@@ -964,73 +949,57 @@ async fn extract_account_svm(
                         .into_iter()
                         .map(|y| (x.account_key, y))
                 })
-                .collect();
-            let readable_accounts: Vec<(Pubkey, u8)> = tx_lookup_tables
-                .iter()
-                .flat_map(|x| {
+                .chain(tx_lookup_tables.iter().flat_map(|x| {
                     x.readonly_indexes
                         .clone()
                         .into_iter()
                         .map(|y| (x.account_key, y))
-                })
+                }))
                 .collect();
 
-            if account_position_lookups_writable < writable_accounts.len() {
-                return query_lookup_table(
-                    writable_accounts,
-                    account_position_lookups_writable,
-                    client,
-                )
-                .await;
-            }
-
-            let account_position_lookups_readable =
-                account_position_lookups_writable - writable_accounts.len();
-            query_lookup_table(readable_accounts, account_position_lookups_readable, client).await
+            let account_position_lookups = account_position - static_accounts.len();
+            find_and_query_lookup_table(lookup_accounts, account_position_lookups, client).await
         }
-        None => {
-            tracing::error!("No lookup tables found where account_position {} exceeds number of static accounts {}", account_position, accounts.len());
-            Err(RestError::BadParameters(
-                "No lookup tables found in submit_bid instruction".to_string(),
-            ))
-        }
+        None => Err(RestError::BadParameters(
+            "No lookup tables found in submit_bid instruction".to_string(),
+        )),
     }
 }
 
-async fn query_lookup_table(
+async fn find_and_query_lookup_table(
     lookup_accounts: Vec<(Pubkey, u8)>,
     account_position: usize,
     client: &RpcClient,
 ) -> Result<Pubkey, RestError> {
     let (table_to_query, index_to_query) =
         lookup_accounts.get(account_position).ok_or_else(|| {
-            tracing::error!(
-                "Lookup table not found in lookup accounts: {:?} - {}",
-                lookup_accounts,
-                account_position,
-            );
             RestError::BadParameters("Lookup table not found in lookup accounts".to_string())
         })?;
 
-    let table_data = client.get_account_data(table_to_query).await.map_err(|e| {
-        tracing::error!("Failed getting lookup table account data: {:?}", e);
-        RestError::BadParameters("Failed getting lookup table account data".to_string())
-    })?;
-    let table = AddressLookupTable::deserialize(&table_data).map_err(|e| {
-        tracing::error!("Failed deserializing lookup table account data: {:?}", e);
-        RestError::BadParameters("Failed deserializing lookup table account data".to_string())
-    })?;
-    let account = table
-        .addresses
-        .get(*index_to_query as usize)
-        .ok_or_else(|| {
-            tracing::error!(
-                "Account not found in lookup table: {:?} - {}",
-                table,
-                index_to_query,
-            );
-            RestError::BadParameters("Account not found in lookup table".to_string())
+    query_lookup_table(table_to_query, *index_to_query as usize, client).await
+}
+
+async fn query_lookup_table(
+    table: &Pubkey,
+    index: usize,
+    client: &RpcClient,
+) -> Result<Pubkey, RestError> {
+    let table_data = client
+        .get_account_with_commitment(table, CommitmentConfig::processed())
+        .await
+        .map_err(|_e| {
+            RestError::BadParameters("Failed getting lookup table account data".to_string())
+        })?
+        .value
+        .ok_or_else(|| RestError::BadParameters("Account not found".to_string()))?;
+    let table_data_deserialized =
+        AddressLookupTable::deserialize(&table_data.data).map_err(|_e| {
+            RestError::BadParameters("Failed deserializing lookup table account data".to_string())
         })?;
+    let account = table_data_deserialized
+        .addresses
+        .get(index)
+        .ok_or_else(|| RestError::BadParameters("Account not found in lookup table".to_string()))?;
     Ok(*account)
 }
 
@@ -1044,29 +1013,28 @@ pub fn extract_submit_bid_data(
     .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))
 }
 
-pub async fn extract_bid_data_svm(
-    express_relay_svm: ExpressRelaySvm,
-    tx_message: VersionedMessage,
-    instruction: CompiledInstruction,
+async fn extract_bid_data_svm(
+    chain_store: &ChainStoreSvm,
+    tx: VersionedTransaction,
     client: &RpcClient,
 ) -> Result<(u64, PermissionKeySvm), RestError> {
-    let submit_bid_data = extract_submit_bid_data(&instruction)?;
+    let submit_bid_instruction = verify_submit_bid_instruction_svm(
+        &chain_store.config.express_relay_program_id,
+        tx.clone(),
+    )?;
+    let submit_bid_data = extract_submit_bid_data(&submit_bid_instruction)?;
 
-    let accounts = tx_message.static_account_keys();
-    let tx_lookup_tables = tx_message.address_table_lookups();
     let permission_account = extract_account_svm(
-        accounts,
-        tx_lookup_tables,
-        instruction.clone(),
-        express_relay_svm.permission_account_position,
+        &tx,
+        &submit_bid_instruction,
+        chain_store.express_relay_svm.permission_account_position,
         client,
     )
     .await?;
     let router_account = extract_account_svm(
-        accounts,
-        tx_lookup_tables,
-        instruction.clone(),
-        express_relay_svm.router_account_position,
+        &tx,
+        &submit_bid_instruction,
+        chain_store.express_relay_svm.router_account_position,
         client,
     )
     .await?;
@@ -1096,15 +1064,9 @@ pub async fn handle_bid_svm(
         .ok_or(RestError::InvalidChainId)?
         .as_ref();
 
-    let submit_bid_instruction =
-        verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
-    let (bid_amount, permission_key) = extract_bid_data_svm(
-        chain_store.express_relay_svm.clone(),
-        bid.transaction.message.clone(),
-        submit_bid_instruction,
-        &chain_store.client,
-    )
-    .await?;
+
+    let (bid_amount, permission_key) =
+        extract_bid_data_svm(chain_store, bid.transaction.clone(), &chain_store.client).await?;
 
     let bytes_permission_key = Bytes::from(&permission_key.0);
     verify_signatures_svm(
