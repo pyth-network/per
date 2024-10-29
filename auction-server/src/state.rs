@@ -480,6 +480,7 @@ pub struct ChainStoreSvm {
     pub express_relay_svm:             ExpressRelaySvm,
     pub wallet_program_router_account: Pubkey,
     pub name:                          String,
+    pub lookup_table_cache:            LookupTableCache,
 }
 
 pub type BidId = Uuid;
@@ -870,6 +871,8 @@ pub struct ExpressRelaySvm {
     pub permission_account_position: usize,
     pub router_account_position:     usize,
 }
+
+pub type LookupTableCache = RwLock<HashMap<Pubkey, Vec<Pubkey>>>;
 
 pub struct Store {
     pub chains:           HashMap<ChainId, Arc<ChainStoreEvm>>,
