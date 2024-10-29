@@ -159,24 +159,25 @@ class SimpleSearcherLimo {
   }
 
   async opportunityHandler(opportunity: Opportunity) {
-    if (this.recentBlockhash[this.chainId]) {
-      const bid = await this.generateBid(
-        opportunity as OpportunitySvm,
-        this.recentBlockhash[this.chainId]
-      );
-      try {
-        const bidId = await this.client.submitBid(bid);
-        console.log(
-          `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`
-        );
-      } catch (error) {
-        console.error(
-          `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
-        );
-      }
-    } else {
+    if (!this.recentBlockhash[this.chainId]) {
       console.log(
         `No recent blockhash for chain ${this.chainId}, skipping bid`
+      );
+      return;
+    }
+
+    const bid = await this.generateBid(
+      opportunity as OpportunitySvm,
+      this.recentBlockhash[this.chainId]
+    );
+    try {
+      const bidId = await this.client.submitBid(bid);
+      console.log(
+        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`
+      );
+    } catch (error) {
+      console.error(
+        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
       );
     }
   }

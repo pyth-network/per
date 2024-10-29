@@ -139,7 +139,7 @@ export class Client {
         data.toString()
       );
       if ("type" in message && message.type === "new_opportunity") {
-        if (this.websocketOpportunityCallback !== undefined) {
+        if (typeof this.websocketOpportunityCallback === "function") {
           const convertedOpportunity = this.convertOpportunity(
             message.opportunity
           );
@@ -148,14 +148,14 @@ export class Client {
           }
         }
       } else if ("type" in message && message.type === "bid_status_update") {
-        if (this.websocketBidStatusCallback !== undefined) {
+        if (typeof this.websocketBidStatusCallback === "function") {
           await this.websocketBidStatusCallback({
             id: message.status.id,
             ...message.status.bid_status,
           });
         }
       } else if ("type" in message && message.type === "svm_chain_update") {
-        if (this.websocketSvmChainUpdateCallback !== undefined) {
+        if (typeof this.websocketSvmChainUpdateCallback === "function") {
           await this.websocketSvmChainUpdateCallback(message.update);
         }
       } else if ("id" in message && message.id) {
