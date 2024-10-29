@@ -943,11 +943,11 @@ async fn extract_account_svm(
     if account_position < accounts.len() {
         let account = accounts.get(account_position).ok_or_else(|| {
             tracing::error!(
-                "Account not found in transaction accounts: {:?} - {}",
+                "Account not found in static accounts: {:?} - {}",
                 accounts,
                 account_position,
             );
-            RestError::BadParameters("Account not found in transaction accounts".to_string())
+            RestError::BadParameters("Account not found in static accounts".to_string())
         })?;
 
         return Ok(*account);
@@ -989,9 +989,9 @@ async fn extract_account_svm(
             query_lookup_table(readable_accounts, account_position_lookups_readable, client).await
         }
         None => {
-            tracing::error!("Lookup tables not found where account_position {} exceeds number of static accounts {}", account_position, accounts.len());
+            tracing::error!("No lookup tables found where account_position {} exceeds number of static accounts {}", account_position, accounts.len());
             Err(RestError::BadParameters(
-                "Lookup tables not found in submit_bid instruction".to_string(),
+                "No lookup tables found in submit_bid instruction".to_string(),
             ))
         }
     }
@@ -1009,16 +1009,16 @@ async fn query_lookup_table(
                 lookup_accounts,
                 account_position,
             );
-            RestError::BadParameters("".to_string())
+            RestError::BadParameters("Lookup table not found in lookup accounts".to_string())
         })?;
 
     let table_data = client.get_account_data(table_to_query).await.map_err(|e| {
-        tracing::error!("Error while getting lookup table data: {:?}", e);
-        RestError::BadParameters("Error while getting lookup table data".to_string())
+        tracing::error!("Failed getting lookup table account data: {:?}", e);
+        RestError::BadParameters("Failed getting lookup table account data".to_string())
     })?;
     let table = AddressLookupTable::deserialize(&table_data).map_err(|e| {
-        tracing::error!("Error while deserializing lookup table data: {:?}", e);
-        RestError::BadParameters("Error while deserializing lookup table data".to_string())
+        tracing::error!("Failed deserializing lookup table account data: {:?}", e);
+        RestError::BadParameters("Failed deserializing lookup table account data".to_string())
     })?;
     let account = table
         .addresses
