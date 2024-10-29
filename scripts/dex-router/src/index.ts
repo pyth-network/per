@@ -4,6 +4,7 @@ import {
   ExpressRelaySvmConfig,
   Opportunity,
   OpportunitySvm,
+  SVM_CONSTANTS,
 } from "@pythnetwork/express-relay-js";
 import { Router, RouterOutput } from "./types";
 import { JupiterRouter } from "./router/jupiter";
@@ -24,6 +25,8 @@ import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 import { getVersionedTxSize } from "./utils/size";
 import { LOOKUP_TABLE_ADDRESS, OPPORTUNITY_WAIT_TIME } from "./const";
 
+const MINUTE_IN_SECS = 60;
+
 export class DexRouter {
   private client: Client;
   private pingTimeout: NodeJS.Timeout | undefined;
@@ -36,9 +39,9 @@ export class DexRouter {
 
   constructor(
     endpoint: string,
-    skExecutor: string,
+    executor: Keypair,
     chainId: string,
-    endpointSvm: string
+    connectionSvm: Connection
   ) {
     this.client = new Client(
       {
@@ -48,12 +51,16 @@ export class DexRouter {
       this.opportunityHandler.bind(this),
       this.bidStatusHandler.bind(this)
     );
-    this.routers = [new JupiterRouter()];
-    this.executor = Keypair.fromSecretKey(
-      anchor.utils.bytes.bs58.decode(skExecutor)
-    );
+    this.executor = executor;
     this.chainId = chainId;
-    this.connectionSvm = new Connection(endpointSvm, "confirmed");
+    this.connectionSvm = connectionSvm;
+    this.routers = [
+      new JupiterRouter(
+        this.chainId,
+        this.connectionSvm,
+        this.executor.publicKey
+      ),
+    ];
   }
 
   async bidStatusHandler(bidStatus: BidStatusUpdate) {
@@ -108,26 +115,27 @@ export class DexRouter {
       order
     );
 
-    let routerOutputs: RouterOutput[] = [];
-    for (const router of this.routers) {
-      try {
-        const routerOutput = await router.route(
-          opportunity.chainId,
-          opportunity.order.state.inputMint,
-          opportunity.order.state.outputMint,
-          opportunity.order.state.remainingInputAmount,
-          this.executor.publicKey
-        );
-        routerOutputs.push(routerOutput);
-      } catch (error) {
-        console.error(`Failed to route order: ${error}`);
-      }
-    }
+    const routerOutputs = (
+      await Promise.all(
+        this.routers.map(async (router) => {
+          try {
+            const routerOutput = await router.route(
+              opportunity.order.state.inputMint,
+              opportunity.order.state.outputMint,
+              opportunity.order.state.remainingInputAmount
+            );
+            return routerOutput;
+          } catch (error) {
+            console.error(`Failed to route order: ${error}`);
+          }
+        })
+      )
+    ).filter((routerOutput) => routerOutput !== undefined);
     if (routerOutputs.length === 0) {
       throw new Error("No routers available to route order");
     }
-    const routerBest = routerOutputs.reduce((prev, curr) => {
-      return prev.amountOut > curr.amountOut ? prev : curr;
+    const routerBest = routerOutputs.reduce((bestSoFar, curr) => {
+      return bestSoFar.amountOut > curr.amountOut ? bestSoFar : curr;
     });
     let ixsRouter = routerBest.ixs;
 
@@ -143,7 +151,7 @@ export class DexRouter {
       order,
       inputAmountDecimals,
       outputAmountDecimals,
-      new PublicKey("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"),
+      SVM_CONSTANTS[this.chainId].expressRelayProgram,
       inputMintDecimals,
       outputMintDecimals
     );
@@ -165,7 +173,7 @@ export class DexRouter {
       router,
       order.address,
       bidAmount,
-      new anchor.BN(Math.round(Date.now() / 1000 + 60)),
+      new anchor.BN(Math.round(Date.now() / 1000 + MINUTE_IN_SECS)),
       this.chainId,
       this.expressRelayConfig.relayerSigner,
       this.expressRelayConfig.feeReceiverRelayer
@@ -235,23 +243,19 @@ export class DexRouter {
   private async getLookupTableAccounts(
     keys: PublicKey[]
   ): Promise<AddressLookupTableAccount[]> {
-    const addressLookupTableAccountInfos =
+    const addressLookupTableAccountInfos = (
       await this.connectionSvm.getMultipleAccountsInfo(
         keys.map((key) => new PublicKey(key))
-      );
+      )
+    ).filter((acc) => acc !== null);
 
-    return addressLookupTableAccountInfos.reduce((acc, accountInfo, index) => {
+    return addressLookupTableAccountInfos.map((accountInfo, index) => {
       const addressLookupTableAddress = keys[index];
-      if (accountInfo) {
-        const addressLookupTableAccount = new AddressLookupTableAccount({
-          key: new PublicKey(addressLookupTableAddress),
-          state: AddressLookupTableAccount.deserialize(accountInfo.data),
-        });
-        acc.push(addressLookupTableAccount);
-      }
-
-      return acc;
-    }, new Array<AddressLookupTableAccount>());
+      return new AddressLookupTableAccount({
+        key: new PublicKey(addressLookupTableAddress),
+        state: AddressLookupTableAccount.deserialize(accountInfo.data),
+      });
+    });
   }
 
   heartbeat() {
@@ -306,9 +310,9 @@ const argv = yargs(hideBin(process.argv))
 async function run() {
   const dexRouter = new DexRouter(
     argv["endpoint-express-relay"],
-    argv["sk-executor"],
+    Keypair.fromSecretKey(anchor.utils.bytes.bs58.decode(argv["sk-executor"])),
     argv["chain-id"],
-    argv["endpoint-svm"]
+    new Connection(argv["endpoint-svm"], "confirmed")
   );
   await dexRouter.start();
 }
