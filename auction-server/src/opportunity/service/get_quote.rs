@@ -50,7 +50,6 @@ impl Service<ChainTypeSvm> {
         &self,
         quote_create: entities::QuoteCreate,
         output_amount: u64,
-        chain_store: &ChainStoreSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let chain_config = self.get_config(&quote_create.chain_id)?;
         let router = chain_config.wallet_program_router_account;
@@ -100,11 +99,7 @@ impl Service<ChainTypeSvm> {
             .await?;
 
         let opportunity_create = self
-            .get_opportunity_create_for_quote(
-                input.quote_create.clone(),
-                output_amount,
-                chain_store.as_ref(),
-            )
+            .get_opportunity_create_for_quote(input.quote_create.clone(), output_amount)
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {
