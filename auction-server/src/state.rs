@@ -583,14 +583,14 @@ impl ChainStoreSvm {
             core_fields: Default::default(),
             client: TracedSenderSvm::new_client(
                 chain_id.clone(),
-                config.rpc_read_addr.as_str(),
+                config.rpc_read_url.as_str(),
                 config.rpc_timeout,
                 RpcClientConfig::with_commitment(CommitmentConfig::processed()),
             ),
 
             tx_broadcaster_client: TracedSenderSvm::new_client(
                 chain_id.clone(),
-                config.rpc_tx_submission_addr.as_str(),
+                config.rpc_tx_submission_url.as_str(),
                 config.rpc_timeout,
                 RpcClientConfig::with_commitment(CommitmentConfig::processed()),
             ),
