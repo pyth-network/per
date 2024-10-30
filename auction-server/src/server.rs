@@ -141,7 +141,7 @@ pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
 }
 
 
-async fn setup_chainstore_evm(
+async fn setup_chain_store_evm(
     config_map: ConfigMap,
     wallet: Wallet<SigningKey>,
 ) -> Result<HashMap<ChainId, ChainStoreEvm>> {
@@ -216,9 +216,9 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let wallet = run_options.subwallet_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {:?}", wallet.address());
 
-    let chains_evm = setup_chainstore_evm(config_map.clone(), wallet.clone()).await?;
+    let chains_evm = setup_chain_store_evm(config_map.clone(), wallet.clone()).await?;
 
-    let chains_svm = setup_chainstore_svm(&run_options, config_map)?;
+    let chains_svm = setup_chain_store_svm(&run_options, config_map)?;
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -342,7 +342,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     Ok(())
 }
 
-fn setup_chainstore_svm(
+fn setup_chain_store_svm(
     run_options: &RunOptions,
     config_map: ConfigMap,
 ) -> Result<HashMap<ChainId, ChainStoreSvm>> {
