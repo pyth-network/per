@@ -17,6 +17,7 @@ import {
   OpportunityEvm,
   OpportunityCreate,
   TokenAmount,
+  SvmChainUpdate,
 } from "./types";
 import {
   Connection,
@@ -92,6 +93,10 @@ export class Client {
     statusUpdate: BidStatusUpdate
   ) => Promise<void>;
 
+  private websocketSvmChainUpdateCallback?: (
+    update: SvmChainUpdate
+  ) => Promise<void>;
+
   private getAuthorization() {
     return this.clientOptions.apiKey
       ? {
@@ -104,7 +109,8 @@ export class Client {
     clientOptions: ClientOptions,
     wsOptions?: WsOptions,
     opportunityCallback?: (opportunity: Opportunity) => Promise<void>,
-    bidStatusCallback?: (statusUpdate: BidStatusUpdate) => Promise<void>
+    bidStatusCallback?: (statusUpdate: BidStatusUpdate) => Promise<void>,
+    svmChainUpdateCallback?: (update: SvmChainUpdate) => Promise<void>
   ) {
     this.clientOptions = clientOptions;
     this.clientOptions.headers = {
@@ -114,6 +120,7 @@ export class Client {
     this.wsOptions = { ...DEFAULT_WS_OPTIONS, ...wsOptions };
     this.websocketOpportunityCallback = opportunityCallback;
     this.websocketBidStatusCallback = bidStatusCallback;
+    this.websocketSvmChainUpdateCallback = svmChainUpdateCallback;
   }
 
   private connectWebsocket() {
@@ -132,7 +139,7 @@ export class Client {
         data.toString()
       );
       if ("type" in message && message.type === "new_opportunity") {
-        if (this.websocketOpportunityCallback !== undefined) {
+        if (typeof this.websocketOpportunityCallback === "function") {
           const convertedOpportunity = this.convertOpportunity(
             message.opportunity
           );
@@ -141,11 +148,15 @@ export class Client {
           }
         }
       } else if ("type" in message && message.type === "bid_status_update") {
-        if (this.websocketBidStatusCallback !== undefined) {
+        if (typeof this.websocketBidStatusCallback === "function") {
           await this.websocketBidStatusCallback({
             id: message.status.id,
             ...message.status.bid_status,
           });
+        }
+      } else if ("type" in message && message.type === "svm_chain_update") {
+        if (typeof this.websocketSvmChainUpdateCallback === "function") {
+          await this.websocketSvmChainUpdateCallback(message.update);
         }
       } else if ("id" in message && message.id) {
         // Response to a request sent earlier via the websocket with the same id
@@ -277,7 +288,6 @@ export class Client {
 
         order: encoded_order.toString("base64"),
         slot: opportunity.slot,
-        block_hash: opportunity.blockHash,
         order_address: opportunity.order.address.toBase58(),
         buy_tokens: [
           {
@@ -422,18 +432,22 @@ export class Client {
         buyTokens: opportunity.buy_tokens.map(checkTokenQty),
       };
     }
-    const order = Order.decode(Buffer.from(opportunity.order, "base64"));
-    return {
-      chainId: opportunity.chain_id,
-      slot: opportunity.slot,
-      blockHash: opportunity.block_hash,
-      opportunityId: opportunity.opportunity_id,
-      order: {
-        state: order,
-        address: new PublicKey(opportunity.order_address),
-      },
-      program: "limo",
-    };
+    if ("order" in opportunity) {
+      const order = Order.decode(Buffer.from(opportunity.order, "base64"));
+      return {
+        chainId: opportunity.chain_id,
+        slot: opportunity.slot,
+        opportunityId: opportunity.opportunity_id,
+        order: {
+          state: order,
+          address: new PublicKey(opportunity.order_address),
+        },
+        program: "limo",
+      };
+    } else {
+      console.warn("Cannot handle wallet opportunities");
+      return undefined;
+    }
   }
 
   // EVM specific functions

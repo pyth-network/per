@@ -17,7 +17,6 @@ use {
     },
     solana_sdk::{
         clock::Slot,
-        hash::Hash,
         pubkey::Pubkey,
     },
     sqlx::{
@@ -79,8 +78,6 @@ pub struct OpportunityMetadataSvm {
     pub router:             Pubkey,
     #[serde_as(as = "DisplayFromStr")]
     pub permission_account: Pubkey,
-    #[serde_as(as = "DisplayFromStr")]
-    pub block_hash:         Hash,
     pub slot:               Slot,
 }
 

@@ -36,6 +36,14 @@ export interface paths {
      */
     post: operations["post_opportunity"];
   };
+  "/v1/opportunities/quote": {
+    /**
+     * Submit a quote request
+     * @description The server will estimate the quote price, which will be used to create an opportunity.
+     * After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.
+     */
+    post: operations["post_quote"];
+  };
   "/v1/opportunities/{opportunity_id}/bids": {
     /** Bid on opportunity */
     post: operations["opportunity_bid"];
@@ -157,6 +165,12 @@ export interface components {
           result: string;
           /** @enum {string} */
           type: "won";
+        }
+      | {
+          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+          result: string;
+          /** @enum {string} */
+          type: "expired";
         };
     BidStatusWithId: {
       bid_status: components["schemas"]["BidStatus"];
@@ -260,20 +274,36 @@ export interface components {
       version: "v1";
     };
     /** @description Program specific parameters for the opportunity */
-    OpportunityCreateProgramParamsV1Svm: {
-      /**
-       * @description The Limo order to be executed, encoded in base64
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      order: string;
-      /**
-       * @description Address of the order account
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      order_address: string;
-      /** @enum {string} */
-      program: "limo";
-    };
+    OpportunityCreateProgramParamsV1Svm:
+      | {
+          /**
+           * @description The Limo order to be executed, encoded in base64
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          order: string;
+          /**
+           * @description Address of the order account.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          order_address: string;
+          /** @enum {string} */
+          program: "limo";
+        }
+      | {
+          /**
+           * Format: double
+           * @description The maximum slippage percentage that the user is willing to accept.
+           * @example 0.5
+           */
+          maximum_slippage_percentage: number;
+          /** @enum {string} */
+          program: "phantom";
+          /**
+           * @description The user wallet address which requested the quote from the wallet.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          user_wallet_address: string;
+        };
     OpportunityCreateSvm: components["schemas"]["OpportunityCreateV1Svm"] & {
       /** @enum {string} */
       version: "v1";
@@ -317,25 +347,37 @@ export interface components {
      * @description Opportunity parameters needed for on-chain execution.
      * Parameters may differ for each program
      */
-    OpportunityCreateV1Svm: {
-      /**
-       * @description The Limo order to be executed, encoded in base64
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      order: string;
-      /**
-       * @description Address of the order account
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      order_address: string;
-      /** @enum {string} */
-      program: "limo";
-    } & {
-      /**
-       * @description The block hash to be used for the opportunity execution
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      block_hash: string;
+    OpportunityCreateV1Svm: (
+      | {
+          /**
+           * @description The Limo order to be executed, encoded in base64
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          order: string;
+          /**
+           * @description Address of the order account.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          order_address: string;
+          /** @enum {string} */
+          program: "limo";
+        }
+      | {
+          /**
+           * Format: double
+           * @description The maximum slippage percentage that the user is willing to accept.
+           * @example 0.5
+           */
+          maximum_slippage_percentage: number;
+          /** @enum {string} */
+          program: "phantom";
+          /**
+           * @description The user wallet address which requested the quote from the wallet.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          user_wallet_address: string;
+        }
+    ) & {
       buy_tokens: components["schemas"]["TokenAmountSvm"][];
       /**
        * @description The chain id where the opportunity will be executed.
@@ -390,20 +432,49 @@ export interface components {
      * @description Opportunity parameters needed for on-chain execution.
      * Parameters may differ for each program
      */
-    OpportunityParamsV1Svm: {
-      /**
-       * @description The Limo order to be executed, encoded in base64
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      order: string;
-      /**
-       * @description Address of the order account
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      order_address: string;
-      /** @enum {string} */
-      program: "limo";
-    } & {
+    OpportunityParamsV1Svm: (
+      | {
+          /**
+           * @description The Limo order to be executed, encoded in base64
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          order: string;
+          /**
+           * @description Address of the order account
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          order_address: string;
+          /** @enum {string} */
+          program: "limo";
+        }
+      | {
+          buy_token: components["schemas"]["TokenAmountSvm"];
+          /**
+           * Format: double
+           * @description The maximum slippage percentage that the user is willing to accept
+           * @example 0.5
+           */
+          maximum_slippage_percentage: number;
+          /**
+           * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          permission_account: string;
+          /** @enum {string} */
+          program: "phantom";
+          /**
+           * @description The router account to be used for the opportunity execution of the protocol
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          router_account: string;
+          sell_token: components["schemas"]["TokenAmountSvm"];
+          /**
+           * @description The user wallet address which requested the quote from the wallet
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          user_wallet_address: string;
+        }
+    ) & {
       /** @example solana */
       chain_id: string;
     };
@@ -411,11 +482,6 @@ export interface components {
       /** @enum {string} */
       version: "v1";
     }) & {
-      /**
-       * @description The block hash to be used for the opportunity execution
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      block_hash: string;
       /**
        * @description Creation time of the opportunity (in microseconds since the Unix epoch)
        * @example 1700000000000000
@@ -432,6 +498,84 @@ export interface components {
        * @example 293106477
        */
       slot: number;
+    };
+    Quote: components["schemas"]["QuoteSvm"];
+    QuoteCreate: components["schemas"]["QuoteCreateSvm"];
+    /**
+     * @description Parameters needed to create a new opportunity from the Phantom wallet
+     * Auction server will extract the output token price for the auction
+     */
+    QuoteCreatePhantomV1Svm: {
+      /**
+       * @description The chain id for creating the quote.
+       * @example solana
+       */
+      chain_id: string;
+      /**
+       * Format: int64
+       * @description The input token amount that the user wants to swap.
+       * @example 100
+       */
+      input_token_amount: number;
+      /**
+       * @description The token mint address of the input token.
+       * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+       */
+      input_token_mint: string;
+      /**
+       * Format: double
+       * @description The maximum slippage percentage that the user is willing to accept.
+       * @example 0.5
+       */
+      maximum_slippage_percentage: number;
+      /**
+       * @description The token mint address of the output token.
+       * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+       */
+      output_token_mint: string;
+      /**
+       * @description The user wallet address which requested the quote from the wallet.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      user_wallet_address: string;
+    };
+    QuoteCreateSvm: components["schemas"]["QuoteCreateV1Svm"] & {
+      /** @enum {string} */
+      version: "v1";
+    };
+    QuoteCreateV1Svm: components["schemas"]["QuoteCreatePhantomV1Svm"] & {
+      /** @enum {string} */
+      program: "phantom";
+    };
+    QuoteSvm: components["schemas"]["QuoteV1Svm"] & {
+      /** @enum {string} */
+      version: "v1";
+    };
+    QuoteV1Svm: {
+      /**
+       * @description The chain id for the quote
+       * @example solana
+       */
+      chain_id: string;
+      /**
+       * Format: int64
+       * @description The expiration time of the quote (in seconds since the Unix epoch)
+       * @example 1700000000000000
+       */
+      expiration_time: number;
+      input_token: components["schemas"]["TokenAmountSvm"];
+      /**
+       * Format: double
+       * @description The maximum slippage percentage that the user is willing to accept
+       * @example 0.5
+       */
+      maximum_slippage_percentage: number;
+      output_token: components["schemas"]["TokenAmountSvm"];
+      /**
+       * @description The signed transaction for the quote to be executed on chain which is valid until the expiration time
+       * @example SGVsbG8sIFdvcmxkIQ==
+       */
+      transaction: string;
     };
     ServerResultMessage:
       | {
@@ -462,6 +606,11 @@ export interface components {
           status: components["schemas"]["BidStatusWithId"];
           /** @enum {string} */
           type: "bid_status_update";
+        }
+      | {
+          /** @enum {string} */
+          type: "svm_chain_update";
+          update: components["schemas"]["SvmChainUpdate"];
         };
     SimulatedBid:
       | components["schemas"]["SimulatedBidEvm"]
@@ -561,6 +710,10 @@ export interface components {
     /** BidsResponse */
     SimulatedBids: {
       items: components["schemas"]["SimulatedBid"][];
+    };
+    SvmChainUpdate: {
+      blockhash: components["schemas"]["Hash"];
+      chain_id: components["schemas"]["ChainId"];
     };
     TokenAmountEvm: {
       /**
@@ -771,6 +924,33 @@ export interface operations {
       };
       400: components["responses"]["ErrorBodyResponse"];
       /** @description Chain id was not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorBodyResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Submit a quote request
+   * @description The server will estimate the quote price, which will be used to create an opportunity.
+   * After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.
+   */
+  post_quote: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["QuoteCreate"];
+      };
+    };
+    responses: {
+      /** @description The created quote */
+      200: {
+        content: {
+          "application/json": components["schemas"]["Quote"];
+        };
+      };
+      400: components["responses"]["ErrorBodyResponse"];
+      /** @description No quote available right now */
       404: {
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
