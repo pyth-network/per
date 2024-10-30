@@ -29,7 +29,8 @@
                 "pending",
                 "lost",
                 "submitted",
-                "won"
+                "won",
+                "expired"
               ]
             }
           }
