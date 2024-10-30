@@ -31,10 +31,6 @@ use {
     rand::Rng,
     solana_sdk::{
         clock::Slot,
-        commitment_config::{
-            CommitmentConfig,
-            CommitmentLevel,
-        },
         pubkey::Pubkey,
     },
     std::time::Duration,
@@ -72,23 +68,10 @@ impl Service<ChainTypeSvm> {
             }],
         };
 
-        // TODO use some in memory caching for this part
-        let (block_hash, _) = chain_store
-            .client
-            .get_latest_blockhash_with_commitment(CommitmentConfig {
-                commitment: CommitmentLevel::Finalized,
-            })
-            .map_err(|e| {
-                tracing::error!("Failed to get latest block hash: {:?}", e);
-                RestError::TemporarilyUnavailable
-            })
-            .await?;
-
         Ok(entities::OpportunityCreateSvm {
             core_fields,
             router,
             permission_account,
-            block_hash,
             program: entities::OpportunitySvmProgram::Phantom(
                 entities::OpportunitySvmProgramWallet {
                     user_wallet_address:         quote_create.user_wallet_address,

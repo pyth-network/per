@@ -16,7 +16,7 @@ from express_relay.client import (
 from express_relay.constants import SVM_CONFIGS
 from express_relay.models import BidStatusUpdate, Opportunity
 from express_relay.models.base import BidStatus
-from express_relay.models.svm import BidSvm, OpportunitySvm
+from express_relay.models.svm import BidSvm, OpportunitySvm, SvmChainUpdate, SvmHash
 from express_relay.svm.generated.express_relay.accounts.express_relay_metadata import (
     ExpressRelayMetadata,
 )
@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 class SimpleSearcherSvm:
     express_relay_metadata: ExpressRelayMetadata | None
     mint_decimals_cache: typing.Dict[str, int]
+    recent_blockhash: typing.Dict[str, SvmHash]
 
     def __init__(
         self,
@@ -48,6 +49,7 @@ class SimpleSearcherSvm:
             api_key,
             self.opportunity_callback,
             self.bid_status_callback,
+            self.svm_chain_update_callback,
         )
         self.private_key = private_key
         self.bid_amount = bid_amount
@@ -60,7 +62,7 @@ class SimpleSearcherSvm:
         self.fill_rate = fill_rate
         self.express_relay_metadata = None
         self.mint_decimals_cache = {}
-
+        self.recent_blockhash = {}
     async def opportunity_callback(self, opp: Opportunity):
         """
         Callback function to run when a new opportunity is found.
@@ -105,7 +107,7 @@ class SimpleSearcherSvm:
             ] = await self.limo_client.get_mint_decimals(mint)
         return self.mint_decimals_cache[str(mint)]
 
-    async def assess_opportunity(self, opp: OpportunitySvm) -> BidSvm:
+    async def assess_opportunity(self, opp: OpportunitySvm) -> BidSvm | None:
         order: OrderStateAndAddress = {"address": opp.order_address, "state": opp.order}
         input_mint_decimals = await self.get_mint_decimals(order["state"].input_mint)
         output_mint_decimals = await self.get_mint_decimals(order["state"].output_mint)
@@ -167,12 +169,18 @@ class SimpleSearcherSvm:
             [submit_bid_ix] + ixs_take_order, self.private_key.pubkey()
         )
 
-        blockhash = (await self.rpc_client.get_latest_blockhash()).value
+        if opp.chain_id not in self.recent_blockhash:
+            logger.info(f"No recent blockhash for chain, {opp.chain_id} skipping bid")
+            return None
+
         transaction.partial_sign(
-            [self.private_key], recent_blockhash=blockhash.blockhash
+            [self.private_key], recent_blockhash=self.recent_blockhash[self.chain_id]
         )
         bid = BidSvm(transaction=transaction, chain_id=self.chain_id)
         return bid
+
+    async def svm_chain_update_callback(self, svm_chain_update: SvmChainUpdate):
+        self.recent_blockhash[svm_chain_update.chain_id] = svm_chain_update.blockhash
 
 
 async def main():
