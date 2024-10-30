@@ -6,7 +6,12 @@ import {
   Opportunity,
   OpportunitySvm,
 } from "../index";
-import { BidStatusUpdate, ChainId, SvmChainUpdate } from "../types";
+import {
+  BidStatusUpdate,
+  ChainId,
+  OpportunityDelete,
+  SvmChainUpdate,
+} from "../types";
 import { SVM_CONSTANTS } from "../const";
 
 import * as anchor from "@coral-xyz/anchor";
@@ -43,7 +48,8 @@ class SimpleSearcherLimo {
       undefined,
       this.opportunityHandler.bind(this),
       this.bidStatusHandler.bind(this),
-      this.svmChainUpdateHandler.bind(this)
+      this.svmChainUpdateHandler.bind(this),
+      this.removeOpportunitiesHandler.bind(this)
     );
     this.connectionSvm = new Connection(endpointSvm, "confirmed");
   }
@@ -184,6 +190,10 @@ class SimpleSearcherLimo {
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
     this.recentBlockhash[update.chain_id] = update.blockhash;
+  }
+
+  async removeOpportunitiesHandler(opportunityDelete: OpportunityDelete) {
+    console.log("Removing opportunities", opportunityDelete);
   }
 
   async start() {

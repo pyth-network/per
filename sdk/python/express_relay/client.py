@@ -44,6 +44,7 @@ from express_relay.models import (
     OpportunityRoot,
     ClientMessage,
     BidResponseRoot,
+    OpportunityDelete,
 )
 from express_relay.models.base import UnsupportedOpportunityVersionException
 from express_relay.models.evm import OpportunityEvm
@@ -117,6 +118,9 @@ class ExpressRelayClient:
         svm_chain_update_callback: (
             Callable[[SvmChainUpdate], Coroutine[Any, Any, Any]] | None
         ) = None,
+        remove_opportunities_callback: (
+            Callable[[OpportunityDelete], Coroutine[Any, Any, Any]] | None
+        ) = None,
         timeout_response_secs: int = 10,
         ws_options: dict[str, Any] | None = None,
         http_options: dict[str, Any] | None = None,
@@ -127,6 +131,7 @@ class ExpressRelayClient:
             opportunity_callback: An async function that serves as the callback on a new opportunity. Should take in one external argument of type Opportunity.
             bid_status_callback: An async function that serves as the callback on a new bid status update. Should take in one external argument of type BidStatusUpdate.
             svm_chain_update_callback: An async function that serves as the callback on a new svm chain update. Should take in one external argument of type SvmChainUpdate.
+            remove_opportunities_callback: An async function that serves as the callback on an opportunities delete. Should take in one external argument of type OpportunityDelete.
             timeout_response_secs: The number of seconds to wait for a response message from the server.
             ws_options: Keyword arguments to pass to the websocket connection.
             http_options: Keyword arguments to pass to the HTTP client.
@@ -157,6 +162,7 @@ class ExpressRelayClient:
         self.opportunity_callback = opportunity_callback
         self.bid_status_callback = bid_status_callback
         self.svm_chain_update_callback = svm_chain_update_callback
+        self.remove_opportunities_callback = remove_opportunities_callback
         if self.api_key:
             authorization_header = f"Bearer {self.api_key}"
             if "headers" not in self.http_options:
@@ -176,7 +182,8 @@ class ExpressRelayClient:
 
             if not hasattr(self, "ws_loop"):
                 ws_call = self.ws_handler(
-                    self.opportunity_callback, self.bid_status_callback, self.svm_chain_update_callback
+                    self.opportunity_callback, self.bid_status_callback,
+                    self.svm_chain_update_callback, self.remove_opportunities_callback,
                 )
                 self.ws_loop = asyncio.create_task(ws_call)
 
@@ -325,6 +332,9 @@ class ExpressRelayClient:
         svm_chain_update_callback: (
             Callable[[SvmChainUpdate], Coroutine[Any, Any, Any]] | None
         ) = None,
+        remove_opportunities_callback: (
+            Callable[[OpportunityDelete], Coroutine[Any, Any, Any]] | None
+        ) = None,
     ):
         """
         Continually handles new ws messages as they are received from the server via websocket.
@@ -333,6 +343,7 @@ class ExpressRelayClient:
             opportunity_callback: An async function that serves as the callback on a new opportunity. Should take in one external argument of type Opportunity.
             bid_status_callback: An async function that serves as the callback on a new bid status update. Should take in one external argument of type BidStatusUpdate.
             svm_chain_update_callback: An async function that serves as the callback on a new svm chain update. Should take in one external argument of type SvmChainUpdate.
+            remove_opportunities_callback: An async function that serves as the callback on an opportunities delete. Should take in one external argument of type OpportunityDelete.
         """
         if not self.ws:
             raise ExpressRelayClientException("Websocket not connected")
@@ -362,6 +373,13 @@ class ExpressRelayClient:
                             msg_json["update"]
                         )
                         asyncio.create_task(svm_chain_update_callback(svm_chain_update))
+
+                elif msg_json.get("type") == "remove_opportunities":
+                    if remove_opportunities_callback is not None:
+                        remove_opportunities = OpportunityDelete.model_validate(
+                            msg_json["opportunity_delete"]
+                        )
+                        asyncio.create_task(remove_opportunities_callback(remove_opportunities))
 
             elif msg_json.get("id"):
                 future = self.ws_msg_futures.pop(msg_json["id"])

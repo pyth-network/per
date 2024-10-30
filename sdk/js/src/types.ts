@@ -243,3 +243,10 @@ export type SvmConstantsConfig = {
 };
 
 export type SvmChainUpdate = components["schemas"]["SvmChainUpdate"];
+
+export type OpportunityDelete = {
+  chainId: ChainId;
+  permissionAccount: PublicKey;
+  program: components["schemas"]["ProgramSvm"];
+  router: PublicKey;
+};

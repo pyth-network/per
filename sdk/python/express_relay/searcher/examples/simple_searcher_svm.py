@@ -14,7 +14,9 @@ from express_relay.client import (
     ExpressRelayClient,
 )
 from express_relay.constants import SVM_CONFIGS
-from express_relay.models import BidStatusUpdate, Opportunity
+from express_relay.models import (
+    BidStatusUpdate, Opportunity, OpportunityDelete
+)
 from express_relay.models.base import BidStatus
 from express_relay.models.svm import BidSvm, OpportunitySvm, SvmChainUpdate, SvmHash
 from express_relay.svm.generated.express_relay.accounts.express_relay_metadata import (
@@ -50,6 +52,7 @@ class SimpleSearcherSvm:
             self.opportunity_callback,
             self.bid_status_callback,
             self.svm_chain_update_callback,
+            self.remove_opportunities_callback,
         )
         self.private_key = private_key
         self.bid_amount = bid_amount
@@ -182,6 +185,8 @@ class SimpleSearcherSvm:
     async def svm_chain_update_callback(self, svm_chain_update: SvmChainUpdate):
         self.recent_blockhash[svm_chain_update.chain_id] = svm_chain_update.blockhash
 
+    async def remove_opportunities_callback(self, opportunity_delete: OpportunityDelete):
+        print(f"Remove opportunities: {opportunity_delete}")
 
 async def main():
     parser = argparse.ArgumentParser()
