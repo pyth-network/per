@@ -760,7 +760,7 @@ pub async fn handle_bid(
     auth: Auth,
 ) -> result::Result<Uuid, RestError> {
     let chain_store = store
-        .chains
+        .chains_evm
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?
         .as_ref();
@@ -1652,7 +1652,7 @@ impl ChainStore for ChainStoreSvm {
         let relayer = self.express_relay_svm.relayer.clone();
         let mut bid = bids[0].clone();
         add_relayer_signature_svm(relayer, &mut bid);
-        match self.client.send_transaction(&bid.transaction).await {
+        match self.send_transaction(&bid.transaction).await {
             Ok(response) => Ok(response),
             Err(e) => {
                 tracing::error!("Error while submitting bid: {:?}", e);

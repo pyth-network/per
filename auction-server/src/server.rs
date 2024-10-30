@@ -5,7 +5,6 @@ use {
             ws,
         },
         auction::{
-            get_express_relay_contract,
             run_log_listener_loop_svm,
             run_submission_loop,
             run_tracker_loop,
@@ -13,7 +12,6 @@ use {
         config::{
             ChainId,
             Config,
-            ConfigEvm,
             ConfigMap,
             MigrateOptions,
             RunOptions,
@@ -25,17 +23,11 @@ use {
         },
         per_metrics,
         state::{
-            ChainStoreCoreFields,
             ChainStoreEvm,
             ChainStoreSvm,
-            ExpressRelaySvm,
-            SimulatedBidEvm,
-            SimulatedBidSvm,
             Store,
             StoreNew,
         },
-        traced_client::TracedClient,
-        traced_sender_svm::TracedSenderSvm,
         watcher::run_watcher_loop_svm,
     },
     anyhow::{
@@ -51,26 +43,17 @@ use {
     },
     ethers::{
         core::k256::ecdsa::SigningKey,
-        prelude::{
-            LocalWallet,
-            Provider,
-        },
-        providers::Middleware,
+        prelude::LocalWallet,
         signers::{
             Signer,
             Wallet,
         },
-        types::BlockNumber,
     },
     futures::{
         future::join_all,
         Future,
     },
-    solana_client::rpc_client::RpcClientConfig,
-    solana_sdk::{
-        commitment_config::CommitmentConfig,
-        signature::Keypair,
-    },
+    solana_sdk::signature::Keypair,
     sqlx::{
         migrate,
         postgres::PgPoolOptions,
@@ -78,6 +61,7 @@ use {
     },
     std::{
         collections::HashMap,
+        default::Default,
         sync::{
             atomic::{
                 AtomicBool,
@@ -157,7 +141,7 @@ pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
 }
 
 
-async fn setup_chain_store(
+async fn setup_chain_store_evm(
     config_map: ConfigMap,
     wallet: Wallet<SigningKey>,
 ) -> Result<HashMap<ChainId, ChainStoreEvm>> {
@@ -171,37 +155,9 @@ async fn setup_chain_store(
                     let (chain_id, chain_config, wallet) =
                         (chain_id.clone(), chain_config.clone(), wallet.clone());
                     Some(async move {
-                        let provider = get_chain_provider(&chain_id, &chain_config)?;
-
-                        let id = provider.get_chainid().await?.as_u64();
-                        let block = provider
-                            .get_block(BlockNumber::Latest)
-                            .await?
-                            .expect("Failed to get latest block");
-
-                        let express_relay_contract = get_express_relay_contract(
-                            chain_config.express_relay_contract,
-                            provider.clone(),
-                            wallet.clone(),
-                            chain_config.legacy_tx,
-                            id,
-                        );
-
                         Ok((
                             chain_id.clone(),
-                            ChainStoreEvm {
-                                name: chain_id.clone(),
-                                core_fields: ChainStoreCoreFields::<SimulatedBidEvm> {
-                                    bids:               Default::default(),
-                                    auction_lock:       Default::default(),
-                                    submitted_auctions: Default::default(),
-                                },
-                                provider,
-                                network_id: id,
-                                config: chain_config.clone(),
-                                express_relay_contract: Arc::new(express_relay_contract),
-                                block_gas_limit: block.gas_limit,
-                            },
+                            ChainStoreEvm::create_store(chain_id, chain_config, wallet).await?,
                         ))
                     })
                 }
@@ -260,9 +216,9 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let wallet = run_options.subwallet_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {:?}", wallet.address());
 
-    let chains = setup_chain_store(config_map.clone(), wallet.clone()).await?;
+    let chains_evm = setup_chain_store_evm(config_map.clone(), wallet.clone()).await?;
 
-    let chains_svm = setup_svm(&run_options, config_map)?;
+    let chains_svm = setup_chain_store_svm(&run_options, config_map)?;
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -271,11 +227,11 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let task_tracker = TaskTracker::new();
 
     let config_opportunity_service_evm =
-        opportunity_service::ConfigEvm::from_chains(&chains).await?;
+        opportunity_service::ConfigEvm::from_chains(&chains_evm).await?;
     let config_opportunity_service_svm =
         opportunity_service::ConfigSvm::from_chains(&chains_svm).await?;
 
-    let chains = chains
+    let chains_evm = chains_evm
         .into_iter()
         .map(|(k, v)| (k, Arc::new(v)))
         .collect::<HashMap<_, _>>();
@@ -287,7 +243,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
         db: pool.clone(),
-        chains,
+        chains_evm,
         chains_svm,
         event_sender: broadcast_sender.clone(),
         ws: ws::WsState {
@@ -321,7 +277,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     tokio::join!(
         async {
-            let submission_loops = store.chains.iter().map(|(chain_id, chain_store)| {
+            let submission_loops = store.chains_evm.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("submission loop for evm chain {}", chain_id.clone()),
                     || run_submission_loop(store_new.clone(), chain_store.clone()),
@@ -348,7 +304,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             join_all(log_listener_loops).await;
         },
         async {
-            let tracker_loops = store.chains.iter().map(|(chain_id, chain_store)| {
+            let tracker_loops = store.chains_evm.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("tracker loop for chain {}", chain_id.clone()),
                     || run_tracker_loop(chain_store.clone()),
@@ -386,7 +342,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     Ok(())
 }
 
-fn setup_svm(
+fn setup_chain_store_svm(
     run_options: &RunOptions,
     config_map: ConfigMap,
 ) -> Result<HashMap<ChainId, ChainStoreSvm>> {
@@ -410,66 +366,12 @@ fn setup_svm(
     Ok(svm_chains
         .into_iter()
         .map(|(chain_id, chain_config)| {
-            let express_relay_svm = ExpressRelaySvm {
-                relayer:                     relayer.clone(),
-                permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
-                    .parse::<usize>()
-                    .expect("Failed to parse permission account position"),
-                router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
-                    .parse::<usize>()
-                    .expect("Failed to parse router account position"),
-            };
-
             (
                 chain_id.clone(),
-                ChainStoreSvm {
-                    name: chain_id.clone(),
-                    core_fields: ChainStoreCoreFields::<SimulatedBidSvm> {
-                        bids:               Default::default(),
-                        auction_lock:       Default::default(),
-                        submitted_auctions: Default::default(),
-                    },
-                    client: TracedSenderSvm::new_client(
-                        chain_id.clone(),
-                        chain_config.rpc_addr.as_str(),
-                        chain_config.rpc_timeout,
-                        RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-                    ),
-                    wallet_program_router_account: chain_config.wallet_program_router_account,
-                    config: chain_config,
-                    express_relay_svm,
-                    lookup_table_cache: Default::default(),
-                },
+                ChainStoreSvm::new(chain_id.clone(), chain_config.clone(), relayer.clone()),
             )
         })
         .collect())
-}
-
-pub fn get_chain_provider(
-    chain_id: &String,
-    chain_config: &ConfigEvm,
-) -> Result<Provider<TracedClient>> {
-    let mut provider = TracedClient::new(
-        chain_id.clone(),
-        &chain_config.geth_rpc_addr,
-        chain_config.rpc_timeout,
-    )
-    .map_err(|err| {
-        tracing::error!(
-            "Failed to create provider for chain({chain_id}) at {rpc_addr}: {:?}",
-            err,
-            chain_id = chain_id,
-            rpc_addr = chain_config.geth_rpc_addr
-        );
-        anyhow!(
-            "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
-            err,
-            chain_id = chain_id,
-            rpc_addr = chain_config.geth_rpc_addr
-        )
-    })?;
-    provider.set_interval(Duration::from_secs(chain_config.poll_interval));
-    Ok(provider)
 }
 
 // A static exit flag to indicate to running threads that we're shutting down. This is used to
