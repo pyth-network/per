@@ -10,6 +10,7 @@ use {
             RestError,
         },
         auction::{
+            get_express_relay_contract,
             ChainStore,
             SignableExpressRelayContract,
         },
@@ -21,7 +22,9 @@ use {
         models,
         opportunity::service as opportunity_service,
         traced_client::TracedClient,
+        traced_sender_svm::TracedSenderSvm,
     },
+    anyhow::anyhow,
     axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -29,6 +32,12 @@ use {
         Engine,
     },
     ethers::{
+        core::k256::ecdsa::SigningKey,
+        middleware::Middleware,
+        prelude::{
+            BlockNumber,
+            Wallet,
+        },
         providers::Provider,
         types::{
             Address,
@@ -55,7 +64,9 @@ use {
         SerializeAs,
     },
     solana_client::nonblocking::rpc_client::RpcClient,
+    solana_rpc_client::rpc_client::RpcClientConfig,
     solana_sdk::{
+        commitment_config::CommitmentConfig,
         hash::Hash,
         pubkey::Pubkey,
         signature::{
@@ -79,10 +90,12 @@ use {
     },
     std::{
         collections::HashMap,
+        default::Default,
         num::ParseIntError,
         ops::Deref,
         str::FromStr,
         sync::Arc,
+        time::Duration,
     },
     time::UtcOffset,
     tokio::sync::{
@@ -461,6 +474,16 @@ pub struct ChainStoreCoreFields<T: SimulatedBidTrait> {
     pub submitted_auctions: RwLock<Vec<models::Auction>>,
 }
 
+impl<T: SimulatedBidTrait> Default for ChainStoreCoreFields<T> {
+    fn default() -> Self {
+        Self {
+            bids:               Default::default(),
+            auction_lock:       Default::default(),
+            submitted_auctions: Default::default(),
+        }
+    }
+}
+
 pub struct ChainStoreEvm {
     pub core_fields:            ChainStoreCoreFields<SimulatedBidEvm>,
     pub provider:               Provider<TracedClient>,
@@ -472,15 +495,120 @@ pub struct ChainStoreEvm {
     pub name:                   String,
 }
 
+impl ChainStoreEvm {
+    pub fn get_chain_provider(
+        chain_id: &String,
+        chain_config: &ConfigEvm,
+    ) -> anyhow::Result<Provider<TracedClient>> {
+        let mut provider = TracedClient::new(
+            chain_id.clone(),
+            &chain_config.geth_rpc_addr,
+            chain_config.rpc_timeout,
+        )
+        .map_err(|err| {
+            tracing::error!(
+                "Failed to create provider for chain({chain_id}) at {rpc_addr}: {:?}",
+                err,
+                chain_id = chain_id,
+                rpc_addr = chain_config.geth_rpc_addr
+            );
+            anyhow!(
+                "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
+                err,
+                chain_id = chain_id,
+                rpc_addr = chain_config.geth_rpc_addr
+            )
+        })?;
+        provider.set_interval(Duration::from_secs(chain_config.poll_interval));
+        Ok(provider)
+    }
+    pub async fn create_store(
+        chain_id: String,
+        config: ConfigEvm,
+        relayer: Wallet<SigningKey>,
+    ) -> anyhow::Result<Self> {
+        let provider = Self::get_chain_provider(&chain_id, &config)?;
+
+        let id = provider.get_chainid().await?.as_u64();
+        let block = provider
+            .get_block(BlockNumber::Latest)
+            .await?
+            .expect("Failed to get latest block");
+
+        let express_relay_contract = get_express_relay_contract(
+            config.express_relay_contract,
+            provider.clone(),
+            relayer.clone(),
+            config.legacy_tx,
+            id,
+        );
+
+        Ok(Self {
+            name: chain_id.clone(),
+            core_fields: Default::default(),
+            provider,
+            network_id: id,
+            config: config.clone(),
+            express_relay_contract: Arc::new(express_relay_contract),
+            block_gas_limit: block.gas_limit,
+        })
+    }
+}
+
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
+    tx_broadcaster_client:             RpcClient,
     pub client:                        RpcClient,
     pub config:                        ConfigSvm,
     pub express_relay_svm:             ExpressRelaySvm,
     pub wallet_program_router_account: Pubkey,
     pub name:                          String,
     pub lookup_table_cache:            LookupTableCache,
+}
+
+impl ChainStoreSvm {
+    pub fn new(chain_id: String, config: ConfigSvm, relayer: Arc<Keypair>) -> Self {
+        let express_relay_svm = ExpressRelaySvm {
+            relayer:                     relayer.clone(),
+            permission_account_position: env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION")
+                .parse::<usize>()
+                .expect("Failed to parse permission account position"),
+            router_account_position:     env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION")
+                .parse::<usize>()
+                .expect("Failed to parse router account position"),
+        };
+
+        Self {
+            name: chain_id.clone(),
+            core_fields: Default::default(),
+            client: TracedSenderSvm::new_client(
+                chain_id.clone(),
+                config.rpc_read_url.as_str(),
+                config.rpc_timeout,
+                RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+            ),
+
+            tx_broadcaster_client: TracedSenderSvm::new_client(
+                chain_id.clone(),
+                config.rpc_tx_submission_url.as_str(),
+                config.rpc_timeout,
+                RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+            ),
+
+            wallet_program_router_account: config.wallet_program_router_account,
+            config,
+            express_relay_svm,
+            lookup_table_cache: Default::default(),
+        }
+    }
+
+    pub async fn send_transaction(
+        &self,
+        tx: &VersionedTransaction,
+    ) -> solana_client::client_error::Result<Signature> {
+        self.tx_broadcaster_client.send_transaction(tx).await
+    }
 }
 
 pub type BidId = Uuid;
@@ -875,7 +1003,7 @@ pub struct ExpressRelaySvm {
 pub type LookupTableCache = RwLock<HashMap<Pubkey, Vec<Pubkey>>>;
 
 pub struct Store {
-    pub chains:           HashMap<ChainId, Arc<ChainStoreEvm>>,
+    pub chains_evm:       HashMap<ChainId, Arc<ChainStoreEvm>>,
     pub chains_svm:       HashMap<ChainId, Arc<ChainStoreSvm>>,
     pub event_sender:     broadcast::Sender<UpdateEvent>,
     pub ws:               WsState,
