@@ -1045,11 +1045,17 @@ pub fn extract_submit_bid_data(
     .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))
 }
 
+pub struct BidDataSvm {
+    pub amount:         u64,
+    pub permission_key: PermissionKeySvm,
+    pub deadline:       i64,
+}
+
 async fn extract_bid_data_svm(
     chain_store: &ChainStoreSvm,
     tx: VersionedTransaction,
     client: &RpcClient,
-) -> Result<(u64, PermissionKeySvm), RestError> {
+) -> Result<BidDataSvm, RestError> {
     let submit_bid_instruction = verify_submit_bid_instruction_svm(
         &chain_store.config.express_relay_program_id,
         tx.clone(),
@@ -1075,7 +1081,11 @@ async fn extract_bid_data_svm(
     let mut permission_key = [0; 64];
     permission_key[..32].copy_from_slice(&router_account.to_bytes());
     permission_key[32..].copy_from_slice(&permission_account.to_bytes());
-    Ok((submit_bid_data.bid_amount, PermissionKeySvm(permission_key)))
+    Ok(BidDataSvm {
+        amount:         submit_bid_data.bid_amount,
+        permission_key: PermissionKeySvm(permission_key),
+        deadline:       submit_bid_data.deadline,
+    })
 }
 
 impl PartialEq<SimulatedBidSvm> for BidSvm {
@@ -1083,6 +1093,42 @@ impl PartialEq<SimulatedBidSvm> for BidSvm {
         self.transaction == other.transaction && self.chain_id == other.core_fields.chain_id
     }
 }
+
+async fn check_deadline(
+    store_new: Arc<StoreNew>,
+    chain_store: &ChainStoreSvm,
+    permission_key: &Bytes,
+    deadline: i64,
+) -> Result<(), RestError> {
+    let minimum_bid_life_time = match chain_store
+        .get_submission_state(store_new, permission_key)
+        .await
+    {
+        SubmitType::SubmitByServer => Some(BID_MINIMUM_LIFE_TIME_SVM_SERVER),
+        SubmitType::SubmitByOther => Some(BID_MINIMUM_LIFE_TIME_SVM_OTHER),
+        SubmitType::Invalid => None,
+    };
+    match minimum_bid_life_time {
+        Some(min_life_time) => {
+            let minimum_deadline = OffsetDateTime::now_utc().unix_timestamp() + min_life_time;
+            // TODO: this uses the time at the server, which can lead to issues if Solana ever experiences clock drift
+            // using the time at the server is not ideal, but the alternative is to make an RPC call to get the Solana block time
+            // we should make this more robust, possibly by polling the current block time in the background
+            if deadline < minimum_deadline {
+                return Err(RestError::BadParameters(format!(
+                    "Bid deadline of {} is too short, bid must be valid for at least {} seconds",
+                    deadline, min_life_time
+                )));
+            }
+
+            Ok(())
+        }
+        None => Ok(()),
+    }
+}
+
+const BID_MINIMUM_LIFE_TIME_SVM_SERVER: i64 = 5;
+const BID_MINIMUM_LIFE_TIME_SVM_OTHER: i64 = 10;
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_bid_svm(
@@ -1099,10 +1145,17 @@ pub async fn handle_bid_svm(
         .as_ref();
 
 
-    let (bid_amount, permission_key) =
+    let bid_data_svm =
         extract_bid_data_svm(chain_store, bid.transaction.clone(), &chain_store.client).await?;
 
-    let bytes_permission_key = Bytes::from(&permission_key.0);
+    let bytes_permission_key = Bytes::from(&bid_data_svm.permission_key.0);
+    check_deadline(
+        store_new.clone(),
+        chain_store,
+        &bytes_permission_key,
+        bid_data_svm.deadline,
+    )
+    .await?;
     verify_signatures_svm(
         store_new,
         chain_store,
@@ -1122,11 +1175,11 @@ pub async fn handle_bid_svm(
 
     let core_fields = SimulatedBidCoreFields::new(bid.chain_id, initiation_time, auth);
     let simulated_bid = SimulatedBidSvm {
-        status: BidStatusSvm::Pending,
-        core_fields: core_fields.clone(),
-        transaction: bid.transaction,
-        bid_amount,
-        permission_key,
+        status:         BidStatusSvm::Pending,
+        core_fields:    core_fields.clone(),
+        transaction:    bid.transaction,
+        bid_amount:     bid_data_svm.amount,
+        permission_key: bid_data_svm.permission_key,
     };
     store.add_bid(chain_store, simulated_bid).await?;
     Ok(core_fields.id)
