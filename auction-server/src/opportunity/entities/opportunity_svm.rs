@@ -110,8 +110,11 @@ impl Opportunity for OpportunitySvm {
 impl OpportunityCreate for OpportunityCreateSvm {
     type ApiOpportunityCreate = api::OpportunityCreateSvm;
 
-    fn permission_key(&self) -> crate::kernel::entities::PermissionKey {
-        self.core_fields.permission_key.clone()
+    fn get_key(&self) -> super::OpportunityKey {
+        (
+            self.core_fields.chain_id.clone(),
+            self.core_fields.permission_key.clone(),
+        )
     }
 }
 

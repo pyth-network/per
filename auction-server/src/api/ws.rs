@@ -307,6 +307,21 @@ impl Subscriber {
         Ok(())
     }
 
+    async fn handle_remove_opportunities(
+        &mut self,
+        opportunity_delete: OpportunityDelete,
+    ) -> Result<()> {
+        if !self.chain_ids.contains(opportunity_delete.get_chain_id()) {
+            // Irrelevant update
+            return Ok(());
+        }
+        let message = serde_json::to_string(&ServerUpdateResponse::RemoveOpportunities {
+            opportunity_delete,
+        })?;
+        self.sender.send(message.into()).await?;
+        Ok(())
+    }
+
     #[instrument(
         target = "metrics",
         fields(category = "ws_update", result = "success", name),
@@ -328,11 +343,7 @@ impl Subscriber {
             }
             UpdateEvent::RemoveOpportunities(opportunity_delete) => {
                 tracing::Span::current().record("name", "remove_opportunity");
-                let message = serde_json::to_string(&ServerUpdateResponse::RemoveOpportunities {
-                    opportunity_delete,
-                })?;
-                self.sender.send(message.into()).await?;
-                Ok(())
+                self.handle_remove_opportunities(opportunity_delete).await
             }
         };
         if result.is_err() {

@@ -12,6 +12,7 @@ use {
         opportunity::{
             entities::{
                 self,
+                Opportunity,
             },
             repository::InMemoryStore,
             service::verification::VerifyOpportunityInput,
@@ -70,12 +71,12 @@ where
                 RestError::TemporarilyUnavailable
             })?;
 
-        let opportunities_map = &self.repo.get_opportunities().await;
+        let opportunities_map = &self.repo.get_all_opportunities().await;
         tracing::debug!("number of permission keys: {}", opportunities_map.len());
         tracing::debug!(
             "number of opportunities for key: {}",
             opportunities_map
-                .get(&opportunity.permission_key)
+                .get(&opportunity.get_key())
                 .map_or(0, |opps| opps.len())
         );
 

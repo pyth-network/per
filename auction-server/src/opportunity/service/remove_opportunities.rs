@@ -31,17 +31,27 @@ impl Service<ChainTypeSvm> {
         input: RemoveOpportunitiesInput,
     ) -> Result<(), RestError> {
         self.get_config(&input.chain_id)?;
+        let permission_key =
+            entities::OpportunitySvm::get_permission_key(input.router, input.permission_account);
         let opportunities = self
             .repo
             .remove_opportunities(
                 &self.db,
-                entities::OpportunitySvm::get_permission_key(
-                    input.router,
-                    input.permission_account,
-                ),
+                permission_key.clone(),
+                input.chain_id.clone(),
+                &(input.chain_id.clone(), permission_key),
                 repository::OpportunityRemovalReason::Invalid,
             )
-            .await;
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = ?e,
+                    chain_id = input.chain_id,
+                    permission_key =
+                    "Failed to remove opportunities",
+                );
+                RestError::TemporarilyUnavailable
+            })?;
 
         if !opportunities.is_empty() {
             let opportunity = opportunities[0].clone();

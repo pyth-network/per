@@ -32,13 +32,13 @@ impl<T: ChainType> Service<T> {
         match query_params.mode.clone() {
             OpportunityMode::Live => Ok(self
                 .repo
-                .get_opportunities()
+                .get_all_opportunities()
                 .await
                 .values()
                 .map(|opportunities| {
                     let opportunity = opportunities
                         .last()
-                        .expect("A permission key vector should have at least one opportunity");
+                        .expect("An opportunity key vector should have at least one opportunity");
                     opportunity.clone()
                 })
                 .filter(|opportunity| {
@@ -54,7 +54,7 @@ impl<T: ChainType> Service<T> {
                     RestError::BadParameters("Chain id is required on historical mode".to_string())
                 })?;
                 self.repo
-                    .get_opportunities_by_permission_key(
+                    .get_opportunities(
                         &self.db,
                         chain_id,
                         query_params.permission_key.clone(),

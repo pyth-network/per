@@ -14,7 +14,7 @@ use {
         },
         models,
         opportunity::service::{
-            get_live_opportunities_by_permission_key::GetOpportunitiesByPermissionKeyInput,
+            get_live_opportunities::GetOpportunitiesInput,
             ChainType as OpportunityChainType,
             ChainTypeEvm as OpportunityChainTypeEvm,
             ChainTypeSvm as OpportunityChainTypeSvm,
@@ -1170,8 +1170,8 @@ async fn verify_signatures_svm(
         SubmitType::SubmitByOther => {
             let opportunities = store_new
                 .opportunity_service_svm
-                .get_live_opportunities_by_permission_key(GetOpportunitiesByPermissionKeyInput {
-                    permission_key: permission_key.clone(),
+                .get_live_opportunities(GetOpportunitiesInput {
+                    key: (bid.chain_id.clone(), permission_key.clone()),
                 })
                 .await;
             opportunities.into_iter().any(|opportunity| {
@@ -1415,8 +1415,8 @@ pub trait ChainStore:
     async fn opportunity_exists(&self, store_new: Arc<StoreNew>, permission_key: &Bytes) -> bool {
         !self
             .get_opportunity_service(store_new)
-            .get_live_opportunities_by_permission_key(GetOpportunitiesByPermissionKeyInput {
-                permission_key: permission_key.clone(),
+            .get_live_opportunities(GetOpportunitiesInput {
+                key: (self.get_name().clone(), permission_key.clone()),
             })
             .await
             .is_empty()

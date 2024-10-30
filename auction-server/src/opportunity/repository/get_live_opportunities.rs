@@ -3,19 +3,19 @@ use {
         InMemoryStore,
         Repository,
     },
-    crate::kernel::entities::PermissionKey,
+    crate::opportunity::entities,
 };
 
 impl<T: InMemoryStore> Repository<T> {
-    pub async fn get_live_opportunities_by_permission_key(
+    pub async fn get_live_opportunities(
         &self,
-        permission_key: PermissionKey,
+        opportunity_key: &entities::OpportunityKey,
     ) -> Vec<T::Opportunity> {
         self.in_memory_store
             .opportunities
             .read()
             .await
-            .get(&permission_key)
+            .get(opportunity_key)
             .cloned()
             .unwrap_or_default()
     }

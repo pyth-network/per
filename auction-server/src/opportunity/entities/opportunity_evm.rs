@@ -69,8 +69,11 @@ impl Opportunity for OpportunityEvm {
 impl OpportunityCreate for OpportunityCreateEvm {
     type ApiOpportunityCreate = api::OpportunityCreateEvm;
 
-    fn permission_key(&self) -> crate::kernel::entities::PermissionKey {
-        self.core_fields.permission_key.clone()
+    fn get_key(&self) -> super::OpportunityKey {
+        (
+            self.core_fields.chain_id.clone(),
+            self.core_fields.permission_key.clone(),
+        )
     }
 }
 
@@ -191,6 +194,6 @@ impl From<OpportunityEvm> for OpportunityCreateEvm {
 
 impl From<OpportunityEvm> for api::OpportunityDelete {
     fn from(_val: OpportunityEvm) -> Self {
-        panic!("Not implemented")
+        unimplemented!("OpportunityEvm to api::OpportunityDelete");
     }
 }

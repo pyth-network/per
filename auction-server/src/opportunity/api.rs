@@ -111,7 +111,6 @@ pub struct OpportunityDeleteV1Svm {
     pub chain_id:           ChainId,
     /// The program for the opportunity.
     #[schema(example = "limo", value_type = ProgramSvm)]
-    #[serde()]
     pub program:            ProgramSvm,
 }
 
@@ -596,6 +595,13 @@ impl Opportunity {
     }
 }
 
+impl OpportunityDelete {
+    pub fn get_chain_id(&self) -> &ChainId {
+        match self {
+            OpportunityDelete::Svm(OpportunityDeleteSvm::V1(params)) => &params.chain_id,
+        }
+    }
+}
 // ----- APIs -----
 
 /// Bid on opportunity.
