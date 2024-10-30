@@ -205,7 +205,7 @@ local_resource(
 # craft dummy tx, submits as a bid to auction server or submits relayer-signed tx directly to solana cluster
 local_resource(
     "svm-submit-bid",
-    "poetry -C per_sdk run python3 -m per_sdk.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100000000 --auction-server-url http://localhost:9000 --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --dummy-program DUmmYXYFZugRn2DS4REc5F9UbQNoxYsHP1VMZ6j5U7kZ",
+    "poetry -C per_sdk run python3 -m per_sdk.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100000000 --auction-server-url http://localhost:9000 --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --dummy-program DUmmYXYFZugRn2DS4REc5F9UbQNoxYsHP1VMZ6j5U7kZ --rpc-url %s --use-lookup-table" % rpc_url_solana,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 

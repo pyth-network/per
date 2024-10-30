@@ -35,6 +35,7 @@ use {
             SimulatedBidEvm,
             SimulatedBidSvm,
             StoreNew,
+            SvmChainUpdate,
         },
     },
     anyhow::Result,
@@ -108,29 +109,29 @@ pub(crate) mod ws;
 
 #[derive(Debug)]
 pub enum RestError {
-    /// The request contained invalid parameters
+    /// The request contained invalid parameters.
     BadParameters(String),
-    /// The submitted opportunity was not valid
+    /// The submitted opportunity was not valid.
     InvalidOpportunity(String),
-    /// The chain id is not supported
+    /// The chain id is not supported.
     InvalidChainId,
-    /// The simulation failed
+    /// The simulation failed.
     SimulationError { result: Bytes, reason: String },
-    /// The opportunity was not found
+    /// The opportunity was not found.
     OpportunityNotFound,
-    /// The bid was not found
+    /// The bid was not found.
     BidNotFound,
-    /// Internal error occurred during processing the request
+    /// Internal error occurred during processing the request.
     TemporarilyUnavailable,
-    /// Invalid auth token
+    /// Auth token is invalid.
     InvalidToken,
-    /// Forbidden
+    /// The request is forbidden.
     Forbidden,
-    /// Unauthorized
+    /// The request is unauthorized.
     Unauthorized,
-    /// Profile not found
+    /// The profile was not found.
     ProfileNotFound,
-    /// Quote not found
+    /// The quote was not found.
     QuoteNotFound,
 }
 
@@ -319,6 +320,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     SimulatedBidEvm,
     SimulatedBidSvm,
     SimulatedBids,
+    SvmChainUpdate,
 
     opportunity::OpportunityBidEvm,
     opportunity::OpportunityBidResult,

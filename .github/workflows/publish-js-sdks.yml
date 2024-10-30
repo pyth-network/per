@@ -1,0 +1,36 @@
+name: Publish Express Relay JS packages
+
+on:
+  push:
+    tags:
+      - "js-v*"
+jobs:
+  publish-js:
+    name: Publish Javascript SDK Package to NPM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: "package.json"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: sdk/js/
+
+      - name: Run tests
+        run: npm test # Ensure your tests pass before publishing
+        working-directory: sdk/js/
+
+      - name: Build package
+        run: npm run build # If your package requires a build step
+        working-directory: sdk/js/
+
+      - name: Publish to npm
+        run: npm publish
+        working-directory: sdk/js/
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

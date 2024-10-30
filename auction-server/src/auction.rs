@@ -29,7 +29,7 @@ use {
             ChainStoreCoreFields,
             ChainStoreEvm,
             ChainStoreSvm,
-            ExpressRelaySvm,
+            LookupTableCache,
             PermissionKey,
             PermissionKeySvm,
             SimulatedBidCoreFields,
@@ -109,7 +109,10 @@ use {
         Serialize,
     },
     solana_client::{
-        nonblocking::pubsub_client::PubsubClient,
+        nonblocking::{
+            pubsub_client::PubsubClient,
+            rpc_client::RpcClient,
+        },
         rpc_config::{
             RpcTransactionLogsConfig,
             RpcTransactionLogsFilter,
@@ -117,6 +120,7 @@ use {
         rpc_response::SlotInfo,
     },
     solana_sdk::{
+        address_lookup_table::state::AddressLookupTable,
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
         pubkey::Pubkey,
@@ -886,7 +890,7 @@ pub async fn run_tracker_loop(chain_store: Arc<ChainStoreEvm>) -> Result<()> {
 
 // Checks that the transaction includes exactly one submit_bid instruction to the Express Relay on-chain program
 pub fn verify_submit_bid_instruction_svm(
-    chain_store: &ChainStoreSvm,
+    express_relay_pid: &Pubkey,
     transaction: VersionedTransaction,
 ) -> Result<CompiledInstruction, RestError> {
     let submit_bid_instructions: Vec<CompiledInstruction> = transaction
@@ -895,7 +899,7 @@ pub fn verify_submit_bid_instruction_svm(
         .iter()
         .filter(|instruction| {
             let program_id = instruction.program_id(transaction.message.static_account_keys());
-            if *program_id != chain_store.config.express_relay_program_id {
+            if program_id != express_relay_pid {
                 return false;
             }
 
@@ -915,29 +919,116 @@ pub fn verify_submit_bid_instruction_svm(
     }
 }
 
-fn extract_account_svm(
-    accounts: &[Pubkey],
-    instruction: CompiledInstruction,
+async fn extract_account_svm(
+    tx: &VersionedTransaction,
+    submit_bid_instruction: &CompiledInstruction,
     position: usize,
+    lookup_table_cache: &LookupTableCache,
+    client: &RpcClient,
 ) -> Result<Pubkey, RestError> {
-    let account_position = instruction.accounts.get(position).ok_or_else(|| {
-        tracing::error!(
-            "Account position not found in instruction: {:?} - {}",
-            instruction,
-            position,
-        );
-        RestError::BadParameters("Account not found in submit_bid instruction".to_string())
-    })?;
+    let static_accounts = tx.message.static_account_keys();
+    let tx_lookup_tables = tx.message.address_table_lookups();
+
+    let account_position = submit_bid_instruction
+        .accounts
+        .get(position)
+        .ok_or_else(|| {
+            RestError::BadParameters("Account not found in submit_bid instruction".to_string())
+        })?;
 
     let account_position: usize = (*account_position).into();
-    let account = accounts.get(account_position).ok_or_else(|| {
-        tracing::error!(
-            "Account not found in transaction accounts: {:?} - {}",
-            accounts,
-            account_position,
-        );
-        RestError::BadParameters("Account not found in transaction accounts".to_string())
-    })?;
+    if let Some(account) = static_accounts.get(account_position) {
+        return Ok(*account);
+    }
+
+    match tx_lookup_tables {
+        Some(tx_lookup_tables) => {
+            let lookup_accounts: Vec<(Pubkey, u8)> = tx_lookup_tables
+                .iter()
+                .flat_map(|x| {
+                    x.writable_indexes
+                        .clone()
+                        .into_iter()
+                        .map(|y| (x.account_key, y))
+                })
+                .chain(tx_lookup_tables.iter().flat_map(|x| {
+                    x.readonly_indexes
+                        .clone()
+                        .into_iter()
+                        .map(|y| (x.account_key, y))
+                }))
+                .collect();
+
+            let account_position_lookups = account_position - static_accounts.len();
+            find_and_query_lookup_table(
+                lookup_accounts,
+                account_position_lookups,
+                client,
+                lookup_table_cache,
+            )
+            .await
+        }
+        None => Err(RestError::BadParameters(
+            "No lookup tables found in submit_bid instruction".to_string(),
+        )),
+    }
+}
+
+async fn find_and_query_lookup_table(
+    lookup_accounts: Vec<(Pubkey, u8)>,
+    account_position: usize,
+    client: &RpcClient,
+    lookup_table_cache: &LookupTableCache,
+) -> Result<Pubkey, RestError> {
+    let (table_to_query, index_to_query) =
+        lookup_accounts.get(account_position).ok_or_else(|| {
+            RestError::BadParameters("Lookup table not found in lookup accounts".to_string())
+        })?;
+
+    query_lookup_table(
+        table_to_query,
+        *index_to_query as usize,
+        client,
+        lookup_table_cache,
+    )
+    .await
+}
+
+async fn query_lookup_table(
+    table: &Pubkey,
+    index: usize,
+    client: &RpcClient,
+    lookup_table_cache: &LookupTableCache,
+) -> Result<Pubkey, RestError> {
+    if let Some(Some(cached_table)) = lookup_table_cache
+        .read()
+        .await
+        .get(table)
+        .map(|keys| keys.get(index).cloned())
+    {
+        return Ok(cached_table);
+    }
+
+    let table_data = client
+        .get_account_with_commitment(table, CommitmentConfig::processed())
+        .await
+        .map_err(|_e| RestError::TemporarilyUnavailable)?
+        .value
+        .ok_or_else(|| RestError::BadParameters("Account not found".to_string()))?;
+    let table_data_deserialized =
+        AddressLookupTable::deserialize(&table_data.data).map_err(|_e| {
+            RestError::BadParameters("Failed deserializing lookup table account data".to_string())
+        })?;
+    let account = table_data_deserialized
+        .addresses
+        .get(index)
+        .ok_or_else(|| RestError::BadParameters("Account not found in lookup table".to_string()))?;
+
+    let keys_to_cache = table_data_deserialized.addresses.to_vec();
+    lookup_table_cache
+        .write()
+        .await
+        .insert(*table, keys_to_cache);
 
     Ok(*account)
 }
@@ -952,23 +1043,33 @@ pub fn extract_submit_bid_data(
     .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))
 }
 
-fn extract_bid_data_svm(
-    express_relay_svm: ExpressRelaySvm,
-    accounts: &[Pubkey],
-    instruction: CompiledInstruction,
+async fn extract_bid_data_svm(
+    chain_store: &ChainStoreSvm,
+    tx: VersionedTransaction,
+    client: &RpcClient,
 ) -> Result<(u64, PermissionKeySvm), RestError> {
-    let submit_bid_data = extract_submit_bid_data(&instruction)?;
+    let submit_bid_instruction = verify_submit_bid_instruction_svm(
+        &chain_store.config.express_relay_program_id,
+        tx.clone(),
+    )?;
+    let submit_bid_data = extract_submit_bid_data(&submit_bid_instruction)?;
 
     let permission_account = extract_account_svm(
-        accounts,
-        instruction.clone(),
-        express_relay_svm.permission_account_position,
-    )?;
+        &tx,
+        &submit_bid_instruction,
+        chain_store.express_relay_svm.permission_account_position,
+        &chain_store.lookup_table_cache,
+        client,
+    )
+    .await?;
     let router_account = extract_account_svm(
-        accounts,
-        instruction.clone(),
-        express_relay_svm.router_account_position,
-    )?;
+        &tx,
+        &submit_bid_instruction,
+        chain_store.express_relay_svm.router_account_position,
+        &chain_store.lookup_table_cache,
+        client,
+    )
+    .await?;
     let mut permission_key = [0; 64];
     permission_key[..32].copy_from_slice(&router_account.to_bytes());
     permission_key[32..].copy_from_slice(&permission_account.to_bytes());
@@ -995,13 +1096,9 @@ pub async fn handle_bid_svm(
         .ok_or(RestError::InvalidChainId)?
         .as_ref();
 
-    let submit_bid_instruction =
-        verify_submit_bid_instruction_svm(chain_store, bid.transaction.clone())?;
-    let (bid_amount, permission_key) = extract_bid_data_svm(
-        chain_store.express_relay_svm.clone(),
-        bid.transaction.message.static_account_keys(),
-        submit_bid_instruction,
-    )?;
+
+    let (bid_amount, permission_key) =
+        extract_bid_data_svm(chain_store, bid.transaction.clone(), &chain_store.client).await?;
 
     let bytes_permission_key = Bytes::from(&permission_key.0);
     verify_signatures_svm(
@@ -1126,38 +1223,38 @@ pub enum SubmitType {
     Invalid,
 }
 
-/// The trait for the chain store to be implemented for each chain type
-/// These functions are chain specific and should be implemented for each chain in order to handle auctions
+/// The trait for the chain store to be implemented for each chain type.
+/// These functions are chain specific and should be implemented for each chain in order to handle auctions.
 #[async_trait]
 pub trait ChainStore:
     Deref<Target = ChainStoreCoreFields<Self::SimulatedBid>> + Send + Sync
 {
-    /// The trigger type for the chain. This is the type that is used to trigger the auction submission and conclusion
+    /// The trigger type for the chain. This is the type that is used to trigger the auction submission and conclusion.
     type Trigger: DebugTrait + Clone;
-    /// The trigger stream type when subscribing to new triggers on the ws client for the chain
+    /// The trigger stream type when subscribing to new triggers on the ws client for the chain.
     type TriggerStream<'a>: Stream<Item = Self::Trigger> + Unpin + Send + 'a;
-    /// The ws client type for the chain
+    /// The ws client type for the chain.
     type WsClient;
-    /// The simulated bid type for the chain
+    /// The simulated bid type for the chain.
     type SimulatedBid: SimulatedBidTrait;
-    /// The conclusion result type when try to conclude the auction for the chain
+    /// The conclusion result type when try to conclude the auction for the chain.
     type ConclusionResult;
-    /// The opportunity service chain type for the chain
+    /// The opportunity service chain type for the chain.
     type OpportunityChainType: OpportunityChainType;
 
-    /// The chain type for the chain
+    /// The chain type for the chain.
     const CHAIN_TYPE: models::ChainType;
     /// The minimum lifetime for an auction. If any bid for auction is older than this, the auction is ready to be submitted.
     const AUCTION_MINIMUM_LIFETIME: Duration;
 
-    /// Get the ws client for the chain
+    /// Get the ws client for the chain.
     async fn get_ws_client(&self) -> Result<Self::WsClient>;
-    /// Get the trigger stream for the ws client to subscribe to new triggers
+    /// Get the trigger stream for the ws client to subscribe to new triggers.
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>>;
-    /// Check if the auction is ready to be concluded based on the trigger
+    /// Check if the auction is ready to be concluded based on the trigger.
     fn is_ready_to_conclude(trigger: Self::Trigger) -> bool;
 
-    /// Get the name of the chain according to the configuration
+    /// Get the name of the chain according to the configuration.
     fn get_name(&self) -> &ChainId;
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     async fn get_winner_bids(
@@ -1165,27 +1262,28 @@ pub trait ChainStore:
         bids: &[Self::SimulatedBid],
         permission_key: Bytes,
     ) -> Result<Vec<Self::SimulatedBid>>;
-    /// Submit the bids for the auction on the chain
+    /// Submit the bids for the auction on the chain.
     async fn submit_bids(
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
     ) -> Result<<<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>;
-    /// Get the bid results for the bids submitted for the auction after the transaction is concluded. Order of the returned BidStatus is as same as the order of the bids
+    /// Get the bid results for the bids submitted for the auction after the transaction is concluded.
+    /// Order of the returned BidStatus is as same as the order of the bids.
     async fn get_bid_results(
         &self,
         bids: Vec<Self::SimulatedBid>,
         tx_hash: Vec<u8>,
     ) -> Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>>;
 
-    /// Check if the auction winner transaction should be submitted on chain for the permission key
+    /// Check if the auction winner transaction should be submitted on chain for the permission key.
     async fn get_submission_state(
         &self,
         store_new: Arc<StoreNew>,
         permission_key: &Bytes,
     ) -> SubmitType;
 
-    /// Get the opportunity service for the chain
+    /// Get the opportunity service for the chain.
     fn get_opportunity_service(
         &self,
         store_new: Arc<StoreNew>,
@@ -1243,7 +1341,7 @@ pub trait ChainStore:
         self.submitted_auctions.read().await.to_vec()
     }
 
-    /// Return permission keys with at least one pending bid
+    /// Return permission keys with at least one pending bid.
     async fn get_permission_keys_for_auction(&self) -> Vec<PermissionKey> {
         self.bids
             .read()
@@ -1479,8 +1577,8 @@ pub fn add_relayer_signature_svm(relayer: Arc<Keypair>, bid: &mut SimulatedBidSv
     bid.transaction.signatures[relayer_signature_pos] = relayer.sign_message(&serialized_message);
 }
 
-/// This is to make sure we are not missing any transaction
-/// We run this once every minute (150 slots)
+/// This is to make sure we are not missing any transaction.
+/// We run this once every minute (150 slots).
 const CONCLUSION_TRIGGER_SLOT_INTERVAL: u64 = 150;
 
 #[async_trait]
@@ -1568,6 +1666,10 @@ impl ChainStore for ChainStoreSvm {
         bids: Vec<Self::SimulatedBid>,
         tx_hash: Vec<u8>,
     ) -> Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>> {
+        if bids.is_empty() {
+            return Ok(Some(vec![]));
+        }
+
         let tx_hash: SignatureSvm = tx_hash
             .try_into()
             .map_err(|_| anyhow!("Invalid svm signature"))?;

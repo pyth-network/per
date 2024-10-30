@@ -31,10 +31,6 @@ use {
     rand::Rng,
     solana_sdk::{
         clock::Slot,
-        commitment_config::{
-            CommitmentConfig,
-            CommitmentLevel,
-        },
         pubkey::Pubkey,
     },
     std::time::Duration,
@@ -42,7 +38,7 @@ use {
     tokio::time::sleep,
 };
 
-/// Time to wait for searchers to submit bids
+/// Time to wait for searchers to submit bids.
 const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
 
 pub struct GetQuoteInput {
@@ -72,23 +68,10 @@ impl Service<ChainTypeSvm> {
             }],
         };
 
-        // TODO use some in memory caching for this part
-        let (block_hash, _) = chain_store
-            .client
-            .get_latest_blockhash_with_commitment(CommitmentConfig {
-                commitment: CommitmentLevel::Finalized,
-            })
-            .map_err(|e| {
-                tracing::error!("Failed to get latest block hash: {:?}", e);
-                RestError::TemporarilyUnavailable
-            })
-            .await?;
-
         Ok(entities::OpportunityCreateSvm {
             core_fields,
             router,
             permission_account,
-            block_hash,
             program: entities::OpportunitySvmProgram::Phantom(
                 entities::OpportunitySvmProgramWallet {
                     user_wallet_address:         quote_create.user_wallet_address,
@@ -158,12 +141,14 @@ impl Service<ChainTypeSvm> {
         let winner_bid = bids.first().expect("failed to get first bid");
 
         // Find the submit bid instruction from bid transaction to extract the deadline
-        let submit_bid_instruction =
-            verify_submit_bid_instruction_svm(chain_store, winner_bid.transaction.clone())
-                .map_err(|e| {
-                    tracing::error!("Failed to verify submit bid instruction: {:?}", e);
-                    RestError::TemporarilyUnavailable
-                })?;
+        let submit_bid_instruction = verify_submit_bid_instruction_svm(
+            &chain_store.config.express_relay_program_id,
+            winner_bid.transaction.clone(),
+        )
+        .map_err(|e| {
+            tracing::error!("Failed to verify submit bid instruction: {:?}", e);
+            RestError::TemporarilyUnavailable
+        })?;
         let submit_bid_data = extract_submit_bid_data(&submit_bid_instruction).map_err(|e| {
             tracing::error!("Failed to extract submit bid data: {:?}", e);
             RestError::TemporarilyUnavailable

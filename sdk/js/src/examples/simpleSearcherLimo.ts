@@ -6,11 +6,11 @@ import {
   Opportunity,
   OpportunitySvm,
 } from "../index";
-import { BidStatusUpdate } from "../types";
+import { BidStatusUpdate, ChainId, SvmChainUpdate } from "../types";
 import { SVM_CONSTANTS } from "../const";
 
 import * as anchor from "@coral-xyz/anchor";
-import { Keypair, PublicKey, Connection } from "@solana/web3.js";
+import { Keypair, PublicKey, Connection, Blockhash } from "@solana/web3.js";
 
 import * as limo from "@kamino-finance/limo-sdk";
 import { Decimal } from "decimal.js";
@@ -26,6 +26,7 @@ class SimpleSearcherLimo {
   private readonly connectionSvm: Connection;
   private mintDecimals: Record<string, number> = {};
   private expressRelayConfig: ExpressRelaySvmConfig | undefined;
+  private recentBlockhash: Record<ChainId, Blockhash> = {};
   constructor(
     public endpointExpressRelay: string,
     public chainId: string,
@@ -41,7 +42,8 @@ class SimpleSearcherLimo {
       },
       undefined,
       this.opportunityHandler.bind(this),
-      this.bidStatusHandler.bind(this)
+      this.bidStatusHandler.bind(this),
+      this.svmChainUpdateHandler.bind(this)
     );
     this.connectionSvm = new Connection(endpointSvm, "confirmed");
   }
@@ -70,7 +72,7 @@ class SimpleSearcherLimo {
     return decimals;
   }
 
-  async generateBid(opportunity: OpportunitySvm) {
+  async generateBid(opportunity: OpportunitySvm, recentBlockhash: Blockhash) {
     const order = opportunity.order;
     const limoClient = new limo.LimoClient(
       this.connectionSvm,
@@ -151,13 +153,23 @@ class SimpleSearcherLimo {
       this.expressRelayConfig.feeReceiverRelayer
     );
 
-    bid.transaction.recentBlockhash = opportunity.blockHash;
+    bid.transaction.recentBlockhash = recentBlockhash;
     bid.transaction.sign(this.searcher);
     return bid;
   }
 
   async opportunityHandler(opportunity: Opportunity) {
-    const bid = await this.generateBid(opportunity as OpportunitySvm);
+    if (!this.recentBlockhash[this.chainId]) {
+      console.log(
+        `No recent blockhash for chain ${this.chainId}, skipping bid`
+      );
+      return;
+    }
+
+    const bid = await this.generateBid(
+      opportunity as OpportunitySvm,
+      this.recentBlockhash[this.chainId]
+    );
     try {
       const bidId = await this.client.submitBid(bid);
       console.log(
@@ -168,6 +180,10 @@ class SimpleSearcherLimo {
         `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
       );
     }
+  }
+
+  async svmChainUpdateHandler(update: SvmChainUpdate) {
+    this.recentBlockhash[update.chain_id] = update.blockhash;
   }
 
   async start() {

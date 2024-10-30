@@ -34,7 +34,7 @@ use {
 };
 
 
-/// CLI utility for interacting with Express Relay SVM program
+/// CLI utility for interacting with Express Relay SVM program.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -54,27 +54,27 @@ struct Args {
 #[derive(Debug, Parser)]
 struct Initialize {
     #[arg(long)]
-    /// Path to the private key json file for the payer of the initialization transaction
+    /// Path to the private key json file for the payer of the initialization transaction.
     pub payer: String,
 
     #[arg(long)]
-    /// Program admin, defaults to payer
+    /// Program admin, defaults to payer.
     pub admin: Option<Pubkey>,
 
     #[arg(long)]
-    /// signer used for relaying the bids, defaults to payer
+    /// signer used for relaying the bids, defaults to payer.
     pub relayer_signer: Option<Pubkey>,
 
     #[arg(long)]
-    /// Fee receiver for the relayer, defaults to payer
+    /// Fee receiver for the relayer, defaults to payer.
     pub fee_receiver_relayer: Option<Pubkey>,
 
     #[arg(long, default_value = "4000")]
-    /// The portion of the bid that goes to the router, in bps
+    /// The portion of the bid that goes to the router, in bps.
     pub split_router_default: u64,
 
     #[arg(long, default_value = "2000")]
-    /// The portion of the bid (after router fees) that goes to relayer, in bps
+    /// The portion of the bid (after router fees) that goes to relayer, in bps.
     pub split_relayer: u64,
 }
 
@@ -83,70 +83,70 @@ enum Commands {
     Initialize(Initialize),
     SetAdmin {
         #[arg(long)]
-        /// Path to the private key json file for the current admin
-        /// This account will be used as the transaction payer as well
+        /// Path to the private key json file for the current admin.
+        /// This account will be used as the transaction payer as well.
         admin: String,
 
         #[arg(long)]
-        /// New admin pubkey
+        /// New admin pubkey.
         admin_new: Pubkey,
     },
     SetRelayer {
         #[arg(long)]
-        /// Path to the private key json file for the admin
-        /// This account will be used as the transaction payer as well
+        /// Path to the private key json file for the admin.
+        /// This account will be used as the transaction payer as well.
         admin: String,
 
         #[arg(long)]
-        /// Signer used for relaying the bids
+        /// Signer used for relaying the bids.
         relayer_signer: Pubkey,
 
         #[arg(long)]
-        /// Fee receiver for the relayer
+        /// Fee receiver for the relayer.
         fee_receiver_relayer: Pubkey,
     },
     SetSplits {
         #[arg(long)]
-        /// Path to the private key json file for the admin
-        /// This account will be used as the transaction payer as well
+        /// Path to the private key json file for the admin.
+        /// This account will be used as the transaction payer as well.
         admin: String,
 
         #[arg(long)]
-        /// The portion of the bid that goes to the router, in bps
+        /// The portion of the bid that goes to the router, in bps.
         split_router_default: u64,
 
         #[arg(long)]
-        /// The portion of the bid (after router fees) that goes to relayer, in bps
+        /// The portion of the bid (after router fees) that goes to relayer, in bps.
         split_relayer: u64,
     },
     SetRouterSplit {
         #[arg(long)]
-        /// Path to the private key json file for the admin
-        /// This account will be used as the transaction payer as well
+        /// Path to the private key json file for the admin.
+        /// This account will be used as the transaction payer as well.
         admin: String,
 
         #[arg(long)]
-        /// The pubkey of the router to set the split for
+        /// The pubkey of the router to set the split for.
         router: Pubkey,
 
         #[arg(long)]
-        /// The split to use for this specific router, in bps
+        /// The split to use for this specific router, in bps.
         split_router: u64,
     },
     WithdrawFees {
         #[arg(long)]
-        /// Path to the private key json file for the admin
-        /// This account will be used as the transaction payer as well
+        /// Path to the private key json file for the admin.
+        /// This account will be used as the transaction payer as well.
         admin: String,
 
         #[arg(long)]
-        /// The pubkey of the account that receives the fees
+        /// The pubkey of the account that receives the fees.
         fee_receiver: Pubkey,
     },
     GetConfig,
     GetRouterSplit {
         #[arg(long)]
-        /// The pubkey of the router to get the split for
+        /// The pubkey of the router to get the split for.
         router: Pubkey,
     },
 }

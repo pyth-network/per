@@ -9,7 +9,8 @@ env:
   PYTHON_VERSION: "3.11"
 
 jobs:
-  deploy:
+  publish-python:
+    name: Publish Python SDK Package to PyPI
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
