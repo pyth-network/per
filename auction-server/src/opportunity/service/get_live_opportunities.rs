@@ -18,6 +18,8 @@ impl<T: ChainType> Service<T> {
         &self,
         input: GetOpportunitiesInput,
     ) -> Vec<<T::InMemoryStore as InMemoryStore>::Opportunity> {
-        self.repo.get_live_opportunities(&input.key).await
+        self.repo
+            .get_in_memory_opportunities_by_key(&input.key)
+            .await
     }
 }

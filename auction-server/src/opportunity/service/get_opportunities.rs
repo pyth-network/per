@@ -32,7 +32,7 @@ impl<T: ChainType> Service<T> {
         match query_params.mode.clone() {
             OpportunityMode::Live => Ok(self
                 .repo
-                .get_all_opportunities()
+                .get_in_memory_opportunities()
                 .await
                 .values()
                 .map(|opportunities| {

@@ -10,13 +10,13 @@ use {
 
 mod add_opportunity;
 mod add_spoof_info;
-mod get_all_opportunities;
-mod get_live_opportunities;
+mod exists_in_memory_opportunity_create;
+mod get_in_memory_opportunities;
+mod get_in_memory_opportunities_by_key;
+mod get_in_memory_opportunity_by_id;
 mod get_opportunities;
-mod get_opportunity_by_id;
 mod get_spoof_info;
 mod models;
-mod opportunity_exists;
 mod remove_opportunities;
 mod remove_opportunity;
 

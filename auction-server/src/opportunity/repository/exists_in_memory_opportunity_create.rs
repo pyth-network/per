@@ -10,7 +10,7 @@ use {
 };
 
 impl<T: InMemoryStore> Repository<T> {
-    pub async fn opportunity_exists(
+    pub async fn exists_in_memory_opportunity_create(
         &self,
         opportunity: &<T::Opportunity as entities::Opportunity>::OpportunityCreate,
     ) -> bool {

@@ -58,7 +58,9 @@ impl Service<ChainTypeSvm> {
             self.store
                 .ws
                 .broadcast_sender
-                .send(UpdateEvent::RemoveOpportunities(opportunity.into()))
+                .send(UpdateEvent::RemoveOpportunities(
+                    opportunity.get_opportunity_delete(),
+                ))
                 .map_err(|e| {
                     tracing::error!(
                         error = e.to_string(),

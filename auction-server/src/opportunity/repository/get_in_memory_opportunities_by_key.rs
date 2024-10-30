@@ -7,7 +7,7 @@ use {
 };
 
 impl<T: InMemoryStore> Repository<T> {
-    pub async fn get_live_opportunities(
+    pub async fn get_in_memory_opportunities_by_key(
         &self,
         opportunity_key: &entities::OpportunityKey,
     ) -> Vec<T::Opportunity> {

@@ -299,15 +299,13 @@ impl OpportunitySvm {
     pub fn get_permission_key(router: Pubkey, permission_account: Pubkey) -> PermissionKey {
         PermissionKey::from([router.to_bytes(), permission_account.to_bytes()].concat())
     }
-}
 
-impl From<OpportunitySvm> for api::OpportunityDelete {
-    fn from(val: OpportunitySvm) -> Self {
+    pub fn get_opportunity_delete(&self) -> api::OpportunityDelete {
         api::OpportunityDelete::Svm(api::OpportunityDeleteSvm::V1(api::OpportunityDeleteV1Svm {
-            chain_id:           val.chain_id.clone(),
-            permission_account: val.permission_account,
-            router:             val.router,
-            program:            val.program.into(),
+            chain_id:           self.chain_id.clone(),
+            permission_account: self.permission_account,
+            router:             self.router,
+            program:            self.program.clone().into(),
         }))
     }
 }

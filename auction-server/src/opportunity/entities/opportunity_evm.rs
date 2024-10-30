@@ -191,9 +191,3 @@ impl From<OpportunityEvm> for OpportunityCreateEvm {
         }
     }
 }
-
-impl From<OpportunityEvm> for api::OpportunityDelete {
-    fn from(_val: OpportunityEvm) -> Self {
-        unimplemented!("OpportunityEvm to api::OpportunityDelete");
-    }
-}

@@ -33,7 +33,11 @@ where
         input: AddOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as entities::Opportunity>::OpportunityCreate>,
     ) -> Result<<T::InMemoryStore as InMemoryStore>::Opportunity, RestError> {
         let opportunity_create = input.opportunity;
-        if self.repo.opportunity_exists(&opportunity_create).await {
+        if self
+            .repo
+            .exists_in_memory_opportunity_create(&opportunity_create)
+            .await
+        {
             tracing::warn!("Duplicate opportunity submission: {:?}", opportunity_create);
             return Err(RestError::BadParameters(
                 "Duplicate opportunity submission".to_string(),
@@ -71,7 +75,7 @@ where
                 RestError::TemporarilyUnavailable
             })?;
 
-        let opportunities_map = &self.repo.get_all_opportunities().await;
+        let opportunities_map = &self.repo.get_in_memory_opportunities().await;
         tracing::debug!("number of permission keys: {}", opportunities_map.len());
         tracing::debug!(
             "number of opportunities for key: {}",

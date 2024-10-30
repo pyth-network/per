@@ -59,7 +59,7 @@ impl Service<ChainTypeEvm> {
     ) -> Result<Uuid, RestError> {
         let opportunity = self
             .repo
-            .get_opportunity_by_id(input.opportunity_id)
+            .get_in_memory_opportunity_by_id(input.opportunity_id)
             .await
             .ok_or(RestError::OpportunityNotFound)?;
         let config = self.get_config(&opportunity.chain_id)?;

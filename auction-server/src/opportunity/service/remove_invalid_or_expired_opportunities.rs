@@ -25,7 +25,7 @@ where
     Service<ChainTypeEvm>: Verification<ChainTypeEvm>,
 {
     pub async fn remove_invalid_or_expired_opportunities(&self) {
-        let all_opportunities = self.repo.get_all_opportunities().await;
+        let all_opportunities = self.repo.get_in_memory_opportunities().await;
         for (_, opportunities) in all_opportunities.iter() {
             // check each of the opportunities for this permission key for validity
             for opportunity in opportunities.iter() {
