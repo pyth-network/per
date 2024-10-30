@@ -10,7 +10,7 @@ use {
 };
 
 impl<T: InMemoryStore> Repository<T> {
-    pub async fn opportunity_exists(
+    pub async fn exists_in_memory_opportunity_create(
         &self,
         opportunity: &<T::Opportunity as entities::Opportunity>::OpportunityCreate,
     ) -> bool {
@@ -18,7 +18,7 @@ impl<T: InMemoryStore> Repository<T> {
             .opportunities
             .read()
             .await
-            .get(&opportunity.permission_key())
+            .get(&(opportunity.get_key()))
             .map_or(false, |opps| {
                 opps.iter().any(|opp| *opportunity == opp.clone().into())
             })

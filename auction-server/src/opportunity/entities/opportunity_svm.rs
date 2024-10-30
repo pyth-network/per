@@ -110,8 +110,11 @@ impl Opportunity for OpportunitySvm {
 impl OpportunityCreate for OpportunityCreateSvm {
     type ApiOpportunityCreate = api::OpportunityCreateSvm;
 
-    fn permission_key(&self) -> crate::kernel::entities::PermissionKey {
-        self.core_fields.permission_key.clone()
+    fn get_key(&self) -> super::OpportunityKey {
+        (
+            self.core_fields.chain_id.clone(),
+            self.core_fields.permission_key.clone(),
+        )
     }
 }
 
@@ -290,6 +293,28 @@ impl OpportunitySvm {
         match self.program.clone() {
             OpportunitySvmProgram::Phantom(data) => vec![data.user_wallet_address],
             OpportunitySvmProgram::Limo(_) => vec![],
+        }
+    }
+
+    pub fn get_permission_key(router: Pubkey, permission_account: Pubkey) -> PermissionKey {
+        PermissionKey::from([router.to_bytes(), permission_account.to_bytes()].concat())
+    }
+
+    pub fn get_opportunity_delete(&self) -> api::OpportunityDelete {
+        api::OpportunityDelete::Svm(api::OpportunityDeleteSvm::V1(api::OpportunityDeleteV1Svm {
+            chain_id:           self.chain_id.clone(),
+            permission_account: self.permission_account,
+            router:             self.router,
+            program:            self.program.clone().into(),
+        }))
+    }
+}
+
+impl From<OpportunitySvmProgram> for api::ProgramSvm {
+    fn from(val: OpportunitySvmProgram) -> Self {
+        match val {
+            OpportunitySvmProgram::Limo(_) => api::ProgramSvm::Limo,
+            OpportunitySvmProgram::Phantom(_) => api::ProgramSvm::Phantom,
         }
     }
 }

@@ -1,6 +1,5 @@
 use {
     super::entities,
-    crate::kernel::entities::PermissionKey,
     ethers::types::Address,
     std::{
         collections::HashMap,
@@ -11,13 +10,14 @@ use {
 
 mod add_opportunity;
 mod add_spoof_info;
-mod get_live_opportunities_by_permission_key;
+mod exists_in_memory_opportunity_create;
+mod get_in_memory_opportunities;
+mod get_in_memory_opportunities_by_key;
+mod get_in_memory_opportunity_by_id;
 mod get_opportunities;
-mod get_opportunities_by_permission_key;
-mod get_opportunities_by_permission_key_and_id;
 mod get_spoof_info;
 mod models;
-mod opportunity_exists;
+mod remove_opportunities;
 mod remove_opportunity;
 
 pub use models::*;
@@ -37,7 +37,7 @@ pub trait InMemoryStore:
 }
 
 pub struct InMemoryStoreCoreFields<T: entities::Opportunity> {
-    pub opportunities: RwLock<HashMap<PermissionKey, Vec<T>>>,
+    pub opportunities: RwLock<HashMap<entities::OpportunityKey, Vec<T>>>,
 }
 
 impl<T: entities::Opportunity> InMemoryStoreCoreFields<T> {
