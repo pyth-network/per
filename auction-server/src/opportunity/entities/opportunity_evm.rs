@@ -9,13 +9,13 @@ use {
         OpportunityCreate,
     },
     crate::{
+        kernel::entities::PermissionKey,
         opportunity::{
             api,
             repository::{
                 self,
             },
         },
-        state::PermissionKey,
     },
     ethers::types::{
         Bytes,
@@ -69,8 +69,11 @@ impl Opportunity for OpportunityEvm {
 impl OpportunityCreate for OpportunityCreateEvm {
     type ApiOpportunityCreate = api::OpportunityCreateEvm;
 
-    fn permission_key(&self) -> crate::kernel::entities::PermissionKey {
-        self.core_fields.permission_key.clone()
+    fn get_key(&self) -> super::OpportunityKey {
+        (
+            self.core_fields.chain_id.clone(),
+            self.core_fields.permission_key.clone(),
+        )
     }
 }
 

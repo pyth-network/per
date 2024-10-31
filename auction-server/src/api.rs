@@ -35,6 +35,7 @@ use {
             SimulatedBidEvm,
             SimulatedBidSvm,
             StoreNew,
+            SvmChainUpdate,
         },
     },
     anyhow::Result,
@@ -246,7 +247,7 @@ async fn admin_middleware(auth: Auth, req: extract::Request, next: middleware::N
     }
 }
 
-async fn require_login_middleware(
+pub async fn require_login_middleware(
     auth: Auth,
     req: extract::Request,
     next: middleware::Next,
@@ -301,6 +302,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
     opportunity::post_quote,
+    opportunity::delete_opportunities,
 
     profile::delete_profile_access_token,
     ),
@@ -319,6 +321,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     SimulatedBidEvm,
     SimulatedBidSvm,
     SimulatedBids,
+    SvmChainUpdate,
 
     opportunity::OpportunityBidEvm,
     opportunity::OpportunityBidResult,
@@ -345,6 +348,10 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::Quote,
     opportunity::QuoteSvm,
     opportunity::QuoteV1Svm,
+    opportunity::OpportunityDelete,
+    opportunity::OpportunityDeleteSvm,
+    opportunity::OpportunityDeleteV1Svm,
+    opportunity::ProgramSvm,
 
     ErrorBodyResponse,
     ClientRequest,
@@ -404,7 +411,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         "/v1",
         Router::new()
             .nest("/bids", bid_routes)
-            .nest("/opportunities", opportunity::get_routes())
+            .nest("/opportunities", opportunity::get_routes(store.clone()))
             .nest("/profiles", profile_routes)
             .route("/ws", get(ws::ws_route_handler)),
     );

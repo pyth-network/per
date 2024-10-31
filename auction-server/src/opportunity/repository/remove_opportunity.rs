@@ -4,6 +4,7 @@ use {
         InMemoryStore,
         Repository,
     },
+    crate::opportunity::entities::Opportunity,
     sqlx::Postgres,
     time::{
         OffsetDateTime,
@@ -18,7 +19,15 @@ impl<T: InMemoryStore> Repository<T> {
         opportunity: &T::Opportunity,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
-        let key = opportunity.permission_key.clone();
+        let now = OffsetDateTime::now_utc();
+        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
+            .bind(PrimitiveDateTime::new(now.date(), now.time()))
+            .bind(reason)
+            .bind(opportunity.id)
+            .execute(db)
+            .await?;
+
+        let key = opportunity.get_key();
         let mut write_guard = self.in_memory_store.opportunities.write().await;
         let entry = write_guard.entry(key.clone());
         if entry
@@ -30,13 +39,6 @@ impl<T: InMemoryStore> Repository<T> {
         }
         drop(write_guard);
 
-        let now = OffsetDateTime::now_utc();
-        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
-            .bind(PrimitiveDateTime::new(now.date(), now.time()))
-            .bind(reason)
-            .bind(opportunity.id)
-            .execute(db)
-            .await?;
         Ok(())
     }
 }

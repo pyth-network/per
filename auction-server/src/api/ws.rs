@@ -11,6 +11,7 @@ use {
             api::{
                 Opportunity,
                 OpportunityBidEvm,
+                OpportunityDelete,
                 OpportunityId,
             },
             service::handle_opportunity_bid::HandleOpportunityBidInput,
@@ -120,6 +121,10 @@ pub enum ServerUpdateResponse {
     BidStatusUpdate { status: BidStatusWithId },
     #[serde(rename = "svm_chain_update")]
     SvmChainUpdate { update: SvmChainUpdate },
+    #[serde(rename = "remove_opportunities")]
+    RemoveOpportunities {
+        opportunity_delete: OpportunityDelete,
+    },
 }
 
 #[derive(Serialize, Clone, ToSchema)]
@@ -167,6 +172,7 @@ pub enum UpdateEvent {
     NewOpportunity(Opportunity),
     BidStatusUpdate(BidStatusWithId),
     SvmChainUpdate(SvmChainUpdate),
+    RemoveOpportunities(OpportunityDelete),
 }
 
 pub type SubscriberId = usize;
@@ -301,6 +307,21 @@ impl Subscriber {
         Ok(())
     }
 
+    async fn handle_remove_opportunities(
+        &mut self,
+        opportunity_delete: OpportunityDelete,
+    ) -> Result<()> {
+        if !self.chain_ids.contains(opportunity_delete.get_chain_id()) {
+            // Irrelevant update
+            return Ok(());
+        }
+        let message = serde_json::to_string(&ServerUpdateResponse::RemoveOpportunities {
+            opportunity_delete,
+        })?;
+        self.sender.send(message.into()).await?;
+        Ok(())
+    }
+
     #[instrument(
         target = "metrics",
         fields(category = "ws_update", result = "success", name),
@@ -320,6 +341,10 @@ impl Subscriber {
                 tracing::Span::current().record("name", "svm_chain_update");
                 self.handle_svm_chain_update(svm_chain_update).await
             }
+            UpdateEvent::RemoveOpportunities(opportunity_delete) => {
+                tracing::Span::current().record("name", "remove_opportunity");
+                self.handle_remove_opportunities(opportunity_delete).await
+            }
         };
         if result.is_err() {
             tracing::Span::current().record("result", "error");
@@ -336,7 +361,7 @@ impl Subscriber {
         let available_chain_ids: Vec<&ChainId> = self
             .store
             .store
-            .chains
+            .chains_evm
             .keys()
             .chain(self.store.store.chains_svm.keys())
             .collect();

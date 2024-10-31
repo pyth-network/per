@@ -19,7 +19,6 @@ use {
     },
     solana_sdk::{
         clock::Slot,
-        hash::Hash,
         pubkey::Pubkey,
     },
     std::ops::Deref,
@@ -49,7 +48,6 @@ pub struct OpportunitySvm {
 
     pub router:             Pubkey,
     pub permission_account: Pubkey,
-    pub block_hash:         Hash,
     pub program:            OpportunitySvmProgram,
     pub slot:               Slot,
 }
@@ -60,7 +58,6 @@ pub struct OpportunityCreateSvm {
 
     pub router:             Pubkey,
     pub permission_account: Pubkey,
-    pub block_hash:         Hash,
     pub program:            OpportunitySvmProgram,
     pub slot:               Slot,
 }
@@ -77,7 +74,6 @@ impl Opportunity for OpportunitySvm {
             ),
             router:             val.router,
             permission_account: val.permission_account,
-            block_hash:         val.block_hash,
             program:            val.program,
             slot:               val.slot,
         }
@@ -106,7 +102,6 @@ impl Opportunity for OpportunitySvm {
             program,
             router: self.router,
             permission_account: self.permission_account,
-            block_hash: self.block_hash,
             slot: self.slot,
         }
     }
@@ -115,8 +110,11 @@ impl Opportunity for OpportunitySvm {
 impl OpportunityCreate for OpportunityCreateSvm {
     type ApiOpportunityCreate = api::OpportunityCreateSvm;
 
-    fn permission_key(&self) -> crate::kernel::entities::PermissionKey {
-        self.core_fields.permission_key.clone()
+    fn get_key(&self) -> super::OpportunityKey {
+        (
+            self.core_fields.chain_id.clone(),
+            self.core_fields.permission_key.clone(),
+        )
     }
 }
 
@@ -171,7 +169,6 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
             opportunity_id: val.id,
             creation_time:  val.creation_time,
             slot:           val.slot,
-            block_hash:     val.block_hash,
             params:         api::OpportunityParamsSvm::V1(api::OpportunityParamsV1Svm {
                 program,
                 chain_id: val.chain_id.clone(),
@@ -228,7 +225,6 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             },
             router: val.metadata.router,
             permission_account: val.metadata.permission_account,
-            block_hash: val.metadata.block_hash,
             program,
             slot: val.metadata.slot,
         })
@@ -270,7 +266,6 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             program,
             permission_account: params.permission_account,
             router: params.router,
-            block_hash: params.block_hash,
             slot: params.slot,
         }
     }
@@ -287,7 +282,6 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
             },
             router:             val.router,
             permission_account: val.permission_account,
-            block_hash:         val.block_hash,
             program:            val.program,
             slot:               val.slot,
         }
@@ -299,6 +293,28 @@ impl OpportunitySvm {
         match self.program.clone() {
             OpportunitySvmProgram::Phantom(data) => vec![data.user_wallet_address],
             OpportunitySvmProgram::Limo(_) => vec![],
+        }
+    }
+
+    pub fn get_permission_key(router: Pubkey, permission_account: Pubkey) -> PermissionKey {
+        PermissionKey::from([router.to_bytes(), permission_account.to_bytes()].concat())
+    }
+
+    pub fn get_opportunity_delete(&self) -> api::OpportunityDelete {
+        api::OpportunityDelete::Svm(api::OpportunityDeleteSvm::V1(api::OpportunityDeleteV1Svm {
+            chain_id:           self.chain_id.clone(),
+            permission_account: self.permission_account,
+            router:             self.router,
+            program:            self.program.clone().into(),
+        }))
+    }
+}
+
+impl From<OpportunitySvmProgram> for api::ProgramSvm {
+    fn from(val: OpportunitySvmProgram) -> Self {
+        match val {
+            OpportunitySvmProgram::Limo(_) => api::ProgramSvm::Limo,
+            OpportunitySvmProgram::Phantom(_) => api::ProgramSvm::Phantom,
         }
     }
 }

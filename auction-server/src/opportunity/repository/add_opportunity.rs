@@ -57,7 +57,7 @@ impl<T: InMemoryStore> Repository<T> {
             .opportunities
             .write()
             .await
-            .entry(opportunity.permission_key.clone())
+            .entry(opportunity.get_key())
             .or_insert_with(Vec::new)
             .push(opportunity.clone());
 

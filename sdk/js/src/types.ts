@@ -111,10 +111,6 @@ export type OpportunitySvm = {
    */
   slot: number;
   /**
-   * Blockhash that can be used to sign transactions for this opportunity
-   */
-  blockHash: Blockhash;
-  /**
    * Unique identifier for the opportunity
    */
   opportunityId: string;
@@ -245,3 +241,5 @@ export type BidsResponse = {
 export type SvmConstantsConfig = {
   expressRelayProgram: PublicKey;
 };
+
+export type SvmChainUpdate = components["schemas"]["SvmChainUpdate"];

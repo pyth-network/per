@@ -243,7 +243,6 @@ class OpportunitySvm(BaseModel):
         version: The version of the opportunity.
         creation_time: The creation time of the opportunity.
         opportunity_id: The ID of the opportunity.
-        block_hash: The block hash to use for execution.
         slot: The slot where this order was created or updated
         program: The program which handles this opportunity
         order: The order to be executed.
@@ -255,7 +254,6 @@ class OpportunitySvm(BaseModel):
     creation_time: IntString
     opportunity_id: UUIDString
 
-    block_hash: SvmHash
     slot: int
 
     program: str
@@ -315,3 +313,12 @@ class BidResponseSvm(BaseModel):
     initiation_time: datetime
     transaction: SvmTransaction
     profile_id: str | None = Field(default=None)
+
+class SvmChainUpdate(BaseModel):
+    """
+    Attributes:
+        chain_id: The chain ID corresponding to the update.
+        blockhash: A recent blockhash from the chain.
+    """
+    chain_id: str
+    blockhash: SvmHash

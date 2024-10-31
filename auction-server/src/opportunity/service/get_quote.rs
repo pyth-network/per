@@ -31,10 +31,6 @@ use {
     rand::Rng,
     solana_sdk::{
         clock::Slot,
-        commitment_config::{
-            CommitmentConfig,
-            CommitmentLevel,
-        },
         pubkey::Pubkey,
     },
     std::time::Duration,
@@ -54,16 +50,16 @@ impl Service<ChainTypeSvm> {
         &self,
         quote_create: entities::QuoteCreate,
         output_amount: u64,
-        chain_store: &ChainStoreSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let chain_config = self.get_config(&quote_create.chain_id)?;
         let router = chain_config.wallet_program_router_account;
         let permission_account = Pubkey::new_from_array(rand::thread_rng().gen());
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
-            permission_key: [router.to_bytes(), permission_account.to_bytes()]
-                .concat()
-                .into(),
+            permission_key: entities::OpportunitySvm::get_permission_key(
+                router,
+                permission_account,
+            ),
             chain_id:       quote_create.chain_id,
             sell_tokens:    vec![quote_create.input_token],
             buy_tokens:     vec![entities::TokenAmountSvm {
@@ -72,23 +68,10 @@ impl Service<ChainTypeSvm> {
             }],
         };
 
-        // TODO use some in memory caching for this part
-        let (block_hash, _) = chain_store
-            .client
-            .get_latest_blockhash_with_commitment(CommitmentConfig {
-                commitment: CommitmentLevel::Finalized,
-            })
-            .map_err(|e| {
-                tracing::error!("Failed to get latest block hash: {:?}", e);
-                RestError::TemporarilyUnavailable
-            })
-            .await?;
-
         Ok(entities::OpportunityCreateSvm {
             core_fields,
             router,
             permission_account,
-            block_hash,
             program: entities::OpportunitySvmProgram::Phantom(
                 entities::OpportunitySvmProgramWallet {
                     user_wallet_address:         quote_create.user_wallet_address,
@@ -116,11 +99,7 @@ impl Service<ChainTypeSvm> {
             .await?;
 
         let opportunity_create = self
-            .get_opportunity_create_for_quote(
-                input.quote_create.clone(),
-                output_amount,
-                chain_store.as_ref(),
-            )
+            .get_opportunity_create_for_quote(input.quote_create.clone(), output_amount)
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {

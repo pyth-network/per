@@ -8,7 +8,9 @@ use {
         },
         opportunity::{
             api,
-            repository,
+            repository::{
+                self,
+            },
         },
         state::UnixTimestampMicros,
     },
@@ -19,6 +21,7 @@ use {
 };
 
 pub type OpportunityId = Uuid;
+pub type OpportunityKey = (ChainId, PermissionKey);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunityCoreFields<T: TokenAmount> {
@@ -70,6 +73,9 @@ pub trait Opportunity:
 
     fn new_with_current_time(val: Self::OpportunityCreate) -> Self;
     fn get_models_metadata(&self) -> Self::ModelMetadata;
+    fn get_key(&self) -> OpportunityKey {
+        (self.chain_id.clone(), self.permission_key.clone())
+    }
 }
 
 pub trait OpportunityCreate:
@@ -77,7 +83,7 @@ pub trait OpportunityCreate:
 {
     type ApiOpportunityCreate;
 
-    fn permission_key(&self) -> PermissionKey;
+    fn get_key(&self) -> OpportunityKey;
 }
 
 #[derive(Debug)]
