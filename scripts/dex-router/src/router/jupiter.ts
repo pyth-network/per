@@ -22,39 +22,9 @@ export class JupiterRouter implements Router {
     tokenOut: PublicKey,
     amountIn: bigint
   ): Promise<RouterOutput> {
-    if (!["solana", "development-solana"].includes(this.chainId)) {
+    if (!["mainnet-beta-solana", "development-solana"].includes(this.chainId)) {
       throw new Error("Jupiter error: chain id not supported");
     }
-
-    // // TODO: REMOVE THIS, ONLY FOR TESTING W FAKE TOKENS
-    // if (
-    //   tokenIn.equals(
-    //     new PublicKey("USDCHDcjejXG1tqnrX4SfvsB2TGp8xGgTHXqxcoSeF2")
-    //   )
-    // ) {
-    //   tokenIn = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-    // }
-    // if (
-    //   tokenOut.equals(
-    //     new PublicKey("USDCHDcjejXG1tqnrX4SfvsB2TGp8xGgTHXqxcoSeF2")
-    //   )
-    // ) {
-    //   tokenOut = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-    // }
-    // if (
-    //   tokenIn.equals(
-    //     new PublicKey("WSoLZvwZh5mQDEpHUsvxwbnM1yGbW3Qd9rEya7GJCPX")
-    //   )
-    // ) {
-    //   tokenIn = new PublicKey("So11111111111111111111111111111111111111112");
-    // }
-    // if (
-    //   tokenOut.equals(
-    //     new PublicKey("WSoLZvwZh5mQDEpHUsvxwbnM1yGbW3Qd9rEya7GJCPX")
-    //   )
-    // ) {
-    //   tokenOut = new PublicKey("So11111111111111111111111111111111111111112");
-    // }
 
     const quoteResponse = await (
       await fetch(
