@@ -1,6 +1,6 @@
 {
   "name": "limonade",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "This script is used to submit new opportunities fetched from the limo program to the express relay.",
   "main": "index.js",
   "scripts": {
@@ -19,8 +19,8 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
     "@coral-xyz/anchor-cli": "^0.30.1",
-    "@kamino-finance/limo-sdk": "^0.2.1",
-    "@pythnetwork/express-relay-js": "^0.11.0",
+    "@kamino-finance/limo-sdk": "^0.3.0",
+    "@pythnetwork/express-relay-js": "^0.13.0",
     "@solana/web3.js": "^1.95.3",
     "axios": "^1.7.3",
     "bs58": "^6.0.0",
