@@ -180,6 +180,7 @@ pub struct SimulatedBidEvm {
 // TODO - we should delete this enum and use the SimulatedBidTrait instead. We may need it for API.
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum SimulatedBid {
     Evm(SimulatedBidEvm),
     Svm(SimulatedBidSvm),

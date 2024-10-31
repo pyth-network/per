@@ -63,6 +63,7 @@ pub struct ConfigSvm {
     pub wallet_program_router_account: Pubkey,
 }
 
+#[allow(dead_code)]
 pub trait Config: Send + Sync {}
 
 impl Config for ConfigEvm {

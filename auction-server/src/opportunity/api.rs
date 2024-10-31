@@ -141,6 +141,7 @@ pub enum OpportunityCreate {
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum Opportunity {
     Evm(OpportunityEvm),
     Svm(OpportunitySvm),

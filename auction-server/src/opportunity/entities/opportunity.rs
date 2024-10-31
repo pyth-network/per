@@ -90,6 +90,7 @@ pub trait OpportunityCreate:
 pub enum OpportunityRemovalReason {
     Expired,
     // TODO use internal errors instead of RestError
+    #[allow(dead_code)]
     Invalid(RestError),
 }
 
