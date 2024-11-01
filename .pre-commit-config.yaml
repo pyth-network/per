@@ -27,7 +27,7 @@ repos:
       - id: cargo-clippy-auction-server
         name: Cargo clippy for auction server
         language: "rust"
-        entry: cargo +stable clippy --manifest-path ./auction-server/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        entry: cargo +stable clippy --manifest-path ./auction-server/Cargo.toml --tests -- -D warnings
         pass_filenames: false
         files: auction-server
       # Hooks for vault-simulator
@@ -40,7 +40,7 @@ repos:
       - id: cargo-clippy-vault-simulator
         name: Cargo clippy for vault simulator
         language: "rust"
-        entry: cargo +stable clippy --manifest-path ./vault-simulator/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        entry: cargo +stable clippy --manifest-path ./vault-simulator/Cargo.toml --tests -- -D warnings
         pass_filenames: false
         files: vault-simulator
       # Hooks for gas-oracle
@@ -53,7 +53,7 @@ repos:
       - id: cargo-clippy-gas-oracle
         name: Cargo clippy for gas oracle
         language: "rust"
-        entry: cargo +stable clippy --manifest-path ./gas-oracle/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        entry: cargo +stable clippy --manifest-path ./gas-oracle/Cargo.toml --tests -- -D warnings
         pass_filenames: false
         files: gas-oracle
       # Hooks for contracts-svm
@@ -66,7 +66,7 @@ repos:
       - id: cargo-clippy-contracts-svm
         name: Cargo clippy for svm contracts
         language: "rust"
-        entry: cargo +stable clippy --manifest-path ./contracts/svm/Cargo.toml --tests --fix --allow-dirty --allow-staged --  -D warnings
+        entry: cargo +stable clippy --manifest-path ./contracts/svm/Cargo.toml --tests -- -D warnings
         pass_filenames: false
         files: contracts/svm
       # For python files

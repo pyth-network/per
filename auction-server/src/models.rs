@@ -66,13 +66,16 @@ pub struct Profile {
     pub email: EmailAddress,
     pub role:  ProfileRole,
 
+    #[allow(dead_code)]
     pub created_at: PrimitiveDateTime,
+    #[allow(dead_code)]
     pub updated_at: PrimitiveDateTime,
 }
 
 pub type TokenId = Uuid;
 pub type AccessTokenToken = String;
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct AccessToken {
     pub id: TokenId,
 
@@ -137,6 +140,7 @@ pub enum BidMetadata {
 #[derive(Clone, Debug, FromRow)]
 pub struct Bid {
     pub id:              BidId,
+    #[allow(dead_code)]
     pub creation_time:   PrimitiveDateTime,
     pub permission_key:  Vec<u8>,
     pub chain_id:        String,
