@@ -10,6 +10,7 @@ use {
 };
 
 pub struct EstimatePriceInput {
+    #[allow(dead_code)]
     pub quote_create: entities::QuoteCreate,
 }
 
