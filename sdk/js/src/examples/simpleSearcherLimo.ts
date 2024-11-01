@@ -98,16 +98,18 @@ class SimpleSearcherLimo {
     const inputAmountDecimals = new Decimal(
       order.state.initialInputAmount.toNumber()
     )
-      .div(new Decimal(10).pow(inputMintDecimals))
       .mul(effectiveFillRate)
-      .div(100);
+      .div(100)
+      .floor()
+      .div(new Decimal(10).pow(inputMintDecimals));
 
     const outputAmountDecimals = new Decimal(
       order.state.expectedOutputAmount.toNumber()
     )
-      .div(new Decimal(10).pow(outputMintDecimals))
       .mul(effectiveFillRate)
-      .div(100);
+      .div(100)
+      .ceil()
+      .div(new Decimal(10).pow(outputMintDecimals));
 
     console.log("Order address", order.address.toBase58());
     console.log("Fill rate", effectiveFillRate);
