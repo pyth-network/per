@@ -156,6 +156,7 @@ use {
     utoipa::ToSchema,
     uuid::Uuid,
 };
+use crate::simulator::main::Simulator;
 
 abigen!(
     ExpressRelay,
@@ -316,11 +317,11 @@ async fn conclude_submitted_auctions<T: ChainStore + 'static>(
 ) {
     let auctions = chain_store.get_submitted_auctions().await;
 
-    tracing::info!(
-        "Chain: {chain_id} Auctions to conclude {auction_len}",
-        chain_id = chain_store.get_name(),
-        auction_len = auctions.len()
-    );
+    // tracing::info!(
+    //     "Chain: {chain_id} Auctions to conclude {auction_len}",
+    //     chain_id = chain_store.get_name(),
+    //     auction_len = auctions.len()
+    // );
 
     for auction in auctions.iter() {
         store.task_tracker.spawn({
@@ -603,11 +604,11 @@ pub fn get_express_relay_contract(
 async fn handle_auctions<T: ChainStore + 'static>(store_new: Arc<StoreNew>, chain_store: Arc<T>) {
     let permission_keys = chain_store.get_permission_keys_for_auction().await;
 
-    tracing::info!(
-        "Chain: {chain_id} Auctions to process {auction_len}",
-        chain_id = chain_store.get_name(),
-        auction_len = permission_keys.len()
-    );
+    // tracing::info!(
+    //     "Chain: {chain_id} Auctions to process {auction_len}",
+    //     chain_id = chain_store.get_name(),
+    //     auction_len = permission_keys.len()
+    // );
 
     for permission_key in permission_keys.iter() {
         store_new.store.task_tracker.spawn({
@@ -1138,10 +1139,11 @@ pub async fn handle_bid_svm(
     auth: Auth,
 ) -> result::Result<Uuid, RestError> {
     let store = store_new.store.clone();
-    let chain_store = store
+    let x = store
         .chains_svm
         .get(&bid.chain_id)
-        .ok_or(RestError::InvalidChainId)?
+        .ok_or(RestError::InvalidChainId)?;
+    let chain_store = x
         .as_ref();
 
 
@@ -1166,6 +1168,8 @@ pub async fn handle_bid_svm(
     .await?;
     // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
     simulate_bid_svm(chain_store, &bid).await?;
+    let ssim = Simulator::new(x.clone());
+    ssim.run(bid.transaction.clone()).await;
 
     // Check if the bid is not duplicate
     let bids = chain_store.get_bids(&bytes_permission_key).await;
