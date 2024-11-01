@@ -1,6 +1,7 @@
 use {
     super::service::{
-        ChainTypeEvm,
+        verification::Verification,
+        ChainType,
         Service,
     },
     crate::server::{
@@ -16,11 +17,17 @@ use {
     },
 };
 
-pub async fn run_verification_loop(service: Arc<Service<ChainTypeEvm>>) -> anyhow::Result<()> {
-    tracing::info!("Starting opportunity verifier...");
+pub async fn run_verification_loop<T: ChainType>(service: Arc<Service<T>>) -> anyhow::Result<()>
+where
+    Service<T>: Verification<T>,
+{
+    tracing::info!(
+        chain_type = T::get_name(),
+        "Starting opportunity verifier..."
+    );
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
-    // this should be replaced by a subscription to the chain and trigger on new blocks
+    // this should be replaced by a subscription to the chain and have a different trigger
     let mut submission_interval = tokio::time::interval(Duration::from_secs(5));
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
@@ -31,6 +38,9 @@ pub async fn run_verification_loop(service: Arc<Service<ChainTypeEvm>>) -> anyho
             }
         }
     }
-    tracing::info!("Shutting down opportunity verifier...");
+    tracing::info!(
+        chain_type = T::get_name(),
+        "Shutting down opportunity verifier..."
+    );
     Ok(())
 }

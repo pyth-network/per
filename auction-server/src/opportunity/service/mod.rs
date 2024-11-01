@@ -40,13 +40,13 @@ pub mod get_quote;
 pub mod handle_opportunity_bid;
 pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
+pub mod verification;
 
 mod estimate_price;
 mod get_spoof_info;
 mod make_adapter_calldata;
 mod make_opportunity_execution_params;
 mod make_permitted_tokens;
-mod verification;
 
 #[derive(Debug)]
 pub struct ConfigEvm {
@@ -171,6 +171,8 @@ impl ConfigSvm {
 pub trait ChainType: Send + Sync {
     type Config: Config;
     type InMemoryStore: InMemoryStore;
+
+    fn get_name() -> String;
 }
 
 pub struct ChainTypeEvm;
@@ -179,11 +181,19 @@ pub struct ChainTypeSvm;
 impl ChainType for ChainTypeEvm {
     type Config = ConfigEvm;
     type InMemoryStore = InMemoryStoreEvm;
+
+    fn get_name() -> String {
+        "evm".to_string()
+    }
 }
 
 impl ChainType for ChainTypeSvm {
     type Config = ConfigSvm;
     type InMemoryStore = InMemoryStoreSvm;
+
+    fn get_name() -> String {
+        "svm".to_string()
+    }
 }
 
 // TODO maybe just create a service per chain_id?
