@@ -126,7 +126,7 @@ async function run() {
           opportunityCreate.order.state.remainingInputAmount.toNumber() !== 0
       );
 
-    console.log("Initial opportunities", payloads.length);
+    console.log("Resubmitting opportunities", payloads.length);
     for (const payload of payloads) {
       try {
         await client.submitOpportunity(payload);
