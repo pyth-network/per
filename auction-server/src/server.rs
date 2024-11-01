@@ -321,9 +321,12 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             });
             join_all(watcher_loops).await;
         },
-        fault_tolerant_handler("verification loop".to_string(), || run_verification_loop(
-            store_new.opportunity_service_evm.clone()
-        )),
+        fault_tolerant_handler("evm verification loop".to_string(), || {
+            run_verification_loop(store_new.opportunity_service_evm.clone())
+        }),
+        fault_tolerant_handler("svm verification loop".to_string(), || {
+            run_verification_loop(store_new.opportunity_service_svm.clone())
+        }),
         fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),
             store_new.clone(),

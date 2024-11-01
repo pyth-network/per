@@ -4,7 +4,7 @@ use {
             Verification,
             VerifyOpportunityInput,
         },
-        ChainTypeEvm,
+        ChainType,
         Service,
     },
     crate::{
@@ -20,9 +20,9 @@ use {
 
 const MAX_STALE_OPPORTUNITY_MICROS: i128 = 60_000_000;
 
-impl Service<ChainTypeEvm>
+impl<T: ChainType> Service<T>
 where
-    Service<ChainTypeEvm>: Verification<ChainTypeEvm>,
+    Service<T>: Verification<T>,
 {
     pub async fn remove_invalid_or_expired_opportunities(&self) {
         let all_opportunities = self.repo.get_in_memory_opportunities().await;
