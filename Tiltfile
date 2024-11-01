@@ -218,7 +218,14 @@ local_resource(
 
 local_resource(
     "svm-searcher-py",
-    serve_cmd="poetry run python3 -m express_relay.searcher.examples.simple_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 1",
+    serve_cmd="poetry run python3 -m express_relay.searcher.examples.simple_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 10",
     serve_dir="sdk/python",
+    resource_deps=["svm-initialize-programs", "auction-server"],
+)
+
+local_resource(
+    "svm-searcher-js",
+    serve_cmd="npm run simple-searcher-limo -- --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 10",
+    serve_dir="sdk/js",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
