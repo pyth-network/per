@@ -18,6 +18,7 @@ from express_relay.models.evm import (
 )
 from express_relay.models.svm import (
     BidSvm,
+    OpportunityDeleteSvm,
     OpportunitySvm,
     SvmTransaction,
     BidStatusSvm,
@@ -114,6 +115,7 @@ class OpportunityParams(BaseModel):
 
 Opportunity = Union[OpportunityEvm, OpportunitySvm]
 OpportunityRoot = RootModel[Opportunity]
+OpportunityDelete = OpportunityDeleteSvm
 
 
 class SubscribeMessageParams(BaseModel):

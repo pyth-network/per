@@ -115,6 +115,7 @@ pub struct OpportunityDeleteV1Svm {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(tag = "version")]
 pub enum OpportunityDeleteSvm {
     #[serde(rename = "v1")]
     #[schema(title = "v1")]
