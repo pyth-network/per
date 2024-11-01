@@ -25,7 +25,7 @@ export interface paths {
     /**
      * Fetch opportunities ready for execution or historical opportunities
      * @description depending on the mode. You need to provide `chain_id` for historical mode.
-     * Opportunities are sorted by creation time in ascending order in historical mode.
+     * Opportunities are sorted by creation time in ascending order.
      * Total number of opportunities returned is limited by 20.
      */
     get: operations["get_opportunities"];
@@ -900,7 +900,7 @@ export interface operations {
   /**
    * Fetch opportunities ready for execution or historical opportunities
    * @description depending on the mode. You need to provide `chain_id` for historical mode.
-   * Opportunities are sorted by creation time in ascending order in historical mode.
+   * Opportunities are sorted by creation time in ascending order.
    * Total number of opportunities returned is limited by 20.
    */
   get_opportunities: {
@@ -916,10 +916,15 @@ export interface operations {
          */
         permission_key?: string | null;
         /**
-         * @description The time to get the opportunities from. Used only in historical mode.
+         * @description The time to get the opportunities from.
          * @example 2024-05-23T21:26:57.329954Z
          */
         from_time?: string | null;
+        /**
+         * @description The maximum number of opportunities to return. Capped at 100.
+         * @example 20
+         */
+        limit?: number;
       };
     };
     responses: {
