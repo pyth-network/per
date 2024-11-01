@@ -21,7 +21,7 @@ mod remove_opportunities;
 mod remove_opportunity;
 
 pub use models::*;
-pub const OPPORTUNITY_PAGE_SIZE: i32 = 20;
+pub const OPPORTUNITY_PAGE_SIZE_CAP: i32 = 100;
 
 #[derive(Debug)]
 pub struct Repository<T: InMemoryStore> {

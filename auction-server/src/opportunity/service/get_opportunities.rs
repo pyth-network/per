@@ -42,11 +42,18 @@ impl<T: ChainType> Service<T> {
                     opportunity.clone()
                 })
                 .filter(|opportunity| {
-                    if let Some(chain_id) = &query_params.chain_id {
+                    let filter_time = if let Some(from_time) = query_params.from_time {
+                        opportunity.creation_time >= from_time.unix_timestamp_nanos() / 1000
+                    } else {
+                        true
+                    };
+
+                    let filter_chain_id = if let Some(chain_id) = &query_params.chain_id {
                         opportunity.chain_id == *chain_id
                     } else {
                         true
-                    }
+                    };
+                    filter_time && filter_chain_id
                 })
                 .collect()),
             OpportunityMode::Historical => {
