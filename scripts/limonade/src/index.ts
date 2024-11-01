@@ -10,7 +10,6 @@ import yargs from "yargs";
 import { Client, OpportunityCreate } from "../../../sdk/js/lib/index";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 
-// Mapping of the last submission for each account
 const lastChange: Record<string, number> = {};
 const existingAccounts = new Set<string>();
 
