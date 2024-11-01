@@ -24,6 +24,7 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
+        simulator::main::Simulator,
         state::{
             AuctionLock,
             BidAmount,
@@ -156,7 +157,6 @@ use {
     utoipa::ToSchema,
     uuid::Uuid,
 };
-use crate::simulator::main::Simulator;
 
 abigen!(
     ExpressRelay,
@@ -1143,8 +1143,7 @@ pub async fn handle_bid_svm(
         .chains_svm
         .get(&bid.chain_id)
         .ok_or(RestError::InvalidChainId)?;
-    let chain_store = x
-        .as_ref();
+    let chain_store = x.as_ref();
 
 
     let bid_data_svm =
