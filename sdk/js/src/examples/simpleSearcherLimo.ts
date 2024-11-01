@@ -192,8 +192,9 @@ class SimpleSearcherLimo {
     this.recentBlockhash[update.chain_id] = update.blockhash;
   }
 
+  // NOTE: Developers are responsible for implementing custom removal logic specific to their use case.
   async removeOpportunitiesHandler(opportunityDelete: OpportunityDelete) {
-    console.log("Removing opportunities", opportunityDelete);
+    console.log(`Opportunities ${opportunityDelete} don't exist anymore`);
   }
 
   async start() {

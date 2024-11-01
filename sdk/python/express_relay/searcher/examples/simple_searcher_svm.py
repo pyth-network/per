@@ -185,8 +185,10 @@ class SimpleSearcherSvm:
     async def svm_chain_update_callback(self, svm_chain_update: SvmChainUpdate):
         self.recent_blockhash[svm_chain_update.chain_id] = svm_chain_update.blockhash
 
+    # NOTE: Developers are responsible for implementing custom removal logic specific to their use case.
     async def remove_opportunities_callback(self, opportunity_delete: OpportunityDelete):
-        print(f"Remove opportunities: {opportunity_delete}")
+        print(f"Opportunities {opportunity_delete} don't exist anymore")
+
 
 async def main():
     parser = argparse.ArgumentParser()
