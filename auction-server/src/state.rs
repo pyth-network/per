@@ -885,11 +885,12 @@ impl BidStatusTrait for BidStatusSvm {
             },
             BidStatusSvm::Lost { .. } => match auction {
                 Some(auction) => Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5)",
                     models::BidStatus::Lost as _,
                     auction.id,
                     id,
-                    models::BidStatus::Pending as _
+                    models::BidStatus::Pending as _,
+                    models::BidStatus::Submitted as _,
                 )),
                 None => Ok(sqlx::query!(
                     "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
