@@ -18,6 +18,7 @@ import {
   OpportunityCreate,
   TokenAmount,
   SvmChainUpdate,
+  OpportunityDelete,
 } from "./types";
 import {
   Connection,
@@ -97,6 +98,10 @@ export class Client {
     update: SvmChainUpdate
   ) => Promise<void>;
 
+  private websocketRemoveOpportunitiesCallback?: (
+    opportunityDelete: OpportunityDelete
+  ) => Promise<void>;
+
   private getAuthorization() {
     return this.clientOptions.apiKey
       ? {
@@ -110,7 +115,10 @@ export class Client {
     wsOptions?: WsOptions,
     opportunityCallback?: (opportunity: Opportunity) => Promise<void>,
     bidStatusCallback?: (statusUpdate: BidStatusUpdate) => Promise<void>,
-    svmChainUpdateCallback?: (update: SvmChainUpdate) => Promise<void>
+    svmChainUpdateCallback?: (update: SvmChainUpdate) => Promise<void>,
+    removeOpportunitiesCallback?: (
+      opportunityDelete: OpportunityDelete
+    ) => Promise<void>
   ) {
     this.clientOptions = clientOptions;
     this.clientOptions.headers = {
@@ -121,6 +129,7 @@ export class Client {
     this.websocketOpportunityCallback = opportunityCallback;
     this.websocketBidStatusCallback = bidStatusCallback;
     this.websocketSvmChainUpdateCallback = svmChainUpdateCallback;
+    this.websocketRemoveOpportunitiesCallback = removeOpportunitiesCallback;
   }
 
   private connectWebsocket() {
@@ -157,6 +166,17 @@ export class Client {
       } else if ("type" in message && message.type === "svm_chain_update") {
         if (typeof this.websocketSvmChainUpdateCallback === "function") {
           await this.websocketSvmChainUpdateCallback(message.update);
+        }
+      } else if ("type" in message && message.type === "remove_opportunities") {
+        if (typeof this.websocketRemoveOpportunitiesCallback === "function") {
+          await this.websocketRemoveOpportunitiesCallback({
+            chainId: message.opportunity_delete.chain_id,
+            program: message.opportunity_delete.program,
+            permissionAccount: new PublicKey(
+              message.opportunity_delete.permission_account
+            ),
+            router: new PublicKey(message.opportunity_delete.router),
+          });
         }
       } else if ("id" in message && message.id) {
         // Response to a request sent earlier via the websocket with the same id
@@ -327,6 +347,31 @@ export class Client {
     }
     const response = await client.POST("/v1/opportunities", {
       body: body,
+    });
+    if (response.error) {
+      throw new ClientError(response.error.error);
+    }
+  }
+
+  /**
+   * Remove an opportunity from the server and update the searchers
+   * @param opportunity Opportunity to be removed
+   */
+  async removeOpportunity(opportunity: OpportunityDelete) {
+    if (opportunity.program !== "limo") {
+      throw new ClientError("Only limo opportunities can be removed");
+    }
+
+    const client = createClient<paths>(this.clientOptions);
+    const body = {
+      chain_id: opportunity.chainId,
+      version: "v1" as const,
+      program: opportunity.program,
+      permission_account: opportunity.permissionAccount.toBase58(),
+      router: opportunity.router.toBase58(),
+    };
+    const response = await client.DELETE("/v1/opportunities", {
+      body,
     });
     if (response.error) {
       throw new ClientError(response.error.error);

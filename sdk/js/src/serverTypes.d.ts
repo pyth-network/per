@@ -35,17 +35,19 @@ export interface paths {
      * and will be available for bidding.
      */
     post: operations["post_opportunity"];
+    /** Delete all opportunities for specified data. */
+    delete: operations["delete_opportunities"];
   };
   "/v1/opportunities/quote": {
     /**
-     * Submit a quote request
+     * Submit a quote request.
      * @description The server will estimate the quote price, which will be used to create an opportunity.
      * After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.
      */
     post: operations["post_quote"];
   };
   "/v1/opportunities/{opportunity_id}/bids": {
-    /** Bid on opportunity */
+    /** Bid on opportunity. */
     post: operations["opportunity_bid"];
   };
   "/v1/profiles/access_tokens": {
@@ -234,22 +236,22 @@ export interface components {
        */
       amount: string;
       /**
-       * @description The latest unix timestamp in seconds until which the bid is valid
+       * @description The latest unix timestamp in seconds until which the bid is valid.
        * @example 1000000000000000000
        */
       deadline: string;
       /**
-       * @description Executor address
+       * @description The executor address.
        * @example 0x5FbDB2315678afecb367f032d93F642f64180aa2
        */
       executor: string;
       /**
-       * @description The nonce of the bid permit signature
+       * @description The nonce of the bid permit signature.
        * @example 123
        */
       nonce: string;
       /**
-       * @description The opportunity permission key
+       * @description The opportunity permission key.
        * @example 0xdeadbeefcafe
        */
       permission_key: string;
@@ -265,7 +267,7 @@ export interface components {
       /** @example OK */
       status: string;
     };
-    /** @description The input type for creating a new opportunity */
+    /** @description The input type for creating a new opportunity. */
     OpportunityCreate:
       | components["schemas"]["OpportunityCreateEvm"]
       | components["schemas"]["OpportunityCreateSvm"];
@@ -273,11 +275,11 @@ export interface components {
       /** @enum {string} */
       version: "v1";
     };
-    /** @description Program specific parameters for the opportunity */
+    /** @description Program specific parameters for the opportunity. */
     OpportunityCreateProgramParamsV1Svm:
       | {
           /**
-           * @description The Limo order to be executed, encoded in base64
+           * @description The Limo order to be executed, encoded in base64.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           order: string;
@@ -309,10 +311,10 @@ export interface components {
       version: "v1";
     };
     /**
-     * @description Opportunity parameters needed for on-chain execution
+     * @description Opportunity parameters needed for on-chain execution.
      * If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
      * by calling this target contract with the given target calldata and structures, they will
-     * send the tokens specified in the sell_tokens field and receive the tokens specified in the buy_tokens field.
+     * send the tokens specified in the `sell_tokens` field and receive the tokens specified in the `buy_tokens` field.
      */
     OpportunityCreateV1Evm: {
       buy_tokens: components["schemas"]["TokenAmountEvm"][];
@@ -345,12 +347,12 @@ export interface components {
     };
     /**
      * @description Opportunity parameters needed for on-chain execution.
-     * Parameters may differ for each program
+     * Parameters may differ for each program.
      */
     OpportunityCreateV1Svm: (
       | {
           /**
-           * @description The Limo order to be executed, encoded in base64
+           * @description The Limo order to be executed, encoded in base64.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           order: string;
@@ -385,34 +387,59 @@ export interface components {
        */
       chain_id: string;
       /**
-       * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol
+       * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       permission_account: string;
       /**
-       * @description The router account to be used for the opportunity execution of the protocol
+       * @description The router account to be used for the opportunity execution of the protocol.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       router: string;
       sell_tokens: components["schemas"]["TokenAmountSvm"][];
       /**
        * Format: int64
-       * @description The slot where the program params were fetched from using the RPC
+       * @description The slot where the program params were fetched from using the RPC.
        * @example 293106477
        */
       slot: number;
+    };
+    /** @description The input type for deleting opportunities. */
+    OpportunityDelete: components["schemas"]["OpportunityDeleteSvm"];
+    OpportunityDeleteSvm: components["schemas"]["OpportunityDeleteV1Svm"] & {
+      /** @enum {string} */
+      version: "v1";
+    };
+    /** @description Opportunity parameters needed for deleting live opportunities. */
+    OpportunityDeleteV1Svm: {
+      /**
+       * @description The chain id for the opportunity.
+       * @example solana
+       */
+      chain_id: string;
+      /**
+       * @description The permission account for the opportunity.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      permission_account: string;
+      program: components["schemas"]["ProgramSvm"];
+      /**
+       * @description The router account for the opportunity.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      router: string;
     };
     OpportunityEvm: (components["schemas"]["OpportunityParamsV1Evm"] & {
       /** @enum {string} */
       version: "v1";
     }) & {
       /**
-       * @description Creation time of the opportunity (in microseconds since the Unix epoch)
+       * @description Creation time of the opportunity (in microseconds since the Unix epoch).
        * @example 1700000000000000
        */
       creation_time: number;
       /**
-       * @description The opportunity unique id
+       * @description The opportunity unique id.
        * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
        */
       opportunity_id: string;
@@ -430,17 +457,17 @@ export interface components {
     OpportunityParamsV1Evm: components["schemas"]["OpportunityCreateV1Evm"];
     /**
      * @description Opportunity parameters needed for on-chain execution.
-     * Parameters may differ for each program
+     * Parameters may differ for each program.
      */
     OpportunityParamsV1Svm: (
       | {
           /**
-           * @description The Limo order to be executed, encoded in base64
+           * @description The Limo order to be executed, encoded in base64.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           order: string;
           /**
-           * @description Address of the order account
+           * @description Address of the order account.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           order_address: string;
@@ -451,25 +478,25 @@ export interface components {
           buy_token: components["schemas"]["TokenAmountSvm"];
           /**
            * Format: double
-           * @description The maximum slippage percentage that the user is willing to accept
+           * @description The maximum slippage percentage that the user is willing to accept.
            * @example 0.5
            */
           maximum_slippage_percentage: number;
           /**
-           * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol
+           * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           permission_account: string;
           /** @enum {string} */
           program: "phantom";
           /**
-           * @description The router account to be used for the opportunity execution of the protocol
+           * @description The router account to be used for the opportunity execution of the protocol.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           router_account: string;
           sell_token: components["schemas"]["TokenAmountSvm"];
           /**
-           * @description The user wallet address which requested the quote from the wallet
+           * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           user_wallet_address: string;
@@ -483,27 +510,29 @@ export interface components {
       version: "v1";
     }) & {
       /**
-       * @description Creation time of the opportunity (in microseconds since the Unix epoch)
+       * @description Creation time of the opportunity (in microseconds since the Unix epoch).
        * @example 1700000000000000
        */
       creation_time: number;
       /**
-       * @description The opportunity unique id
+       * @description The opportunity unique id.
        * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
        */
       opportunity_id: string;
       /**
        * Format: int64
-       * @description The slot where the program params were fetched from using the RPC
+       * @description The slot where the program params were fetched from using the RPC.
        * @example 293106477
        */
       slot: number;
     };
+    /** @enum {string} */
+    ProgramSvm: "phantom" | "limo";
     Quote: components["schemas"]["QuoteSvm"];
     QuoteCreate: components["schemas"]["QuoteCreateSvm"];
     /**
-     * @description Parameters needed to create a new opportunity from the Phantom wallet
-     * Auction server will extract the output token price for the auction
+     * @description Parameters needed to create a new opportunity from the Phantom wallet.
+     * Auction server will extract the output token price for the auction.
      */
     QuoteCreatePhantomV1Svm: {
       /**
@@ -553,26 +582,26 @@ export interface components {
     };
     QuoteV1Svm: {
       /**
-       * @description The chain id for the quote
+       * @description The chain id for the quote.
        * @example solana
        */
       chain_id: string;
       /**
        * Format: int64
-       * @description The expiration time of the quote (in seconds since the Unix epoch)
+       * @description The expiration time of the quote (in seconds since the Unix epoch).
        * @example 1700000000000000
        */
       expiration_time: number;
       input_token: components["schemas"]["TokenAmountSvm"];
       /**
        * Format: double
-       * @description The maximum slippage percentage that the user is willing to accept
+       * @description The maximum slippage percentage that the user is willing to accept.
        * @example 0.5
        */
       maximum_slippage_percentage: number;
       output_token: components["schemas"]["TokenAmountSvm"];
       /**
-       * @description The signed transaction for the quote to be executed on chain which is valid until the expiration time
+       * @description The signed transaction for the quote to be executed on chain which is valid until the expiration time.
        * @example SGVsbG8sIFdvcmxkIQ==
        */
       transaction: string;
@@ -589,13 +618,13 @@ export interface components {
           status: "error";
         };
     /**
-     * @description This enum is used to send the result for a specific client request with the same id
-     * id is only None when the client message is invalid
+     * @description This enum is used to send the result for a specific client request with the same id.
+     * Id is only None when the client message is invalid.
      */
     ServerResultResponse: components["schemas"]["ServerResultMessage"] & {
       id?: string | null;
     };
-    /** @description This enum is used to send an update to the client for any subscriptions made */
+    /** @description This enum is used to send an update to the client for any subscriptions made. */
     ServerUpdateResponse:
       | {
           opportunity: components["schemas"]["Opportunity"];
@@ -611,6 +640,11 @@ export interface components {
           /** @enum {string} */
           type: "svm_chain_update";
           update: components["schemas"]["SvmChainUpdate"];
+        }
+      | {
+          opportunity_delete: components["schemas"]["OpportunityDelete"];
+          /** @enum {string} */
+          type: "remove_opportunities";
         };
     SimulatedBid:
       | components["schemas"]["SimulatedBidEvm"]
@@ -717,12 +751,12 @@ export interface components {
     };
     TokenAmountEvm: {
       /**
-       * @description Token amount
+       * @description The token amount.
        * @example 1000
        */
       amount: string;
       /**
-       * @description Token contract address
+       * @description The token contract address.
        * @example 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
        */
       token: string;
@@ -730,12 +764,12 @@ export interface components {
     TokenAmountSvm: {
       /**
        * Format: int64
-       * @description Token amount in lamports
+       * @description The token amount in lamports.
        * @example 1000
        */
       amount: number;
       /**
-       * @description Token contract address
+       * @description The token contract address.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       token: string;
@@ -874,7 +908,7 @@ export interface operations {
       query?: {
         /** @example op_sepolia */
         chain_id?: string | null;
-        /** @description Get opportunities in live or historical mode */
+        /** @description Get opportunities in live or historical mode. */
         mode?: components["schemas"]["OpportunityMode"];
         /**
          * @description The permission key to filter the opportunities by. Used only in historical mode.
@@ -931,8 +965,29 @@ export interface operations {
       };
     };
   };
+  /** Delete all opportunities for specified data. */
+  delete_opportunities: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OpportunityDelete"];
+      };
+    };
+    responses: {
+      /** @description Opportunities deleted successfully */
+      204: {
+        content: never;
+      };
+      400: components["responses"]["ErrorBodyResponse"];
+      /** @description Chain id was not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorBodyResponse"];
+        };
+      };
+    };
+  };
   /**
-   * Submit a quote request
+   * Submit a quote request.
    * @description The server will estimate the quote price, which will be used to create an opportunity.
    * After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.
    */
@@ -958,7 +1013,7 @@ export interface operations {
       };
     };
   };
-  /** Bid on opportunity */
+  /** Bid on opportunity. */
   opportunity_bid: {
     parameters: {
       path: {

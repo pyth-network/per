@@ -1,5 +1,6 @@
 import base64
 from datetime import datetime
+from enum import Enum
 from typing import Any, Annotated, ClassVar
 
 from pydantic import (
@@ -21,6 +22,7 @@ from express_relay.svm.generated.limo.accounts.order import Order
 from express_relay.models.base import (
     IntString,
     UUIDString,
+    UnsupportedOpportunityDeleteVersionException,
     UnsupportedOpportunityVersionException,
     BidStatus,
 )
@@ -322,3 +324,34 @@ class SvmChainUpdate(BaseModel):
     """
     chain_id: str
     blockhash: SvmHash
+
+
+class ProgramSvm(Enum):
+    LIMO = "limo"
+    PHANTOM = "phantom"
+
+
+class OpportunityDeleteSvm(BaseModel):
+    """
+    Attributes:
+        chain_id: The chain ID for opportunities to be removed.
+        program: The program which this opportunities to be removed.
+        permission_account: The permission account for the opportunities to be removed.
+        router: The router for opportunties to be removed.
+    """
+    chain_id: str
+    program: ProgramSvm
+    permission_account: SvmAddress
+    router: SvmAddress
+    version: str
+
+    supported_versions: ClassVar[list[str]] = ["v1"]
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_version(cls, data):
+        if data["version"] not in cls.supported_versions:
+            raise UnsupportedOpportunityDeleteVersionException(
+                f"Cannot handle opportunity version: {data['version']}. Please upgrade your client."
+            )
+        return data
