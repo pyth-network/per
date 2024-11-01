@@ -196,7 +196,9 @@ class SimpleSearcherLimo {
 
   // NOTE: Developers are responsible for implementing custom removal logic specific to their use case.
   async removeOpportunitiesHandler(opportunityDelete: OpportunityDelete) {
-    console.log(`Opportunities ${opportunityDelete} don't exist anymore`);
+    console.log(
+      `Opportunities ${JSON.stringify(opportunityDelete)} don't exist anymore`
+    );
   }
 
   async start() {
