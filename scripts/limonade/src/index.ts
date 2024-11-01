@@ -7,7 +7,7 @@ import { limoId, Order } from "@kamino-finance/limo-sdk";
 import bs58 from "bs58";
 import { hideBin } from "yargs/helpers";
 import yargs from "yargs";
-import { Client, OpportunityCreate } from "../../../sdk/js/lib/index";
+import { Client, OpportunityCreate } from "@pythnetwork/express-relay-js";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 
 const lastChange: Record<string, number> = {};
