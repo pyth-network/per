@@ -1,6 +1,3 @@
-use litesvm::types::{FailedTransactionMetadata, SimulatedTransactionInfo};
-use solana_client::rpc_response::{RpcResult, RpcSimulateTransactionResult};
-use solana_rpc_client::rpc_client::SerializableTransaction;
 use {
     crate::{
         api::{
@@ -28,6 +25,7 @@ use {
         },
         models,
         opportunity::service as opportunity_service,
+        simulator::main::Simulator,
         traced_client::TracedClient,
         traced_sender_svm::TracedSenderSvm,
     },
@@ -53,6 +51,10 @@ use {
             U256,
         },
     },
+    litesvm::types::{
+        FailedTransactionMetadata,
+        SimulatedTransactionInfo,
+    },
     rand::Rng,
     serde::{
         Deserialize,
@@ -63,7 +65,10 @@ use {
         serde_as,
         DisplayFromStr,
     },
-    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_client::{
+        nonblocking::rpc_client::RpcClient,
+        rpc_response::RpcResult,
+    },
     solana_rpc_client::rpc_client::RpcClientConfig,
     solana_sdk::{
         commitment_config::CommitmentConfig,
@@ -110,7 +115,6 @@ use {
     },
     uuid::Uuid,
 };
-use crate::simulator::main::Simulator;
 
 pub type BidAmount = U256;
 pub type BidAmountSvm = u64;
@@ -537,9 +541,8 @@ impl ChainStoreEvm {
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
-    tx_broadcaster_client:             RpcClient,
     pub client:                        RpcClient,
-    simulator: Simulator,
+    simulator:                         Simulator,
     pub config:                        ConfigSvm,
     pub express_relay_svm:             ExpressRelaySvm,
     pub wallet_program_router_account: Pubkey,
@@ -574,18 +577,11 @@ impl ChainStoreSvm {
                     config.rpc_read_url.as_str(),
                     config.rpc_timeout,
                     RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-                )
+                ),
             ),
             client: TracedSenderSvm::new_client(
                 chain_id.clone(),
                 config.rpc_read_url.as_str(),
-                config.rpc_timeout,
-                RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-            ),
-
-            tx_broadcaster_client: TracedSenderSvm::new_client(
-                chain_id.clone(),
-                config.rpc_tx_submission_url.as_str(),
                 config.rpc_timeout,
                 RpcClientConfig::with_commitment(CommitmentConfig::processed()),
             ),
@@ -603,7 +599,10 @@ impl ChainStoreSvm {
     ) -> solana_client::client_error::Result<Signature> {
         self.simulator.send_transaction(tx).await
     }
-    pub async fn simulate_transaction(&self, transaction: &VersionedTransaction) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
+    pub async fn simulate_transaction(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
         self.simulator.simulate_transaction(transaction).await
     }
 }

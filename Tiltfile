@@ -195,6 +195,12 @@ local_resource(
     resource_deps=["svm-localnet"],
 )
 
+local_resource(
+    "svm-tx-delayer",
+    "poetry -C per_sdk run python3 -m per_sdk.svm.tx_delayer",
+    resource_deps=["svm-localnet"],
+)
+
 # need to run initialize instructions for the programs one time, script skips if already initialized
 local_resource(
     "svm-initialize-programs",
@@ -225,7 +231,15 @@ local_resource(
 
 local_resource(
     "svm-searcher-js",
-    serve_cmd="npm run simple-searcher-limo -- --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 10",
+    serve_cmd="npm run simple-searcher-limo -- --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 55",
+    serve_dir="sdk/js",
+    resource_deps=["svm-initialize-programs", "auction-server"],
+)
+
+
+local_resource(
+    "svm-searcher-js2",
+    serve_cmd="npm run simple-searcher-limo -- --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher.json --endpoint-svm http://127.0.0.1:8899 --bid 10000001 --fill-rate 56",
     serve_dir="sdk/js",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )

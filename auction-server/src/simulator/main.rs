@@ -1,37 +1,41 @@
-use std::collections::HashMap;
-use litesvm::types::{FailedTransactionMetadata, SimulatedTransactionInfo};
-use solana_client::rpc_response::{Response, RpcResult, RpcSimulateTransactionResult};
-use solana_rpc_client::nonblocking::rpc_client::RpcClient;
-use solana_rpc_client::rpc_client::SerializableTransaction;
-use solana_sdk::account::Account;
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::signature::Signature;
-use tokio::sync::RwLock;
 use {
-    crate::state::ChainStoreSvm,
     litesvm::{
-        types::TransactionResult,
+        types::{
+            FailedTransactionMetadata,
+            SimulatedTransactionInfo,
+        },
         LiteSVM,
     },
+    solana_client::{
+        rpc_config::RpcSendTransactionConfig,
+        rpc_response::{
+            Response,
+            RpcResult,
+        },
+    },
+    solana_rpc_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
         account::{
-            AccountSharedData,
+            Account,
             ReadableAccount,
         },
         account_utils::StateMut,
         bpf_loader_upgradeable::UpgradeableLoaderState,
         commitment_config::CommitmentConfig,
+        pubkey::Pubkey,
+        signature::Signature,
         transaction::VersionedTransaction,
     },
     std::{
-        sync::Arc,
+        collections::HashMap,
         time::Instant,
     },
+    tokio::sync::RwLock,
 };
 
 pub struct Simulator {
-    sender: RpcClient,
-    receiver: RpcClient,
+    sender:      RpcClient,
+    receiver:    RpcClient,
     pending_txs: RwLock<Vec<(VersionedTransaction, Instant)>>,
 }
 
@@ -42,23 +46,32 @@ struct AccountsConfig {
 
 impl AccountsConfig {
     fn new() -> Self {
-        Self { accounts: Default::default(), programs: Default::default() }
+        Self {
+            accounts: Default::default(),
+            programs: Default::default(),
+        }
     }
 
     fn apply(&self, svm: &mut LiteSVM) {
         for (key, account) in self.accounts.iter() {
-            svm.set_account(key.clone(), account.clone()).unwrap();
+            svm.set_account(*key, account.clone()).unwrap();
         }
         for (key, account) in self.programs.iter() {
-            svm.add_program(key.clone(), &(account.data()
-                [UpgradeableLoaderState::size_of_programdata_metadata()..]));
+            svm.add_program(
+                *key,
+                &(account.data()[UpgradeableLoaderState::size_of_programdata_metadata()..]),
+            );
         }
     }
 }
 
 impl Simulator {
     pub fn new(sender: RpcClient, receiver: RpcClient) -> Self {
-        Self { sender, receiver, pending_txs: Default::default() }
+        Self {
+            sender,
+            receiver,
+            pending_txs: Default::default(),
+        }
     }
 
     pub async fn fetch_pending_and_remove_old_txs(&self) -> Vec<VersionedTransaction> {
@@ -73,12 +86,25 @@ impl Simulator {
         tx: &VersionedTransaction,
     ) -> solana_client::client_error::Result<Signature> {
         let now = Instant::now();
-        self.pending_txs.write().await.push((tx.clone(),now));
-
-        self.sender.send_transaction(tx).await
+        self.pending_txs.write().await.push((tx.clone(), now));
+        self.sender
+            .send_transaction_with_config(
+                tx,
+                RpcSendTransactionConfig {
+                    skip_preflight:       true,
+                    preflight_commitment: None,
+                    encoding:             None,
+                    max_retries:          Some(0),
+                    min_context_slot:     None,
+                },
+            )
+            .await
     }
 
-    async fn fetch_tx_accounts(&self, transactions: &[VersionedTransaction]) -> RpcResult<AccountsConfig> {
+    async fn fetch_tx_accounts(
+        &self,
+        transactions: &[VersionedTransaction],
+    ) -> RpcResult<AccountsConfig> {
         let keys = transactions
             .iter()
             .flat_map(|tx| tx.message.static_account_keys())
@@ -94,12 +120,14 @@ impl Simulator {
         for (account_key, account) in keys.iter().zip(accounts.iter()) {
             if let Some(account) = account {
                 if let Ok(UpgradeableLoaderState::Program {
-                              programdata_address,
-                          }) = account.state()
+                    programdata_address,
+                }) = account.state()
                 {
-                    programs_to_fetch.push((account_key.clone(), programdata_address));
+                    programs_to_fetch.push((*account_key, programdata_address));
                 } else {
-                    accounts_config.accounts.insert(account_key.clone(), account.clone());
+                    accounts_config
+                        .accounts
+                        .insert(*account_key, account.clone());
                 }
                 // TODO: handle lookup tables
             } else {
@@ -110,22 +138,35 @@ impl Simulator {
         let program_accounts = self
             .receiver
             .get_multiple_accounts_with_commitment(
-                &programs_to_fetch.iter().map(|(_, programdata_address)| programdata_address.clone()).collect::<Vec<_>>(),
+                &programs_to_fetch
+                    .iter()
+                    .map(|(_, programdata_address)| *programdata_address)
+                    .collect::<Vec<_>>(),
                 CommitmentConfig::processed(),
             )
             .await?
             .value;
-        for ((program_key, _), program_account) in programs_to_fetch.iter().zip(program_accounts.iter()) {
+        for ((program_key, _), program_account) in
+            programs_to_fetch.iter().zip(program_accounts.iter())
+        {
             if let Some(program_account) = program_account {
-                accounts_config.programs.insert(program_key.clone(), program_account.clone());
+                accounts_config
+                    .programs
+                    .insert(*program_key, program_account.clone());
             } else {
                 // it's not ok to point to a non-existent program. TODO: handle this case
             }
         }
-        RpcResult::Ok(Response { value: accounts_config, context: accounts_with_context.context })
+        Ok(Response {
+            value:   accounts_config,
+            context: accounts_with_context.context,
+        })
     }
 
-    pub async fn simulate_transaction(&self, transaction: &VersionedTransaction) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
+    pub async fn simulate_transaction(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
         let accounts_config_with_context = self.fetch_tx_accounts(&[transaction.clone()]).await?;
         let accounts_config = accounts_config_with_context.value;
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
@@ -135,97 +176,13 @@ impl Simulator {
             .with_transaction_history(0);
         accounts_config.apply(&mut svm);
 
-        pending_txs.into_iter().for_each(|tx|{
+        pending_txs.into_iter().for_each(|tx| {
             let _ = svm.send_transaction(tx);
         });
         let res = svm.simulate_transaction(transaction.clone());
-        RpcResult::Ok(Response { value: res, context: accounts_config_with_context.context })
-    }
-
-    pub async fn run(&self, tx: VersionedTransaction) {
-        let keys = tx.message.static_account_keys();
-        let res = self
-            .receiver
-            .get_multiple_accounts_with_commitment(keys, CommitmentConfig::confirmed())
-            .await
-            .unwrap()
-            .value;
-
-        let mut more_to_fetch = vec![];
-        let mut program_addrs = vec![];
-        for (account_key, account) in keys.iter().zip(res.iter()) {
-            if let Some(account) = account {
-                let data = <solana_sdk::account::Account as Into<AccountSharedData>>::into(
-                    account.clone(),
-                );
-                if let Ok(UpgradeableLoaderState::Program {
-                    programdata_address,
-                }) = data.state()
-                {
-                    more_to_fetch.push(programdata_address);
-                    program_addrs.push(account_key.clone());
-                }
-            }
-        }
-
-        let res2 = self
-            .receiver
-            .get_multiple_accounts_with_commitment(&more_to_fetch, CommitmentConfig::confirmed())
-            .await
-            .unwrap()
-            .value;
-        println!("more_to_fetch: {:?}", more_to_fetch);
-        println!("res2: {:?}", res2);
-        let mut svm = LiteSVM::new()
-            .with_sigverify(false)
-            .with_blockhash_check(false)
-            .with_transaction_history(0);
-
-        let now = Instant::now();
-
-        program_addrs.iter().zip(&res2).for_each(|(key, account)| {
-            svm.add_program(
-                key.clone(),
-                &(account.as_ref().unwrap().data()
-                    [UpgradeableLoaderState::size_of_programdata_metadata()..]),
-            );
-        });
-        keys.iter().zip(&res).for_each(|(key, account)| {
-            if program_addrs.contains(key) {
-                return;
-            }
-            if let Some(account) = account {
-                if !account.executable {
-                    println!("set_account: {:?}", key);
-                    svm.set_account(key.clone(), account.clone()).unwrap();
-                }
-            }
-        });
-        // Code block to measure.
-        for _ in 0..1000 {
-            keys.iter().zip(&res).for_each(|(key, account)| {
-                if program_addrs.contains(key) {
-                    return;
-                }
-                if let Some(account) = account {
-                    if !account.executable {
-                        svm.set_account(key.clone(), account.clone()).unwrap();
-                    }
-                }
-            });
-
-            let res = svm.send_transaction(tx.clone());
-            match res {
-                TransactionResult::Ok(_) => {}
-                TransactionResult::Err(err) => {
-                    println!("Transaction failed: {:?}", err);
-                }
-            }
-        }
-
-
-        let elapsed = now.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
-        println!("res: {:?}", res);
+        Ok(Response {
+            value:   res,
+            context: accounts_config_with_context.context,
+        })
     }
 }

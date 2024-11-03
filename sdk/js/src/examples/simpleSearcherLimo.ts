@@ -179,6 +179,10 @@ class SimpleSearcherLimo {
       this.recentBlockhash[this.chainId]
     );
     try {
+      // add random delay
+      let ms = Math.floor(Math.random() * 5000);
+      console.log(`Waiting for ${ms} ms before submitting bid`);
+      await new Promise((resolve) => setTimeout(resolve, ms));
       const bidId = await this.client.submitBid(bid);
       console.log(
         `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`

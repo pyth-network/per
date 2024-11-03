@@ -24,7 +24,6 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        simulator::main::Simulator,
         state::{
             AuctionLock,
             BidAmount,
@@ -1249,9 +1248,7 @@ async fn verify_signatures_svm(
 }
 
 async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(), RestError> {
-    let response = chain_store
-        .simulate_transaction(&bid.transaction)
-        .await;
+    let response = chain_store.simulate_transaction(&bid.transaction).await;
     let result = response.map_err(|e| {
         tracing::error!("Error while simulating bid: {:?}", e);
         RestError::TemporarilyUnavailable
@@ -1263,7 +1260,7 @@ async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(
                 err,
                 result.context
             );
-            let mut msgs = err.meta.logs;
+            let msgs = err.meta.logs;
             // msgs.push(err.to_string());
             Err(RestError::SimulationError {
                 result: Default::default(),
