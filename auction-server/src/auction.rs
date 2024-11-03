@@ -1167,14 +1167,14 @@ pub async fn handle_bid_svm(
     .await?;
     // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
     simulate_bid_svm(chain_store, &bid).await?;
-    let ssim = Simulator::new(x.clone());
-    ssim.run(bid.transaction.clone()).await;
-
-    // Check if the bid is not duplicate
-    let bids = chain_store.get_bids(&bytes_permission_key).await;
-    if bids.iter().any(|b| bid == *b) {
-        return Err(RestError::BadParameters("Duplicate bid".to_string()));
-    }
+    // let ssim = Simulator::new(x.clone());
+    // ssim.run(bid.transaction.clone()).await;
+    //
+    // // Check if the bid is not duplicate
+    // let bids = chain_store.get_bids(&bytes_permission_key).await;
+    // if bids.iter().any(|b| bid == *b) {
+    //     return Err(RestError::BadParameters("Duplicate bid".to_string()));
+    // }
 
     let core_fields = SimulatedBidCoreFields::new(bid.chain_id, initiation_time, auth);
     let simulated_bid = SimulatedBidSvm {
@@ -1250,28 +1250,27 @@ async fn verify_signatures_svm(
 
 async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(), RestError> {
     let response = chain_store
-        .client
         .simulate_transaction(&bid.transaction)
         .await;
     let result = response.map_err(|e| {
         tracing::error!("Error while simulating bid: {:?}", e);
         RestError::TemporarilyUnavailable
     })?;
-    match result.value.err {
-        Some(err) => {
+    match result.value {
+        Err(err) => {
             tracing::error!(
                 "Error while simulating bid: {:?}, context: {:?}",
                 err,
                 result.context
             );
-            let mut msgs = result.value.logs.unwrap_or_default();
-            msgs.push(err.to_string());
+            let mut msgs = err.meta.logs;
+            // msgs.push(err.to_string());
             Err(RestError::SimulationError {
                 result: Default::default(),
                 reason: msgs.join("\n"),
             })
         }
-        None => Ok(()),
+        Ok(_) => Ok(()),
     }
 }
 

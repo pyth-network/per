@@ -1,3 +1,6 @@
+use litesvm::types::{FailedTransactionMetadata, SimulatedTransactionInfo};
+use solana_client::rpc_response::{RpcResult, RpcSimulateTransactionResult};
+use solana_rpc_client::rpc_client::SerializableTransaction;
 use {
     crate::{
         api::{
@@ -107,6 +110,7 @@ use {
     },
     uuid::Uuid,
 };
+use crate::simulator::main::Simulator;
 
 pub type BidAmount = U256;
 pub type BidAmountSvm = u64;
@@ -535,6 +539,7 @@ pub struct ChainStoreSvm {
 
     tx_broadcaster_client:             RpcClient,
     pub client:                        RpcClient,
+    simulator: Simulator,
     pub config:                        ConfigSvm,
     pub express_relay_svm:             ExpressRelaySvm,
     pub wallet_program_router_account: Pubkey,
@@ -557,6 +562,20 @@ impl ChainStoreSvm {
         Self {
             name: chain_id.clone(),
             core_fields: Default::default(),
+            simulator: Simulator::new(
+                TracedSenderSvm::new_client(
+                    chain_id.clone(),
+                    config.rpc_tx_submission_url.as_str(),
+                    config.rpc_timeout,
+                    RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                ),
+                TracedSenderSvm::new_client(
+                    chain_id.clone(),
+                    config.rpc_read_url.as_str(),
+                    config.rpc_timeout,
+                    RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                )
+            ),
             client: TracedSenderSvm::new_client(
                 chain_id.clone(),
                 config.rpc_read_url.as_str(),
@@ -582,7 +601,10 @@ impl ChainStoreSvm {
         &self,
         tx: &VersionedTransaction,
     ) -> solana_client::client_error::Result<Signature> {
-        self.tx_broadcaster_client.send_transaction(tx).await
+        self.simulator.send_transaction(tx).await
+    }
+    pub async fn simulate_transaction(&self, transaction: &VersionedTransaction) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
+        self.simulator.simulate_transaction(transaction).await
     }
 }
 
