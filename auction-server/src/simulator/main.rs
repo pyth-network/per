@@ -78,6 +78,7 @@ impl Simulator {
         let now = Instant::now();
         let mut pending_txs = self.pending_txs.write().await;
         pending_txs.retain(|(_, time)| now.duration_since(*time).as_secs() < 5);
+        //TODO: remove pending txs when they are processed
         pending_txs.iter().map(|(tx, _)| tx.clone()).collect()
     }
 
@@ -134,6 +135,8 @@ impl Simulator {
                 // it's ok to not have an account (this account is created by the transaction)
             }
         }
+
+        //TODO: handle caching for programs already fetched
 
         let program_accounts = self
             .receiver
