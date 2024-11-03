@@ -1166,14 +1166,12 @@ pub async fn handle_bid_svm(
     .await?;
     // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
     simulate_bid_svm(chain_store, &bid).await?;
-    // let ssim = Simulator::new(x.clone());
-    // ssim.run(bid.transaction.clone()).await;
-    //
-    // // Check if the bid is not duplicate
-    // let bids = chain_store.get_bids(&bytes_permission_key).await;
-    // if bids.iter().any(|b| bid == *b) {
-    //     return Err(RestError::BadParameters("Duplicate bid".to_string()));
-    // }
+
+    // Check if the bid is not duplicate
+    let bids = chain_store.get_bids(&bytes_permission_key).await;
+    if bids.iter().any(|b| bid == *b) {
+        return Err(RestError::BadParameters("Duplicate bid".to_string()));
+    }
 
     let core_fields = SimulatedBidCoreFields::new(bid.chain_id, initiation_time, auth);
     let simulated_bid = SimulatedBidSvm {
