@@ -736,10 +736,7 @@ pub async fn get_opportunities(
         Ok(Json(
             opportunities
                 .into_iter()
-                .take(std::cmp::min(
-                    query_params.limit,
-                    OPPORTUNITY_PAGE_SIZE_CAP as usize,
-                ))
+                .take(std::cmp::min(query_params.limit, OPPORTUNITY_PAGE_SIZE_CAP))
                 .collect(),
         ))
     }
