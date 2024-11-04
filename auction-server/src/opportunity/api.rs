@@ -1,6 +1,6 @@
 use {
     super::{
-        repository,
+        repository::OPPORTUNITY_PAGE_SIZE_CAP,
         service::{
             add_opportunity::AddOpportunityInput,
             get_opportunities::GetOpportunitiesInput,
@@ -151,6 +151,9 @@ pub enum Opportunity {
 fn default_opportunity_mode() -> OpportunityMode {
     OpportunityMode::Live
 }
+fn default_limit() -> usize {
+    20
+}
 #[derive(Clone, Serialize, Deserialize, IntoParams)]
 pub struct GetOpportunitiesQueryParams {
     #[param(example = "op_sepolia", value_type = Option < String >)]
@@ -162,10 +165,14 @@ pub struct GetOpportunitiesQueryParams {
     /// The permission key to filter the opportunities by. Used only in historical mode.
     #[param(example = "0xdeadbeef", value_type = Option< String >)]
     pub permission_key: Option<Bytes>,
-    /// The time to get the opportunities from. Used only in historical mode.
+    /// The time to get the opportunities from.
     #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
     #[serde(default, with = "crate::serde::nullable_datetime")]
     pub from_time:      Option<OffsetDateTime>,
+    /// The maximum number of opportunities to return. Capped at 100; if more than 100 requested, at most 100 will be returned.
+    #[param(example = "20", value_type = usize, maximum = 100)]
+    #[serde(default = "default_limit")]
+    limit:              usize,
 }
 
 // ----- Evm types -----
@@ -679,8 +686,8 @@ pub async fn post_opportunity(
 
 /// Fetch opportunities ready for execution or historical opportunities
 /// depending on the mode. You need to provide `chain_id` for historical mode.
-/// Opportunities are sorted by creation time in ascending order in historical mode.
-/// Total number of opportunities returned is limited by 20.
+/// Opportunities are sorted by creation time in ascending order.
+/// Total number of opportunities returned is capped by the server to preserve bandwidth.
 #[utoipa::path(get, path = "/v1/opportunities", responses(
 (status = 200, description = "Array of opportunities ready for bidding", body = Vec < Opportunity >),
 (status = 400, response = ErrorBodyResponse),
@@ -700,7 +707,7 @@ pub async fn get_opportunities(
     let opportunities_svm = store
         .opportunity_service_svm
         .get_opportunities(GetOpportunitiesInput {
-            query_params: query_params.0,
+            query_params: query_params.clone().0,
         })
         .await;
 
@@ -730,7 +737,7 @@ pub async fn get_opportunities(
         Ok(Json(
             opportunities
                 .into_iter()
-                .take(repository::OPPORTUNITY_PAGE_SIZE as usize)
+                .take(std::cmp::min(query_params.limit, OPPORTUNITY_PAGE_SIZE_CAP))
                 .collect(),
         ))
     }

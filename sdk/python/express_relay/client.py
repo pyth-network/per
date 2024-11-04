@@ -385,18 +385,24 @@ class ExpressRelayClient:
                 future = self.ws_msg_futures.pop(msg_json["id"])
                 future.set_result(msg_json)
 
-    async def get_opportunities(self, chain_id: str | None = None) -> list[Opportunity]:
+    async def get_opportunities(self, chain_id: str | None = None, from_time: datetime | None = None, limit: int | None = None) -> list[Opportunity]:
         """
         Connects to the server and fetches opportunities.
 
         Args:
             chain_id: The chain ID to fetch opportunities for. If None, fetches opportunities across all chains.
+            from_time: The datetime to fetch opportunities from. If None, fetches from the beginning of time.
+            limit: Number of opportunities to fetch. If None, uses the default server limit.
         Returns:
             A list of opportunities.
         """
         params = {}
         if chain_id:
             params["chain_id"] = chain_id
+        if from_time:
+            params["from_time"] = from_time.astimezone().isoformat(timespec="microseconds")
+        if limit:
+            params["limit"] = str(limit)
 
         async with httpx.AsyncClient(**self.http_options) as client:
             resp = await client.get(
