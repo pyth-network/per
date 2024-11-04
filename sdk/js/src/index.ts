@@ -265,25 +265,20 @@ export class Client {
   /**
    * Fetches opportunities
    * @param chainId Chain id to fetch opportunities for. e.g: sepolia
-   * @param fromTime Minimum Unix timestamp of the returned opportunities, in microseconds
+   * @param fromTime A date object representing the datetime to fetch opportunities from. If undefined, fetches from the beginning of time.
    * @param limit Number of opportunities to return
    * @returns List of opportunities
    */
   async getOpportunities(
     chainId?: string,
-    fromTime?: number,
+    fromTime?: Date,
     limit?: number
   ): Promise<Opportunity[]> {
     const client = createClient<paths>(this.clientOptions);
-    const fromTimeStr = fromTime
-      ? `${new Date(fromTime / 1000).toISOString().replace("Z", "")}${(
-          fromTime % 1000
-        )
-          .toString()
-          .padStart(3, "0")}Z`
-      : undefined;
     const opportunities = await client.GET("/v1/opportunities", {
-      params: { query: { chain_id: chainId, from_time: fromTimeStr, limit } },
+      params: {
+        query: { chain_id: chainId, from_time: fromTime?.toISOString(), limit },
+      },
     });
     if (opportunities.data === undefined) {
       throw new ClientError("No opportunities found");
