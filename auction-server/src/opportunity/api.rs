@@ -168,8 +168,8 @@ pub struct GetOpportunitiesQueryParams {
     #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
     #[serde(default, with = "crate::serde::nullable_datetime")]
     pub from_time:      Option<OffsetDateTime>,
-    /// The maximum number of opportunities to return. Capped at 100.
-    #[param(example = "20", value_type = usize)]
+    /// The maximum number of opportunities to return. Capped at 100; if more than 100 requested, at most 100 will be returned.
+    #[param(example = "20", value_type = usize, maximum = 100)]
     #[serde(default = "default_limit")]
     limit:              usize,
 }
