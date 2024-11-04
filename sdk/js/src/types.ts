@@ -244,9 +244,27 @@ export type SvmConstantsConfig = {
 
 export type SvmChainUpdate = components["schemas"]["SvmChainUpdate"];
 
-export type OpportunityDelete = {
+export type OpportunityDeleteSvm = {
   chainId: ChainId;
   permissionAccount: PublicKey;
   program: components["schemas"]["ProgramSvm"];
   router: PublicKey;
 };
+
+export type OpportunityDeleteEvm = {
+  chainId: ChainId;
+  permissionKey: Hex;
+};
+
+export enum ChainType {
+  EVM = "evm",
+  SVM = "svm",
+}
+
+export type OpportunityDelete =
+  | (OpportunityDeleteSvm & {
+      chainType: ChainType.SVM;
+    })
+  | (OpportunityDeleteEvm & {
+      chainType: ChainType.EVM;
+    });

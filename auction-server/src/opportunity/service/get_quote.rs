@@ -218,7 +218,7 @@ impl Service<ChainTypeSvm> {
                         "Auction finished for the opportunity".to_string(),
                     ));
                 if let Err(e) = repo
-                    .remove_opportunity(&db, &opportunity, removal_reason.into())
+                    .remove_opportunity(&db, &opportunity, removal_reason)
                     .await
                 {
                     tracing::error!("Failed to remove opportunity: {:?}", e);

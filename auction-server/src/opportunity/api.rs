@@ -114,6 +114,18 @@ pub struct OpportunityDeleteV1Svm {
     pub program:            ProgramSvm,
 }
 
+/// Opportunity parameters needed for deleting live opportunities.
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct OpportunityDeleteV1Evm {
+    /// The permission key of the opportunity.
+    #[schema(example = "0xdeadbeefcafe", value_type = String)]
+    pub permission_key: Bytes,
+    /// The chain id for the opportunity.
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id:       ChainId,
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "version")]
 pub enum OpportunityDeleteSvm {
@@ -122,12 +134,24 @@ pub enum OpportunityDeleteSvm {
     V1(OpportunityDeleteV1Svm),
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(tag = "version")]
+pub enum OpportunityDeleteEvm {
+    #[serde(rename = "v1")]
+    #[schema(title = "v1")]
+    V1(OpportunityDeleteV1Evm),
+}
+
 /// The input type for deleting opportunities.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(untagged)]
+#[serde(tag = "chain_type")]
 pub enum OpportunityDelete {
+    #[serde(rename = "svm")]
     #[schema(title = "svm")]
     Svm(OpportunityDeleteSvm),
+    #[serde(rename = "evm")]
+    #[schema(title = "evm")]
+    Evm(OpportunityDeleteEvm),
 }
 
 /// The input type for creating a new opportunity.
@@ -608,6 +632,7 @@ impl OpportunityDelete {
     pub fn get_chain_id(&self) -> &ChainId {
         match self {
             OpportunityDelete::Svm(OpportunityDeleteSvm::V1(params)) => &params.chain_id,
+            OpportunityDelete::Evm(OpportunityDeleteEvm::V1(params)) => &params.chain_id,
         }
     }
 }
@@ -786,21 +811,26 @@ pub async fn delete_opportunities(
     State(store): State<Arc<StoreNew>>,
     Json(opportunity_delete): Json<OpportunityDelete>,
 ) -> Result<StatusCode, RestError> {
-    let OpportunityDelete::Svm(OpportunityDeleteSvm::V1(params)) = opportunity_delete;
-    if get_program(&auth)? != params.program {
-        return Err(RestError::Forbidden);
+    match opportunity_delete {
+        OpportunityDelete::Evm(_) => Err(RestError::Forbidden),
+        OpportunityDelete::Svm(params_svm) => {
+            let OpportunityDeleteSvm::V1(params) = params_svm;
+            if get_program(&auth)? != params.program {
+                return Err(RestError::Forbidden);
+            }
+
+            store
+                .opportunity_service_svm
+                .remove_opportunities(RemoveOpportunitiesInput {
+                    chain_id:           params.chain_id,
+                    permission_account: params.permission_account,
+                    router:             params.router,
+                })
+                .await?;
+
+            Ok(StatusCode::NO_CONTENT)
+        }
     }
-
-    store
-        .opportunity_service_svm
-        .remove_opportunities(RemoveOpportunitiesInput {
-            chain_id:           params.chain_id,
-            permission_account: params.permission_account,
-            router:             params.router,
-        })
-        .await?;
-
-    Ok(StatusCode::NO_CONTENT)
 }
 
 pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {

@@ -73,6 +73,7 @@ pub trait Opportunity:
 
     fn new_with_current_time(val: Self::OpportunityCreate) -> Self;
     fn get_models_metadata(&self) -> Self::ModelMetadata;
+    fn get_opportunity_delete(&self) -> api::OpportunityDelete;
     fn get_key(&self) -> OpportunityKey {
         (self.chain_id.clone(), self.permission_key.clone())
     }

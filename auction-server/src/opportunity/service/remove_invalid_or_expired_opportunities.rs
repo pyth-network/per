@@ -8,8 +8,14 @@ use {
         Service,
     },
     crate::{
-        api::RestError,
-        opportunity::entities,
+        api::{
+            ws::UpdateEvent,
+            RestError,
+        },
+        opportunity::entities::{
+            self,
+            Opportunity as _,
+        },
         state::UnixTimestampMicros,
     },
     std::time::{
@@ -25,6 +31,7 @@ where
     Service<T>: Verification<T>,
 {
     pub async fn remove_invalid_or_expired_opportunities(&self) {
+        #[allow(clippy::mutable_key_type)]
         let all_opportunities = self.repo.get_in_memory_opportunities().await;
         for (_, opportunities) in all_opportunities.iter() {
             // check each of the opportunities for this permission key for validity
@@ -59,16 +66,37 @@ where
 
                 if let Some(reason) = reason {
                     tracing::info!(
-                        "Removing Opportunity {} for reason {:?}",
-                        opportunity.id,
-                        reason
+                        opportunity = ?opportunity,
+                        reason = ?reason,
+                        "Removing Opportunity",
                     );
-                    if let Err(e) = self
+                    match self
                         .repo
-                        .remove_opportunity(&self.db, opportunity, reason.into())
+                        .remove_opportunity(&self.db, opportunity, reason)
                         .await
                     {
-                        tracing::error!("Failed to remove opportunity: {}", e);
+                        Ok(()) => {
+                            if self
+                                .repo
+                                .get_in_memory_opportunities_by_key(&opportunity.get_key())
+                                .await
+                                .is_empty()
+                            {
+                                if let Err(e) = self.store.ws.broadcast_sender.send(
+                                    UpdateEvent::RemoveOpportunities(
+                                        opportunity.get_opportunity_delete(),
+                                    ),
+                                ) {
+                                    tracing::error!(
+                                        error = e.to_string(),
+                                        "Failed to broadcast remove opportunity"
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(error = ?e, "Failed to remove opportunity");
+                        }
                     }
                 }
             }

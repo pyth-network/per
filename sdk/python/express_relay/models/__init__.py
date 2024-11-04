@@ -10,6 +10,7 @@ from express_relay.models.evm import (
     Bytes32,
     HexString,
     Address,
+    OpportunityDeleteEvm,
     SignedMessageString,
     OpportunityEvm,
     TokenAmount,
@@ -115,7 +116,8 @@ class OpportunityParams(BaseModel):
 
 Opportunity = Union[OpportunityEvm, OpportunitySvm]
 OpportunityRoot = RootModel[Opportunity]
-OpportunityDelete = OpportunityDeleteSvm
+OpportunityDelete = Union[OpportunityDeleteEvm | OpportunityDeleteSvm]
+OpportunityDeleteRoot = RootModel[OpportunityDelete]
 
 
 class SubscribeMessageParams(BaseModel):

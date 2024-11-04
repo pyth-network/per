@@ -4,7 +4,10 @@ use {
         InMemoryStore,
         Repository,
     },
-    crate::opportunity::entities::Opportunity,
+    crate::opportunity::entities::{
+        self,
+        Opportunity,
+    },
     sqlx::Postgres,
     time::{
         OffsetDateTime,
@@ -17,8 +20,9 @@ impl<T: InMemoryStore> Repository<T> {
         &self,
         db: &sqlx::Pool<Postgres>,
         opportunity: &T::Opportunity,
-        reason: OpportunityRemovalReason,
+        reason: entities::OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
+        let reason: OpportunityRemovalReason = reason.into();
         let now = OffsetDateTime::now_utc();
         sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))

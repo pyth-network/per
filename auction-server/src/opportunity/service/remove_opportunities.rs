@@ -10,7 +10,10 @@ use {
         },
         kernel::entities::ChainId,
         opportunity::{
-            entities,
+            entities::{
+                self,
+                Opportunity as _,
+            },
             repository::{
                 self,
             },

@@ -405,10 +405,35 @@ export interface components {
       slot: number;
     };
     /** @description The input type for deleting opportunities. */
-    OpportunityDelete: components["schemas"]["OpportunityDeleteSvm"];
+    OpportunityDelete:
+      | (components["schemas"]["OpportunityDeleteSvm"] & {
+          /** @enum {string} */
+          chain_type: "svm";
+        })
+      | (components["schemas"]["OpportunityDeleteEvm"] & {
+          /** @enum {string} */
+          chain_type: "evm";
+        });
+    OpportunityDeleteEvm: components["schemas"]["OpportunityDeleteV1Evm"] & {
+      /** @enum {string} */
+      version: "v1";
+    };
     OpportunityDeleteSvm: components["schemas"]["OpportunityDeleteV1Svm"] & {
       /** @enum {string} */
       version: "v1";
+    };
+    /** @description Opportunity parameters needed for deleting live opportunities. */
+    OpportunityDeleteV1Evm: {
+      /**
+       * @description The chain id for the opportunity.
+       * @example solana
+       */
+      chain_id: string;
+      /**
+       * @description The permission key of the opportunity.
+       * @example 0xdeadbeefcafe
+       */
+      permission_key: string;
     };
     /** @description Opportunity parameters needed for deleting live opportunities. */
     OpportunityDeleteV1Svm: {
