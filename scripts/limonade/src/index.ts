@@ -7,11 +7,14 @@ import { limoId, Order } from "@kamino-finance/limo-sdk";
 import bs58 from "bs58";
 import { hideBin } from "yargs/helpers";
 import yargs from "yargs";
-import { Client, OpportunityCreate } from "@pythnetwork/express-relay-js";
+import {
+  ChainType,
+  Client,
+  OpportunityCreate,
+} from "@pythnetwork/express-relay-js";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 
 const lastChange: Record<string, number> = {};
-const existingAccounts = new Set<string>();
 
 const argv = yargs(hideBin(process.argv))
   .option("endpoint", {
@@ -71,39 +74,12 @@ async function run() {
   let { blockhash: latestBlockhash } = await connection.getLatestBlockhash(
     "confirmed"
   );
-  const removeClosedAccounts = async () => {
-    const response = await connection.getProgramAccounts(limoId, {
-      commitment: "confirmed",
-      filters,
-      withContext: true,
-    });
-    existingAccounts.forEach(async (key) => {
-      if (response.value.find((account) => account.pubkey.toBase58() === key)) {
-        return;
-      }
 
-      try {
-        await client.removeOpportunity({
-          program: "limo",
-          chainId: argv.chainId,
-          permissionAccount: new PublicKey(key),
-          router: getPdaAuthority(limoId, globalConfig),
-        });
-        existingAccounts.delete(key);
-      } catch (e) {
-        console.error("Failed to remove opportunity", e);
-      }
-    });
-  };
   const submitExistingOpportunities = async () => {
     const response = await connection.getProgramAccounts(limoId, {
       commitment: "confirmed",
       filters,
       withContext: true,
-    });
-
-    response.value.forEach((account) => {
-      existingAccounts.add(account.pubkey.toBase58());
     });
 
     const payloads: OpportunityCreate[] = response.value
@@ -145,18 +121,17 @@ async function run() {
     limoId,
     async (info, context) => {
       const order = Order.decode(info.accountInfo.data);
-      existingAccounts.add(info.accountId.toBase58());
       if (order.remainingInputAmount.toNumber() === 0) {
         const router = getPdaAuthority(limoId, globalConfig);
 
         try {
           await client.removeOpportunity({
+            chainType: ChainType.SVM,
             program: "limo",
             chainId: argv.chainId,
             permissionAccount: info.accountId,
             router,
           });
-          existingAccounts.delete(info.accountId.toBase58());
         } catch (e) {
           console.error("Failed to remove opportunity", e);
         }
@@ -208,16 +183,8 @@ async function run() {
       await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
     }
   };
-  const removeClosedAccountsLoop = async () => {
-    while (true) {
-      removeClosedAccounts().catch(console.error);
-      // Wait for 30 seconds before running it again
-      await new Promise((resolve) => setTimeout(resolve, 30 * 1000));
-    }
-  };
 
   resubmitOpportunities().catch(console.error);
-  removeClosedAccountsLoop().catch(console.error);
   updateLatestBlockhash().catch(console.error);
 }
 
