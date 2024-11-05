@@ -75,7 +75,6 @@ where
                 RestError::TemporarilyUnavailable
             })?;
 
-        #[allow(clippy::mutable_key_type)]
         let opportunities_map = &self.repo.get_in_memory_opportunities().await;
         tracing::debug!("number of permission keys: {}", opportunities_map.len());
         tracing::debug!(

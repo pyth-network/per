@@ -11,7 +11,6 @@ impl<T: InMemoryStore> Repository<T> {
         &self,
         id: entities::OpportunityId,
     ) -> Option<T::Opportunity> {
-        #[allow(clippy::mutable_key_type)]
         let opportunities = self.get_in_memory_opportunities().await;
         opportunities
             .iter()

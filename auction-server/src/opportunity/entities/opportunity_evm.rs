@@ -77,7 +77,7 @@ impl OpportunityCreate for OpportunityCreateEvm {
     type ApiOpportunityCreate = api::OpportunityCreateEvm;
 
     fn get_key(&self) -> super::OpportunityKey {
-        (
+        super::OpportunityKey(
             self.core_fields.chain_id.clone(),
             self.core_fields.permission_key.clone(),
         )

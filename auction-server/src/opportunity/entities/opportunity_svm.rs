@@ -120,7 +120,7 @@ impl OpportunityCreate for OpportunityCreateSvm {
     type ApiOpportunityCreate = api::OpportunityCreateSvm;
 
     fn get_key(&self) -> super::OpportunityKey {
-        (
+        super::OpportunityKey(
             self.core_fields.chain_id.clone(),
             self.core_fields.permission_key.clone(),
         )

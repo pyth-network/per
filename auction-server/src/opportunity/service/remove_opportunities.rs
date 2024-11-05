@@ -42,7 +42,7 @@ impl Service<ChainTypeSvm> {
                 &self.db,
                 permission_key.clone(),
                 input.chain_id.clone(),
-                &(input.chain_id.clone(), permission_key),
+                &entities::OpportunityKey(input.chain_id.clone(), permission_key),
                 repository::OpportunityRemovalReason::Invalid,
             )
             .await

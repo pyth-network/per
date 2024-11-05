@@ -21,7 +21,9 @@ use {
 };
 
 pub type OpportunityId = Uuid;
-pub type OpportunityKey = (ChainId, PermissionKey);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OpportunityKey(pub ChainId, pub PermissionKey);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunityCoreFields<T: TokenAmount> {
@@ -75,7 +77,7 @@ pub trait Opportunity:
     fn get_models_metadata(&self) -> Self::ModelMetadata;
     fn get_opportunity_delete(&self) -> api::OpportunityDelete;
     fn get_key(&self) -> OpportunityKey {
-        (self.chain_id.clone(), self.permission_key.clone())
+        OpportunityKey(self.chain_id.clone(), self.permission_key.clone())
     }
 }
 

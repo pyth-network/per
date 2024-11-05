@@ -12,9 +12,12 @@ use {
             ws::UpdateEvent,
             RestError,
         },
-        opportunity::entities::{
-            self,
-            Opportunity as _,
+        opportunity::{
+            entities::{
+                self,
+                Opportunity as _,
+            },
+            service::ChainTypeEnum,
         },
         state::UnixTimestampMicros,
     },
@@ -31,7 +34,6 @@ where
     Service<T>: Verification<T>,
 {
     pub async fn remove_invalid_or_expired_opportunities(&self) {
-        #[allow(clippy::mutable_key_type)]
         let all_opportunities = self.repo.get_in_memory_opportunities().await;
         for (_, opportunities) in all_opportunities.iter() {
             // check each of the opportunities for this permission key for validity
@@ -76,6 +78,15 @@ where
                         .await
                     {
                         Ok(()) => {
+                            // TODO Remove this later
+                            // For now we don't want searchers to update any of their code on EVM chains.
+                            // So we are not broadcasting remove opportunities event for EVM chains.
+                            if T::get_type() == ChainTypeEnum::Evm {
+                                continue;
+                            }
+
+                            // If there are no more opportunities with this key, it means all of the
+                            // opportunities have been removed for this key, so we can broadcast remove opportunities event.
                             if self
                                 .repo
                                 .get_in_memory_opportunities_by_key(&opportunity.get_key())
