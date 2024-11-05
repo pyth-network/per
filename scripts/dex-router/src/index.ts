@@ -25,7 +25,6 @@ import * as anchor from "@coral-xyz/anchor";
 import { Decimal } from "decimal.js";
 import * as limo from "@kamino-finance/limo-sdk";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
-import { getVersionedTxSize } from "./utils/size";
 import { LOOKUP_TABLE_ADDRESS, OPPORTUNITY_WAIT_TIME } from "./const";
 
 const MINUTE_IN_SECS = 60;
