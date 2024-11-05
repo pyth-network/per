@@ -13,10 +13,11 @@ from ..program_id import PROGRAM_ID
 
 class GlobalConfigJSON(typing.TypedDict):
     emergency_mode: int
-    local_admins_blocked: int
+    flash_take_order_blocked: int
     new_orders_blocked: int
-    orders_matching_blocked: int
+    orders_taking_blocked: int
     host_fee_bps: int
+    is_order_taking_permissionless: int
     padding0: list[int]
     padding1: list[int]
     pda_authority_previous_lamports_balance: int
@@ -33,11 +34,12 @@ class GlobalConfig:
     discriminator: typing.ClassVar = b"\x95\x08\x9c\xca\xa0\xfc\xb0\xd9"
     layout: typing.ClassVar = borsh.CStruct(
         "emergency_mode" / borsh.U8,
-        "local_admins_blocked" / borsh.U8,
+        "flash_take_order_blocked" / borsh.U8,
         "new_orders_blocked" / borsh.U8,
-        "orders_matching_blocked" / borsh.U8,
+        "orders_taking_blocked" / borsh.U8,
         "host_fee_bps" / borsh.U16,
-        "padding0" / borsh.U8[2],
+        "is_order_taking_permissionless" / borsh.U8,
+        "padding0" / borsh.U8[1],
         "padding1" / borsh.U64[10],
         "pda_authority_previous_lamports_balance" / borsh.U64,
         "total_tip_amount" / borsh.U64,
@@ -48,10 +50,11 @@ class GlobalConfig:
         "padding2" / borsh.U64[247],
     )
     emergency_mode: int
-    local_admins_blocked: int
+    flash_take_order_blocked: int
     new_orders_blocked: int
-    orders_matching_blocked: int
+    orders_taking_blocked: int
     host_fee_bps: int
+    is_order_taking_permissionless: int
     padding0: list[int]
     padding1: list[int]
     pda_authority_previous_lamports_balance: int
@@ -107,10 +110,11 @@ class GlobalConfig:
         dec = GlobalConfig.layout.parse(data[ACCOUNT_DISCRIMINATOR_SIZE:])
         return cls(
             emergency_mode=dec.emergency_mode,
-            local_admins_blocked=dec.local_admins_blocked,
+            flash_take_order_blocked=dec.flash_take_order_blocked,
             new_orders_blocked=dec.new_orders_blocked,
-            orders_matching_blocked=dec.orders_matching_blocked,
+            orders_taking_blocked=dec.orders_taking_blocked,
             host_fee_bps=dec.host_fee_bps,
+            is_order_taking_permissionless=dec.is_order_taking_permissionless,
             padding0=dec.padding0,
             padding1=dec.padding1,
             pda_authority_previous_lamports_balance=dec.pda_authority_previous_lamports_balance,
@@ -125,10 +129,11 @@ class GlobalConfig:
     def to_json(self) -> GlobalConfigJSON:
         return {
             "emergency_mode": self.emergency_mode,
-            "local_admins_blocked": self.local_admins_blocked,
+            "flash_take_order_blocked": self.flash_take_order_blocked,
             "new_orders_blocked": self.new_orders_blocked,
-            "orders_matching_blocked": self.orders_matching_blocked,
+            "orders_taking_blocked": self.orders_taking_blocked,
             "host_fee_bps": self.host_fee_bps,
+            "is_order_taking_permissionless": self.is_order_taking_permissionless,
             "padding0": self.padding0,
             "padding1": self.padding1,
             "pda_authority_previous_lamports_balance": self.pda_authority_previous_lamports_balance,
@@ -144,10 +149,11 @@ class GlobalConfig:
     def from_json(cls, obj: GlobalConfigJSON) -> "GlobalConfig":
         return cls(
             emergency_mode=obj["emergency_mode"],
-            local_admins_blocked=obj["local_admins_blocked"],
+            flash_take_order_blocked=obj["flash_take_order_blocked"],
             new_orders_blocked=obj["new_orders_blocked"],
-            orders_matching_blocked=obj["orders_matching_blocked"],
+            orders_taking_blocked=obj["orders_taking_blocked"],
             host_fee_bps=obj["host_fee_bps"],
+            is_order_taking_permissionless=obj["is_order_taking_permissionless"],
             padding0=obj["padding0"],
             padding1=obj["padding1"],
             pda_authority_previous_lamports_balance=obj[
