@@ -169,11 +169,17 @@ impl ConfigSvm {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum ChainTypeEnum {
+    Evm,
+    Svm,
+}
+
 pub trait ChainType: Send + Sync {
     type Config: Config;
     type InMemoryStore: InMemoryStore;
 
-    fn get_name() -> String;
+    fn get_type() -> ChainTypeEnum;
 }
 
 pub struct ChainTypeEvm;
@@ -183,8 +189,8 @@ impl ChainType for ChainTypeEvm {
     type Config = ConfigEvm;
     type InMemoryStore = InMemoryStoreEvm;
 
-    fn get_name() -> String {
-        "evm".to_string()
+    fn get_type() -> ChainTypeEnum {
+        ChainTypeEnum::Evm
     }
 }
 
@@ -192,8 +198,8 @@ impl ChainType for ChainTypeSvm {
     type Config = ConfigSvm;
     type InMemoryStore = InMemoryStoreSvm;
 
-    fn get_name() -> String {
-        "svm".to_string()
+    fn get_type() -> ChainTypeEnum {
+        ChainTypeEnum::Svm
     }
 }
 

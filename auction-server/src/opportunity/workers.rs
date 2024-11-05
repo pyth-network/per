@@ -22,7 +22,7 @@ where
     Service<T>: Verification<T>,
 {
     tracing::info!(
-        chain_type = T::get_name(),
+        chain_type = ?T::get_type(),
         "Starting opportunity verifier..."
     );
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
@@ -39,7 +39,7 @@ where
         }
     }
     tracing::info!(
-        chain_type = T::get_name(),
+        chain_type = ?T::get_type(),
         "Shutting down opportunity verifier..."
     );
     Ok(())

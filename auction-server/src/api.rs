@@ -350,7 +350,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::QuoteV1Svm,
     opportunity::OpportunityDelete,
     opportunity::OpportunityDeleteSvm,
+    opportunity::OpportunityDeleteEvm,
     opportunity::OpportunityDeleteV1Svm,
+    opportunity::OpportunityDeleteV1Evm,
     opportunity::ProgramSvm,
 
     ErrorBodyResponse,

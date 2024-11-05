@@ -64,13 +64,20 @@ impl Opportunity for OpportunityEvm {
             target_calldata:   self.target_calldata.clone(),
         }
     }
+
+    fn get_opportunity_delete(&self) -> api::OpportunityDelete {
+        api::OpportunityDelete::Evm(api::OpportunityDeleteEvm::V1(api::OpportunityDeleteV1Evm {
+            permission_key: self.core_fields.permission_key.clone(),
+            chain_id:       self.core_fields.chain_id.clone(),
+        }))
+    }
 }
 
 impl OpportunityCreate for OpportunityCreateEvm {
     type ApiOpportunityCreate = api::OpportunityCreateEvm;
 
     fn get_key(&self) -> super::OpportunityKey {
-        (
+        super::OpportunityKey(
             self.core_fields.chain_id.clone(),
             self.core_fields.permission_key.clone(),
         )

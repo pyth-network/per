@@ -45,6 +45,7 @@ from express_relay.models import (
     ClientMessage,
     BidResponseRoot,
     OpportunityDelete,
+    OpportunityDeleteRoot,
 )
 from express_relay.models.base import UnsupportedOpportunityVersionException
 from express_relay.models.evm import OpportunityEvm
@@ -376,10 +377,11 @@ class ExpressRelayClient:
 
                 elif msg_json.get("type") == "remove_opportunities":
                     if remove_opportunities_callback is not None:
-                        remove_opportunities = OpportunityDelete.model_validate(
+                        remove_opportunities = OpportunityDeleteRoot.model_validate(
                             msg_json["opportunity_delete"]
                         )
-                        asyncio.create_task(remove_opportunities_callback(remove_opportunities))
+                        if remove_opportunities:
+                            asyncio.create_task(remove_opportunities_callback(remove_opportunities))
 
             elif msg_json.get("id"):
                 future = self.ws_msg_futures.pop(msg_json["id"])

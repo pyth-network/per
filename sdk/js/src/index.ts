@@ -19,6 +19,7 @@ import {
   TokenAmount,
   SvmChainUpdate,
   OpportunityDelete,
+  ChainType,
 } from "./types";
 import {
   Connection,
@@ -169,14 +170,26 @@ export class Client {
         }
       } else if ("type" in message && message.type === "remove_opportunities") {
         if (typeof this.websocketRemoveOpportunitiesCallback === "function") {
-          await this.websocketRemoveOpportunitiesCallback({
-            chainId: message.opportunity_delete.chain_id,
-            program: message.opportunity_delete.program,
-            permissionAccount: new PublicKey(
-              message.opportunity_delete.permission_account
-            ),
-            router: new PublicKey(message.opportunity_delete.router),
-          });
+          const opportunityDelete: OpportunityDelete =
+            message.opportunity_delete.chain_type === ChainType.EVM
+              ? {
+                  chainType: ChainType.EVM,
+                  chainId: message.opportunity_delete.chain_id,
+                  permissionKey: checkHex(
+                    message.opportunity_delete.permission_key
+                  ),
+                }
+              : {
+                  chainType: ChainType.SVM,
+                  chainId: message.opportunity_delete.chain_id,
+                  program: message.opportunity_delete.program,
+                  permissionAccount: new PublicKey(
+                    message.opportunity_delete.permission_account
+                  ),
+                  router: new PublicKey(message.opportunity_delete.router),
+                };
+
+          await this.websocketRemoveOpportunitiesCallback(opportunityDelete);
         }
       } else if ("id" in message && message.id) {
         // Response to a request sent earlier via the websocket with the same id
@@ -366,12 +379,17 @@ export class Client {
    * @param opportunity Opportunity to be removed
    */
   async removeOpportunity(opportunity: OpportunityDelete) {
+    if (opportunity.chainType === ChainType.EVM) {
+      throw new ClientError("Only SVM opportunities can be removed");
+    }
+
     if (opportunity.program !== "limo") {
       throw new ClientError("Only limo opportunities can be removed");
     }
 
     const client = createClient<paths>(this.clientOptions);
     const body = {
+      chain_type: opportunity.chainType,
       chain_id: opportunity.chainId,
       version: "v1" as const,
       program: opportunity.program,

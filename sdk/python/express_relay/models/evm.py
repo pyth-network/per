@@ -12,6 +12,7 @@ from typing_extensions import Annotated
 from express_relay.models.base import (
     IntString,
     UUIDString,
+    UnsupportedOpportunityDeleteVersionException,
     UnsupportedOpportunityVersionException,
     BidStatus,
 )
@@ -197,3 +198,25 @@ class BidResponseEvm(BaseModel):
     initiation_time: datetime
     profile_id: str | None = Field(default=None)
     gas_limit: IntString
+
+
+class OpportunityDeleteEvm(BaseModel):
+    """
+    Attributes:
+        chain_id: The chain ID for opportunities to be removed.
+        permission_key: The permission key for the opportunities to be removed.
+    """
+    chain_id: str
+    permission_key: HexString
+
+    supported_versions: ClassVar[list[str]] = ["v1"]
+    chain_type: ClassVar[str] = "evm"
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_version(cls, data):
+        if data["version"] not in cls.supported_versions:
+            raise UnsupportedOpportunityDeleteVersionException(
+                f"Cannot handle opportunity version: {data['version']}. Please upgrade your client."
+            )
+        return data

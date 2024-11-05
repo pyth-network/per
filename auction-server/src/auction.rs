@@ -13,12 +13,15 @@ use {
             PermissionKeySvm,
         },
         models,
-        opportunity::service::{
-            get_live_opportunities::GetOpportunitiesInput,
-            ChainType as OpportunityChainType,
-            ChainTypeEvm as OpportunityChainTypeEvm,
-            ChainTypeSvm as OpportunityChainTypeSvm,
-            Service as OpportunityService,
+        opportunity::{
+            self,
+            service::{
+                get_live_opportunities::GetOpportunitiesInput,
+                ChainType as OpportunityChainType,
+                ChainTypeEvm as OpportunityChainTypeEvm,
+                ChainTypeSvm as OpportunityChainTypeSvm,
+                Service as OpportunityService,
+            },
         },
         server::{
             EXIT_CHECK_INTERVAL,
@@ -1224,7 +1227,10 @@ async fn verify_signatures_svm(
             let opportunities = store_new
                 .opportunity_service_svm
                 .get_live_opportunities(GetOpportunitiesInput {
-                    key: (bid.chain_id.clone(), permission_key.clone()),
+                    key: opportunity::entities::OpportunityKey(
+                        bid.chain_id.clone(),
+                        permission_key.clone(),
+                    ),
                 })
                 .await;
             opportunities.into_iter().any(|opportunity| {
@@ -1469,7 +1475,10 @@ pub trait ChainStore:
         !self
             .get_opportunity_service(store_new)
             .get_live_opportunities(GetOpportunitiesInput {
-                key: (self.get_name().clone(), permission_key.clone()),
+                key: opportunity::entities::OpportunityKey(
+                    self.get_name().clone(),
+                    permission_key.clone(),
+                ),
             })
             .await
             .is_empty()

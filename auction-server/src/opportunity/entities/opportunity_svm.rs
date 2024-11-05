@@ -105,13 +105,22 @@ impl Opportunity for OpportunitySvm {
             slot: self.slot,
         }
     }
+
+    fn get_opportunity_delete(&self) -> api::OpportunityDelete {
+        api::OpportunityDelete::Svm(api::OpportunityDeleteSvm::V1(api::OpportunityDeleteV1Svm {
+            chain_id:           self.chain_id.clone(),
+            permission_account: self.permission_account,
+            router:             self.router,
+            program:            self.program.clone().into(),
+        }))
+    }
 }
 
 impl OpportunityCreate for OpportunityCreateSvm {
     type ApiOpportunityCreate = api::OpportunityCreateSvm;
 
     fn get_key(&self) -> super::OpportunityKey {
-        (
+        super::OpportunityKey(
             self.core_fields.chain_id.clone(),
             self.core_fields.permission_key.clone(),
         )
@@ -298,15 +307,6 @@ impl OpportunitySvm {
 
     pub fn get_permission_key(router: Pubkey, permission_account: Pubkey) -> PermissionKey {
         PermissionKey::from([router.to_bytes(), permission_account.to_bytes()].concat())
-    }
-
-    pub fn get_opportunity_delete(&self) -> api::OpportunityDelete {
-        api::OpportunityDelete::Svm(api::OpportunityDeleteSvm::V1(api::OpportunityDeleteV1Svm {
-            chain_id:           self.chain_id.clone(),
-            permission_account: self.permission_account,
-            router:             self.router,
-            program:            self.program.clone().into(),
-        }))
     }
 }
 

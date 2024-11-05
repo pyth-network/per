@@ -346,6 +346,7 @@ class OpportunityDeleteSvm(BaseModel):
     version: str
 
     supported_versions: ClassVar[list[str]] = ["v1"]
+    chain_type: ClassVar[str] = "svm"
 
     @model_validator(mode="before")
     @classmethod
