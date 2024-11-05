@@ -4,7 +4,7 @@ import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 const jupiterBaseUrl = "https://quote-api.jup.ag/v6/";
 const jupiterQuoteUrl = new URL("quote", jupiterBaseUrl);
 const jupiterSwapIxsUrl = new URL("swap-instructions", jupiterBaseUrl);
-const maxAccounts = 20;
+const maxAccounts = 30;
 
 export class JupiterRouter implements Router {
   private chainId: string;
