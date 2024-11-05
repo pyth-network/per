@@ -16,9 +16,8 @@ async function makeLookupTable(
   connection: Connection,
   auth: Keypair
 ): Promise<PublicKey> {
-  const slot = await connection.getSlot(); // Current slot number
+  const slot = await connection.getSlot();
 
-  // Instruction to create the address lookup table
   const [lookupTableInstruction, lookupTableAddress] =
     AddressLookupTableProgram.createLookupTable({
       authority: auth.publicKey,
@@ -27,13 +26,8 @@ async function makeLookupTable(
     });
 
   console.log(`payer: ${auth.publicKey.toBase58()}`);
-
-  // Create a transaction
   const transaction = new Transaction().add(lookupTableInstruction);
-
-  // Send the transaction
   await sendAndConfirmTransaction(connection, transaction, [auth]);
-
   console.log(
     `Lookup Table Created at Address: ${lookupTableAddress.toBase58()}`
   );
