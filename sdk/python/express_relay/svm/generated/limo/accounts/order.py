@@ -27,7 +27,9 @@ class OrderJSON(typing.TypedDict):
     order_type: int
     status: int
     in_vault_bump: int
+    flash_ix_lock: int
     padding0: list[int]
+    last_updated_timestamp: int
     padding: list[int]
 
 
@@ -50,8 +52,10 @@ class Order:
         "order_type" / borsh.U8,
         "status" / borsh.U8,
         "in_vault_bump" / borsh.U8,
-        "padding0" / borsh.U8[5],
-        "padding" / borsh.U64[21],
+        "flash_ix_lock" / borsh.U8,
+        "padding0" / borsh.U8[4],
+        "last_updated_timestamp" / borsh.U64,
+        "padding" / borsh.U64[20],
     )
     global_config: Pubkey
     maker: Pubkey
@@ -68,7 +72,9 @@ class Order:
     order_type: int
     status: int
     in_vault_bump: int
+    flash_ix_lock: int
     padding0: list[int]
+    last_updated_timestamp: int
     padding: list[int]
 
     @classmethod
@@ -130,7 +136,9 @@ class Order:
             order_type=dec.order_type,
             status=dec.status,
             in_vault_bump=dec.in_vault_bump,
+            flash_ix_lock=dec.flash_ix_lock,
             padding0=dec.padding0,
+            last_updated_timestamp=dec.last_updated_timestamp,
             padding=dec.padding,
         )
 
@@ -151,7 +159,9 @@ class Order:
             "order_type": self.order_type,
             "status": self.status,
             "in_vault_bump": self.in_vault_bump,
+            "flash_ix_lock": self.flash_ix_lock,
             "padding0": self.padding0,
+            "last_updated_timestamp": self.last_updated_timestamp,
             "padding": self.padding,
         }
 
@@ -173,6 +183,8 @@ class Order:
             order_type=obj["order_type"],
             status=obj["status"],
             in_vault_bump=obj["in_vault_bump"],
+            flash_ix_lock=obj["flash_ix_lock"],
             padding0=obj["padding0"],
+            last_updated_timestamp=obj["last_updated_timestamp"],
             padding=obj["padding"],
         )

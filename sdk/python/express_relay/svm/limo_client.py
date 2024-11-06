@@ -265,9 +265,10 @@ class LimoClient:
                     input_amount=int(
                         input_amount_decimals * (10**input_mint_decimals)
                     ),
-                    output_amount=int(
+                    min_output_amount=int(
                         output_amount_decimals * (10**output_mint_decimals)
                     ),
+                    tip_amount_permissionless_taking=0
                 ),
                 {
                     "taker": taker,

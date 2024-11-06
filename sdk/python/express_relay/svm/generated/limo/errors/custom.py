@@ -94,11 +94,11 @@ class OrderInputAmountInvalid(ProgramError):
 
 class OrderOutputAmountInvalid(ProgramError):
     def __init__(self) -> None:
-        super().__init__(6010, "Order input amount invalid")
+        super().__init__(6010, "Order output amount invalid")
 
     code = 6010
     name = "OrderOutputAmountInvalid"
-    msg = "Order input amount invalid"
+    msg = "Order output amount invalid"
 
 
 class InvalidHostFee(ProgramError):
@@ -146,6 +146,144 @@ class InvalidHostTipBalance(ProgramError):
     msg = "Host tup amount is less than accounted for"
 
 
+class OrderWithinFlashOperation(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(
+            6016, "Order within flash operation - all otehr actions are blocked"
+        )
+
+    code = 6016
+    name = "OrderWithinFlashOperation"
+    msg = "Order within flash operation - all otehr actions are blocked"
+
+
+class CPINotAllowed(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6017, "CPI not allowed")
+
+    code = 6017
+    name = "CPINotAllowed"
+    msg = "CPI not allowed"
+
+
+class FlashTakeOrderBlocked(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6018, "Flash take_order is blocked")
+
+    code = 6018
+    name = "FlashTakeOrderBlocked"
+    msg = "Flash take_order is blocked"
+
+
+class FlashTxWithUnexpectedIxs(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(
+            6019,
+            "Some unexpected instructions are present in the tx. Either before or after the flash ixs, or some ix target the same program between",
+        )
+
+    code = 6019
+    name = "FlashTxWithUnexpectedIxs"
+    msg = "Some unexpected instructions are present in the tx. Either before or after the flash ixs, or some ix target the same program between"
+
+
+class FlashIxsNotEnded(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(
+            6020, "Flash ixs initiated without the closing ix in the transaction"
+        )
+
+    code = 6020
+    name = "FlashIxsNotEnded"
+    msg = "Flash ixs initiated without the closing ix in the transaction"
+
+
+class FlashIxsNotStarted(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(
+            6021, "Flash ixs ended without the starting ix in the transaction"
+        )
+
+    code = 6021
+    name = "FlashIxsNotStarted"
+    msg = "Flash ixs ended without the starting ix in the transaction"
+
+
+class FlashIxsAccountMismatch(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6022, "Some accounts differ between the two flash ixs")
+
+    code = 6022
+    name = "FlashIxsAccountMismatch"
+    msg = "Some accounts differ between the two flash ixs"
+
+
+class FlashIxsArgsMismatch(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6023, "Some args differ between the two flash ixs")
+
+    code = 6023
+    name = "FlashIxsArgsMismatch"
+    msg = "Some args differ between the two flash ixs"
+
+
+class OrderNotWithinFlashOperation(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6024, "Order is not within flash operation")
+
+    code = 6024
+    name = "OrderNotWithinFlashOperation"
+    msg = "Order is not within flash operation"
+
+
+class EmergencyModeEnabled(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6025, "Emergency mode is enabled")
+
+    code = 6025
+    name = "EmergencyModeEnabled"
+    msg = "Emergency mode is enabled"
+
+
+class CreatingNewOrdersBlocked(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6026, "Creating new ordersis blocked")
+
+    code = 6026
+    name = "CreatingNewOrdersBlocked"
+    msg = "Creating new ordersis blocked"
+
+
+class OrderTakingBlocked(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6027, "Orders taking is blocked")
+
+    code = 6027
+    name = "OrderTakingBlocked"
+    msg = "Orders taking is blocked"
+
+
+class OrderInputAmountTooLarge(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6028, "Order input amount larger than the remaining")
+
+    code = 6028
+    name = "OrderInputAmountTooLarge"
+    msg = "Order input amount larger than the remaining"
+
+
+class PermissionRequiredPermissionlessNotEnabled(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(
+            6029,
+            "Permissionless order taking not enabled, please provide permission account",
+        )
+
+    code = 6029
+    name = "PermissionRequiredPermissionlessNotEnabled"
+    msg = "Permissionless order taking not enabled, please provide permission account"
+
+
 CustomError = typing.Union[
     OrderCanNotBeCanceled,
     OrderNotActive,
@@ -163,6 +301,20 @@ CustomError = typing.Union[
     InvalidTipBalance,
     InvalidTipTransferAmount,
     InvalidHostTipBalance,
+    OrderWithinFlashOperation,
+    CPINotAllowed,
+    FlashTakeOrderBlocked,
+    FlashTxWithUnexpectedIxs,
+    FlashIxsNotEnded,
+    FlashIxsNotStarted,
+    FlashIxsAccountMismatch,
+    FlashIxsArgsMismatch,
+    OrderNotWithinFlashOperation,
+    EmergencyModeEnabled,
+    CreatingNewOrdersBlocked,
+    OrderTakingBlocked,
+    OrderInputAmountTooLarge,
+    PermissionRequiredPermissionlessNotEnabled,
 ]
 CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6000: OrderCanNotBeCanceled(),
@@ -181,6 +333,20 @@ CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6013: InvalidTipBalance(),
     6014: InvalidTipTransferAmount(),
     6015: InvalidHostTipBalance(),
+    6016: OrderWithinFlashOperation(),
+    6017: CPINotAllowed(),
+    6018: FlashTakeOrderBlocked(),
+    6019: FlashTxWithUnexpectedIxs(),
+    6020: FlashIxsNotEnded(),
+    6021: FlashIxsNotStarted(),
+    6022: FlashIxsAccountMismatch(),
+    6023: FlashIxsArgsMismatch(),
+    6024: OrderNotWithinFlashOperation(),
+    6025: EmergencyModeEnabled(),
+    6026: CreatingNewOrdersBlocked(),
+    6027: OrderTakingBlocked(),
+    6028: OrderInputAmountTooLarge(),
+    6029: PermissionRequiredPermissionlessNotEnabled(),
 }
 
 

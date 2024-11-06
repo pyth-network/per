@@ -1,26 +1,20 @@
 from __future__ import annotations
 import typing
 from solders.pubkey import Pubkey
-from solders.system_program import ID as SYS_PROGRAM_ID
 from solders.instruction import Instruction, AccountMeta
 import borsh_construct as borsh
 from ..program_id import PROGRAM_ID
 
 
-class TakeOrderArgs(typing.TypedDict):
+class FlashTakeOrderEndArgs(typing.TypedDict):
     input_amount: int
     min_output_amount: int
-    tip_amount_permissionless_taking: int
 
 
-layout = borsh.CStruct(
-    "input_amount" / borsh.U64,
-    "min_output_amount" / borsh.U64,
-    "tip_amount_permissionless_taking" / borsh.U64,
-)
+layout = borsh.CStruct("input_amount" / borsh.U64, "min_output_amount" / borsh.U64)
 
 
-class TakeOrderAccounts(typing.TypedDict):
+class FlashTakeOrderEndAccounts(typing.TypedDict):
     taker: Pubkey
     maker: Pubkey
     global_config: Pubkey
@@ -35,15 +29,15 @@ class TakeOrderAccounts(typing.TypedDict):
     express_relay: Pubkey
     express_relay_metadata: Pubkey
     sysvar_instructions: Pubkey
-    permission: typing.Optional[Pubkey]
+    permission: Pubkey
     config_router: Pubkey
     input_token_program: Pubkey
     output_token_program: Pubkey
 
 
-def take_order(
-    args: TakeOrderArgs,
-    accounts: TakeOrderAccounts,
+def flash_take_order_end(
+    args: FlashTakeOrderEndArgs,
+    accounts: FlashTakeOrderEndAccounts,
     program_id: Pubkey = PROGRAM_ID,
     remaining_accounts: typing.Optional[typing.List[AccountMeta]] = None,
 ) -> Instruction:
@@ -80,9 +74,7 @@ def take_order(
         AccountMeta(
             pubkey=accounts["sysvar_instructions"], is_signer=False, is_writable=False
         ),
-        AccountMeta(pubkey=accounts["permission"], is_signer=False, is_writable=False)
-        if accounts["permission"]
-        else AccountMeta(pubkey=program_id, is_signer=False, is_writable=False),
+        AccountMeta(pubkey=accounts["permission"], is_signer=False, is_writable=False),
         AccountMeta(
             pubkey=accounts["config_router"], is_signer=False, is_writable=False
         ),
@@ -92,18 +84,14 @@ def take_order(
         AccountMeta(
             pubkey=accounts["output_token_program"], is_signer=False, is_writable=False
         ),
-        AccountMeta(pubkey=SYS_PROGRAM_ID, is_signer=False, is_writable=False),
     ]
     if remaining_accounts is not None:
         keys += remaining_accounts
-    identifier = b"\xa3\xd0\x14\xac\xdfA\xff\xe4"
+    identifier = b"\xce\xf2\xd7\xbb\x86!\xe0\x94"
     encoded_args = layout.build(
         {
             "input_amount": args["input_amount"],
             "min_output_amount": args["min_output_amount"],
-            "tip_amount_permissionless_taking": args[
-                "tip_amount_permissionless_taking"
-            ],
         }
     )
     data = identifier + encoded_args

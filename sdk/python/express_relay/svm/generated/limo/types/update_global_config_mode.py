@@ -9,16 +9,16 @@ class UpdateEmergencyModeJSON(typing.TypedDict):
     kind: typing.Literal["UpdateEmergencyMode"]
 
 
-class UpdateBlockLocalAdminsJSON(typing.TypedDict):
-    kind: typing.Literal["UpdateBlockLocalAdmins"]
+class UpdateFlashTakeOrderBlockedJSON(typing.TypedDict):
+    kind: typing.Literal["UpdateFlashTakeOrderBlocked"]
 
 
 class UpdateBlockNewOrdersJSON(typing.TypedDict):
     kind: typing.Literal["UpdateBlockNewOrders"]
 
 
-class UpdateBlockOrdersTakingJSON(typing.TypedDict):
-    kind: typing.Literal["UpdateBlockOrdersTaking"]
+class UpdateBlockOrderTakingJSON(typing.TypedDict):
+    kind: typing.Literal["UpdateBlockOrderTaking"]
 
 
 class UpdateHostFeeBpsJSON(typing.TypedDict):
@@ -27,6 +27,10 @@ class UpdateHostFeeBpsJSON(typing.TypedDict):
 
 class UpdateAdminAuthorityJSON(typing.TypedDict):
     kind: typing.Literal["UpdateAdminAuthority"]
+
+
+class UpdateOrderTakingPermissionlessJSON(typing.TypedDict):
+    kind: typing.Literal["UpdateOrderTakingPermissionless"]
 
 
 @dataclass
@@ -48,20 +52,20 @@ class UpdateEmergencyMode:
 
 
 @dataclass
-class UpdateBlockLocalAdmins:
+class UpdateFlashTakeOrderBlocked:
     discriminator: typing.ClassVar = 1
-    kind: typing.ClassVar = "UpdateBlockLocalAdmins"
+    kind: typing.ClassVar = "UpdateFlashTakeOrderBlocked"
 
     @classmethod
-    def to_json(cls) -> UpdateBlockLocalAdminsJSON:
-        return UpdateBlockLocalAdminsJSON(
-            kind="UpdateBlockLocalAdmins",
+    def to_json(cls) -> UpdateFlashTakeOrderBlockedJSON:
+        return UpdateFlashTakeOrderBlockedJSON(
+            kind="UpdateFlashTakeOrderBlocked",
         )
 
     @classmethod
     def to_encodable(cls) -> dict:
         return {
-            "UpdateBlockLocalAdmins": {},
+            "UpdateFlashTakeOrderBlocked": {},
         }
 
 
@@ -84,20 +88,20 @@ class UpdateBlockNewOrders:
 
 
 @dataclass
-class UpdateBlockOrdersTaking:
+class UpdateBlockOrderTaking:
     discriminator: typing.ClassVar = 3
-    kind: typing.ClassVar = "UpdateBlockOrdersTaking"
+    kind: typing.ClassVar = "UpdateBlockOrderTaking"
 
     @classmethod
-    def to_json(cls) -> UpdateBlockOrdersTakingJSON:
-        return UpdateBlockOrdersTakingJSON(
-            kind="UpdateBlockOrdersTaking",
+    def to_json(cls) -> UpdateBlockOrderTakingJSON:
+        return UpdateBlockOrderTakingJSON(
+            kind="UpdateBlockOrderTaking",
         )
 
     @classmethod
     def to_encodable(cls) -> dict:
         return {
-            "UpdateBlockOrdersTaking": {},
+            "UpdateBlockOrderTaking": {},
         }
 
 
@@ -137,21 +141,41 @@ class UpdateAdminAuthority:
         }
 
 
+@dataclass
+class UpdateOrderTakingPermissionless:
+    discriminator: typing.ClassVar = 6
+    kind: typing.ClassVar = "UpdateOrderTakingPermissionless"
+
+    @classmethod
+    def to_json(cls) -> UpdateOrderTakingPermissionlessJSON:
+        return UpdateOrderTakingPermissionlessJSON(
+            kind="UpdateOrderTakingPermissionless",
+        )
+
+    @classmethod
+    def to_encodable(cls) -> dict:
+        return {
+            "UpdateOrderTakingPermissionless": {},
+        }
+
+
 UpdateGlobalConfigModeKind = typing.Union[
     UpdateEmergencyMode,
-    UpdateBlockLocalAdmins,
+    UpdateFlashTakeOrderBlocked,
     UpdateBlockNewOrders,
-    UpdateBlockOrdersTaking,
+    UpdateBlockOrderTaking,
     UpdateHostFeeBps,
     UpdateAdminAuthority,
+    UpdateOrderTakingPermissionless,
 ]
 UpdateGlobalConfigModeJSON = typing.Union[
     UpdateEmergencyModeJSON,
-    UpdateBlockLocalAdminsJSON,
+    UpdateFlashTakeOrderBlockedJSON,
     UpdateBlockNewOrdersJSON,
-    UpdateBlockOrdersTakingJSON,
+    UpdateBlockOrderTakingJSON,
     UpdateHostFeeBpsJSON,
     UpdateAdminAuthorityJSON,
+    UpdateOrderTakingPermissionlessJSON,
 ]
 
 
@@ -160,41 +184,46 @@ def from_decoded(obj: dict) -> UpdateGlobalConfigModeKind:
         raise ValueError("Invalid enum object")
     if "UpdateEmergencyMode" in obj:
         return UpdateEmergencyMode()
-    if "UpdateBlockLocalAdmins" in obj:
-        return UpdateBlockLocalAdmins()
+    if "UpdateFlashTakeOrderBlocked" in obj:
+        return UpdateFlashTakeOrderBlocked()
     if "UpdateBlockNewOrders" in obj:
         return UpdateBlockNewOrders()
-    if "UpdateBlockOrdersTaking" in obj:
-        return UpdateBlockOrdersTaking()
+    if "UpdateBlockOrderTaking" in obj:
+        return UpdateBlockOrderTaking()
     if "UpdateHostFeeBps" in obj:
         return UpdateHostFeeBps()
     if "UpdateAdminAuthority" in obj:
         return UpdateAdminAuthority()
+    if "UpdateOrderTakingPermissionless" in obj:
+        return UpdateOrderTakingPermissionless()
     raise ValueError("Invalid enum object")
 
 
 def from_json(obj: UpdateGlobalConfigModeJSON) -> UpdateGlobalConfigModeKind:
     if obj["kind"] == "UpdateEmergencyMode":
         return UpdateEmergencyMode()
-    if obj["kind"] == "UpdateBlockLocalAdmins":
-        return UpdateBlockLocalAdmins()
+    if obj["kind"] == "UpdateFlashTakeOrderBlocked":
+        return UpdateFlashTakeOrderBlocked()
     if obj["kind"] == "UpdateBlockNewOrders":
         return UpdateBlockNewOrders()
-    if obj["kind"] == "UpdateBlockOrdersTaking":
-        return UpdateBlockOrdersTaking()
+    if obj["kind"] == "UpdateBlockOrderTaking":
+        return UpdateBlockOrderTaking()
     if obj["kind"] == "UpdateHostFeeBps":
         return UpdateHostFeeBps()
     if obj["kind"] == "UpdateAdminAuthority":
         return UpdateAdminAuthority()
+    if obj["kind"] == "UpdateOrderTakingPermissionless":
+        return UpdateOrderTakingPermissionless()
     kind = obj["kind"]
     raise ValueError(f"Unrecognized enum kind: {kind}")
 
 
 layout = EnumForCodegen(
     "UpdateEmergencyMode" / borsh.CStruct(),
-    "UpdateBlockLocalAdmins" / borsh.CStruct(),
+    "UpdateFlashTakeOrderBlocked" / borsh.CStruct(),
     "UpdateBlockNewOrders" / borsh.CStruct(),
-    "UpdateBlockOrdersTaking" / borsh.CStruct(),
+    "UpdateBlockOrderTaking" / borsh.CStruct(),
     "UpdateHostFeeBps" / borsh.CStruct(),
     "UpdateAdminAuthority" / borsh.CStruct(),
+    "UpdateOrderTakingPermissionless" / borsh.CStruct(),
 )
