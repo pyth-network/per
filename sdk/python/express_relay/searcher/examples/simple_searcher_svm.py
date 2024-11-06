@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import random
 import typing
 from decimal import Decimal
 
@@ -44,6 +45,8 @@ class SimpleSearcherSvm:
         chain_id: str,
         svm_rpc_endpoint: str,
         fill_rate: int,
+        with_latency: bool,
+        bid_margin: int,
         api_key: str | None = None,
     ):
         self.client = ExpressRelayClient(
@@ -63,6 +66,8 @@ class SimpleSearcherSvm:
         self.rpc_client = AsyncClient(svm_rpc_endpoint)
         self.limo_client = LimoClient(self.rpc_client)
         self.fill_rate = fill_rate
+        self.with_latency = with_latency
+        self.bid_margin = bid_margin
         self.express_relay_metadata = None
         self.mint_decimals_cache = {}
         self.recent_blockhash = {}
@@ -73,6 +78,9 @@ class SimpleSearcherSvm:
         Args:
             opp: An object representing a single opportunity.
         """
+        if self.with_latency:
+            await asyncio.sleep(0.5 * random.random())
+
         bid = await self.assess_opportunity(typing.cast(OpportunitySvm, opp))
 
         if bid:
@@ -158,11 +166,15 @@ class SimpleSearcherSvm:
             if self.express_relay_metadata is None:
                 raise ValueError("Express relay metadata account not found")
 
+        bid_amount = self.bid_amount
+        if self.bid_margin != 0:
+            bid_amount += random.randint(-self.bid_margin, self.bid_margin)
+
         submit_bid_ix = self.client.get_svm_submit_bid_instruction(
             searcher=self.private_key.pubkey(),
             router=router,
             permission_key=order["address"],
-            bid_amount=self.bid_amount,
+            bid_amount=bid_amount,
             deadline=DEADLINE,
             chain_id=self.chain_id,
             fee_receiver_relayer=self.express_relay_metadata.fee_receiver_relayer,
@@ -240,6 +252,20 @@ async def main():
         default=100,
         help="How much of the initial order size to fill in percentage. Default is 100%",
     )
+    parser.add_argument(
+        "--with-latency",
+        required=False,
+        default=False,
+        action="store_true",
+        help="Whether to add random latency to the bid submission. Default is false",
+    )
+    parser.add_argument(
+        "--bid-margin",
+        required=False,
+        type=int,
+        default=0,
+        help="The margin to add or subtract from the bid. For example, 1 means the bid range is [bid - 1, bid + 1]. Default is 0",
+    )
 
     args = parser.parse_args()
 
@@ -258,6 +284,7 @@ async def main():
         with open(args.private_key_json_file, "r") as f:
             searcher_keypair = Keypair.from_json(f.read())
 
+    print(args)
     logger.info("Using Keypair with pubkey: %s", searcher_keypair.pubkey())
     searcher = SimpleSearcherSvm(
         args.endpoint_express_relay,
@@ -266,6 +293,8 @@ async def main():
         args.chain_id,
         args.endpoint_svm,
         args.fill_rate,
+        args.with_latency,
+        args.bid_margin,
         args.api_key,
     )
 
