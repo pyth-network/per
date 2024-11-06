@@ -1,6 +1,6 @@
 use {
     crate::{
-        auction::get_express_relay_contract,
+        auction_old::get_express_relay_contract,
         config::{
             ChainId,
             Config,

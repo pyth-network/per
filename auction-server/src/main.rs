@@ -29,7 +29,8 @@ use {
 };
 
 mod api;
-mod auction;
+mod auction_old;
+mod bid;
 mod config;
 mod kernel;
 mod models;

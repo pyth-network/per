@@ -9,7 +9,7 @@ use {
             Auth,
             RestError,
         },
-        auction::{
+        auction_old::{
             get_express_relay_contract,
             ChainStore,
             SignableExpressRelayContract,
@@ -1264,7 +1264,7 @@ impl Store {
         Ok(())
     }
 
-    pub async fn get_bid_status(&self, bid_id: BidId) -> Result<Json<BidStatus>, RestError> {
+    pub async fn _get_bid_status(&self, bid_id: BidId) -> Result<Json<BidStatus>, RestError> {
         // TODO handle it in a single query (Maybe with intermediate type)
         let bid: models::Bid = sqlx::query_as("SELECT * FROM bid WHERE id = $1")
             .bind(bid_id)

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use {
     crate::{
         api::{
@@ -1723,7 +1725,6 @@ impl ChainStore for ChainStoreSvm {
         }
         Ok(vec![])
     }
-
 
     #[tracing::instrument(skip_all)]
     async fn submit_bids(

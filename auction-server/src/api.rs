@@ -1,24 +1,14 @@
 use {
     crate::{
-        api::{
-            bid::{
-                BidResult,
-                SimulatedBids,
-            },
-            ws::{
-                APIResponse,
-                ClientMessage,
-                ClientRequest,
-                ServerResultMessage,
-                ServerResultResponse,
-                ServerUpdateResponse,
-            },
+        api::ws::{
+            APIResponse,
+            ClientMessage,
+            ClientRequest,
+            ServerResultMessage,
+            ServerResultResponse,
+            ServerUpdateResponse,
         },
-        auction::{
-            Bid,
-            BidEvm,
-            BidSvm,
-        },
+        bid::api as bid,
         config::RunOptions,
         models,
         opportunity::api as opportunity,
@@ -27,13 +17,6 @@ use {
             SHOULD_EXIT,
         },
         state::{
-            BidStatus,
-            BidStatusEvm,
-            BidStatusSvm,
-            BidStatusWithId,
-            SimulatedBid,
-            SimulatedBidEvm,
-            SimulatedBidSvm,
             StoreNew,
             SvmChainUpdate,
         },
@@ -103,7 +86,6 @@ async fn root() -> String {
     format!("Express Relay Auction Server API {}", crate_version!())
 }
 
-mod bid;
 pub mod profile;
 pub(crate) mod ws;
 
@@ -120,6 +102,7 @@ pub enum RestError {
     /// The opportunity was not found.
     OpportunityNotFound,
     /// The bid was not found.
+    #[allow(dead_code)]
     BidNotFound,
     /// Internal error occurred during processing the request.
     TemporarilyUnavailable,
@@ -294,8 +277,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     #[derive(OpenApi)]
     #[openapi(
     paths(
-    bid::bid,
-    bid::bid_status,
+    bid::post_bid,
+    bid::get_bid_status,
     bid::get_bids_by_time,
 
     opportunity::post_opportunity,
@@ -309,18 +292,18 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     components(
     schemas(
     APIResponse,
-    Bid,
-    BidSvm,
-    BidEvm,
-    BidStatusEvm,
-    BidStatusSvm,
-    BidStatus,
-    BidStatusWithId,
-    BidResult,
-    SimulatedBid,
-    SimulatedBidEvm,
-    SimulatedBidSvm,
-    SimulatedBids,
+    bid::BidCreate,
+    bid::BidCreateEvm,
+    bid::BidCreateSvm,
+    bid::BidStatus,
+    bid::BidStatusEvm,
+    bid::BidStatusSvm,
+    bid::BidStatusWithId,
+    bid::BidResult,
+    bid::Bid,
+    bid::BidEvm,
+    bid::BidSvm,
+    bid::Bids,
     SvmChainUpdate,
 
     opportunity::OpportunityBidEvm,
@@ -365,8 +348,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     responses(
     ErrorBodyResponse,
     opportunity::Opportunity,
-    BidResult,
-    SimulatedBids,
+    bid::BidResult,
+    bid::Bids,
     ),
     ),
     tags(
@@ -392,11 +375,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         }
     }
 
-    let bid_routes = Router::new()
-        .route("/", post(bid::bid))
-        .route("/", login_required!(store, get(bid::get_bids_by_time)))
-        .route("/:bid_id", get(bid::bid_status));
-
     let profile_routes = Router::new()
         .route("/", admin_only!(store, post(profile::post_profile)))
         .route("/", admin_only!(store, get(profile::get_profile)))
@@ -412,7 +390,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     let v1_routes = Router::new().nest(
         "/v1",
         Router::new()
-            .nest("/bids", bid_routes)
+            .nest("/bids", bid::get_routes())
             .nest("/opportunities", opportunity::get_routes(store.clone()))
             .nest("/profiles", profile_routes)
             .route("/ws", get(ws::ws_route_handler)),

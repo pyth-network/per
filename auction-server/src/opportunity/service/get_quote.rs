@@ -5,7 +5,7 @@ use {
     },
     crate::{
         api::RestError,
-        auction::{
+        auction_old::{
             add_relayer_signature_svm,
             broadcast_lost_bids,
             broadcast_submitted_bids,
