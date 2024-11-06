@@ -28,7 +28,7 @@ from express_relay.svm.generated.express_relay.program_id import (
 )
 from express_relay.svm.limo_client import LimoClient, OrderStateAndAddress
 
-DEADLINE = 2**62
+DEADLINE = 2 * 10**10
 
 
 class SimpleSearcherSvm:

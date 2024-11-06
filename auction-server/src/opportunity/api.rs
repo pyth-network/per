@@ -16,17 +16,14 @@ use {
             ErrorBodyResponse,
             RestError,
         },
+        auction::api::BidId,
         kernel::entities::{
             ChainId,
             PermissionKey,
         },
         login_required,
         models,
-        state::{
-            BidId,
-            StoreNew,
-            UnixTimestampMicros,
-        },
+        state::StoreNew,
     },
     axum::{
         extract::{
@@ -76,6 +73,7 @@ use {
 };
 
 // Base types
+pub type UnixTimestampMicros = i128;
 pub type OpportunityId = Uuid;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]

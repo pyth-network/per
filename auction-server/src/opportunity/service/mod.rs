@@ -1,24 +1,30 @@
 use {
-    super::{
-        contracts::AdapterFactory,
-        repository::{
-            InMemoryStore,
-            InMemoryStoreEvm,
-            InMemoryStoreSvm,
-            Repository,
-        },
+    super::repository::{
+        InMemoryStore,
+        InMemoryStoreEvm,
+        InMemoryStoreSvm,
+        Repository,
     },
     crate::{
+        auction::service::{
+            self as auction_service,
+        },
         kernel::{
+            contracts::AdapterFactory,
             db::DB,
-            entities::ChainId,
+            entities::{
+                ChainId,
+                ChainType as ChainTypeEnum,
+                Evm,
+                Svm,
+            },
+            traced_client::TracedClient,
         },
         state::{
             ChainStoreEvm,
             ChainStoreSvm,
             Store,
         },
-        traced_client::TracedClient,
     },
     ethers::{
         providers::Provider,
@@ -30,6 +36,7 @@ use {
         collections::HashMap,
         sync::Arc,
     },
+    tokio_util::task::TaskTracker,
 };
 
 pub mod add_opportunity;
@@ -48,7 +55,7 @@ mod make_adapter_calldata;
 mod make_opportunity_execution_params;
 mod make_permitted_tokens;
 
-#[derive(Debug)]
+// NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigEvm {
     pub adapter_factory_contract: Address,
     pub adapter_bytecode_hash:    [u8; 32],
@@ -56,11 +63,35 @@ pub struct ConfigEvm {
     pub permit2:                  Address,
     pub provider:                 Provider<TracedClient>,
     pub weth:                     Address,
+    pub auction_service:          Option<auction_service::Service<Evm>>,
 }
 
-#[derive(Debug)]
+impl ConfigEvm {
+    pub fn inject_auction_service(&self, service: auction_service::Service<Evm>) {
+        // this unsafe block is safe because as this method is called only when setting up services
+        // the method is never called concurrently
+        let selff = self as *const Self as *mut Self;
+        unsafe {
+            (*selff).auction_service = Some(service);
+        }
+    }
+}
+
+// NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
     pub wallet_program_router_account: Pubkey,
+    pub auction_service:               Option<auction_service::Service<Svm>>,
+}
+
+impl ConfigSvm {
+    pub fn inject_auction_service(&self, service: auction_service::Service<Svm>) {
+        // this unsafe block is safe because as this method is called only when setting up services
+        // the method is never called concurrently
+        let selff = self as *const Self as *mut Self;
+        unsafe {
+            (*selff).auction_service = Some(service);
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -124,6 +155,7 @@ impl ConfigEvm {
             adapter_factory_contract,
             chain_id_num,
             provider,
+            auction_service: None,
         })
     }
 
@@ -162,17 +194,12 @@ impl ConfigSvm {
                     chain_id.clone(),
                     Self {
                         wallet_program_router_account: config.wallet_program_router_account,
+                        auction_service:               None,
                     },
                 )
             })
             .collect())
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ChainTypeEnum {
-    Evm,
-    Svm,
 }
 
 pub trait ChainType: Send + Sync {
@@ -205,16 +232,18 @@ impl ChainType for ChainTypeSvm {
 
 // TODO maybe just create a service per chain_id?
 pub struct Service<T: ChainType> {
-    store:  Arc<Store>,
-    db:     DB,
+    store:        Arc<Store>,
+    db:           DB,
     // TODO maybe after adding state for opportunity we can remove the arc
-    repo:   Arc<Repository<T::InMemoryStore>>,
-    config: HashMap<ChainId, T::Config>,
+    repo:         Arc<Repository<T::InMemoryStore>>,
+    config:       HashMap<ChainId, T::Config>,
+    task_tracker: TaskTracker,
 }
 
 impl<T: ChainType> Service<T> {
     pub fn new(store: Arc<Store>, db: DB, config: HashMap<ChainId, T::Config>) -> Self {
         Self {
+            task_tracker: store.task_tracker.clone(),
             store,
             db,
             repo: Arc::new(Repository::<T::InMemoryStore>::new()),

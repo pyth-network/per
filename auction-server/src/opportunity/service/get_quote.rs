@@ -6,12 +6,22 @@ use {
     crate::{
         api::RestError,
         auction::{
-            add_relayer_signature_svm,
-            broadcast_lost_bids,
-            broadcast_submitted_bids,
-            extract_submit_bid_data,
-            verify_submit_bid_instruction_svm,
-            ChainStore,
+            entities::{
+                Auction,
+                BidStatusAuction,
+            },
+            service::{
+                add_auction::AddAuctionInput,
+                auctionable::Auctionable,
+                get_live_bids::GetLiveBidsInput,
+                update_bid_status::UpdateBidStatusInput,
+                update_submitted_auction::UpdateSubmittedAuctionInput,
+                Service as AuctionService,
+            },
+        },
+        kernel::entities::{
+            PermissionKeySvm,
+            Svm,
         },
         opportunity::{
             entities,
@@ -20,14 +30,9 @@ use {
                 estimate_price::EstimatePriceInput,
             },
         },
-        state::{
-            BidStatusSvm,
-            BidStatusTrait,
-            ChainStoreSvm,
-        },
     },
     axum_prometheus::metrics,
-    futures::TryFutureExt,
+    futures::future::join_all,
     rand::Rng,
     solana_sdk::{
         clock::Slot,
@@ -85,11 +90,12 @@ impl Service<ChainTypeSvm> {
 
     #[tracing::instrument(skip_all)]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
-        let chain_store = self
-            .store
-            .chains_svm
-            .get(&input.quote_create.chain_id)
-            .ok_or(RestError::InvalidChainId)?;
+        let config = self.get_config(&input.quote_create.chain_id)?;
+        let auction_service = config
+            .auction_service
+            .as_ref()
+            .expect("Failed to get auction service");
+
         // TODO Check for the input amount
         tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");
         let output_amount = self
@@ -107,11 +113,22 @@ impl Service<ChainTypeSvm> {
             })
             .await?;
 
+        // NOTE: This part will be removed after refactoring the permission key type
+        let slice: [u8; 64] = opportunity
+            .permission_key
+            .to_vec()
+            .try_into()
+            .expect("Failed to convert permission key to slice");
+        let permission_key_svm = PermissionKeySvm(slice);
         // Wait to make sure searchers had enough time to submit bids
         sleep(BID_COLLECTION_TIME).await;
 
         let bid_collection_time = OffsetDateTime::now_utc();
-        let mut bids = chain_store.get_bids(&opportunity.permission_key).await;
+        let mut bids = auction_service
+            .get_live_bids(GetLiveBidsInput {
+                permission_key: permission_key_svm,
+            })
+            .await;
 
         let total_bids = if bids.len() < 10 {
             bids.len().to_string()
@@ -133,78 +150,61 @@ impl Service<ChainTypeSvm> {
         }
 
         // Find winner bid: the bid with the highest bid amount
-        bids.sort_by(|a, b| b.bid_amount.cmp(&a.bid_amount));
+        bids.sort_by(|a, b| b.amount.cmp(&a.amount));
         let winner_bid = bids.first().expect("failed to get first bid");
 
         // Find the submit bid instruction from bid transaction to extract the deadline
-        let submit_bid_instruction = verify_submit_bid_instruction_svm(
-            &chain_store.config.express_relay_program_id,
-            winner_bid.transaction.clone(),
+        let submit_bid_instruction = auction_service
+            .verify_submit_bid_instruction(winner_bid.chain_data.transaction.clone())
+            .map_err(|e| {
+                tracing::error!("Failed to verify submit bid instruction: {:?}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+        let submit_bid_data = AuctionService::<Svm>::extract_submit_bid_data(
+            &submit_bid_instruction,
         )
         .map_err(|e| {
-            tracing::error!("Failed to verify submit bid instruction: {:?}", e);
-            RestError::TemporarilyUnavailable
-        })?;
-        let submit_bid_data = extract_submit_bid_data(&submit_bid_instruction).map_err(|e| {
             tracing::error!("Failed to extract submit bid data: {:?}", e);
             RestError::TemporarilyUnavailable
         })?;
 
-        let mut auction = self
-            .store
-            .init_auction::<ChainStoreSvm>(
-                opportunity.permission_key.clone(),
-                opportunity.chain_id.clone(),
-                bid_collection_time,
-            )
-            .map_err(|e| {
-                tracing::error!("Failed to init auction: {:?}", e);
-                RestError::TemporarilyUnavailable
-            })
+        // Bids is not empty
+        let auction = Auction::try_new(bids.clone(), bid_collection_time)
+            .expect("Failed to create auction for bids");
+
+        let mut auction = auction_service
+            .add_auction(AddAuctionInput { auction })
             .await?;
 
-        let relayer = chain_store.express_relay_svm.relayer.clone();
         let mut bid = winner_bid.clone();
-        add_relayer_signature_svm(relayer, &mut bid);
+        auction_service.add_relayer_signature(&mut bid);
 
-        let signature = bid.transaction.signatures[0];
-        let converted_tx_hash = BidStatusSvm::convert_tx_hash(&signature);
-        auction = self
-            .store
-            .submit_auction(chain_store.as_ref(), auction, converted_tx_hash)
-            .map_err(|e| {
-                tracing::error!("Failed to submit auction: {:?}", e);
-                RestError::TemporarilyUnavailable
+        let signature = bid.chain_data.transaction.signatures[0];
+        auction = auction_service
+            .update_submitted_auction(UpdateSubmittedAuctionInput {
+                auction,
+                transaction_hash: signature,
             })
             .await?;
 
-        self.store.task_tracker.spawn({
-            let (store, repo, db, winner_bid, bids) = (
-                self.store.clone(),
-                self.repo.clone(),
-                self.db.clone(),
-                winner_bid.clone(),
-                bids.clone(),
-            );
-            let chain_store = chain_store.clone();
+        self.task_tracker.spawn({
+            let (repo, db, winner_bid) = (self.repo.clone(), self.db.clone(), winner_bid.clone());
+            let auction_service = auction_service.clone();
             async move {
-                tokio::join!(
-                    broadcast_submitted_bids(
-                        store.clone(),
-                        chain_store.as_ref(),
-                        vec![winner_bid.clone()],
-                        signature,
-                        auction.clone()
-                    ),
-                    broadcast_lost_bids(
-                        store.clone(),
-                        chain_store.as_ref(),
-                        bids,
-                        vec![winner_bid],
-                        Some(signature),
-                        Some(&auction)
-                    ),
-                );
+                join_all(auction.bids.iter().map(|bid| {
+                    auction_service.update_bid_status(UpdateBidStatusInput {
+                        new_status: AuctionService::get_new_status(
+                            bid,
+                            &vec![winner_bid.clone()],
+                            BidStatusAuction {
+                                tx_hash: signature,
+                                id:      auction.id,
+                            },
+                        ),
+                        bid:        bid.clone(),
+                    })
+                }))
+                .await;
                 // Remove opportunity to prevent further bids
                 // The handle auction loop will take care of the bids that were submitted late
 
@@ -227,7 +227,7 @@ impl Service<ChainTypeSvm> {
         });
 
         Ok(entities::Quote {
-            transaction:                 bid.transaction.clone(),
+            transaction:                 bid.chain_data.transaction.clone(),
             expiration_time:             submit_bid_data.deadline,
             input_token:                 input.quote_create.input_token,
             output_token:                entities::TokenAmountSvm {

@@ -1,23 +1,16 @@
 use {
     crate::{
-        api::{
-            bid::{
-                BidResult,
-                SimulatedBids,
-            },
-            ws::{
-                APIResponse,
-                ClientMessage,
-                ClientRequest,
-                ServerResultMessage,
-                ServerResultResponse,
-                ServerUpdateResponse,
-            },
+        api::ws::{
+            APIResponse,
+            ClientMessage,
+            ClientRequest,
+            ServerResultMessage,
+            ServerResultResponse,
+            ServerUpdateResponse,
         },
-        auction::{
-            Bid,
-            BidEvm,
-            BidSvm,
+        auction::api::{
+            self as bid,
+            SvmChainUpdate,
         },
         config::RunOptions,
         models,
@@ -26,17 +19,7 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        state::{
-            BidStatus,
-            BidStatusEvm,
-            BidStatusSvm,
-            BidStatusWithId,
-            SimulatedBid,
-            SimulatedBidEvm,
-            SimulatedBidSvm,
-            StoreNew,
-            SvmChainUpdate,
-        },
+        state::StoreNew,
     },
     anyhow::Result,
     axum::{
@@ -103,7 +86,6 @@ async fn root() -> String {
     format!("Express Relay Auction Server API {}", crate_version!())
 }
 
-mod bid;
 pub mod profile;
 pub(crate) mod ws;
 
@@ -294,9 +276,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     #[derive(OpenApi)]
     #[openapi(
     paths(
-    bid::bid,
-    bid::bid_status,
+    bid::post_bid,
+    bid::get_bid_status,
     bid::get_bids_by_time,
+    bid::get_bids_by_time_deprecated,
+    bid::get_bid_status_deprecated,
 
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
@@ -309,18 +293,18 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     components(
     schemas(
     APIResponse,
-    Bid,
-    BidSvm,
-    BidEvm,
-    BidStatusEvm,
-    BidStatusSvm,
-    BidStatus,
-    BidStatusWithId,
-    BidResult,
-    SimulatedBid,
-    SimulatedBidEvm,
-    SimulatedBidSvm,
-    SimulatedBids,
+    bid::BidCreate,
+    bid::BidCreateEvm,
+    bid::BidCreateSvm,
+    bid::BidStatus,
+    bid::BidStatusEvm,
+    bid::BidStatusSvm,
+    bid::BidStatusWithId,
+    bid::BidResult,
+    bid::Bid,
+    bid::BidEvm,
+    bid::BidSvm,
+    bid::Bids,
     SvmChainUpdate,
 
     opportunity::OpportunityBidEvm,
@@ -365,8 +349,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     responses(
     ErrorBodyResponse,
     opportunity::Opportunity,
-    BidResult,
-    SimulatedBids,
+    bid::BidResult,
+    bid::Bids,
     ),
     ),
     tags(
@@ -392,11 +376,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         }
     }
 
-    let bid_routes = Router::new()
-        .route("/", post(bid::bid))
-        .route("/", login_required!(store, get(bid::get_bids_by_time)))
-        .route("/:bid_id", get(bid::bid_status));
-
     let profile_routes = Router::new()
         .route("/", admin_only!(store, post(profile::post_profile)))
         .route("/", admin_only!(store, get(profile::get_profile)))
@@ -412,10 +391,15 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     let v1_routes = Router::new().nest(
         "/v1",
         Router::new()
-            .nest("/bids", bid_routes)
+            .nest("/bids", bid::get_routes(store.clone()))
             .nest("/opportunities", opportunity::get_routes(store.clone()))
             .nest("/profiles", profile_routes)
             .route("/ws", get(ws::ws_route_handler)),
+    );
+
+    let v1_routes_with_chain_id = Router::new().nest(
+        "/v1/:chain_id",
+        Router::new().nest("/bids", bid::get_routes_with_chain_id(store.clone())),
     );
 
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
@@ -435,6 +419,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     let app: Router<()> = Router::new()
         .merge(Redoc::with_url("/docs", redoc_doc.clone()))
         .merge(v1_routes)
+        .merge(v1_routes_with_chain_id)
         .route("/", get(root))
         .route("/live", get(live))
         .route("/docs/openapi.json", get(original_doc.to_string()))
