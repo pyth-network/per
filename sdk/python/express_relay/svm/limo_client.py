@@ -143,7 +143,7 @@ class LimoClient:
 
         create_ixs = []
         close_ixs = []
-        if ata_info.value is None:
+        if ata_info.value is None or len(ata_info.value.data)==0:
             create_ixs = [
                 self.create_associated_token_account_idempotent(
                     payer, owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
@@ -163,7 +163,7 @@ class LimoClient:
         fill_ixs = []
         current_balance = (
             TOKEN_ACCOUNT_LAYOUT.parse(ata_info.value.data).amount
-            if ata_info.value
+            if ata_info.value and len(ata_info.value.data)>0
             else 0
         )
         if current_balance < amount_to_deposit_lamports:
