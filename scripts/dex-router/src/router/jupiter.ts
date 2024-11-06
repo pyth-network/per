@@ -1,6 +1,9 @@
 import { Router, RouterOutput } from "../types";
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { createJupiterApiClient } from "@jup-ag/api";
+import {
+  createJupiterApiClient,
+  Instruction as JupiterInstruction,
+} from "@jup-ag/api";
 
 const maxAccounts = 20;
 
@@ -46,20 +49,20 @@ export class JupiterRouter implements Router {
       addressLookupTableAddresses,
     } = instructions;
 
-    const computeBudgetInstructionsJupiter = computeBudgetInstructions.map(
-      (ix: JupiterInstruction) => this.deserializeInstruction(ix)
+    const ixsComputeBudget = computeBudgetInstructions.map((ix) =>
+      this.deserializeInstruction(ix)
     );
-    const setupInstructionsJupiter = setupInstructions.map(
-      (ix: JupiterInstruction) => this.deserializeInstruction(ix)
+    const ixsSetupJupiter = setupInstructions.map((ix) =>
+      this.deserializeInstruction(ix)
     );
     const ixsJupiter = [
-      ...computeBudgetInstructionsJupiter,
-      ...setupInstructionsJupiter,
+      ...ixsSetupJupiter,
       this.deserializeInstruction(swapInstruction),
     ];
 
     return {
-      ixs: ixsJupiter,
+      ixsComputeBudget,
+      ixsRouter: ixsJupiter,
       amountIn,
       amountOut: BigInt(quoteResponse.outAmount),
       lookupTableAddresses: addressLookupTableAddresses.map(
@@ -82,13 +85,3 @@ export class JupiterRouter implements Router {
     });
   }
 }
-
-export type JupiterInstruction = {
-  programId: string;
-  accounts: {
-    pubkey: string;
-    isSigner: boolean;
-    isWritable: boolean;
-  }[];
-  data: string;
-};

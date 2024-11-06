@@ -91,7 +91,6 @@ export class DexRouter {
     await new Promise((resolve) => setTimeout(resolve, OPPORTUNITY_WAIT_TIME));
     try {
       const bid = await this.generateRouterBid(opportunity as OpportunitySvm);
-      console.log("got bid");
       const result = await this.client.requestViaWebsocket({
         method: "post_bid",
         params: {
@@ -140,7 +139,8 @@ export class DexRouter {
       order.state.outputMint,
       order.state.remainingInputAmount
     );
-    let ixsRouter = routeBest.ixs;
+    let ixsComputeBudget = routeBest.ixsComputeBudget;
+    let ixsRouter = routeBest.ixsRouter;
 
     const ixsFlashTakeOrder = await this.formFlashTakeOrderInstructions(
       clientLimo,
@@ -156,6 +156,7 @@ export class DexRouter {
 
     const tx = await this.formTransaction(
       [
+        ...ixsComputeBudget,
         ...ixsFlashTakeOrder.createAtaIxs,
         ixsFlashTakeOrder.startFlashIx,
         ixSubmitBid,
@@ -244,7 +245,7 @@ export class DexRouter {
       );
     }
 
-    return await this.client.constructSubmitBidInstruction(
+    return this.client.constructSubmitBidInstruction(
       this.executor.publicKey,
       router,
       permission,
@@ -282,7 +283,6 @@ export class DexRouter {
     const lookupTableAccounts = await this.getLookupTableAccountsCached(
       lookupTableAddresses
     );
-    console.log(`Lookup table accounts: ${lookupTableAccounts.length}`);
     return new VersionedTransaction(
       txMsg.compileToV0Message(lookupTableAccounts)
     );
@@ -302,7 +302,7 @@ export class DexRouter {
       const missingAccounts = await this.connectionSvm.getMultipleAccountsInfo(
         missingKeys
       );
-      keys.forEach((key, index) => {
+      missingKeys.forEach((key, index) => {
         if (
           missingAccounts[index] !== null &&
           missingAccounts[index] !== undefined
@@ -319,8 +319,6 @@ export class DexRouter {
           console.warn(
             `Missing lookup table account for key ${key.toBase58()}`
           );
-          console.log(missingKeys);
-          console.log(missingAccounts);
         }
       });
     }

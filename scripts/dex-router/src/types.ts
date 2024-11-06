@@ -1,7 +1,8 @@
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 export type RouterOutput = {
-  ixs: TransactionInstruction[];
+  ixsComputeBudget: TransactionInstruction[];
+  ixsRouter: TransactionInstruction[];
   amountIn: bigint;
   amountOut: bigint;
   lookupTableAddresses?: PublicKey[];
