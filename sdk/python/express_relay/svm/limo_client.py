@@ -271,7 +271,7 @@ class LimoClient:
             take_order(
                 TakeOrderArgs(
                     input_amount=int(
-                       input_amount_decimals * (10**input_mint_decimals)
+                        input_amount_decimals * (10**input_mint_decimals)
                     ),
                     min_output_amount=int(
                         output_amount_decimals * (10**output_mint_decimals)
