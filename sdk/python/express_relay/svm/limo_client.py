@@ -193,9 +193,6 @@ class LimoClient:
         input_mint_decimals: int,
         output_mint_decimals: int,
         express_relay_program_id: Pubkey,
-        permissionless_tip_lamports: int = 0,
-        permissionless: bool = False,
-
     ) -> List[Instruction]:
         """
         Returns the instructions to fulfill an order as a taker.
@@ -271,7 +268,7 @@ class LimoClient:
                     min_output_amount=int(
                         output_amount_decimals * (10**output_mint_decimals)
                     ),
-                    tip_amount_permissionless_taking=permissionless_tip_lamports
+                    tip_amount_permissionless_taking=0
                 ),
                 {
                     "taker": taker,
@@ -294,7 +291,7 @@ class LimoClient:
                         express_relay_program_id
                     ),
                     "sysvar_instructions": INSTRUCTIONS,
-                    "permission": PROGRAM_ID if permissionless else order["address"],
+                    "permission": order["address"],
                     "config_router": self.get_express_relay_config_router_pda(
                         express_relay_program_id, pda_authority
                     ),
