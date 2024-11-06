@@ -134,11 +134,13 @@ export class DexRouter {
       order.state.globalConfig
     );
 
+    // TODO: refactor to filter out routes with transactions that exceed the max transaction size
     const routeBest = await this.getBestRoute(
       order.state.inputMint,
       order.state.outputMint,
       order.state.remainingInputAmount
     );
+    // TODO: cap the priority fees spent
     let ixsComputeBudget = routeBest.ixsComputeBudget;
     let ixsRouter = routeBest.ixsRouter;
 

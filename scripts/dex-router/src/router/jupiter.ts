@@ -50,14 +50,14 @@ export class JupiterRouter implements Router {
     } = instructions;
 
     const ixsComputeBudget = computeBudgetInstructions.map((ix) =>
-      this.deserializeInstruction(ix)
+      this.convertInstruction(ix)
     );
     const ixsSetupJupiter = setupInstructions.map((ix) =>
-      this.deserializeInstruction(ix)
+      this.convertInstruction(ix)
     );
     const ixsJupiter = [
       ...ixsSetupJupiter,
-      this.deserializeInstruction(swapInstruction),
+      this.convertInstruction(swapInstruction),
     ];
 
     return {
@@ -71,7 +71,7 @@ export class JupiterRouter implements Router {
     };
   }
 
-  private deserializeInstruction(
+  private convertInstruction(
     instruction: JupiterInstruction
   ): TransactionInstruction {
     return new TransactionInstruction({

@@ -18,7 +18,7 @@ This script routes opportunities via on-chain liquidity, so your wallet will not
 
 ### Create Lookup Table
 
-Often, the on-chain liquidity routing instructions invoke a large number of accounts. As a result, the resulting set of instructions may be too large to fit into a single transaction. To minimize the size of the transaction, you can use a lookup table to store accounts commonly invoked in instructions like the Express Relay `SubmitBid` instruction.
+Often, the on-chain liquidity routing instructions invoke a large number of accounts. As a result, the resulting set of instructions may be too large to fit into a single transaction. To minimize the size of the transaction, you can create a lookup table to store accounts commonly invoked in instructions like the Express Relay `SubmitBid` instruction using the [`solana address-lookup-table` CLI](https://docs.solanalabs.com/cli/usage#solana-address-lookup-table).
 
 ### Run DEX Router
 
