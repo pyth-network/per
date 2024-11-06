@@ -6,6 +6,7 @@ import {
 } from "@jup-ag/api";
 
 const maxAccounts = 20;
+const maxAutoSlippageBps = 50;
 
 export class JupiterRouter implements Router {
   private chainId: string;
@@ -31,7 +32,7 @@ export class JupiterRouter implements Router {
       outputMint: tokenOut.toBase58(),
       amount: Number(amountIn),
       autoSlippage: true,
-      maxAutoSlippageBps: 50,
+      maxAutoSlippageBps,
       maxAccounts: maxAccounts,
     });
 

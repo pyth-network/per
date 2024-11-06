@@ -32,6 +32,7 @@ import {
   OrderStateAndAddress,
 } from "@kamino-finance/limo-sdk/dist/utils";
 import { OPPORTUNITY_WAIT_TIME } from "./const";
+import { filterComputeBudgetIxs } from "./utils/computeBudget";
 
 const MINUTE_IN_SECS = 60;
 
@@ -140,9 +141,8 @@ export class DexRouter {
       order.state.outputMint,
       order.state.remainingInputAmount
     );
-    // TODO: cap the priority fees spent
-    let ixsComputeBudget = routeBest.ixsComputeBudget;
-    let ixsRouter = routeBest.ixsRouter;
+    const ixsComputeBudget = filterComputeBudgetIxs(routeBest.ixsComputeBudget);
+    const ixsRouter = routeBest.ixsRouter;
 
     const ixsFlashTakeOrder = await this.formFlashTakeOrderInstructions(
       clientLimo,
