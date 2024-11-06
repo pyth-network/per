@@ -5,9 +5,19 @@ import {
 } from "@solana/web3.js";
 import { MAX_COMPUTE_UNIT_PRICE } from "../const";
 
+/**
+ * Filters the provided Compute Budget instructions to only include the last SetComputeUnitLimit and SetComputeUnitPrice instructions. If the SetComputeUnitPrice instruction exceeds the MAX_COMPUTE_UNIT_PRICE, it will be replaced with a SetComputeUnitPrice instruction with the MAX_COMPUTE_UNIT_PRICE.
+ * @param ixs The Compute Budget instructions to filter
+ */
 export function filterComputeBudgetIxs(
   ixs: TransactionInstruction[]
 ): TransactionInstruction[] {
+  if (
+    ixs.filter((ix) => ix.programId !== ComputeBudgetProgram.programId).length >
+    0
+  ) {
+    throw new Error("All instructions must be for the Compute Budget program");
+  }
   let ixsFiltered: TransactionInstruction[] = [];
 
   // we only care about the last SetComputeUnitLimit and SetComputeUnitPrice because only the last of each will be enforced in transaction processing
