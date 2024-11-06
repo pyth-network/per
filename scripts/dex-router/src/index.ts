@@ -18,20 +18,29 @@ import {
   Connection,
   Keypair,
   PublicKey,
+  TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { Decimal } from "decimal.js";
 import * as limo from "@kamino-finance/limo-sdk";
-import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
-import { LOOKUP_TABLE_ADDRESS, OPPORTUNITY_WAIT_TIME } from "./const";
+import {
+  FlashTakeOrderIxs,
+  getMintDecimals,
+  getPdaAuthority,
+  OrderStateAndAddress,
+} from "@kamino-finance/limo-sdk/dist/utils";
+import { OPPORTUNITY_WAIT_TIME } from "./const";
 
 const MINUTE_IN_SECS = 60;
 
 export class DexRouter {
   private client: Client;
   private pingTimeout: NodeJS.Timeout | undefined;
+  private mintDecimals: Record<string, number> = {};
+  private baseLookupTableAddresses: PublicKey[] = [];
+  private lookupTableAccounts: Record<string, AddressLookupTableAccount> = {};
   private connectionSvm: Connection;
   private expressRelayConfig?: ExpressRelaySvmConfig;
   private recentBlockhash: Record<ChainId, Blockhash> = {};
@@ -44,7 +53,8 @@ export class DexRouter {
     endpoint: string,
     executor: Keypair,
     chainId: string,
-    connectionSvm: Connection
+    connectionSvm: Connection,
+    baseLookupTableAddresses?: PublicKey[]
   ) {
     this.client = new Client(
       {
@@ -58,13 +68,8 @@ export class DexRouter {
     this.executor = executor;
     this.chainId = chainId;
     this.connectionSvm = connectionSvm;
-    this.routers = [
-      new JupiterRouter(
-        this.chainId,
-        this.connectionSvm,
-        this.executor.publicKey
-      ),
-    ];
+    this.routers = [new JupiterRouter(this.chainId, this.executor.publicKey)];
+    this.baseLookupTableAddresses = baseLookupTableAddresses ?? [];
   }
 
   async bidStatusHandler(bidStatus: BidStatusUpdate) {
@@ -86,6 +91,7 @@ export class DexRouter {
     await new Promise((resolve) => setTimeout(resolve, OPPORTUNITY_WAIT_TIME));
     try {
       const bid = await this.generateRouterBid(opportunity as OpportunitySvm);
+      console.log("got bid");
       const result = await this.client.requestViaWebsocket({
         method: "post_bid",
         params: {
@@ -109,6 +115,16 @@ export class DexRouter {
     this.recentBlockhash[update.chain_id] = update.blockhash;
   }
 
+  async getMintDecimalsCached(mint: PublicKey): Promise<number> {
+    const mintAddress = mint.toBase58();
+    if (this.mintDecimals[mintAddress]) {
+      return this.mintDecimals[mintAddress];
+    }
+    const decimals = await getMintDecimals(this.connectionSvm, mint);
+    this.mintDecimals[mintAddress] = decimals;
+    return decimals;
+  }
+
   async generateRouterBid(opportunity: OpportunitySvm): Promise<{
     transaction: string;
     chain_id: string;
@@ -118,19 +134,58 @@ export class DexRouter {
       this.connectionSvm,
       order.state.globalConfig
     );
-    const inputMintDecimals = await clientLimo.getOrderInputMintDecimals(order);
-    const outputMintDecimals = await clientLimo.getOrderOutputMintDecimals(
-      order
+
+    const routeBest = await this.getBestRoute(
+      order.state.inputMint,
+      order.state.outputMint,
+      order.state.remainingInputAmount
+    );
+    let ixsRouter = routeBest.ixs;
+
+    const ixsFlashTakeOrder = await this.formFlashTakeOrderInstructions(
+      clientLimo,
+      order,
+      Number(routeBest.amountOut)
     );
 
+    const ixSubmitBid = await this.formSubmitBidInstruction(
+      order.address,
+      order.state.globalConfig,
+      clientLimo.getProgramID()
+    );
+
+    const tx = await this.formTransaction(
+      [
+        ...ixsFlashTakeOrder.createAtaIxs,
+        ixsFlashTakeOrder.startFlashIx,
+        ixSubmitBid,
+        ...ixsRouter,
+        ixsFlashTakeOrder.endFlashIx,
+        ...ixsFlashTakeOrder.closeWsolAtaIxs,
+      ],
+      routeBest.lookupTableAddresses ?? []
+    );
+    tx.sign([this.executor]);
+
+    return {
+      transaction: Buffer.from(tx.serialize()).toString("base64"),
+      chain_id: this.chainId,
+    };
+  }
+
+  private async getBestRoute(
+    inputMint: PublicKey,
+    outputMint: PublicKey,
+    amountIn: bigint
+  ): Promise<RouterOutput> {
     const routerOutputs = (
       await Promise.all(
         this.routers.map(async (router) => {
           try {
             const routerOutput = await router.route(
-              opportunity.order.state.inputMint,
-              opportunity.order.state.outputMint,
-              opportunity.order.state.remainingInputAmount
+              inputMint,
+              outputMint,
+              amountIn
             );
             return routerOutput;
           } catch (error) {
@@ -142,19 +197,29 @@ export class DexRouter {
     if (routerOutputs.length === 0) {
       throw new Error("No routers available to route order");
     }
-    const routerBest = routerOutputs.reduce((bestSoFar, curr) => {
+    return routerOutputs.reduce((bestSoFar, curr) => {
       return bestSoFar.amountOut > curr.amountOut ? bestSoFar : curr;
     });
-    let ixsRouter = routerBest.ixs;
+  }
 
+  private async formFlashTakeOrderInstructions(
+    clientLimo: limo.LimoClient,
+    order: OrderStateAndAddress,
+    amountOut: number
+  ): Promise<FlashTakeOrderIxs> {
+    const inputMintDecimals = await this.getMintDecimalsCached(
+      order.state.inputMint
+    );
+    const outputMintDecimals = await this.getMintDecimalsCached(
+      order.state.outputMint
+    );
     const inputAmountDecimals = new Decimal(
       order.state.remainingInputAmount.toNumber()
     ).div(new Decimal(10).pow(inputMintDecimals));
-    const outputAmountDecimals = new Decimal(Number(routerBest.amountOut)).div(
+    const outputAmountDecimals = new Decimal(amountOut).div(
       new Decimal(10).pow(outputMintDecimals)
     );
-
-    const ixsFlashTakeOrder = await clientLimo.flashTakeOrderIxs(
+    return clientLimo.flashTakeOrderIxs(
       this.executor.publicKey,
       order,
       inputAmountDecimals,
@@ -163,11 +228,14 @@ export class DexRouter {
       inputMintDecimals,
       outputMintDecimals
     );
+  }
 
-    const router = getPdaAuthority(
-      clientLimo.getProgramID(),
-      order.state.globalConfig
-    );
+  private async formSubmitBidInstruction(
+    permission: PublicKey,
+    globalConfig: PublicKey,
+    limoProgamId: PublicKey
+  ): Promise<TransactionInstruction> {
+    const router = getPdaAuthority(limoProgamId, globalConfig);
     const bidAmount = new anchor.BN(0);
     if (!this.expressRelayConfig) {
       this.expressRelayConfig = await this.client.getExpressRelaySvmConfig(
@@ -176,17 +244,22 @@ export class DexRouter {
       );
     }
 
-    const ixSubmitBid = await this.client.constructSubmitBidInstruction(
+    return await this.client.constructSubmitBidInstruction(
       this.executor.publicKey,
       router,
-      order.address,
+      permission,
       bidAmount,
       new anchor.BN(Math.round(Date.now() / 1000 + MINUTE_IN_SECS)),
       this.chainId,
       this.expressRelayConfig.relayerSigner,
       this.expressRelayConfig.feeReceiverRelayer
     );
+  }
 
+  private async formTransaction(
+    instructions: TransactionInstruction[],
+    routerLookupTableAddresses: PublicKey[]
+  ): Promise<VersionedTransaction> {
     if (!this.recentBlockhash[this.chainId]) {
       console.log(
         `No recent blockhash for chain ${this.chainId}, getting manually`
@@ -199,53 +272,60 @@ export class DexRouter {
     const txMsg = new TransactionMessage({
       payerKey: this.executor.publicKey,
       recentBlockhash: this.recentBlockhash[this.chainId],
-      instructions: [
-        ...ixsFlashTakeOrder.createAtaIxs,
-        ixsFlashTakeOrder.startFlashIx,
-        ixSubmitBid,
-        ...ixsRouter,
-        ixsFlashTakeOrder.endFlashIx,
-        ...ixsFlashTakeOrder.closeWsolAtaIxs,
-      ],
+      instructions,
     });
 
-    let lookupTableAddresses: PublicKey[] = [];
-    if (routerBest.lookupTableAddresses !== undefined) {
-      lookupTableAddresses.push(...routerBest.lookupTableAddresses);
-    }
-    if (LOOKUP_TABLE_ADDRESS[this.chainId] !== undefined) {
-      lookupTableAddresses.push(LOOKUP_TABLE_ADDRESS[this.chainId]);
-    }
-    const lookupTableAccounts = await this.getLookupTableAccounts(
+    const lookupTableAddresses = [
+      ...this.baseLookupTableAddresses,
+      ...routerLookupTableAddresses,
+    ];
+    const lookupTableAccounts = await this.getLookupTableAccountsCached(
       lookupTableAddresses
     );
-    const tx = new VersionedTransaction(
+    console.log(`Lookup table accounts: ${lookupTableAccounts.length}`);
+    return new VersionedTransaction(
       txMsg.compileToV0Message(lookupTableAccounts)
     );
-    tx.sign([this.executor]);
-
-    return {
-      transaction: Buffer.from(tx.serialize()).toString("base64"),
-      chain_id: this.chainId,
-    };
   }
 
-  private async getLookupTableAccounts(
+  private async getLookupTableAccountsCached(
     keys: PublicKey[]
   ): Promise<AddressLookupTableAccount[]> {
-    const addressLookupTableAccountInfos = (
-      await this.connectionSvm.getMultipleAccountsInfo(
-        keys.map((key) => new PublicKey(key))
-      )
-    ).filter((acc) => acc !== null);
+    const missingKeys = keys.filter(
+      (key) => this.lookupTableAccounts[key.toBase58()] === undefined
+    );
 
-    return addressLookupTableAccountInfos.map((accountInfo, index) => {
-      const addressLookupTableAddress = keys[index];
-      return new AddressLookupTableAccount({
-        key: new PublicKey(addressLookupTableAddress),
-        state: AddressLookupTableAccount.deserialize(accountInfo.data),
+    let accountsToReturn = keys
+      .filter((key) => !missingKeys.includes(key))
+      .map((key) => this.lookupTableAccounts[key.toBase58()]);
+    if (missingKeys.length > 0) {
+      const missingAccounts = await this.connectionSvm.getMultipleAccountsInfo(
+        missingKeys
+      );
+      keys.forEach((key, index) => {
+        if (
+          missingAccounts[index] !== null &&
+          missingAccounts[index] !== undefined
+        ) {
+          this.lookupTableAccounts[key.toBase58()] =
+            new AddressLookupTableAccount({
+              key: key,
+              state: AddressLookupTableAccount.deserialize(
+                missingAccounts[index].data
+              ),
+            });
+          accountsToReturn.push(this.lookupTableAccounts[key.toBase58()]);
+        } else {
+          console.warn(
+            `Missing lookup table account for key ${key.toBase58()}`
+          );
+          console.log(missingKeys);
+          console.log(missingAccounts);
+        }
       });
-    });
+    }
+
+    return accountsToReturn;
   }
 
   heartbeat() {
@@ -293,6 +373,12 @@ const argv = yargs(hideBin(process.argv))
     type: "string",
     demandOption: true,
   })
+  .option("lookup-table-addresses", {
+    description:
+      "Lookup table addresses to include in the submitted transactions. In base58 format.",
+    type: "array",
+    demandOption: false,
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -302,7 +388,8 @@ async function run() {
     argv["endpoint-express-relay"],
     Keypair.fromSecretKey(anchor.utils.bytes.bs58.decode(argv["sk-executor"])),
     argv["chain-id"],
-    new Connection(argv["endpoint-svm"], "confirmed")
+    new Connection(argv["endpoint-svm"], "confirmed"),
+    argv["lookup-table-addresses"]?.map((address) => new PublicKey(address))
   );
   await dexRouter.start();
 }

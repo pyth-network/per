@@ -6,13 +6,13 @@
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dex-router": "npm run build && node dist/index.js",
-    "lookup-table": "npm run build && node dist/utils/lookupTable.js"
+    "dex-router": "npm run build && node dist/index.js"
   },
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
+    "@jup-ag/api": "^6.0.29",
     "@kamino-finance/limo-sdk": "^0.6.0",
     "@pythnetwork/express-relay-js": "^0.13.1",
     "@solana/web3.js": "^1.95.3",

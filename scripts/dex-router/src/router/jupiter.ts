@@ -1,19 +1,16 @@
 import { Router, RouterOutput } from "../types";
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { createJupiterApiClient } from "@jup-ag/api";
 
-const jupiterBaseUrl = "https://quote-api.jup.ag/v6/";
-const jupiterQuoteUrl = new URL("quote", jupiterBaseUrl);
-const jupiterSwapIxsUrl = new URL("swap-instructions", jupiterBaseUrl);
-const maxAccounts = 30;
+const maxAccounts = 20;
 
 export class JupiterRouter implements Router {
   private chainId: string;
-  private connection: Connection;
   private executor: PublicKey;
+  private jupiterClient = createJupiterApiClient();
 
-  constructor(chainId: string, connection: Connection, executor: PublicKey) {
+  constructor(chainId: string, executor: PublicKey) {
     this.chainId = chainId;
-    this.connection = connection;
     this.executor = executor;
   }
 
@@ -26,46 +23,37 @@ export class JupiterRouter implements Router {
       throw new Error("Jupiter error: chain id not supported");
     }
 
-    const quoteResponse = await (
-      await fetch(
-        `${jupiterQuoteUrl.toString()}?inputMint=${tokenIn.toBase58()}&outputMint=${tokenOut.toBase58()}&amount=${amountIn}&autoSlippage=true&maxAutoSlippageBps=50&maxAccounts=${maxAccounts}`
-      )
-    ).json();
-    if (quoteResponse.error !== undefined) {
-      throw new Error(`Jupiter error: ${quoteResponse.error}`);
-    }
+    const quoteResponse = await this.jupiterClient.quoteGet({
+      inputMint: tokenIn.toBase58(),
+      outputMint: tokenOut.toBase58(),
+      amount: Number(amountIn),
+      autoSlippage: true,
+      maxAutoSlippageBps: 50,
+      maxAccounts: maxAccounts,
+    });
 
-    const instructions = await (
-      await fetch(jupiterSwapIxsUrl.toString(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          quoteResponse,
-          userPublicKey: this.executor.toBase58(),
-          asLegacyTransaction: false,
-        }),
-      })
-    ).json();
-    if (instructions.error !== undefined) {
-      throw new Error(`Jupiter error: ${instructions.error}`);
-    }
+    const instructions = await this.jupiterClient.swapInstructionsPost({
+      swapRequest: {
+        userPublicKey: this.executor.toBase58(),
+        quoteResponse,
+      },
+    });
 
     const {
-      tokenLedgerInstruction,
       computeBudgetInstructions,
       setupInstructions,
       swapInstruction,
-      cleanupInstruction,
       addressLookupTableAddresses,
     } = instructions;
 
-    const setupInstructionsJupiter: TransactionInstruction[] =
-      setupInstructions.map((ix: JupiterInstruction) =>
-        this.deserializeInstruction(ix)
-      );
+    const computeBudgetInstructionsJupiter = computeBudgetInstructions.map(
+      (ix: JupiterInstruction) => this.deserializeInstruction(ix)
+    );
+    const setupInstructionsJupiter = setupInstructions.map(
+      (ix: JupiterInstruction) => this.deserializeInstruction(ix)
+    );
     const ixsJupiter = [
+      ...computeBudgetInstructionsJupiter,
       ...setupInstructionsJupiter,
       this.deserializeInstruction(swapInstruction),
     ];
@@ -74,7 +62,9 @@ export class JupiterRouter implements Router {
       ixs: ixsJupiter,
       amountIn,
       amountOut: BigInt(quoteResponse.outAmount),
-      lookupTableAddresses: addressLookupTableAddresses,
+      lookupTableAddresses: addressLookupTableAddresses.map(
+        (addr) => new PublicKey(addr)
+      ),
     };
   }
 
