@@ -1,4 +1,5 @@
 from decimal import Decimal
+import logging
 from typing import Sequence, List, TypedDict, Tuple
 
 from solana.constants import SYSTEM_PROGRAM_ID
@@ -213,6 +214,7 @@ class LimoClient:
         ixs: List[Instruction] = []
         close_wsol_ixns: List[Instruction] = []
         taker_input_ata: Pubkey
+
         if order["state"].input_mint == WRAPPED_SOL_MINT:
             instructions = await self.get_init_if_needed_wsol_create_and_close_ixs(
                 owner=taker, payer=taker, amount_to_deposit_lamports=0
@@ -234,7 +236,13 @@ class LimoClient:
 
         taker_output_ata: Pubkey
         if order["state"].output_mint == WRAPPED_SOL_MINT:
-            raise NotImplementedError("Output mint is WSOL")
+            instructions = await self.get_init_if_needed_wsol_create_and_close_ixs(
+                owner=taker, payer=taker, amount_to_deposit_lamports=output_amount
+            )
+            ixs.extend(instructions["create_ixs"])
+            ixs.extend(instructions["fill_ixs"])
+            close_wsol_ixns.extend(instructions["close_ixs"])
+            taker_output_ata = instructions["ata"]
         else:
             (
                 taker_output_ata,
@@ -263,7 +271,7 @@ class LimoClient:
             take_order(
                 TakeOrderArgs(
                     input_amount=int(
-                        input_amount_decimals * (10**input_mint_decimals)
+                       input_amount_decimals * (10**input_mint_decimals)
                     ),
                     min_output_amount=int(
                         output_amount_decimals * (10**output_mint_decimals)
