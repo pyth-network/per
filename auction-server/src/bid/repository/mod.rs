@@ -11,6 +11,7 @@ use {
     },
 };
 
+pub mod get_bids;
 mod models;
 
 pub use models::*;

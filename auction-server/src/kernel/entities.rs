@@ -40,8 +40,14 @@ impl<'de> Deserialize<'de> for PermissionKeySvm {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ChainType {
     Evm,
     Svm,
 }
+
+#[derive(Clone, Debug)]
+pub struct Evm;
+
+#[derive(Clone, Debug)]
+pub struct Svm;

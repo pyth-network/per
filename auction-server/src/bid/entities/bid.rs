@@ -1,7 +1,14 @@
 #![allow(dead_code)]
 
 use {
-    crate::kernel::entities::ChainId,
+    crate::{
+        kernel::entities::{
+            ChainId,
+            Evm,
+            Svm,
+        },
+        models::ProfileId,
+    },
     ethers::types::{
         Address,
         Bytes,
@@ -128,8 +135,8 @@ pub struct Bid<T: BidTrait> {
     pub id:              BidId,
     pub chain_id:        ChainId,
     pub initiation_time: OffsetDateTime,
+    pub profile_id:      Option<ProfileId>,
 
-    // pub profile_id:      Option<models::ProfileId>,
     pub amount:     T::BidAmount,
     pub status:     T::StatusType,
     pub chain_data: T::ChainData,
@@ -174,12 +181,6 @@ impl BidChainData for BidChainDataEvm {
         self.permission_key.clone()
     }
 }
-
-#[derive(Clone, Debug)]
-pub struct Evm;
-
-#[derive(Clone, Debug)]
-pub struct Svm;
 
 impl BidTrait for Evm {
     type StatusType = BidStatusEvm;

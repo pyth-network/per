@@ -1,4 +1,11 @@
 use {
+    super::{
+        entities,
+        service::{
+            get_bids::GetBidsInput,
+            ServiceEnum,
+        },
+    },
     crate::{
         api::{
             Auth,
@@ -7,8 +14,10 @@ use {
         },
         kernel::entities::{
             ChainId,
+            Evm,
             PermissionKey,
             PermissionKeySvm,
+            Svm,
         },
         models,
         state::StoreNew,
@@ -346,6 +355,9 @@ pub struct GetBidsByTimeQueryParams {
     #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
     #[serde(default, with = "crate::serde::nullable_datetime")]
     pub from_time: Option<OffsetDateTime>,
+
+    #[param(example = "op_sepolia")]
+    pub chain_id: ChainId,
 }
 
 /// Returns at most 20 bids which were submitted after a specific time.
@@ -366,12 +378,28 @@ pub async fn get_bids_by_time(
 ) -> Result<Json<Bids>, RestError> {
     match auth {
         Auth::Authorized(_, profile) => {
-            let _bids = store
-                .store
-                .get_simulated_bids_by_time(profile.id, query.from_time)
-                .await?;
-            // Ok(Json(Bids { items: bids }))
-            Ok(Json(Bids { items: vec![] }))
+            let bids: Vec<Bid> = match store.get_bid_service(&query.chain_id)? {
+                ServiceEnum::Evm(service) => service
+                    .get_bids(GetBidsInput {
+                        profile,
+                        from_time: query.from_time,
+                    })
+                    .await?
+                    .into_iter()
+                    .map(|b| b.into())
+                    .collect(),
+                ServiceEnum::Svm(service) => service
+                    .get_bids(GetBidsInput {
+                        profile,
+                        from_time: query.from_time,
+                    })
+                    .await?
+                    .into_iter()
+                    .map(|b| b.into())
+                    .collect(),
+            };
+
+            Ok(Json(Bids { items: bids }))
         }
         _ => {
             tracing::error!("Unauthorized access to get_bids_by_time");
@@ -385,4 +413,16 @@ pub fn get_routes() -> Router<Arc<StoreNew>> {
         .route("/", post(post_bid))
         .route("/", get(get_bids_by_time))
         .route("/:bid_id", get(get_bid_status))
+}
+
+impl From<entities::Bid<Evm>> for Bid {
+    fn from(_bid: entities::Bid<Evm>) -> Self {
+        todo!()
+    }
+}
+
+impl From<entities::Bid<Svm>> for Bid {
+    fn from(_bid: entities::Bid<Svm>) -> Self {
+        todo!()
+    }
 }

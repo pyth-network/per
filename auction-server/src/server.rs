@@ -7,6 +7,7 @@ use {
         auction_old::{
             run_auction_conclusion_loop_svm, run_log_listener_loop_svm, run_submission_loop, run_tracker_loop
         },
+        bid::service as bid_service,
         config::{
             ChainId,
             Config,
@@ -14,6 +15,7 @@ use {
             MigrateOptions,
             RunOptions,
         },
+        kernel::entities::ChainType,
         models,
         opportunity::{
             service as opportunity_service,
@@ -248,38 +250,73 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
-        db: pool.clone(),
-        chains_evm,
-        chains_svm,
-        event_sender: broadcast_sender.clone(),
-        ws: ws::WsState {
+        db:               pool.clone(),
+        chains_evm:       chains_evm.clone(),
+        chains_svm:       chains_svm.clone(),
+        event_sender:     broadcast_sender.clone(),
+        ws:               ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
             broadcast_sender,
             broadcast_receiver,
         },
-        task_tracker: task_tracker.clone(),
-        secret_key: run_options.secret_key.clone(),
-        access_tokens: RwLock::new(access_tokens),
+        task_tracker:     task_tracker.clone(),
+        secret_key:       run_options.secret_key.clone(),
+        access_tokens:    RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
     });
 
-    let store_new = Arc::new(StoreNew {
-        store:                   store.clone(),
-        opportunity_service_evm: Arc::new(opportunity_service::Service::<
+    #[allow(clippy::iter_kv_map)]
+    let mut bid_services: HashMap<ChainId, bid_service::ServiceEnum> = chains_evm
+        .iter()
+        .map(|(chain_id, _chain_store)| {
+            (
+                chain_id.clone(),
+                bid_service::ServiceEnum::Evm(Arc::new(bid_service::Service::new(
+                    pool.clone(),
+                    bid_service::Config {
+                        chain_type: ChainType::Evm,
+                        chain_id:   chain_id.clone(),
+                    },
+                ))),
+            )
+        })
+        .collect();
+    chains_svm.iter().for_each(|(chain_id, _chain_store)| {
+        if bid_services
+            .insert(
+                chain_id.clone(),
+                bid_service::ServiceEnum::Svm(Arc::new(bid_service::Service::new(
+                    pool.clone(),
+                    bid_service::Config {
+                        chain_type: ChainType::Svm,
+                        chain_id:   chain_id.clone(),
+                    },
+                ))),
+            )
+            .is_some()
+        {
+            panic!("Duplicate chain id: {}", chain_id);
+        }
+    });
+
+    let store_new = Arc::new(StoreNew::new(
+        store.clone(),
+        Arc::new(opportunity_service::Service::<
             opportunity_service::ChainTypeEvm,
         >::new(
             store.clone(),
             pool.clone(),
             config_opportunity_service_evm,
         )),
-        opportunity_service_svm: Arc::new(opportunity_service::Service::<
+        Arc::new(opportunity_service::Service::<
             opportunity_service::ChainTypeSvm,
         >::new(
             store.clone(),
             pool.clone(),
             config_opportunity_service_svm,
         )),
-    });
+        bid_services,
+    ));
 
     tokio::join!(
         async {

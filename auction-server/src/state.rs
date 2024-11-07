@@ -14,6 +14,7 @@ use {
             ChainStore,
             SignableExpressRelayContract,
         },
+        bid::service as bid_service,
         config::{
             ChainId,
             ConfigEvm,
@@ -100,7 +101,6 @@ use {
             BigDecimal,
         },
         Postgres,
-        QueryBuilder,
     },
     std::{
         collections::HashMap,
@@ -1103,6 +1103,38 @@ pub struct StoreNew {
     pub opportunity_service_svm:
         Arc<opportunity_service::Service<opportunity_service::ChainTypeSvm>>,
     pub store:                   Arc<Store>,
+
+    bid_services: HashMap<ChainId, bid_service::ServiceEnum>,
+}
+
+impl StoreNew {
+    pub fn new(
+        store: Arc<Store>,
+        opportunity_service_evm: Arc<
+            opportunity_service::Service<opportunity_service::ChainTypeEvm>,
+        >,
+        opportunity_service_svm: Arc<
+            opportunity_service::Service<opportunity_service::ChainTypeSvm>,
+        >,
+        bid_services: HashMap<ChainId, bid_service::ServiceEnum>,
+    ) -> Self {
+        Self {
+            opportunity_service_evm,
+            opportunity_service_svm,
+            store,
+            bid_services,
+        }
+    }
+
+    pub fn get_bid_service(
+        &self,
+        chain_id: &ChainId,
+    ) -> Result<bid_service::ServiceEnum, RestError> {
+        self.bid_services
+            .get(chain_id)
+            .cloned()
+            .ok_or(RestError::InvalidChainId)
+    }
 }
 
 impl SimulatedBidCoreFields {
@@ -1501,86 +1533,6 @@ impl Store {
             .get(token)
             .cloned()
             .ok_or(RestError::InvalidToken)
-    }
-
-    async fn get_bids_by_time(
-        &self,
-        profile_id: models::ProfileId,
-        from_time: Option<OffsetDateTime>,
-    ) -> Result<Vec<models::Bid>, RestError> {
-        let mut query = QueryBuilder::new("SELECT * from bid where profile_id = ");
-        query.push_bind(profile_id);
-        if let Some(from_time) = from_time {
-            query.push(" AND initiation_time >= ");
-            query.push_bind(from_time);
-        }
-        query.push(" ORDER BY initiation_time ASC LIMIT 20");
-        query
-            .build_query_as()
-            .fetch_all(&self.db)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB: Failed to fetch bids: {}", e);
-                RestError::TemporarilyUnavailable
-            })
-    }
-
-    async fn get_auctions_by_bids(
-        &self,
-        bids: &[models::Bid],
-    ) -> Result<Vec<models::Auction>, RestError> {
-        let auction_ids: Vec<models::AuctionId> =
-            bids.iter().filter_map(|bid| bid.auction_id).collect();
-        sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
-            .bind(auction_ids)
-            .fetch_all(&self.db)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB: Failed to fetch auctions: {}", e);
-                RestError::TemporarilyUnavailable
-            })
-    }
-
-    pub async fn get_simulated_bids_by_time(
-        &self,
-        profile_id: models::ProfileId,
-        from_time: Option<OffsetDateTime>,
-    ) -> Result<Vec<SimulatedBid>, RestError> {
-        let bids = self.get_bids_by_time(profile_id, from_time).await?;
-        let auctions = self.get_auctions_by_bids(&bids).await?;
-
-        Ok(bids
-            .into_iter()
-            .filter_map(|b| {
-                let auction = match b.auction_id {
-                    Some(auction_id) => auctions.clone().into_iter().find(|a| a.id == auction_id),
-                    None => None,
-                };
-                let result: anyhow::Result<SimulatedBid> = match b.chain_type {
-                    models::ChainType::Evm => {
-                        let bid: anyhow::Result<SimulatedBidEvm> =
-                            (b.clone(), auction.clone()).try_into();
-                        bid.map(|b| b.into())
-                    }
-                    models::ChainType::Svm => {
-                        let bid: anyhow::Result<SimulatedBidSvm> =
-                            (b.clone(), auction.clone()).try_into();
-                        bid.map(|b| b.into())
-                    }
-                };
-                match result {
-                    Ok(bid) => Some(bid),
-                    Err(e) => {
-                        tracing::error!(
-                            "Failed to convert bid to SimulatedBid: {} - bid: {:?}",
-                            e,
-                            b
-                        );
-                        None
-                    }
-                }
-            })
-            .collect())
     }
 }
 
