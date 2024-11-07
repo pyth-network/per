@@ -188,10 +188,8 @@ class LimoClient:
         self,
         taker: Pubkey,
         order: OrderStateAndAddress,
-        input_amount_decimals: Decimal,
-        output_amount_decimals: Decimal,
-        input_mint_decimals: int,
-        output_mint_decimals: int,
+        input_amount: int,
+        output_amount: int,
         express_relay_program_id: Pubkey,
     ) -> List[Instruction]:
         """
@@ -213,7 +211,6 @@ class LimoClient:
         ixs: List[Instruction] = []
         close_wsol_ixns: List[Instruction] = []
         taker_input_ata: Pubkey
-        output_amount = int(output_amount_decimals * (10**output_mint_decimals))
         if order["state"].input_mint == WRAPPED_SOL_MINT:
             instructions = await self.get_init_if_needed_wsol_create_and_close_ixs(
                 owner=taker, payer=taker, amount_to_deposit_lamports=0
@@ -269,9 +266,7 @@ class LimoClient:
         ixs.append(
             take_order(
                 TakeOrderArgs(
-                    input_amount=int(
-                        input_amount_decimals * (10**input_mint_decimals)
-                    ),
+                    input_amount,
                     min_output_amount=output_amount,
                     tip_amount_permissionless_taking=0,
                 ),

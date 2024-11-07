@@ -112,35 +112,25 @@ class SimpleSearcherSvm:
 
     async def assess_opportunity(self, opp: OpportunitySvm) -> BidSvm | None:
         order: OrderStateAndAddress = {"address": opp.order_address, "state": opp.order}
+
+        input_amount = min(
+            order["state"].remaining_input_amount,
+            order["state"].initial_input_amount * self.fill_rate // 100
+        )
+        output_amount = (order["state"].expected_output_amount * input_amount + order["state"].initial_input_amount - 1 ) // order["state"].initial_input_amount
+
         input_mint_decimals = await self.get_mint_decimals(order["state"].input_mint)
         output_mint_decimals = await self.get_mint_decimals(order["state"].output_mint)
-        effective_fill_rate = min(
-            self.fill_rate,
-            100
-            * order["state"].remaining_input_amount
-            / order["state"].initial_input_amount,
-        )
-        input_amount_decimals = Decimal(order["state"].initial_input_amount) / Decimal(
-            10**input_mint_decimals
-        )
-        input_amount_decimals = (
-            input_amount_decimals * Decimal(effective_fill_rate) / Decimal(100)
-        )
-        output_amount_decimals = Decimal(
-            order["state"].expected_output_amount
-        ) / Decimal(10**output_mint_decimals)
         logger.info(
             f"Order address {order['address']}\n"
-            f"Sell token {order['state'].input_mint} amount: {input_amount_decimals}\n"
-            f"Buy token {order['state'].output_mint} amount: {output_amount_decimals}"
+            f"Sell token {order['state'].input_mint} amount: {Decimal(input_amount) / Decimal(10**input_mint_decimals)}\n"
+            f"Buy token {order['state'].output_mint} amount: {Decimal(output_amount) / Decimal(10**output_mint_decimals)}"
         )
         ixs_take_order = await self.limo_client.take_order_ix(
             self.private_key.pubkey(),
             order,
-            input_amount_decimals,
-            output_amount_decimals,
-            input_mint_decimals,
-            output_mint_decimals,
+            input_amount,
+            output_amount,
             self.svm_config["express_relay_program"],
         )
         router = self.limo_client.get_pda_authority(
