@@ -8,6 +8,7 @@ import {
 } from "../index";
 import {
   BidStatusUpdate,
+  BidSvm,
   ChainId,
   OpportunityDelete,
   SvmChainUpdate,
@@ -15,16 +16,30 @@ import {
 import { SVM_CONSTANTS } from "../const";
 
 import * as anchor from "@coral-xyz/anchor";
-import { Keypair, PublicKey, Connection, Blockhash } from "@solana/web3.js";
+import {
+  Keypair,
+  PublicKey,
+  Connection,
+  Blockhash,
+  TransactionInstruction,
+} from "@solana/web3.js";
 
 import * as limo from "@kamino-finance/limo-sdk";
 import { Decimal } from "decimal.js";
 import {
   getMintDecimals,
   getPdaAuthority,
+  OrderStateAndAddress,
 } from "@kamino-finance/limo-sdk/dist/utils";
 
 const DAY_IN_SECONDS = 60 * 60 * 24;
+
+type BidData = {
+  bidAmount: anchor.BN;
+  router: PublicKey;
+  relayerSigner: PublicKey;
+  relayerFeeReceiver: PublicKey;
+};
 
 class SimpleSearcherLimo {
   private client: Client;
@@ -80,12 +95,86 @@ class SimpleSearcherLimo {
     return decimals;
   }
 
-  async generateBid(opportunity: OpportunitySvm, recentBlockhash: Blockhash) {
+  /**
+   * Generates a bid for a given opportunity. The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
+   * @param opportunity The SVM opportunity to bid on
+   * @returns The generated bid object
+   */
+  async generateBid(opportunity: OpportunitySvm): Promise<BidSvm> {
     const order = opportunity.order;
     const limoClient = new limo.LimoClient(
       this.connectionSvm,
       order.state.globalConfig
     );
+
+    const ixsTakeOrder = await this.generateTakeOrderIxs(limoClient, order);
+    const txRaw = new anchor.web3.Transaction().add(...ixsTakeOrder);
+
+    const bidData = await this.getBidData(limoClient, order);
+
+    const bid = await this.client.constructSvmBid(
+      txRaw,
+      this.searcher.publicKey,
+      bidData.router,
+      order.address,
+      bidData.bidAmount,
+      new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
+      this.chainId,
+      bidData.relayerSigner,
+      bidData.relayerFeeReceiver
+    );
+
+    bid.transaction.recentBlockhash = this.recentBlockhash[this.chainId];
+    bid.transaction.sign(this.searcher);
+    return bid;
+  }
+
+  /**
+   * Gets the router address, bid amount, and relayer addresses required to create a valid bid
+   * @param limoClient The Limo client
+   * @param order The limit order to be fulfilled
+   * @returns The fetched bid data
+   */
+  async getBidData(
+    limoClient: limo.LimoClient,
+    order: OrderStateAndAddress
+  ): Promise<BidData> {
+    const router = getPdaAuthority(
+      limoClient.getProgramID(),
+      order.state.globalConfig
+    );
+    let bidAmount = new anchor.BN(argv.bid);
+    if (this.bidMargin !== 0) {
+      const margin = new anchor.BN(
+        Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin
+      );
+      bidAmount = bidAmount.add(margin);
+    }
+    if (!this.expressRelayConfig) {
+      this.expressRelayConfig = await this.client.getExpressRelaySvmConfig(
+        this.chainId,
+        this.connectionSvm
+      );
+    }
+
+    return {
+      bidAmount,
+      router,
+      relayerSigner: this.expressRelayConfig.relayerSigner,
+      relayerFeeReceiver: this.expressRelayConfig.feeReceiverRelayer,
+    };
+  }
+
+  /**
+   * Creates the take order instructions on the Limo program
+   * @param limoClient The Limo client
+   * @param order The limit order to be fulfilled
+   * @returns The Limo TakeOrder instructions used to fulfill the order
+   */
+  async generateTakeOrderIxs(
+    limoClient: limo.LimoClient,
+    order: OrderStateAndAddress
+  ): Promise<TransactionInstruction[]> {
     const inputMintDecimals = await this.getMintDecimalsCached(
       order.state.inputMint
     );
@@ -128,7 +217,7 @@ class SimpleSearcherLimo {
       outputAmountDecimals.toString()
     );
 
-    const ixsTakeOrder = await limoClient.takeOrderIx(
+    return limoClient.takeOrderIx(
       this.searcher.publicKey,
       order,
       inputAmountDecimals,
@@ -137,43 +226,6 @@ class SimpleSearcherLimo {
       inputMintDecimals,
       outputMintDecimals
     );
-    const txRaw = new anchor.web3.Transaction().add(...ixsTakeOrder);
-
-    const router = getPdaAuthority(
-      limoClient.getProgramID(),
-      order.state.globalConfig
-    );
-
-    let bidAmount = new anchor.BN(argv.bid);
-    if (this.bidMargin !== 0) {
-      const margin = new anchor.BN(
-        Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin
-      );
-      bidAmount = bidAmount.add(margin);
-    }
-
-    if (!this.expressRelayConfig) {
-      this.expressRelayConfig = await this.client.getExpressRelaySvmConfig(
-        this.chainId,
-        this.connectionSvm
-      );
-    }
-
-    const bid = await this.client.constructSvmBid(
-      txRaw,
-      this.searcher.publicKey,
-      router,
-      order.address,
-      bidAmount,
-      new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
-      this.chainId,
-      this.expressRelayConfig.relayerSigner,
-      this.expressRelayConfig.feeReceiverRelayer
-    );
-
-    bid.transaction.recentBlockhash = recentBlockhash;
-    bid.transaction.sign(this.searcher);
-    return bid;
   }
 
   async opportunityHandler(opportunity: Opportunity) {
@@ -189,11 +241,7 @@ class SimpleSearcherLimo {
       console.log(`Adding latency of ${latency}ms`);
       await new Promise((resolve) => setTimeout(resolve, latency));
     }
-
-    const bid = await this.generateBid(
-      opportunity as OpportunitySvm,
-      this.recentBlockhash[this.chainId]
-    );
+    const bid = await this.generateBid(opportunity as OpportunitySvm);
     try {
       const bidId = await this.client.submitBid(bid);
       console.log(
