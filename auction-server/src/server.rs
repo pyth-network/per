@@ -182,7 +182,8 @@ async fn create_pg_pool(database_url: &str) -> Result<PgPool> {
 
 pub async fn run_migrations(migrate_options: MigrateOptions) -> Result<()> {
     let pool = create_pg_pool(&migrate_options.database_url).await?;
-    if let Err(err) = migrate!("./migrations").run(&pool).await {
+    let migrator = migrate!("./migrations");
+    if let Err(err) = migrator.run(&pool).await {
         match err {
             sqlx::migrate::MigrateError::VersionMissing(version) => {
                 tracing::info!(
@@ -195,6 +196,13 @@ pub async fn run_migrations(migrate_options: MigrateOptions) -> Result<()> {
             }
         }
     }
+    tracing::info!("Migrations ran successfully");
+    let last_migration_desc = migrator
+        .iter()
+        .last()
+        .map(|x| x.description.as_ref())
+        .unwrap_or("No migrations found");
+    tracing::info!("Last migration: {}", last_migration_desc);
     Ok(())
 }
 pub async fn start_server(run_options: RunOptions) -> Result<()> {
