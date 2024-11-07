@@ -143,13 +143,15 @@ class SimpleSearcherLimo {
       limoClient.getProgramID(),
       order.state.globalConfig
     );
-    const bidAmount = new anchor.BN(argv.bid);
+
+    let bidAmount = new anchor.BN(argv.bid);
     if (this.bidMargin !== 0) {
       const margin = new anchor.BN(
         Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin
       );
-      bidAmount.add(margin);
+      bidAmount = bidAmount.add(margin);
     }
+
     if (!this.expressRelayConfig) {
       this.expressRelayConfig = await this.client.getExpressRelaySvmConfig(
         this.chainId,
