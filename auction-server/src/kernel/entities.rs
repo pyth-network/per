@@ -39,3 +39,9 @@ impl<'de> Deserialize<'de> for PermissionKeySvm {
         Ok(PermissionKeySvm(bytes))
     }
 }
+
+#[derive(Debug, PartialEq)]
+pub enum ChainType {
+    Evm,
+    Svm,
+}

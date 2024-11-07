@@ -11,7 +11,10 @@ use {
     crate::{
         kernel::{
             db::DB,
-            entities::ChainId,
+            entities::{
+                ChainId,
+                ChainType as ChainTypeEnum,
+            },
         },
         state::{
             ChainStoreEvm,
@@ -167,12 +170,6 @@ impl ConfigSvm {
             })
             .collect())
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ChainTypeEnum {
-    Evm,
-    Svm,
 }
 
 pub trait ChainType: Send + Sync {

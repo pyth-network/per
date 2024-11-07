@@ -12,11 +12,11 @@ use {
     uuid::Uuid,
 };
 
-pub type _AuctionId = Uuid;
-pub type _AuctionLock = Arc<Mutex<()>>;
+pub type AuctionId = Uuid;
+pub type AuctionLock = Arc<Mutex<()>>;
 
 pub struct _Auction<T: BidTrait> {
-    pub id:                  _AuctionId,
+    pub id:                  AuctionId,
     pub chain_id:            ChainId,
     pub permission_key:      <T::ChainData as BidChainData>::PermissionKey,
     pub creation_time:       OffsetDateTime,

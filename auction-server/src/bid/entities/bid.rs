@@ -106,16 +106,16 @@ pub trait BidTrait:
 {
     type StatusType: BidStatus;
     type ChainData: BidChainData;
-    type BidAmount;
+    type BidAmount: std::fmt::Debug;
 
-    fn update_status(self, status: Self::StatusType) -> Self;
+    // fn update_status(self, status: Self::StatusType) -> Self;
     // fn get_metadata(&self) -> anyhow::Result<models::BidMetadata>;
     // fn get_chain_type(&self) -> models::ChainType;
-    fn get_bid_amount_string(&self) -> String;
-    fn get_permission_key(&self) -> &[u8];
-    fn get_permission_key_as_bytes(&self) -> Bytes {
-        Bytes::from(self.get_permission_key().to_vec())
-    }
+    // fn get_bid_amount_string(&self) -> String;
+    // fn get_permission_key(&self) -> &[u8];
+    // fn get_permission_key_as_bytes(&self) -> Bytes {
+    //     Bytes::from(self.get_permission_key().to_vec())
+    // }
     // fn get_bid_status(
     //     status: models::BidStatus,
     //     index: Option<u32>,
@@ -123,6 +123,7 @@ pub trait BidTrait:
     // ) -> anyhow::Result<Self::StatusType>;
 }
 
+#[derive(Clone, Debug)]
 pub struct Bid<T: BidTrait> {
     pub id:              BidId,
     pub chain_id:        ChainId,
@@ -134,18 +135,20 @@ pub struct Bid<T: BidTrait> {
     pub chain_data: T::ChainData,
 }
 
-pub trait BidChainData {
-    type PermissionKey: AsRef<[u8]>;
+pub trait BidChainData: std::fmt::Debug {
+    type PermissionKey: AsRef<[u8]> + std::fmt::Debug;
 
     fn get_permission_key(&self) -> Self::PermissionKey;
 }
 
+#[derive(Clone, Debug)]
 pub struct BidChainDataSvm {
     pub transaction:        VersionedTransaction,
     pub router:             Pubkey,
     pub permission_account: Pubkey,
 }
 
+#[derive(Clone, Debug)]
 pub struct BidChainDataEvm {
     pub target_contract: Address,
     pub target_calldata: Bytes,
@@ -170,4 +173,22 @@ impl BidChainData for BidChainDataEvm {
     fn get_permission_key(&self) -> Self::PermissionKey {
         self.permission_key.clone()
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct Evm;
+
+#[derive(Clone, Debug)]
+pub struct Svm;
+
+impl BidTrait for Evm {
+    type StatusType = BidStatusEvm;
+    type ChainData = BidChainDataEvm;
+    type BidAmount = U256;
+}
+
+impl BidTrait for Svm {
+    type StatusType = BidStatusSvm;
+    type ChainData = BidChainDataSvm;
+    type BidAmount = u64;
 }
