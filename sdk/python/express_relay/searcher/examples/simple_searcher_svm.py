@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import random
 import typing
 from typing import List
 from decimal import Decimal
@@ -52,6 +53,8 @@ class SimpleSearcherSvm:
         chain_id: str,
         svm_rpc_endpoint: str,
         fill_rate: int,
+        with_latency: bool,
+        bid_margin: int,
         api_key: str | None = None,
     ):
         self.client = ExpressRelayClient(
@@ -71,6 +74,8 @@ class SimpleSearcherSvm:
         self.rpc_client = AsyncClient(svm_rpc_endpoint)
         self.limo_client = LimoClient(self.rpc_client)
         self.fill_rate = fill_rate
+        self.with_latency = with_latency
+        self.bid_margin = bid_margin
         self.express_relay_metadata = None
         self.mint_decimals_cache = {}
         self.recent_blockhash = {}
@@ -81,6 +86,9 @@ class SimpleSearcherSvm:
         Args:
             opp: An object representing a single opportunity.
         """
+        if self.with_latency:
+            await asyncio.sleep(0.5 * random.random())
+
         if opp.chain_id not in self.recent_blockhash:
             logger.info(f"No recent blockhash for chain, {opp.chain_id} skipping bid")
             return None
@@ -209,6 +217,10 @@ class SimpleSearcherSvm:
             self.limo_client.get_program_id(), order["state"].global_config
         )
 
+        bid_amount = self.bid_amount
+        if self.bid_margin != 0:
+            bid_amount += random.randint(-self.bid_margin, self.bid_margin)
+
         if self.express_relay_metadata is None:
             self.express_relay_metadata = await ExpressRelayMetadata.fetch(
                 self.rpc_client,
@@ -222,7 +234,7 @@ class SimpleSearcherSvm:
 
         return BidData(
             router=router,
-            bid_amount=self.bid_amount,
+            bid_amount=bid_amount,
             relayer_signer=self.express_relay_metadata.relayer_signer,
             relayer_fee_receiver=self.express_relay_metadata.fee_receiver_relayer
         )
@@ -285,6 +297,20 @@ async def main():
         default=100,
         help="How much of the initial order size to fill in percentage. Default is 100%",
     )
+    parser.add_argument(
+        "--with-latency",
+        required=False,
+        default=False,
+        action="store_true",
+        help="Whether to add random latency to the bid submission. Default is false",
+    )
+    parser.add_argument(
+        "--bid-margin",
+        required=False,
+        type=int,
+        default=0,
+        help="The margin to add or subtract from the bid. For example, 1 means the bid range is [bid - 1, bid + 1]. Default is 0",
+    )
 
     args = parser.parse_args()
 
@@ -311,6 +337,8 @@ async def main():
         args.chain_id,
         args.endpoint_svm,
         args.fill_rate,
+        args.with_latency,
+        args.bid_margin,
         args.api_key,
     )
 
