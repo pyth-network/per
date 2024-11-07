@@ -17,7 +17,6 @@
     "@pythnetwork/express-relay-js": "^0.13.1",
     "@solana/web3.js": "^1.95.3",
     "@types/yargs": "^17.0.33",
-    "cross-fetch": "^4.0.0",
     "yargs": "^17.7.2"
   }
 }

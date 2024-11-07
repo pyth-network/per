@@ -31,7 +31,7 @@ import {
   getPdaAuthority,
   OrderStateAndAddress,
 } from "@kamino-finance/limo-sdk/dist/utils";
-import { OPPORTUNITY_WAIT_TIME } from "./const";
+import { OPPORTUNITY_WAIT_TIME_MS } from "./const";
 import { filterComputeBudgetIxs } from "./utils/computeBudget";
 
 const MINUTE_IN_SECS = 60;
@@ -89,7 +89,9 @@ export class DexRouter {
 
   async opportunityHandler(opportunity: Opportunity) {
     console.log("Received opportunity:", opportunity.opportunityId);
-    await new Promise((resolve) => setTimeout(resolve, OPPORTUNITY_WAIT_TIME));
+    await new Promise((resolve) =>
+      setTimeout(resolve, OPPORTUNITY_WAIT_TIME_MS)
+    );
     try {
       const bid = await this.generateRouterBid(opportunity as OpportunitySvm);
       const result = await this.client.requestViaWebsocket({
