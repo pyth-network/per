@@ -44,7 +44,7 @@ async def main():
     if not keypairs_dir.exists():
         keypairs_dir.mkdir(exist_ok=True, parents=True)
 
-    for account in ["searcher", "admin", "relayer_signer"]:
+    for account in ["searcher_js", "searcher_py", "admin", "relayer_signer"]:
         file_path = keypairs_dir / f"{account}.json"
         if not file_path.exists():
             kp = Keypair()

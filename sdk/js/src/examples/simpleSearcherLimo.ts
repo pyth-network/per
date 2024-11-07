@@ -38,6 +38,8 @@ class SimpleSearcherLimo {
     private searcher: Keypair,
     public endpointSvm: string,
     public fillRate: number,
+    public withLatency: boolean,
+    public bidMargin: number,
     public apiKey?: string
   ) {
     this.client = new Client(
@@ -141,7 +143,15 @@ class SimpleSearcherLimo {
       limoClient.getProgramID(),
       order.state.globalConfig
     );
-    const bidAmount = new anchor.BN(argv.bid);
+
+    let bidAmount = new anchor.BN(argv.bid);
+    if (this.bidMargin !== 0) {
+      const margin = new anchor.BN(
+        Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin
+      );
+      bidAmount = bidAmount.add(margin);
+    }
+
     if (!this.expressRelayConfig) {
       this.expressRelayConfig = await this.client.getExpressRelaySvmConfig(
         this.chainId,
@@ -172,6 +182,12 @@ class SimpleSearcherLimo {
         `No recent blockhash for chain ${this.chainId}, skipping bid`
       );
       return;
+    }
+
+    if (this.withLatency) {
+      const latency = Math.floor(Math.random() * 500);
+      console.log(`Adding latency of ${latency}ms`);
+      await new Promise((resolve) => setTimeout(resolve, latency));
     }
 
     const bid = await this.generateBid(
@@ -259,6 +275,18 @@ const argv = yargs(hideBin(process.argv))
     type: "number",
     default: 100,
   })
+  .option("with-latency", {
+    description:
+      "Whether to add random latency to the bid submission. Default is false",
+    type: "boolean",
+    default: false,
+  })
+  .option("bid-margin", {
+    description:
+      "The margin to add or subtract from the bid. For example, 1 means the bid range is [bid - 1, bid + 1]. Default is 0",
+    type: "number",
+    default: 0,
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -291,6 +319,8 @@ async function run() {
     searcherKeyPair,
     argv.endpointSvm,
     argv.fillRate,
+    argv.withLatency,
+    argv.bidMargin,
     argv.apiKey
   );
   await simpleSearcher.start();

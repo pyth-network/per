@@ -211,6 +211,7 @@ class LimoClient:
         ixs: List[Instruction] = []
         close_wsol_ixns: List[Instruction] = []
         taker_input_ata: Pubkey
+        output_amount = int(output_amount_decimals * (10**output_mint_decimals))
         if order["state"].input_mint == WRAPPED_SOL_MINT:
             instructions = await self.get_init_if_needed_wsol_create_and_close_ixs(
                 owner=taker, payer=taker, amount_to_deposit_lamports=0
@@ -266,7 +267,13 @@ class LimoClient:
         ixs.append(
             take_order(
                 TakeOrderArgs(
+<<<<<<< HEAD
                     input_amount,
+=======
+                    input_amount=int(
+                        input_amount_decimals * (10**input_mint_decimals)
+                    ),
+>>>>>>> main
                     min_output_amount=output_amount,
                     tip_amount_permissionless_taking=0,
                 ),
