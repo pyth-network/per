@@ -17,18 +17,12 @@ export function filterComputeBudgetIxs(
   }
   let ixsFiltered: TransactionInstruction[] = [];
 
-  // we only care about the last SetComputeUnitLimit and SetComputeUnitPrice because only the last of each will be enforced in transaction processing
   const typesComputeBudget = ixs.map((ix) =>
     ComputeBudgetInstruction.decodeInstructionType(ix)
   );
 
-  const lastIxSetCuLimit = typesComputeBudget.lastIndexOf(
-    "SetComputeUnitLimit"
-  );
-  if (lastIxSetCuLimit !== -1) {
-    ixsFiltered.push(ixs[lastIxSetCuLimit]);
-  }
-
+  // for now we filter out the SetComputeUnitLimit instruction because we don't care about the limit and want to ensure the tx doesn't fail bc of low limit
+  // we only care about the last SetComputeUnitPrice because only the last will be enforced in transaction processing
   const lastIxSetCuPrice = typesComputeBudget.lastIndexOf(
     "SetComputeUnitPrice"
   );
