@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import logging
 import typing
+from typing import List
 from decimal import Decimal
 
 from solana.rpc.async_api import AsyncClient
@@ -9,6 +10,7 @@ from solana.rpc.commitment import Finalized
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 from solders.transaction import Transaction
+from solders.instruction import Instruction
 
 from express_relay.client import (
     ExpressRelayClient,
@@ -30,6 +32,12 @@ from express_relay.svm.limo_client import LimoClient, OrderStateAndAddress
 DEADLINE = 2**62
 logger = logging.getLogger(__name__)
 
+class BidData:
+    def __init__(self, router: Pubkey, bid_amount: int, relayer_signer: Pubkey, relayer_fee_receiver: Pubkey):
+        self.router = router
+        self.bid_amount = bid_amount
+        self.relayer_signer = relayer_signer
+        self.relayer_fee_receiver = relayer_fee_receiver
 
 class SimpleSearcherSvm:
     express_relay_metadata: ExpressRelayMetadata | None
@@ -73,12 +81,16 @@ class SimpleSearcherSvm:
         Args:
             opp: An object representing a single opportunity.
         """
+        if opp.chain_id not in self.recent_blockhash:
+            logger.info(f"No recent blockhash for chain, {opp.chain_id} skipping bid")
+            return None
+
         bid = await self.assess_opportunity(typing.cast(OpportunitySvm, opp))
 
         if bid:
             try:
-                await self.client.submit_bid(bid)
-                logger.info(f"Submitted bid for opportunity {str(opp.opportunity_id)}")
+                bid_id = await self.client.submit_bid(bid)
+                logger.info(f"Submitted bid {str(bid_id)} for opportunity {str(opp.opportunity_id)}")
             except Exception as e:
                 logger.error(
                     f"Error submitting bid for opportunity {str(opp.opportunity_id)}: {e}"
@@ -111,7 +123,46 @@ class SimpleSearcherSvm:
         return self.mint_decimals_cache[str(mint)]
 
     async def assess_opportunity(self, opp: OpportunitySvm) -> BidSvm | None:
+        """
+        Method to assess an opportunity and return a bid if the opportunity is worth taking. This method always returns a bid for any valid opportunity.
+
+        Args:
+            opp: An object representing a single opportunity.
+        Returns:
+            A bid object if the opportunity is worth taking to be submitted to the Express Relay server, otherwise None.
+        """
         order: OrderStateAndAddress = {"address": opp.order_address, "state": opp.order}
+        ixs_take_order = await self.form_take_order_ixs(order)
+        bid_data = await self.get_bid_data(order)
+
+        submit_bid_ix = self.client.get_svm_submit_bid_instruction(
+            searcher=self.private_key.pubkey(),
+            router=bid_data.router,
+            permission_key=order["address"],
+            bid_amount=bid_data.bid_amount,
+            deadline=DEADLINE,
+            chain_id=self.chain_id,
+            fee_receiver_relayer=bid_data.relayer_fee_receiver,
+            relayer_signer=bid_data.relayer_signer,
+        )
+        transaction = Transaction.new_with_payer(
+            [submit_bid_ix] + ixs_take_order, self.private_key.pubkey()
+        )
+        transaction.partial_sign(
+            [self.private_key], recent_blockhash=self.recent_blockhash[self.chain_id]
+        )
+        bid = BidSvm(transaction=transaction, chain_id=self.chain_id)
+        return bid
+
+    async def form_take_order_ixs(self, order: OrderStateAndAddress) -> List[Instruction]:
+        """
+        Helper method to form the Limo instructions to take an order.
+
+        Args:
+            order: An object representing the order to be fulfilled.
+        Returns:
+            A list of Limo instructions to take an order.
+        """
         input_mint_decimals = await self.get_mint_decimals(order["state"].input_mint)
         output_mint_decimals = await self.get_mint_decimals(order["state"].output_mint)
         effective_fill_rate = min(
@@ -143,6 +194,17 @@ class SimpleSearcherSvm:
             output_mint_decimals,
             self.svm_config["express_relay_program"],
         )
+        return ixs_take_order
+
+    async def get_bid_data(self, order: OrderStateAndAddress) -> BidData:
+        """
+        Helper method to get the bid data for an opportunity.
+
+        Args:
+            order: An object representing the order to be fulfilled.
+        Returns:
+            A BidData object representing the bid data for the opportunity. Consists of the router pubkey, bid amount, relayer signer pubkey, and relayer fee receiver pubkey.
+        """
         router = self.limo_client.get_pda_authority(
             self.limo_client.get_program_id(), order["state"].global_config
         )
@@ -158,29 +220,12 @@ class SimpleSearcherSvm:
             if self.express_relay_metadata is None:
                 raise ValueError("Express relay metadata account not found")
 
-        submit_bid_ix = self.client.get_svm_submit_bid_instruction(
-            searcher=self.private_key.pubkey(),
+        return BidData(
             router=router,
-            permission_key=order["address"],
             bid_amount=self.bid_amount,
-            deadline=DEADLINE,
-            chain_id=self.chain_id,
-            fee_receiver_relayer=self.express_relay_metadata.fee_receiver_relayer,
             relayer_signer=self.express_relay_metadata.relayer_signer,
+            relayer_fee_receiver=self.express_relay_metadata.fee_receiver_relayer
         )
-        transaction = Transaction.new_with_payer(
-            [submit_bid_ix] + ixs_take_order, self.private_key.pubkey()
-        )
-
-        if opp.chain_id not in self.recent_blockhash:
-            logger.info(f"No recent blockhash for chain, {opp.chain_id} skipping bid")
-            return None
-
-        transaction.partial_sign(
-            [self.private_key], recent_blockhash=self.recent_blockhash[self.chain_id]
-        )
-        bid = BidSvm(transaction=transaction, chain_id=self.chain_id)
-        return bid
 
     async def svm_chain_update_callback(self, svm_chain_update: SvmChainUpdate):
         self.recent_blockhash[svm_chain_update.chain_id] = svm_chain_update.blockhash
