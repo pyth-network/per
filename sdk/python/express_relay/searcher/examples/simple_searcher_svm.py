@@ -86,12 +86,12 @@ class SimpleSearcherSvm:
         Args:
             opp: An object representing a single opportunity.
         """
-        if self.with_latency:
-            await asyncio.sleep(0.5 * random.random())
-
         if opp.chain_id not in self.recent_blockhash:
             logger.info(f"No recent blockhash for chain, {opp.chain_id} skipping bid")
             return None
+
+        if self.with_latency:
+            await asyncio.sleep(0.5 * random.random())
 
         bid = await self.assess_opportunity(typing.cast(OpportunitySvm, opp))
 
@@ -132,7 +132,7 @@ class SimpleSearcherSvm:
 
     async def assess_opportunity(self, opp: OpportunitySvm) -> BidSvm | None:
         """
-        Method to assess an opportunity and return a bid if the opportunity is worth taking. This method always returns a bid for any valid opportunity.
+        Method to assess an opportunity and return a bid if the opportunity is worth taking. This method always returns a bid for any valid opportunity. The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
 
         Args:
             opp: An object representing a single opportunity.
@@ -140,7 +140,7 @@ class SimpleSearcherSvm:
             A bid object if the opportunity is worth taking to be submitted to the Express Relay server, otherwise None.
         """
         order: OrderStateAndAddress = {"address": opp.order_address, "state": opp.order}
-        ixs_take_order = await self.form_take_order_ixs(order)
+        ixs_take_order = await self.generate_take_order_ixs(order)
         bid_data = await self.get_bid_data(order)
 
         submit_bid_ix = self.client.get_svm_submit_bid_instruction(
@@ -162,7 +162,7 @@ class SimpleSearcherSvm:
         bid = BidSvm(transaction=transaction, chain_id=self.chain_id)
         return bid
 
-    async def form_take_order_ixs(self, order: OrderStateAndAddress) -> List[Instruction]:
+    async def generate_take_order_ixs(self, order: OrderStateAndAddress) -> List[Instruction]:
         """
         Helper method to form the Limo instructions to take an order.
 

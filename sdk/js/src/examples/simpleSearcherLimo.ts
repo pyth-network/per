@@ -96,7 +96,7 @@ class SimpleSearcherLimo {
   }
 
   /**
-   * Generates a bid for a given opportunity by transferring assets from the searcher's wallet
+   * Generates a bid for a given opportunity. The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
    * @param opportunity The SVM opportunity to bid on
    * @returns The generated bid object
    */
@@ -107,7 +107,7 @@ class SimpleSearcherLimo {
       order.state.globalConfig
     );
 
-    const ixsTakeOrder = await this.formTakeOrderIxs(limoClient, order);
+    const ixsTakeOrder = await this.generateTakeOrderIxs(limoClient, order);
     const txRaw = new anchor.web3.Transaction().add(...ixsTakeOrder);
 
     const bidData = await this.getBidData(limoClient, order);
@@ -130,7 +130,7 @@ class SimpleSearcherLimo {
   }
 
   /**
-   * Fetches the router address, bid amount, and relayer addresses required to create a valid bid
+   * Gets the router address, bid amount, and relayer addresses required to create a valid bid
    * @param limoClient The Limo client
    * @param order The limit order to be fulfilled
    * @returns The fetched bid data
@@ -171,7 +171,7 @@ class SimpleSearcherLimo {
    * @param order The limit order to be fulfilled
    * @returns The Limo TakeOrder instructions used to fulfill the order
    */
-  async formTakeOrderIxs(
+  async generateTakeOrderIxs(
     limoClient: limo.LimoClient,
     order: OrderStateAndAddress
   ): Promise<TransactionInstruction[]> {
