@@ -17,9 +17,7 @@ from express_relay.client import (
     ExpressRelayClient,
 )
 from express_relay.constants import SVM_CONFIGS
-from express_relay.models import (
-    BidStatusUpdate, Opportunity, OpportunityDelete
-)
+from express_relay.models import BidStatusUpdate, Opportunity, OpportunityDelete
 from express_relay.models.base import BidStatus
 from express_relay.models.svm import BidSvm, OpportunitySvm, SvmChainUpdate, SvmHash
 from express_relay.svm.generated.express_relay.accounts.express_relay_metadata import (
@@ -33,12 +31,20 @@ from express_relay.svm.limo_client import LimoClient, OrderStateAndAddress
 DEADLINE = 2**62
 logger = logging.getLogger(__name__)
 
+
 class BidData:
-    def __init__(self, router: Pubkey, bid_amount: int, relayer_signer: Pubkey, relayer_fee_receiver: Pubkey):
+    def __init__(
+        self,
+        router: Pubkey,
+        bid_amount: int,
+        relayer_signer: Pubkey,
+        relayer_fee_receiver: Pubkey,
+    ):
         self.router = router
         self.bid_amount = bid_amount
         self.relayer_signer = relayer_signer
         self.relayer_fee_receiver = relayer_fee_receiver
+
 
 class SimpleSearcherSvm:
     express_relay_metadata: ExpressRelayMetadata | None
@@ -79,6 +85,7 @@ class SimpleSearcherSvm:
         self.express_relay_metadata = None
         self.mint_decimals_cache = {}
         self.recent_blockhash = {}
+
     async def opportunity_callback(self, opp: Opportunity):
         """
         Callback function to run when a new opportunity is found.
@@ -98,7 +105,9 @@ class SimpleSearcherSvm:
         if bid:
             try:
                 bid_id = await self.client.submit_bid(bid)
-                logger.info(f"Submitted bid {str(bid_id)} for opportunity {str(opp.opportunity_id)}")
+                logger.info(
+                    f"Submitted bid {str(bid_id)} for opportunity {str(opp.opportunity_id)}"
+                )
             except Exception as e:
                 logger.error(
                     f"Error submitting bid for opportunity {str(opp.opportunity_id)}: {e}"
@@ -140,6 +149,7 @@ class SimpleSearcherSvm:
             A bid object if the opportunity is worth taking to be submitted to the Express Relay server, otherwise None.
         """
         order: OrderStateAndAddress = {"address": opp.order_address, "state": opp.order}
+
         ixs_take_order = await self.generate_take_order_ixs(order)
         bid_data = await self.get_bid_data(order)
 
@@ -162,7 +172,9 @@ class SimpleSearcherSvm:
         bid = BidSvm(transaction=transaction, chain_id=self.chain_id)
         return bid
 
-    async def generate_take_order_ixs(self, order: OrderStateAndAddress) -> List[Instruction]:
+    async def generate_take_order_ixs(
+        self, order: OrderStateAndAddress
+    ) -> List[Instruction]:
         """
         Helper method to form the Limo instructions to take an order.
 
@@ -171,35 +183,28 @@ class SimpleSearcherSvm:
         Returns:
             A list of Limo instructions to take an order.
         """
+        input_amount = min(
+            order["state"].remaining_input_amount,
+            order["state"].initial_input_amount * self.fill_rate // 100,
+        )
+        output_amount = (
+            order["state"].expected_output_amount * input_amount
+            + order["state"].initial_input_amount
+            - 1  # take the ceiling of the divison by adding order[state].initial_input_amount - 1
+        ) // order["state"].initial_input_amount
+
         input_mint_decimals = await self.get_mint_decimals(order["state"].input_mint)
         output_mint_decimals = await self.get_mint_decimals(order["state"].output_mint)
-        effective_fill_rate = min(
-            self.fill_rate,
-            100
-            * order["state"].remaining_input_amount
-            / order["state"].initial_input_amount,
-        )
-        input_amount_decimals = Decimal(order["state"].initial_input_amount) / Decimal(
-            10**input_mint_decimals
-        )
-        input_amount_decimals = (
-            input_amount_decimals * Decimal(effective_fill_rate) / Decimal(100)
-        )
-        output_amount_decimals = Decimal(
-            order["state"].expected_output_amount
-        ) / Decimal(10**output_mint_decimals)
         logger.info(
             f"Order address {order['address']}\n"
-            f"Sell token {order['state'].input_mint} amount: {input_amount_decimals}\n"
-            f"Buy token {order['state'].output_mint} amount: {output_amount_decimals}"
+            f"Sell token {order['state'].input_mint} amount: {Decimal(input_amount) / Decimal(10**input_mint_decimals)}\n"
+            f"Buy token {order['state'].output_mint} amount: {Decimal(output_amount) / Decimal(10**output_mint_decimals)}"
         )
         ixs_take_order = await self.limo_client.take_order_ix(
             self.private_key.pubkey(),
             order,
-            input_amount_decimals,
-            output_amount_decimals,
-            input_mint_decimals,
-            output_mint_decimals,
+            input_amount,
+            output_amount,
             self.svm_config["express_relay_program"],
         )
         return ixs_take_order
@@ -236,14 +241,16 @@ class SimpleSearcherSvm:
             router=router,
             bid_amount=bid_amount,
             relayer_signer=self.express_relay_metadata.relayer_signer,
-            relayer_fee_receiver=self.express_relay_metadata.fee_receiver_relayer
+            relayer_fee_receiver=self.express_relay_metadata.fee_receiver_relayer,
         )
 
     async def svm_chain_update_callback(self, svm_chain_update: SvmChainUpdate):
         self.recent_blockhash[svm_chain_update.chain_id] = svm_chain_update.blockhash
 
     # NOTE: Developers are responsible for implementing custom removal logic specific to their use case.
-    async def remove_opportunities_callback(self, opportunity_delete: OpportunityDelete):
+    async def remove_opportunities_callback(
+        self, opportunity_delete: OpportunityDelete
+    ):
         print(f"Opportunities {opportunity_delete} don't exist anymore")
 
 
