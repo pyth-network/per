@@ -18,12 +18,6 @@ pub struct GetBidsInput {
 
 impl<T: ServiceTrait> Service<T> {
     pub async fn get_bids(&self, input: GetBidsInput) -> Result<Vec<entities::Bid<T>>, RestError> {
-        self.repo
-            .get_bids(
-                self.config.chain_id.clone(),
-                input.profile.id,
-                input.from_time,
-            )
-            .await
+        self.repo.get_bids(input.profile.id, input.from_time).await
     }
 }

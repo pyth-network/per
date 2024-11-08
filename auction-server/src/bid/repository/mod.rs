@@ -3,7 +3,10 @@
 
 use {
     super::entities,
-    crate::kernel::db::DB,
+    crate::kernel::{
+        db::DB,
+        entities::ChainId,
+    },
     std::collections::HashMap,
     tokio::sync::{
         Mutex,
@@ -41,13 +44,15 @@ impl<T: entities::BidTrait> Default for InMemoryStore<T> {
 pub struct Repository<T: entities::BidTrait> {
     pub in_memory_store: InMemoryStore<T>,
     pub db:              DB,
+    pub chain_id:        ChainId,
 }
 
 impl<T: entities::BidTrait> Repository<T> {
-    pub fn new(db: DB) -> Self {
+    pub fn new(db: DB, chain_id: ChainId) -> Self {
         Self {
             in_memory_store: InMemoryStore::<T>::default(),
             db,
+            chain_id,
         }
     }
 }

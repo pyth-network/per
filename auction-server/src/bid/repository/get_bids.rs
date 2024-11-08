@@ -63,21 +63,31 @@ impl<T: BidTrait> Repository<T> {
 
     pub async fn get_bids(
         &self,
-        chain_id: ChainId,
         profile_id: ProfileId,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<entities::Bid<T>>, RestError> {
-        let bids = self.get_bids_model(chain_id, profile_id, from_time).await?;
+        let bids = self
+            .get_bids_model(self.chain_id.clone(), profile_id, from_time)
+            .await?;
         let auctions = self.get_auctions_by_bids_model(&bids).await?;
 
         Ok(bids
             .into_iter()
-            .map(|b| {
+            .filter_map(|b| {
                 let auction = match b.auction_id {
                     Some(auction_id) => auctions.clone().into_iter().find(|a| a.id == auction_id),
                     None => None,
                 };
-                b.get_bid_entity(auction)
+                b.get_bid_entity(auction.clone())
+                    .map_err(|e| {
+                        tracing::error!(
+                            error = e.to_string(),
+                            auction = ?auction,
+                            bid = ?b,
+                            "Failed to convert bid to entity"
+                        );
+                    })
+                    .ok()
             })
             .collect())
     }

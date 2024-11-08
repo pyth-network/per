@@ -5,6 +5,7 @@ use {
         kernel::entities::{
             ChainId,
             Evm,
+            PermissionKeySvm,
             Svm,
         },
         models::ProfileId,
@@ -192,4 +193,20 @@ impl BidTrait for Svm {
     type StatusType = BidStatusSvm;
     type ChainData = BidChainDataSvm;
     type BidAmount = u64;
+}
+
+impl BidChainDataSvm {
+    pub fn get_router(permission_key: &PermissionKeySvm) -> Pubkey {
+        let slice: [u8; 32] = permission_key.0[..32]
+            .try_into()
+            .expect("Failed to extract first 32 bytes from permission key");
+        Pubkey::new_from_array(slice)
+    }
+
+    pub fn get_permission_account(permission_key: &PermissionKeySvm) -> Pubkey {
+        let slice: [u8; 32] = permission_key.0[32..]
+            .try_into()
+            .expect("Failed to extract last 32 bytes from permission key");
+        Pubkey::new_from_array(slice)
+    }
 }

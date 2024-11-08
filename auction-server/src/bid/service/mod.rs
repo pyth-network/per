@@ -38,7 +38,7 @@ pub struct Service<T: ServiceTrait> {
 impl<T: ServiceTrait> Service<T> {
     pub fn new(db: DB, config: Config) -> Self {
         Self {
-            repo: Arc::new(repository::Repository::new(db)),
+            repo: Arc::new(repository::Repository::new(db, config.chain_id.clone())),
             config,
         }
     }

@@ -1,6 +1,9 @@
 use {
     super::{
-        entities,
+        entities::{
+            self,
+            BidChainData,
+        },
         service::{
             get_bids::GetBidsInput,
             ServiceEnum,
@@ -8,6 +11,7 @@ use {
     },
     crate::{
         api::{
+            require_login_middleware,
             Auth,
             ErrorBodyResponse,
             RestError,
@@ -19,6 +23,7 @@ use {
             PermissionKeySvm,
             Svm,
         },
+        login_required,
         models,
         state::StoreNew,
     },
@@ -28,6 +33,7 @@ use {
             Query,
             State,
         },
+        middleware,
         routing::{
             get,
             post,
@@ -408,21 +414,82 @@ pub async fn get_bids_by_time(
     }
 }
 
-pub fn get_routes() -> Router<Arc<StoreNew>> {
+pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     Router::new()
         .route("/", post(post_bid))
-        .route("/", get(get_bids_by_time))
+        .route("/", login_required!(store, get(get_bids_by_time)))
         .route("/:bid_id", get(get_bid_status))
 }
 
+impl From<entities::BidStatusEvm> for BidStatusEvm {
+    fn from(status: entities::BidStatusEvm) -> Self {
+        match status {
+            entities::BidStatusEvm::Pending => BidStatusEvm::Pending,
+            entities::BidStatusEvm::Submitted { tx_hash, index } => BidStatusEvm::Submitted {
+                result: tx_hash,
+                index,
+            },
+            entities::BidStatusEvm::Lost { tx_hash, index } => BidStatusEvm::Lost {
+                result: tx_hash,
+                index,
+            },
+            entities::BidStatusEvm::Won { tx_hash, index } => BidStatusEvm::Won {
+                result: tx_hash,
+                index,
+            },
+        }
+    }
+}
+
+impl From<entities::BidStatusSvm> for BidStatusSvm {
+    fn from(status: entities::BidStatusSvm) -> Self {
+        match status {
+            entities::BidStatusSvm::Pending => BidStatusSvm::Pending,
+            entities::BidStatusSvm::Submitted { signature } => {
+                BidStatusSvm::Submitted { result: signature }
+            }
+            entities::BidStatusSvm::Lost { signature } => BidStatusSvm::Lost { result: signature },
+            entities::BidStatusSvm::Won { signature } => BidStatusSvm::Won { result: signature },
+            entities::BidStatusSvm::Expired { signature } => {
+                BidStatusSvm::Expired { result: signature }
+            }
+        }
+    }
+}
+
+impl BidCoreFields {
+    pub fn from_bid<T: entities::BidTrait>(bid: &entities::Bid<T>) -> Self {
+        BidCoreFields {
+            id:              bid.id,
+            chain_id:        bid.chain_id.clone(),
+            initiation_time: bid.initiation_time,
+            profile_id:      bid.profile_id,
+        }
+    }
+}
+
 impl From<entities::Bid<Evm>> for Bid {
-    fn from(_bid: entities::Bid<Evm>) -> Self {
-        todo!()
+    fn from(bid: entities::Bid<Evm>) -> Self {
+        Bid::Evm(BidEvm {
+            core_fields:     BidCoreFields::from_bid(&bid),
+            status:          bid.status.into(),
+            permission_key:  bid.chain_data.get_permission_key(),
+            target_contract: bid.chain_data.target_contract,
+            target_calldata: bid.chain_data.target_calldata,
+            gas_limit:       bid.chain_data.gas_limit,
+            bid_amount:      bid.amount,
+        })
     }
 }
 
 impl From<entities::Bid<Svm>> for Bid {
-    fn from(_bid: entities::Bid<Svm>) -> Self {
-        todo!()
+    fn from(bid: entities::Bid<Svm>) -> Self {
+        Bid::Svm(BidSvm {
+            core_fields:    BidCoreFields::from_bid(&bid),
+            permission_key: PermissionKeySvm(bid.chain_data.get_permission_key()),
+            status:         bid.status.into(),
+            transaction:    bid.chain_data.transaction,
+            bid_amount:     bid.amount,
+        })
     }
 }

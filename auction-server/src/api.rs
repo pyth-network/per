@@ -390,7 +390,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     let v1_routes = Router::new().nest(
         "/v1",
         Router::new()
-            .nest("/bids", bid::get_routes())
+            .nest("/bids", bid::get_routes(store.clone()))
             .nest("/opportunities", opportunity::get_routes(store.clone()))
             .nest("/profiles", profile_routes)
             .route("/ws", get(ws::ws_route_handler)),
