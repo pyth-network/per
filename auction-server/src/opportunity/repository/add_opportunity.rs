@@ -93,7 +93,13 @@ impl<T: InMemoryStore> Repository<T> {
                 RestError::TemporarilyUnavailable
             })?;
 
-        Ok(result.count.unwrap() > 0)
+        match result.count {
+            Some(count) => Ok(count > 0),
+            None => {
+                tracing::error!("DB: Failed to check duplicate opportunity: count is None");
+                Err(RestError::TemporarilyUnavailable)
+            }
+        }
     }
 
     fn remove_slot_field(&self, mut metadata: serde_json::Value) -> serde_json::Value {
