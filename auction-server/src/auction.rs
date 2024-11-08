@@ -1583,12 +1583,12 @@ impl ChainStore for ChainStoreEvm {
         tx_hash: Vec<u8>,
     ) -> Result<Option<Vec<<Self::SimulatedBid as SimulatedBidTrait>::StatusType>>> {
         let tx_hash = H256::from_slice(tx_hash.as_slice());
-        let reciept = self
+        let receipt = self
             .provider
             .get_transaction_receipt(tx_hash)
             .await
             .map_err(|e| anyhow!("Failed to get transaction receipt: {:?}", e))?;
-        match reciept {
+        match receipt {
             Some(receipt) => {
                 let decoded_logs = decode_logs_for_receipt(&receipt);
                 Ok(Some(

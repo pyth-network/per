@@ -19,6 +19,7 @@ class BidStatus(Enum):
     SUBMITTED = "submitted"
     LOST = "lost"
     WON = "won"
+    EXPIRED = "expired"
 
 
 IntString = Annotated[int, PlainSerializer(lambda x: str(x), return_type=str)]
