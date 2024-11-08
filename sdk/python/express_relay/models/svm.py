@@ -316,14 +316,12 @@ class BidResponseSvm(BaseModel):
     transaction: SvmTransaction
     profile_id: str | None = Field(default=None)
 
-
 class SvmChainUpdate(BaseModel):
     """
     Attributes:
         chain_id: The chain ID corresponding to the update.
         blockhash: A recent blockhash from the chain.
     """
-
     chain_id: str
     blockhash: SvmHash
 
@@ -341,7 +339,6 @@ class OpportunityDeleteSvm(BaseModel):
         permission_account: The permission account for the opportunities to be removed.
         router: The router for opportunties to be removed.
     """
-
     chain_id: str
     program: ProgramSvm
     permission_account: SvmAddress

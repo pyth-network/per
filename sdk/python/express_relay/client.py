@@ -183,10 +183,8 @@ class ExpressRelayClient:
 
             if not hasattr(self, "ws_loop"):
                 ws_call = self.ws_handler(
-                    self.opportunity_callback,
-                    self.bid_status_callback,
-                    self.svm_chain_update_callback,
-                    self.remove_opportunities_callback,
+                    self.opportunity_callback, self.bid_status_callback,
+                    self.svm_chain_update_callback, self.remove_opportunities_callback,
                 )
                 self.ws_loop = asyncio.create_task(ws_call)
 
@@ -383,20 +381,13 @@ class ExpressRelayClient:
                             msg_json["opportunity_delete"]
                         )
                         if remove_opportunities:
-                            asyncio.create_task(
-                                remove_opportunities_callback(remove_opportunities)
-                            )
+                            asyncio.create_task(remove_opportunities_callback(remove_opportunities))
 
             elif msg_json.get("id"):
                 future = self.ws_msg_futures.pop(msg_json["id"])
                 future.set_result(msg_json)
 
-    async def get_opportunities(
-        self,
-        chain_id: str | None = None,
-        from_time: datetime | None = None,
-        limit: int | None = None,
-    ) -> list[Opportunity]:
+    async def get_opportunities(self, chain_id: str | None = None, from_time: datetime | None = None, limit: int | None = None) -> list[Opportunity]:
         """
         Connects to the server and fetches opportunities.
 
@@ -411,9 +402,7 @@ class ExpressRelayClient:
         if chain_id:
             params["chain_id"] = chain_id
         if from_time:
-            params["from_time"] = from_time.astimezone().isoformat(
-                timespec="microseconds"
-            )
+            params["from_time"] = from_time.astimezone().isoformat(timespec="microseconds")
         if limit:
             params["limit"] = str(limit)
 

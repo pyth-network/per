@@ -206,7 +206,6 @@ class OpportunityDeleteEvm(BaseModel):
         chain_id: The chain ID for opportunities to be removed.
         permission_key: The permission key for the opportunities to be removed.
     """
-
     chain_id: str
     permission_key: HexString
 
