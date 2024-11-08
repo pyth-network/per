@@ -43,9 +43,11 @@ impl<T: BidTrait> Repository<T> {
         profile_id: ProfileId,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<models::Bid<T>>, RestError> {
-        let mut query =
-            QueryBuilder::new("SELECT * from bid where profile_id = ? AND chain_id = ?");
-        query.push_bind(profile_id).push_bind(chain_id);
+        let mut query = QueryBuilder::new("SELECT * from bid where profile_id = ");
+        query
+            .push_bind(profile_id)
+            .push(" AND chain_id = ")
+            .push_bind(chain_id);
         if let Some(from_time) = from_time {
             query.push(" AND initiation_time >= ");
             query.push_bind(from_time);
