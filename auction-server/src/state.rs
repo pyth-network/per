@@ -1135,6 +1135,11 @@ impl StoreNew {
             .cloned()
             .ok_or(RestError::InvalidChainId)
     }
+
+    // TODO remove this after deprecating the old bid apis
+    pub fn get_all_bid_services(&self) -> &HashMap<ChainId, bid_service::ServiceEnum> {
+        &self.bid_services
+    }
 }
 
 impl SimulatedBidCoreFields {

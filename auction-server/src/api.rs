@@ -280,6 +280,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     bid::post_bid,
     bid::get_bid_status,
     bid::get_bids_by_time,
+    bid::get_bids_by_time_deprecated,
 
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
@@ -396,6 +397,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
             .route("/ws", get(ws::ws_route_handler)),
     );
 
+    let v1_routes_with_chain_id = Router::new().nest(
+        "/v1/:chain_id",
+        Router::new().nest("/bids", bid::get_routes_with_chain_id(store.clone())),
+    );
+
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
         .with_metrics_from_fn(|| store.store.metrics_recorder.clone())
         .with_endpoint_label_type(EndpointLabel::MatchedPathWithFallbackFn(|_| {
@@ -413,6 +419,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     let app: Router<()> = Router::new()
         .merge(Redoc::with_url("/docs", redoc_doc.clone()))
         .merge(v1_routes)
+        .merge(v1_routes_with_chain_id)
         .route("/", get(root))
         .route("/live", get(live))
         .route("/docs/openapi.json", get(original_doc.to_string()))

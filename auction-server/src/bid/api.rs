@@ -240,6 +240,15 @@ pub enum Bid {
     Svm(BidSvm),
 }
 
+impl Bid {
+    pub fn get_initiation_time(&self) -> OffsetDateTime {
+        match self {
+            Bid::Evm(bid) => bid.core_fields.initiation_time,
+            Bid::Svm(bid) => bid.core_fields.initiation_time,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct BidCreateEvm {
     /// The permission key to bid on.
@@ -361,30 +370,31 @@ pub struct GetBidsByTimeQueryParams {
     #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
     #[serde(default, with = "crate::serde::nullable_datetime")]
     pub from_time: Option<OffsetDateTime>,
-
-    #[param(example = "op_sepolia")]
-    pub chain_id: ChainId,
 }
 
-/// Returns at most 20 bids which were submitted after a specific time.
+/// Returns at most 20 bids which were submitted after a specific time and chain.
 /// If no time is provided, the server will return the first bids.
-#[utoipa::path(get, path = "/v1/bids",
+#[utoipa::path(get, path = "/v1/:chain_id/bids",
     security(
         ("bearerAuth" = []),
     ),
     responses(
     (status = 200, description = "Paginated list of bids for the specified query", body = Bids),
     (status = 400, response = ErrorBodyResponse),
-),  params(GetBidsByTimeQueryParams),
+),  params(
+        ("chain_id"=String, Path, description = "The chain id to query for", example = "op_sepolia"),
+        GetBidsByTimeQueryParams
+    ),
 )]
 pub async fn get_bids_by_time(
     auth: Auth,
     State(store): State<Arc<StoreNew>>,
+    Path(chain_id): Path<ChainId>,
     query: Query<GetBidsByTimeQueryParams>,
 ) -> Result<Json<Bids>, RestError> {
     match auth {
         Auth::Authorized(_, profile) => {
-            let bids: Vec<Bid> = match store.get_bid_service(&query.chain_id)? {
+            let bids: Vec<Bid> = match store.get_bid_service(&chain_id)? {
                 ServiceEnum::Evm(service) => service
                     .get_bids(GetBidsInput {
                         profile,
@@ -414,9 +424,72 @@ pub async fn get_bids_by_time(
     }
 }
 
+/// Returns at most 20 bids which were submitted after a specific time.
+///
+/// If no time is provided, the server will return the first bids.
+/// This api is deprecated and will be removed soon. Use /v1/:chain_id/bids instead.
+#[utoipa::path(get, path = "/v1/bids",
+    security(
+        ("bearerAuth" = []),
+    ),
+    responses(
+    (status = 200, description = "Paginated list of bids for the specified query", body = Bids),
+    (status = 400, response = ErrorBodyResponse),
+),  params(GetBidsByTimeQueryParams),
+)]
+#[deprecated = "Use get_bids_by_time instead"]
+pub async fn get_bids_by_time_deprecated(
+    auth: Auth,
+    State(store): State<Arc<StoreNew>>,
+    query: Query<GetBidsByTimeQueryParams>,
+) -> Result<Json<Bids>, RestError> {
+    match auth {
+        Auth::Authorized(_, profile) => {
+            let mut bids: Vec<Bid> = vec![];
+            for service in store.get_all_bid_services().values() {
+                match service {
+                    ServiceEnum::Evm(service) => {
+                        let bids_evm = service
+                            .get_bids(GetBidsInput {
+                                profile:   profile.clone(),
+                                from_time: query.from_time,
+                            })
+                            .await?;
+                        bids.extend(bids_evm.into_iter().map(|b| b.into()));
+                    }
+                    ServiceEnum::Svm(service) => {
+                        let bids_svm = service
+                            .get_bids(GetBidsInput {
+                                profile:   profile.clone(),
+                                from_time: query.from_time,
+                            })
+                            .await?;
+                        bids.extend(bids_svm.into_iter().map(|b| b.into()));
+                    }
+                }
+            }
+            bids.sort_by_key(|a| a.get_initiation_time());
+            bids.truncate(20);
+            Ok(Json(Bids { items: bids }))
+        }
+        _ => {
+            tracing::error!("Unauthorized access to get_bids_by_time");
+            Err(RestError::TemporarilyUnavailable)
+        }
+    }
+}
+
 pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
+    #[allow(deprecated)]
+    Router::new().route("/", post(post_bid)).route(
+        "/",
+        login_required!(store, get(get_bids_by_time_deprecated)),
+    )
+    // .route("/:bid_id", get(get_bid_status))
+}
+
+pub fn get_routes_with_chain_id(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     Router::new()
-        .route("/", post(post_bid))
         .route("/", login_required!(store, get(get_bids_by_time)))
         .route("/:bid_id", get(get_bid_status))
 }
