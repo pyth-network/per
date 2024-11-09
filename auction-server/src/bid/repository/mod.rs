@@ -14,6 +14,7 @@ use {
     },
 };
 
+pub mod get_bid;
 pub mod get_bids;
 mod models;
 

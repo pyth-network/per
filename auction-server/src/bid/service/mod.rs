@@ -17,6 +17,7 @@ use {
     std::sync::Arc,
 };
 
+pub mod get_bid;
 pub mod get_bids;
 
 pub struct Config {

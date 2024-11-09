@@ -5,6 +5,7 @@ use {
             BidChainData,
         },
         service::{
+            get_bid::GetBidInput,
             get_bids::GetBidsInput,
             ServiceEnum,
         },
@@ -247,6 +248,13 @@ impl Bid {
             Bid::Svm(bid) => bid.core_fields.initiation_time,
         }
     }
+
+    pub fn get_status(&self) -> BidStatus {
+        match self {
+            Bid::Evm(bid) => BidStatus::Evm(bid.status.clone()),
+            Bid::Svm(bid) => BidStatus::Svm(bid.status.clone()),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -344,7 +352,49 @@ pub async fn process_bid(
     }))
 }
 
+#[derive(Serialize, Deserialize, IntoParams, Clone)]
+pub struct GetBidStatusParams {
+    #[param(example="op_sepolia", value_type = String)]
+    pub chain_id: ChainId,
+
+    #[param(example="obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
+    pub bid_id: BidId,
+}
+
 /// Query the status of a specific bid.
+#[utoipa::path(get, path = "/v1/{chain_id}/bids/{bid_id}",
+    responses(
+    (status = 200, body = BidStatus),
+    (status = 400, response = ErrorBodyResponse),
+    (status = 404, description = "Bid was not found", body = ErrorBodyResponse),
+),
+    params(GetBidStatusParams),
+)]
+pub async fn get_bid_status(
+    State(store): State<Arc<StoreNew>>,
+    Path(params): Path<GetBidStatusParams>,
+) -> Result<Json<BidStatus>, RestError> {
+    let service = store.get_bid_service(&params.chain_id)?;
+    let bid: Bid = match service {
+        ServiceEnum::Evm(service) => service
+            .get_bid(GetBidInput {
+                bid_id: params.bid_id,
+            })
+            .await?
+            .into(),
+        ServiceEnum::Svm(service) => service
+            .get_bid(GetBidInput {
+                bid_id: params.bid_id,
+            })
+            .await?
+            .into(),
+    };
+    Ok(Json(bid.get_status()))
+}
+
+/// Query the status of a specific bid.
+///
+/// This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids/{bid_id} instead.
 #[utoipa::path(get, path = "/v1/bids/{bid_id}",
     params(("bid_id"=String, description = "Bid id to query for")),
     responses(
@@ -352,12 +402,31 @@ pub async fn process_bid(
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Bid was not found", body = ErrorBodyResponse),
 ),)]
-pub async fn get_bid_status(
-    State(_store): State<Arc<StoreNew>>,
-    Path(_bid_id): Path<BidId>,
+#[deprecated = "Use get_bid_status instead"]
+pub async fn get_bid_status_deprecated(
+    State(store): State<Arc<StoreNew>>,
+    Path(bid_id): Path<BidId>,
 ) -> Result<Json<BidStatus>, RestError> {
-    // store.store.get_bid_status(bid_id).await
-    Ok(Json(BidStatus::Evm(BidStatusEvm::Pending)))
+    for service in store.get_all_bid_services().values() {
+        let bid: Result<Bid, RestError> = match service {
+            ServiceEnum::Evm(service) => service
+                .get_bid(GetBidInput { bid_id })
+                .await
+                .map(|b| b.into()),
+            ServiceEnum::Svm(service) => service
+                .get_bid(GetBidInput { bid_id })
+                .await
+                .map(|b| b.into()),
+        };
+
+        match bid {
+            Ok(bid) => return Ok(Json(bid.get_status())),
+            Err(RestError::BidNotFound) => continue,
+            Err(e) => return Err(e),
+        }
+    }
+
+    Err(RestError::BidNotFound)
 }
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
@@ -374,7 +443,7 @@ pub struct GetBidsByTimeQueryParams {
 
 /// Returns at most 20 bids which were submitted after a specific time and chain.
 /// If no time is provided, the server will return the first bids.
-#[utoipa::path(get, path = "/v1/:chain_id/bids",
+#[utoipa::path(get, path = "/v1/{chain_id}/bids",
     security(
         ("bearerAuth" = []),
     ),
@@ -427,7 +496,7 @@ pub async fn get_bids_by_time(
 /// Returns at most 20 bids which were submitted after a specific time.
 ///
 /// If no time is provided, the server will return the first bids.
-/// This api is deprecated and will be removed soon. Use /v1/:chain_id/bids instead.
+/// This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids instead.
 #[utoipa::path(get, path = "/v1/bids",
     security(
         ("bearerAuth" = []),
@@ -481,11 +550,13 @@ pub async fn get_bids_by_time_deprecated(
 
 pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     #[allow(deprecated)]
-    Router::new().route("/", post(post_bid)).route(
-        "/",
-        login_required!(store, get(get_bids_by_time_deprecated)),
-    )
-    // .route("/:bid_id", get(get_bid_status))
+    Router::new()
+        .route("/", post(post_bid))
+        .route(
+            "/",
+            login_required!(store, get(get_bids_by_time_deprecated)),
+        )
+        .route("/:bid_id", get(get_bid_status_deprecated))
 }
 
 pub fn get_routes_with_chain_id(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {

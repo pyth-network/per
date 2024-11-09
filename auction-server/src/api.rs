@@ -102,7 +102,6 @@ pub enum RestError {
     /// The opportunity was not found.
     OpportunityNotFound,
     /// The bid was not found.
-    #[allow(dead_code)]
     BidNotFound,
     /// Internal error occurred during processing the request.
     TemporarilyUnavailable,
@@ -281,6 +280,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     bid::get_bid_status,
     bid::get_bids_by_time,
     bid::get_bids_by_time_deprecated,
+    bid::get_bid_status_deprecated,
 
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
