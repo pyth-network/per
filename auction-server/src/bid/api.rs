@@ -7,6 +7,7 @@ use {
         service::{
             get_bid::GetBidInput,
             get_bids::GetBidsInput,
+            handle_bid::HandleBidInput,
             ServiceEnum,
         },
     },
@@ -320,36 +321,54 @@ pub async fn post_bid(
 }
 
 pub async fn process_bid(
-    _auth: Auth,
-    _store: Arc<StoreNew>,
-    _bid_create: BidCreate,
+    auth: Auth,
+    store: Arc<StoreNew>,
+    bid_create: BidCreate,
 ) -> Result<Json<BidResult>, RestError> {
-    // let result = match bid_create {
-    //     BidCreate::Evm(bid_create_evm) => {
-    //         handle_bid(
-    //             store.store.clone(),
-    //             bid_create_evm,
-    //             OffsetDateTime::now_utc(),
-    //             auth,
-    //         )
-    //         .await
-    //     }
-    //     BidCreate::Svm(bid_create_svm) => {
-    //         handle_bid_svm(store.clone(), bid_create_svm, OffsetDateTime::now_utc(), auth).await
-    //     }
-    // };
-    // match result {
-    //     Ok(id) => Ok(BidResult {
-    //         status: "OK".to_string(),
-    //         id,
-    //     }
-    //     .into()),
-    //     Err(e) => Err(e),
-    // }
-    Ok(Json(BidResult {
-        status: "OK".to_string(),
-        id:     Uuid::new_v4(),
-    }))
+    let profile = match auth {
+        Auth::Authorized(_, profile) => Some(profile),
+        _ => None,
+    };
+    match bid_create {
+        BidCreate::Evm(bid_create_evm) => {
+            let bid_create = bid_create_evm.get_bid_create_entity(profile);
+            let service = store.get_bid_service(&bid_create_evm.chain_id)?;
+            match service {
+                ServiceEnum::Evm(service) => {
+                    let bid_id = service.handle_bid(HandleBidInput {
+                        bid_create,
+                    }).await?;
+
+                    Ok(Json(BidResult {
+                        status: "OK".to_string(),
+                        id:     bid_id,
+                    }))
+                }
+                _ => Err(RestError::BadParameters(
+                    "Expected EVM chain_id. Ensure that the bid type matches the expected chain for the specified chain_id.".to_string()
+                )),
+            }
+        }
+        BidCreate::Svm(bid_create_svm) => {
+            let bid_create = bid_create_svm.get_bid_create_entity(profile);
+            let service = store.get_bid_service(&bid_create_svm.chain_id)?;
+            match service {
+                ServiceEnum::Svm(service) => {
+                    let bid_id = service.handle_bid(HandleBidInput {
+                        bid_create,
+                    }).await?;
+
+                    Ok(Json(BidResult {
+                        status: "OK".to_string(),
+                        id:     bid_id,
+                    }))
+                }
+                _ => Err(RestError::BadParameters(
+                    "Expected SVM chain_id. Ensure that the bid type matches the expected chain for the specified chain_id.".to_string()
+                )),
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, IntoParams, Clone)]
@@ -635,5 +654,34 @@ impl From<entities::Bid<Svm>> for Bid {
             transaction:    bid.chain_data.transaction,
             bid_amount:     bid.amount,
         })
+    }
+}
+
+impl BidCreateSvm {
+    fn get_bid_create_entity(&self, profile: Option<models::Profile>) -> entities::BidCreate<Svm> {
+        entities::BidCreate::<Svm> {
+            chain_id: self.chain_id.clone(),
+            profile,
+            initiation_time: OffsetDateTime::now_utc(),
+            chain_data: entities::BidChainDataCreateSvm {
+                transaction: self.transaction.clone(),
+            },
+        }
+    }
+}
+
+impl BidCreateEvm {
+    fn get_bid_create_entity(&self, profile: Option<models::Profile>) -> entities::BidCreate<Evm> {
+        entities::BidCreate::<Evm> {
+            chain_id: self.chain_id.clone(),
+            profile,
+            initiation_time: OffsetDateTime::now_utc(),
+            chain_data: entities::BidChainDataCreateEvm {
+                target_contract: self.target_contract,
+                target_calldata: self.target_calldata.clone(),
+                permission_key:  self.permission_key.clone(),
+                amount:          self.amount,
+            },
+        }
     }
 }

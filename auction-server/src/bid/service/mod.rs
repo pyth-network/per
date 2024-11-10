@@ -19,13 +19,18 @@ use {
 
 pub mod get_bid;
 pub mod get_bids;
+pub mod handle_bid;
+mod verification;
 
 pub struct Config {
     pub chain_type: ChainType,
     pub chain_id:   ChainId,
 }
 
-pub trait ServiceTrait: entities::BidTrait + repository::BidTrait {}
+pub trait ServiceTrait:
+    entities::BidTrait + repository::BidTrait + entities::BidCreateTrait
+{
+}
 impl ServiceTrait for Evm {
 }
 impl ServiceTrait for Svm {

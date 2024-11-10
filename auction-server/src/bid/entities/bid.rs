@@ -8,7 +8,10 @@ use {
             PermissionKeySvm,
             Svm,
         },
-        models::ProfileId,
+        models::{
+            self,
+            ProfileId,
+        },
     },
     ethers::types::{
         Address,
@@ -209,4 +212,39 @@ impl BidChainDataSvm {
             .expect("Failed to extract last 32 bytes from permission key");
         Pubkey::new_from_array(slice)
     }
+}
+
+
+pub trait BidCreateTrait: Clone + std::fmt::Debug {
+    type ChainDataCreate: Clone + std::fmt::Debug;
+}
+
+#[derive(Clone, Debug)]
+pub struct BidCreate<T: BidCreateTrait> {
+    pub chain_id:        ChainId,
+    pub initiation_time: OffsetDateTime,
+    pub profile:         Option<models::Profile>,
+
+    pub chain_data: T::ChainDataCreate,
+}
+
+impl BidCreateTrait for Evm {
+    type ChainDataCreate = BidChainDataCreateEvm;
+}
+
+impl BidCreateTrait for Svm {
+    type ChainDataCreate = BidChainDataCreateSvm;
+}
+
+#[derive(Clone, Debug)]
+pub struct BidChainDataCreateSvm {
+    pub transaction: VersionedTransaction,
+}
+
+#[derive(Clone, Debug)]
+pub struct BidChainDataCreateEvm {
+    pub target_contract: Address,
+    pub target_calldata: Bytes,
+    pub permission_key:  Bytes,
+    pub amount:          U256,
 }
