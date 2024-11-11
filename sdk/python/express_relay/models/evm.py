@@ -14,7 +14,7 @@ from express_relay.models.base import (
     UUIDString,
     UnsupportedOpportunityDeleteVersionException,
     UnsupportedOpportunityVersionException,
-    BidStatus,
+    BidStatusVariantsEvm,
 )
 
 
@@ -148,15 +148,15 @@ class BidStatusEvm(BaseModel):
         index: The index of the bid in the submitted transaction.
     """
 
-    type: BidStatus
+    type: BidStatusVariantsEvm
     result: Bytes32 | None = Field(default=None)
     index: int | None = Field(default=None)
 
     @model_validator(mode="after")
     def check_result(self):
-        if self.type == BidStatus.PENDING:
+        if self.type == BidStatusVariantsEvm.PENDING:
             assert self.result is None, "result must be None"
-        elif self.type == BidStatus.LOST:
+        elif self.type == BidStatusVariantsEvm.LOST:
             pass
         else:
             assert self.result is not None, "result must be a valid 32-byte hash"
@@ -164,9 +164,9 @@ class BidStatusEvm(BaseModel):
 
     @model_validator(mode="after")
     def check_index(self):
-        if self.type == BidStatus.SUBMITTED or self.type == BidStatus.WON:
+        if self.type == BidStatusVariantsEvm.SUBMITTED or self.type == BidStatusVariantsEvm.WON:
             assert self.index is not None, "index must be a valid integer"
-        elif self.type == BidStatus.LOST:
+        elif self.type == BidStatusVariantsEvm.LOST:
             pass
         else:
             assert self.index is None, "index must be None"

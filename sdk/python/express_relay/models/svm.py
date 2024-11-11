@@ -24,7 +24,7 @@ from express_relay.models.base import (
     UUIDString,
     UnsupportedOpportunityDeleteVersionException,
     UnsupportedOpportunityVersionException,
-    BidStatus,
+    BidStatusVariantsSvm,
 )
 
 
@@ -283,12 +283,12 @@ class BidStatusSvm(BaseModel):
                 The LOST status may have a result.
     """
 
-    type: BidStatus
+    type: BidStatusVariantsSvm
     result: SvmSignature | None = Field(default=None)
 
     @model_validator(mode="after")
     def check_result(self):
-        if self.type == BidStatus.WON or self.type == BidStatus.SUBMITTED:
+        if self.type == BidStatusVariantsSvm.WON or self.type == BidStatusVariantsSvm.SUBMITTED:
             assert (
                 self.result is not None
             ), "bid result should not be empty when status is won or submitted"

@@ -14,12 +14,18 @@ class UnsupportedOpportunityDeleteVersionException(Exception):
 class UnsupportedOpportunityDeleteChainTypeException(Exception):
     pass
 
-class BidStatus(Enum):
+class BidStatusVariantsEvm(Enum):
     PENDING = "pending"
     SUBMITTED = "submitted"
     LOST = "lost"
     WON = "won"
 
+class BidStatusVariantsSvm(Enum):
+    PENDING = "pending"
+    SUBMITTED = "submitted"
+    LOST = "lost"
+    WON = "won"
+    EXPIRED = "expired"
 
 IntString = Annotated[int, PlainSerializer(lambda x: str(x), return_type=str)]
 UUIDString = Annotated[UUID, PlainSerializer(lambda x: str(x), return_type=str)]

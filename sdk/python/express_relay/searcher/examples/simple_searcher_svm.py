@@ -18,7 +18,7 @@ from express_relay.client import (
 )
 from express_relay.constants import SVM_CONFIGS
 from express_relay.models import BidStatusUpdate, Opportunity, OpportunityDelete
-from express_relay.models.base import BidStatus
+from express_relay.models.base import BidStatusVariantsSvm
 from express_relay.models.svm import BidSvm, OpportunitySvm, SvmChainUpdate, SvmHash
 from express_relay.svm.generated.express_relay.accounts.express_relay_metadata import (
     ExpressRelayMetadata,
@@ -125,9 +125,9 @@ class SimpleSearcherSvm:
         result = bid_status_update.bid_status.result
 
         result_details = ""
-        if status == BidStatus.SUBMITTED or status == BidStatus.WON:
+        if status == BidStatusVariantsSvm.SUBMITTED or status == BidStatusVariantsSvm.WON:
             result_details = f", transaction {result}"
-        elif status == BidStatus.LOST:
+        elif status == BidStatusVariantsSvm.LOST:
             if result:
                 result_details = f", transaction {result}"
         logger.info(f"Bid status for bid {id}: {status.value}{result_details}")
