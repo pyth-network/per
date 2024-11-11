@@ -15,10 +15,7 @@ use {
         state::UnixTimestampMicros,
     },
     ethers::types::Bytes,
-    std::ops::{
-        Deref,
-        DerefMut,
-    },
+    std::ops::Deref,
     time::OffsetDateTime,
     uuid::Uuid,
 };
@@ -71,7 +68,6 @@ pub trait Opportunity:
     + TryFrom<repository::Opportunity<Self::ModelMetadata>>
     + Send
     + Sync
-    + DerefMut
 {
     type TokenAmount: TokenAmount;
     type ModelMetadata: repository::OpportunityMetadata;

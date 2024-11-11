@@ -21,10 +21,7 @@ use {
         Bytes,
         U256,
     },
-    std::ops::{
-        Deref,
-        DerefMut,
-    },
+    std::ops::Deref,
 };
 
 // TODO revise the entities for opportunity, Maybe generic opportunity with params
@@ -92,12 +89,6 @@ impl Deref for OpportunityEvm {
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields
-    }
-}
-
-impl DerefMut for OpportunityEvm {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.core_fields
     }
 }
 
