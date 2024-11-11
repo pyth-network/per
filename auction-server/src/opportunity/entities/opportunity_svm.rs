@@ -21,7 +21,10 @@ use {
         clock::Slot,
         pubkey::Pubkey,
     },
-    std::ops::Deref,
+    std::ops::{
+        Deref,
+        DerefMut,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -132,6 +135,12 @@ impl Deref for OpportunitySvm {
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields
+    }
+}
+
+impl DerefMut for OpportunitySvm {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.core_fields
     }
 }
 

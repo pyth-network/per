@@ -6,9 +6,9 @@ use {
     },
     crate::{
         api::RestError,
-        opportunity::{
-            entities,
-            entities::Opportunity,
+        opportunity::entities::{
+            self,
+            Opportunity,
         },
     },
     sqlx::Postgres,
@@ -16,6 +16,7 @@ use {
         OffsetDateTime,
         PrimitiveDateTime,
     },
+    uuid::Uuid,
 };
 
 impl<T: InMemoryStore> Repository<T> {
@@ -26,39 +27,7 @@ impl<T: InMemoryStore> Repository<T> {
     ) -> Result<T::Opportunity, RestError> {
         let opportunity: T::Opportunity =
             <T::Opportunity as entities::Opportunity>::new_with_current_time(opportunity);
-        let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
-            .expect("creation_time is valid");
-        let metadata = opportunity.get_models_metadata();
-        let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
-        if self
-            .check_db_duplicate_opportunity(db, &opportunity)
-            .await?
-        {
-            tracing::warn!("Avoiding inserting duplicate opportunity to db");
-        } else {
-            sqlx::query!("INSERT INTO opportunity (id,
-                                                            creation_time,
-                                                            permission_key,
-                                                            chain_id,
-                                                            chain_type,
-                                                            metadata,
-                                                            sell_tokens,
-                                                            buy_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-            opportunity.id,
-            PrimitiveDateTime::new(odt.date(), odt.time()),
-            opportunity.permission_key.to_vec(),
-            opportunity.chain_id,
-            chain_type as _,
-            serde_json::to_value(metadata).expect("Failed to serialize metadata"),
-            serde_json::to_value(&opportunity.sell_tokens).unwrap(),
-            serde_json::to_value(&opportunity.buy_tokens).unwrap())
-                .execute(db)
-                .await
-                .map_err(|e| {
-                    tracing::error!("DB: Failed to insert opportunity: {}", e);
-                    RestError::TemporarilyUnavailable
-                })?;
-        }
+        let opportunity = self.get_or_add_db_opportunity(db, opportunity).await?;
 
         self.in_memory_store
             .opportunities
@@ -71,34 +40,31 @@ impl<T: InMemoryStore> Repository<T> {
         Ok(opportunity)
     }
 
-    async fn check_db_duplicate_opportunity(
+    async fn get_or_add_db_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
-        opportunity: &<T as InMemoryStore>::Opportunity,
-    ) -> Result<bool, RestError> {
+        opportunity: <T as InMemoryStore>::Opportunity,
+    ) -> Result<T::Opportunity, RestError> {
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
         let metadata = opportunity.get_models_metadata();
 
-        let result = sqlx::query!("SELECT COUNT(*) FROM opportunity WHERE permission_key = $1 AND chain_id = $2 AND chain_type = $3 AND sell_tokens = $4 AND buy_tokens = $5 AND metadata #- '{slot}' = $6",
+        let result = sqlx::query!("SELECT id FROM opportunity WHERE permission_key = $1 AND chain_id = $2 AND chain_type = $3 AND sell_tokens = $4 AND buy_tokens = $5 AND metadata #- '{slot}' = $6 AND (removal_reason IS NULL OR removal_reason = 'expired') LIMIT 1",
         opportunity.permission_key.to_vec(),
         opportunity.chain_id,
         chain_type as _,
         serde_json::to_value(&opportunity.sell_tokens).unwrap(),
         serde_json::to_value(&opportunity.buy_tokens).unwrap(),
         self.remove_slot_field(serde_json::to_value(metadata).expect("Failed to serialize metadata")))
-            .fetch_one(db)
+            .fetch_optional(db)
             .await
             .map_err(|e| {
                 tracing::error!("DB: Failed to check duplicate opportunity: {}", e);
                 RestError::TemporarilyUnavailable
             })?;
 
-        match result.count {
-            Some(count) => Ok(count > 0),
-            None => {
-                tracing::error!("DB: Failed to check duplicate opportunity: count is None");
-                Err(RestError::TemporarilyUnavailable)
-            }
+        match result {
+            Some(record) => self.update_db_opportunity(db, opportunity, record.id).await,
+            None => self.add_db_opportunity(db, opportunity).await,
         }
     }
 
@@ -107,5 +73,67 @@ impl<T: InMemoryStore> Repository<T> {
             obj.remove("slot");
         }
         metadata
+    }
+
+    async fn update_db_opportunity(
+        &self,
+        db: &sqlx::Pool<Postgres>,
+        opportunity: <T as InMemoryStore>::Opportunity,
+        id: Uuid,
+    ) -> Result<T::Opportunity, RestError> {
+        let odt_creation =
+            OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
+                .expect("creation_time is valid");
+        sqlx::query!("UPDATE opportunity SET last_creation_time = $1, removal_reason = NULL, removal_time = NULL WHERE id = $2",
+        PrimitiveDateTime::new(odt_creation.date(), odt_creation.time()),
+        id)
+            .execute(db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to update opportunity: {}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+
+        let mut modified_opportunity = opportunity;
+        modified_opportunity.id = id;
+        Ok(modified_opportunity)
+    }
+
+    async fn add_db_opportunity(
+        &self,
+        db: &sqlx::Pool<Postgres>,
+        opportunity: <T as InMemoryStore>::Opportunity,
+    ) -> Result<T::Opportunity, RestError> {
+        let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
+        let metadata = opportunity.get_models_metadata();
+        let odt_creation =
+            OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
+                .expect("creation_time is valid");
+        sqlx::query!("INSERT INTO opportunity (id,
+                                                        creation_time,
+                                                        last_creation_time,
+                                                        permission_key,
+                                                        chain_id,
+                                                        chain_type,
+                                                        metadata,
+                                                        sell_tokens,
+                                                        buy_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        opportunity.id,
+        PrimitiveDateTime::new(odt_creation.date(), odt_creation.time()),
+        PrimitiveDateTime::new(odt_creation.date(), odt_creation.time()),
+        opportunity.permission_key.to_vec(),
+        opportunity.chain_id,
+        chain_type as _,
+        serde_json::to_value(metadata).expect("Failed to serialize metadata"),
+        serde_json::to_value(&opportunity.sell_tokens).unwrap(),
+        serde_json::to_value(&opportunity.buy_tokens).unwrap())
+            .execute(db)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to insert opportunity: {}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+
+        Ok(opportunity)
     }
 }
