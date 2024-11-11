@@ -17,7 +17,7 @@ from express_relay.models.evm import (
 )
 from express_relay.models import BidStatusUpdate, OpportunityBidParams, Opportunity
 from express_relay.models.evm import OpportunityEvm, BidStatusEvm
-from express_relay.models.base import BidStatus
+from express_relay.models.base import BidStatusVariantsEvm
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +99,9 @@ class SimpleSearcher:
         index = bid_status.index
 
         result_details = ""
-        if status == BidStatus.SUBMITTED or status == BidStatus.WON:
+        if status == BidStatusVariantsEvm.SUBMITTED or status == BidStatusVariantsEvm.WON:
             result_details = f", transaction {result}, index {index} of multicall"
-        elif status == BidStatus.LOST:
+        elif status == BidStatusVariantsEvm.LOST:
             if result:
                 result_details = f", transaction {result}"
             if index:

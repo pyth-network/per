@@ -14,7 +14,7 @@ class UnsupportedOpportunityDeleteVersionException(Exception):
 class UnsupportedOpportunityDeleteChainTypeException(Exception):
     pass
 
-class BidStatus(Enum):
+class BidStatusVariantsEvm(Enum):
     PENDING = "pending"
     SUBMITTED = "submitted"
     LOST = "lost"
