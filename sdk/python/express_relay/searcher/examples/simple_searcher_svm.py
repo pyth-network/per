@@ -184,7 +184,8 @@ class SimpleSearcherSvm:
         output_mint_decimals = await self.get_mint_decimals(order["state"].output_mint)
         self.logger.info(
             f"Order address {order['address']}\n"
-            f"Sell token {order['state'].input_mint} amount: {Decimal(input_amount) / Decimal(10**input_mint_decimals)}\n"
+            f"Fill rate {input_amount / order['state'].initial_input_amount}\n"
+            f"Sell token {order['state'].input_mint} amount: {Decimal(input_amount) / Decimal(10 ** input_mint_decimals)}\n"
             f"Buy token {order['state'].output_mint} amount: {Decimal(output_amount) / Decimal(10**output_mint_decimals)}"
         )
         ixs_take_order = await self.limo_client.take_order_ix(

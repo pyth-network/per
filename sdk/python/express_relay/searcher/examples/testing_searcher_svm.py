@@ -22,8 +22,9 @@ class TestingSearcherSvm(SimpleSearcherSvm):
 
     async def opportunity_callback(self, opp: Opportunity):
         if self.with_latency:
-            self.logger.info("Adding latency to bid submission")
-            await asyncio.sleep(0.5 * random.random())
+            latency = 0.5 * random.random()
+            self.logger.info(f"Adding latency of {latency * 100}ms")
+            await asyncio.sleep(latency)
         return await super().opportunity_callback(opp)
 
     async def get_bid_amount(self, order: OrderStateAndAddress) -> int:

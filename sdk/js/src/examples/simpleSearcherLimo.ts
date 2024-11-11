@@ -40,12 +40,13 @@ export class SimpleSearcherLimo {
   protected mintDecimals: Record<string, number> = {};
   protected expressRelayConfig: ExpressRelaySvmConfig | undefined;
   protected recentBlockhash: Record<ChainId, Blockhash> = {};
+  private readonly bid: anchor.BN;
   constructor(
     public endpointExpressRelay: string,
     public chainId: string,
     protected searcher: Keypair,
     public endpointSvm: string,
-    public bid: anchor.BN,
+    bid: number,
     public apiKey?: string
   ) {
     this.client = new Client(
@@ -59,6 +60,7 @@ export class SimpleSearcherLimo {
       this.svmChainUpdateHandler.bind(this),
       this.removeOpportunitiesHandler.bind(this)
     );
+    this.bid = new anchor.BN(bid);
     this.connectionSvm = new Connection(endpointSvm, "confirmed");
   }
 
@@ -103,6 +105,7 @@ export class SimpleSearcherLimo {
 
     const bidAmount = await this.getBidAmount(order);
 
+    let config = await this.getExpressRelayConfig();
     const bid = await this.client.constructSvmBid(
       txRaw,
       this.searcher.publicKey,
@@ -111,12 +114,8 @@ export class SimpleSearcherLimo {
       bidAmount,
       new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
       this.chainId,
-      (
-        await this.getExpressRelayConfig()
-      ).relayerSigner,
-      (
-        await this.getExpressRelayConfig()
-      ).feeReceiverRelayer
+      config.relayerSigner,
+      config.feeReceiverRelayer
     );
 
     bid.transaction.recentBlockhash = this.recentBlockhash[this.chainId];

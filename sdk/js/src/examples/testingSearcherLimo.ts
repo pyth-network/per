@@ -18,7 +18,7 @@ class SearcherLimo extends SimpleSearcherLimo {
     chainId: string,
     searcher: Keypair,
     endpointSvm: string,
-    bid: anchor.BN,
+    bid: number,
     fillRate: number,
     public withLatency: boolean,
     public bidMargin: number,
@@ -34,9 +34,7 @@ class SearcherLimo extends SimpleSearcherLimo {
       const margin = new anchor.BN(
         Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin
       );
-      console.log("Original bid amount: ", this.bid.toString());
       bidAmount = bidAmount.add(margin);
-      console.log("Modified bid amount: ", bidAmount.toString());
     }
     return bidAmount;
   }
@@ -82,7 +80,7 @@ async function run() {
     argv.chainId,
     searcherKeyPair,
     argv.endpointSvm,
-    new anchor.BN(argv.bid),
+    argv.bid,
     argv.fillRate,
     argv.withLatency,
     argv.bidMargin,
