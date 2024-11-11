@@ -106,7 +106,7 @@ class LimoClient:
                 AccountMeta(pubkey=RENT, is_signer=False, is_writable=False),
             ],
             program_id=ASSOCIATED_TOKEN_PROGRAM_ID,
-            data=bytes(1),  # idempotent version of the instruction
+            data=bytes([1]),  # idempotent version of the instruction
         )
 
     async def get_ata_and_create_ixn_if_required(
