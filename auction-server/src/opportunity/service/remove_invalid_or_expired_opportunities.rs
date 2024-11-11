@@ -19,12 +19,8 @@ use {
             },
             service::ChainTypeEnum,
         },
-        state::UnixTimestampMicros,
     },
-    std::time::{
-        SystemTime,
-        UNIX_EPOCH,
-    },
+    time::OffsetDateTime,
 };
 
 const MAX_STALE_OPPORTUNITY_MICROS: i128 = 60_000_000;
@@ -45,12 +41,10 @@ where
                     .await
                 {
                     Ok(entities::OpportunityVerificationResult::UnableToSpoof) => {
-                        let current_time = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .expect("Current time older than 1970!")
-                            .as_micros()
-                            as UnixTimestampMicros;
-                        if current_time - opportunity.creation_time > MAX_STALE_OPPORTUNITY_MICROS {
+                        if (OffsetDateTime::now_utc() - opportunity.creation_time)
+                            .whole_microseconds()
+                            > MAX_STALE_OPPORTUNITY_MICROS
+                        {
                             Some(entities::OpportunityRemovalReason::Expired)
                         } else {
                             None

@@ -43,7 +43,7 @@ impl<T: ChainType> Service<T> {
                 })
                 .filter(|opportunity| {
                     let filter_time = if let Some(from_time) = query_params.from_time {
-                        opportunity.creation_time >= from_time.unix_timestamp_nanos() / 1000
+                        opportunity.creation_time >= from_time
                     } else {
                         true
                     };

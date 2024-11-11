@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM opportunity WHERE permission_key = $1 AND chain_id = $2 AND chain_type = $3 AND sell_tokens = $4 AND buy_tokens = $5 AND metadata #- '{slot}' = $6 AND (removal_reason IS NULL OR removal_reason = $7) LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text",
+        {
+          "Custom": {
+            "name": "chain_type",
+            "kind": {
+              "Enum": [
+                "evm",
+                "svm"
+              ]
+            }
+          }
+        },
+        "Jsonb",
+        "Jsonb",
+        "Jsonb",
+        {
+          "Custom": {
+            "name": "opportunity_removal_reason",
+            "kind": {
+              "Enum": [
+                "expired",
+                "invalid"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c08a28fafc4386e0406334e61dd2aba81d4c36dda279171bed39557f17358fa3"
+}
