@@ -945,6 +945,8 @@ impl BidStatusTrait for BidStatusSvm {
                     Ok(BidStatusSvm::Won { result })
                 } else if bid.status == models::BidStatus::Submitted {
                     Ok(BidStatusSvm::Submitted { result })
+                } else if bid.status == models::BidStatus::Expired {
+                    Ok(BidStatusSvm::Expired { result })
                 } else {
                     Err(anyhow::anyhow!("Invalid bid status".to_string()))
                 }
