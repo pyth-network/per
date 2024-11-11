@@ -1,6 +1,10 @@
 use {
     super::{
-        models::OpportunityMetadata,
+        models::{
+            self,
+            OpportunityMetadata,
+            OpportunityRemovalReason,
+        },
         InMemoryStore,
         Repository,
     },
@@ -11,7 +15,10 @@ use {
             Opportunity,
         },
     },
-    sqlx::Postgres,
+    sqlx::{
+        Postgres,
+        QueryBuilder,
+    },
     time::{
         OffsetDateTime,
         PrimitiveDateTime,
@@ -20,13 +27,15 @@ use {
 };
 
 impl<T: InMemoryStore> Repository<T> {
+    /// Add an opportunity to the system, in memory and in the database.
+    ///
+    /// The provided opportunity will be added to the in-memory store. If the opportunity already exists
+    /// in the database, then it will be refreshed. Otherwise it will be added to the database.
     pub async fn add_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
         opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreate,
     ) -> Result<T::Opportunity, RestError> {
-        let opportunity: T::Opportunity =
-            <T::Opportunity as entities::Opportunity>::new_with_current_time(opportunity);
         let opportunity = self.get_or_add_db_opportunity(db, opportunity).await?;
 
         self.in_memory_store
@@ -40,21 +49,28 @@ impl<T: InMemoryStore> Repository<T> {
         Ok(opportunity)
     }
 
+    /// Gets the opportunity from the database if it exists, otherwise adds it.
+    ///
+    /// If the opportunity already exists in the database and hasn't become invalid in simulation, then
+    /// it will be refreshed. Otherwise, the opportunity will be added to the database.
     async fn get_or_add_db_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
-        opportunity: <T as InMemoryStore>::Opportunity,
+        opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreate,
     ) -> Result<T::Opportunity, RestError> {
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
+        let opportunity: T::Opportunity =
+            <T::Opportunity as entities::Opportunity>::new_with_current_time(opportunity);
         let metadata = opportunity.get_models_metadata();
 
-        let result = sqlx::query!("SELECT id FROM opportunity WHERE permission_key = $1 AND chain_id = $2 AND chain_type = $3 AND sell_tokens = $4 AND buy_tokens = $5 AND metadata #- '{slot}' = $6 AND (removal_reason IS NULL OR removal_reason = 'expired') LIMIT 1",
+        let result = sqlx::query!("SELECT id FROM opportunity WHERE permission_key = $1 AND chain_id = $2 AND chain_type = $3 AND sell_tokens = $4 AND buy_tokens = $5 AND metadata #- '{slot}' = $6 AND (removal_reason IS NULL OR removal_reason = $7) LIMIT 1",
         opportunity.permission_key.to_vec(),
         opportunity.chain_id,
         chain_type as _,
-        serde_json::to_value(&opportunity.sell_tokens).unwrap(),
-        serde_json::to_value(&opportunity.buy_tokens).unwrap(),
-        self.remove_slot_field(serde_json::to_value(metadata).expect("Failed to serialize metadata")))
+        serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
+        serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"),
+        self.remove_slot_field(serde_json::to_value(metadata).expect("Failed to serialize metadata")),
+        OpportunityRemovalReason::Expired as _)
             .fetch_optional(db)
             .await
             .map_err(|e| {
@@ -63,7 +79,7 @@ impl<T: InMemoryStore> Repository<T> {
             })?;
 
         match result {
-            Some(record) => self.update_db_opportunity(db, opportunity, record.id).await,
+            Some(record) => self.refresh_db_opportunity(db, record.id).await,
             None => self.add_db_opportunity(db, opportunity).await,
         }
     }
@@ -75,28 +91,38 @@ impl<T: InMemoryStore> Repository<T> {
         metadata
     }
 
-    async fn update_db_opportunity(
+    /// Refresh an opportunity that already exists in the database.
+    ///
+    /// This will update the last creation time of the opportunity and remove the removal reason and time.
+    async fn refresh_db_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
-        opportunity: <T as InMemoryStore>::Opportunity,
         id: Uuid,
     ) -> Result<T::Opportunity, RestError> {
-        let odt_creation =
-            OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
-                .expect("creation_time is valid");
-        sqlx::query!("UPDATE opportunity SET last_creation_time = $1, removal_reason = NULL, removal_time = NULL WHERE id = $2",
-        PrimitiveDateTime::new(odt_creation.date(), odt_creation.time()),
-        id)
-            .execute(db)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB: Failed to update opportunity: {}", e);
-                RestError::TemporarilyUnavailable
-            })?;
+        let odt_creation = OffsetDateTime::now_utc();
 
-        let mut modified_opportunity = opportunity;
-        modified_opportunity.id = id;
-        Ok(modified_opportunity)
+        let mut query = QueryBuilder::new("UPDATE opportunity SET removal_reason = NULL, removal_time = NULL, last_creation_time = ");
+        query.push_bind(PrimitiveDateTime::new(
+            odt_creation.date(),
+            odt_creation.time(),
+        ));
+        query.push(" WHERE id = ");
+        query.push_bind(id);
+        query.push(" RETURNING *");
+        let opportunity: models::Opportunity<
+            <T::Opportunity as entities::Opportunity>::ModelMetadata,
+        > = query.build_query_as().fetch_one(db).await.map_err(|e| {
+            tracing::error!("DB: Failed to refresh opportunity {}: {}", id, e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        opportunity.clone().try_into().map_err(|_| {
+            tracing::error!(
+                "Failed to convert database opportunity to entity opportunity: {:?}",
+                opportunity
+            );
+            RestError::TemporarilyUnavailable
+        })
     }
 
     async fn add_db_opportunity(
@@ -125,8 +151,8 @@ impl<T: InMemoryStore> Repository<T> {
         opportunity.chain_id,
         chain_type as _,
         serde_json::to_value(metadata).expect("Failed to serialize metadata"),
-        serde_json::to_value(&opportunity.sell_tokens).unwrap(),
-        serde_json::to_value(&opportunity.buy_tokens).unwrap())
+        serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
+        serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
             .execute(db)
             .await
             .map_err(|e| {
