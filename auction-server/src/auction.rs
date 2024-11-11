@@ -59,6 +59,7 @@ use {
     },
     axum::async_trait,
     axum_prometheus::metrics,
+    bincode::serialize,
     ethers::{
         abi,
         contract::{
@@ -128,6 +129,7 @@ use {
         address_lookup_table::state::AddressLookupTable,
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
+        packet::PACKET_DATA_SIZE,
         pubkey::Pubkey,
         signature::{
             Keypair,
@@ -1140,6 +1142,8 @@ pub async fn handle_bid_svm(
     initiation_time: OffsetDateTime,
     auth: Auth,
 ) -> result::Result<Uuid, RestError> {
+    check_tx_size(&bid.transaction)?;
+
     let store = store_new.store.clone();
     let chain_store = store
         .chains_svm
@@ -1186,6 +1190,19 @@ pub async fn handle_bid_svm(
     };
     store.add_bid(chain_store, simulated_bid).await?;
     Ok(core_fields.id)
+}
+
+fn check_tx_size(transaction: &VersionedTransaction) -> Result<(), RestError> {
+    let tx_serialized = serialize(&transaction)
+        .map_err(|e| RestError::BadParameters(format!("Error serializing transaction: {:?}", e)))?;
+    if tx_serialized.len() > PACKET_DATA_SIZE {
+        return Err(RestError::BadParameters(format!(
+            "Transaction size is too large: {} > {}",
+            tx_serialized.len(),
+            PACKET_DATA_SIZE
+        )));
+    }
+    Ok(())
 }
 
 fn all_signature_exists_svm(
