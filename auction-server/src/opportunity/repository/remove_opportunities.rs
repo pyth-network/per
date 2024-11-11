@@ -37,9 +37,9 @@ impl<T: InMemoryStore> Repository<T> {
             .await?;
 
         let mut write_guard = self.in_memory_store.opportunities.write().await;
-        let opportunitties = write_guard.remove(opportunity_key);
+        let opportunities = write_guard.remove(opportunity_key);
         drop(write_guard);
 
-        Ok(opportunitties.unwrap_or_default())
+        Ok(opportunities.unwrap_or_default())
     }
 }

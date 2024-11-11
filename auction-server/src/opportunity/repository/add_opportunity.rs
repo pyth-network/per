@@ -132,9 +132,6 @@ impl<T: InMemoryStore> Repository<T> {
     ) -> Result<T::Opportunity, RestError> {
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
         let metadata = opportunity.get_models_metadata();
-        let odt_creation =
-            OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
-                .expect("creation_time is valid");
         sqlx::query!("INSERT INTO opportunity (id,
                                                         creation_time,
                                                         last_creation_time,
@@ -145,8 +142,8 @@ impl<T: InMemoryStore> Repository<T> {
                                                         sell_tokens,
                                                         buy_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         opportunity.id,
-        PrimitiveDateTime::new(odt_creation.date(), odt_creation.time()),
-        PrimitiveDateTime::new(odt_creation.date(), odt_creation.time()),
+        PrimitiveDateTime::new(opportunity.creation_time.date(), opportunity.creation_time.time()),
+        PrimitiveDateTime::new(opportunity.creation_time.date(), opportunity.creation_time.time()),
         opportunity.permission_key.to_vec(),
         opportunity.chain_id,
         chain_type as _,

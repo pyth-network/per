@@ -24,10 +24,14 @@ impl<T: InMemoryStore> Repository<T> {
     ) -> anyhow::Result<()> {
         let reason: OpportunityRemovalReason = reason.into();
         let now = OffsetDateTime::now_utc();
-        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
+        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL AND last_creation_time = $4")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(opportunity.id)
+            .bind(PrimitiveDateTime::new(
+                opportunity.creation_time.date(),
+                opportunity.creation_time.time(),
+            ))
             .execute(db)
             .await?;
 
@@ -35,7 +39,7 @@ impl<T: InMemoryStore> Repository<T> {
         let mut write_guard = self.in_memory_store.opportunities.write().await;
         let entry = write_guard.entry(key.clone());
         if entry
-            .and_modify(|opps| opps.retain(|o| o.id != opportunity.id))
+            .and_modify(|opps| opps.retain(|o| o != opportunity))
             .or_default()
             .is_empty()
         {

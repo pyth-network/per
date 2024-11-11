@@ -12,7 +12,6 @@ use {
                 self,
             },
         },
-        state::UnixTimestampMicros,
     },
     ethers::types::Bytes,
     std::ops::Deref,
@@ -32,19 +31,18 @@ pub struct OpportunityCoreFields<T: TokenAmount> {
     pub chain_id:       ChainId,
     pub sell_tokens:    Vec<T>,
     pub buy_tokens:     Vec<T>,
-    pub creation_time:  UnixTimestampMicros,
+    pub creation_time:  OffsetDateTime,
 }
 
 impl<T: TokenAmount> OpportunityCoreFields<T> {
     pub fn new_with_current_time(val: OpportunityCoreFieldsCreate<T>) -> Self {
-        let odt = OffsetDateTime::now_utc();
         Self {
             id:             Uuid::new_v4(),
             permission_key: val.permission_key,
             chain_id:       val.chain_id,
             sell_tokens:    val.sell_tokens,
             buy_tokens:     val.buy_tokens,
-            creation_time:  odt.unix_timestamp_nanos() / 1000 as UnixTimestampMicros,
+            creation_time:  OffsetDateTime::now_utc(),
         }
     }
 }
