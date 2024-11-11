@@ -1,5 +1,4 @@
-import { Opportunity, OpportunitySvm } from "../index";
-import { SVM_CONSTANTS } from "../const";
+import { Opportunity } from "../index";
 
 import * as anchor from "@coral-xyz/anchor";
 import { Keypair } from "@solana/web3.js";
@@ -9,9 +8,10 @@ import {
   makeParser,
   SimpleSearcherLimo,
 } from "./simpleSearcherLimo";
+import { Decimal } from "decimal.js";
 
 class SearcherLimo extends SimpleSearcherLimo {
-  private fillRate: anchor.BN;
+  private readonly fillRate: anchor.BN;
 
   constructor(
     endpointExpressRelay: string,
@@ -25,7 +25,7 @@ class SearcherLimo extends SimpleSearcherLimo {
     public apiKey?: string
   ) {
     super(endpointExpressRelay, chainId, searcher, endpointSvm, bid, apiKey);
-    this.fillRate = new anchor.BN(fillRate).div(new anchor.BN(100));
+    this.fillRate = new Decimal(fillRate).div(new Decimal(100));
   }
 
   async getBidAmount(order: OrderStateAndAddress): Promise<anchor.BN> {
@@ -34,40 +34,24 @@ class SearcherLimo extends SimpleSearcherLimo {
       const margin = new anchor.BN(
         Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin
       );
+      console.log("Original bid amount: ", this.bid.toString());
       bidAmount = bidAmount.add(margin);
+      console.log("Modified bid amount: ", bidAmount.toString());
     }
     return bidAmount;
   }
 
-  async opportunityHandler(opportunity: Opportunity) {
-    if (!this.recentBlockhash[this.chainId]) {
-      console.log(
-        `No recent blockhash for chain ${this.chainId}, skipping bid`
-      );
-      return;
-    }
-
-    // todo: factor in fill rate by changing the remaining amount
+  async opportunityHandler(opportunity: Opportunity): Promise<void> {
     if (this.withLatency) {
       const latency = Math.floor(Math.random() * 500);
       console.log(`Adding latency of ${latency}ms`);
       await new Promise((resolve) => setTimeout(resolve, latency));
     }
-    const bid = await this.generateBid(opportunity as OpportunitySvm);
-    try {
-      const bidId = await this.client.submitBid(bid);
-      console.log(
-        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`
-      );
-    } catch (error) {
-      console.error(
-        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
-      );
-    }
+    return super.opportunityHandler(opportunity);
   }
 
-  protected getEffectiveFillRate(order: OrderStateAndAddress): any {
-    return anchor.BN.min(this.fillRate, super.getEffectiveFillRate(order));
+  protected getEffectiveFillRate(order: OrderStateAndAddress): Decimal {
+    return Decimal.min(this.fillRate, super.getEffectiveFillRate(order));
   }
 }
 
@@ -107,4 +91,6 @@ async function run() {
   await simpleSearcher.start();
 }
 
-run();
+if (require.main === module) {
+  run();
+}

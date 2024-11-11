@@ -101,14 +101,14 @@ export class SimpleSearcherLimo {
     const ixsTakeOrder = await this.generateTakeOrderIxs(limoClient, order);
     const txRaw = new anchor.web3.Transaction().add(...ixsTakeOrder);
 
-    const bidData = await this.getBidAmount(order);
+    const bidAmount = await this.getBidAmount(order);
 
     const bid = await this.client.constructSvmBid(
       txRaw,
       this.searcher.publicKey,
       getPdaAuthority(limoClient.getProgramID(), order.state.globalConfig),
       order.address,
-      bidData.bidAmount,
+      bidAmount,
       new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
       this.chainId,
       (
@@ -135,9 +135,9 @@ export class SimpleSearcherLimo {
   }
 
   /**
-   * Gets the router address, bid amount, and relayer addresses required to create a valid bid
+   * Calculates the bid amount for a given order.
    * @param order The limit order to be fulfilled
-   * @returns The fetched bid data
+   * @returns The bid amount in lamports
    */
   async getBidAmount(order: OrderStateAndAddress): Promise<anchor.BN> {
     // this should be replaced by a more sophisticated logic to determine the bid amount
@@ -201,8 +201,10 @@ export class SimpleSearcherLimo {
     );
   }
 
-  protected getEffectiveFillRate(order: OrderStateAndAddress): anchor.BN {
-    return order.state.remainingInputAmount.div(order.state.initialInputAmount);
+  protected getEffectiveFillRate(order: OrderStateAndAddress): Decimal {
+    return new Decimal(order.state.remainingInputAmount.toNumber()).div(
+      new Decimal(order.state.initialInputAmount.toNumber())
+    );
   }
 
   async opportunityHandler(opportunity: Opportunity) {
@@ -332,4 +334,6 @@ async function run() {
   await simpleSearcher.start();
 }
 
-run();
+if (require.main === module) {
+  run();
+}
