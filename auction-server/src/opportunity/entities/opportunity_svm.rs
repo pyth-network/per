@@ -226,7 +226,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
         Ok(OpportunitySvm {
             core_fields: OpportunityCoreFields {
                 id: val.id,
-                creation_time: val.creation_time.assume_utc().unix_timestamp_nanos() / 1000,
+                creation_time: val.last_creation_time.assume_utc().unix_timestamp_nanos() / 1000,
                 permission_key: PermissionKey::from(val.permission_key),
                 chain_id: val.chain_id,
                 sell_tokens,
