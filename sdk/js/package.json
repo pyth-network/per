@@ -1,6 +1,6 @@
 {
   "name": "@pythnetwork/express-relay-js",
-  "version": "0.13.3",
+  "version": "0.13.4",
   "description": "Utilities for interacting with the express relay protocol",
   "homepage": "https://github.com/pyth-network/per/tree/main/sdk/js",
   "author": "Douro Labs",
@@ -16,8 +16,8 @@
     "build": "tsc",
     "test": "jest src/ --passWithNoTests",
     "simple-searcher-evm": "npm run build && node lib/examples/simpleSearcherEvm.js",
-    "simple-searcher-svm": "npm run build && node lib/examples/simpleSearcherSvm.js",
     "simple-searcher-limo": "npm run build && node lib/examples/simpleSearcherLimo.js",
+    "testing-searcher-limo": "npm run build && node lib/examples/testingSearcherLimo.js",
     "generate-api-types": "openapi-typescript http://127.0.0.1:9000/docs/openapi.json --output src/serverTypes.d.ts",
     "generate-anchor-types": "anchor idl type src/idl/idlExpressRelay.json --out src/expressRelayTypes.d.ts && anchor idl type src/examples/idl/idlDummy.json --out src/examples/dummyTypes.d.ts",
     "format": "prettier --write \"src/**/*.ts\"",
