@@ -25,6 +25,10 @@ use {
         },
         models,
         opportunity::service as opportunity_service,
+        server::{
+            EXIT_CHECK_INTERVAL,
+            SHOULD_EXIT,
+        },
         traced_client::TracedClient,
         traced_sender_svm::TracedSenderSvm,
     },
@@ -50,6 +54,7 @@ use {
             U256,
         },
     },
+    futures::StreamExt,
     rand::Rng,
     serde::{
         Deserialize,
@@ -60,9 +65,21 @@ use {
         serde_as,
         DisplayFromStr,
     },
-    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_client::{
+        nonblocking::rpc_client::RpcClient,
+        rpc_config::{
+            RpcSendTransactionConfig,
+            RpcTransactionLogsConfig,
+            RpcTransactionLogsFilter,
+        },
+        rpc_response::{
+            Response,
+            RpcLogsResponse,
+        },
+    },
     solana_rpc_client::rpc_client::RpcClientConfig,
     solana_sdk::{
+        bs58,
         commitment_config::CommitmentConfig,
         hash::Hash,
         pubkey::Pubkey,
@@ -91,12 +108,19 @@ use {
         num::ParseIntError,
         ops::Deref,
         str::FromStr,
-        sync::Arc,
+        sync::{
+            atomic::Ordering,
+            Arc,
+        },
         time::Duration,
     },
     time::UtcOffset,
     tokio::sync::{
         broadcast,
+        broadcast::{
+            Receiver,
+            Sender,
+        },
         Mutex,
         RwLock,
     },
@@ -533,7 +557,10 @@ impl ChainStoreEvm {
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
-    tx_broadcaster_client:             RpcClient,
+    tx_broadcaster_client:             Arc<RpcClient>,
+    log_sender:                        Sender<Response<RpcLogsResponse>>,
+    // only to avoid closing the channel
+    _dummy_log_receiver:               Receiver<Response<RpcLogsResponse>>,
     pub client:                        RpcClient,
     pub config:                        ConfigSvm,
     pub express_relay_svm:             ExpressRelaySvm,
@@ -541,6 +568,8 @@ pub struct ChainStoreSvm {
     pub name:                          String,
     pub lookup_table_cache:            LookupTableCache,
 }
+
+const SVM_SEND_TRANSACTION_RETRY_COUNT: i32 = 5;
 
 impl ChainStoreSvm {
     pub fn new(chain_id: String, config: ConfigSvm, relayer: Arc<Keypair>) -> Self {
@@ -553,6 +582,7 @@ impl ChainStoreSvm {
                 .parse::<usize>()
                 .expect("Failed to parse router account position"),
         };
+        let (tx, rx) = broadcast::channel(1000);
 
         Self {
             name: chain_id.clone(),
@@ -564,12 +594,14 @@ impl ChainStoreSvm {
                 RpcClientConfig::with_commitment(CommitmentConfig::processed()),
             ),
 
-            tx_broadcaster_client: TracedSenderSvm::new_client(
+            tx_broadcaster_client: Arc::new(TracedSenderSvm::new_client(
                 chain_id.clone(),
                 config.rpc_tx_submission_url.as_str(),
                 config.rpc_timeout,
                 RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-            ),
+            )),
+            log_sender: tx,
+            _dummy_log_receiver: rx,
 
             wallet_program_router_account: config.wallet_program_router_account,
             config,
@@ -578,11 +610,83 @@ impl ChainStoreSvm {
         }
     }
 
+    pub async fn get_tx_receiver(&self) -> anyhow::Result<()> {
+        let ws_client = self.get_ws_client().await?;
+        let (mut stream, _) = ws_client
+            .logs_subscribe(
+                RpcTransactionLogsFilter::Mentions(vec![self
+                    .config
+                    .express_relay_program_id
+                    .to_string()]),
+                RpcTransactionLogsConfig {
+                    commitment: Some(CommitmentConfig::confirmed()),
+                },
+            )
+            .await
+            .unwrap();
+        let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+        let chain_name = self.get_name().clone();
+        while !SHOULD_EXIT.load(Ordering::Acquire) {
+            tokio::select! {
+                rpc_log = stream.next() => {
+                    match rpc_log {
+                        None => return Err(anyhow!("Log trigger stream ended for chain: {}", &chain_name)),
+                        Some(rpc_log) => {
+                            tracing::debug!("New log trigger received for {} at {}: {:?}", &chain_name, OffsetDateTime::now_utc(), rpc_log.clone());
+                                if let Err(e) = self.log_sender.send(rpc_log) {
+                                    tracing::error!("Failed to send log to channel: {:?}", e);
+                                }
+                        }
+                    };
+                }
+                _ = exit_check_interval.tick() => {}
+            }
+        }
+        tracing::info!("Shutting down log listener svm...");
+        Ok(())
+    }
+
+    pub fn subscribe_logs(&self) -> Receiver<Response<RpcLogsResponse>> {
+        self.log_sender.subscribe()
+    }
+
     pub async fn send_transaction(
         &self,
         tx: &VersionedTransaction,
+        task_tracker: TaskTracker,
     ) -> solana_client::client_error::Result<Signature> {
-        self.tx_broadcaster_client.send_transaction(tx).await
+        let config = RpcSendTransactionConfig {
+            skip_preflight:       true,
+            preflight_commitment: None,
+            encoding:             None,
+            max_retries:          None,
+            min_context_slot:     None,
+        };
+        let res = self
+            .tx_broadcaster_client
+            .send_transaction_with_config(tx, config)
+            .await?;
+        let client = self.tx_broadcaster_client.clone();
+        let tx_cloned = tx.clone();
+        let mut receiver = self.subscribe_logs();
+        let signature_bs58 = bs58::encode(res).into_string();
+        task_tracker.spawn(async move {
+            for _ in 0..SVM_SEND_TRANSACTION_RETRY_COUNT {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                while let Ok(log) = receiver.try_recv() {
+                    if log.value.signature.eq(&signature_bs58) {
+                        return;
+                    }
+                }
+                if let Err(e) = client
+                    .send_transaction_with_config(&tx_cloned, config)
+                    .await
+                {
+                    tracing::error!("Failed to resend transaction: {:?}", e);
+                }
+            }
+        });
+        Ok(res)
     }
 }
 

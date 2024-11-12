@@ -119,10 +119,6 @@ use {
             pubsub_client::PubsubClient,
             rpc_client::RpcClient,
         },
-        rpc_config::{
-            RpcTransactionLogsConfig,
-            RpcTransactionLogsFilter,
-        },
         rpc_response::SlotInfo,
     },
     solana_sdk::{
@@ -158,6 +154,7 @@ use {
         Mutex,
         MutexGuard,
     },
+    tokio_util::task::TaskTracker,
     utoipa::ToSchema,
     uuid::Uuid,
 };
@@ -482,7 +479,11 @@ async fn submit_auction_for_bids<'a, T: ChainStore>(
     );
 
     match chain_store
-        .submit_bids(permission_key.clone(), winner_bids.clone())
+        .submit_bids(
+            permission_key.clone(),
+            winner_bids.clone(),
+            store.task_tracker.clone(),
+        )
         .await
     {
         Ok(tx_hash) => {
@@ -1345,6 +1346,7 @@ pub trait ChainStore:
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
+        task_tracker: TaskTracker,
     ) -> Result<<<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>;
     /// Get the bid results for the bids submitted for the auction after the transaction is concluded.
     /// Order of the returned BidStatus is as same as the order of the bids.
@@ -1578,6 +1580,7 @@ impl ChainStore for ChainStoreEvm {
         &self,
         permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
+        _task_tracker: TaskTracker,
     ) -> Result<<<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>
     {
         let gas_estimate = bids.iter().fold(U256::zero(), |sum, b| sum + b.gas_limit);
@@ -1728,12 +1731,13 @@ impl ChainStore for ChainStoreSvm {
         &self,
         _permission_key: Bytes,
         bids: Vec<Self::SimulatedBid>,
+        task_tracker: TaskTracker,
     ) -> Result<<<Self::SimulatedBid as SimulatedBidTrait>::StatusType as BidStatusTrait>::TxHash>
     {
         let relayer = self.express_relay_svm.relayer.clone();
         let mut bid = bids[0].clone();
         add_relayer_signature_svm(relayer, &mut bid);
-        match self.send_transaction(&bid.transaction).await {
+        match self.send_transaction(&bid.transaction, task_tracker).await {
             Ok(response) => Ok(response),
             Err(e) => {
                 tracing::error!("Error while submitting bid: {:?}", e);
@@ -1758,6 +1762,8 @@ impl ChainStore for ChainStoreSvm {
             tracing::warn!(tx_hash = ?tx_hash, bids = ?bids, "multiple bids found for transaction hash");
         }
 
+
+        //TODO: this can be optimized out if triggered by websocket events
         let status = self
             .client
             .get_signature_status_with_commitment(&tx_hash, CommitmentConfig::confirmed())
@@ -1863,60 +1869,56 @@ pub async fn run_submission_loop<T: ChainStore + 'static>(
 }
 
 
-pub async fn run_log_listener_loop_svm(
+pub async fn run_log_listener_loop_svm(chain_store: Arc<ChainStoreSvm>) -> Result<()> {
+    tracing::info!(
+        chain_id = chain_store.get_name(),
+        "Starting log listener..."
+    );
+    chain_store.get_tx_receiver().await
+}
+
+pub async fn run_auction_conclusion_loop_svm(
     store_new: Arc<StoreNew>,
     chain_store: Arc<ChainStoreSvm>,
 ) -> Result<()> {
     tracing::info!(
         chain_id = chain_store.get_name(),
-        "Starting log listener..."
+        "Starting auction conclusion"
     );
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
-    let ws_client = chain_store.get_ws_client().await?;
-    let (mut stream, _) = ws_client
-        .logs_subscribe(
-            RpcTransactionLogsFilter::Mentions(vec![chain_store
-                .config
-                .express_relay_program_id
-                .to_string()]),
-            RpcTransactionLogsConfig {
-                commitment: Some(CommitmentConfig::confirmed()),
-            },
-        )
-        .await?;
-
-    // TODO Handle the case where connection is lost and we need to reconnect
+    let mut stream = chain_store.subscribe_logs();
     while !SHOULD_EXIT.load(Ordering::Acquire) {
         tokio::select! {
-            rpc_log = stream.next() => {
+            rpc_log = stream.recv() => {
                 match rpc_log {
-                    None => return Err(anyhow!("Log trigger stream ended for chain: {}", chain_store.get_name())),
-                    Some(rpc_log) => {
+                    Err(err) => return Err(anyhow!("Error while receiving log trigger for chain {}: {:?}", chain_store.get_name(), err)),
+                    Ok(rpc_log) => {
                         tracing::debug!("New log trigger received for {} at {}: {:?}", chain_store.get_name(), OffsetDateTime::now_utc(), rpc_log.clone());
-                        store_new.store.task_tracker.spawn({
-                            let (store, chain_store) = (store_new.store.clone(), chain_store.clone());
-                            async move {
-                                let submitted_auctions = chain_store.get_submitted_auctions().await;
-                                if let Some(auction) = submitted_auctions.iter().find(|auction| {
-                                    auction.tx_hash.clone().map(|tx_hash| {
-                                        match SignatureSvm::try_from(tx_hash) {
-                                            Ok(tx_hash) => tx_hash.to_string() == rpc_log.value.signature,
-                                            Err(err) => {
-                                                tracing::error!(error = ?err, "Error while converting tx_hash to SignatureSvm");
-                                                false
-                                            },
-                                        }
-                                    }).unwrap_or(false)
-                                }) {
-                                    if let Err(err) = conclude_submitted_auction(store.clone(), chain_store.as_ref(), auction.clone()).await {
-                                        tracing::error!(error = ?err, auction = ?auction, "Error while concluding submitted auction");
-                                    }
+                store_new.store.task_tracker.spawn({
+                    let (store, chain_store) = (store_new.store.clone(), chain_store.clone());
+                    async move {
+                        let submitted_auctions = chain_store.get_submitted_auctions().await;
+                        if let Some(auction) = submitted_auctions.iter().find(|auction| {
+                            auction.tx_hash.clone().map(|tx_hash| {
+                                match SignatureSvm::try_from(tx_hash) {
+                                    Ok(tx_hash) => tx_hash.to_string() == rpc_log.value.signature,
+                                    Err(err) => {
+                                        tracing::error!(error = ?err, "Error while converting tx_hash to SignatureSvm");
+                                        false
+                                    },
                                 }
-
+                            }).unwrap_or(false)
+                        }) {
+                            if let Err(err) = conclude_submitted_auction(store.clone(), chain_store.as_ref(), auction.clone()).await {
+                                tracing::error!(error = ?err, auction = ?auction, "Error while concluding submitted auction");
                             }
-                        });
+                        }
+
+                    }
+                });
                     }
                 }
+
             }
             _ = exit_check_interval.tick() => {}
         }
