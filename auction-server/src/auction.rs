@@ -59,7 +59,7 @@ use {
     },
     axum::async_trait,
     axum_prometheus::metrics,
-    bincode::serialize,
+    bincode::serialized_size,
     ethers::{
         abi,
         contract::{
@@ -1193,13 +1193,12 @@ pub async fn handle_bid_svm(
 }
 
 fn check_tx_size(transaction: &VersionedTransaction) -> Result<(), RestError> {
-    let tx_serialized = serialize(&transaction)
+    let size = serialized_size(&transaction)
         .map_err(|e| RestError::BadParameters(format!("Error serializing transaction: {:?}", e)))?;
-    if tx_serialized.len() > PACKET_DATA_SIZE {
+    if size > PACKET_DATA_SIZE as u64 {
         return Err(RestError::BadParameters(format!(
             "Transaction size is too large: {} > {}",
-            tx_serialized.len(),
-            PACKET_DATA_SIZE
+            size, PACKET_DATA_SIZE
         )));
     }
     Ok(())
