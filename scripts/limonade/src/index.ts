@@ -170,12 +170,10 @@ async function run() {
         const responseHealth = await fetch(urlRpcHealth);
         const health = await responseHealth.text();
         if (responseHealth.status !== 200 || health !== "ok") {
-          console.error("RPC endpoint is not healthy: ", responseHealth);
-          process.exit(1);
+          console.error("Health Error (RPC endpoint): ", responseHealth);
         }
       } catch (e) {
-        console.error("Failed to fetch RPC endpoint health: ", e);
-        process.exit(1);
+        console.error("Health Error (RPC endpoint), failure to fetch: ", e);
       }
       // Wait for 10 seconds before rechecking
       await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
@@ -189,14 +187,15 @@ async function run() {
         const responseHealth = await fetch(urlExpressRelayHealth);
         if (responseHealth.status !== 200) {
           console.error(
-            "Express relay endpoint is not healthy: ",
+            "Health Error (Express Relay endpoint): ",
             responseHealth
           );
-          process.exit(1);
         }
       } catch (e) {
-        console.error("Failed to fetch Express Relay endpoint health: ", e);
-        process.exit(1);
+        console.error(
+          "Health Error (Express Relay endpoint), failure to fetch: ",
+          e
+        );
       }
       // Wait for 10 seconds before rechecking
       await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
