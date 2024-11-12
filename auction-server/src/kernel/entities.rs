@@ -17,6 +17,8 @@ use {
     },
     solana_sdk::{
         packet::PACKET_DATA_SIZE,
+        pubkey::Pubkey,
+        signature::Signature,
         transaction::VersionedTransaction,
     },
 };
@@ -71,5 +73,19 @@ impl Svm {
             )));
         }
         Ok(())
+    }
+
+    pub fn all_signatures_exists(
+        message_bytes: &[u8],
+        accounts: &[Pubkey],
+        signatures: &[Signature],
+        missing_signers: &[Pubkey],
+    ) -> bool {
+        signatures
+            .iter()
+            .zip(accounts.iter())
+            .all(|(signature, pubkey)| {
+                signature.verify(pubkey.as_ref(), message_bytes) || missing_signers.contains(pubkey)
+            })
     }
 }

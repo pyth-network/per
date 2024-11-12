@@ -109,7 +109,8 @@ impl BidStatus for BidStatusEvm {
 }
 
 pub trait BidTrait:
-    Clone
+    BidCreateTrait
+    + Clone
     // + Into<api::Bid>
     + std::fmt::Debug
     // + TryFrom<(models::Bid, Option<models::Auction>)>
@@ -294,5 +295,12 @@ impl BidChainDataCreateSvm {
 
     pub fn get_permission_account(&self) -> Pubkey {
         todo!()
+    }
+}
+
+impl PartialEq<Bid<Svm>> for BidCreate<Svm> {
+    fn eq(&self, other: &Bid<Svm>) -> bool {
+        self.chain_data.transaction == other.chain_data.transaction
+            && self.chain_id == other.chain_id
     }
 }

@@ -23,6 +23,7 @@ mod add_bid;
 mod add_lookup_table;
 mod get_bid;
 mod get_bids;
+mod get_in_memory_bids_by_permission_key;
 mod get_lookup_table;
 mod models;
 

@@ -309,6 +309,12 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                             wallet_program_router_account: chain_store
                                 .config
                                 .wallet_program_router_account,
+                            relayer:                       Keypair::from_base58_string(
+                                &run_options
+                                    .private_key_svm
+                                    .clone()
+                                    .expect("No svm private key provided for chain"),
+                            ),
                         },
                     },
                 ))),

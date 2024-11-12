@@ -2,14 +2,22 @@ use {
     super::Service,
     crate::{
         api::RestError,
-        bid::entities::{
-            self,
-            BidChainData,
+        bid::{
+            entities::{
+                self,
+                BidChainData,
+            },
+            service::get_live_bids::GetLiveBidsInput,
         },
         kernel::entities::{
             Evm,
+            PermissionKey,
             PermissionKeySvm,
             Svm,
+        },
+        opportunity::{
+            self as opportunity,
+            service::get_live_opportunities::GetLiveOpportunitiesInput,
         },
     },
     ::express_relay::{
@@ -25,6 +33,7 @@ use {
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
         pubkey::Pubkey,
+        signer::Signer,
         transaction::VersionedTransaction,
     },
     time::OffsetDateTime,
@@ -306,6 +315,89 @@ impl Service<Svm> {
         // })
         todo!()
     }
+
+    async fn verify_signatures(
+        &self,
+        bid: &entities::BidCreate<Svm>,
+        chain_data: &entities::BidChainDataSvm,
+    ) -> Result<(), RestError> {
+        let message_bytes = chain_data.transaction.message.serialize();
+        let signatures = chain_data.transaction.signatures.clone();
+        let accounts = chain_data.transaction.message.static_account_keys();
+        let permission_key = chain_data.get_permission_key();
+        let all_signature_exists = match self.get_submission_state(permission_key.clone()).await {
+            entities::SubmitType::Invalid => {
+                // TODO Look at the todo comment in get_quote.rs file in opportunity module
+                return Err(RestError::BadParameters(format!(
+                    "The permission key is not valid for auction anymore: {:?}",
+                    permission_key
+                )));
+            }
+            entities::SubmitType::ByOther => {
+                let opportunities = self
+                    .get_store()
+                    .opportunity_service_svm
+                    .get_live_opportunities(GetLiveOpportunitiesInput {
+                        key: opportunity::entities::OpportunityKey(
+                            bid.chain_id.clone(),
+                            PermissionKey::from(permission_key.0),
+                        ),
+                    })
+                    .await;
+                opportunities.into_iter().any(|opportunity| {
+                    let mut missing_signers = opportunity.get_missing_signers();
+                    missing_signers.push(self.config.chain_config.relayer.pubkey());
+                    Svm::all_signatures_exists(
+                        &message_bytes,
+                        accounts,
+                        &signatures,
+                        &missing_signers,
+                    )
+                })
+            }
+            entities::SubmitType::ByServer => Svm::all_signatures_exists(
+                &message_bytes,
+                accounts,
+                &signatures,
+                &[self.config.chain_config.relayer.pubkey()],
+            ),
+        };
+
+        if !all_signature_exists {
+            Err(RestError::BadParameters("Invalid signatures".to_string()))
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn simulate_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
+        let response = self
+            .config
+            .chain_config
+            .client
+            .simulate_transaction(&bid.chain_data.transaction)
+            .await;
+        let result = response.map_err(|e| {
+            tracing::error!("Error while simulating bid: {:?}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+        match result.value.err {
+            Some(err) => {
+                tracing::error!(
+                    error = ?err,
+                    context = ?result.context,
+                    "Error while simulating bid",
+                );
+                let mut msgs = result.value.logs.unwrap_or_default();
+                msgs.push(err.to_string());
+                Err(RestError::SimulationError {
+                    result: Default::default(),
+                    reason: msgs.join("\n"),
+                })
+            }
+            None => Ok(()),
+        }
+    }
 }
 
 #[async_trait]
@@ -322,10 +414,24 @@ impl Verification<Svm> for Service<Svm> {
         let bid_chain_data = entities::BidChainDataSvm {
             permission_account: bid_data.permission_account,
             router:             bid_data.router,
-            transaction:        bid.chain_data.transaction,
+            transaction:        bid.chain_data.transaction.clone(),
         };
         self.check_deadline(bid_chain_data.get_permission_key(), bid_data.deadline)
             .await?;
-        todo!()
+        self.verify_signatures(&bid, &bid_chain_data).await?;
+        // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
+        self.simulate_bid(&bid).await?;
+
+        // Check if the bid is not duplicate
+        let live_bids = self
+            .get_live_bids(GetLiveBidsInput {
+                permission_key: bid_chain_data.get_permission_key(),
+            })
+            .await;
+        if live_bids.iter().any(|b| bid == *b) {
+            return Err(RestError::BadParameters("Duplicate bid".to_string()));
+        }
+
+        Ok((bid_chain_data, bid_data.amount))
     }
 }

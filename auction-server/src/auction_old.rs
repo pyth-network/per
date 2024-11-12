@@ -18,7 +18,7 @@ use {
         opportunity::{
             self,
             service::{
-                get_live_opportunities::GetOpportunitiesInput,
+                get_live_opportunities::GetLiveOpportunitiesInput,
                 ChainType as OpportunityChainType,
                 ChainTypeEvm as OpportunityChainTypeEvm,
                 ChainTypeSvm as OpportunityChainTypeSvm,
@@ -1245,7 +1245,7 @@ async fn verify_signatures_svm(
         SubmitType::SubmitByOther => {
             let opportunities = store_new
                 .opportunity_service_svm
-                .get_live_opportunities(GetOpportunitiesInput {
+                .get_live_opportunities(GetLiveOpportunitiesInput {
                     key: opportunity::entities::OpportunityKey(
                         bid.chain_id.clone(),
                         permission_key.clone(),
@@ -1494,7 +1494,7 @@ pub trait ChainStore:
     async fn opportunity_exists(&self, store_new: Arc<StoreNew>, permission_key: &Bytes) -> bool {
         !self
             .get_opportunity_service(store_new)
-            .get_live_opportunities(GetOpportunitiesInput {
+            .get_live_opportunities(GetLiveOpportunitiesInput {
                 key: opportunity::entities::OpportunityKey(
                     self.get_name().clone(),
                     permission_key.clone(),
