@@ -672,7 +672,10 @@ impl ChainStoreSvm {
         let signature_bs58 = bs58::encode(res).into_string();
         task_tracker.spawn(async move {
             for _ in 0..SVM_SEND_TRANSACTION_RETRY_COUNT {
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                tokio::time::sleep(Duration::from_secs(2)).await;
+
+                // Do not wait for the logs to be received
+                // just check if the transaction is in the logs already
                 while let Ok(log) = receiver.try_recv() {
                     if log.value.signature.eq(&signature_bs58) {
                         return;
