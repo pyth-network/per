@@ -28,10 +28,7 @@ class TestingSearcherSvm(SimpleSearcherSvm):
         return await super().opportunity_callback(opp)
 
     async def get_bid_amount(self, order: OrderStateAndAddress) -> int:
-        bid_amount = self.bid_amount
-        if self.bid_margin != 0:
-            bid_amount += random.randint(-self.bid_margin, self.bid_margin)
-        return bid_amount
+        return self.bid_amount + random.randint(-self.bid_margin, self.bid_margin)
 
     def get_input_amount(self, order: OrderStateAndAddress) -> int:
         return min(super().get_input_amount(order), order["state"].initial_input_amount * self.fill_rate // 100)

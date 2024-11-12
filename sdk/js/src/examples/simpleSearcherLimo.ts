@@ -40,7 +40,7 @@ export class SimpleSearcherLimo {
   protected mintDecimals: Record<string, number> = {};
   protected expressRelayConfig: ExpressRelaySvmConfig | undefined;
   protected recentBlockhash: Record<ChainId, Blockhash> = {};
-  private readonly bid: anchor.BN;
+  protected readonly bid: anchor.BN;
   constructor(
     public endpointExpressRelay: string,
     public chainId: string,
@@ -105,7 +105,7 @@ export class SimpleSearcherLimo {
 
     const bidAmount = await this.getBidAmount(order);
 
-    let config = await this.getExpressRelayConfig();
+    const config = await this.getExpressRelayConfig();
     const bid = await this.client.constructSvmBid(
       txRaw,
       this.searcher.publicKey,
@@ -138,6 +138,7 @@ export class SimpleSearcherLimo {
    * @param order The limit order to be fulfilled
    * @returns The bid amount in lamports
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getBidAmount(order: OrderStateAndAddress): Promise<anchor.BN> {
     // this should be replaced by a more sophisticated logic to determine the bid amount
     return this.bid;
@@ -267,8 +268,8 @@ export function makeParser() {
     })
     .option("bid", {
       description: "Bid amount in lamports",
-      type: "string",
-      default: "100",
+      type: "number",
+      default: 100,
     })
     .option("private-key", {
       description: "Private key of the searcher in base58 format",

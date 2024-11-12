@@ -28,15 +28,11 @@ class SearcherLimo extends SimpleSearcherLimo {
     this.fillRate = new Decimal(fillRate).div(new Decimal(100));
   }
 
-  async getBidAmount(order: OrderStateAndAddress): Promise<anchor.BN> {
-    let bidAmount = this.bid;
-    if (this.bidMargin !== 0) {
-      const margin = new anchor.BN(
-        Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin
-      );
-      bidAmount = bidAmount.add(margin);
-    }
-    return bidAmount;
+  async getBidAmount(): Promise<anchor.BN> {
+    const margin = new anchor.BN(
+      Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin
+    );
+    return this.bid.add(margin);
   }
 
   async opportunityHandler(opportunity: Opportunity): Promise<void> {
