@@ -5,7 +5,9 @@ use {
         },
         BidTrait,
         InMemoryStore,
+        InMemoryStoreTrait,
         Repository,
+        RepositoryTrait,
     },
     crate::{
         api::RestError,
@@ -20,7 +22,7 @@ use {
     time::OffsetDateTime,
 };
 
-impl<T: BidTrait> Repository<T> {
+impl<T: RepositoryTrait> Repository<T> {
     async fn get_auctions_by_bids_model(
         &self,
         bids: &[models::Bid<T>],

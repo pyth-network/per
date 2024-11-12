@@ -6,6 +6,7 @@ use {
         BidTrait,
         InMemoryStore,
         Repository,
+        RepositoryTrait,
     },
     crate::{
         api::RestError,
@@ -20,7 +21,7 @@ use {
     time::OffsetDateTime,
 };
 
-impl<T: BidTrait> Repository<T> {
+impl<T: RepositoryTrait> Repository<T> {
     pub async fn get_bid(&self, bid_id: entities::BidId) -> Result<entities::Bid<T>, RestError> {
         let bid: models::Bid<T> =
             sqlx::query_as("SELECT * FROM bid WHERE id = $1 AND chain_id = $2")

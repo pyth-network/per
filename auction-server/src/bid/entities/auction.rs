@@ -27,3 +27,10 @@ pub struct _Auction<T: BidTrait> {
 
     pub bids: Vec<Bid<T>>,
 }
+
+pub enum SubmitType {
+    ByServer,
+    ByOther,
+    #[allow(dead_code)]
+    Invalid,
+}

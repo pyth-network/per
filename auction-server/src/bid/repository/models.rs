@@ -1,7 +1,12 @@
 use {
-    super::entities,
+    super::entities::{
+        self,
+        BidChainData,
+        ChainDataCreateTrait,
+    },
     crate::{
         kernel::entities::{
+            ChainType as KernelChainType,
             Evm,
             PermissionKeySvm,
             Svm,
@@ -35,8 +40,10 @@ use {
     std::{
         num::ParseIntError,
         ops::Deref,
+        str::FromStr,
     },
     time::{
+        OffsetDateTime,
         PrimitiveDateTime,
         UtcOffset,
     },
@@ -96,7 +103,7 @@ pub struct BidMetadataSvm {
     pub transaction: VersionedTransaction,
 }
 
-pub trait BidTrait: entities::BidTrait {
+pub trait BidTrait: entities::BidTrait + entities::BidCreateTrait {
     type Metadata: std::fmt::Debug
         + Clone
         + Serialize
@@ -117,6 +124,9 @@ pub trait BidTrait: entities::BidTrait {
         auction: Option<Auction>,
     ) -> anyhow::Result<Self::StatusType>;
     fn get_chain_data(bid: &Bid<Self>) -> anyhow::Result<Self::ChainData>;
+    fn convert_permission_key(bid: &entities::BidCreate<Self>) -> Vec<u8>;
+    fn convert_amount(amount: &Self::BidAmount) -> BigDecimal;
+    fn extract_metadata(chain_data: &Self::ChainData) -> Self::Metadata;
 }
 
 impl BidTrait for Evm {
@@ -190,6 +200,23 @@ impl BidTrait for Evm {
             permission_key:  Bytes::from(bid.permission_key.clone()),
         })
     }
+
+    fn convert_permission_key(bid: &entities::BidCreate<Self>) -> Vec<u8> {
+        bid.chain_data.get_permission_key().to_vec()
+    }
+
+    fn convert_amount(amount: &entities::BidAmountEvm) -> BigDecimal {
+        BigDecimal::from_str(&amount.to_string()).expect("Failed to convert amount to BigDecimal")
+    }
+
+    fn extract_metadata(chain_data: &Self::ChainData) -> Self::Metadata {
+        BidMetadataEvm {
+            target_contract: chain_data.target_contract,
+            target_calldata: chain_data.target_calldata.clone(),
+            bundle_index:    BundleIndex(None),
+            gas_limit:       chain_data.gas_limit.as_u64(),
+        }
+    }
 }
 
 impl BidTrait for Svm {
@@ -259,6 +286,20 @@ impl BidTrait for Svm {
             permission_account: entities::BidChainDataSvm::get_permission_account(&permission_key),
         })
     }
+
+    fn convert_permission_key(bid: &entities::BidCreate<Self>) -> Vec<u8> {
+        bid.chain_data.get_permission_key().0.to_vec()
+    }
+
+    fn convert_amount(amount: &entities::BidAmountSvm) -> BigDecimal {
+        (*amount).into()
+    }
+
+    fn extract_metadata(chain_data: &Self::ChainData) -> Self::Metadata {
+        BidMetadataSvm {
+            transaction: chain_data.transaction.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -300,5 +341,29 @@ impl<T: BidTrait> Bid<T> {
             status:     T::get_bid_status(self, auction)?,
             chain_data: T::get_chain_data(self)?,
         })
+    }
+
+    pub fn new_from(
+        bid: entities::BidCreate<T>,
+        amount: &T::BidAmount,
+        chain_data: &T::ChainData,
+    ) -> Self {
+        let now = OffsetDateTime::now_utc();
+        Self {
+            id:              entities::BidId::new_v4(),
+            creation_time:   PrimitiveDateTime::new(now.date(), now.time()),
+            permission_key:  T::convert_permission_key(&bid),
+            chain_id:        bid.chain_id.clone(),
+            chain_type:      T::get_chain_type(),
+            bid_amount:      T::convert_amount(amount),
+            status:          BidStatus::Pending,
+            auction_id:      None,
+            initiation_time: PrimitiveDateTime::new(
+                bid.initiation_time.date(),
+                bid.initiation_time.time(),
+            ),
+            profile_id:      bid.profile.map(|p| p.id),
+            metadata:        Json(T::extract_metadata(chain_data)),
+        }
     }
 }

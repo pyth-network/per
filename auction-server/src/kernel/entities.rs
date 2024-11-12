@@ -1,4 +1,6 @@
 use {
+    crate::api::RestError,
+    bincode::serialize,
     ethers::types::Bytes,
     serde::{
         Deserialize,
@@ -13,12 +15,16 @@ use {
         DeserializeAs,
         SerializeAs,
     },
+    solana_sdk::{
+        packet::PACKET_DATA_SIZE,
+        transaction::VersionedTransaction,
+    },
 };
 
 pub type ChainId = String;
 pub type PermissionKey = Bytes;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PermissionKeySvm(pub [u8; 64]);
 
 impl Serialize for PermissionKeySvm {
@@ -51,3 +57,19 @@ pub struct Evm;
 
 #[derive(Clone, Debug)]
 pub struct Svm;
+
+impl Svm {
+    pub fn check_tx_size(transaction: &VersionedTransaction) -> Result<(), RestError> {
+        let tx_serialized = serialize(&transaction).map_err(|e| {
+            RestError::BadParameters(format!("Error serializing transaction: {:?}", e))
+        })?;
+        if tx_serialized.len() > PACKET_DATA_SIZE {
+            return Err(RestError::BadParameters(format!(
+                "Transaction size is too large: {} > {}",
+                tx_serialized.len(),
+                PACKET_DATA_SIZE
+            )));
+        }
+        Ok(())
+    }
+}

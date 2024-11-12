@@ -5,6 +5,7 @@ use {
         kernel::entities::{
             ChainId,
             Evm,
+            PermissionKey,
             PermissionKeySvm,
             Svm,
         },
@@ -24,6 +25,7 @@ use {
         signature::Signature,
         transaction::VersionedTransaction,
     },
+    std::hash::Hash,
     time::OffsetDateTime,
     uuid::Uuid,
 };
@@ -115,9 +117,9 @@ pub trait BidTrait:
     + Send
     + Sync
 {
-    type StatusType: BidStatus;
-    type ChainData: BidChainData;
-    type BidAmount: std::fmt::Debug;
+    type StatusType: BidStatus + Clone;
+    type ChainData: BidChainData + Clone;
+    type BidAmount: std::fmt::Debug + Clone;
 
     // fn update_status(self, status: Self::StatusType) -> Self;
     // fn get_metadata(&self) -> anyhow::Result<models::BidMetadata>;
@@ -147,7 +149,7 @@ pub struct Bid<T: BidTrait> {
 }
 
 pub trait BidChainData: std::fmt::Debug {
-    type PermissionKey: AsRef<[u8]> + std::fmt::Debug;
+    type PermissionKey: std::fmt::Debug + Hash + Eq;
 
     fn get_permission_key(&self) -> Self::PermissionKey;
 }
@@ -168,18 +170,18 @@ pub struct BidChainDataEvm {
 }
 
 impl BidChainData for BidChainDataSvm {
-    type PermissionKey = [u8; 64];
+    type PermissionKey = PermissionKeySvm;
 
     fn get_permission_key(&self) -> Self::PermissionKey {
         let mut permission_key = [0; 64];
         permission_key[..32].copy_from_slice(&self.router.to_bytes());
         permission_key[32..].copy_from_slice(&self.permission_account.to_bytes());
-        permission_key
+        PermissionKeySvm(permission_key)
     }
 }
 
 impl BidChainData for BidChainDataEvm {
-    type PermissionKey = Bytes;
+    type PermissionKey = PermissionKey;
 
     fn get_permission_key(&self) -> Self::PermissionKey {
         self.permission_key.clone()
@@ -214,9 +216,16 @@ impl BidChainDataSvm {
     }
 }
 
-
 pub trait BidCreateTrait: Clone + std::fmt::Debug {
-    type ChainDataCreate: Clone + std::fmt::Debug;
+    type ChainDataCreate: ChainDataCreateTrait;
+}
+
+pub trait ChainDataCreateTrait: Clone + std::fmt::Debug {
+    type PermissionKey: std::fmt::Debug;
+    type BidAmount: std::fmt::Debug;
+
+    fn get_bid_amount(&self) -> Self::BidAmount;
+    fn get_permission_key(&self) -> Self::PermissionKey;
 }
 
 #[derive(Clone, Debug)]
@@ -247,4 +256,43 @@ pub struct BidChainDataCreateEvm {
     pub target_calldata: Bytes,
     pub permission_key:  Bytes,
     pub amount:          U256,
+}
+
+pub type BidAmountSvm = u64;
+pub type BidAmountEvm = U256;
+
+impl ChainDataCreateTrait for BidChainDataCreateEvm {
+    type PermissionKey = PermissionKey;
+    type BidAmount = BidAmountEvm;
+
+    fn get_permission_key(&self) -> Self::PermissionKey {
+        self.permission_key.clone()
+    }
+
+    fn get_bid_amount(&self) -> Self::BidAmount {
+        self.amount
+    }
+}
+
+impl ChainDataCreateTrait for BidChainDataCreateSvm {
+    type PermissionKey = PermissionKeySvm;
+    type BidAmount = BidAmountSvm;
+
+    fn get_permission_key(&self) -> Self::PermissionKey {
+        todo!()
+    }
+
+    fn get_bid_amount(&self) -> Self::BidAmount {
+        todo!()
+    }
+}
+
+impl BidChainDataCreateSvm {
+    pub fn get_router(&self) -> Pubkey {
+        todo!()
+    }
+
+    pub fn get_permission_account(&self) -> Pubkey {
+        todo!()
+    }
 }

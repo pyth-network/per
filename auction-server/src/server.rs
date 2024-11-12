@@ -28,6 +28,7 @@ use {
             Store,
             StoreNew,
         },
+        traced_sender_svm::TracedSenderSvm,
         watcher::run_watcher_loop_svm,
     },
     anyhow::{
@@ -53,7 +54,11 @@ use {
         future::join_all,
         Future,
     },
-    solana_sdk::signature::Keypair,
+    solana_client::rpc_client::RpcClientConfig,
+    solana_sdk::{
+        commitment_config::CommitmentConfig,
+        signature::Keypair,
+    },
     sqlx::{
         migrate,
         postgres::PgPoolOptions,
@@ -274,22 +279,37 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                 bid_service::ServiceEnum::Evm(Arc::new(bid_service::Service::new(
                     pool.clone(),
                     bid_service::Config {
-                        chain_type: ChainType::Evm,
-                        chain_id:   chain_id.clone(),
+                        chain_type:   ChainType::Evm,
+                        chain_id:     chain_id.clone(),
+                        chain_config: bid_service::ConfigEvm {},
                     },
                 ))),
             )
         })
         .collect();
-    chains_svm.iter().for_each(|(chain_id, _chain_store)| {
+    chains_svm.iter().for_each(|(chain_id, chain_store)| {
         if bid_services
             .insert(
                 chain_id.clone(),
                 bid_service::ServiceEnum::Svm(Arc::new(bid_service::Service::new(
                     pool.clone(),
                     bid_service::Config {
-                        chain_type: ChainType::Svm,
-                        chain_id:   chain_id.clone(),
+                        chain_type:   ChainType::Svm,
+                        chain_id:     chain_id.clone(),
+                        chain_config: bid_service::ConfigSvm {
+                            express_relay_program_id:      chain_store
+                                .config
+                                .express_relay_program_id,
+                            client:                        TracedSenderSvm::new_client(
+                                chain_id.clone(),
+                                chain_store.config.rpc_read_url.as_str(),
+                                chain_store.config.rpc_timeout,
+                                RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                            ),
+                            wallet_program_router_account: chain_store
+                                .config
+                                .wallet_program_router_account,
+                        },
                     },
                 ))),
             )

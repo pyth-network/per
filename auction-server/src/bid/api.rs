@@ -335,13 +335,13 @@ pub async fn process_bid(
             let service = store.get_bid_service(&bid_create_evm.chain_id)?;
             match service {
                 ServiceEnum::Evm(service) => {
-                    let bid_id = service.handle_bid(HandleBidInput {
+                    let bid = service.handle_bid(HandleBidInput {
                         bid_create,
                     }).await?;
 
                     Ok(Json(BidResult {
                         status: "OK".to_string(),
-                        id:     bid_id,
+                        id:     bid.id,
                     }))
                 }
                 _ => Err(RestError::BadParameters(
@@ -354,13 +354,13 @@ pub async fn process_bid(
             let service = store.get_bid_service(&bid_create_svm.chain_id)?;
             match service {
                 ServiceEnum::Svm(service) => {
-                    let bid_id = service.handle_bid(HandleBidInput {
+                    let bid = service.handle_bid(HandleBidInput {
                         bid_create,
                     }).await?;
 
                     Ok(Json(BidResult {
                         status: "OK".to_string(),
-                        id:     bid_id,
+                        id:     bid.id,
                     }))
                 }
                 _ => Err(RestError::BadParameters(
@@ -649,7 +649,7 @@ impl From<entities::Bid<Svm>> for Bid {
     fn from(bid: entities::Bid<Svm>) -> Self {
         Bid::Svm(BidSvm {
             core_fields:    BidCoreFields::from_bid(&bid),
-            permission_key: PermissionKeySvm(bid.chain_data.get_permission_key()),
+            permission_key: bid.chain_data.get_permission_key(),
             status:         bid.status.into(),
             transaction:    bid.chain_data.transaction,
             bid_amount:     bid.amount,
