@@ -163,14 +163,23 @@ async function run() {
     }
   };
 
-  const urlRpcHealth = new URL("/health", argv.rpcEndpoint);
+  const RPC_HEALTH_CHECK_SECONDS_THRESHOLD = 300;
   const checkRpcHealth = async () => {
     while (true) {
       try {
-        const responseHealth = await fetch(urlRpcHealth);
-        const health = await responseHealth.text();
-        if (responseHealth.status !== 200 || health !== "ok") {
-          console.error("Health Error (RPC endpoint): ", responseHealth);
+        const slot = await connection.getSlot("finalized");
+        const blockTime = await connection.getBlockTime(slot);
+        const timeNow = Date.now() / 1000;
+        if (blockTime === null) {
+          console.error(
+            `Health Error (RPC endpoint): unable to poll block time for slot ${slot}`
+          );
+        } else if (blockTime < timeNow - RPC_HEALTH_CHECK_SECONDS_THRESHOLD) {
+          console.error(
+            `Health Error (RPC endpoint): block time is stale by ${
+              timeNow - blockTime
+            } seconds`
+          );
         }
       } catch (e) {
         console.error("Health Error (RPC endpoint), failure to fetch: ", e);
