@@ -31,11 +31,17 @@ pub mod get_live_bids;
 pub mod handle_bid;
 mod verification;
 
+pub struct ExpressRelaySvm {
+    pub program_id:                  Pubkey,
+    pub relayer:                     Keypair,
+    pub permission_account_position: usize,
+    pub router_account_position:     usize,
+}
+
 pub struct ConfigSvm {
-    pub express_relay_program_id:      Pubkey,
     pub client:                        RpcClient,
     pub wallet_program_router_account: Pubkey,
-    pub relayer:                       Keypair,
+    pub express_relay:                 ExpressRelaySvm,
 }
 
 pub struct ConfigEvm {}

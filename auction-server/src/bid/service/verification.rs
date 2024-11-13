@@ -141,7 +141,7 @@ impl Service<Svm> {
             .await
     }
 
-    async fn extract_account_svm(
+    async fn extract_account(
         &self,
         tx: &VersionedTransaction,
         submit_bid_instruction: &CompiledInstruction,
@@ -213,7 +213,7 @@ impl Service<Svm> {
             .iter()
             .filter(|instruction| {
                 let program_id = instruction.program_id(transaction.message.static_account_keys());
-                if *program_id != self.config.chain_config.express_relay_program_id {
+                if *program_id != self.config.chain_config.express_relay.program_id {
                     return false;
                 }
 
@@ -286,34 +286,35 @@ impl Service<Svm> {
         &self,
         transaction: VersionedTransaction,
     ) -> Result<BidDataSvm, RestError> {
-        let submit_bid_instruction = self.verify_submit_bid_instruction(transaction)?;
-        let _submit_bid_data = Self::extract_submit_bid_data(&submit_bid_instruction)?;
+        let submit_bid_instruction = self.verify_submit_bid_instruction(transaction.clone())?;
+        let submit_bid_data = Self::extract_submit_bid_data(&submit_bid_instruction)?;
 
-        // let permission_account = extract_account_svm(
-        //     &tx,
-        //     &submit_bid_instruction,
-        //     chain_store.express_relay_svm.permission_account_position,
-        //     &chain_store.lookup_table_cache,
-        //     client,
-        // )
-        // .await?;
-        // let router_account = extract_account_svm(
-        //     &tx,
-        //     &submit_bid_instruction,
-        //     chain_store.express_relay_svm.router_account_position,
-        //     &chain_store.lookup_table_cache,
-        //     client,
-        // )
-        // .await?;
-        // let mut permission_key = [0; 64];
-        // permission_key[..32].copy_from_slice(&router_account.to_bytes());
-        // permission_key[32..].copy_from_slice(&permission_account.to_bytes());
-        // Ok(BidDataSvm {
-        //     amount:         submit_bid_data.bid_amount,
-        //     permission_key: PermissionKeySvm(permission_key),
-        //     deadline:       submit_bid_data.deadline,
-        // })
-        todo!()
+        let permission_account = self
+            .extract_account(
+                &transaction,
+                &submit_bid_instruction,
+                self.config
+                    .chain_config
+                    .express_relay
+                    .permission_account_position,
+            )
+            .await?;
+        let router = self
+            .extract_account(
+                &transaction,
+                &submit_bid_instruction,
+                self.config
+                    .chain_config
+                    .express_relay
+                    .router_account_position,
+            )
+            .await?;
+        Ok(BidDataSvm {
+            amount: submit_bid_data.bid_amount,
+            permission_account,
+            router,
+            deadline: submit_bid_data.deadline,
+        })
     }
 
     async fn verify_signatures(
@@ -345,7 +346,7 @@ impl Service<Svm> {
                     .await;
                 opportunities.into_iter().any(|opportunity| {
                     let mut missing_signers = opportunity.get_missing_signers();
-                    missing_signers.push(self.config.chain_config.relayer.pubkey());
+                    missing_signers.push(self.config.chain_config.express_relay.relayer.pubkey());
                     Svm::all_signatures_exists(
                         &message_bytes,
                         accounts,
@@ -358,7 +359,7 @@ impl Service<Svm> {
                 &message_bytes,
                 accounts,
                 &signatures,
-                &[self.config.chain_config.relayer.pubkey()],
+                &[self.config.chain_config.express_relay.relayer.pubkey()],
             ),
         };
 

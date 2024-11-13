@@ -7,7 +7,10 @@ use {
         auction_old::{
             run_auction_conclusion_loop_svm, run_log_listener_loop_svm, run_submission_loop, run_tracker_loop
         },
-        bid::service as bid_service,
+        bid::{
+            self,
+            service as bid_service,
+        },
         config::{
             ChainId,
             Config,
@@ -312,9 +315,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                         chain_type:   ChainType::Svm,
                         chain_id:     chain_id.clone(),
                         chain_config: bid_service::ConfigSvm {
-                            express_relay_program_id:      chain_store
-                                .config
-                                .express_relay_program_id,
                             client:                        TracedSenderSvm::new_client(
                                 chain_id.clone(),
                                 chain_store.config.rpc_read_url.as_str(),
@@ -324,12 +324,23 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                             wallet_program_router_account: chain_store
                                 .config
                                 .wallet_program_router_account,
-                            relayer:                       Keypair::from_base58_string(
-                                &run_options
-                                    .private_key_svm
-                                    .clone()
-                                    .expect("No svm private key provided for chain"),
-                            ),
+                            express_relay:                 bid::service::ExpressRelaySvm {
+                                program_id:                  chain_store
+                                    .config
+                                    .express_relay_program_id,
+                                relayer:                     Keypair::from_base58_string(
+                                    &run_options
+                                        .private_key_svm
+                                        .clone()
+                                        .expect("No svm private key provided for chain"),
+                                ),
+                                permission_account_position: chain_store
+                                    .express_relay_svm
+                                    .permission_account_position,
+                                router_account_position:     chain_store
+                                    .express_relay_svm
+                                    .router_account_position,
+                            },
                         },
                     },
                     opportunity_service_svm.clone(),
