@@ -335,8 +335,7 @@ impl Service<Svm> {
             }
             entities::SubmitType::ByOther => {
                 let opportunities = self
-                    .get_store()
-                    .opportunity_service_svm
+                    .opportunity_service
                     .get_live_opportunities(GetLiveOpportunitiesInput {
                         key: opportunity::entities::OpportunityKey(
                             bid.chain_id.clone(),

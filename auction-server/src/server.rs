@@ -270,6 +270,20 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         metrics_recorder: setup_metrics_recorder()?,
     });
 
+    let opportunity_service_evm = Arc::new(opportunity_service::Service::<
+        opportunity_service::ChainTypeEvm,
+    >::new(
+        store.clone(),
+        pool.clone(),
+        config_opportunity_service_evm,
+    ));
+    let opportunity_service_svm = Arc::new(opportunity_service::Service::<
+        opportunity_service::ChainTypeSvm,
+    >::new(
+        store.clone(),
+        pool.clone(),
+        config_opportunity_service_svm,
+    ));
     #[allow(clippy::iter_kv_map)]
     let mut bid_services: HashMap<ChainId, bid_service::ServiceEnum> = chains_evm
         .iter()
@@ -283,6 +297,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                         chain_id:     chain_id.clone(),
                         chain_config: bid_service::ConfigEvm {},
                     },
+                    opportunity_service_evm.clone(),
                 ))),
             )
         })
@@ -317,6 +332,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                             ),
                         },
                     },
+                    opportunity_service_svm.clone(),
                 ))),
             )
             .is_some()
@@ -327,20 +343,8 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     let store_new = Arc::new(StoreNew::new(
         store.clone(),
-        Arc::new(opportunity_service::Service::<
-            opportunity_service::ChainTypeEvm,
-        >::new(
-            store.clone(),
-            pool.clone(),
-            config_opportunity_service_evm,
-        )),
-        Arc::new(opportunity_service::Service::<
-            opportunity_service::ChainTypeSvm,
-        >::new(
-            store.clone(),
-            pool.clone(),
-            config_opportunity_service_svm,
-        )),
+        opportunity_service_evm,
+        opportunity_service_svm,
         bid_services,
     ));
 

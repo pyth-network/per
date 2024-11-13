@@ -15,17 +15,14 @@ use {
                 Svm,
             },
         },
-        state::StoreNew,
+        opportunity::service as opportunity_service,
     },
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
         pubkey::Pubkey,
         signature::Keypair,
     },
-    std::sync::{
-        Arc,
-        Weak,
-    },
+    std::sync::Arc,
 };
 
 pub mod get_bid;
@@ -54,35 +51,34 @@ pub trait ServiceTrait:
     entities::BidTrait + entities::BidCreateTrait + repository::RepositoryTrait
 {
     type ConfigType;
+    type OpportunityServiceType: opportunity_service::ChainType;
 }
 impl ServiceTrait for Evm {
     type ConfigType = ConfigEvm;
+    type OpportunityServiceType = opportunity_service::ChainTypeEvm;
 }
 impl ServiceTrait for Svm {
     type ConfigType = ConfigSvm;
+    type OpportunityServiceType = opportunity_service::ChainTypeSvm;
 }
 
 pub struct Service<T: ServiceTrait> {
-    store:  Weak<StoreNew>,
-    config: Config<T::ConfigType>,
-    repo:   Arc<repository::Repository<T>>,
+    opportunity_service: Arc<opportunity_service::Service<T::OpportunityServiceType>>,
+    config:              Config<T::ConfigType>,
+    repo:                Arc<repository::Repository<T>>,
 }
 
 impl<T: ServiceTrait> Service<T> {
-    pub fn new(db: DB, config: Config<T::ConfigType>) -> Self {
+    pub fn new(
+        db: DB,
+        config: Config<T::ConfigType>,
+        opportunity_service: Arc<opportunity_service::Service<T::OpportunityServiceType>>,
+    ) -> Self {
         Self {
             repo: Arc::new(repository::Repository::new(db, config.chain_id.clone())),
             config,
-            store: Weak::new(),
+            opportunity_service,
         }
-    }
-
-    pub fn set_store(&mut self, store: Arc<StoreNew>) {
-        self.store = Arc::downgrade(&store);
-    }
-
-    pub fn get_store(&self) -> Arc<StoreNew> {
-        self.store.upgrade().expect("Store is missing")
     }
 }
 
