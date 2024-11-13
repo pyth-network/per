@@ -656,11 +656,9 @@ impl ChainStoreSvm {
         task_tracker: TaskTracker,
     ) -> solana_client::client_error::Result<Signature> {
         let config = RpcSendTransactionConfig {
-            skip_preflight:       true,
-            preflight_commitment: None,
-            encoding:             None,
-            max_retries:          None,
-            min_context_slot:     None,
+            skip_preflight: true,
+            max_retries: Some(0),
+            ..RpcSendTransactionConfig::default()
         };
         let res = self
             .tx_broadcaster_client
