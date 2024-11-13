@@ -36,6 +36,7 @@ import {
   HEALTH_RPC_THRESHOLD,
   HEALTH_EXPRESS_RELAY_INTERVAL,
   HEALTH_RPC_INTERVAL,
+  MAX_TX_SIZE,
 } from "./const";
 import { filterComputeBudgetIxs } from "./utils/computeBudget";
 import { checkExpressRelayHealth, checkRpcHealth } from "./utils/health";
@@ -201,6 +202,9 @@ export class DexRouter {
       route.lookupTableAddresses ?? []
     );
     tx.sign([this.executor]);
+    if (tx.serialize().length > MAX_TX_SIZE) {
+      throw new Error("Transaction exceeds max size");
+    }
     return tx;
   }
 
@@ -231,14 +235,7 @@ export class DexRouter {
           }
         })
       )
-    )
-      .filter((routerInfo) => {
-        if (routerInfo === undefined) {
-          return false;
-        }
-        return routerInfo.tx.serialize().length <= 1232;
-      })
-      .filter((routerInfo) => routerInfo !== undefined);
+    ).filter((routerInfo) => routerInfo !== undefined);
     if (routerInfos.length === 0) {
       throw new Error("No routers available to route order");
     }
@@ -448,7 +445,7 @@ const argv = yargs(hideBin(process.argv))
     description:
       "Options for the max number of accounts to include in Jupiter instructions",
     type: "array",
-    default: [10, 20, 50],
+    default: [10, 20, 30],
   })
   .help()
   .alias("help", "h")

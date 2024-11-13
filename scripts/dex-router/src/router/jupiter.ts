@@ -13,7 +13,7 @@ export class JupiterRouter implements Router {
   private maxAccounts: number;
   private jupiterClient = createJupiterApiClient();
 
-  constructor(chainId: string, executor: PublicKey, maxAccounts: number = 20) {
+  constructor(chainId: string, executor: PublicKey, maxAccounts: number) {
     this.chainId = chainId;
     this.executor = executor;
     this.maxAccounts = maxAccounts;

@@ -13,3 +13,5 @@ export const HEALTH_RPC_INTERVAL = 10;
 
 // Interval to run the Express Relay health check in seconds
 export const HEALTH_EXPRESS_RELAY_INTERVAL = 10;
+
+export const MAX_TX_SIZE = 1232;
