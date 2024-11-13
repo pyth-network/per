@@ -115,14 +115,17 @@ use {
         time::Duration,
     },
     time::UtcOffset,
-    tokio::sync::{
-        broadcast,
-        broadcast::{
-            Receiver,
-            Sender,
+    tokio::{
+        sync::{
+            broadcast,
+            broadcast::{
+                Receiver,
+                Sender,
+            },
+            Mutex,
+            RwLock,
         },
-        Mutex,
-        RwLock,
+        time::Instant,
     },
     tokio_util::task::TaskTracker,
     utoipa::{
@@ -554,6 +557,12 @@ impl ChainStoreEvm {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ComputeBudget {
+    pub budget:      u64,
+    pub update_time: Instant,
+}
+
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
@@ -567,6 +576,7 @@ pub struct ChainStoreSvm {
     pub wallet_program_router_account: Pubkey,
     pub name:                          String,
     pub lookup_table_cache:            LookupTableCache,
+    pub compute_budget:                RwLock<Vec<ComputeBudget>>,
 }
 
 const SVM_SEND_TRANSACTION_RETRY_COUNT: i32 = 5;
@@ -607,7 +617,50 @@ impl ChainStoreSvm {
             config,
             express_relay_svm,
             lookup_table_cache: Default::default(),
+            compute_budget: RwLock::new(vec![]),
         }
+    }
+
+
+    /// Add a new compute budget sample to the store.
+    /// Retain the last 100 samples.
+    pub async fn add_compute_budget_sample(&self, budget: u64) {
+        let mut budgets = self.compute_budget.write().await;
+        budgets.push(ComputeBudget {
+            budget,
+            update_time: Instant::now(),
+        });
+        while budgets.len() > 100 {
+            budgets.remove(0);
+        }
+    }
+
+    /// Get the latest compute budget that was added to the store.
+    /// If the last budget sample is too old or there are no samples, return None.
+    pub async fn get_latest_compute_budget(&self) -> Option<u64> {
+        let compute_budget = self.compute_budget.read().await.last().cloned()?;
+        if compute_budget.update_time.elapsed() > Duration::from_secs(60) {
+            None
+        } else {
+            Some(compute_budget.budget)
+        }
+    }
+
+    /// Get the minimum compute budget that is acceptable for submission on chain.
+    /// In order to avoid rejection of transactions because of recent changes in the compute budget,
+    /// we consider the minimum budget that was acceptable in the last 5 seconds.
+    pub async fn get_acceptable_minimum_compute_budget(&self) -> Option<u64> {
+        let budgets = self.compute_budget.read().await;
+        budgets
+            .iter()
+            .filter_map(|b| {
+                if b.update_time.elapsed() < Duration::from_secs(5) {
+                    Some(b.budget)
+                } else {
+                    None
+                }
+            })
+            .min()
     }
 
     pub async fn get_tx_receiver(&self) -> anyhow::Result<()> {
@@ -1587,7 +1640,8 @@ impl Store {
 #[serde_as]
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct SvmChainUpdate {
-    pub chain_id:  ChainId,
+    pub chain_id:       ChainId,
     #[serde_as(as = "DisplayFromStr")]
-    pub blockhash: Hash,
+    pub blockhash:      Hash,
+    pub compute_budget: u64,
 }

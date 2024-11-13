@@ -36,8 +36,9 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
 
         match response {
             Ok(result) => store.broadcast_svm_chain_update(SvmChainUpdate {
-                chain_id:  chain_id.clone(),
-                blockhash: result.0,
+                chain_id:       chain_id.clone(),
+                blockhash:      result.0,
+                compute_budget: chain_store.get_latest_compute_budget().await.unwrap_or(0),
             }),
             Err(e) => {
                 return Err(anyhow!(

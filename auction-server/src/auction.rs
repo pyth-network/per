@@ -60,6 +60,7 @@ use {
     axum::async_trait,
     axum_prometheus::metrics,
     bincode::serialized_size,
+    borsh::de::BorshDeserialize,
     ethers::{
         abi,
         contract::{
@@ -124,6 +125,7 @@ use {
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
         commitment_config::CommitmentConfig,
+        compute_budget,
         instruction::CompiledInstruction,
         packet::PACKET_DATA_SIZE,
         pubkey::Pubkey,
@@ -1152,6 +1154,11 @@ pub async fn handle_bid_svm(
         .ok_or(RestError::InvalidChainId)?
         .as_ref();
 
+    let compute_budget = chain_store
+        .get_acceptable_minimum_compute_budget()
+        .await
+        .unwrap_or(0);
+    check_compute_budget(compute_budget, &bid.transaction)?;
 
     let bid_data_svm =
         extract_bid_data_svm(chain_store, bid.transaction.clone(), &chain_store.client).await?;
@@ -1217,6 +1224,50 @@ fn all_signature_exists_svm(
         .all(|(signature, pubkey)| {
             signature.verify(pubkey.as_ref(), message_bytes) || missing_signers.contains(pubkey)
         })
+}
+
+fn check_compute_budget(
+    compute_budget: u64,
+    transaction: &VersionedTransaction,
+) -> Result<(), RestError> {
+    let budgets: Vec<u64> = transaction
+        .message
+        .instructions()
+        .iter()
+        .filter_map(|instruction| {
+            let program_id = instruction.program_id(transaction.message.static_account_keys());
+            if program_id != &compute_budget::id() {
+                return None;
+            }
+
+            match compute_budget::ComputeBudgetInstruction::try_from_slice(&instruction.data) {
+                Ok(compute_budget::ComputeBudgetInstruction::SetComputeUnitPrice(price)) => {
+                    Some(price)
+                }
+                _ => None,
+            }
+        })
+        .collect();
+    if budgets.len() > 1 {
+        return Err(RestError::BadParameters(
+            "Multiple SetComputeUnitPrice instructions".to_string(),
+        ));
+    }
+    if budgets.is_empty() && compute_budget > 0 {
+        return Err(RestError::BadParameters(format!(
+            "No SetComputeUnitPrice instruction. Minimum compute budget is {}",
+            compute_budget
+        )));
+    }
+    if let Some(budget) = budgets.first() {
+        if *budget < compute_budget {
+            return Err(RestError::BadParameters(format!(
+                "Compute budget is too low. Minimum compute budget is {}",
+                compute_budget
+            )));
+        }
+    }
+    Ok(())
 }
 
 async fn verify_signatures_svm(
