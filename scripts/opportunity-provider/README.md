@@ -39,3 +39,5 @@ To create and submit random opportunities for load test, first update the `token
 ```
 $ npm run provide-opportunity -- --private-key $PRIVATE_KEY --load-test --count 10
 ```
+
+Keep in mind that the scripts only work if called with the private key of the admin account that deployed the OpportunityProvider contract.
