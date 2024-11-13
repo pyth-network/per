@@ -61,8 +61,8 @@ export class DexRouter {
     executor: Keypair,
     chainId: string,
     connectionSvm: Connection,
-    baseLookupTableAddresses?: PublicKey[],
-    maxAccountsJupiter?: number[]
+    maxAccountsJupiter: number[],
+    baseLookupTableAddresses?: PublicKey[]
   ) {
     this.client = new Client(
       {
@@ -76,14 +76,10 @@ export class DexRouter {
     this.executor = executor;
     this.chainId = chainId;
     this.connectionSvm = connectionSvm;
-    if (maxAccountsJupiter) {
-      this.routers = maxAccountsJupiter.map(
-        (maxAccounts) =>
-          new JupiterRouter(this.chainId, this.executor.publicKey, maxAccounts)
-      );
-    } else {
-      this.routers = [new JupiterRouter(this.chainId, this.executor.publicKey)];
-    }
+    this.routers = maxAccountsJupiter.map(
+      (maxAccounts) =>
+        new JupiterRouter(this.chainId, this.executor.publicKey, maxAccounts)
+    );
     this.baseLookupTableAddresses = baseLookupTableAddresses ?? [];
   }
 
@@ -465,6 +461,9 @@ async function run() {
     Keypair.fromSecretKey(anchor.utils.bytes.bs58.decode(argv["sk-executor"])),
     argv["chain-id"],
     connection,
+    argv["options-max-accounts-jupiter"].map((maxAccounts) =>
+      Number(maxAccounts)
+    ),
     argv["lookup-table-addresses"]?.map((address) => new PublicKey(address))
   );
   checkRpcHealth(connection, HEALTH_RPC_THRESHOLD, HEALTH_RPC_INTERVAL).catch(
