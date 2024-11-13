@@ -1,27 +1,25 @@
 use {
-    super::{
-        contracts::AdapterFactory,
-        repository::{
-            InMemoryStore,
-            InMemoryStoreEvm,
-            InMemoryStoreSvm,
-            Repository,
-        },
+    super::repository::{
+        InMemoryStore,
+        InMemoryStoreEvm,
+        InMemoryStoreSvm,
+        Repository,
     },
     crate::{
         kernel::{
+            contracts::AdapterFactory,
             db::DB,
             entities::{
                 ChainId,
                 ChainType as ChainTypeEnum,
             },
+            traced_client::TracedClient,
         },
         state::{
             ChainStoreEvm,
             ChainStoreSvm,
             Store,
         },
-        traced_client::TracedClient,
     },
     ethers::{
         providers::Provider,

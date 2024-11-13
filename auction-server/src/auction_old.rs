@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use {
     crate::{
         api::{
@@ -10,9 +8,18 @@ use {
             ChainId,
             ConfigEvm,
         },
-        kernel::entities::{
-            PermissionKey,
-            PermissionKeySvm,
+        kernel::{
+            contracts::{
+                ExpressRelayContractEvm,
+                ExpressRelayErrors,
+                LegacyTxTransformer,
+                MulticallData,
+                MulticallIssuedFilter,
+                MulticallStatus,
+                SignableExpressRelayContract,
+            },
+            entities::PermissionKey,
+            traced_client::TracedClient,
         },
         models,
         opportunity::{
@@ -38,7 +45,6 @@ use {
             ChainStoreCoreFields,
             ChainStoreEvm,
             ChainStoreSvm,
-            LookupTableCache,
             SimulatedBidCoreFields,
             SimulatedBidEvm,
             SimulatedBidSvm,
@@ -46,7 +52,6 @@ use {
             Store,
             StoreNew,
         },
-        traced_client::TracedClient,
     },
     ::express_relay::{
         self as express_relay_svm,
@@ -61,11 +66,9 @@ use {
     },
     axum::async_trait,
     axum_prometheus::metrics,
-    bincode::serialized_size,
     ethers::{
         abi,
         contract::{
-            abigen,
             ContractError,
             ContractRevert,
             EthEvent,
@@ -73,10 +76,6 @@ use {
         },
         middleware::{
             gas_oracle::GasOracleMiddleware,
-            transformer::{
-                Transformer,
-                TransformerError,
-            },
             GasOracle,
             NonceManagerMiddleware,
             SignerMiddleware,
@@ -93,14 +92,11 @@ use {
             Signer,
         },
         types::{
-            transaction::eip2718::TypedTransaction,
             Address,
             Block,
             BlockNumber,
             Bytes,
             TransactionReceipt,
-            TransactionRequest,
-            H160,
             H256,
             U256,
         },
@@ -117,17 +113,12 @@ use {
         Serialize,
     },
     solana_client::{
-        nonblocking::{
-            pubsub_client::PubsubClient,
-            rpc_client::RpcClient,
-        },
+        nonblocking::pubsub_client::PubsubClient,
         rpc_response::SlotInfo,
     },
     solana_sdk::{
-        address_lookup_table::state::AddressLookupTable,
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
-        packet::PACKET_DATA_SIZE,
         pubkey::Pubkey,
         signature::{
             Keypair,
@@ -161,36 +152,9 @@ use {
     uuid::Uuid,
 };
 
-abigen!(
-    ExpressRelay,
-    "../contracts/evm/out/ExpressRelay.sol/ExpressRelay.json"
-);
-pub type ExpressRelayContract = ExpressRelay<Provider<TracedClient>>;
-pub type SignableProvider = TransformerMiddleware<
-    GasOracleMiddleware<
-        NonceManagerMiddleware<SignerMiddleware<Provider<TracedClient>, LocalWallet>>,
-        EthProviderOracle<Provider<TracedClient>>,
-    >,
-    LegacyTxTransformer,
->;
-pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
-
 impl SignableExpressRelayContract {
     pub fn get_relayer_address(&self) -> Address {
         self.client().inner().inner().inner().signer().address()
-    }
-}
-
-impl From<([u8; 16], H160, Bytes, U256, U256, bool)> for MulticallData {
-    fn from(x: ([u8; 16], H160, Bytes, U256, U256, bool)) -> Self {
-        MulticallData {
-            bid_id:            x.0,
-            target_contract:   x.1,
-            target_calldata:   x.2,
-            bid_amount:        x.3,
-            gas_limit:         x.4,
-            revert_on_failure: x.5,
-        }
     }
 }
 
@@ -205,30 +169,12 @@ pub fn get_simulation_call(
 ) -> FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>> {
     let client = Arc::new(provider);
     let express_relay_contract =
-        ExpressRelayContract::new(chain_config.express_relay_contract, client);
+        ExpressRelayContractEvm::new(chain_config.express_relay_contract, client);
 
     express_relay_contract
         .multicall(permission_key, multicall_data)
         .from(relayer)
         .block(BlockNumber::Pending)
-}
-
-/// Transformer that converts a transaction into a legacy transaction if use_legacy_tx is true.
-#[derive(Clone, Debug)]
-pub struct LegacyTxTransformer {
-    use_legacy_tx: bool,
-}
-
-impl Transformer for LegacyTxTransformer {
-    fn transform(&self, tx: &mut TypedTransaction) -> Result<(), TransformerError> {
-        if self.use_legacy_tx {
-            let legacy_request: TransactionRequest = (*tx).clone().into();
-            *tx = legacy_request.into();
-            Ok(())
-        } else {
-            Ok(())
-        }
-    }
 }
 
 impl From<(SimulatedBidEvm, bool)> for MulticallData {
@@ -929,118 +875,10 @@ pub fn verify_submit_bid_instruction_svm(
     }
 }
 
-async fn extract_account_svm(
-    tx: &VersionedTransaction,
-    submit_bid_instruction: &CompiledInstruction,
-    position: usize,
-    lookup_table_cache: &LookupTableCache,
-    client: &RpcClient,
-) -> Result<Pubkey, RestError> {
-    let static_accounts = tx.message.static_account_keys();
-    let tx_lookup_tables = tx.message.address_table_lookups();
-
-    let account_position = submit_bid_instruction
-        .accounts
-        .get(position)
-        .ok_or_else(|| {
-            RestError::BadParameters("Account not found in submit_bid instruction".to_string())
-        })?;
-
-    let account_position: usize = (*account_position).into();
-    if let Some(account) = static_accounts.get(account_position) {
-        return Ok(*account);
+impl PartialEq<SimulatedBidSvm> for BidSvm {
+    fn eq(&self, other: &SimulatedBidSvm) -> bool {
+        self.transaction == other.transaction && self.chain_id == other.core_fields.chain_id
     }
-
-    match tx_lookup_tables {
-        Some(tx_lookup_tables) => {
-            let lookup_accounts: Vec<(Pubkey, u8)> = tx_lookup_tables
-                .iter()
-                .flat_map(|x| {
-                    x.writable_indexes
-                        .clone()
-                        .into_iter()
-                        .map(|y| (x.account_key, y))
-                })
-                .chain(tx_lookup_tables.iter().flat_map(|x| {
-                    x.readonly_indexes
-                        .clone()
-                        .into_iter()
-                        .map(|y| (x.account_key, y))
-                }))
-                .collect();
-
-            let account_position_lookups = account_position - static_accounts.len();
-            find_and_query_lookup_table(
-                lookup_accounts,
-                account_position_lookups,
-                client,
-                lookup_table_cache,
-            )
-            .await
-        }
-        None => Err(RestError::BadParameters(
-            "No lookup tables found in submit_bid instruction".to_string(),
-        )),
-    }
-}
-
-async fn find_and_query_lookup_table(
-    lookup_accounts: Vec<(Pubkey, u8)>,
-    account_position: usize,
-    client: &RpcClient,
-    lookup_table_cache: &LookupTableCache,
-) -> Result<Pubkey, RestError> {
-    let (table_to_query, index_to_query) =
-        lookup_accounts.get(account_position).ok_or_else(|| {
-            RestError::BadParameters("Lookup table not found in lookup accounts".to_string())
-        })?;
-
-    query_lookup_table(
-        table_to_query,
-        *index_to_query as usize,
-        client,
-        lookup_table_cache,
-    )
-    .await
-}
-
-async fn query_lookup_table(
-    table: &Pubkey,
-    index: usize,
-    client: &RpcClient,
-    lookup_table_cache: &LookupTableCache,
-) -> Result<Pubkey, RestError> {
-    if let Some(Some(cached_table)) = lookup_table_cache
-        .read()
-        .await
-        .get(table)
-        .map(|keys| keys.get(index).cloned())
-    {
-        return Ok(cached_table);
-    }
-
-    let table_data = client
-        .get_account_with_commitment(table, CommitmentConfig::processed())
-        .await
-        .map_err(|_e| RestError::TemporarilyUnavailable)?
-        .value
-        .ok_or_else(|| RestError::BadParameters("Account not found".to_string()))?;
-    let table_data_deserialized =
-        AddressLookupTable::deserialize(&table_data.data).map_err(|_e| {
-            RestError::BadParameters("Failed deserializing lookup table account data".to_string())
-        })?;
-    let account = table_data_deserialized
-        .addresses
-        .get(index)
-        .ok_or_else(|| RestError::BadParameters("Account not found in lookup table".to_string()))?;
-
-    let keys_to_cache = table_data_deserialized.addresses.to_vec();
-    lookup_table_cache
-        .write()
-        .await
-        .insert(*table, keys_to_cache);
-
-    Ok(*account)
 }
 
 pub fn extract_submit_bid_data(
@@ -1051,223 +889,6 @@ pub fn extract_submit_bid_data(
         &instruction.data.as_slice()[discriminator.len()..],
     )
     .map_err(|e| RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e)))
-}
-
-pub struct BidDataSvm {
-    pub amount:         u64,
-    pub permission_key: PermissionKeySvm,
-    pub deadline:       i64,
-}
-
-async fn extract_bid_data_svm(
-    chain_store: &ChainStoreSvm,
-    tx: VersionedTransaction,
-    client: &RpcClient,
-) -> Result<BidDataSvm, RestError> {
-    let submit_bid_instruction = verify_submit_bid_instruction_svm(
-        &chain_store.config.express_relay_program_id,
-        tx.clone(),
-    )?;
-    let submit_bid_data = extract_submit_bid_data(&submit_bid_instruction)?;
-
-    let permission_account = extract_account_svm(
-        &tx,
-        &submit_bid_instruction,
-        chain_store.express_relay_svm.permission_account_position,
-        &chain_store.lookup_table_cache,
-        client,
-    )
-    .await?;
-    let router_account = extract_account_svm(
-        &tx,
-        &submit_bid_instruction,
-        chain_store.express_relay_svm.router_account_position,
-        &chain_store.lookup_table_cache,
-        client,
-    )
-    .await?;
-    let mut permission_key = [0; 64];
-    permission_key[..32].copy_from_slice(&router_account.to_bytes());
-    permission_key[32..].copy_from_slice(&permission_account.to_bytes());
-    Ok(BidDataSvm {
-        amount:         submit_bid_data.bid_amount,
-        permission_key: PermissionKeySvm(permission_key),
-        deadline:       submit_bid_data.deadline,
-    })
-}
-
-impl PartialEq<SimulatedBidSvm> for BidSvm {
-    fn eq(&self, other: &SimulatedBidSvm) -> bool {
-        self.transaction == other.transaction && self.chain_id == other.core_fields.chain_id
-    }
-}
-
-async fn check_deadline(
-    store_new: Arc<StoreNew>,
-    chain_store: &ChainStoreSvm,
-    permission_key: &Bytes,
-    deadline: i64,
-) -> Result<(), RestError> {
-    let minimum_bid_life_time = match chain_store
-        .get_submission_state(store_new, permission_key)
-        .await
-    {
-        SubmitType::SubmitByServer => Some(BID_MINIMUM_LIFE_TIME_SVM_SERVER),
-        SubmitType::SubmitByOther => Some(BID_MINIMUM_LIFE_TIME_SVM_OTHER),
-        SubmitType::Invalid => None,
-    };
-    match minimum_bid_life_time {
-        Some(min_life_time) => {
-            let minimum_deadline = OffsetDateTime::now_utc().unix_timestamp() + min_life_time;
-            // TODO: this uses the time at the server, which can lead to issues if Solana ever experiences clock drift
-            // using the time at the server is not ideal, but the alternative is to make an RPC call to get the Solana block time
-            // we should make this more robust, possibly by polling the current block time in the background
-            if deadline < minimum_deadline {
-                return Err(RestError::BadParameters(format!(
-                    "Bid deadline of {} is too short, bid must be valid for at least {} seconds",
-                    deadline, min_life_time
-                )));
-            }
-
-            Ok(())
-        }
-        None => Ok(()),
-    }
-}
-
-const BID_MINIMUM_LIFE_TIME_SVM_SERVER: i64 = 5;
-const BID_MINIMUM_LIFE_TIME_SVM_OTHER: i64 = 10;
-
-#[tracing::instrument(skip_all)]
-pub async fn handle_bid_svm(
-    store_new: Arc<StoreNew>,
-    bid: BidSvm,
-    initiation_time: OffsetDateTime,
-    auth: Auth,
-) -> result::Result<Uuid, RestError> {
-    check_tx_size(&bid.transaction)?;
-
-    let store = store_new.store.clone();
-    let chain_store = store
-        .chains_svm
-        .get(&bid.chain_id)
-        .ok_or(RestError::InvalidChainId)?
-        .as_ref();
-
-
-    let bid_data_svm =
-        extract_bid_data_svm(chain_store, bid.transaction.clone(), &chain_store.client).await?;
-
-    let bytes_permission_key = Bytes::from(&bid_data_svm.permission_key.0);
-    check_deadline(
-        store_new.clone(),
-        chain_store,
-        &bytes_permission_key,
-        bid_data_svm.deadline,
-    )
-    .await?;
-    verify_signatures_svm(
-        store_new,
-        chain_store,
-        &bid,
-        &chain_store.express_relay_svm.relayer.pubkey(),
-        &bytes_permission_key,
-    )
-    .await?;
-    // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
-    simulate_bid_svm(chain_store, &bid).await?;
-
-    // Check if the bid is not duplicate
-    let bids = chain_store.get_bids(&bytes_permission_key).await;
-    if bids.iter().any(|b| bid == *b) {
-        return Err(RestError::BadParameters("Duplicate bid".to_string()));
-    }
-
-    let core_fields = SimulatedBidCoreFields::new(bid.chain_id, initiation_time, auth);
-    let simulated_bid = SimulatedBidSvm {
-        status:         BidStatusSvm::Pending,
-        core_fields:    core_fields.clone(),
-        transaction:    bid.transaction,
-        bid_amount:     bid_data_svm.amount,
-        permission_key: bid_data_svm.permission_key,
-    };
-    store.add_bid(chain_store, simulated_bid).await?;
-    Ok(core_fields.id)
-}
-
-fn check_tx_size(transaction: &VersionedTransaction) -> Result<(), RestError> {
-    let size = serialized_size(&transaction)
-        .map_err(|e| RestError::BadParameters(format!("Error serializing transaction: {:?}", e)))?;
-    if size > PACKET_DATA_SIZE as u64 {
-        return Err(RestError::BadParameters(format!(
-            "Transaction size is too large: {} > {}",
-            size, PACKET_DATA_SIZE
-        )));
-    }
-    Ok(())
-}
-
-fn all_signature_exists_svm(
-    message_bytes: &[u8],
-    accounts: &[Pubkey],
-    signatures: &[SignatureSvm],
-    missing_signers: &[Pubkey],
-) -> bool {
-    signatures
-        .iter()
-        .zip(accounts.iter())
-        .all(|(signature, pubkey)| {
-            signature.verify(pubkey.as_ref(), message_bytes) || missing_signers.contains(pubkey)
-        })
-}
-
-async fn verify_signatures_svm(
-    store_new: Arc<StoreNew>,
-    chain_store: &ChainStoreSvm,
-    bid: &BidSvm,
-    relayer_pubkey: &Pubkey,
-    permission_key: &PermissionKey,
-) -> Result<(), RestError> {
-    let message_bytes = bid.transaction.message.serialize();
-    let signatures = bid.transaction.signatures.clone();
-    let accounts = bid.transaction.message.static_account_keys();
-    let all_signature_exists = match chain_store
-        .get_submission_state(store_new.clone(), permission_key)
-        .await
-    {
-        SubmitType::Invalid => {
-            // TODO Look at the todo comment in get_quote.rs file in opportunity module
-            return Err(RestError::BadParameters(format!(
-                "The permission key is not valid for auction anymore: {:?}",
-                permission_key
-            )));
-        }
-        SubmitType::SubmitByOther => {
-            let opportunities = store_new
-                .opportunity_service_svm
-                .get_live_opportunities(GetLiveOpportunitiesInput {
-                    key: opportunity::entities::OpportunityKey(
-                        bid.chain_id.clone(),
-                        permission_key.clone(),
-                    ),
-                })
-                .await;
-            opportunities.into_iter().any(|opportunity| {
-                let mut missing_signers = opportunity.get_missing_signers();
-                missing_signers.push(*relayer_pubkey);
-                all_signature_exists_svm(&message_bytes, accounts, &signatures, &missing_signers)
-            })
-        }
-        SubmitType::SubmitByServer => {
-            all_signature_exists_svm(&message_bytes, accounts, &signatures, &[*relayer_pubkey])
-        }
-    };
-
-    if !all_signature_exists {
-        Err(RestError::BadParameters("Invalid signatures".to_string()))
-    } else {
-        Ok(())
-    }
 }
 
 async fn simulate_bid_svm(chain_store: &ChainStoreSvm, bid: &BidSvm) -> Result<(), RestError> {

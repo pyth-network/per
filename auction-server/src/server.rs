@@ -7,10 +7,7 @@ use {
         auction_old::{
             run_auction_conclusion_loop_svm, run_log_listener_loop_svm, run_submission_loop, run_tracker_loop
         },
-        bid::{
-            self,
-            service as bid_service,
-        },
+        bid::service as bid_service,
         config::{
             ChainId,
             Config,
@@ -18,7 +15,10 @@ use {
             MigrateOptions,
             RunOptions,
         },
-        kernel::entities::ChainType,
+        kernel::{
+            entities::ChainType,
+            traced_sender_svm::TracedSenderSvm,
+        },
         models,
         opportunity::{
             service as opportunity_service,
@@ -31,7 +31,6 @@ use {
             Store,
             StoreNew,
         },
-        traced_sender_svm::TracedSenderSvm,
         watcher::run_watcher_loop_svm,
     },
     anyhow::{
@@ -290,7 +289,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     #[allow(clippy::iter_kv_map)]
     let mut bid_services: HashMap<ChainId, bid_service::ServiceEnum> = chains_evm
         .iter()
-        .map(|(chain_id, _chain_store)| {
+        .map(|(chain_id, chain_store)| {
             (
                 chain_id.clone(),
                 bid_service::ServiceEnum::Evm(Arc::new(bid_service::Service::new(
@@ -298,7 +297,14 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                     bid_service::Config {
                         chain_type:   ChainType::Evm,
                         chain_id:     chain_id.clone(),
-                        chain_config: bid_service::ConfigEvm {},
+                        chain_config: bid_service::ConfigEvm::new(
+                            bid_service::ExpressRelayEvm {
+                                relayer:          wallet.clone(),
+                                contract_address: chain_store.config.express_relay_contract,
+                            },
+                            chain_store.provider.clone(),
+                            chain_store.block_gas_limit,
+                        ),
                     },
                     opportunity_service_evm.clone(),
                 ))),
@@ -324,7 +330,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                             wallet_program_router_account: chain_store
                                 .config
                                 .wallet_program_router_account,
-                            express_relay:                 bid::service::ExpressRelaySvm {
+                            express_relay:                 bid_service::ExpressRelaySvm {
                                 program_id:                  chain_store
                                     .config
                                     .express_relay_program_id,

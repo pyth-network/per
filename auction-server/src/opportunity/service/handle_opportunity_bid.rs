@@ -13,15 +13,13 @@ use {
             handle_bid,
             BidEvm,
         },
-        opportunity::{
-            api::{
-                OpportunityBidEvm,
-                OpportunityId,
-            },
-            contracts::{
-                erc20,
-                OpportunityAdapterErrors,
-            },
+        kernel::contracts::{
+            erc20,
+            OpportunityAdapterErrors,
+        },
+        opportunity::api::{
+            OpportunityBidEvm,
+            OpportunityId,
         },
     },
     ethers::{

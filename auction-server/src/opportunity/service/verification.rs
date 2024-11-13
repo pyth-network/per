@@ -10,16 +10,14 @@ use {
     },
     crate::{
         api::RestError,
-        auction_old::{
-            get_simulation_call,
+        auction_old::get_simulation_call,
+        kernel::contracts::{
+            ExecutionParams,
             MulticallData,
+            MulticallReturn,
         },
         opportunity::{
             api::OpportunityBidEvm,
-            contracts::{
-                ExecutionParams,
-                MulticallReturn,
-            },
             entities,
             repository::InMemoryStore,
             token_spoof,

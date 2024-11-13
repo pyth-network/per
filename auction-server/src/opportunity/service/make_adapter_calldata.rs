@@ -6,9 +6,9 @@ use {
     },
     crate::{
         api::RestError,
+        kernel::contracts::OpportunityAdapter,
         opportunity::{
             api::OpportunityBidEvm,
-            contracts::OpportunityAdapter,
             entities,
         },
     },

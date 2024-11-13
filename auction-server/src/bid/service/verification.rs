@@ -6,14 +6,24 @@ use {
             entities::{
                 self,
                 BidChainData,
+                ChainDataCreateTrait,
             },
             service::get_live_bids::GetLiveBidsInput,
         },
-        kernel::entities::{
-            Evm,
-            PermissionKey,
-            PermissionKeySvm,
-            Svm,
+        kernel::{
+            contracts::{
+                ExpressRelayContractEvm,
+                ExpressRelayErrors,
+                MulticallData,
+                MulticallStatus,
+            },
+            entities::{
+                Evm,
+                PermissionKey,
+                PermissionKeySvm,
+                Svm,
+            },
+            traced_client::TracedClient,
         },
         opportunity::{
             self as opportunity,
@@ -28,15 +38,31 @@ use {
         Discriminator,
     },
     axum::async_trait,
+    ethers::{
+        contract::{
+            ContractError,
+            ContractRevert,
+            FunctionCall,
+        },
+        middleware::GasOracle,
+        providers::Provider,
+        signers::Signer,
+        types::{
+            BlockNumber,
+            U256,
+        },
+    },
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
         pubkey::Pubkey,
-        signer::Signer,
+        signer::Signer as _,
         transaction::VersionedTransaction,
     },
+    std::sync::Arc,
     time::OffsetDateTime,
+    uuid::Uuid,
 };
 
 pub struct VerifyBidInput<T: entities::BidCreateTrait> {
@@ -48,6 +74,12 @@ pub type VerificationResult<T> = (
     <T as entities::BidTrait>::BidAmount,
 );
 
+// While we are submitting bids together, increasing this number will have the following effects:
+// 1. There will be more gas required for the transaction, which will result in a higher minimum bid amount.
+// 2. The transaction size limit will be reduced for each bid.
+// 3. Gas consumption limit will decrease for the bid
+const TOTAL_BIDS_PER_AUCTION: usize = 3;
+
 #[async_trait]
 pub trait Verification<T: entities::BidCreateTrait + entities::BidTrait> {
     /// Verify the bid, and extract the chain data from the bid.
@@ -55,6 +87,85 @@ pub trait Verification<T: entities::BidCreateTrait + entities::BidTrait> {
         &self,
         input: VerifyBidInput<T>,
     ) -> Result<VerificationResult<T>, RestError>;
+}
+
+impl Service<Evm> {
+    fn get_simulation_call(
+        &self,
+        permission_key: PermissionKey,
+        multicall_data: Vec<MulticallData>,
+    ) -> FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>>
+    {
+        let client = Arc::new(self.config.chain_config.provider.clone());
+        let express_relay_contract = ExpressRelayContractEvm::new(
+            self.config.chain_config.express_relay.contract_address,
+            client,
+        );
+
+        express_relay_contract
+            .multicall(permission_key, multicall_data)
+            .from(self.config.chain_config.express_relay.relayer.address())
+            .block(BlockNumber::Pending)
+    }
+
+    // For now, we are only supporting the EIP1559 enabled networks
+    async fn verify_bid_exceeds_gas_cost(
+        &self,
+        estimated_gas: U256,
+        bid_amount: U256,
+    ) -> Result<(), RestError> {
+        let (maximum_gas_fee, priority_fee) = self
+            .config
+            .chain_config
+            .oracle
+            .estimate_eip1559_fees()
+            .await
+            .map_err(|_| RestError::TemporarilyUnavailable)?;
+
+        // To submit TOTAL_BIDS_PER_AUCTION together, each bid must cover the gas fee for all of the submitted bids.
+        // To make sure we cover the estimation errors, we add the priority_fee to the final potential gas fee.
+        // Therefore, the bid amount needs to be TOTAL_BIDS_PER_AUCTION times per potential gas fee.
+        let potential_gas_fee = maximum_gas_fee * U256::from(TOTAL_BIDS_PER_AUCTION) + priority_fee;
+        let minimum_bid_amount = potential_gas_fee * estimated_gas;
+
+        if bid_amount >= minimum_bid_amount {
+            Ok(())
+        } else {
+            tracing::info!(
+                estimated_gas = estimated_gas.to_string(),
+                maximum_gas_fee = maximum_gas_fee.to_string(),
+                priority_fee = priority_fee.to_string(),
+                minimum_bid_amount = minimum_bid_amount.to_string(),
+                "Bid amount is too low"
+            );
+            Err(RestError::BadParameters(format!(
+                "Insufficient bid amount based on the current gas fees. estimated gas usage: {}, maximum fee per gas: {}, priority fee per gas: {}, minimum bid amount: {}",
+                estimated_gas, maximum_gas_fee, priority_fee, minimum_bid_amount
+            )))
+        }
+    }
+
+    async fn verify_bid_under_gas_limit(
+        &self,
+        estimated_gas: U256,
+        multiplier: U256,
+    ) -> Result<(), RestError> {
+        let gas_limit = self.config.chain_config.block_gas_limit;
+        if gas_limit < estimated_gas * multiplier {
+            let maximum_allowed_gas = gas_limit / multiplier;
+            tracing::info!(
+                estimated_gas = estimated_gas.to_string(),
+                maximum_allowed_gas = maximum_allowed_gas.to_string(),
+                "Bid gas usage is too high"
+            );
+            Err(RestError::BadParameters(format!(
+                "Bid estimated gas usage is higher than maximum gas allowed. estimated gas usage: {}, maximum gas allowed: {}",
+                estimated_gas, maximum_allowed_gas
+            )))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[async_trait]
@@ -65,9 +176,82 @@ impl Verification<Evm> for Service<Evm> {
     // 3. Depending on the maximum number of bids in the auction, the gas consumption for the bid is limited.
     async fn verify_bid(
         &self,
-        _input: VerifyBidInput<Evm>,
+        input: VerifyBidInput<Evm>,
     ) -> Result<VerificationResult<Evm>, RestError> {
-        todo!()
+        let bid = input.bid_create;
+        let call = self.get_simulation_call(
+            bid.chain_data.get_permission_key(),
+            vec![MulticallData::from((
+                Uuid::new_v4().into_bytes(),
+                bid.chain_data.target_contract,
+                bid.chain_data.target_calldata.clone(),
+                bid.chain_data.amount,
+                U256::max_value(),
+                // The gas estimation use some binary search algorithm to find the gas limit.
+                // It reduce the upper bound threshold on success and increase the lower bound on revert.
+                // If the contract does not reverts, the gas estimation will not be accurate in case of external call failures.
+                // So we need to make sure in order to calculate the gas estimation correctly, the contract will revert if the external call fails.
+                true,
+            ))],
+        );
+
+        match call.clone().await {
+            Ok(results) => {
+                if !results[0].external_success {
+                    // The call should be reverted because the "revert_on_failure" is set to true.
+                    tracing::error!("Simulation failed and call is not reverted: {:?}", results,);
+                    return Err(RestError::SimulationError {
+                        result: results[0].external_result.clone(),
+                        reason: results[0].multicall_revert_reason.clone(),
+                    });
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Error while simulating bid: {:?}", e);
+                return match e {
+                    ContractError::Revert(reason) => {
+                        if let Some(ExpressRelayErrors::ExternalCallFailed(failure_result)) =
+                            ExpressRelayErrors::decode_with_selector(&reason)
+                        {
+                            return Err(RestError::SimulationError {
+                                result: failure_result.status.external_result,
+                                reason: failure_result.status.multicall_revert_reason,
+                            });
+                        }
+                        Err(RestError::BadParameters(format!(
+                            "Contract Revert Error: {}",
+                            reason,
+                        )))
+                    }
+                    ContractError::MiddlewareError { e: _ } => {
+                        Err(RestError::TemporarilyUnavailable)
+                    }
+                    ContractError::ProviderError { e: _ } => Err(RestError::TemporarilyUnavailable),
+                    _ => Err(RestError::BadParameters(format!("Error: {}", e))),
+                };
+            }
+        }
+
+        let estimated_gas = call.estimate_gas().await.map_err(|e| {
+            tracing::error!("Error while estimating gas: {:?}", e);
+            RestError::TemporarilyUnavailable
+        })?;
+
+        self.verify_bid_exceeds_gas_cost(estimated_gas, bid.chain_data.amount)
+            .await?;
+        // The transaction body size will be automatically limited when the gas is limited.
+        self.verify_bid_under_gas_limit(estimated_gas, U256::from(TOTAL_BIDS_PER_AUCTION))
+            .await?;
+
+        Ok((
+            entities::BidChainDataEvm {
+                permission_key:  bid.chain_data.get_permission_key(),
+                target_contract: bid.chain_data.target_contract,
+                target_calldata: bid.chain_data.target_calldata,
+                gas_limit:       estimated_gas,
+            },
+            bid.chain_data.amount,
+        ))
     }
 }
 

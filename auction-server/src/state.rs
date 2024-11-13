@@ -12,7 +12,6 @@ use {
         auction_old::{
             get_express_relay_contract,
             ChainStore,
-            SignableExpressRelayContract,
         },
         bid::service as bid_service,
         config::{
@@ -20,9 +19,14 @@ use {
             ConfigEvm,
             ConfigSvm,
         },
-        kernel::entities::{
-            PermissionKey,
-            PermissionKeySvm,
+        kernel::{
+            contracts::SignableExpressRelayContract,
+            entities::{
+                PermissionKey,
+                PermissionKeySvm,
+            },
+            traced_client::TracedClient,
+            traced_sender_svm::TracedSenderSvm,
         },
         models,
         opportunity::service as opportunity_service,

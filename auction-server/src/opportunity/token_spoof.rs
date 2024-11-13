@@ -9,11 +9,11 @@
 /// and checking if the output of the balance or allowance is the expected value.
 use ethers::addressbook::Address;
 use {
-    super::{
+    super::entities,
+    crate::kernel::{
         contracts::ERC20,
-        entities,
+        traced_client::TracedClient,
     },
-    crate::traced_client::TracedClient,
     anyhow::anyhow,
     ethers::{
         core::rand,

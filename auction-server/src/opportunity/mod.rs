@@ -1,4 +1,3 @@
-mod contracts;
 mod repository;
 mod token_spoof;
 
