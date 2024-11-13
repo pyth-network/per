@@ -1208,14 +1208,30 @@ fn all_signature_exists_svm(
     message_bytes: &[u8],
     accounts: &[Pubkey],
     signatures: &[SignatureSvm],
+    relayer_pubkey: &Pubkey,
     missing_signers: &[Pubkey],
-) -> bool {
-    signatures
+) -> Result<(), RestError> {
+    let relayer_exists = accounts[..signatures.len()]
         .iter()
-        .zip(accounts.iter())
-        .all(|(signature, pubkey)| {
-            signature.verify(pubkey.as_ref(), message_bytes) || missing_signers.contains(pubkey)
-        })
+        .any(|account| account.eq(relayer_pubkey));
+    if !relayer_exists {
+        return Err(RestError::BadParameters(format!(
+            "Relayer account {:?} is missing",
+            relayer_pubkey
+        )));
+    }
+    for (signature, pubkey) in signatures.iter().zip(accounts.iter()) {
+        if missing_signers.contains(pubkey) || pubkey.eq(relayer_pubkey) {
+            continue;
+        }
+        if !signature.verify(pubkey.as_ref(), message_bytes) {
+            return Err(RestError::BadParameters(format!(
+                "Signature for account {:?} is invalid",
+                pubkey
+            )));
+        }
+    }
+    Ok(())
 }
 
 async fn verify_signatures_svm(
@@ -1228,16 +1244,16 @@ async fn verify_signatures_svm(
     let message_bytes = bid.transaction.message.serialize();
     let signatures = bid.transaction.signatures.clone();
     let accounts = bid.transaction.message.static_account_keys();
-    let all_signature_exists = match chain_store
+    match chain_store
         .get_submission_state(store_new.clone(), permission_key)
         .await
     {
         SubmitType::Invalid => {
             // TODO Look at the todo comment in get_quote.rs file in opportunity module
-            return Err(RestError::BadParameters(format!(
+            Err(RestError::BadParameters(format!(
                 "The permission key is not valid for auction anymore: {:?}",
                 permission_key
-            )));
+            )))
         }
         SubmitType::SubmitByOther => {
             let opportunities = store_new
@@ -1249,21 +1265,20 @@ async fn verify_signatures_svm(
                     ),
                 })
                 .await;
-            opportunities.into_iter().any(|opportunity| {
-                let mut missing_signers = opportunity.get_missing_signers();
-                missing_signers.push(*relayer_pubkey);
-                all_signature_exists_svm(&message_bytes, accounts, &signatures, &missing_signers)
-            })
+            let opportunity = opportunities
+                .first()
+                .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
+            all_signature_exists_svm(
+                &message_bytes,
+                accounts,
+                &signatures,
+                relayer_pubkey,
+                &opportunity.get_missing_signers(),
+            )
         }
         SubmitType::SubmitByServer => {
-            all_signature_exists_svm(&message_bytes, accounts, &signatures, &[*relayer_pubkey])
+            all_signature_exists_svm(&message_bytes, accounts, &signatures, relayer_pubkey, &[])
         }
-    };
-
-    if !all_signature_exists {
-        Err(RestError::BadParameters("Invalid signatures".to_string()))
-    } else {
-        Ok(())
     }
 }
 
