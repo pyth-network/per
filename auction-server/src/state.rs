@@ -34,11 +34,8 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        traced_client::TracedClient,
-        traced_sender_svm::TracedSenderSvm,
     },
     anyhow::anyhow,
-    axum::Json,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
         engine::general_purpose::URL_SAFE_NO_PAD,
@@ -1303,44 +1300,6 @@ impl Store {
             bid_status: bid.get_status().clone().into(),
         });
         Ok(())
-    }
-
-    pub async fn _get_bid_status(&self, bid_id: BidId) -> Result<Json<BidStatus>, RestError> {
-        // TODO handle it in a single query (Maybe with intermediate type)
-        let bid: models::Bid = sqlx::query_as("SELECT * FROM bid WHERE id = $1")
-            .bind(bid_id)
-            .fetch_one(&self.db)
-            .await
-            .map_err(|e| {
-                tracing::warn!("DB: Failed to get bid: {} - bid_id: {}", e, bid_id);
-                RestError::BidNotFound
-            })?;
-
-        let auction = match bid.auction_id {
-            Some(auction_id) => {
-                let auction: models::Auction =
-                    sqlx::query_as("SELECT * FROM auction WHERE id = $1")
-                        .bind(auction_id)
-                        .fetch_one(&self.db)
-                        .await
-                        .map_err(|e| {
-                            tracing::warn!(
-                                "DB: Failed to get auction: {} - auction_id: {}",
-                                e,
-                                auction_id
-                            );
-                            RestError::TemporarilyUnavailable
-                        })?;
-                Some(auction)
-            }
-            None => None,
-        };
-
-        let bid_status: BidStatus = (bid, auction).try_into().map_err(|e: anyhow::Error| {
-            tracing::warn!("Failed to convert bid status: {}", e);
-            RestError::TemporarilyUnavailable
-        })?;
-        Ok(Json(bid_status))
     }
 
     pub async fn broadcast_bid_status_and_update<T: ChainStore>(

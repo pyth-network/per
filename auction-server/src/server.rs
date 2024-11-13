@@ -5,7 +5,10 @@ use {
             ws,
         },
         auction_old::{
-            run_auction_conclusion_loop_svm, run_log_listener_loop_svm, run_submission_loop, run_tracker_loop
+            run_auction_conclusion_loop_svm,
+            run_log_listener_loop_svm,
+            run_submission_loop,
+            run_tracker_loop,
         },
         bid::service as bid_service,
         config::{
