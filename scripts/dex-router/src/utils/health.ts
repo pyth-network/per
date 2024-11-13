@@ -24,7 +24,6 @@ export async function checkRpcHealth(
     } catch (e) {
       console.error("Health Error (RPC endpoint), failure to fetch: ", e);
     }
-    // Wait for 10 seconds before rechecking
     await new Promise((resolve) => setTimeout(resolve, interval * 1000));
   }
 }
@@ -39,7 +38,7 @@ export async function checkExpressRelayHealth(
       const responseHealth = await fetch(urlExpressRelayHealth);
       if (responseHealth.status !== 200) {
         console.error(
-          "Health Error (Express Relay endßpoint): ",
+          "Health Error (Express Relay endpoint): ",
           responseHealth
         );
       }
@@ -49,7 +48,6 @@ export async function checkExpressRelayHealth(
         e
       );
     }
-    // Wait for 10 seconds before rechecking
     await new Promise((resolve) => setTimeout(resolve, interval * 1000));
   }
 }

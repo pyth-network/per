@@ -30,6 +30,7 @@ export function filterComputeBudgetIxs(
     const cuPrice = ComputeBudgetInstruction.decodeSetComputeUnitPrice(
       ixs[lastIxSetCuPrice]
     );
+    console.log("cuPrice", cuPrice.microLamports);
     if (
       MAX_COMPUTE_UNIT_PRICE !== null &&
       cuPrice.microLamports > MAX_COMPUTE_UNIT_PRICE
