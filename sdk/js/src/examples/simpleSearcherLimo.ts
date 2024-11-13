@@ -328,7 +328,7 @@ async function run() {
     argv.chainId,
     searcherKeyPair,
     argv.endpointSvm,
-    new anchor.BN(argv.bid),
+    argv.bid,
     argv.apiKey
   );
   await simpleSearcher.start();
