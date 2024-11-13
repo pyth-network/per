@@ -1216,7 +1216,7 @@ fn all_signature_exists_svm(
         .any(|account| account.eq(relayer_pubkey));
     if !relayer_exists {
         return Err(RestError::BadParameters(format!(
-            "Relayer account {:?} is missing",
+            "Relayer account {} is not a signer in the transaction",
             relayer_pubkey
         )));
     }
@@ -1226,7 +1226,7 @@ fn all_signature_exists_svm(
         }
         if !signature.verify(pubkey.as_ref(), message_bytes) {
             return Err(RestError::BadParameters(format!(
-                "Signature for account {:?} is invalid",
+                "Signature for account {} is invalid",
                 pubkey
             )));
         }
