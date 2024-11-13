@@ -31,8 +31,14 @@ import {
   getPdaAuthority,
   OrderStateAndAddress,
 } from "@kamino-finance/limo-sdk/dist/utils";
-import { OPPORTUNITY_WAIT_TIME_MS } from "./const";
+import {
+  OPPORTUNITY_WAIT_TIME_MS,
+  HEALTH_RPC_THRESHOLD,
+  HEALTH_EXPRESS_RELAY_INTERVAL,
+  HEALTH_RPC_INTERVAL,
+} from "./const";
 import { filterComputeBudgetIxs } from "./utils/computeBudget";
+import { checkExpressRelayHealth, checkRpcHealth } from "./utils/health";
 
 const MINUTE_IN_SECS = 60;
 
@@ -417,13 +423,21 @@ const argv = yargs(hideBin(process.argv))
   .parseSync();
 
 async function run() {
+  const connection = new Connection(argv["endpoint-svm"], "confirmed");
   const dexRouter = new DexRouter(
     argv["endpoint-express-relay"],
     Keypair.fromSecretKey(anchor.utils.bytes.bs58.decode(argv["sk-executor"])),
     argv["chain-id"],
-    new Connection(argv["endpoint-svm"], "confirmed"),
+    connection,
     argv["lookup-table-addresses"]?.map((address) => new PublicKey(address))
   );
+  checkRpcHealth(connection, HEALTH_RPC_THRESHOLD, HEALTH_RPC_INTERVAL).catch(
+    console.error
+  );
+  checkExpressRelayHealth(
+    argv["endpoint-express-relay"],
+    HEALTH_EXPRESS_RELAY_INTERVAL
+  ).catch(console.error);
   await dexRouter.start();
 }
 
