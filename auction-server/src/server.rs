@@ -5,6 +5,7 @@ use {
             ws,
         },
         auction::{
+            run_auction_conclusion_loop_svm,
             run_log_listener_loop_svm,
             run_submission_loop,
             run_tracker_loop,
@@ -306,7 +307,16 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             let log_listener_loops = store.chains_svm.iter().map(|(chain_id, chain_store)| {
                 fault_tolerant_handler(
                     format!("log listener loop for svm chain {}", chain_id.clone()),
-                    || run_log_listener_loop_svm(store_new.clone(), chain_store.clone()),
+                    || run_log_listener_loop_svm(chain_store.clone()),
+                )
+            });
+            join_all(log_listener_loops).await;
+        },
+        async {
+            let log_listener_loops = store.chains_svm.iter().map(|(chain_id, chain_store)| {
+                fault_tolerant_handler(
+                    format!("conclusion loop for svm chain {}", chain_id.clone()),
+                    || run_auction_conclusion_loop_svm(store_new.clone(), chain_store.clone()),
                 )
             });
             join_all(log_listener_loops).await;
