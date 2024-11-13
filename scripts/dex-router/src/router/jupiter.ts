@@ -5,17 +5,18 @@ import {
   Instruction as JupiterInstruction,
 } from "@jup-ag/api";
 
-const maxAccounts = 20;
-const maxAutoSlippageBps = 50;
+const MAX_SLIPPAGE_BPS = 50;
 
 export class JupiterRouter implements Router {
   private chainId: string;
   private executor: PublicKey;
+  private maxAccounts: number;
   private jupiterClient = createJupiterApiClient();
 
-  constructor(chainId: string, executor: PublicKey) {
+  constructor(chainId: string, executor: PublicKey, maxAccounts: number = 20) {
     this.chainId = chainId;
     this.executor = executor;
+    this.maxAccounts = maxAccounts;
   }
 
   async route(
@@ -32,8 +33,8 @@ export class JupiterRouter implements Router {
       outputMint: tokenOut.toBase58(),
       amount: Number(amountIn),
       autoSlippage: true,
-      maxAutoSlippageBps,
-      maxAccounts: maxAccounts,
+      maxAutoSlippageBps: MAX_SLIPPAGE_BPS,
+      maxAccounts: this.maxAccounts,
     });
 
     const instructions = await this.jupiterClient.swapInstructionsPost({
