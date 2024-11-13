@@ -71,9 +71,6 @@ async function run() {
 
   console.log("Listening for program account changes");
   const client = new Client({ baseUrl: argv.endpoint, apiKey: argv.apiKey });
-  let { blockhash: latestBlockhash } = await connection.getLatestBlockhash(
-    "confirmed"
-  );
 
   const submitExistingOpportunities = async () => {
     const response = await connection.getProgramAccounts(limoId, {
@@ -111,11 +108,6 @@ async function run() {
       }
     }
   };
-  let lastSlotChange = Date.now();
-
-  connection.onSlotChange(async (_slotInfo) => {
-    lastSlotChange = Date.now();
-  });
 
   connection.onProgramAccountChange(
     limoId,
@@ -163,19 +155,6 @@ async function run() {
       filters,
     }
   );
-  const updateLatestBlockhash = async () => {
-    while (true) {
-      latestBlockhash = (await connection.getLatestBlockhash("confirmed"))
-        .blockhash;
-      await new Promise((resolve) => setTimeout(resolve, 10000));
-      if (Date.now() - lastSlotChange > 5000) {
-        console.error(
-          "Did not receive slot change in 5 seconds, because of rpc or websocket issues. Exiting"
-        );
-        process.exit(1);
-      }
-    }
-  };
   const resubmitOpportunities = async () => {
     while (true) {
       submitExistingOpportunities().catch(console.error);
@@ -184,8 +163,57 @@ async function run() {
     }
   };
 
+  const RPC_HEALTH_CHECK_SECONDS_THRESHOLD = 300;
+  const checkRpcHealth = async () => {
+    while (true) {
+      try {
+        const slot = await connection.getSlot("finalized");
+        const blockTime = await connection.getBlockTime(slot);
+        const timeNow = Date.now() / 1000;
+        if (blockTime === null) {
+          console.error(
+            `Health Error (RPC endpoint): unable to poll block time for slot ${slot}`
+          );
+        } else if (blockTime < timeNow - RPC_HEALTH_CHECK_SECONDS_THRESHOLD) {
+          console.error(
+            `Health Error (RPC endpoint): block time is stale by ${
+              timeNow - blockTime
+            } seconds`
+          );
+        }
+      } catch (e) {
+        console.error("Health Error (RPC endpoint), failure to fetch: ", e);
+      }
+      // Wait for 10 seconds before rechecking
+      await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
+    }
+  };
+
+  const urlExpressRelayHealth = new URL("/live", argv.endpoint);
+  const checkExpressRelayHealth = async () => {
+    while (true) {
+      try {
+        const responseHealth = await fetch(urlExpressRelayHealth);
+        if (responseHealth.status !== 200) {
+          console.error(
+            "Health Error (Express Relay endpoint): ",
+            responseHealth
+          );
+        }
+      } catch (e) {
+        console.error(
+          "Health Error (Express Relay endpoint), failure to fetch: ",
+          e
+        );
+      }
+      // Wait for 10 seconds before rechecking
+      await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
+    }
+  };
+
   resubmitOpportunities().catch(console.error);
-  updateLatestBlockhash().catch(console.error);
+  checkRpcHealth().catch(console.error);
+  checkExpressRelayHealth().catch(console.error);
 }
 
 run();
