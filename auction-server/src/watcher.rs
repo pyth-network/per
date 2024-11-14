@@ -120,7 +120,6 @@ pub async fn get_median_prioritization_fee(
         .await
         .map(|mut values: Vec<RpcPrioritizationFee>| {
             values.sort_by(|a, b| b.slot.cmp(&a.slot));
-            tracing::info!("values: {:?}", values);
             median(
                 &mut values
                     .iter()

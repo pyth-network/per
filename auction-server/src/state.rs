@@ -699,6 +699,7 @@ impl ChainStoreSvm {
             // Keep around roughly 60 seconds of fee data
             write_guard.remove(0);
         }
+        tracing::debug!("Recent prioritization fees: {:?}", write_guard);
     }
 }
 
