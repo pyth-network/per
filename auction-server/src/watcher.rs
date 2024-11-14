@@ -19,7 +19,10 @@ use {
         nonblocking::rpc_client::RpcClient,
     },
     solana_sdk::{
-        clock::Slot,
+        clock::{
+            Slot,
+            DEFAULT_MS_PER_SLOT,
+        },
         commitment_config::CommitmentConfig,
     },
     std::{
@@ -39,6 +42,8 @@ pub struct RpcPrioritizationFee {
 }
 
 pub const GET_LATEST_BLOCKHASH_INTERVAL: Duration = Duration::from_secs(5);
+pub const RECENT_FEES_SLOT_WINDOW: usize =
+    GET_LATEST_BLOCKHASH_INTERVAL.as_millis() as usize / DEFAULT_MS_PER_SLOT as usize;
 
 pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result<()> {
     let chain_store = store
@@ -52,7 +57,11 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
                 .client
                 .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
                 .await,
-            get_median_prioritization_fee(&chain_store.client, Some(5000)).await,
+            get_median_prioritization_fee(
+                &chain_store.client,
+                chain_store.config.prioritization_fee_percentile,
+            )
+            .await,
         ) {
             (Ok(result), Ok(median_fee)) => {
                 store.broadcast_svm_chain_update(SvmChainUpdate {
@@ -98,7 +107,6 @@ pub async fn get_median_prioritization_fee(
         args.push(serde_json::json!({ "percentile": percentile }));
     }
 
-    tracing::info!("args: {:?}", serde_json::Value::from(args.clone()));
     fn median(values: &mut [u64]) -> u64 {
         let mid = (values.len() + 1) / 2;
         *values.select_nth_unstable(mid).1
@@ -110,10 +118,12 @@ pub async fn get_median_prioritization_fee(
             serde_json::Value::from(args),
         )
         .await
-        .map(|values: Vec<RpcPrioritizationFee>| {
+        .map(|mut values: Vec<RpcPrioritizationFee>| {
+            values.sort_by(|a, b| b.slot.cmp(&a.slot));
             median(
                 &mut values
                     .iter()
+                    .take(RECENT_FEES_SLOT_WINDOW)
                     .map(|fee| fee.prioritization_fee)
                     .collect::<Vec<u64>>(),
             )
