@@ -68,11 +68,6 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
                     chain_id:  chain_id.clone(),
                     blockhash: result.0,
                 });
-                tracing::debug!(
-                    "Median prioritization fee for chain {} is {}",
-                    chain_id,
-                    median_fee
-                );
                 chain_store.add_recent_prioritization_fee(median_fee).await;
             }
             (Err(e), _) => {

@@ -567,6 +567,7 @@ pub struct ChainStoreSvm {
     pub wallet_program_router_account: Pubkey,
     pub name:                          String,
     pub lookup_table_cache:            LookupTableCache,
+    /// Recent network prioritization fees in micro-lamports per compute unit.
     pub recent_prioritization_fees:    RwLock<Vec<u64>>,
 }
 
