@@ -567,7 +567,7 @@ pub struct ChainStoreSvm {
     pub wallet_program_router_account: Pubkey,
     pub name:                          String,
     pub lookup_table_cache:            LookupTableCache,
-    pub recent_prioritization_fees:    RwLock<u64>,
+    pub recent_prioritization_fees:    RwLock<Vec<u64>>,
 }
 
 const SVM_SEND_TRANSACTION_RETRY_COUNT: i32 = 5;
@@ -608,7 +608,7 @@ impl ChainStoreSvm {
             config,
             express_relay_svm,
             lookup_table_cache: Default::default(),
-            recent_prioritization_fees: RwLock::new(0),
+            recent_prioritization_fees: RwLock::new(vec![]),
         }
     }
 
@@ -692,8 +692,13 @@ impl ChainStoreSvm {
         Ok(res)
     }
 
-    pub async fn set_median_prioritization_fee(&self, fee: u64) {
-        *self.recent_prioritization_fees.write().await = fee;
+    pub async fn add_recent_prioritization_fee(&self, fee: u64) {
+        let mut write_guard = self.recent_prioritization_fees.write().await;
+        write_guard.push(fee);
+        if write_guard.len() > 12 {
+            // Keep around roughly 60 seconds of fee data
+            write_guard.remove(0);
+        }
     }
 }
 

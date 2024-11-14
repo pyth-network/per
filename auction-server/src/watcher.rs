@@ -68,12 +68,12 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
                     chain_id:  chain_id.clone(),
                     blockhash: result.0,
                 });
-                tracing::info!(
+                tracing::debug!(
                     "Median prioritization fee for chain {} is {}",
                     chain_id,
                     median_fee
                 );
-                chain_store.set_median_prioritization_fee(median_fee).await;
+                chain_store.add_recent_prioritization_fee(median_fee).await;
             }
             (Err(e), _) => {
                 return Err(anyhow!(
@@ -108,7 +108,7 @@ pub async fn get_median_prioritization_fee(
     }
 
     fn median(values: &mut [u64]) -> u64 {
-        let mid = (values.len() + 1) / 2;
+        let mid = values.len() / 2;
         *values.select_nth_unstable(mid).1
     }
 
@@ -120,6 +120,7 @@ pub async fn get_median_prioritization_fee(
         .await
         .map(|mut values: Vec<RpcPrioritizationFee>| {
             values.sort_by(|a, b| b.slot.cmp(&a.slot));
+            tracing::info!("values: {:?}", values);
             median(
                 &mut values
                     .iter()
