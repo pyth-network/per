@@ -18,6 +18,11 @@ use {
         },
         Discriminator,
     },
+    anchor_spl::token_interface::{
+        self,
+        Mint,
+        TransferChecked as SplTransfer,
+    },
 };
 
 pub fn validate_fee_split(split: u64) -> Result<()> {
@@ -47,6 +52,50 @@ pub fn transfer_lamports_cpi<'info>(
     transfer(CpiContext::new(system_program, cpi_accounts), amount)?;
 
     Ok(())
+}
+
+pub fn transfer_spl<'info>(
+    from_ta: &AccountInfo<'info>,
+    to_ta: &AccountInfo<'info>,
+    token_program: &AccountInfo<'info>,
+    authority: &AccountInfo<'info>,
+    mint: &InterfaceAccount<'info, Mint>,
+    amount: u64,
+) -> Result<()> {
+    let cpi_accounts = SplTransfer {
+        from:      from_ta.clone(),
+        to:        to_ta.clone(),
+        mint:      mint.to_account_info(),
+        authority: authority.clone(),
+    };
+
+    token_interface::transfer_checked(
+        CpiContext::new(token_program.clone(), cpi_accounts),
+        amount,
+        mint.decimals,
+    )?;
+    Ok(())
+}
+
+pub fn compute_and_transfer_fee<'info>(
+    from_ta: &AccountInfo<'info>,
+    to_ta: &AccountInfo<'info>,
+    token_program: &AccountInfo<'info>,
+    auth: &AccountInfo<'info>,
+    mint: &InterfaceAccount<'info, Mint>,
+    amount: u64,
+    fee_ppm: u64,
+) -> Result<u64> {
+    let fee = amount
+        .checked_mul(fee_ppm)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        / 1_000_000;
+
+    if fee > 0 {
+        transfer_spl(from_ta, to_ta, token_program, auth, mint, fee)?;
+    }
+
+    Ok(fee)
 }
 
 pub fn check_fee_hits_min_rent(account: &AccountInfo, fee: u64) -> Result<()> {
