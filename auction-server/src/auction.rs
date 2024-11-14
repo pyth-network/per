@@ -1265,6 +1265,8 @@ async fn verify_signatures_svm(
                     ),
                 })
                 .await;
+            // We create a unique random permission key for each opportunity of this SubmitType
+            // so, we should always have only one opportunity
             let opportunity = opportunities
                 .first()
                 .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
