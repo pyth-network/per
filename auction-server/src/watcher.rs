@@ -14,15 +14,8 @@ use {
         Deserialize,
         Serialize,
     },
-    solana_client::{
-        client_error::ClientError,
-        nonblocking::rpc_client::RpcClient,
-    },
     solana_sdk::{
-        clock::{
-            Slot,
-            DEFAULT_MS_PER_SLOT,
-        },
+        clock::Slot,
         commitment_config::CommitmentConfig,
     },
     std::{
@@ -42,8 +35,6 @@ pub struct RpcPrioritizationFee {
 }
 
 pub const GET_LATEST_BLOCKHASH_INTERVAL: Duration = Duration::from_secs(5);
-pub const RECENT_FEES_SLOT_WINDOW: usize =
-    GET_LATEST_BLOCKHASH_INTERVAL.as_millis() as usize / DEFAULT_MS_PER_SLOT as usize;
 
 pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result<()> {
     let chain_store = store
@@ -57,18 +48,13 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
                 .client
                 .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
                 .await,
-            get_median_prioritization_fee(
-                &chain_store.client,
-                chain_store.config.prioritization_fee_percentile,
-            )
-            .await,
+            chain_store.get_and_store_recent_prioritization_fee().await,
         ) {
-            (Ok(result), Ok(median_fee)) => {
+            (Ok(result), Ok(_fee)) => {
                 store.broadcast_svm_chain_update(SvmChainUpdate {
                     chain_id:  chain_id.clone(),
                     blockhash: result.0,
                 });
-                chain_store.add_recent_prioritization_fee(median_fee).await;
             }
             (Err(e), _) => {
                 return Err(anyhow!(
@@ -89,38 +75,4 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
         tokio::time::sleep(GET_LATEST_BLOCKHASH_INTERVAL).await;
     }
     Ok(())
-}
-
-pub async fn get_median_prioritization_fee(
-    client: &RpcClient,
-    percentile: Option<u64>,
-) -> Result<u64, ClientError> {
-    let accounts: Vec<String> = vec![];
-    let mut args: Vec<serde_json::Value> = vec![serde_json::to_value(accounts)?];
-
-    if let Some(percentile) = percentile {
-        args.push(serde_json::json!({ "percentile": percentile }));
-    }
-
-    fn median(values: &mut [u64]) -> u64 {
-        let mid = values.len() / 2;
-        *values.select_nth_unstable(mid).1
-    }
-
-    client
-        .send(
-            solana_client::rpc_request::RpcRequest::GetRecentPrioritizationFees,
-            serde_json::Value::from(args),
-        )
-        .await
-        .map(|mut values: Vec<RpcPrioritizationFee>| {
-            values.sort_by(|a, b| b.slot.cmp(&a.slot));
-            median(
-                &mut values
-                    .iter()
-                    .take(RECENT_FEES_SLOT_WINDOW)
-                    .map(|fee| fee.prioritization_fee)
-                    .collect::<Vec<u64>>(),
-            )
-        })
 }
