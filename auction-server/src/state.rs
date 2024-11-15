@@ -701,7 +701,7 @@ impl ChainStoreSvm {
 
     /// Returns an estimate of recent priotization fees.
     /// For each of the last 150 slots, `self.client` returns the `config.prioritization_fee_percentile`th percentile
-    /// of prioritization fees for transactions that landed in that slot..
+    /// of prioritization fees for transactions that landed in that slot.
     /// The median of such values for the `RECENT_FEES_SLOT_WINDOW` most recent slots is returned.
     pub async fn get_median_prioritization_fee(&self) -> Result<u64, ClientError> {
         let accounts: Vec<String> = vec![];
@@ -743,7 +743,7 @@ impl ChainStoreSvm {
         if write_guard.len() > 12 {
             write_guard.pop_front();
         }
-        tracing::debug!("Recent prioritization fees: {:?}", write_guard);
+        tracing::info!("Recent prioritization fees: {:?}", write_guard);
         Ok(fee)
     }
 }
