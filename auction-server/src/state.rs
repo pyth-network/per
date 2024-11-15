@@ -105,7 +105,10 @@ use {
         QueryBuilder,
     },
     std::{
-        collections::HashMap,
+        collections::{
+            HashMap,
+            VecDeque,
+        },
         default::Default,
         num::ParseIntError,
         ops::Deref,
@@ -570,7 +573,7 @@ pub struct ChainStoreSvm {
     pub name:                          String,
     pub lookup_table_cache:            LookupTableCache,
     /// Recent network prioritization fees in micro-lamports per compute unit.
-    pub recent_prioritization_fees:    RwLock<Vec<u64>>,
+    pub recent_prioritization_fees:    RwLock<VecDeque<u64>>,
 }
 
 const SVM_SEND_TRANSACTION_RETRY_COUNT: i32 = 5;
@@ -612,7 +615,7 @@ impl ChainStoreSvm {
             config,
             express_relay_svm,
             lookup_table_cache: Default::default(),
-            recent_prioritization_fees: RwLock::new(vec![]),
+            recent_prioritization_fees: RwLock::new(vec![].into()),
         }
     }
 
@@ -736,10 +739,9 @@ impl ChainStoreSvm {
     pub async fn get_and_store_recent_prioritization_fee(&self) -> Result<u64, ClientError> {
         let fee = self.get_median_prioritization_fee().await?;
         let mut write_guard = self.recent_prioritization_fees.write().await;
-        write_guard.push(fee);
+        write_guard.push_back(fee);
         if write_guard.len() > 12 {
-            // Keep around roughly 60 seconds of fee data
-            write_guard.remove(0);
+            write_guard.pop_front();
         }
         tracing::debug!("Recent prioritization fees: {:?}", write_guard);
         Ok(fee)
