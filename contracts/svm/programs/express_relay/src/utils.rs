@@ -86,10 +86,15 @@ pub fn compute_and_transfer_fee<'info>(
     amount: u64,
     fee_ppm: u64,
 ) -> Result<u64> {
-    let fee = amount
-        .checked_mul(fee_ppm)
+    // we do the computation in u128 to avoid overflow in case of large amounts
+    let fee_u128 = (amount as u128)
+        .checked_mul(fee_ppm as u128)
         .ok_or(ProgramError::ArithmeticOverflow)?
         / 1_000_000;
+    if fee_u128 > u64::MAX.into() {
+        return Err(ProgramError::ArithmeticOverflow.into());
+    }
+    let fee = fee_u128 as u64;
 
     if fee > 0 {
         transfer_spl(from_ta, to_ta, token_program, auth, mint, fee)?;
