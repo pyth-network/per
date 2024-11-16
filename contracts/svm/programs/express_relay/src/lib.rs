@@ -348,7 +348,7 @@ pub struct SubmitBid<'info> {
     #[account(mut)]
     pub router: UncheckedAccount<'info>,
 
-    /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist
+    /// CHECK: Some routers might have an initialized ConfigRouter at the enforced PDA address which specifies a custom routing fee split. If the ConfigRouter is unitialized we will default to the routing fee split defined in the global ExpressRelayMetadata. We need to pass this account to check whether it exists and therefore there is a custom fee split.
     #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
     pub config_router: UncheckedAccount<'info>,
 
@@ -422,11 +422,8 @@ pub struct Swap<'info> {
 
     pub trader: Signer<'info>,
 
-    pub relayer_signer: Signer<'info>,
-
     #[account(seeds = [
         SEED_SWAP,
-        searcher.key().as_ref(),
         trader.key().as_ref(),
         mint_input.key().as_ref(),
         mint_output.key().as_ref(),
@@ -442,7 +439,7 @@ pub struct Swap<'info> {
     #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
     pub config_router: UncheckedAccount<'info>,
 
-    #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer)]
+    #[account(mut, seeds = [SEED_METADATA], bump)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
     #[account(mint::token_program = token_program_input)]
@@ -501,7 +498,6 @@ pub struct Swap<'info> {
     )]
     pub ta_output_router: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(address = ID)]
     pub express_relay_program: Program<'info, ExpressRelay>,
 
     pub token_program_input: Interface<'info, TokenInterface>,
