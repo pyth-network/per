@@ -175,6 +175,22 @@ pub mod express_relay {
             return err!(ErrorCode::InvalidReferralFee);
         }
 
+        validate_ata(
+            &ctx.accounts.ta_input_trader.key(),
+            &ctx.accounts.trader.key(),
+            &ctx.accounts.mint_input.key(),
+        )?;
+        validate_ata(
+            &ctx.accounts.ta_input_router.key(),
+            &ctx.accounts.router.key(),
+            &ctx.accounts.mint_input.key(),
+        )?;
+        validate_ata(
+            &ctx.accounts.ta_output_router.key(),
+            &ctx.accounts.router.key(),
+            &ctx.accounts.mint_output.key(),
+        )?;
+
         let (fees_input, fees_output) = match data.referral_fee_input {
             true => {
                 let fees_referral = compute_and_transfer_fee(
@@ -457,15 +473,19 @@ pub struct Swap<'info> {
     pub ta_input_searcher: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = searcher,
         token::mint = mint_output,
         token::authority = searcher,
         token::token_program = token_program_output
     )]
     pub ta_output_searcher: InterfaceAccount<'info, TokenAccount>,
 
+    // This account may not be initialized, and it should be set to the trader's ATA to prevent the trader from
+    // receiving the input tokens in an arbitrary token account. We perform this check within the instruction.
     #[account(
-        mut,
+        init_if_needed,
+        payer = searcher,
         token::mint = mint_input,
         token::authority = trader,
         token::token_program = token_program_input
@@ -480,6 +500,8 @@ pub struct Swap<'info> {
     )]
     pub ta_output_trader: InterfaceAccount<'info, TokenAccount>,
 
+    // This account may not be initialized, and it should be set to the router's ATA to prevent the router from
+    // receiving input tokens in an arbitrary token account. We perform this check within the instruction.
     #[account(
         init_if_needed,
         payer = searcher,
@@ -489,6 +511,8 @@ pub struct Swap<'info> {
     )]
     pub ta_input_router: InterfaceAccount<'info, TokenAccount>,
 
+    // This account may not be initialized, and it should be set to the router's ATA to prevent the router from
+    // receiving output tokens in an arbitrary token account. We perform this check within the instruction.
     #[account(
         init_if_needed,
         payer = searcher,

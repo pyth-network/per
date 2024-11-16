@@ -18,10 +18,13 @@ use {
         },
         Discriminator,
     },
-    anchor_spl::token_interface::{
-        self,
-        Mint,
-        TransferChecked as SplTransfer,
+    anchor_spl::{
+        associated_token::spl_associated_token_account::get_associated_token_address,
+        token_interface::{
+            self,
+            Mint,
+            TransferChecked as SplTransfer,
+        },
     },
 };
 
@@ -312,5 +315,12 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
         ctx.accounts.system_program.to_account_info(),
     )?;
 
+    Ok(())
+}
+
+pub fn validate_ata(ata: &Pubkey, owner: &Pubkey, mint: &Pubkey) -> Result<()> {
+    if *ata != get_associated_token_address(owner, mint) {
+        return err!(ErrorCode::InvalidAta);
+    }
     Ok(())
 }
