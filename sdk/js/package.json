@@ -1,6 +1,6 @@
 {
   "name": "@pythnetwork/express-relay-js",
-  "version": "0.13.5",
+  "version": "0.14.0",
   "description": "Utilities for interacting with the express relay protocol",
   "homepage": "https://github.com/pyth-network/per/tree/main/sdk/js",
   "author": "Douro Labs",
