@@ -18,10 +18,6 @@ use {
             submit_transaction,
         },
     },
-    anchor_spl::{
-        associated_token::get_associated_token_address,
-        token::ID as spl_token,
-    },
     express_relay::{
         state::SEED_SWAP,
         SwapArgs,
@@ -34,6 +30,8 @@ use {
         signer::Signer,
         transaction::TransactionError,
     },
+    spl_associated_token_account::get_associated_token_address,
+    spl_token::ID as SPL_TOKEN_PID,
 };
 
 pub struct SetupParams {
@@ -160,8 +158,8 @@ pub fn setup_bid(ixs_types: IxsType) -> BidInfo {
             let mint_output = Keypair::new();
             let mint_input_pk = mint_input.pubkey();
             let mint_output_pk = mint_output.pubkey();
-            let token_program_input = spl_token;
-            let token_program_output = spl_token;
+            let token_program_input = SPL_TOKEN_PID;
+            let token_program_output = SPL_TOKEN_PID;
             let swap_info = setup_swap_info(
                 mint_input,
                 mint_output,
@@ -188,7 +186,8 @@ pub fn setup_bid(ixs_types: IxsType) -> BidInfo {
                     trader.as_ref().unwrap().pubkey().as_ref(),
                     mint_input_pk.as_ref(),
                     mint_output_pk.as_ref(),
-                    &swap_args.nonce.to_le_bytes(),
+                    swap_args.amount_input.to_le_bytes().as_ref(),
+                    swap_args.amount_output.to_le_bytes().as_ref(),
                 ],
                 &express_relay::id(),
             )
@@ -205,7 +204,6 @@ pub fn setup_bid(ixs_types: IxsType) -> BidInfo {
                 &swap_info.token_accounts_trader,
                 &swap_info.token_accounts_router,
                 swap_info.referral_fee_info,
-                swap_args.nonce,
             )]
             .to_vec();
             tas_searcher = Some(swap_info.token_accounts_searcher);

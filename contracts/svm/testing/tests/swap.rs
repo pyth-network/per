@@ -19,7 +19,6 @@ use {
 pub fn test_swap_input_fee() {
     let amount_input = 100u64;
     let amount_output = 1000u64;
-    let nonce = 0u64;
     let referral_fee_input = true;
     let referral_fee_ppm = 10_000u64;
 
@@ -40,7 +39,6 @@ pub fn test_swap_input_fee() {
     } = setup_bid(IxsType::Swap(SwapArgs {
         amount_input,
         amount_output,
-        nonce,
         referral_fee_input,
         referral_fee_ppm,
     }));
@@ -122,7 +120,6 @@ pub fn test_swap_input_fee() {
 pub fn test_swap_output_fee() {
     let amount_input = 100u64;
     let amount_output = 1000u64;
-    let nonce = 0u64;
     let referral_fee_input = false;
     let referral_fee_ppm = 10_000u64;
 
@@ -143,7 +140,6 @@ pub fn test_swap_output_fee() {
     } = setup_bid(IxsType::Swap(SwapArgs {
         amount_input,
         amount_output,
-        nonce,
         referral_fee_input,
         referral_fee_ppm,
     }));
@@ -225,7 +221,6 @@ pub fn test_swap_output_fee() {
 pub fn test_swap_input_fee_referral_fee_rounding() {
     let amount_input = 99u64;
     let amount_output = 1000u64;
-    let nonce = 0u64;
     let referral_fee_input = true;
     let referral_fee_ppm = 10_000u64;
 
@@ -246,7 +241,6 @@ pub fn test_swap_input_fee_referral_fee_rounding() {
     } = setup_bid(IxsType::Swap(SwapArgs {
         amount_input,
         amount_output,
-        nonce,
         referral_fee_input,
         referral_fee_ppm,
     }));

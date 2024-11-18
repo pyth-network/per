@@ -48,7 +48,6 @@ pub fn swap_instruction(
     token_accounts_trader: &TokenAccounts,
     token_accounts_router: &TokenAccounts,
     referral_fee_info: ReferralFeeInfo,
-    nonce: u64,
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
     let config_router = get_config_router_key(router);
@@ -57,11 +56,10 @@ pub fn swap_instruction(
         program_id: express_relay::ID,
         data:       express_relay::instruction::Swap {
             data: SwapArgs {
-                amount_input: token_info_input.amount,
-                amount_output: token_info_output.amount,
-                nonce,
+                amount_input:       token_info_input.amount,
+                amount_output:      token_info_output.amount,
                 referral_fee_input: referral_fee_info.input,
-                referral_fee_ppm: referral_fee_info.ppm,
+                referral_fee_ppm:   referral_fee_info.ppm,
             },
         }
         .data(),

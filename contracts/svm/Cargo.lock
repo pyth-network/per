@@ -5668,7 +5668,6 @@ name = "testing"
 version = "0.3.0"
 dependencies = [
  "anchor-lang",
- "anchor-spl",
  "dummy",
  "express-relay",
  "litesvm",

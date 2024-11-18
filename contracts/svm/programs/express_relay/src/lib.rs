@@ -423,7 +423,6 @@ pub struct WithdrawFees<'info> {
 pub struct SwapArgs {
     pub amount_input:       u64,
     pub amount_output:      u64,
-    pub nonce:              u64,
     // The referral fee is specified in parts per million (e.g. 100 = 1 bp)
     pub referral_fee_ppm:   u64,
     // Whether the referral fee should be applied to the input token
@@ -443,7 +442,8 @@ pub struct Swap<'info> {
         trader.key().as_ref(),
         mint_input.key().as_ref(),
         mint_output.key().as_ref(),
-        &data.nonce.to_le_bytes(),
+        &data.amount_input.to_le_bytes(),
+        &data.amount_output.to_le_bytes(),
     ], bump)]
     pub permission: AccountInfo<'info>,
 
