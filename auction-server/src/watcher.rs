@@ -50,10 +50,11 @@ pub async fn run_watcher_loop_svm(store: Arc<Store>, chain_id: String) -> Result
                 .await,
             chain_store.get_and_store_recent_prioritization_fee().await,
         ) {
-            (Ok(result), Ok(_fee)) => {
+            (Ok(result), Ok(fee)) => {
                 store.broadcast_svm_chain_update(SvmChainUpdate {
-                    chain_id:  chain_id.clone(),
-                    blockhash: result.0,
+                    chain_id:                  chain_id.clone(),
+                    blockhash:                 result.0,
+                    latest_prioritization_fee: fee,
                 });
             }
             (Err(e), _) => {
