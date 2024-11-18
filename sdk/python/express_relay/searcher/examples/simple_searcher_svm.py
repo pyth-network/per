@@ -7,6 +7,7 @@ from typing import List
 
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Finalized
+from solders.compute_budget import set_compute_unit_price
 from solders.instruction import Instruction
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
@@ -33,7 +34,7 @@ DEADLINE = 2**62
 class SimpleSearcherSvm:
     express_relay_metadata: ExpressRelayMetadata | None
     mint_decimals_cache: typing.Dict[str, int]
-    recent_blockhash: typing.Dict[str, SvmHash]
+    latest_chain_update: typing.Dict[str, SvmChainUpdate]
 
     def __init__(
         self,
@@ -62,7 +63,7 @@ class SimpleSearcherSvm:
         self.limo_client = LimoClient(self.rpc_client)
         self.express_relay_metadata = None
         self.mint_decimals_cache = {}
-        self.recent_blockhash = {}
+        self.latest_chain_update = {}
 
         self.logger = logging.getLogger('searcher')
         self.setup_logger()
@@ -85,7 +86,7 @@ class SimpleSearcherSvm:
         Args:
             opp: An object representing a single opportunity.
         """
-        if opp.chain_id not in self.recent_blockhash:
+        if opp.chain_id not in self.latest_chain_update:
             self.logger.info(f"No recent blockhash for chain, {opp.chain_id} skipping bid")
             return None
 
@@ -153,11 +154,13 @@ class SimpleSearcherSvm:
             fee_receiver_relayer=(await self.get_metadata()).fee_receiver_relayer,
             relayer_signer=(await self.get_metadata()).relayer_signer,
         )
+        latest_chain_update = self.latest_chain_update[self.chain_id]
+        fee_instruction = set_compute_unit_price(latest_chain_update.latest_prioritization_fee)
         transaction = Transaction.new_with_payer(
-            [submit_bid_ix] + ixs_take_order, self.private_key.pubkey()
+            [fee_instruction, submit_bid_ix] + ixs_take_order, self.private_key.pubkey()
         )
         transaction.partial_sign(
-            [self.private_key], recent_blockhash=self.recent_blockhash[self.chain_id]
+            [self.private_key], recent_blockhash=latest_chain_update.blockhash
         )
         bid = BidSvm(transaction=transaction, chain_id=self.chain_id)
         return bid
@@ -224,7 +227,7 @@ class SimpleSearcherSvm:
         return self.bid_amount
 
     async def svm_chain_update_callback(self, svm_chain_update: SvmChainUpdate):
-        self.recent_blockhash[svm_chain_update.chain_id] = svm_chain_update.blockhash
+        self.latest_chain_update[svm_chain_update.chain_id] = svm_chain_update
 
     # NOTE: Developers are responsible for implementing custom removal logic specific to their use case.
     async def remove_opportunities_callback(

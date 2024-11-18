@@ -120,14 +120,17 @@ use {
         time::Duration,
     },
     time::UtcOffset,
-    tokio::sync::{
-        broadcast::{
-            self,
-            Receiver,
-            Sender,
+    tokio::{
+        sync::{
+            broadcast::{
+                self,
+                Receiver,
+                Sender,
+            },
+            Mutex,
+            RwLock,
         },
-        Mutex,
-        RwLock,
+        time::Instant,
     },
     tokio_util::task::TaskTracker,
     utoipa::{
@@ -559,6 +562,14 @@ impl ChainStoreEvm {
     }
 }
 
+pub type MicroLamports = u64;
+#[derive(Clone, Debug)]
+struct PrioritizationFeeSample {
+    ///micro-lamports per compute unit.
+    fee:         MicroLamports,
+    sample_time: Instant,
+}
+
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
@@ -566,14 +577,13 @@ pub struct ChainStoreSvm {
     log_sender:                        Sender<Response<RpcLogsResponse>>,
     // only to avoid closing the channel
     _dummy_log_receiver:               Receiver<Response<RpcLogsResponse>>,
+    recent_prioritization_fees:        RwLock<VecDeque<PrioritizationFeeSample>>,
     pub client:                        RpcClient,
     pub config:                        ConfigSvm,
     pub express_relay_svm:             ExpressRelaySvm,
     pub wallet_program_router_account: Pubkey,
     pub name:                          String,
     pub lookup_table_cache:            LookupTableCache,
-    /// Recent network prioritization fees in micro-lamports per compute unit.
-    pub recent_prioritization_fees:    RwLock<VecDeque<u64>>,
 }
 
 const SVM_SEND_TRANSACTION_RETRY_COUNT: i32 = 5;
@@ -736,15 +746,41 @@ impl ChainStoreSvm {
 
     /// Polls an estimate of recent priotization fees and stores it in `recent_prioritization_fees`.
     /// `recent_prioritization_fees` stores the last 12 estimates received.
-    pub async fn get_and_store_recent_prioritization_fee(&self) -> Result<u64, ClientError> {
+    pub async fn get_and_store_recent_prioritization_fee(
+        &self,
+    ) -> Result<MicroLamports, ClientError> {
         let fee = self.get_median_prioritization_fee().await?;
         let mut write_guard = self.recent_prioritization_fees.write().await;
-        write_guard.push_back(fee);
+        let sample = PrioritizationFeeSample {
+            fee,
+            sample_time: Instant::now(),
+        };
+        tracing::info!("Last prioritization fee: {:?}", sample);
+        write_guard.push_back(sample);
         if write_guard.len() > 12 {
             write_guard.pop_front();
         }
-        tracing::info!("Recent prioritization fees: {:?}", write_guard);
         Ok(fee)
+    }
+
+    /// Get the minimum prioritization fee that is acceptable for submission on chain.
+    /// In order to avoid rejection of transactions because of recent changes in the priority fees,
+    /// we consider the minimum priority fee that was acceptable in the last 15 seconds.
+    /// This timeframe should include at least 2 samples, otherwise we will reject bids if the
+    /// latest sample is higher than the previous one and the searchers have not updated their
+    /// priority fees fast enough.
+    pub async fn get_minimum_acceptable_prioritization_fee(&self) -> Option<MicroLamports> {
+        let budgets = self.recent_prioritization_fees.read().await;
+        budgets
+            .iter()
+            .filter_map(|b| {
+                if b.sample_time.elapsed() < Duration::from_secs(15) {
+                    Some(b.fee)
+                } else {
+                    None
+                }
+            })
+            .min()
     }
 }
 
@@ -1644,7 +1680,9 @@ impl Store {
 #[serde_as]
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct SvmChainUpdate {
-    pub chain_id:  ChainId,
+    pub chain_id:                  ChainId,
     #[serde_as(as = "DisplayFromStr")]
-    pub blockhash: Hash,
+    pub blockhash:                 Hash,
+    /// The prioritization fee that the server suggests to use for the next transaction
+    pub latest_prioritization_fee: MicroLamports,
 }

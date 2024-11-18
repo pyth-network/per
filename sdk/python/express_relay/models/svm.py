@@ -324,6 +324,7 @@ class SvmChainUpdate(BaseModel):
     """
     chain_id: str
     blockhash: SvmHash
+    latest_prioritization_fee: int
 
 
 class ProgramSvm(Enum):

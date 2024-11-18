@@ -50,6 +50,7 @@ anchor-lang = "0.30.1"
 express-relay = { path = "../contracts/svm/programs/express_relay" }
 solana-rpc-client = "2.0.13"
 solana-transaction-status = "2.0.13"
+borsh = "1.5.1"
 
 # The curve25519-dalek crate is a dependency of solana-sdk.
 # This crate relies on a specific version of zeroize that is incompatible with many other packages.

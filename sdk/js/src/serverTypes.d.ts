@@ -26,7 +26,7 @@ export interface paths {
      * Fetch opportunities ready for execution or historical opportunities
      * @description depending on the mode. You need to provide `chain_id` for historical mode.
      * Opportunities are sorted by creation time in ascending order.
-     * Total number of opportunities returned is limited by 20.
+     * Total number of opportunities returned is capped by the server to preserve bandwidth.
      */
     get: operations["get_opportunities"];
     /**
@@ -773,6 +773,7 @@ export interface components {
     SvmChainUpdate: {
       blockhash: components["schemas"]["Hash"];
       chain_id: components["schemas"]["ChainId"];
+      latest_prioritization_fee: components["schemas"]["MicroLamports"];
     };
     TokenAmountEvm: {
       /**
@@ -926,7 +927,7 @@ export interface operations {
    * Fetch opportunities ready for execution or historical opportunities
    * @description depending on the mode. You need to provide `chain_id` for historical mode.
    * Opportunities are sorted by creation time in ascending order.
-   * Total number of opportunities returned is limited by 20.
+   * Total number of opportunities returned is capped by the server to preserve bandwidth.
    */
   get_opportunities: {
     parameters: {
@@ -946,7 +947,7 @@ export interface operations {
          */
         from_time?: string | null;
         /**
-         * @description The maximum number of opportunities to return. Capped at 100.
+         * @description The maximum number of opportunities to return. Capped at 100; if more than 100 requested, at most 100 will be returned.
          * @example 20
          */
         limit?: number;
