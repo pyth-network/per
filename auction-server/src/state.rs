@@ -66,6 +66,7 @@ use {
         DisplayFromStr,
     },
     solana_client::{
+        client_error::ClientError,
         nonblocking::rpc_client::RpcClient,
         rpc_config::{
             RpcSendTransactionConfig,
@@ -75,6 +76,7 @@ use {
         rpc_response::{
             Response,
             RpcLogsResponse,
+            RpcPrioritizationFee,
         },
     },
     solana_rpc_client::rpc_client::RpcClientConfig,
@@ -103,7 +105,10 @@ use {
         QueryBuilder,
     },
     std::{
-        collections::HashMap,
+        collections::{
+            HashMap,
+            VecDeque,
+        },
         default::Default,
         num::ParseIntError,
         ops::Deref,
@@ -115,14 +120,17 @@ use {
         time::Duration,
     },
     time::UtcOffset,
-    tokio::sync::{
-        broadcast,
-        broadcast::{
-            Receiver,
-            Sender,
+    tokio::{
+        sync::{
+            broadcast::{
+                self,
+                Receiver,
+                Sender,
+            },
+            Mutex,
+            RwLock,
         },
-        Mutex,
-        RwLock,
+        time::Instant,
     },
     tokio_util::task::TaskTracker,
     utoipa::{
@@ -554,6 +562,14 @@ impl ChainStoreEvm {
     }
 }
 
+pub type MicroLamports = u64;
+#[derive(Clone, Debug)]
+struct PrioritizationFeeSample {
+    ///micro-lamports per compute unit.
+    fee:         MicroLamports,
+    sample_time: Instant,
+}
+
 pub struct ChainStoreSvm {
     pub core_fields: ChainStoreCoreFields<SimulatedBidSvm>,
 
@@ -561,6 +577,7 @@ pub struct ChainStoreSvm {
     log_sender:                        Sender<Response<RpcLogsResponse>>,
     // only to avoid closing the channel
     _dummy_log_receiver:               Receiver<Response<RpcLogsResponse>>,
+    recent_prioritization_fees:        RwLock<VecDeque<PrioritizationFeeSample>>,
     pub client:                        RpcClient,
     pub config:                        ConfigSvm,
     pub express_relay_svm:             ExpressRelaySvm,
@@ -570,6 +587,7 @@ pub struct ChainStoreSvm {
 }
 
 const SVM_SEND_TRANSACTION_RETRY_COUNT: i32 = 5;
+const RECENT_FEES_SLOT_WINDOW: usize = 12;
 
 impl ChainStoreSvm {
     pub fn new(chain_id: String, config: ConfigSvm, relayer: Arc<Keypair>) -> Self {
@@ -607,6 +625,7 @@ impl ChainStoreSvm {
             config,
             express_relay_svm,
             lookup_table_cache: Default::default(),
+            recent_prioritization_fees: RwLock::new(vec![].into()),
         }
     }
 
@@ -688,6 +707,80 @@ impl ChainStoreSvm {
             }
         });
         Ok(res)
+    }
+
+    /// Returns an estimate of recent priotization fees.
+    /// For each of the last 150 slots, `self.client` returns the `config.prioritization_fee_percentile`th percentile
+    /// of prioritization fees for transactions that landed in that slot.
+    /// The median of such values for the `RECENT_FEES_SLOT_WINDOW` most recent slots is returned.
+    pub async fn get_median_prioritization_fee(&self) -> Result<u64, ClientError> {
+        let accounts: Vec<String> = vec![];
+        let mut args: Vec<serde_json::Value> = vec![serde_json::to_value(accounts)?];
+
+        if let Some(percentile) = self.config.prioritization_fee_percentile {
+            args.push(serde_json::json!({ "percentile": percentile }));
+        }
+
+        fn median(values: &mut [u64]) -> u64 {
+            let mid = values.len() / 2;
+            *values.select_nth_unstable(mid).1
+        }
+
+        self.client
+            .send(
+                solana_client::rpc_request::RpcRequest::GetRecentPrioritizationFees,
+                serde_json::Value::from(args),
+            )
+            .await
+            .map(|mut values: Vec<RpcPrioritizationFee>| {
+                values.sort_by(|a, b| b.slot.cmp(&a.slot));
+                median(
+                    &mut values
+                        .iter()
+                        .take(RECENT_FEES_SLOT_WINDOW)
+                        .map(|fee| fee.prioritization_fee)
+                        .collect::<Vec<u64>>(),
+                )
+            })
+    }
+
+    /// Polls an estimate of recent priotization fees and stores it in `recent_prioritization_fees`.
+    /// `recent_prioritization_fees` stores the last 12 estimates received.
+    pub async fn get_and_store_recent_prioritization_fee(
+        &self,
+    ) -> Result<MicroLamports, ClientError> {
+        let fee = self.get_median_prioritization_fee().await?;
+        let mut write_guard = self.recent_prioritization_fees.write().await;
+        let sample = PrioritizationFeeSample {
+            fee,
+            sample_time: Instant::now(),
+        };
+        tracing::info!("Last prioritization fee: {:?}", sample);
+        write_guard.push_back(sample);
+        if write_guard.len() > 12 {
+            write_guard.pop_front();
+        }
+        Ok(fee)
+    }
+
+    /// Get the minimum prioritization fee that is acceptable for submission on chain.
+    /// In order to avoid rejection of transactions because of recent changes in the priority fees,
+    /// we consider the minimum priority fee that was acceptable in the last 15 seconds.
+    /// This timeframe should include at least 2 samples, otherwise we will reject bids if the
+    /// latest sample is higher than the previous one and the searchers have not updated their
+    /// priority fees fast enough.
+    pub async fn get_minimum_acceptable_prioritization_fee(&self) -> Option<MicroLamports> {
+        let budgets = self.recent_prioritization_fees.read().await;
+        budgets
+            .iter()
+            .filter_map(|b| {
+                if b.sample_time.elapsed() < Duration::from_secs(15) {
+                    Some(b.fee)
+                } else {
+                    None
+                }
+            })
+            .min()
     }
 }
 
@@ -1587,7 +1680,9 @@ impl Store {
 #[serde_as]
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct SvmChainUpdate {
-    pub chain_id:  ChainId,
+    pub chain_id:                  ChainId,
     #[serde_as(as = "DisplayFromStr")]
-    pub blockhash: Hash,
+    pub blockhash:                 Hash,
+    /// The prioritization fee that the server suggests to use for the next transaction
+    pub latest_prioritization_fee: MicroLamports,
 }

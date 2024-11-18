@@ -167,4 +167,9 @@ pub struct ConfigSvm {
     /// The router account for Phantom.
     #[serde_as(as = "DisplayFromStr")]
     pub wallet_program_router_account: Pubkey,
+    #[serde(default)]
+    /// Percentile of prioritization fees to query from the `rpc_read_url`.
+    /// This should be None unless the RPC `getRecentPrioritizationFees`'s supports the percentile parameter, for example Triton RPC.
+    /// It is an integer between 0 and 10000 with 10000 representing 100%.
+    pub prioritization_fee_percentile: Option<u64>,
 }
