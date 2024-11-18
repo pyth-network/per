@@ -28,6 +28,8 @@ class CreateOrderAccounts(typing.TypedDict):
     input_vault: Pubkey
     input_token_program: Pubkey
     output_token_program: Pubkey
+    event_authority: Pubkey
+    program: Pubkey
 
 
 def create_order(
@@ -55,6 +57,10 @@ def create_order(
         AccountMeta(
             pubkey=accounts["output_token_program"], is_signer=False, is_writable=False
         ),
+        AccountMeta(
+            pubkey=accounts["event_authority"], is_signer=False, is_writable=False
+        ),
+        AccountMeta(pubkey=accounts["program"], is_signer=False, is_writable=False),
     ]
     if remaining_accounts is not None:
         keys += remaining_accounts
