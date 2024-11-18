@@ -15,6 +15,7 @@ import { hideBin } from "yargs/helpers";
 import {
   AddressLookupTableAccount,
   Blockhash,
+  ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
@@ -51,7 +52,7 @@ export class DexRouter {
   private lookupTableAccounts: Record<string, AddressLookupTableAccount> = {};
   private connectionSvm: Connection;
   private expressRelayConfig?: ExpressRelaySvmConfig;
-  private recentBlockhash: Record<ChainId, Blockhash> = {};
+  private latestChainUpdate: Record<ChainId, SvmChainUpdate> = {};
   private readonly routers: Router[];
   private readonly executor: Keypair;
   private readonly chainId: string;
@@ -125,7 +126,7 @@ export class DexRouter {
   }
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
-    this.recentBlockhash[update.chain_id] = update.blockhash;
+    this.latestChainUpdate[update.chain_id] = update;
   }
 
   async getMintDecimalsCached(mint: PublicKey): Promise<number> {
@@ -321,18 +322,24 @@ export class DexRouter {
     instructions: TransactionInstruction[],
     routerLookupTableAddresses: PublicKey[]
   ): Promise<VersionedTransaction> {
-    if (!this.recentBlockhash[this.chainId]) {
+    if (!this.latestChainUpdate[this.chainId]) {
       console.log(
         `No recent blockhash for chain ${this.chainId}, getting manually`
       );
-      this.recentBlockhash[this.chainId] = (
+      this.latestChainUpdate[this.chainId] = (
         await this.connectionSvm.getLatestBlockhash("confirmed")
       ).blockhash;
+    } else {
+      const feeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+        microLamports:
+          this.latestChainUpdate[this.chainId].latest_prioritization_fee,
+      });
+      instructions.unshift(feeInstruction);
     }
 
     const txMsg = new TransactionMessage({
       payerKey: this.executor.publicKey,
-      recentBlockhash: this.recentBlockhash[this.chainId],
+      recentBlockhash: this.latestChainUpdate[this.chainId].blockhash,
       instructions,
     });
 
