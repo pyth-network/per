@@ -166,7 +166,13 @@ export class Client {
         }
       } else if ("type" in message && message.type === "svm_chain_update") {
         if (typeof this.websocketSvmChainUpdateCallback === "function") {
-          await this.websocketSvmChainUpdateCallback(message.update);
+          await this.websocketSvmChainUpdateCallback({
+            chainId: message.update.chain_id,
+            blockhash: message.update.blockhash,
+            latestPrioritizationFee: BigInt(
+              message.update.latest_prioritization_fee
+            ),
+          });
         }
       } else if ("type" in message && message.type === "remove_opportunities") {
         if (typeof this.websocketRemoveOpportunitiesCallback === "function") {

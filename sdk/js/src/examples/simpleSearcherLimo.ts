@@ -103,7 +103,7 @@ export class SimpleSearcherLimo {
     const ixsTakeOrder = await this.generateTakeOrderIxs(limoClient, order);
     const feeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
       microLamports:
-        this.latestChainUpdate[this.chainId].latest_prioritization_fee,
+        this.latestChainUpdate[this.chainId].latestPrioritizationFee,
     });
     const txRaw = new anchor.web3.Transaction().add(
       feeInstruction,
@@ -236,7 +236,7 @@ export class SimpleSearcherLimo {
   }
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
-    this.latestChainUpdate[update.chain_id] = update;
+    this.latestChainUpdate[update.chainId] = update;
   }
 
   // NOTE: Developers are responsible for implementing custom removal logic specific to their use case.
