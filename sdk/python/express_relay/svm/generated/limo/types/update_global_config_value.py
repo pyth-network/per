@@ -7,9 +7,11 @@ import borsh_construct as borsh
 
 BoolJSONValue = tuple[bool]
 U16JSONValue = tuple[int]
+U64JSONValue = tuple[int]
 PubkeyJSONValue = tuple[str]
 BoolValue = tuple[bool]
 U16Value = tuple[int]
+U64Value = tuple[int]
 PubkeyValue = tuple[Pubkey]
 
 
@@ -21,6 +23,11 @@ class BoolJSON(typing.TypedDict):
 class U16JSON(typing.TypedDict):
     value: U16JSONValue
     kind: typing.Literal["U16"]
+
+
+class U64JSON(typing.TypedDict):
+    value: U64JSONValue
+    kind: typing.Literal["U64"]
 
 
 class PubkeyJSON(typing.TypedDict):
@@ -69,8 +76,28 @@ class U16:
 
 
 @dataclass
-class Pubkey:
+class U64:
     discriminator: typing.ClassVar = 2
+    kind: typing.ClassVar = "U64"
+    value: U64Value
+
+    def to_json(self) -> U64JSON:
+        return U64JSON(
+            kind="U64",
+            value=(self.value[0],),
+        )
+
+    def to_encodable(self) -> dict:
+        return {
+            "U64": {
+                "item_0": self.value[0],
+            },
+        }
+
+
+@dataclass
+class Pubkey:
+    discriminator: typing.ClassVar = 3
     kind: typing.ClassVar = "Pubkey"
     value: PubkeyValue
 
@@ -88,8 +115,8 @@ class Pubkey:
         }
 
 
-UpdateGlobalConfigValueKind = typing.Union[Bool, U16, Pubkey]
-UpdateGlobalConfigValueJSON = typing.Union[BoolJSON, U16JSON, PubkeyJSON]
+UpdateGlobalConfigValueKind = typing.Union[Bool, U16, U64, Pubkey]
+UpdateGlobalConfigValueJSON = typing.Union[BoolJSON, U16JSON, U64JSON, PubkeyJSON]
 
 
 def from_decoded(obj: dict) -> UpdateGlobalConfigValueKind:
@@ -101,6 +128,9 @@ def from_decoded(obj: dict) -> UpdateGlobalConfigValueKind:
     if "U16" in obj:
         val = obj["U16"]
         return U16((val["item_0"],))
+    if "U64" in obj:
+        val = obj["U64"]
+        return U64((val["item_0"],))
     if "Pubkey" in obj:
         val = obj["Pubkey"]
         return Pubkey((val["item_0"],))
@@ -114,6 +144,9 @@ def from_json(obj: UpdateGlobalConfigValueJSON) -> UpdateGlobalConfigValueKind:
     if obj["kind"] == "U16":
         u16json_value = typing.cast(U16JSONValue, obj["value"])
         return U16((u16json_value[0],))
+    if obj["kind"] == "U64":
+        u64json_value = typing.cast(U64JSONValue, obj["value"])
+        return U64((u64json_value[0],))
     if obj["kind"] == "Pubkey":
         pubkey_json_value = typing.cast(PubkeyJSONValue, obj["value"])
         return Pubkey((Pubkey.from_string(pubkey_json_value[0]),))
@@ -124,5 +157,6 @@ def from_json(obj: UpdateGlobalConfigValueJSON) -> UpdateGlobalConfigValueKind:
 layout = EnumForCodegen(
     "Bool" / borsh.CStruct("item_0" / borsh.Bool),
     "U16" / borsh.CStruct("item_0" / borsh.U16),
+    "U64" / borsh.CStruct("item_0" / borsh.U64),
     "Pubkey" / borsh.CStruct("item_0" / BorshPubkey),
 )

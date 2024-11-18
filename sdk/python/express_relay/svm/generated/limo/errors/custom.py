@@ -284,6 +284,64 @@ class PermissionRequiredPermissionlessNotEnabled(ProgramError):
     msg = "Permissionless order taking not enabled, please provide permission account"
 
 
+class PermissionDoesNotMatchOrder(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6030, "Permission address does not match order address")
+
+    code = 6030
+    name = "PermissionDoesNotMatchOrder"
+    msg = "Permission address does not match order address"
+
+
+class InvalidAtaAddress(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6031, "Invalid ata address")
+
+    code = 6031
+    name = "InvalidAtaAddress"
+    msg = "Invalid ata address"
+
+
+class MakerOutputAtaRequired(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6032, "Maker output ata required when output mint is not WSOL")
+
+    code = 6032
+    name = "MakerOutputAtaRequired"
+    msg = "Maker output ata required when output mint is not WSOL"
+
+
+class IntermediaryOutputTokenAccountRequired(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(
+            6033, "Intermediary output token account required when output mint is WSOL"
+        )
+
+    code = 6033
+    name = "IntermediaryOutputTokenAccountRequired"
+    msg = "Intermediary output token account required when output mint is WSOL"
+
+
+class NotEnoughBalanceForRent(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6034, "Not enough balance for rent")
+
+    code = 6034
+    name = "NotEnoughBalanceForRent"
+    msg = "Not enough balance for rent"
+
+
+class NotEnoughTimePassedSinceLastUpdate(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(
+            6035, "Order can not be closed - Not enough time passed since last update"
+        )
+
+    code = 6035
+    name = "NotEnoughTimePassedSinceLastUpdate"
+    msg = "Order can not be closed - Not enough time passed since last update"
+
+
 CustomError = typing.Union[
     OrderCanNotBeCanceled,
     OrderNotActive,
@@ -315,6 +373,12 @@ CustomError = typing.Union[
     OrderTakingBlocked,
     OrderInputAmountTooLarge,
     PermissionRequiredPermissionlessNotEnabled,
+    PermissionDoesNotMatchOrder,
+    InvalidAtaAddress,
+    MakerOutputAtaRequired,
+    IntermediaryOutputTokenAccountRequired,
+    NotEnoughBalanceForRent,
+    NotEnoughTimePassedSinceLastUpdate,
 ]
 CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6000: OrderCanNotBeCanceled(),
@@ -347,6 +411,12 @@ CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6027: OrderTakingBlocked(),
     6028: OrderInputAmountTooLarge(),
     6029: PermissionRequiredPermissionlessNotEnabled(),
+    6030: PermissionDoesNotMatchOrder(),
+    6031: InvalidAtaAddress(),
+    6032: MakerOutputAtaRequired(),
+    6033: IntermediaryOutputTokenAccountRequired(),
+    6034: NotEnoughBalanceForRent(),
+    6035: NotEnoughTimePassedSinceLastUpdate(),
 }
 
 

@@ -2,32 +2,22 @@ from __future__ import annotations
 import typing
 from solders.pubkey import Pubkey
 from solders.instruction import Instruction, AccountMeta
-import borsh_construct as borsh
 from ..program_id import PROGRAM_ID
 
 
-class UpdateGlobalConfigArgs(typing.TypedDict):
-    mode: int
-    value: list[int]
-
-
-layout = borsh.CStruct("mode" / borsh.U16, "value" / borsh.U8[128])
-
-
-class UpdateGlobalConfigAccounts(typing.TypedDict):
-    admin_authority: Pubkey
+class UpdateGlobalConfigAdminAccounts(typing.TypedDict):
+    admin_authority_cached: Pubkey
     global_config: Pubkey
 
 
-def update_global_config(
-    args: UpdateGlobalConfigArgs,
-    accounts: UpdateGlobalConfigAccounts,
+def update_global_config_admin(
+    accounts: UpdateGlobalConfigAdminAccounts,
     program_id: Pubkey = PROGRAM_ID,
     remaining_accounts: typing.Optional[typing.List[AccountMeta]] = None,
 ) -> Instruction:
     keys: list[AccountMeta] = [
         AccountMeta(
-            pubkey=accounts["admin_authority"], is_signer=True, is_writable=True
+            pubkey=accounts["admin_authority_cached"], is_signer=True, is_writable=False
         ),
         AccountMeta(
             pubkey=accounts["global_config"], is_signer=False, is_writable=True
@@ -35,12 +25,7 @@ def update_global_config(
     ]
     if remaining_accounts is not None:
         keys += remaining_accounts
-    identifier = b"\xa4T\x82\xbdo:\xfa\xc8"
-    encoded_args = layout.build(
-        {
-            "mode": args["mode"],
-            "value": args["value"],
-        }
-    )
+    identifier = b"\xb8W\x17\xc1\x9c\xee\xafw"
+    encoded_args = b""
     data = identifier + encoded_args
     return Instruction(program_id, data, keys)

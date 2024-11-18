@@ -12,9 +12,12 @@ class CloseOrderAndClaimTipAccounts(typing.TypedDict):
     global_config: Pubkey
     pda_authority: Pubkey
     input_mint: Pubkey
+    output_mint: Pubkey
     maker_input_ata: Pubkey
     input_vault: Pubkey
     input_token_program: Pubkey
+    event_authority: Pubkey
+    program: Pubkey
 
 
 def close_order_and_claim_tip(
@@ -32,6 +35,7 @@ def close_order_and_claim_tip(
             pubkey=accounts["pda_authority"], is_signer=False, is_writable=True
         ),
         AccountMeta(pubkey=accounts["input_mint"], is_signer=False, is_writable=False),
+        AccountMeta(pubkey=accounts["output_mint"], is_signer=False, is_writable=False),
         AccountMeta(
             pubkey=accounts["maker_input_ata"], is_signer=False, is_writable=True
         ),
@@ -40,6 +44,10 @@ def close_order_and_claim_tip(
             pubkey=accounts["input_token_program"], is_signer=False, is_writable=False
         ),
         AccountMeta(pubkey=SYS_PROGRAM_ID, is_signer=False, is_writable=False),
+        AccountMeta(
+            pubkey=accounts["event_authority"], is_signer=False, is_writable=False
+        ),
+        AccountMeta(pubkey=accounts["program"], is_signer=False, is_writable=False),
     ]
     if remaining_accounts is not None:
         keys += remaining_accounts

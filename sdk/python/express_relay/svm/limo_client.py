@@ -29,6 +29,8 @@ ESCROW_VAULT_SEED = b"escrow_vault"
 GLOBAL_AUTH_SEED = b"authority"
 EXPRESS_RELAY_MEATADATA_SEED = b"metadata"
 EXPRESS_RELAY_CONFIG_ROUTER_SEED = b"config_router"
+EVENT_AUTH_SEED = b"__event_authority"
+INTERMEDIARY_OUTPUT_TOKEN_ACCOUNT_SEED = b"intermediary"
 
 
 class OrderStateAndAddress(TypedDict):
@@ -231,6 +233,7 @@ class LimoClient:
             ixs.extend(create_taker_input_ata_ixs)
 
         taker_output_ata: Pubkey
+        intermediary_output_token_account: Pubkey | None = None
         if order["state"].output_mint == WRAPPED_SOL_MINT:
             instructions = await self.get_init_if_needed_wsol_create_and_close_ixs(
                 owner=taker, payer=taker, amount_to_deposit_lamports=output_amount
@@ -239,6 +242,8 @@ class LimoClient:
             ixs.extend(instructions["fill_ixs"])
             close_wsol_ixns.extend(instructions["close_ixs"])
             taker_output_ata = instructions["ata"]
+
+            intermediary_output_token_account = self.get_intermediary_token_account_pda(PROGRAM_ID, order["address"])
         else:
             (
                 taker_output_ata,
@@ -285,6 +290,7 @@ class LimoClient:
                     ),
                     "taker_input_ata": taker_input_ata,
                     "taker_output_ata": taker_output_ata,
+                    "intermediary_output_token_account": intermediary_output_token_account,
                     "maker_output_ata": maker_output_ata,
                     "express_relay": express_relay_program_id,
                     "express_relay_metadata": self.get_express_relay_metadata_pda(
@@ -297,6 +303,8 @@ class LimoClient:
                     ),
                     "input_token_program": order["state"].input_mint_program_id,
                     "output_token_program": order["state"].output_mint_program_id,
+                    "event_authority": self.get_event_authority(),
+                    "program": PROGRAM_ID,
                 },
             )
         )
@@ -347,3 +355,15 @@ class LimoClient:
             program_id=ASSOCIATED_TOKEN_PROGRAM_ID,
         )
         return ata
+
+    @staticmethod
+    def get_event_authority() -> Pubkey:
+        return Pubkey.find_program_address(
+            seeds=[EVENT_AUTH_SEED], program_id=PROGRAM_ID
+        )[0]
+
+    @staticmethod
+    def get_intermediary_token_account_pda(program_id: Pubkey, order_address: Pubkey) -> Pubkey:
+        return Pubkey.find_program_address(
+            seeds=[INTERMEDIARY_OUTPUT_TOKEN_ACCOUNT_SEED, bytes(order_address)], program_id=program_id
+        )[0]

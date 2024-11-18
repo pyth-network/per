@@ -19,6 +19,7 @@ class GlobalConfigJSON(typing.TypedDict):
     host_fee_bps: int
     is_order_taking_permissionless: int
     padding0: list[int]
+    order_close_delay_seconds: int
     padding1: list[int]
     pda_authority_previous_lamports_balance: int
     total_tip_amount: int
@@ -26,6 +27,7 @@ class GlobalConfigJSON(typing.TypedDict):
     pda_authority: str
     pda_authority_bump: int
     admin_authority: str
+    admin_authority_cached: str
     padding2: list[int]
 
 
@@ -40,14 +42,16 @@ class GlobalConfig:
         "host_fee_bps" / borsh.U16,
         "is_order_taking_permissionless" / borsh.U8,
         "padding0" / borsh.U8[1],
-        "padding1" / borsh.U64[10],
+        "order_close_delay_seconds" / borsh.U64,
+        "padding1" / borsh.U64[9],
         "pda_authority_previous_lamports_balance" / borsh.U64,
         "total_tip_amount" / borsh.U64,
         "host_tip_amount" / borsh.U64,
         "pda_authority" / BorshPubkey,
         "pda_authority_bump" / borsh.U64,
         "admin_authority" / BorshPubkey,
-        "padding2" / borsh.U64[247],
+        "admin_authority_cached" / BorshPubkey,
+        "padding2" / borsh.U64[243],
     )
     emergency_mode: int
     flash_take_order_blocked: int
@@ -56,6 +60,7 @@ class GlobalConfig:
     host_fee_bps: int
     is_order_taking_permissionless: int
     padding0: list[int]
+    order_close_delay_seconds: int
     padding1: list[int]
     pda_authority_previous_lamports_balance: int
     total_tip_amount: int
@@ -63,6 +68,7 @@ class GlobalConfig:
     pda_authority: Pubkey
     pda_authority_bump: int
     admin_authority: Pubkey
+    admin_authority_cached: Pubkey
     padding2: list[int]
 
     @classmethod
@@ -116,6 +122,7 @@ class GlobalConfig:
             host_fee_bps=dec.host_fee_bps,
             is_order_taking_permissionless=dec.is_order_taking_permissionless,
             padding0=dec.padding0,
+            order_close_delay_seconds=dec.order_close_delay_seconds,
             padding1=dec.padding1,
             pda_authority_previous_lamports_balance=dec.pda_authority_previous_lamports_balance,
             total_tip_amount=dec.total_tip_amount,
@@ -123,6 +130,7 @@ class GlobalConfig:
             pda_authority=dec.pda_authority,
             pda_authority_bump=dec.pda_authority_bump,
             admin_authority=dec.admin_authority,
+            admin_authority_cached=dec.admin_authority_cached,
             padding2=dec.padding2,
         )
 
@@ -135,6 +143,7 @@ class GlobalConfig:
             "host_fee_bps": self.host_fee_bps,
             "is_order_taking_permissionless": self.is_order_taking_permissionless,
             "padding0": self.padding0,
+            "order_close_delay_seconds": self.order_close_delay_seconds,
             "padding1": self.padding1,
             "pda_authority_previous_lamports_balance": self.pda_authority_previous_lamports_balance,
             "total_tip_amount": self.total_tip_amount,
@@ -142,6 +151,7 @@ class GlobalConfig:
             "pda_authority": str(self.pda_authority),
             "pda_authority_bump": self.pda_authority_bump,
             "admin_authority": str(self.admin_authority),
+            "admin_authority_cached": str(self.admin_authority_cached),
             "padding2": self.padding2,
         }
 
@@ -155,6 +165,7 @@ class GlobalConfig:
             host_fee_bps=obj["host_fee_bps"],
             is_order_taking_permissionless=obj["is_order_taking_permissionless"],
             padding0=obj["padding0"],
+            order_close_delay_seconds=obj["order_close_delay_seconds"],
             padding1=obj["padding1"],
             pda_authority_previous_lamports_balance=obj[
                 "pda_authority_previous_lamports_balance"
@@ -164,5 +175,6 @@ class GlobalConfig:
             pda_authority=Pubkey.from_string(obj["pda_authority"]),
             pda_authority_bump=obj["pda_authority_bump"],
             admin_authority=Pubkey.from_string(obj["admin_authority"]),
+            admin_authority_cached=Pubkey.from_string(obj["admin_authority_cached"]),
             padding2=obj["padding2"],
         )

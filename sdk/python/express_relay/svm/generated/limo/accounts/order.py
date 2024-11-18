@@ -30,6 +30,7 @@ class OrderJSON(typing.TypedDict):
     flash_ix_lock: int
     padding0: list[int]
     last_updated_timestamp: int
+    flash_start_taker_output_balance: int
     padding: list[int]
 
 
@@ -55,7 +56,8 @@ class Order:
         "flash_ix_lock" / borsh.U8,
         "padding0" / borsh.U8[4],
         "last_updated_timestamp" / borsh.U64,
-        "padding" / borsh.U64[20],
+        "flash_start_taker_output_balance" / borsh.U64,
+        "padding" / borsh.U64[19],
     )
     global_config: Pubkey
     maker: Pubkey
@@ -75,6 +77,7 @@ class Order:
     flash_ix_lock: int
     padding0: list[int]
     last_updated_timestamp: int
+    flash_start_taker_output_balance: int
     padding: list[int]
 
     @classmethod
@@ -139,6 +142,7 @@ class Order:
             flash_ix_lock=dec.flash_ix_lock,
             padding0=dec.padding0,
             last_updated_timestamp=dec.last_updated_timestamp,
+            flash_start_taker_output_balance=dec.flash_start_taker_output_balance,
             padding=dec.padding,
         )
 
@@ -162,6 +166,7 @@ class Order:
             "flash_ix_lock": self.flash_ix_lock,
             "padding0": self.padding0,
             "last_updated_timestamp": self.last_updated_timestamp,
+            "flash_start_taker_output_balance": self.flash_start_taker_output_balance,
             "padding": self.padding,
         }
 
@@ -186,5 +191,6 @@ class Order:
             flash_ix_lock=obj["flash_ix_lock"],
             padding0=obj["padding0"],
             last_updated_timestamp=obj["last_updated_timestamp"],
+            flash_start_taker_output_balance=obj["flash_start_taker_output_balance"],
             padding=obj["padding"],
         )

@@ -24,4 +24,8 @@ from .update_global_config import (
     UpdateGlobalConfigArgs,
     UpdateGlobalConfigAccounts,
 )
+from .update_global_config_admin import (
+    update_global_config_admin,
+    UpdateGlobalConfigAdminAccounts,
+)
 from .withdraw_host_tip import withdraw_host_tip, WithdrawHostTipAccounts
