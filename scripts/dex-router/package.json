@@ -1,6 +1,6 @@
 {
   "name": "dex-router",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Client to route Express Relay SVM orders to on-chain liquidity sources",
   "main": "dist/index.js",
   "scripts": {
@@ -13,7 +13,7 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
     "@jup-ag/api": "^6.0.29",
-    "@kamino-finance/limo-sdk": "^0.6.0",
+    "@kamino-finance/limo-sdk": "^0.7.0",
     "@pythnetwork/express-relay-js": "^0.13.1",
     "@solana/web3.js": "^1.95.3",
     "@types/yargs": "^17.0.33",
