@@ -20,7 +20,6 @@ import {
   Keypair,
   PublicKey,
   Connection,
-  Blockhash,
   TransactionInstruction,
   ComputeBudgetProgram,
 } from "@solana/web3.js";
