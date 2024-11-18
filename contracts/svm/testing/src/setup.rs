@@ -99,6 +99,7 @@ pub fn setup(params: SetupParams) -> Result<SetupResult, TransactionError> {
     })
 }
 
+// TODO: perhaps refactor to return Swap Info separately from the BidInfo (i.e. trader, tas, mints?)
 pub struct BidInfo {
     pub svm:                  litesvm::LiteSVM,
     pub relayer_signer:       Keypair,
