@@ -22,6 +22,7 @@ import {
   Connection,
   Blockhash,
   TransactionInstruction,
+  ComputeBudgetProgram,
 } from "@solana/web3.js";
 
 import * as limo from "@kamino-finance/limo-sdk";
@@ -39,7 +40,7 @@ export class SimpleSearcherLimo {
   protected readonly connectionSvm: Connection;
   protected mintDecimals: Record<string, number> = {};
   protected expressRelayConfig: ExpressRelaySvmConfig | undefined;
-  protected recentBlockhash: Record<ChainId, Blockhash> = {};
+  protected latestChainUpdate: Record<ChainId, SvmChainUpdate> = {};
   protected readonly bid: anchor.BN;
   constructor(
     public endpointExpressRelay: string,
@@ -101,7 +102,14 @@ export class SimpleSearcherLimo {
     );
 
     const ixsTakeOrder = await this.generateTakeOrderIxs(limoClient, order);
-    const txRaw = new anchor.web3.Transaction().add(...ixsTakeOrder);
+    const feeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports:
+        this.latestChainUpdate[this.chainId].latest_prioritization_fee,
+    });
+    const txRaw = new anchor.web3.Transaction().add(
+      feeInstruction,
+      ...ixsTakeOrder
+    );
 
     const bidAmount = await this.getBidAmount(order);
 
@@ -118,7 +126,8 @@ export class SimpleSearcherLimo {
       config.feeReceiverRelayer
     );
 
-    bid.transaction.recentBlockhash = this.recentBlockhash[this.chainId];
+    bid.transaction.recentBlockhash =
+      this.latestChainUpdate[this.chainId].blockhash;
     bid.transaction.sign(this.searcher);
     return bid;
   }
@@ -208,7 +217,7 @@ export class SimpleSearcherLimo {
   }
 
   async opportunityHandler(opportunity: Opportunity) {
-    if (!this.recentBlockhash[this.chainId]) {
+    if (!this.latestChainUpdate[this.chainId]) {
       console.log(
         `No recent blockhash for chain ${this.chainId}, skipping bid`
       );
@@ -228,7 +237,7 @@ export class SimpleSearcherLimo {
   }
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
-    this.recentBlockhash[update.chain_id] = update.blockhash;
+    this.latestChainUpdate[update.chain_id] = update;
   }
 
   // NOTE: Developers are responsible for implementing custom removal logic specific to their use case.
