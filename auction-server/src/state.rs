@@ -765,13 +765,13 @@ impl ChainStoreSvm {
 
     /// Get the minimum prioritization fee that is acceptable for submission on chain.
     /// In order to avoid rejection of transactions because of recent changes in the priority fees,
-    /// we consider the minimum priority fee that was acceptable in the last 5 seconds.
+    /// we consider the minimum priority fee that was acceptable in the last 15 seconds.
     pub async fn get_minimum_acceptable_prioritization_fee(&self) -> Option<MicroLamports> {
         let budgets = self.recent_prioritization_fees.read().await;
         budgets
             .iter()
             .filter_map(|b| {
-                if b.sample_time.elapsed() < Duration::from_secs(5) {
+                if b.sample_time.elapsed() < Duration::from_secs(15) {
                     Some(b.fee)
                 } else {
                     None
