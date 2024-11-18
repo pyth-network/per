@@ -197,7 +197,7 @@ pub mod express_relay {
                     &ctx.accounts.ta_input_searcher.to_account_info(),
                     &ctx.accounts.ta_input_router.to_account_info(),
                     &ctx.accounts.token_program_input.to_account_info(),
-                    &ctx.accounts.router.to_account_info(),
+                    &ctx.accounts.searcher.to_account_info(),
                     &ctx.accounts.mint_input,
                     data.amount_input,
                     data.referral_fee_ppm,
@@ -448,14 +448,13 @@ pub struct Swap<'info> {
     pub permission: AccountInfo<'info>,
 
     /// CHECK: don't care what this looks like
-    #[account(mut)]
     pub router: UncheckedAccount<'info>,
 
     /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist
     #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
     pub config_router: UncheckedAccount<'info>,
 
-    #[account(mut, seeds = [SEED_METADATA], bump)]
+    #[account(seeds = [SEED_METADATA], bump)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
     #[account(mint::token_program = token_program_input)]
@@ -472,9 +471,11 @@ pub struct Swap<'info> {
     )]
     pub ta_input_searcher: InterfaceAccount<'info, TokenAccount>,
 
+    // This account may not be initialized. Because the searcher is initiating the transaction, they can set it
+    // to whatever token account they wish to receive the tokens at. To initialize it, the transaction must contain
+    // an instruction to create the token account.
     #[account(
-        init_if_needed,
-        payer = searcher,
+        mut,
         token::mint = mint_output,
         token::authority = searcher,
         token::token_program = token_program_output
@@ -483,9 +484,9 @@ pub struct Swap<'info> {
 
     // This account may not be initialized, and it should be set to the trader's ATA to prevent the trader from
     // receiving the input tokens in an arbitrary token account. We perform this check within the instruction.
+    // To initialize the ATA, the transaction must contain an instruction to create the associated token account.
     #[account(
-        init_if_needed,
-        payer = searcher,
+        mut,
         token::mint = mint_input,
         token::authority = trader,
         token::token_program = token_program_input
@@ -502,9 +503,9 @@ pub struct Swap<'info> {
 
     // This account may not be initialized, and it should be set to the router's ATA to prevent the router from
     // receiving input tokens in an arbitrary token account. We perform this check within the instruction.
+    // To initialize the ATA, the transaction must contain an instruction to create the associated token account.
     #[account(
-        init_if_needed,
-        payer = searcher,
+        mut,
         token::mint = mint_input,
         token::authority = router,
         token::token_program = token_program_input
@@ -513,9 +514,9 @@ pub struct Swap<'info> {
 
     // This account may not be initialized, and it should be set to the router's ATA to prevent the router from
     // receiving output tokens in an arbitrary token account. We perform this check within the instruction.
+    // To initialize the ATA, the transaction must contain an instruction to create the associated token account.
     #[account(
-        init_if_needed,
-        payer = searcher,
+        mut,
         token::mint = mint_output,
         token::authority = router,
         token::token_program = token_program_output

@@ -6,16 +6,12 @@ use {
         state::FEE_SPLIT_PRECISION,
     },
     solana_sdk::{
-        instruction::Instruction,
-        native_token::LAMPORTS_PER_SOL,
-        pubkey::Pubkey,
         rent::Rent,
         signature::Keypair,
         signer::Signer,
         system_instruction::transfer,
     },
     testing::{
-        dummy::do_nothing::do_nothing_instruction,
         express_relay::{
             helpers::{
                 get_express_relay_metadata,
@@ -31,56 +27,14 @@ use {
             TX_FEE,
         },
         setup::{
-            setup,
-            SetupParams,
+            setup_bid,
+            BidInfo,
+            IxsType,
         },
     },
 };
 
-pub struct BidInfo {
-    pub svm:                  litesvm::LiteSVM,
-    pub relayer_signer:       Keypair,
-    pub searcher:             Keypair,
-    pub fee_receiver_relayer: Keypair,
-    pub router:               Pubkey,
-    pub permission_key:       Pubkey,
-    pub bid_amount:           u64,
-    pub deadline:             i64,
-    pub ixs:                  Vec<Instruction>,
-}
-
-pub const SPLIT_ROUTER_DEFAULT: u64 = 4000;
-pub const SPLIT_RELAYER: u64 = 2000;
-
-fn setup_bid() -> BidInfo {
-    let setup_result = setup(SetupParams {
-        split_router_default: SPLIT_ROUTER_DEFAULT,
-        split_relayer:        SPLIT_RELAYER,
-    })
-    .expect("setup failed");
-
-    let svm = setup_result.svm;
-    let relayer_signer = setup_result.relayer_signer;
-    let searcher = setup_result.searcher;
-    let fee_receiver_relayer = setup_result.fee_receiver_relayer;
-    let permission_key = Keypair::new().pubkey();
-    let router = Keypair::new().pubkey();
-    let bid_amount = LAMPORTS_PER_SOL;
-    let deadline: i64 = 100_000_000_000;
-    let ixs = [do_nothing_instruction(&searcher, permission_key, router)];
-
-    BidInfo {
-        svm,
-        relayer_signer,
-        searcher,
-        fee_receiver_relayer,
-        router,
-        permission_key,
-        bid_amount,
-        deadline,
-        ixs: ixs.to_vec(),
-    }
-}
+const DUMMY_IXS_TYPE: IxsType = IxsType::Dummy;
 
 #[test]
 fn test_bid() {
@@ -94,7 +48,11 @@ fn test_bid() {
         bid_amount,
         deadline,
         ixs,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let bid_ixs = bid_instructions(
         &relayer_signer,
@@ -162,7 +120,11 @@ fn test_bid_fail_wrong_relayer_signer() {
         bid_amount,
         deadline,
         ixs: _,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let wrong_relayer_signer = Keypair::new();
 
@@ -200,7 +162,11 @@ fn test_bid_fail_wrong_relayer_fee_receiver() {
         bid_amount,
         deadline,
         ixs: _,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let wrong_fee_receiver_relayer = Keypair::new();
 
@@ -234,7 +200,11 @@ fn test_bid_fail_insufficient_searcher_rent() {
         bid_amount: _,
         deadline,
         ixs: _,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let wrong_bid_amount =
         get_balance(&svm, &searcher.pubkey()) - Rent::default().minimum_balance(0) + 1;
@@ -273,7 +243,11 @@ fn test_bid_fail_insufficient_router_rent() {
         bid_amount: _,
         deadline,
         ixs: _,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let wrong_bid_amount = 100;
 
@@ -307,7 +281,11 @@ fn test_bid_fail_insufficient_relayer_fee_receiver_rent() {
         bid_amount: _,
         deadline,
         ixs: _,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let wrong_bid_amount = 100;
     let balance_fee_receiver_relayer = get_balance(&svm, &fee_receiver_relayer.pubkey());
@@ -354,7 +332,11 @@ fn test_bid_fail_passed_deadline() {
         bid_amount,
         deadline,
         ixs: _,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let bid_ixs = bid_instructions(
         &relayer_signer,
@@ -388,7 +370,11 @@ fn test_bid_fail_wrong_permission_key() {
         bid_amount,
         deadline,
         ixs,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let wrong_permission_key = Keypair::new().pubkey();
 
@@ -422,7 +408,11 @@ fn test_bid_fail_wrong_router_key() {
         bid_amount,
         deadline,
         ixs,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let wrong_router = Keypair::new().pubkey();
 
@@ -456,7 +446,11 @@ fn test_bid_fail_no_permission() {
         bid_amount: _,
         deadline: _,
         ixs,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let tx_result = submit_transaction(&mut svm, &ixs, &searcher, &[&searcher])
         .expect_err("Transaction should have failed");
@@ -476,7 +470,11 @@ fn test_bid_fail_duplicate_permission() {
         bid_amount,
         deadline,
         ixs: _,
-    } = setup_bid();
+        trader: _,
+        tas_searcher: _,
+        tas_trader: _,
+        tas_router: _,
+    } = setup_bid(DUMMY_IXS_TYPE);
 
     let permission_ix_0 = bid_instructions(
         &relayer_signer,

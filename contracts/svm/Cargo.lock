@@ -5668,10 +5668,13 @@ name = "testing"
 version = "0.3.0"
 dependencies = [
  "anchor-lang",
+ "anchor-spl",
  "dummy",
  "express-relay",
  "litesvm",
  "solana-sdk",
+ "spl-associated-token-account 2.3.0",
+ "spl-token",
 ]
 
 [[package]]
