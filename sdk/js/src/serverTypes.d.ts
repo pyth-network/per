@@ -771,9 +771,16 @@ export interface components {
       items: components["schemas"]["SimulatedBid"][];
     };
     SvmChainUpdate: {
-      blockhash: components["schemas"]["Hash"];
-      chain_id: components["schemas"]["ChainId"];
-      latest_prioritization_fee: components["schemas"]["MicroLamports"];
+      /** @example SLxp9LxX1eE9Z5v99Y92DaYEwyukFgMUF6zRerCF12j */
+      blockhash: string;
+      /** @example solana */
+      chain_id: string;
+      /**
+       * Format: int64
+       * @description The prioritization fee that the server suggests to use for the next transaction
+       * @example 1000
+       */
+      latest_prioritization_fee: number;
     };
     TokenAmountEvm: {
       /**

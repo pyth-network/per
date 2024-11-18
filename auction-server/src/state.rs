@@ -1680,9 +1680,12 @@ impl Store {
 #[serde_as]
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct SvmChainUpdate {
+    #[schema(example = "solana", value_type = String)]
     pub chain_id:                  ChainId,
     #[serde_as(as = "DisplayFromStr")]
+    #[schema(example = "SLxp9LxX1eE9Z5v99Y92DaYEwyukFgMUF6zRerCF12j", value_type = String)]
     pub blockhash:                 Hash,
     /// The prioritization fee that the server suggests to use for the next transaction
+    #[schema(example = "1000", value_type = u64)]
     pub latest_prioritization_fee: MicroLamports,
 }
