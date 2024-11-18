@@ -14,7 +14,7 @@
     "@coral-xyz/anchor": "^0.30.1",
     "@jup-ag/api": "^6.0.29",
     "@kamino-finance/limo-sdk": "^0.7.0",
-    "@pythnetwork/express-relay-js": "^0.13.1",
+    "@pythnetwork/express-relay-js": "^0.14.0",
     "@solana/web3.js": "^1.95.3",
     "@types/yargs": "^17.0.33",
     "yargs": "^17.7.2"
