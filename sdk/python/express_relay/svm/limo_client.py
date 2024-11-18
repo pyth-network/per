@@ -233,6 +233,7 @@ class LimoClient:
             ixs.extend(create_taker_input_ata_ixs)
 
         taker_output_ata: Pubkey
+        maker_output_ata: Pubkey | None = None
         intermediary_output_token_account: Pubkey | None = None
         if order["state"].output_mint == WRAPPED_SOL_MINT:
             instructions = await self.get_init_if_needed_wsol_create_and_close_ixs(
@@ -256,16 +257,16 @@ class LimoClient:
             )
             ixs.extend(create_taker_output_ata_ixs)
 
-        (
-            maker_output_ata,
-            create_maker_output_ata_ixs,
-        ) = await self.get_ata_and_create_ixn_if_required(
-            owner=order["state"].maker,
-            token_mint_address=order["state"].output_mint,
-            token_program_id=order["state"].output_mint_program_id,
-            payer=taker,
-        )
-        ixs.extend(create_maker_output_ata_ixs)
+            (
+                maker_output_ata,
+                create_maker_output_ata_ixs,
+            ) = await self.get_ata_and_create_ixn_if_required(
+                owner=order["state"].maker,
+                token_mint_address=order["state"].output_mint,
+                token_program_id=order["state"].output_mint_program_id,
+                payer=taker,
+            )
+            ixs.extend(create_maker_output_ata_ixs)
 
         pda_authority = self.get_pda_authority(PROGRAM_ID, order["state"].global_config)
         ixs.append(
@@ -303,7 +304,7 @@ class LimoClient:
                     ),
                     "input_token_program": order["state"].input_mint_program_id,
                     "output_token_program": order["state"].output_mint_program_id,
-                    "event_authority": self.get_event_authority(),
+                    "event_authority": self.get_event_authority(PROGRAM_ID),
                     "program": PROGRAM_ID,
                 },
             )
@@ -357,9 +358,9 @@ class LimoClient:
         return ata
 
     @staticmethod
-    def get_event_authority() -> Pubkey:
+    def get_event_authority(program_id: Pubkey) -> Pubkey:
         return Pubkey.find_program_address(
-            seeds=[EVENT_AUTH_SEED], program_id=PROGRAM_ID
+            seeds=[EVENT_AUTH_SEED], program_id=program_id
         )[0]
 
     @staticmethod
