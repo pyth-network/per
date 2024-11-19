@@ -1,6 +1,6 @@
 use {
     super::{
-        auctionable::Auctionable,
+        auction_manager::AuctionManager,
         ChainTrait,
         Service,
     },
@@ -9,7 +9,7 @@ use {
 
 impl<T: ChainTrait> Service<T>
 where
-    Service<T>: Auctionable<T>,
+    Service<T>: AuctionManager<T>,
 {
     pub async fn conclude_auctions(&self) {
         tracing::info!(chain_id = self.config.chain_id, "Concluding auctions...");

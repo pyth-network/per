@@ -1,14 +1,7 @@
 use {
-    super::contracts::MulticallIssuedFilter,
     crate::api::RestError,
     bincode::serialized_size,
-    ethers::{
-        contract::EthEvent,
-        types::{
-            Bytes,
-            TransactionReceipt,
-        },
-    },
+    ethers::types::Bytes,
     serde::{
         Deserialize,
         Serialize,
@@ -62,16 +55,6 @@ pub enum ChainType {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Evm;
 
-impl Evm {
-    pub fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedFilter> {
-        receipt
-            .logs
-            .clone()
-            .into_iter()
-            .filter_map(|log| MulticallIssuedFilter::decode_log(&log.into()).ok())
-            .collect()
-    }
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Svm;

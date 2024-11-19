@@ -1,7 +1,7 @@
 use {
     super::{
-        auctionable::{
-            Auctionable,
+        auction_manager::{
+            AuctionManager,
             TOTAL_BIDS_PER_AUCTION_EVM,
         },
         ChainTrait,

@@ -18,13 +18,14 @@ impl Repository<Svm> {
             .recent_prioritization_fees
             .write()
             .await;
-        write_guard.push_back(PrioritizationFeeSample {
+        let sample = PrioritizationFeeSample {
             fee,
             sample_time: OffsetDateTime::now_utc(),
-        });
+        };
+        write_guard.push_back(sample.clone());
         if write_guard.len() > RECENT_FEES_SLOT_WINDOW {
             write_guard.pop_front();
         }
-        tracing::info!("Recent prioritization fees: {:?}", write_guard);
+        tracing::info!("Last prioritization fee: {:?}", sample);
     }
 }

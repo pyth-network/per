@@ -31,7 +31,10 @@ use {
         signature::Signature,
         transaction::VersionedTransaction,
     },
-    std::hash::Hash,
+    std::{
+        fmt::Debug,
+        hash::Hash,
+    },
     time::OffsetDateTime,
     uuid::Uuid,
 };
@@ -40,13 +43,13 @@ pub type BidId = Uuid;
 
 pub trait BidStatus:
     Clone
-    + std::fmt::Debug
+    + Debug
     + Into<api::BidStatus> // TODO remove this - entity should not depend on api
     + Send
     + Sync
     + PartialEq
 {
-    type TxHash: Clone + std::fmt::Debug + AsRef<[u8]> + Send + Sync;
+    type TxHash: Clone + Debug + AsRef<[u8]> + Send + Sync;
 
     fn convert_tx_hash(tx_hash: &Self::TxHash) -> Vec<u8> {
         tx_hash.as_ref().to_vec()
@@ -160,8 +163,8 @@ pub struct Bid<T: ChainTrait> {
 pub type PermissionKey<T> = <<T as ChainTrait>::BidChainDataType as BidChainData>::PermissionKey;
 pub type TxHash<T> = <<T as ChainTrait>::BidStatusType as BidStatus>::TxHash;
 
-pub trait BidChainData: Send + Sync + Clone + std::fmt::Debug + PartialEq {
-    type PermissionKey: Send + Sync + std::fmt::Debug + Hash + Eq + Clone;
+pub trait BidChainData: Send + Sync + Clone + Debug + PartialEq {
+    type PermissionKey: Send + Sync + Debug + Hash + Eq + Clone;
 
     fn get_permission_key(&self) -> Self::PermissionKey;
 }

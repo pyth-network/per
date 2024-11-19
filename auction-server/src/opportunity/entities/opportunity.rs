@@ -14,7 +14,10 @@ use {
         },
     },
     ethers::types::Bytes,
-    std::ops::Deref,
+    std::{
+        fmt::Debug,
+        ops::Deref,
+    },
     time::OffsetDateTime,
     uuid::Uuid,
 };
@@ -57,7 +60,7 @@ pub struct OpportunityCoreFieldsCreate<T: TokenAmount> {
 
 // TODO Think more about structure. Isn't it better to have a generic Opportunity struct with a field of type OpportunityParams?
 pub trait Opportunity:
-    std::fmt::Debug
+    Debug
     + Clone
     + Deref<Target = OpportunityCoreFields<<Self as Opportunity>::TokenAmount>>
     + PartialEq
@@ -79,9 +82,7 @@ pub trait Opportunity:
     }
 }
 
-pub trait OpportunityCreate:
-    std::fmt::Debug + Clone + From<Self::ApiOpportunityCreate> + PartialEq
-{
+pub trait OpportunityCreate: Debug + Clone + From<Self::ApiOpportunityCreate> + PartialEq {
     type ApiOpportunityCreate;
 
     fn get_key(&self) -> OpportunityKey;

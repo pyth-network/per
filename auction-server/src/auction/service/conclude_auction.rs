@@ -1,6 +1,6 @@
 use {
     super::{
-        auctionable::Auctionable,
+        auction_manager::AuctionManager,
         update_bid_status::UpdateBidStatusInput,
         ChainTrait,
         Service,
@@ -17,7 +17,7 @@ pub struct ConcludeAuctionInput<T: ChainTrait> {
 
 impl<T: ChainTrait> Service<T>
 where
-    Service<T>: Auctionable<T>,
+    Service<T>: AuctionManager<T>,
 {
     pub async fn conclude_auction(&self, input: ConcludeAuctionInput<T>) -> anyhow::Result<()> {
         let auction = input.auction;

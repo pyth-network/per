@@ -54,7 +54,10 @@ use {
         pubkey::Pubkey,
         signature::Keypair,
     },
-    std::sync::Arc,
+    std::{
+        fmt::Debug,
+        sync::Arc,
+    },
     tokio::sync::broadcast::{
         self,
         Sender,
@@ -63,7 +66,7 @@ use {
 };
 
 pub mod add_auction;
-pub mod auctionable;
+pub mod auction_manager;
 pub mod conclude_auction;
 pub mod conclude_auctions;
 pub mod get_bid;
@@ -168,17 +171,17 @@ pub struct Config<T> {
 }
 
 pub trait ChainTrait:
-    Sync + Send + 'static + std::fmt::Debug + Clone + PartialEq + repository::ModelTrait<Self>
+    Sync + Send + 'static + Debug + Clone + PartialEq + repository::ModelTrait<Self>
 {
     type ConfigType: Send + Sync;
     type OpportunityServiceType: opportunity_service::ChainType;
 
     type BidStatusType: entities::BidStatus;
     type BidChainDataType: entities::BidChainData;
-    type BidAmountType: Send + Sync + std::fmt::Debug + Clone + PartialEq;
-    type BidChainDataCreateType: Clone + std::fmt::Debug + Send + Sync;
+    type BidAmountType: Send + Sync + Debug + Clone + PartialEq;
+    type BidChainDataCreateType: Clone + Debug + Send + Sync;
 
-    type ChainStore: Send + Sync + Default + std::fmt::Debug;
+    type ChainStore: Send + Sync + Default + Debug;
 }
 
 impl ChainTrait for Evm {

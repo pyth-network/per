@@ -6,9 +6,12 @@ use {
     crate::{
         api::RestError,
         auction::entities,
-        kernel::entities::{
-            Evm,
-            Svm,
+        kernel::{
+            contracts::MulticallIssuedFilter,
+            entities::{
+                Evm,
+                Svm,
+            },
         },
         opportunity::{
             self,
@@ -18,6 +21,7 @@ use {
     anyhow::Result,
     axum::async_trait,
     ethers::{
+        contract::EthEvent,
         providers::{
             Middleware,
             Provider,
@@ -51,6 +55,7 @@ use {
         },
     },
     std::{
+        fmt::Debug,
         pin::Pin,
         result,
         time::Duration,
@@ -61,9 +66,9 @@ use {
 
 /// The trait for handling the auction for the service.
 #[async_trait]
-pub trait Auctionable<T: ChainTrait> {
+pub trait AuctionManager<T: ChainTrait> {
     /// This is the type that is used to trigger the auction submission and conclusion.
-    type Trigger: std::fmt::Debug + Clone;
+    type Trigger: Debug + Clone;
     /// The trigger stream type when subscribing to new triggers on the ws client for the chain.
     type TriggerStream<'a>: Stream<Item = Self::Trigger> + Unpin + Send + 'a;
     /// The ws client type for the chain.
@@ -122,7 +127,7 @@ pub const TOTAL_BIDS_PER_AUCTION_EVM: usize = 3;
 const EXTRA_GAS_FOR_SUBMISSION: u32 = 500 * 1000;
 
 #[async_trait]
-impl Auctionable<Evm> for Service<Evm> {
+impl AuctionManager<Evm> for Service<Evm> {
     type Trigger = Block<H256>;
     type TriggerStream<'a> = SubscriptionStream<'a, Ws, Block<H256>>;
     type WsClient = Provider<Ws>;
@@ -216,7 +221,7 @@ impl Auctionable<Evm> for Service<Evm> {
             .map_err(|e| anyhow::anyhow!("Failed to get transaction receipt: {:?}", e))?;
         match receipt {
             Some(receipt) => {
-                let decoded_logs = Evm::decode_logs_for_receipt(&receipt);
+                let decoded_logs = Self::decode_logs_for_receipt(&receipt);
                 Ok(Some(
                     bids.iter()
                         .map(|b| {
@@ -281,7 +286,7 @@ const CONCLUSION_TRIGGER_SLOT_INTERVAL_SVM: u64 = 150;
 const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(120);
 
 #[async_trait]
-impl Auctionable<Svm> for Service<Svm> {
+impl AuctionManager<Svm> for Service<Svm> {
     type Trigger = SlotInfo;
     type TriggerStream<'a> = Pin<Box<dyn Stream<Item = Self::Trigger> + Send + 'a>>;
     type WsClient = PubsubClient;
@@ -519,5 +524,16 @@ impl Service<Svm> {
             }
         });
         Ok(res)
+    }
+}
+
+impl Service<Evm> {
+    fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedFilter> {
+        receipt
+            .logs
+            .clone()
+            .into_iter()
+            .filter_map(|log| MulticallIssuedFilter::decode_log(&log.into()).ok())
+            .collect()
     }
 }

@@ -12,7 +12,7 @@ use {
             },
             service::{
                 add_auction::AddAuctionInput,
-                auctionable::Auctionable,
+                auction_manager::AuctionManager,
                 get_live_bids::GetLiveBidsInput,
                 update_bid_status::UpdateBidStatusInput,
                 update_submitted_auction::UpdateSubmittedAuctionInput,

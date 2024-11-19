@@ -39,6 +39,7 @@ use {
         Postgres,
     },
     std::{
+        fmt::Debug,
         num::ParseIntError,
         ops::Deref,
         str::FromStr,
@@ -106,7 +107,7 @@ pub struct BidMetadataSvm {
 }
 
 pub trait ModelTrait<T: ChainTrait> {
-    type BidMetadataType: std::fmt::Debug
+    type BidMetadataType: Debug
         + Clone
         + Serialize
         + DeserializeOwned

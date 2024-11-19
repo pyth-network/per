@@ -27,6 +27,7 @@ use {
             JsonValue,
         },
     },
+    std::fmt::Debug,
     uuid::Uuid,
 };
 
@@ -82,7 +83,7 @@ pub struct OpportunityMetadataSvm {
 }
 
 pub trait OpportunityMetadata:
-    std::fmt::Debug + Clone + Serialize + DeserializeOwned + Send + Sync + Unpin + 'static
+    Debug + Clone + Serialize + DeserializeOwned + Send + Sync + Unpin + 'static
 {
     fn get_chain_type() -> ChainType;
 }

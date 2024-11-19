@@ -1,6 +1,6 @@
 use {
     super::{
-        auctionable::Auctionable,
+        auction_manager::AuctionManager,
         ChainTrait,
         Service,
     },
@@ -22,7 +22,7 @@ pub struct HandleAuctionInput<T: ChainTrait> {
 
 impl<T: ChainTrait> Service<T>
 where
-    Service<T>: Auctionable<T>,
+    Service<T>: AuctionManager<T>,
 {
     async fn submit_auction<'a>(
         &self,

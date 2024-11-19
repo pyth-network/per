@@ -68,7 +68,10 @@ use {
         transaction::VersionedTransaction,
     },
     sqlx::types::time::OffsetDateTime,
-    std::sync::Arc,
+    std::{
+        fmt::Debug,
+        sync::Arc,
+    },
     utoipa::{
         IntoParams,
         ToResponse,
@@ -78,13 +81,17 @@ use {
 };
 
 // TODO move it to kernel?
+
 #[serde_as]
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct SvmChainUpdate {
+    #[schema(example = "solana", value_type = String)]
     pub chain_id:                  ChainId,
     #[serde_as(as = "DisplayFromStr")]
+    #[schema(example = "SLxp9LxX1eE9Z5v99Y92DaYEwyukFgMUF6zRerCF12j", value_type = String)]
     pub blockhash:                 Hash,
     /// The prioritization fee that the server suggests to use for the next transaction
+    #[schema(example = "1000", value_type = u64)]
     pub latest_prioritization_fee: MicroLamports,
 }
 
@@ -185,9 +192,6 @@ pub struct BidResult {
     pub id:     BidId,
 }
 
-pub type BidAmountEvm = U256;
-pub type BidAmountSvm = u64;
-
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
 pub struct BidCoreFields {
     /// The unique id for bid.
@@ -218,7 +222,7 @@ pub struct BidSvm {
     pub transaction:    VersionedTransaction,
     /// Amount of bid in lamports.
     #[schema(example = "1000", value_type = u64)]
-    pub bid_amount:     BidAmountSvm,
+    pub bid_amount:     entities::BidAmountSvm,
     /// The permission key for bid in base64 format.
     /// This is the concatenation of the permission account and the router account.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
@@ -245,7 +249,7 @@ pub struct BidEvm {
     /// Amount of bid in wei.
     #[schema(example = "10", value_type = String)]
     #[serde(with = "crate::serde::u256")]
-    pub bid_amount:      BidAmountEvm,
+    pub bid_amount:      entities::BidAmountEvm,
     /// The permission key for bid.
     #[schema(example = "0xdeadbeef", value_type = String)]
     pub permission_key:  PermissionKey,
@@ -292,7 +296,7 @@ pub struct BidCreateEvm {
     /// Amount of bid in wei.
     #[schema(example = "10", value_type = String)]
     #[serde(with = "crate::serde::u256")]
-    pub amount:          BidAmountEvm,
+    pub amount:          entities::BidAmountEvm,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -559,6 +563,7 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
     }
 }
 
+// TODO switch to generic structure format
 impl BidCoreFields {
     pub fn from_bid<T: ChainTrait>(bid: &entities::Bid<T>) -> Self {
         BidCoreFields {
@@ -623,7 +628,7 @@ where
     Service<T>: Verification<T>,
     entities::Bid<T>: Into<Bid>,
 {
-    type BidCreateType: Clone + std::fmt::Debug + Send + Sync;
+    type BidCreateType: Clone + Debug + Send + Sync;
 
     async fn handle_bid(
         service: &Service<T>,
