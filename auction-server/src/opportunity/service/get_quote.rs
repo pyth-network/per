@@ -91,10 +91,7 @@ impl Service<ChainTypeSvm> {
     #[tracing::instrument(skip_all)]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
         let config = self.get_config(&input.quote_create.chain_id)?;
-        let auction_service = config
-            .auction_service
-            .as_ref()
-            .expect("Failed to get auction service");
+        let auction_service = config.get_auction_service().await;
 
         // TODO Check for the input amount
         tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");

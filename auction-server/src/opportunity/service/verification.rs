@@ -134,10 +134,7 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
         input: VerifyOpportunityInput<entities::OpportunityCreateEvm>,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {
         let config = self.get_config(&input.opportunity.core_fields.chain_id)?;
-        let auction_service = config
-            .auction_service
-            .as_ref()
-            .expect("Failed to get auction service");
+        let auction_service = config.get_auction_service().await;
         let client = Arc::new(config.provider.clone());
         let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
 

@@ -36,6 +36,7 @@ use {
         collections::HashMap,
         sync::Arc,
     },
+    tokio::sync::RwLock,
     tokio_util::task::TaskTracker,
 };
 
@@ -63,34 +64,42 @@ pub struct ConfigEvm {
     pub permit2:                  Address,
     pub provider:                 Provider<TracedClient>,
     pub weth:                     Address,
-    pub auction_service:          Option<auction_service::Service<Evm>>,
+    pub auction_service:          RwLock<Option<auction_service::Service<Evm>>>,
 }
 
 impl ConfigEvm {
-    pub fn inject_auction_service(&self, service: auction_service::Service<Evm>) {
-        // this unsafe block is safe because as this method is called only when setting up services
-        // the method is never called concurrently
-        let selff = self as *const Self as *mut Self;
-        unsafe {
-            (*selff).auction_service = Some(service);
-        }
+    // TODO Move these to config trait?
+    pub async fn inject_auction_service(&self, service: auction_service::Service<Evm>) {
+        let mut write_gaurd = self.auction_service.write().await;
+        *write_gaurd = Some(service);
+    }
+    pub async fn get_auction_service(&self) -> auction_service::Service<Evm> {
+        self.auction_service
+            .read()
+            .await
+            .clone()
+            .expect("Failed to get auction service")
     }
 }
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
     pub wallet_program_router_account: Pubkey,
-    pub auction_service:               Option<auction_service::Service<Svm>>,
+    pub auction_service:               RwLock<Option<auction_service::Service<Svm>>>,
 }
 
 impl ConfigSvm {
-    pub fn inject_auction_service(&self, service: auction_service::Service<Svm>) {
-        // this unsafe block is safe because as this method is called only when setting up services
-        // the method is never called concurrently
-        let selff = self as *const Self as *mut Self;
-        unsafe {
-            (*selff).auction_service = Some(service);
-        }
+    // TODO Move these to config trait?
+    pub async fn inject_auction_service(&self, service: auction_service::Service<Svm>) {
+        let mut write_gaurd = self.auction_service.write().await;
+        *write_gaurd = Some(service);
+    }
+    pub async fn get_auction_service(&self) -> auction_service::Service<Svm> {
+        self.auction_service
+            .read()
+            .await
+            .clone()
+            .expect("Failed to get auction service")
     }
 }
 
@@ -155,7 +164,7 @@ impl ConfigEvm {
             adapter_factory_contract,
             chain_id_num,
             provider,
-            auction_service: None,
+            auction_service: RwLock::new(None),
         })
     }
 
@@ -194,7 +203,7 @@ impl ConfigSvm {
                     chain_id.clone(),
                     Self {
                         wallet_program_router_account: config.wallet_program_router_account,
-                        auction_service:               None,
+                        auction_service:               RwLock::new(None),
                     },
                 )
             })
