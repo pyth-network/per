@@ -214,29 +214,39 @@ impl Service<Svm> {
 
     pub async fn run_watcher_loop(&self) -> Result<()> {
         while !SHOULD_EXIT.load(Ordering::Acquire) {
-            let response = self
-                .config
-                .chain_config
-                .client
-                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
-                .await;
+            let responses = (
+                self.config
+                    .chain_config
+                    .client
+                    .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
+                    .await,
+                self.update_recent_prioritization_fee().await,
+            );
 
-            match response {
-                Ok(result) => {
+            match responses {
+                (Ok(block_hash_result), Ok(fee)) => {
                     // TODO we should not know about the api layer here
                     if let Err(e) =
                         self.event_sender
                             .send(UpdateEvent::SvmChainUpdate(SvmChainUpdate {
-                                chain_id:  self.config.chain_id.clone(),
-                                blockhash: result.0,
+                                chain_id:                  self.config.chain_id.clone(),
+                                blockhash:                 block_hash_result.0,
+                                latest_prioritization_fee: fee,
                             }))
                     {
                         tracing::error!("Failed to send chain update: {}", e)
                     };
                 }
-                Err(e) => {
+                (Err(e), _) => {
                     return Err(anyhow!(
                         "Polling blockhash failed for chain {} with error: {}",
+                        self.config.chain_id.clone(),
+                        e
+                    ));
+                }
+                (_, Err(e)) => {
+                    return Err(anyhow!(
+                        "Polling prioritization fees failed for chain {} with error: {:?}",
                         self.config.chain_id.clone(),
                         e
                     ));

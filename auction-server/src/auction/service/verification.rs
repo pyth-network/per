@@ -44,6 +44,7 @@ use {
         Discriminator,
     },
     axum::async_trait,
+    borsh::de::BorshDeserialize,
     ethers::{
         contract::{
             ContractError,
@@ -61,6 +62,7 @@ use {
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
         commitment_config::CommitmentConfig,
+        compute_budget,
         instruction::CompiledInstruction,
         pubkey::Pubkey,
         signature::Signature,
@@ -598,6 +600,59 @@ impl Service<Svm> {
             None => Ok(()),
         }
     }
+
+    async fn check_compute_budget(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> Result<(), RestError> {
+        let compute_budget = self
+            .repo
+            .get_priority_fees(OffsetDateTime::now_utc() - Duration::from_secs(15))
+            .await
+            .iter()
+            .map(|sample| sample.fee)
+            .min()
+            .unwrap_or(0);
+
+        let budgets: Vec<u64> = transaction
+            .message
+            .instructions()
+            .iter()
+            .filter_map(|instruction| {
+                let program_id = instruction.program_id(transaction.message.static_account_keys());
+                if program_id != &compute_budget::id() {
+                    return None;
+                }
+
+                match compute_budget::ComputeBudgetInstruction::try_from_slice(&instruction.data) {
+                    Ok(compute_budget::ComputeBudgetInstruction::SetComputeUnitPrice(price)) => {
+                        Some(price)
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+        if budgets.len() > 1 {
+            return Err(RestError::BadParameters(
+                "Multiple SetComputeUnitPrice instructions".to_string(),
+            ));
+        }
+        if budgets.is_empty() && compute_budget > 0 {
+            return Err(RestError::BadParameters(format!(
+                "No SetComputeUnitPrice instruction. Minimum compute budget is {}",
+                compute_budget
+            )));
+        }
+        if let Some(budget) = budgets.first() {
+            if *budget < compute_budget {
+                return Err(RestError::BadParameters(format!(
+                    "Compute budget is too low. Minimum compute budget is {}",
+                    compute_budget
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -608,6 +663,8 @@ impl Verification<Svm> for Service<Svm> {
     ) -> Result<VerificationResult<Svm>, RestError> {
         let bid = input.bid_create;
         Svm::check_tx_size(&bid.chain_data.transaction)?;
+        self.check_compute_budget(&bid.chain_data.transaction)
+            .await?;
         let bid_data = self
             .extract_bid_data(bid.chain_data.transaction.clone())
             .await?;

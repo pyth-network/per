@@ -345,6 +345,9 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                                 RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                             ),
                             log_sender:                    chain_store.log_sender.clone(),
+                            prioritization_fee_percentile: chain_store
+                                .config
+                                .prioritization_fee_percentile,
                             // _dummy_log_receiver: chain_store._dummy_log_receiver.clone(),
                         },
                     },

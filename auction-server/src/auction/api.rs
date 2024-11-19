@@ -4,6 +4,7 @@ use {
             self,
             BidChainData,
         },
+        repository::MicroLamports,
         service::{
             get_bid::GetBidInput,
             get_bids::GetBidsInput,
@@ -77,9 +78,11 @@ use {
 #[serde_as]
 #[derive(Serialize, Clone, ToSchema, ToResponse)]
 pub struct SvmChainUpdate {
-    pub chain_id:  ChainId,
+    pub chain_id:                  ChainId,
     #[serde_as(as = "DisplayFromStr")]
-    pub blockhash: Hash,
+    pub blockhash:                 Hash,
+    /// The prioritization fee that the server suggests to use for the next transaction
+    pub latest_prioritization_fee: MicroLamports,
 }
 
 pub type BidId = Uuid;

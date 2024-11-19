@@ -34,10 +34,7 @@ use {
     },
     solana_sdk::pubkey::Pubkey,
     std::{
-        collections::{
-            HashMap,
-            VecDeque,
-        },
+        collections::HashMap,
         default::Default,
         sync::Arc,
         time::Duration,
@@ -77,6 +74,20 @@ impl ChainStoreEvm {
         .map_err(|err| {
             tracing::error!(
                 "Failed to create provider for chain({chain_id}) at {rpc_addr}: {:?}",
+                err,
+                chain_id = chain_id,
+                rpc_addr = chain_config.geth_rpc_addr
+            );
+            anyhow!(
+                "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
+                err,
+                chain_id = chain_id,
+                rpc_addr = chain_config.geth_rpc_addr
+            )
+        })?;
+        provider.set_interval(Duration::from_secs(chain_config.poll_interval));
+        Ok(provider)
+    }
     pub async fn create_store(chain_id: String, config: ConfigEvm) -> anyhow::Result<Self> {
         let provider = Self::get_chain_provider(&chain_id, &config)?;
 
@@ -84,6 +95,7 @@ impl ChainStoreEvm {
         let block = provider
             .get_block(BlockNumber::Latest)
             .await?
+            .expect("Failed to get latest block");
 
         Ok(Self {
             provider,
@@ -92,14 +104,6 @@ impl ChainStoreEvm {
             block_gas_limit: block.gas_limit,
         })
     }
-}
-
-pub type MicroLamports = u64;
-#[derive(Clone, Debug)]
-struct PrioritizationFeeSample {
-    ///micro-lamports per compute unit.
-    fee:         MicroLamports,
-    sample_time: Instant,
 }
 
 pub struct ChainStoreSvm {

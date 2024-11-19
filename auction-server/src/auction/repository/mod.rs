@@ -8,7 +8,11 @@ use {
         entities::ChainId,
     },
     solana_sdk::pubkey::Pubkey,
-    std::collections::HashMap,
+    std::collections::{
+        HashMap,
+        VecDeque,
+    },
+    time::OffsetDateTime,
     tokio::sync::{
         Mutex,
         RwLock,
@@ -18,6 +22,7 @@ use {
 mod add_auction;
 mod add_bid;
 mod add_lookup_table;
+mod add_recent_priotization_fee;
 mod conclude_auction;
 mod get_bid;
 mod get_bids;
@@ -27,6 +32,7 @@ mod get_in_memory_submitted_auctions;
 mod get_in_memory_submitted_bids_for_auction;
 mod get_lookup_table;
 mod get_or_create_in_memory_auction_lock;
+mod get_priority_fees;
 mod models;
 mod remove_in_memory_auction_lock;
 mod remove_in_memory_submitted_auction;
@@ -37,7 +43,16 @@ pub use models::*;
 
 #[derive(Debug, Default)]
 pub struct ChainStoreSvm {
-    lookup_table: RwLock<HashMap<Pubkey, Vec<Pubkey>>>,
+    lookup_table:               RwLock<HashMap<Pubkey, Vec<Pubkey>>>,
+    recent_prioritization_fees: RwLock<VecDeque<PrioritizationFeeSample>>,
+}
+
+pub type MicroLamports = u64;
+#[derive(Clone, Debug)]
+pub struct PrioritizationFeeSample {
+    ///micro-lamports per compute unit.
+    pub fee:         MicroLamports,
+    pub sample_time: OffsetDateTime,
 }
 
 #[derive(Debug, Default)]

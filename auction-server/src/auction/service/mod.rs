@@ -74,6 +74,7 @@ pub mod handle_auction;
 pub mod handle_auctions;
 pub mod handle_bid;
 pub mod update_bid_status;
+pub mod update_recent_prioritization_fee;
 pub mod update_submitted_auction;
 pub mod verification;
 pub mod workers;
@@ -92,6 +93,7 @@ pub struct ConfigSvm {
     pub ws_address:                    String,
     pub tx_broadcaster_client:         RpcClient,
     pub log_sender:                    Sender<Response<RpcLogsResponse>>,
+    pub prioritization_fee_percentile: Option<u64>,
 }
 
 pub struct ExpressRelayEvm {
