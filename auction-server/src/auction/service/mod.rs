@@ -176,7 +176,7 @@ pub trait ChainTrait:
     type BidStatusType: entities::BidStatus;
     type BidChainDataType: entities::BidChainData;
     type BidAmountType: Send + Sync + std::fmt::Debug + Clone + PartialEq;
-    type BidChainDataCreateType: Clone + std::fmt::Debug;
+    type BidChainDataCreateType: Clone + std::fmt::Debug + Send + Sync;
 
     type ChainStore: Send + Sync + Default + std::fmt::Debug;
 }

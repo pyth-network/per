@@ -9,7 +9,9 @@ use {
             get_bid::GetBidInput,
             get_bids::GetBidsInput,
             handle_bid::HandleBidInput,
+            verification::Verification,
             ChainTrait,
+            Service,
             ServiceEnum,
         },
     },
@@ -32,6 +34,7 @@ use {
         state::StoreNew,
     },
     axum::{
+        async_trait,
         extract::{
             Path,
             Query,
@@ -343,45 +346,9 @@ pub async fn process_bid(
         Auth::Authorized(_, profile) => Some(profile),
         _ => None,
     };
-    match bid_create {
-        BidCreate::Evm(bid_create_evm) => {
-            let bid_create = bid_create_evm.get_bid_create_entity(profile);
-            let service = store.get_auction_service(&bid_create_evm.chain_id)?;
-            match service {
-                ServiceEnum::Evm(service) => {
-                    let bid = service.handle_bid(HandleBidInput {
-                        bid_create,
-                    }).await?;
-
-                    Ok(Json(BidResult {
-                        status: "OK".to_string(),
-                        id:     bid.id,
-                    }))
-                }
-                _ => Err(RestError::BadParameters(
-                    "Expected EVM chain_id. Ensure that the bid type matches the expected chain for the specified chain_id.".to_string()
-                )),
-            }
-        }
-        BidCreate::Svm(bid_create_svm) => {
-            let bid_create = bid_create_svm.get_bid_create_entity(profile);
-            let service = store.get_auction_service(&bid_create_svm.chain_id)?;
-            match service {
-                ServiceEnum::Svm(service) => {
-                    let bid = service.handle_bid(HandleBidInput {
-                        bid_create,
-                    }).await?;
-
-                    Ok(Json(BidResult {
-                        status: "OK".to_string(),
-                        id:     bid.id,
-                    }))
-                }
-                _ => Err(RestError::BadParameters(
-                    "Expected SVM chain_id. Ensure that the bid type matches the expected chain for the specified chain_id.".to_string()
-                )),
-            }
-        }
+    match store.get_auction_service(&bid_create.get_chain_id())? {
+        ServiceEnum::Evm(service) => Evm::handle_bid(&service, &bid_create, profile).await,
+        ServiceEnum::Svm(service) => Svm::handle_bid(&service, &bid_create, profile).await,
     }
 }
 
@@ -407,22 +374,10 @@ pub async fn get_bid_status(
     State(store): State<Arc<StoreNew>>,
     Path(params): Path<GetBidStatusParams>,
 ) -> Result<Json<BidStatus>, RestError> {
-    let service = store.get_auction_service(&params.chain_id)?;
-    let bid: Bid = match service {
-        ServiceEnum::Evm(service) => service
-            .get_bid(GetBidInput {
-                bid_id: params.bid_id,
-            })
-            .await?
-            .into(),
-        ServiceEnum::Svm(service) => service
-            .get_bid(GetBidInput {
-                bid_id: params.bid_id,
-            })
-            .await?
-            .into(),
-    };
-    Ok(Json(bid.get_status()))
+    match store.get_auction_service(&params.chain_id)? {
+        ServiceEnum::Evm(service) => Evm::get_bid_status(&service, params.bid_id).await,
+        ServiceEnum::Svm(service) => Svm::get_bid_status(&service, params.bid_id).await,
+    }
 }
 
 /// Query the status of a specific bid.
@@ -441,19 +396,12 @@ pub async fn get_bid_status_deprecated(
     Path(bid_id): Path<BidId>,
 ) -> Result<Json<BidStatus>, RestError> {
     for service in store.get_all_auction_services().values() {
-        let bid: Result<Bid, RestError> = match service {
-            ServiceEnum::Evm(service) => service
-                .get_bid(GetBidInput { bid_id })
-                .await
-                .map(|b| b.into()),
-            ServiceEnum::Svm(service) => service
-                .get_bid(GetBidInput { bid_id })
-                .await
-                .map(|b| b.into()),
+        let result = match service {
+            ServiceEnum::Evm(service) => Evm::get_bid_status(service, bid_id).await,
+            ServiceEnum::Svm(service) => Svm::get_bid_status(service, bid_id).await,
         };
-
-        match bid {
-            Ok(bid) => return Ok(Json(bid.get_status())),
+        match result {
+            Ok(_) => return result,
             Err(RestError::BidNotFound) => continue,
             Err(e) => return Err(e),
         }
@@ -495,30 +443,14 @@ pub async fn get_bids_by_time(
     query: Query<GetBidsByTimeQueryParams>,
 ) -> Result<Json<Bids>, RestError> {
     match auth {
-        Auth::Authorized(_, profile) => {
-            let bids: Vec<Bid> = match store.get_auction_service(&chain_id)? {
-                ServiceEnum::Evm(service) => service
-                    .get_bids(GetBidsInput {
-                        profile,
-                        from_time: query.from_time,
-                    })
-                    .await?
-                    .into_iter()
-                    .map(|b| b.into())
-                    .collect(),
-                ServiceEnum::Svm(service) => service
-                    .get_bids(GetBidsInput {
-                        profile,
-                        from_time: query.from_time,
-                    })
-                    .await?
-                    .into_iter()
-                    .map(|b| b.into())
-                    .collect(),
-            };
-
-            Ok(Json(Bids { items: bids }))
-        }
+        Auth::Authorized(_, profile) => match store.get_auction_service(&chain_id)? {
+            ServiceEnum::Evm(service) => {
+                Evm::get_bids_by_time(&service, profile, query.from_time).await
+            }
+            ServiceEnum::Svm(service) => {
+                Svm::get_bids_by_time(&service, profile, query.from_time).await
+            }
+        },
         _ => {
             tracing::error!("Unauthorized access to get_bids_by_time");
             Err(RestError::TemporarilyUnavailable)
@@ -549,26 +481,15 @@ pub async fn get_bids_by_time_deprecated(
         Auth::Authorized(_, profile) => {
             let mut bids: Vec<Bid> = vec![];
             for service in store.get_all_auction_services().values() {
-                match service {
+                let new_bids = match service {
                     ServiceEnum::Evm(service) => {
-                        let bids_evm = service
-                            .get_bids(GetBidsInput {
-                                profile:   profile.clone(),
-                                from_time: query.from_time,
-                            })
-                            .await?;
-                        bids.extend(bids_evm.into_iter().map(|b| b.into()));
+                        Evm::get_bids_by_time(service, profile.clone(), query.from_time).await?
                     }
                     ServiceEnum::Svm(service) => {
-                        let bids_svm = service
-                            .get_bids(GetBidsInput {
-                                profile:   profile.clone(),
-                                from_time: query.from_time,
-                            })
-                            .await?;
-                        bids.extend(bids_svm.into_iter().map(|b| b.into()));
+                        Svm::get_bids_by_time(service, profile.clone(), query.from_time).await?
                     }
-                }
+                };
+                bids.extend(new_bids.items.clone());
             }
             bids.sort_by_key(|a| a.get_initiation_time());
             bids.truncate(20);
@@ -675,31 +596,11 @@ impl From<entities::Bid<Svm>> for Bid {
     }
 }
 
-impl BidCreateSvm {
-    fn get_bid_create_entity(&self, profile: Option<models::Profile>) -> entities::BidCreate<Svm> {
-        entities::BidCreate::<Svm> {
-            chain_id: self.chain_id.clone(),
-            profile,
-            initiation_time: OffsetDateTime::now_utc(),
-            chain_data: entities::BidChainDataCreateSvm {
-                transaction: self.transaction.clone(),
-            },
-        }
-    }
-}
-
-impl BidCreateEvm {
-    fn get_bid_create_entity(&self, profile: Option<models::Profile>) -> entities::BidCreate<Evm> {
-        entities::BidCreate::<Evm> {
-            chain_id: self.chain_id.clone(),
-            profile,
-            initiation_time: OffsetDateTime::now_utc(),
-            chain_data: entities::BidChainDataCreateEvm {
-                target_contract: self.target_contract,
-                target_calldata: self.target_calldata.clone(),
-                permission_key:  self.permission_key.clone(),
-                amount:          self.amount,
-            },
+impl BidCreate {
+    fn get_chain_id(&self) -> ChainId {
+        match self {
+            BidCreate::Evm(bid_create_evm) => bid_create_evm.chain_id.clone(),
+            BidCreate::Svm(bid_create_svm) => bid_create_svm.chain_id.clone(),
         }
     }
 }
@@ -713,5 +614,108 @@ impl From<entities::BidStatusEvm> for BidStatus {
 impl From<entities::BidStatusSvm> for BidStatus {
     fn from(bid: entities::BidStatusSvm) -> Self {
         BidStatus::Svm(bid.into())
+    }
+}
+
+#[async_trait]
+trait ApiTrait<T: ChainTrait>
+where
+    Service<T>: Verification<T>,
+    entities::Bid<T>: Into<Bid>,
+{
+    type BidCreateType: Clone + std::fmt::Debug + Send + Sync;
+
+    async fn handle_bid(
+        service: &Service<T>,
+        bid_create: &BidCreate,
+        profile: Option<models::Profile>,
+    ) -> Result<Json<BidResult>, RestError> {
+        let bid = Self::get_bid_create_entity(bid_create, profile)?;
+        let bid = service
+            .handle_bid(HandleBidInput { bid_create: bid })
+            .await?;
+        Ok(Json(BidResult {
+            status: "OK".to_string(),
+            id:     bid.id,
+        }))
+    }
+
+    async fn get_bid_status(
+        service: &Service<T>,
+        bid_id: entities::BidId,
+    ) -> Result<Json<BidStatus>, RestError> {
+        let bid: Bid = service.get_bid(GetBidInput { bid_id }).await?.into();
+        Ok(Json(bid.get_status()))
+    }
+
+    async fn get_bids_by_time(
+        service: &Service<T>,
+        profile: models::Profile,
+        from_time: Option<OffsetDateTime>,
+    ) -> Result<Json<Bids>, RestError> {
+        let bids = service
+            .get_bids(GetBidsInput { profile, from_time })
+            .await?;
+        Ok(Json(Bids {
+            items: bids.into_iter().map(|b| b.into()).collect(),
+        }))
+    }
+
+    fn get_bid_create_entity(
+        bid: &BidCreate,
+        profile: Option<models::Profile>,
+    ) -> Result<entities::BidCreate<T>, RestError>;
+}
+
+impl ApiTrait<Evm> for Evm {
+    type BidCreateType = BidCreateEvm;
+
+    fn get_bid_create_entity(
+        bid: &BidCreate,
+        profile: Option<models::Profile>,
+    ) -> Result<entities::BidCreate<Evm>, RestError> {
+        match bid {
+            BidCreate::Evm(bid_create_evm) => {
+                Ok(entities::BidCreate::<Evm> {
+                    chain_id: bid_create_evm.chain_id.clone(),
+                    profile,
+                    initiation_time: OffsetDateTime::now_utc(),
+                    chain_data: entities::BidChainDataCreateEvm {
+                        target_contract: bid_create_evm.target_contract,
+                        target_calldata: bid_create_evm.target_calldata.clone(),
+                        permission_key:  bid_create_evm.permission_key.clone(),
+                        amount:          bid_create_evm.amount,
+                    },
+                })
+            }
+            _ => Err(RestError::BadParameters(
+                "Expected EVM chain_id. Ensure that the bid type matches the expected chain for the specified chain_id.".to_string()
+            )),
+        }
+    }
+}
+
+impl ApiTrait<Svm> for Svm {
+    type BidCreateType = BidCreateSvm;
+
+    fn get_bid_create_entity(
+        bid: &BidCreate,
+        profile: Option<models::Profile>,
+    ) -> Result<entities::BidCreate<Svm>, RestError> {
+        match bid {
+            BidCreate::Svm(bid_create_svm) => {
+                Ok(entities::BidCreate::<Svm> {
+                    chain_id: bid_create_svm.chain_id.clone(),
+                    profile,
+                    initiation_time: OffsetDateTime::now_utc(),
+                    chain_data: entities::BidChainDataCreateSvm {
+                        transaction: bid_create_svm.transaction.clone(),
+                    },
+                })
+            }
+            _ => Err(RestError::BadParameters(
+                "Expected SVM chain_id. Ensure that the bid type matches the expected chain for the specified chain_id.".to_string()
+            )),
+        }
     }
 }
