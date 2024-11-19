@@ -6,14 +6,14 @@ use {
     },
     crate::{
         api::RestError,
+        kernel::contracts::{
+            ExecutionParams,
+            ExecutionWitness,
+            PermitBatchTransferFrom,
+            TokenAmount,
+        },
         opportunity::{
             api::OpportunityBidEvm,
-            contracts::{
-                ExecutionParams,
-                ExecutionWitness,
-                PermitBatchTransferFrom,
-                TokenAmount,
-            },
             entities,
         },
     },

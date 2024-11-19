@@ -1,24 +1,30 @@
 use {
-    super::{
-        contracts::AdapterFactory,
-        repository::{
-            InMemoryStore,
-            InMemoryStoreEvm,
-            InMemoryStoreSvm,
-            Repository,
-        },
+    super::repository::{
+        InMemoryStore,
+        InMemoryStoreEvm,
+        InMemoryStoreSvm,
+        Repository,
     },
     crate::{
+        auction::service::{
+            self as auction_service,
+        },
         kernel::{
+            contracts::AdapterFactory,
             db::DB,
-            entities::ChainId,
+            entities::{
+                ChainId,
+                ChainType as ChainTypeEnum,
+                Evm,
+                Svm,
+            },
+            traced_client::TracedClient,
         },
         state::{
             ChainStoreEvm,
             ChainStoreSvm,
             Store,
         },
-        traced_client::TracedClient,
     },
     ethers::{
         providers::Provider,
@@ -30,6 +36,8 @@ use {
         collections::HashMap,
         sync::Arc,
     },
+    tokio::sync::RwLock,
+    tokio_util::task::TaskTracker,
 };
 
 pub mod add_opportunity;
@@ -48,7 +56,7 @@ mod make_adapter_calldata;
 mod make_opportunity_execution_params;
 mod make_permitted_tokens;
 
-#[derive(Debug)]
+// NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigEvm {
     pub adapter_factory_contract: Address,
     pub adapter_bytecode_hash:    [u8; 32],
@@ -56,11 +64,43 @@ pub struct ConfigEvm {
     pub permit2:                  Address,
     pub provider:                 Provider<TracedClient>,
     pub weth:                     Address,
+    pub auction_service:          RwLock<Option<auction_service::Service<Evm>>>,
 }
 
-#[derive(Debug)]
+impl ConfigEvm {
+    // TODO Move these to config trait?
+    pub async fn inject_auction_service(&self, service: auction_service::Service<Evm>) {
+        let mut write_gaurd = self.auction_service.write().await;
+        *write_gaurd = Some(service);
+    }
+    pub async fn get_auction_service(&self) -> auction_service::Service<Evm> {
+        self.auction_service
+            .read()
+            .await
+            .clone()
+            .expect("Failed to get auction service")
+    }
+}
+
+// NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
     pub wallet_program_router_account: Pubkey,
+    pub auction_service:               RwLock<Option<auction_service::Service<Svm>>>,
+}
+
+impl ConfigSvm {
+    // TODO Move these to config trait?
+    pub async fn inject_auction_service(&self, service: auction_service::Service<Svm>) {
+        let mut write_gaurd = self.auction_service.write().await;
+        *write_gaurd = Some(service);
+    }
+    pub async fn get_auction_service(&self) -> auction_service::Service<Svm> {
+        self.auction_service
+            .read()
+            .await
+            .clone()
+            .expect("Failed to get auction service")
+    }
 }
 
 #[allow(dead_code)]
@@ -124,6 +164,7 @@ impl ConfigEvm {
             adapter_factory_contract,
             chain_id_num,
             provider,
+            auction_service: RwLock::new(None),
         })
     }
 
@@ -162,17 +203,12 @@ impl ConfigSvm {
                     chain_id.clone(),
                     Self {
                         wallet_program_router_account: config.wallet_program_router_account,
+                        auction_service:               RwLock::new(None),
                     },
                 )
             })
             .collect())
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ChainTypeEnum {
-    Evm,
-    Svm,
 }
 
 pub trait ChainType: Send + Sync {
@@ -205,16 +241,18 @@ impl ChainType for ChainTypeSvm {
 
 // TODO maybe just create a service per chain_id?
 pub struct Service<T: ChainType> {
-    store:  Arc<Store>,
-    db:     DB,
+    store:        Arc<Store>,
+    db:           DB,
     // TODO maybe after adding state for opportunity we can remove the arc
-    repo:   Arc<Repository<T::InMemoryStore>>,
-    config: HashMap<ChainId, T::Config>,
+    repo:         Arc<Repository<T::InMemoryStore>>,
+    config:       HashMap<ChainId, T::Config>,
+    task_tracker: TaskTracker,
 }
 
 impl<T: ChainType> Service<T> {
     pub fn new(store: Arc<Store>, db: DB, config: HashMap<ChainId, T::Config>) -> Self {
         Self {
+            task_tracker: store.task_tracker.clone(),
             store,
             db,
             repo: Arc::new(Repository::<T::InMemoryStore>::new()),

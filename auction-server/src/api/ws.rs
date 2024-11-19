@@ -1,11 +1,16 @@
 use {
     super::Auth,
     crate::{
-        api::bid::{
-            process_bid,
-            BidResult,
+        auction::{
+            api::{
+                process_bid,
+                BidCreate,
+                BidResult,
+                BidStatusWithId,
+                SvmChainUpdate,
+            },
+            entities::BidId,
         },
-        auction::Bid,
         config::ChainId,
         opportunity::{
             api::{
@@ -20,12 +25,7 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        state::{
-            BidId,
-            BidStatusWithId,
-            StoreNew,
-            SvmChainUpdate,
-        },
+        state::StoreNew,
     },
     anyhow::{
         anyhow,
@@ -94,7 +94,7 @@ pub enum ClientMessage {
         chain_ids: Vec<ChainId>,
     },
     #[serde(rename = "post_bid")]
-    PostBid { bid: Bid },
+    PostBid { bid: BidCreate },
 
     #[serde(rename = "post_opportunity_bid")]
     PostOpportunityBid {
@@ -399,10 +399,10 @@ impl Subscriber {
     async fn handle_post_bid(
         &mut self,
         id: String,
-        bid: Bid,
+        bid: BidCreate,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         tracing::Span::current().record("name", "post_bid");
-        match process_bid(self.store.clone(), bid, self.auth.clone()).await {
+        match process_bid(self.auth.clone(), self.store.clone(), bid).await {
             Ok(bid_result) => {
                 self.bid_ids.insert(bid_result.id);
                 Ok(ServerResultResponse {

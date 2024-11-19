@@ -4,11 +4,8 @@ use {
             self,
             ws,
         },
-        auction::{
-            run_auction_conclusion_loop_svm,
-            run_log_listener_loop_svm,
-            run_submission_loop,
-            run_tracker_loop,
+        auction::service::{
+            self as auction_service,
         },
         config::{
             ChainId,
@@ -17,6 +14,7 @@ use {
             MigrateOptions,
             RunOptions,
         },
+        kernel::traced_sender_svm::TracedSenderSvm,
         models,
         opportunity::{
             service as opportunity_service,
@@ -29,7 +27,6 @@ use {
             Store,
             StoreNew,
         },
-        watcher::run_watcher_loop_svm,
     },
     anyhow::{
         anyhow,
@@ -43,18 +40,18 @@ use {
         utils::SECONDS_DURATION_BUCKETS,
     },
     ethers::{
-        core::k256::ecdsa::SigningKey,
         prelude::LocalWallet,
-        signers::{
-            Signer,
-            Wallet,
-        },
+        signers::Signer,
     },
     futures::{
         future::join_all,
         Future,
     },
-    solana_sdk::signature::Keypair,
+    solana_client::rpc_client::RpcClientConfig,
+    solana_sdk::{
+        commitment_config::CommitmentConfig,
+        signature::Keypair,
+    },
     sqlx::{
         migrate,
         postgres::PgPoolOptions,
@@ -142,10 +139,7 @@ pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
 }
 
 
-async fn setup_chain_store_evm(
-    config_map: ConfigMap,
-    wallet: Wallet<SigningKey>,
-) -> Result<HashMap<ChainId, ChainStoreEvm>> {
+async fn setup_chain_store_evm(config_map: ConfigMap) -> Result<HashMap<ChainId, ChainStoreEvm>> {
     join_all(
         config_map
             .chains
@@ -153,12 +147,11 @@ async fn setup_chain_store_evm(
             .filter_map(|(chain_id, config)| match config {
                 Config::Svm(_) => None,
                 Config::Evm(chain_config) => {
-                    let (chain_id, chain_config, wallet) =
-                        (chain_id.clone(), chain_config.clone(), wallet.clone());
+                    let (chain_id, chain_config) = (chain_id.clone(), chain_config.clone());
                     Some(async move {
                         Ok((
                             chain_id.clone(),
-                            ChainStoreEvm::create_store(chain_id, chain_config, wallet).await?,
+                            ChainStoreEvm::create_store(chain_id, chain_config).await?,
                         ))
                     })
                 }
@@ -170,7 +163,6 @@ async fn setup_chain_store_evm(
 }
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
-
 
 // TODO move to kernel repo
 async fn create_pg_pool(database_url: &str) -> Result<PgPool> {
@@ -206,6 +198,7 @@ pub async fn run_migrations(migrate_options: MigrateOptions) -> Result<()> {
     tracing::info!("Last migration: {}", last_migration_desc);
     Ok(())
 }
+
 pub async fn start_server(run_options: RunOptions) -> Result<()> {
     tokio::spawn(async move {
         tracing::info!("Registered shutdown signal handler...");
@@ -225,9 +218,9 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let wallet = run_options.subwallet_private_key.parse::<LocalWallet>()?;
     tracing::info!("Using wallet address: {:?}", wallet.address());
 
-    let chains_evm = setup_chain_store_evm(config_map.clone(), wallet.clone()).await?;
+    let chains_evm = setup_chain_store_evm(config_map.clone()).await?;
 
-    let chains_svm = setup_chain_store_svm(&run_options, config_map)?;
+    let chains_svm = setup_chain_store_svm(config_map)?;
 
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
@@ -251,91 +244,246 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
-        db: pool.clone(),
-        chains_evm,
-        chains_svm,
-        event_sender: broadcast_sender.clone(),
-        ws: ws::WsState {
+        db:               pool.clone(),
+        chains_evm:       chains_evm.clone(),
+        chains_svm:       chains_svm.clone(),
+        ws:               ws::WsState {
             subscriber_counter: AtomicUsize::new(0),
             broadcast_sender,
             broadcast_receiver,
         },
-        task_tracker: task_tracker.clone(),
-        secret_key: run_options.secret_key.clone(),
-        access_tokens: RwLock::new(access_tokens),
+        task_tracker:     task_tracker.clone(),
+        secret_key:       run_options.secret_key.clone(),
+        access_tokens:    RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
     });
 
-    let store_new = Arc::new(StoreNew {
-        store:                   store.clone(),
-        opportunity_service_evm: Arc::new(opportunity_service::Service::<
-            opportunity_service::ChainTypeEvm,
-        >::new(
-            store.clone(),
-            pool.clone(),
-            config_opportunity_service_evm,
-        )),
-        opportunity_service_svm: Arc::new(opportunity_service::Service::<
-            opportunity_service::ChainTypeSvm,
-        >::new(
-            store.clone(),
-            pool.clone(),
-            config_opportunity_service_svm,
-        )),
+    let opportunity_service_evm = Arc::new(opportunity_service::Service::<
+        opportunity_service::ChainTypeEvm,
+    >::new(
+        store.clone(),
+        pool.clone(),
+        config_opportunity_service_evm,
+    ));
+    let opportunity_service_svm = Arc::new(opportunity_service::Service::<
+        opportunity_service::ChainTypeSvm,
+    >::new(
+        store.clone(),
+        pool.clone(),
+        config_opportunity_service_svm,
+    ));
+    #[allow(clippy::iter_kv_map)]
+    let mut auction_services: HashMap<ChainId, auction_service::ServiceEnum> = chains_evm
+        .iter()
+        .map(|(chain_id, chain_store)| {
+            (
+                chain_id.clone(),
+                auction_service::ServiceEnum::Evm(auction_service::Service::new(
+                    pool.clone(),
+                    auction_service::Config {
+                        chain_id:     chain_id.clone(),
+                        chain_config: auction_service::ConfigEvm::new(
+                            wallet.clone(),
+                            chain_store.config.express_relay_contract,
+                            chain_store.provider.clone(),
+                            chain_store.block_gas_limit,
+                            chain_store.config.geth_ws_addr.clone(),
+                            chain_store.network_id,
+                        ),
+                    },
+                    opportunity_service_evm.clone(),
+                    task_tracker.clone(),
+                    store.ws.broadcast_sender.clone(),
+                )),
+            )
+        })
+        .collect();
+    chains_svm.iter().for_each(|(chain_id, chain_store)| {
+        if auction_services
+            .insert(
+                chain_id.clone(),
+                auction_service::ServiceEnum::Svm(auction_service::Service::new(
+                    pool.clone(),
+                    auction_service::Config {
+                        chain_id:     chain_id.clone(),
+                        chain_config: auction_service::ConfigSvm {
+                            client:                        TracedSenderSvm::new_client(
+                                chain_id.clone(),
+                                chain_store.config.rpc_read_url.as_str(),
+                                chain_store.config.rpc_timeout,
+                                RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                            ),
+                            wallet_program_router_account: chain_store
+                                .config
+                                .wallet_program_router_account,
+                            express_relay:                 auction_service::ExpressRelaySvm {
+                                program_id:                  chain_store
+                                    .config
+                                    .express_relay_program_id,
+                                relayer:                     Keypair::from_base58_string(
+                                    &run_options
+                                        .private_key_svm
+                                        .clone()
+                                        .expect("No svm private key provided for chain"),
+                                ),
+                                permission_account_position: env!(
+                                    "SUBMIT_BID_PERMISSION_ACCOUNT_POSITION"
+                                )
+                                .parse::<usize>()
+                                .expect("Failed to parse permission account position"),
+                                router_account_position:     env!(
+                                    "SUBMIT_BID_ROUTER_ACCOUNT_POSITION"
+                                )
+                                .parse::<usize>()
+                                .expect("Failed to parse router account position"),
+                            },
+                            ws_address:                    chain_store.config.ws_addr.clone(),
+                            tx_broadcaster_client:         TracedSenderSvm::new_client(
+                                chain_id.clone(),
+                                chain_store.config.rpc_tx_submission_url.as_str(),
+                                chain_store.config.rpc_timeout,
+                                RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                            ),
+                            log_sender:                    chain_store.log_sender.clone(),
+                            prioritization_fee_percentile: chain_store
+                                .config
+                                .prioritization_fee_percentile,
+                            // _dummy_log_receiver: chain_store._dummy_log_receiver.clone(),
+                        },
+                    },
+                    opportunity_service_svm.clone(),
+                    task_tracker.clone(),
+                    store.ws.broadcast_sender.clone(),
+                )),
+            )
+            .is_some()
+        {
+            panic!("Duplicate chain id: {}", chain_id);
+        }
     });
+
+    for (chain_id, service) in auction_services.iter() {
+        match service {
+            auction_service::ServiceEnum::Evm(service) => {
+                let config = opportunity_service_evm
+                    .get_config(chain_id)
+                    .expect("Failed to get opportunity service evm config");
+                config.inject_auction_service(service.clone()).await;
+            }
+            auction_service::ServiceEnum::Svm(service) => {
+                let config = opportunity_service_svm
+                    .get_config(chain_id)
+                    .expect("Failed to get opportunity service svm config");
+                config.inject_auction_service(service.clone()).await;
+            }
+        }
+    }
+
+    let store_new = Arc::new(StoreNew::new(
+        store.clone(),
+        opportunity_service_evm,
+        opportunity_service_svm,
+        auction_services.clone(),
+    ));
 
     tokio::join!(
         async {
-            let submission_loops = store.chains_evm.iter().map(|(chain_id, chain_store)| {
-                fault_tolerant_handler(
-                    format!("submission loop for evm chain {}", chain_id.clone()),
-                    || run_submission_loop(store_new.clone(), chain_store.clone()),
-                )
+            let submission_loops = auction_services.iter().filter_map(|(chain_id, service)| {
+                if let auction_service::ServiceEnum::Evm(service) = service {
+                    Some(fault_tolerant_handler(
+                        format!("submission loop for chain {}", chain_id.clone()),
+                        || {
+                            let service = service.clone();
+                            async move { service.run_submission_loop().await }
+                        },
+                    ))
+                } else {
+                    None
+                }
             });
             join_all(submission_loops).await;
         },
         async {
-            let submission_loops = store.chains_svm.iter().map(|(chain_id, chain_store)| {
-                fault_tolerant_handler(
-                    format!("submission loop for svm chain {}", chain_id.clone()),
-                    || run_submission_loop(store_new.clone(), chain_store.clone()),
-                )
+            let submission_loops = auction_services.iter().filter_map(|(chain_id, service)| {
+                if let auction_service::ServiceEnum::Svm(service) = service {
+                    Some(fault_tolerant_handler(
+                        format!("submission loop for chain {}", chain_id.clone()),
+                        || {
+                            let service = service.clone();
+                            async move { service.run_submission_loop().await }
+                        },
+                    ))
+                } else {
+                    None
+                }
             });
             join_all(submission_loops).await;
         },
         async {
-            let log_listener_loops = store.chains_svm.iter().map(|(chain_id, chain_store)| {
-                fault_tolerant_handler(
-                    format!("log listener loop for svm chain {}", chain_id.clone()),
-                    || run_log_listener_loop_svm(chain_store.clone()),
-                )
+            let log_listener_loops = auction_services.iter().filter_map(|(chain_id, service)| {
+                if let auction_service::ServiceEnum::Svm(service) = service {
+                    Some(fault_tolerant_handler(
+                        format!("log listener loop for chain {}", chain_id.clone()),
+                        || {
+                            let service = service.clone();
+                            async move { service.run_log_listener_loop().await }
+                        },
+                    ))
+                } else {
+                    None
+                }
             });
             join_all(log_listener_loops).await;
         },
         async {
-            let log_listener_loops = store.chains_svm.iter().map(|(chain_id, chain_store)| {
-                fault_tolerant_handler(
-                    format!("conclusion loop for svm chain {}", chain_id.clone()),
-                    || run_auction_conclusion_loop_svm(store_new.clone(), chain_store.clone()),
-                )
-            });
-            join_all(log_listener_loops).await;
+            let auction_conclusion_loops =
+                auction_services.iter().filter_map(|(chain_id, service)| {
+                    if let auction_service::ServiceEnum::Svm(service) = service {
+                        Some(fault_tolerant_handler(
+                            format!(
+                                "auction conclusion loops loop for chain {}",
+                                chain_id.clone()
+                            ),
+                            || {
+                                let service = service.clone();
+                                async move { service.run_auction_conclusion_loop().await }
+                            },
+                        ))
+                    } else {
+                        None
+                    }
+                });
+            join_all(auction_conclusion_loops).await;
         },
         async {
-            let tracker_loops = store.chains_evm.iter().map(|(chain_id, chain_store)| {
-                fault_tolerant_handler(
-                    format!("tracker loop for chain {}", chain_id.clone()),
-                    || run_tracker_loop(chain_store.clone()),
-                )
+            let tracker_loops = auction_services.iter().filter_map(|(chain_id, service)| {
+                if let auction_service::ServiceEnum::Evm(service) = service {
+                    Some(fault_tolerant_handler(
+                        format!("tracker loop for chain {}", chain_id.clone()),
+                        || {
+                            let service = service.clone();
+                            async move { service.run_tracker_loop().await }
+                        },
+                    ))
+                } else {
+                    None
+                }
             });
             join_all(tracker_loops).await;
         },
         async {
-            let watcher_loops = store.chains_svm.keys().map(|chain_id| {
-                fault_tolerant_handler(
-                    format!("watcher loop for chain {}", chain_id.clone()),
-                    || run_watcher_loop_svm(store.clone(), chain_id.clone()),
-                )
+            let watcher_loops = auction_services.iter().filter_map(|(chain_id, service)| {
+                if let auction_service::ServiceEnum::Svm(service) = service {
+                    Some(fault_tolerant_handler(
+                        format!("watcher loop for chain {}", chain_id.clone()),
+                        || {
+                            let service = service.clone();
+                            async move { service.run_watcher_loop().await }
+                        },
+                    ))
+                } else {
+                    None
+                }
             });
             join_all(watcher_loops).await;
         },
@@ -363,10 +511,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     Ok(())
 }
 
-fn setup_chain_store_svm(
-    run_options: &RunOptions,
-    config_map: ConfigMap,
-) -> Result<HashMap<ChainId, ChainStoreSvm>> {
+fn setup_chain_store_svm(config_map: ConfigMap) -> Result<HashMap<ChainId, ChainStoreSvm>> {
     let svm_chains: Vec<_> = config_map
         .chains
         .iter()
@@ -378,19 +523,10 @@ fn setup_chain_store_svm(
     if svm_chains.is_empty() {
         return Ok(HashMap::new());
     }
-    let relayer = Arc::new(Keypair::from_base58_string(
-        &run_options
-            .private_key_svm
-            .clone()
-            .ok_or(anyhow!("No svm private key provided for svm chains"))?,
-    ));
     Ok(svm_chains
         .into_iter()
         .map(|(chain_id, chain_config)| {
-            (
-                chain_id.clone(),
-                ChainStoreSvm::new(chain_id.clone(), chain_config.clone(), relayer.clone()),
-            )
+            (chain_id.clone(), ChainStoreSvm::new(chain_config.clone()))
         })
         .collect())
 }

@@ -11,9 +11,12 @@ use {
             Provider,
         },
     },
-    std::time::{
-        Duration,
-        Instant,
+    std::{
+        fmt::Debug,
+        time::{
+            Duration,
+            Instant,
+        },
     },
 };
 
@@ -28,7 +31,7 @@ impl JsonRpcClient for TracedClient {
     type Error = HttpClientError;
 
     async fn request<
-        T: serde::Serialize + Send + Sync + std::fmt::Debug,
+        T: serde::Serialize + Send + Sync + Debug,
         R: serde::de::DeserializeOwned + Send,
     >(
         &self,

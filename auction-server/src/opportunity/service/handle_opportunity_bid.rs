@@ -10,18 +10,22 @@ use {
             RestError,
         },
         auction::{
-            handle_bid,
-            BidEvm,
-        },
-        opportunity::{
-            api::{
-                OpportunityBidEvm,
-                OpportunityId,
+            entities::{
+                BidChainDataCreateEvm,
+                BidCreate,
             },
+            service::handle_bid::HandleBidInput,
+        },
+        kernel::{
             contracts::{
                 erc20,
                 OpportunityAdapterErrors,
             },
+            entities::Evm,
+        },
+        opportunity::api::{
+            OpportunityBidEvm,
+            OpportunityId,
         },
     },
     ethers::{
@@ -35,6 +39,7 @@ use {
 pub struct HandleOpportunityBidInput {
     pub opportunity_id:  OpportunityId,
     pub opportunity_bid: OpportunityBidEvm,
+    #[allow(dead_code)]
     pub initiation_time: OffsetDateTime,
     pub auth:            Auth,
 }
@@ -62,8 +67,9 @@ impl Service<ChainTypeEvm> {
             .get_in_memory_opportunity_by_id(input.opportunity_id)
             .await
             .ok_or(RestError::OpportunityNotFound)?;
-        let config = self.get_config(&opportunity.chain_id)?;
 
+        let config = self.get_config(&opportunity.chain_id)?;
+        let auction_service = config.get_auction_service().await;
         let adapter_calldata = self
             .make_adapter_calldata(MakeAdapterCalldataInput {
                 opportunity:     opportunity.clone().into(),
@@ -77,28 +83,37 @@ impl Service<ChainTypeEvm> {
                 );
                 e
             })?;
-        let bid = BidEvm {
-            permission_key:  input.opportunity_bid.permission_key.clone(),
-            chain_id:        opportunity.chain_id.clone(),
-            target_contract: config.adapter_factory_contract,
-            target_calldata: adapter_calldata,
-            amount:          input.opportunity_bid.amount,
+
+        let profile = match input.auth {
+            Auth::Authorized(_, profile) => Some(profile),
+            Auth::Admin => None,
+            Auth::Unauthorized => None,
         };
-        match handle_bid(
-            self.store.clone(),
-            bid.clone(),
-            input.initiation_time,
-            input.auth,
-        )
-        .await
+
+        let bid_create = BidCreate::<Evm> {
+            chain_id: opportunity.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile,
+            chain_data: BidChainDataCreateEvm {
+                target_contract: config.adapter_factory_contract,
+                target_calldata: adapter_calldata,
+                permission_key:  input.opportunity_bid.permission_key.clone(),
+                amount:          input.opportunity_bid.amount,
+            },
+        };
+        match auction_service
+            .handle_bid(HandleBidInput {
+                bid_create: bid_create.clone(),
+            })
+            .await
         {
-            Ok(id) => Ok(id),
+            Ok(bid) => Ok(bid.id),
             Err(e) => {
-                tracing::warn!(
-                    "Error handling bid: {:?} - opportunity: {:?} - bid: {:?}",
-                    e,
-                    opportunity,
-                    bid
+                tracing::error!(
+                    error = ?e,
+                    opportunity = ?opportunity,
+                    bid_create = ?bid_create,
+                    "Error handling bid",
                 );
                 match e {
                     RestError::SimulationError { result, reason } => {

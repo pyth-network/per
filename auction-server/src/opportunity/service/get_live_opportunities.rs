@@ -9,14 +9,14 @@ use {
     },
 };
 
-pub struct GetOpportunitiesInput {
+pub struct GetLiveOpportunitiesInput {
     pub key: entities::OpportunityKey,
 }
 
 impl<T: ChainType> Service<T> {
     pub async fn get_live_opportunities(
         &self,
-        input: GetOpportunitiesInput,
+        input: GetLiveOpportunitiesInput,
     ) -> Vec<<T::InMemoryStore as InMemoryStore>::Opportunity> {
         self.repo
             .get_in_memory_opportunities_by_key(&input.key)
