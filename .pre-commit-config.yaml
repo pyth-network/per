@@ -69,6 +69,27 @@ repos:
         entry: cargo +stable clippy --manifest-path ./contracts/svm/Cargo.toml --tests -- -D warnings
         pass_filenames: false
         files: contracts/svm
+      # EsLint hooks
+      - id: eslint-limonade
+        name: eslint limonade
+        entry: npm run --prefix scripts/limonade lint
+        pass_filenames: false
+        language: system
+      - id: eslint-dex-router
+        name: eslint dex-router
+        entry: npm run --prefix scripts/dex-router lint
+        pass_filenames: false
+        language: system
+      - id: eslint-opp-provider-limo
+        name: eslint opp-provider-limo
+        entry: npm run --prefix scripts/opportunity-provider-limo lint
+        pass_filenames: false
+        language: system
+      - id: eslint-opp-provider
+        name: eslint opp-provider
+        entry: npm run --prefix scripts/opportunity-provider lint
+        pass_filenames: false
+        language: system
       # For python files
       - id: isort
         name: isort
