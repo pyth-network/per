@@ -5,6 +5,7 @@ use {
             OpportunityCoreFields,
         },
         token_amount_evm::TokenAmountEvm,
+        OpportunityComparison,
         OpportunityCoreFieldsCreate,
         OpportunityCreate,
     },
@@ -22,6 +23,7 @@ use {
         U256,
     },
     std::ops::Deref,
+    time::OffsetDateTime,
 };
 
 // TODO revise the entities for opportunity, Maybe generic opportunity with params
@@ -70,6 +72,18 @@ impl Opportunity for OpportunityEvm {
             permission_key: self.core_fields.permission_key.clone(),
             chain_id:       self.core_fields.chain_id.clone(),
         }))
+    }
+
+    fn compare(&self, other: &Self::OpportunityCreate) -> super::OpportunityComparison {
+        if *other == self.clone().into() {
+            OpportunityComparison::Duplicate
+        } else {
+            OpportunityComparison::New
+        }
+    }
+
+    fn refresh(&mut self) {
+        self.core_fields.refresh_time = OffsetDateTime::now_utc();
     }
 }
 
@@ -170,7 +184,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataEvm>> for Op
         Ok(OpportunityEvm {
             core_fields:       OpportunityCoreFields {
                 id: val.id,
-                creation_time: val.last_creation_time.assume_utc(),
+                creation_time: val.creation_time.assume_utc(),
+                refresh_time: val.creation_time.assume_utc(),
                 permission_key: PermissionKey::from(val.permission_key),
                 chain_id: val.chain_id,
                 sell_tokens,

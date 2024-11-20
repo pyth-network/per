@@ -20,10 +20,13 @@ use {
             service::ChainTypeEnum,
         },
     },
-    time::OffsetDateTime,
+    time::{
+        Duration,
+        OffsetDateTime,
+    },
 };
 
-const MAX_STALE_OPPORTUNITY_MICROS: i128 = 60_000_000;
+const MAX_STALE_OPPORTUNITY_DURATION: Duration = Duration::minutes(2);
 
 impl<T: ChainType> Service<T>
 where
@@ -41,9 +44,8 @@ where
                     .await
                 {
                     Ok(entities::OpportunityVerificationResult::UnableToSpoof) => {
-                        if (OffsetDateTime::now_utc() - opportunity.creation_time)
-                            .whole_microseconds()
-                            > MAX_STALE_OPPORTUNITY_MICROS
+                        if OffsetDateTime::now_utc() - opportunity.refresh_time
+                            > MAX_STALE_OPPORTUNITY_DURATION
                         {
                             Some(entities::OpportunityRemovalReason::Expired)
                         } else {

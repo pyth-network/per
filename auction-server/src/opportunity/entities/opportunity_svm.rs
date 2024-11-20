@@ -5,6 +5,7 @@ use {
             OpportunityCoreFields,
         },
         token_amount_svm::TokenAmountSvm,
+        OpportunityComparison,
         OpportunityCoreFieldsCreate,
         OpportunityCreate,
     },
@@ -22,6 +23,10 @@ use {
         pubkey::Pubkey,
     },
     std::ops::Deref,
+    time::{
+        Duration,
+        OffsetDateTime,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,6 +66,9 @@ pub struct OpportunityCreateSvm {
     pub program:            OpportunitySvmProgram,
     pub slot:               Slot,
 }
+
+// Opportunity can be refreshed after 10 seconds
+const MIN_REFRESH_TIME: Duration = Duration::seconds(30);
 
 impl Opportunity for OpportunitySvm {
     type TokenAmount = TokenAmountSvm;
@@ -113,6 +121,24 @@ impl Opportunity for OpportunitySvm {
             router:             self.router,
             program:            self.program.clone().into(),
         }))
+    }
+
+    fn compare(&self, other: &Self::OpportunityCreate) -> super::OpportunityComparison {
+        let mut self_clone: OpportunityCreateSvm = self.clone().into();
+        self_clone.slot = other.slot;
+        if *other == self_clone {
+            if self.refresh_time + MIN_REFRESH_TIME < OffsetDateTime::now_utc() {
+                OpportunityComparison::NeedsRefresh
+            } else {
+                OpportunityComparison::Duplicate
+            }
+        } else {
+            OpportunityComparison::New
+        }
+    }
+
+    fn refresh(&mut self) {
+        self.core_fields.refresh_time = OffsetDateTime::now_utc();
     }
 }
 
@@ -226,7 +252,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
         Ok(OpportunitySvm {
             core_fields: OpportunityCoreFields {
                 id: val.id,
-                creation_time: val.last_creation_time.assume_utc(),
+                creation_time: val.creation_time.assume_utc(),
+                refresh_time: val.creation_time.assume_utc(),
                 permission_key: PermissionKey::from(val.permission_key),
                 chain_id: val.chain_id,
                 sell_tokens,

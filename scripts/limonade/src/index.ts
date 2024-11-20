@@ -158,8 +158,9 @@ async function run() {
   const resubmitOpportunities = async () => {
     while (true) {
       submitExistingOpportunities().catch(console.error);
-      // Wait for 1 minute before resubmitting
-      await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
+      // Server expires opportunities after 2 minutes
+      // We should resubmit them before server expire them to avoid creating a new row in the database
+      await new Promise((resolve) => setTimeout(resolve, 50 * 1000));
     }
   };
 
