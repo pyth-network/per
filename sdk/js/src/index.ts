@@ -328,6 +328,10 @@ export class Client {
         encoded_order,
         Order.discriminator.length
       );
+      const remainingOutputAmount =
+        opportunity.order.state.expectedOutputAmount.sub(
+          opportunity.order.state.filledOutputAmount
+        );
       body = {
         chain_id: opportunity.chainId,
         version: "v1" as const,
@@ -345,7 +349,7 @@ export class Client {
         sell_tokens: [
           {
             token: opportunity.order.state.outputMint.toBase58(),
-            amount: opportunity.order.state.expectedOutputAmount.toNumber(),
+            amount: remainingOutputAmount.toNumber(),
           },
         ],
         permission_account: opportunity.order.address.toBase58(),
