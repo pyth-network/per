@@ -71,18 +71,11 @@ pub struct BidStatusAuction<T: BidStatus> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum BidStatusSvm {
     Pending,
-    Submitted {
-        auction: BidStatusAuction<Self>,
-    },
-    Lost {
-        auction: Option<BidStatusAuction<Self>>,
-    },
-    Won {
-        auction: BidStatusAuction<Self>,
-    },
-    Expired {
-        auction: BidStatusAuction<Self>,
-    },
+    Submitted { auction: BidStatusAuction<Self> },
+    Lost,
+    Won { auction: BidStatusAuction<Self> },
+    Expired { auction: BidStatusAuction<Self> },
+    Failed { auction: BidStatusAuction<Self> },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -121,7 +114,7 @@ impl BidStatus for BidStatusSvm {
     }
 
     fn new_lost() -> Self {
-        BidStatusSvm::Lost { auction: None }
+        BidStatusSvm::Lost
     }
 }
 

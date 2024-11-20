@@ -80,6 +80,7 @@ pub enum BidStatus {
     Lost,
     Won,
     Expired,
+    Failed,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -208,6 +209,7 @@ impl ModelTrait<Evm> for Evm {
                 index,
             }),
             BidStatus::Expired => Err(anyhow::anyhow!("Evm bid cannot be expired")),
+            BidStatus::Failed => Err(anyhow::anyhow!("Evm bid cannot be failed")),
         }
     }
 
@@ -349,9 +351,13 @@ impl ModelTrait<Svm> for Svm {
                 Some(auction) => Ok(entities::BidStatusSvm::Won { auction }),
                 None => Err(anyhow::anyhow!("Won bid should have a bid_status_auction")),
             },
-            BidStatus::Lost => Ok(entities::BidStatusSvm::Lost {
-                auction: bid_status_auction,
-            }),
+            BidStatus::Lost => Ok(entities::BidStatusSvm::Lost),
+            BidStatus::Failed => match bid_status_auction {
+                Some(auction) => Ok(entities::BidStatusSvm::Failed { auction }),
+                None => Err(anyhow::anyhow!(
+                    "Failed bid should have a bid_status_auction"
+                )),
+            },
             BidStatus::Expired => match bid_status_auction {
                 Some(auction) => Ok(entities::BidStatusSvm::Expired { auction }),
                 None => Err(anyhow::anyhow!(
@@ -393,32 +399,30 @@ impl ModelTrait<Svm> for Svm {
         new_status: <Svm as ChainTrait>::BidStatusType,
     ) -> anyhow::Result<Query<'_, Postgres, PgArguments>> {
         match new_status {
-            entities::BidStatusSvm::Pending => Err(anyhow::anyhow!("Cannot update bid status to pending")),
-            entities::BidStatusSvm::Submitted { auction } => {
-                Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
-                    BidStatus::Submitted as _,
-                    auction.id,
-                    bid.id,
-                    BidStatus::Pending as _,
-                ))
-            },
-            entities::BidStatusSvm::Lost { auction} => match auction {
-                Some(auction) => Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5)",
-                    BidStatus::Lost as _,
-                    auction.id,
-                    bid.id,
-                    BidStatus::Pending as _,
-                    BidStatus::Submitted as _,
-                )),
-                None => Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
-                    BidStatus::Lost as _,
-                    bid.id,
-                    BidStatus::Pending as _
-                )),
-            },
+            entities::BidStatusSvm::Pending => {
+                Err(anyhow::anyhow!("Cannot update bid status to pending"))
+            }
+            entities::BidStatusSvm::Submitted { auction } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+                BidStatus::Submitted as _,
+                auction.id,
+                bid.id,
+                BidStatus::Pending as _,
+            )),
+            entities::BidStatusSvm::Lost => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
+                BidStatus::Lost as _,
+                bid.id,
+                BidStatus::Pending as _
+            )),
+            entities::BidStatusSvm::Failed { auction } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5)",
+                BidStatus::Failed as _,
+                auction.id,
+                bid.id,
+                BidStatus::Pending as _,
+                BidStatus::Submitted as _,
+            )),
             entities::BidStatusSvm::Won { .. } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
                 BidStatus::Won as _,

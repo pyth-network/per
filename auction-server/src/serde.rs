@@ -128,39 +128,3 @@ pub mod transaction_svm {
         Ok(transaction)
     }
 }
-
-pub mod nullable_signature_svm {
-    use {
-        serde::{
-            de::Error,
-            Deserialize,
-            Deserializer,
-            Serializer,
-        },
-        solana_sdk::signature::Signature,
-        std::str::FromStr,
-    };
-
-    pub fn serialize<S>(b: &Option<Signature>, s: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match b {
-            Some(b) => s.serialize_str(b.to_string().as_str()),
-            None => s.serialize_none(),
-        }
-    }
-
-    pub fn deserialize<'de, D>(d: D) -> Result<Option<Signature>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s: Option<String> = Deserialize::deserialize(d)?;
-        match s {
-            Some(s) => Signature::from_str(s.as_str())
-                .map(Some)
-                .map_err(|err| D::Error::custom(err.to_string())),
-            None => Ok(None),
-        }
-    }
-}
