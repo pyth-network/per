@@ -80,6 +80,9 @@ pub enum BidStatusSvm {
     Won {
         auction: BidStatusAuction<Self>,
     },
+    Failed {
+        auction: BidStatusAuction<Self>,
+    },
     Expired {
         auction: BidStatusAuction<Self>,
     },

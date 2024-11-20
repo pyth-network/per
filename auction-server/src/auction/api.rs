@@ -141,17 +141,9 @@ pub enum BidStatusSvm {
     /// The temporary state which means the auction for this bid is pending.
     #[schema(title = "Pending")]
     Pending,
-    /// The bid is submitted to the chain, with the transaction with the signature.
-    /// This state is temporary and will be updated to either lost or won after conclusion of the auction.
-    #[schema(title = "Submitted")]
-    Submitted {
-        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        result: Signature,
-    },
     /// The bid lost the auction.
-    /// The result will be None if the auction was concluded off-chain and no auction was submitted to the chain.
-    /// The result will be not None if another bid were selected for submission to the chain.
+    /// The result will be None if the auction does not result in a transaction being submitted to the chain.
+    /// The result will be Some if this bid lost to another bid and the winning bid was submitted to the chain.
     /// The signature of the transaction for the submitted bid is the result value.
     #[schema(title = "Lost")]
     Lost {
@@ -159,14 +151,29 @@ pub enum BidStatusSvm {
         #[serde(with = "crate::serde::nullable_signature_svm")]
         result: Option<Signature>,
     },
-    /// The bid won the auction, with the transaction with the signature.
+    /// The bid won the auction and was submitted to the chain, with the transaction with the signature.
+    /// This state is temporary and will be updated to either Won or Failed after the transaction is included in a block, or Expired if the transaction expires before it is included.
+    #[schema(title = "Submitted")]
+    Submitted {
+        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        result: Signature,
+    },
+    /// The bid won the auction and was included in a block successfully.
     #[schema(title = "Won")]
     Won {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         result: Signature,
     },
-    /// The bid expired without being submitted on chain.
+    /// The bid was submitted on-chain, was included in a block, but resulted in a failed transaction.
+    #[schema(title = "Failed")]
+    Failed {
+        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        result: Signature,
+    },
+    /// The bid was submitted on-chain but expired before it was included in a block.
     #[schema(title = "Expired")]
     Expired {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
@@ -554,6 +561,9 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
                 result: auction.map(|a| a.tx_hash),
             },
             entities::BidStatusSvm::Won { auction } => BidStatusSvm::Won {
+                result: auction.tx_hash,
+            },
+            entities::BidStatusSvm::Failed { auction } => BidStatusSvm::Failed {
                 result: auction.tx_hash,
             },
             entities::BidStatusSvm::Expired { auction } => BidStatusSvm::Expired {
