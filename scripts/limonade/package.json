@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "limonade": "npm run build && node dist/index.js"
+    "limonade": "npm run build && node dist/index.js",
+    "lint": "eslint src",
+    "format": "prettier --write \"src/**/*.ts\""
   },
   "keywords": [],
   "author": "",

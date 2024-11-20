@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "create-order": "npm run build && node dist/index.js"
+    "create-order": "npm run build && node dist/index.js",
+    "lint": "eslint . --ext .ts"
   },
   "author": "",
   "license": "APACHE-2.0",

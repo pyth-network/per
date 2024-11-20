@@ -13,6 +13,10 @@ jobs:
         with:
           # Need to grab the history of the PR
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: "package.json"
+          registry-url: "https://registry.npmjs.org"
       - uses: ./.github/actions/python-poetry
       - uses: actions-rs/toolchain@v1
         with:
@@ -28,9 +32,11 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1.1.1
         with:
           version: nightly
-      - name: Install npm dependencies
+      - name: Install evm contracts npm dependencies
         working-directory: contracts/evm
-        run: npm install
+        run: npm ci
+      - name: Install npm dependencies
+        run: npm ci
       - name: Install forge dependencies 1
         working-directory: contracts/evm
         run: forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit

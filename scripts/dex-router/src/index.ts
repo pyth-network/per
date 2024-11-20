@@ -147,11 +147,6 @@ export class DexRouter {
     chain_id: string;
   }> {
     const order = opportunity.order;
-    const clientLimo = new limo.LimoClient(
-      this.connectionSvm,
-      order.state.globalConfig
-    );
-
     const routeBest = await this.getBestRoute(order);
 
     return {
@@ -359,7 +354,7 @@ export class DexRouter {
       (key) => this.lookupTableAccounts[key.toBase58()] === undefined
     );
 
-    let accountsToReturn = keys
+    const accountsToReturn = keys
       .filter((key) => !missingKeys.includes(key))
       .map((key) => this.lookupTableAccounts[key.toBase58()]);
     if (missingKeys.length > 0) {

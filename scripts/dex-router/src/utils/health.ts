@@ -5,6 +5,7 @@ export async function checkRpcHealth(
   threshold: number,
   interval: number
 ) {
+  //eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const slot = await connection.getSlot("finalized");
@@ -33,6 +34,7 @@ export async function checkExpressRelayHealth(
   interval: number
 ) {
   const urlExpressRelayHealth = new URL("/live", endpoint);
+  //eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const responseHealth = await fetch(urlExpressRelayHealth);
