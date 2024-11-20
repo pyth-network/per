@@ -39,8 +39,8 @@ impl<T: InMemoryStore> Repository<T> {
         opportunity.chain_id,
         chain_type as _,
         serde_json::to_value(metadata).expect("Failed to serialize metadata"),
-        serde_json::to_value(&opportunity.sell_tokens).unwrap(),
-        serde_json::to_value(&opportunity.buy_tokens).unwrap())
+        serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
+        serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
             .execute(db)
             .await
             .map_err(|e| {
