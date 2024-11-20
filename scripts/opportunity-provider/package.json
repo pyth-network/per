@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "provide-opportunity": "npm run build && node dist/index.js"
+    "provide-opportunity": "npm run build && node dist/index.js",
+    "lint": "eslint . --ext .ts"
   },
   "keywords": [],
   "author": "",
@@ -15,7 +16,10 @@
   "devDependencies": {
     "@types/node": "^20.14.9",
     "@types/yargs": "^17.0.32",
-    "typescript": "^5.5.2"
+    "typescript": "^5.5.2",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.0"
   },
   "dependencies": {
     "viem": "^2.16.3",

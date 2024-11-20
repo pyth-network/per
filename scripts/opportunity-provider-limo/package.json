@@ -6,13 +6,17 @@
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "create-order": "npm run build && node dist/index.js"
+    "create-order": "npm run build && node dist/index.js",
+    "lint": "eslint . --ext .ts"
   },
   "author": "",
   "license": "APACHE-2.0",
   "devDependencies": {
     "@types/yargs": "^17.0.33",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.0"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",

@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "limonade": "npm run build && node dist/index.js"
+    "limonade": "npm run build && node dist/index.js",
+    "lint": "eslint src",
+    "format": "prettier --write \"src/**/*.ts\""
   },
   "keywords": [],
   "author": "",
@@ -14,7 +16,10 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/yargs": "^17.0.33",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.0"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
