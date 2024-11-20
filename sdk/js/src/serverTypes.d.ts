@@ -233,12 +233,6 @@ export interface components {
         }
       | {
           /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
-          result: string;
-          /** @enum {string} */
-          type: "submitted";
-        }
-      | {
-          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
           result?: string | null;
           /** @enum {string} */
           type: "lost";
@@ -247,7 +241,19 @@ export interface components {
           /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
           result: string;
           /** @enum {string} */
+          type: "submitted";
+        }
+      | {
+          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+          result: string;
+          /** @enum {string} */
           type: "won";
+        }
+      | {
+          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+          result: string;
+          /** @enum {string} */
+          type: "failed";
         }
       | {
           /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */

@@ -25,6 +25,7 @@ class BidStatusVariantsSvm(Enum):
     SUBMITTED = "submitted"
     LOST = "lost"
     WON = "won"
+    FAILED = "failed"
     EXPIRED = "expired"
 
 IntString = Annotated[int, PlainSerializer(lambda x: str(x), return_type=str)]
