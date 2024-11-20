@@ -26,7 +26,7 @@ use {
     },
 };
 
-const MAX_STALE_OPPORTUNITY_DURATION: Duration = Duration::seconds(60);
+const MAX_STALE_OPPORTUNITY_DURATION: Duration = Duration::minutes(2);
 
 impl<T: ChainType> Service<T>
 where
