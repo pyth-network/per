@@ -104,15 +104,14 @@ impl OpportunityMetadata for OpportunityMetadataSvm {
 #[derive(Clone, FromRow, Debug)]
 #[allow(dead_code)]
 pub struct Opportunity<T: OpportunityMetadata> {
-    pub id:                 Uuid,
-    pub creation_time:      PrimitiveDateTime,
-    pub last_creation_time: PrimitiveDateTime,
-    pub permission_key:     Vec<u8>,
-    pub chain_id:           String,
-    pub chain_type:         ChainType,
-    pub removal_time:       Option<PrimitiveDateTime>,
-    pub sell_tokens:        JsonValue,
-    pub buy_tokens:         JsonValue,
-    pub removal_reason:     Option<OpportunityRemovalReason>,
-    pub metadata:           Json<T>,
+    pub id:             Uuid,
+    pub creation_time:  PrimitiveDateTime,
+    pub permission_key: Vec<u8>,
+    pub chain_id:       String,
+    pub chain_type:     ChainType,
+    pub removal_time:   Option<PrimitiveDateTime>,
+    pub sell_tokens:    JsonValue,
+    pub buy_tokens:     JsonValue,
+    pub removal_reason: Option<OpportunityRemovalReason>,
+    pub metadata:       Json<T>,
 }

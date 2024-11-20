@@ -35,6 +35,7 @@ pub struct OpportunityCoreFields<T: TokenAmount> {
     pub sell_tokens:    Vec<T>,
     pub buy_tokens:     Vec<T>,
     pub creation_time:  OffsetDateTime,
+    pub refresh_time:   OffsetDateTime,
 }
 
 impl<T: TokenAmount> OpportunityCoreFields<T> {
@@ -46,6 +47,7 @@ impl<T: TokenAmount> OpportunityCoreFields<T> {
             sell_tokens:    val.sell_tokens,
             buy_tokens:     val.buy_tokens,
             creation_time:  OffsetDateTime::now_utc(),
+            refresh_time:   OffsetDateTime::now_utc(),
         }
     }
 }
@@ -56,6 +58,13 @@ pub struct OpportunityCoreFieldsCreate<T: TokenAmount> {
     pub chain_id:       ChainId,
     pub sell_tokens:    Vec<T>,
     pub buy_tokens:     Vec<T>,
+}
+
+#[derive(Debug, Clone)]
+pub enum OpportunityComparison {
+    New,
+    Duplicate,
+    NeedsRefresh,
 }
 
 // TODO Think more about structure. Isn't it better to have a generic Opportunity struct with a field of type OpportunityParams?
@@ -80,6 +89,9 @@ pub trait Opportunity:
     fn get_key(&self) -> OpportunityKey {
         OpportunityKey(self.chain_id.clone(), self.permission_key.clone())
     }
+
+    fn compare(&self, other: &Self::OpportunityCreate) -> OpportunityComparison;
+    fn refresh(&mut self);
 }
 
 pub trait OpportunityCreate: Debug + Clone + From<Self::ApiOpportunityCreate> + PartialEq {
