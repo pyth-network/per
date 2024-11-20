@@ -16,7 +16,6 @@ jobs:
           - scripts/dex-router
           - scripts/opportunity-provider
           - scripts/opportunity-provider-limo
-          - contracts/svm
 
     steps:
       - name: Checkout code
