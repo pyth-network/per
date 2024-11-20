@@ -79,6 +79,7 @@ pub enum BidStatus {
     Submitted,
     Lost,
     Won,
+    Failed,
     Expired,
 }
 
@@ -207,6 +208,7 @@ impl ModelTrait<Evm> for Evm {
                 auction: bid_status_auction,
                 index,
             }),
+            BidStatus::Failed => Err(anyhow::anyhow!("Evm bid cannot be failed")),
             BidStatus::Expired => Err(anyhow::anyhow!("Evm bid cannot be expired")),
         }
     }
@@ -352,6 +354,12 @@ impl ModelTrait<Svm> for Svm {
             BidStatus::Lost => Ok(entities::BidStatusSvm::Lost {
                 auction: bid_status_auction,
             }),
+            BidStatus::Failed => match bid_status_auction {
+                Some(auction) => Ok(entities::BidStatusSvm::Failed { auction }),
+                None => Err(anyhow::anyhow!(
+                    "Failed bid should have a bid_status_auction"
+                )),
+            },
             BidStatus::Expired => match bid_status_auction {
                 Some(auction) => Ok(entities::BidStatusSvm::Expired { auction }),
                 None => Err(anyhow::anyhow!(
@@ -425,12 +433,18 @@ impl ModelTrait<Svm> for Svm {
                 bid.id,
                 BidStatus::Submitted as _,
             )),
+            entities::BidStatusSvm::Failed { .. } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
+                BidStatus::Failed as _,
+                bid.id,
+                BidStatus::Submitted as _,
+            )),
             entities::BidStatusSvm::Expired { .. } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
                 BidStatus::Expired as _,
                 bid.id,
                 BidStatus::Submitted as _,
-            )),
+            ))
         }
     }
 }

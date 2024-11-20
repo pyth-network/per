@@ -119,7 +119,10 @@ impl BidStatus for BidStatusSvm {
     fn is_finalized(&self) -> bool {
         matches!(
             self,
-            BidStatusSvm::Lost { .. } | BidStatusSvm::Won { .. } | BidStatusSvm::Expired { .. }
+            BidStatusSvm::Lost { .. }
+                | BidStatusSvm::Won { .. }
+                | BidStatusSvm::Failed { .. }
+                | BidStatusSvm::Expired { .. }
         )
     }
 

@@ -391,8 +391,8 @@ impl AuctionManager<Svm> for Service<Svm> {
                 Ok(()) => entities::BidStatusSvm::Won {
                     auction: bid_status_auction,
                 },
-                Err(_) => entities::BidStatusSvm::Lost {
-                    auction: Some(bid_status_auction),
+                Err(_) => entities::BidStatusSvm::Failed {
+                    auction: bid_status_auction,
                 },
             },
             None => {
