@@ -156,6 +156,8 @@ impl Service<Svm> {
                                             tx_hash.to_string() == rpc_log.value.signature,
                                         ).unwrap_or(false)
                                     }) {
+                                        let sig = auction.tx_hash.as_ref().unwrap();
+                                        service.config.chain_config.simulator.remove_pending_transaction(sig).await;
                                         if let Err(err) = service.conclude_auction(ConcludeAuctionInput{auction: auction.clone()}).await {
                                             tracing::error!(error = ?err, auction = ?auction, "Error while concluding submitted auction");
                                         }

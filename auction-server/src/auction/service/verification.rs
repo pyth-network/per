@@ -576,28 +576,27 @@ impl Service<Svm> {
         let response = self
             .config
             .chain_config
-            .client
+            .simulator
             .simulate_transaction(&bid.chain_data.transaction)
             .await;
         let result = response.map_err(|e| {
             tracing::error!("Error while simulating bid: {:?}", e);
             RestError::TemporarilyUnavailable
         })?;
-        match result.value.err {
-            Some(err) => {
+        match result.value {
+            Err(err) => {
                 tracing::error!(
                     error = ?err,
                     context = ?result.context,
                     "Error while simulating bid",
                 );
-                let mut msgs = result.value.logs.unwrap_or_default();
-                msgs.push(err.to_string());
+                let msgs = err.meta.logs;
                 Err(RestError::SimulationError {
                     result: Default::default(),
                     reason: msgs.join("\n"),
                 })
             }
-            None => Ok(()),
+            Ok(_) => Ok(()),
         }
     }
 

@@ -495,6 +495,11 @@ impl Service<Svm> {
             .tx_broadcaster_client
             .send_transaction_with_config(tx, config)
             .await?;
+        self.config
+            .chain_config
+            .simulator
+            .add_pending_transaction(tx)
+            .await;
         let tx_cloned = tx.clone();
         let mut receiver = self.config.chain_config.log_sender.subscribe();
         let signature_bs58 = bs58::encode(res).into_string();
