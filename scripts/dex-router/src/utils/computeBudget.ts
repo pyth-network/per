@@ -15,7 +15,7 @@ export function filterComputeBudgetIxs(
   if (ixs.some((ix) => !ix.programId.equals(ComputeBudgetProgram.programId))) {
     throw new Error("All instructions must be for the Compute Budget program");
   }
-  let ixsFiltered: TransactionInstruction[] = [];
+  const ixsFiltered: TransactionInstruction[] = [];
 
   const typesComputeBudget = ixs.map((ix) =>
     ComputeBudgetInstruction.decodeInstructionType(ix)

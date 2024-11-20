@@ -206,6 +206,7 @@ async function run() {
   const connection = new Connection(argv.endpointSvm);
   const interval = argv.interval;
 
+  //eslint-disable-next-line no-constant-condition
   while (true) {
     await createOpportunities(
       skExecutor,

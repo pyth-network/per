@@ -54,7 +54,7 @@ async function run() {
   const connection = new Connection(argv.rpcEndpoint);
 
   const globalConfig = new PublicKey(argv.globalConfig);
-  let filters: GetProgramAccountsFilter[] = [
+  const filters: GetProgramAccountsFilter[] = [
     {
       memcmp: {
         bytes: globalConfig.toBase58(),
@@ -156,6 +156,7 @@ async function run() {
     }
   );
   const resubmitOpportunities = async () => {
+    //eslint-disable-next-line no-constant-condition
     while (true) {
       submitExistingOpportunities().catch(console.error);
       // Wait for 1 minute before resubmitting
@@ -165,6 +166,7 @@ async function run() {
 
   const RPC_HEALTH_CHECK_SECONDS_THRESHOLD = 300;
   const checkRpcHealth = async () => {
+    //eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const slot = await connection.getSlot("finalized");
@@ -191,6 +193,7 @@ async function run() {
 
   const urlExpressRelayHealth = new URL("/live", argv.endpoint);
   const checkExpressRelayHealth = async () => {
+    //eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const responseHealth = await fetch(urlExpressRelayHealth);
