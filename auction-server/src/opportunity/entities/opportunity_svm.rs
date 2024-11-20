@@ -68,7 +68,7 @@ pub struct OpportunityCreateSvm {
 }
 
 // Opportunity can be refreshed after 10 seconds
-const MIN_REFRESH_TIME: Duration = Duration::seconds(10);
+const MIN_REFRESH_TIME: Duration = Duration::seconds(30);
 
 impl Opportunity for OpportunitySvm {
     type TokenAmount = TokenAmountSvm;

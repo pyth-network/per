@@ -47,13 +47,13 @@ where
             .repo
             .get_in_memory_opportunities_by_key(&opportunity.get_key())
             .await;
-        for opp in opportunities.iter() {
+        for opp in opportunities.into_iter() {
             let comparison = opp.compare(opportunity);
             if let entities::OpportunityComparison::Duplicate = comparison {
                 return OpportunityAction::Ignore;
             }
             if let entities::OpportunityComparison::NeedsRefresh = comparison {
-                return OpportunityAction::Refresh(opp.clone());
+                return OpportunityAction::Refresh(opp);
             }
         }
         OpportunityAction::Add
