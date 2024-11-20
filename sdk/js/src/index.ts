@@ -467,7 +467,7 @@ export class Client {
     }
   }
 
-  private toServerBid(bid: Bid): components["schemas"]["Bid"] {
+  private toServerBid(bid: Bid): components["schemas"]["BidCreate"] {
     if (bid.env === "evm") {
       return {
         amount: bid.amount.toString(),

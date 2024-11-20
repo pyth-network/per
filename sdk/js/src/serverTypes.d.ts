@@ -7,19 +7,25 @@ export interface paths {
   "/v1/bids": {
     /**
      * Returns at most 20 bids which were submitted after a specific time.
+     * @deprecated
      * @description If no time is provided, the server will return the first bids.
+     * This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids instead.
      */
-    get: operations["get_bids_by_time"];
+    get: operations["get_bids_by_time_deprecated"];
     /**
      * Bid on a specific permission key for a specific chain.
      * @description Your bid will be verified by the server. Depending on the outcome of the auction, a transaction
      * containing your bid will be sent to the blockchain expecting the bid amount to be paid in the transaction.
      */
-    post: operations["bid"];
+    post: operations["post_bid"];
   };
   "/v1/bids/{bid_id}": {
-    /** Query the status of a specific bid. */
-    get: operations["bid_status"];
+    /**
+     * Query the status of a specific bid.
+     * @deprecated
+     * @description This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids/{bid_id} instead.
+     */
+    get: operations["get_bid_status_deprecated"];
   };
   "/v1/opportunities": {
     /**
@@ -57,6 +63,17 @@ export interface paths {
      */
     delete: operations["delete_profile_access_token"];
   };
+  "/v1/{chain_id}/bids": {
+    /**
+     * Returns at most 20 bids which were submitted after a specific time and chain.
+     * @description If no time is provided, the server will return the first bids.
+     */
+    get: operations["get_bids_by_time"];
+  };
+  "/v1/{chain_id}/bids/{bid_id}": {
+    /** Query the status of a specific bid. */
+    get: operations["get_bid_status"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -65,7 +82,10 @@ export interface components {
   schemas: {
     APIResponse: components["schemas"]["BidResult"];
     Bid: components["schemas"]["BidEvm"] | components["schemas"]["BidSvm"];
-    BidEvm: {
+    BidCreate:
+      | components["schemas"]["BidCreateEvm"]
+      | components["schemas"]["BidCreateSvm"];
+    BidCreateEvm: {
       /**
        * @description Amount of bid in wei.
        * @example 10
@@ -81,6 +101,67 @@ export interface components {
        * @example 0xdeadbeef
        */
       permission_key: string;
+      /**
+       * @description Calldata for the contract call.
+       * @example 0xdeadbeef
+       */
+      target_calldata: string;
+      /**
+       * @description The contract address to call.
+       * @example 0xcA11bde05977b3631167028862bE2a173976CA11
+       */
+      target_contract: string;
+    };
+    BidCreateSvm: {
+      /**
+       * @description The chain id to bid on.
+       * @example solana
+       */
+      chain_id: string;
+      /**
+       * @description The transaction for bid.
+       * @example SGVsbG8sIFdvcmxkIQ==
+       */
+      transaction: string;
+    };
+    BidEvm: {
+      /**
+       * @description The chain id for bid.
+       * @example op_sepolia
+       */
+      chain_id: string;
+      /**
+       * @description The unique id for bid.
+       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
+       */
+      id: string;
+      /**
+       * @description The time server received the bid formatted in rfc3339.
+       * @example 2024-05-23T21:26:57.329954Z
+       */
+      initiation_time: string;
+      /**
+       * @description The profile id for the bid owner.
+       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
+       */
+      profile_id: string;
+    } & {
+      /**
+       * @description Amount of bid in wei.
+       * @example 10
+       */
+      bid_amount: string;
+      /**
+       * @description The gas limit for the contract call.
+       * @example 2000000
+       */
+      gas_limit: string;
+      /**
+       * @description The permission key for bid.
+       * @example 0xdeadbeef
+       */
+      permission_key: string;
+      status: components["schemas"]["BidStatusEvm"];
       /**
        * @description Calldata for the contract call.
        * @example 0xdeadbeef
@@ -180,15 +261,47 @@ export interface components {
     };
     BidSvm: {
       /**
-       * @description The chain id to bid on.
-       * @example solana
+       * @description The chain id for bid.
+       * @example op_sepolia
        */
       chain_id: string;
       /**
-       * @description The transaction for bid.
+       * @description The unique id for bid.
+       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
+       */
+      id: string;
+      /**
+       * @description The time server received the bid formatted in rfc3339.
+       * @example 2024-05-23T21:26:57.329954Z
+       */
+      initiation_time: string;
+      /**
+       * @description The profile id for the bid owner.
+       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
+       */
+      profile_id: string;
+    } & {
+      /**
+       * Format: int64
+       * @description Amount of bid in lamports.
+       * @example 1000
+       */
+      bid_amount: number;
+      /**
+       * @description The permission key for bid in base64 format.
+       * This is the concatenation of the permission account and the router account.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      permission_key: string;
+      status: components["schemas"]["BidStatusSvm"];
+      /**
+       * @description The transaction of the bid.
        * @example SGVsbG8sIFdvcmxkIQ==
        */
       transaction: string;
+    };
+    Bids: {
+      items: components["schemas"]["Bid"][];
     };
     ClientMessage:
       | {
@@ -209,7 +322,7 @@ export interface components {
           /** @enum {string} */
           method: "post_bid";
           params: {
-            bid: components["schemas"]["Bid"];
+            bid: components["schemas"]["BidCreate"];
           };
         }
       | {
@@ -671,105 +784,6 @@ export interface components {
           /** @enum {string} */
           type: "remove_opportunities";
         };
-    SimulatedBid:
-      | components["schemas"]["SimulatedBidEvm"]
-      | components["schemas"]["SimulatedBidSvm"];
-    /** BidResponseEvm */
-    SimulatedBidEvm: {
-      /**
-       * @description The chain id for bid.
-       * @example op_sepolia
-       */
-      chain_id: string;
-      /**
-       * @description The unique id for bid.
-       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
-       */
-      id: string;
-      /**
-       * @description The time server received the bid formatted in rfc3339.
-       * @example 2024-05-23T21:26:57.329954Z
-       */
-      initiation_time: string;
-      /**
-       * @description The profile id for the bid owner.
-       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
-       */
-      profile_id: string;
-    } & {
-      /**
-       * @description Amount of bid in wei.
-       * @example 10
-       */
-      bid_amount: string;
-      /**
-       * @description The gas limit for the contract call.
-       * @example 2000000
-       */
-      gas_limit: string;
-      /**
-       * @description The permission key for bid.
-       * @example 0xdeadbeef
-       */
-      permission_key: string;
-      status: components["schemas"]["BidStatusEvm"];
-      /**
-       * @description Calldata for the contract call.
-       * @example 0xdeadbeef
-       */
-      target_calldata: string;
-      /**
-       * @description The contract address to call.
-       * @example 0xcA11bde05977b3631167028862bE2a173976CA11
-       */
-      target_contract: string;
-    };
-    /** BidResponseSvm */
-    SimulatedBidSvm: {
-      /**
-       * @description The chain id for bid.
-       * @example op_sepolia
-       */
-      chain_id: string;
-      /**
-       * @description The unique id for bid.
-       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
-       */
-      id: string;
-      /**
-       * @description The time server received the bid formatted in rfc3339.
-       * @example 2024-05-23T21:26:57.329954Z
-       */
-      initiation_time: string;
-      /**
-       * @description The profile id for the bid owner.
-       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
-       */
-      profile_id: string;
-    } & {
-      /**
-       * Format: int64
-       * @description Amount of bid in lamports.
-       * @example 1000
-       */
-      bid_amount: number;
-      /**
-       * @description The permission key for bid in base64 format.
-       * This is the concatenation of the permission account and the router account.
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      permission_key: string;
-      status: components["schemas"]["BidStatusSvm"];
-      /**
-       * @description The transaction of the bid.
-       * @example SGVsbG8sIFdvcmxkIQ==
-       */
-      transaction: string;
-    };
-    /** BidsResponse */
-    SimulatedBids: {
-      items: components["schemas"]["SimulatedBid"][];
-    };
     SvmChainUpdate: {
       /** @example SLxp9LxX1eE9Z5v99Y92DaYEwyukFgMUF6zRerCF12j */
       blockhash: string;
@@ -825,6 +839,13 @@ export interface components {
         };
       };
     };
+    Bids: {
+      content: {
+        "application/json": {
+          items: components["schemas"]["Bid"][];
+        };
+      };
+    };
     /** @description An error occurred processing the request */
     ErrorBodyResponse: {
       content: {
@@ -838,13 +859,6 @@ export interface components {
         "application/json":
           | components["schemas"]["OpportunityEvm"]
           | components["schemas"]["OpportunitySvm"];
-      };
-    };
-    SimulatedBids: {
-      content: {
-        "application/json": {
-          items: components["schemas"]["SimulatedBid"][];
-        };
       };
     };
   };
@@ -861,9 +875,11 @@ export type external = Record<string, never>;
 export interface operations {
   /**
    * Returns at most 20 bids which were submitted after a specific time.
+   * @deprecated
    * @description If no time is provided, the server will return the first bids.
+   * This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids instead.
    */
-  get_bids_by_time: {
+  get_bids_by_time_deprecated: {
     parameters: {
       query?: {
         /** @example 2024-05-23T21:26:57.329954Z */
@@ -874,7 +890,7 @@ export interface operations {
       /** @description Paginated list of bids for the specified query */
       200: {
         content: {
-          "application/json": components["schemas"]["SimulatedBids"];
+          "application/json": components["schemas"]["Bids"];
         };
       };
       400: components["responses"]["ErrorBodyResponse"];
@@ -885,10 +901,10 @@ export interface operations {
    * @description Your bid will be verified by the server. Depending on the outcome of the auction, a transaction
    * containing your bid will be sent to the blockchain expecting the bid amount to be paid in the transaction.
    */
-  bid: {
+  post_bid: {
     requestBody: {
       content: {
-        "application/json": components["schemas"]["Bid"];
+        "application/json": components["schemas"]["BidCreate"];
       };
     };
     responses: {
@@ -907,8 +923,12 @@ export interface operations {
       };
     };
   };
-  /** Query the status of a specific bid. */
-  bid_status: {
+  /**
+   * Query the status of a specific bid.
+   * @deprecated
+   * @description This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids/{bid_id} instead.
+   */
+  get_bid_status_deprecated: {
     parameters: {
       path: {
         /** @description Bid id to query for */
@@ -1091,6 +1111,59 @@ export interface operations {
         content: never;
       };
       400: components["responses"]["ErrorBodyResponse"];
+    };
+  };
+  /**
+   * Returns at most 20 bids which were submitted after a specific time and chain.
+   * @description If no time is provided, the server will return the first bids.
+   */
+  get_bids_by_time: {
+    parameters: {
+      query?: {
+        /** @example 2024-05-23T21:26:57.329954Z */
+        from_time?: string | null;
+      };
+      path: {
+        /**
+         * @description The chain id to query for
+         * @example op_sepolia
+         */
+        chain_id: string;
+      };
+    };
+    responses: {
+      /** @description Paginated list of bids for the specified query */
+      200: {
+        content: {
+          "application/json": components["schemas"]["Bids"];
+        };
+      };
+      400: components["responses"]["ErrorBodyResponse"];
+    };
+  };
+  /** Query the status of a specific bid. */
+  get_bid_status: {
+    parameters: {
+      path: {
+        /** @example op_sepolia */
+        chain_id: string;
+        /** @example obo3ee3e-58cc-4372-a567-0e02b2c3d479 */
+        bid_id: string;
+      };
+    };
+    responses: {
+      200: {
+        content: {
+          "application/json": components["schemas"]["BidStatus"];
+        };
+      };
+      400: components["responses"]["ErrorBodyResponse"];
+      /** @description Bid was not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorBodyResponse"];
+        };
+      };
     };
   };
 }
