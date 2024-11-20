@@ -28,8 +28,10 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1.1.1
         with:
           version: nightly
-      - name: Install npm dependencies
+      - name: Install evm contracts npm dependencies
         working-directory: contracts/evm
+        run: npm install
+      - name: Install npm dependencies
         run: npm install
       - name: Install forge dependencies 1
         working-directory: contracts/evm
