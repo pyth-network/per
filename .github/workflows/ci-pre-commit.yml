@@ -13,6 +13,10 @@ jobs:
         with:
           # Need to grab the history of the PR
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: "package.json"
+          registry-url: "https://registry.npmjs.org"
       - uses: ./.github/actions/python-poetry
       - uses: actions-rs/toolchain@v1
         with:
