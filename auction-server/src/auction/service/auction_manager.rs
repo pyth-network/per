@@ -235,10 +235,14 @@ impl AuctionManager<Evm> for Service<Evm> {
                                             index:   decoded_log.multicall_index.as_u32(),
                                             auction: bid_status_auction.clone(),
                                         },
-                                        false => entities::BidStatusEvm::Lost {
-                                            index:   Some(decoded_log.multicall_index.as_u32()),
-                                            auction: Some(bid_status_auction.clone()),
-                                        },
+                                        false =>
+                                        // TODO: add BidStatusEvm::Failed for when the bid gets submitted but fails on-chain
+                                        {
+                                            entities::BidStatusEvm::Lost {
+                                                index:   Some(decoded_log.multicall_index.as_u32()),
+                                                auction: Some(bid_status_auction.clone()),
+                                            }
+                                        }
                                     }
                                 }
                                 None => entities::BidStatusEvm::Lost {
@@ -391,8 +395,8 @@ impl AuctionManager<Svm> for Service<Svm> {
                 Ok(()) => entities::BidStatusSvm::Won {
                     auction: bid_status_auction,
                 },
-                Err(_) => entities::BidStatusSvm::Lost {
-                    auction: Some(bid_status_auction),
+                Err(_) => entities::BidStatusSvm::Failed {
+                    auction: bid_status_auction,
                 },
             },
             None => {
