@@ -7,7 +7,7 @@
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dex-router": "npm run build && node dist/index.js",
-    "lint": "eslint src"
+    "lint": "eslint --ext .ts src"
   },
   "author": "",
   "license": "Apache-2.0",
