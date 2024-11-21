@@ -401,24 +401,23 @@ impl ModelTrait<Svm> for Svm {
         new_status: <Svm as ChainTrait>::BidStatusType,
     ) -> anyhow::Result<Query<'_, Postgres, PgArguments>> {
         match new_status {
-            entities::BidStatusSvm::Pending => Err(anyhow::anyhow!("Cannot update bid status to pending")),
-            entities::BidStatusSvm::Submitted { auction } => {
-                Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
-                    BidStatus::Submitted as _,
-                    auction.id,
-                    bid.id,
-                    BidStatus::Pending as _,
-                ))
-            },
-            entities::BidStatusSvm::Lost { auction} => match auction {
+            entities::BidStatusSvm::Pending => {
+                Err(anyhow::anyhow!("Cannot update bid status to pending"))
+            }
+            entities::BidStatusSvm::Submitted { auction } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+                BidStatus::Submitted as _,
+                auction.id,
+                bid.id,
+                BidStatus::Pending as _,
+            )),
+            entities::BidStatusSvm::Lost { auction } => match auction {
                 Some(auction) => Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5)",
+                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
                     BidStatus::Lost as _,
                     auction.id,
                     bid.id,
-                    BidStatus::Pending as _,
-                    BidStatus::Submitted as _,
+                    BidStatus::Pending as _
                 )),
                 None => Ok(sqlx::query!(
                     "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
@@ -444,7 +443,7 @@ impl ModelTrait<Svm> for Svm {
                 BidStatus::Expired as _,
                 bid.id,
                 BidStatus::Submitted as _,
-            ))
+            )),
         }
     }
 }
