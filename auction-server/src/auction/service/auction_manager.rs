@@ -504,7 +504,7 @@ impl AuctionManager<Svm> for Service<Svm> {
     }
 }
 
-const SEND_TRANSACTION_RETRY_COUNT_SVM: i32 = 5;
+const SEND_TRANSACTION_RETRY_COUNT_SVM: i32 = 30;
 
 impl Service<Svm> {
     pub fn add_relayer_signature(&self, bid: &mut entities::Bid<Svm>) {
