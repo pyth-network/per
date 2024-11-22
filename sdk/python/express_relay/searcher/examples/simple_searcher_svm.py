@@ -180,7 +180,7 @@ class SimpleSearcherSvm:
         output_amount = (
             order["state"].expected_output_amount * input_amount
             + order["state"].initial_input_amount
-            - 1  # take the ceiling of the divison by adding order[state].initial_input_amount - 1
+            - 1  # take the ceiling of the division by adding order[state].initial_input_amount - 1
         ) // order["state"].initial_input_amount
 
         input_mint_decimals = await self.get_mint_decimals(order["state"].input_mint)

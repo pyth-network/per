@@ -25,7 +25,7 @@ class SearcherLimo extends SimpleSearcherLimo {
     public apiKey?: string
   ) {
     super(endpointExpressRelay, chainId, searcher, endpointSvm, bid, apiKey);
-    this.fillRate = new Decimal(fillRate).div(new Decimal(100));
+    this.fillRate = new anchor.BN(fillRate);
   }
 
   async getBidAmount(): Promise<anchor.BN> {
@@ -44,8 +44,11 @@ class SearcherLimo extends SimpleSearcherLimo {
     return super.opportunityHandler(opportunity);
   }
 
-  protected getEffectiveFillRate(order: OrderStateAndAddress): Decimal {
-    return Decimal.min(this.fillRate, super.getEffectiveFillRate(order));
+  protected getInputAmount(order: OrderStateAndAddress): anchor.BN {
+    return anchor.BN.min(
+      super.getInputAmount(order),
+      order.state.initialInputAmount.mul(this.fillRate).div(new anchor.BN(100))
+    );
   }
 }
 
