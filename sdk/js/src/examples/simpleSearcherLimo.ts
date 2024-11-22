@@ -168,51 +168,43 @@ export class SimpleSearcherLimo {
     const outputMintDecimals = await this.getMintDecimalsCached(
       order.state.outputMint
     );
-    const effectiveFillRate = this.getEffectiveFillRate(order);
-    const inputAmountDecimals = new Decimal(
-      order.state.initialInputAmount.toNumber()
-    )
-      .mul(effectiveFillRate)
-      .floor()
-      .div(new Decimal(10).pow(inputMintDecimals));
-
-    const outputAmountDecimals = new Decimal(
-      order.state.expectedOutputAmount.toNumber()
-    )
-      .mul(effectiveFillRate)
-      .ceil()
-      .div(new Decimal(10).pow(outputMintDecimals));
+    const inputAmount = this.getInputAmount(order);
+    // take the ceiling of the division by adding order.state.initialInputAmount - 1
+    const outputAmount = inputAmount
+      .mul(order.state.expectedOutputAmount)
+      .add(order.state.initialInputAmount)
+      .sub(new anchor.BN(1))
+      .div(order.state.initialInputAmount);
 
     console.log("Order address", order.address.toBase58());
-    console.log("Fill rate", effectiveFillRate);
+    console.log(
+      "Fill rate",
+      inputAmount.toNumber() / order.state.initialInputAmount.toNumber()
+    );
     console.log(
       "Sell token",
       order.state.inputMint.toBase58(),
       "amount:",
-      inputAmountDecimals.toString()
+      inputAmount.toNumber() / 10 ** inputMintDecimals
     );
     console.log(
       "Buy token",
       order.state.outputMint.toBase58(),
       "amount:",
-      outputAmountDecimals.toString()
+      outputAmount.toNumber() / 10 ** outputMintDecimals
     );
 
     return limoClient.takeOrderIx(
       this.searcher.publicKey,
       order,
-      inputAmountDecimals,
-      outputAmountDecimals,
-      SVM_CONSTANTS[this.chainId].expressRelayProgram,
-      inputMintDecimals,
-      outputMintDecimals
+      inputAmount,
+      outputAmount,
+      SVM_CONSTANTS[this.chainId].expressRelayProgram
     );
   }
 
-  protected getEffectiveFillRate(order: OrderStateAndAddress): Decimal {
-    return new Decimal(order.state.remainingInputAmount.toNumber()).div(
-      new Decimal(order.state.initialInputAmount.toNumber())
-    );
+  protected getInputAmount(order: OrderStateAndAddress): anchor.BN {
+    return order.state.remainingInputAmount;
   }
 
   async opportunityHandler(opportunity: Opportunity) {
