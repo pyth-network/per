@@ -173,15 +173,13 @@ export class SimpleSearcherLimo {
       order.state.initialInputAmount.toNumber()
     )
       .mul(effectiveFillRate)
-      .floor()
-      .div(new Decimal(10).pow(inputMintDecimals));
+      .floor();
 
     const outputAmountDecimals = new Decimal(
       order.state.expectedOutputAmount.toNumber()
     )
       .mul(effectiveFillRate)
-      .ceil()
-      .div(new Decimal(10).pow(outputMintDecimals));
+      .ceil();
 
     console.log("Order address", order.address.toBase58());
     console.log("Fill rate", effectiveFillRate);
@@ -189,23 +187,23 @@ export class SimpleSearcherLimo {
       "Sell token",
       order.state.inputMint.toBase58(),
       "amount:",
-      inputAmountDecimals.toString()
+      inputAmountDecimals.div(new Decimal(10).pow(inputMintDecimals)).toString()
     );
     console.log(
       "Buy token",
       order.state.outputMint.toBase58(),
       "amount:",
-      outputAmountDecimals.toString()
+      outputAmountDecimals
+        .div(new Decimal(10).pow(outputMintDecimals))
+        .toString()
     );
 
     return limoClient.takeOrderIx(
       this.searcher.publicKey,
       order,
-      inputAmountDecimals,
-      outputAmountDecimals,
-      SVM_CONSTANTS[this.chainId].expressRelayProgram,
-      inputMintDecimals,
-      outputMintDecimals
+      new anchor.BN(inputAmountDecimals.toString()),
+      new anchor.BN(outputAmountDecimals.toString()),
+      SVM_CONSTANTS[this.chainId].expressRelayProgram
     );
   }
 
