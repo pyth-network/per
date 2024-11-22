@@ -75,7 +75,13 @@ repos:
         entry: npm run --prefix scripts/limonade lint
         pass_filenames: false
         language: system
-        files: scripts/limonade/.*
+        files: scripts/limonade/
+      - id: eslint-js-sdk
+        name: eslint js sdk
+        entry: npm run --prefix sdk/js lint
+        pass_filenames: false
+        language: system
+        files: sdk/js/
       - id: eslint-dex-router
         name: eslint dex-router
         entry: npm run --prefix scripts/dex-router lint
