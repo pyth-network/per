@@ -25,7 +25,6 @@ import {
 } from "@solana/web3.js";
 
 import * as limo from "@kamino-finance/limo-sdk";
-import { Decimal } from "decimal.js";
 import {
   getMintDecimals,
   getPdaAuthority,
