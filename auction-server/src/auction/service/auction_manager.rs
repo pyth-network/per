@@ -312,33 +312,14 @@ impl AuctionManager<Svm> for Service<Svm> {
         trigger.slot % CONCLUSION_TRIGGER_SLOT_INTERVAL_SVM == 0
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_winner_bids(
         &self,
         auction: &entities::Auction<Svm>,
     ) -> Result<Vec<entities::Bid<Svm>>> {
         let mut bids = auction.bids.clone();
         bids.sort_by(|a, b| b.amount.cmp(&a.amount));
-        for bid in bids.iter() {
-            match self
-                .simulate_bid(&entities::BidCreate {
-                    chain_id:        bid.chain_id.clone(),
-                    initiation_time: bid.initiation_time,
-                    profile:         None,
-                    chain_data:      entities::BidChainDataCreateSvm {
-                        transaction: bid.chain_data.transaction.clone(),
-                    },
-                })
-                .await
-            {
-                Err(RestError::SimulationError {
-                    result: _,
-                    reason: _,
-                }) => {}
-                // Either simulation was successful or we can't simulate at this moment
-                _ => return Ok(vec![bid.clone()]),
-            }
-        }
-        Ok(vec![])
+        return Ok(self.config.chain_config.simulator.optimize_bids(&bids).await.map(|x| x.value).unwrap_or(vec![bids[0].clone()]));
     }
 
     #[tracing::instrument(skip_all)]
@@ -351,6 +332,7 @@ impl AuctionManager<Svm> for Service<Svm> {
             return Err(anyhow::anyhow!("No bids to submit"));
         }
 
+        // TODO: fix this shit
         let mut bid = bids[0].clone();
         self.add_relayer_signature(&mut bid);
         match self.send_transaction(&bid.chain_data.transaction).await {
@@ -376,6 +358,11 @@ impl AuctionManager<Svm> for Service<Svm> {
         }
 
         //TODO: this can be optimized out if triggered by websocket events
+        let statuses = self
+            .config
+            .chain_config
+            .client.get_signature_statuses(bids.iter().map(|bid| bid.chain_data.transaction.signatures.first().expect("No signature found")).collect()).await?.value;
+
         let status = self
             .config
             .chain_config
@@ -386,7 +373,10 @@ impl AuctionManager<Svm> for Service<Svm> {
             )
             .await?;
 
-        let status = match status {
+
+        let res = statuses.iter().map(|status|{
+
+        match status {
             Some(res) => match res {
                 Ok(()) => entities::BidStatusSvm::Won {
                     auction: bid_status_auction,
@@ -406,12 +396,13 @@ impl AuctionManager<Svm> for Service<Svm> {
                         auction: bid_status_auction,
                     }
                 } else {
-                    return Ok(None);
+                    None
                 }
             }
-        };
+        }}).collect();
 
-        Ok(Some(vec![status; bids.len()]))
+
+        Ok(Some(res))
     }
 
     async fn get_submission_state(
