@@ -8,7 +8,6 @@ import {
   makeParser,
   SimpleSearcherLimo,
 } from "./simpleSearcherLimo";
-import { Decimal } from "decimal.js";
 
 class SearcherLimo extends SimpleSearcherLimo {
   private readonly fillRate: anchor.BN;
