@@ -8,6 +8,7 @@ import { MAX_COMPUTE_UNIT_PRICE } from "../const";
 /**
  * Filters the provided Compute Budget instructions to only include the last SetComputeUnitLimit and SetComputeUnitPrice instructions. If the SetComputeUnitPrice instruction exceeds the MAX_COMPUTE_UNIT_PRICE, it will be replaced with a SetComputeUnitPrice instruction with the MAX_COMPUTE_UNIT_PRICE.
  * @param ixs The Compute Budget instructions to filter
+ * @returns The subset of Compute Budget instructions that are the final SetComputeUnitLimit and SetComputeUnitPrice instructions, if they exist
  */
 export function filterComputeBudgetIxs(
   ixs: TransactionInstruction[]

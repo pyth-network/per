@@ -141,6 +141,7 @@ export class DexRouter {
   /**
    * Generates a bid that routes through on-chain liquidity for the provided opportunity
    * @param opportunity The SVM opportunity to generate a bid for
+   * @returns The transaction and chain id for the bid
    */
   async generateRouterBid(opportunity: OpportunitySvm): Promise<{
     transaction: string;
@@ -159,7 +160,7 @@ export class DexRouter {
    * Creates a full transaction for the provided swap route and order
    * @param route The router output that contains the relevant swap information
    * @param order The order to be fulfilled
-   * @returns A VersionedTransaction that can be signed and submitted to the network
+   * @returns A VersionedTransaction that can be signed and submitted to the server as a bid
    */
   private async createRouterTransaction(
     route: RouterOutput,
@@ -246,6 +247,7 @@ export class DexRouter {
    * @param clientLimo The Limo client
    * @param order The limit order to be fulfilled
    * @param amountOut The amount of the output token to be provided to the maker
+   * @returns The flash take order instructions
    */
   private async formFlashTakeOrderInstructions(
     clientLimo: limo.LimoClient,
@@ -280,6 +282,7 @@ export class DexRouter {
    * @param permission The permission account to use for the bid
    * @param globalConfig The global config account to use to fetch the router
    * @param limoProgamId The Limo program ID
+   * @returns The SubmitBid instruction
    */
   private async formSubmitBidInstruction(
     permission: PublicKey,
@@ -311,6 +314,7 @@ export class DexRouter {
    * Creates a VersionedTransaction from the provided instructions and lookup table addresses
    * @param instructions The instructions to include in the transaction
    * @param routerLookupTableAddresses The lookup table addresses to include in the transaction
+   * @returns The VersionedTransaction that can be signed and submitted to the server as a bid
    */
   private async formTransaction(
     instructions: TransactionInstruction[],
@@ -346,6 +350,7 @@ export class DexRouter {
   /**
    * Fetches lookup table accounts from the cache. If absent from the cache, fetches them from the network and caches them.
    * @param keys The keys of the lookup table accounts
+   * @returns The lookup table accounts used in constructing the versioned transaction
    */
   private async getLookupTableAccountsCached(
     keys: PublicKey[]
