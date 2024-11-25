@@ -14,7 +14,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import {
   AddressLookupTableAccount,
-  Blockhash,
+  ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
@@ -23,22 +23,18 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
-import { Decimal } from "decimal.js";
 import * as limo from "@kamino-finance/limo-sdk";
 import {
-  FlashTakeOrderIxs,
   getMintDecimals,
   getPdaAuthority,
   OrderStateAndAddress,
 } from "@kamino-finance/limo-sdk/dist/utils";
 import {
-  OPPORTUNITY_WAIT_TIME_MS,
   HEALTH_RPC_THRESHOLD,
   HEALTH_EXPRESS_RELAY_INTERVAL,
   HEALTH_RPC_INTERVAL,
   MAX_TX_SIZE,
 } from "./const";
-import { filterComputeBudgetIxs } from "./utils/computeBudget";
 import { checkExpressRelayHealth, checkRpcHealth } from "./utils/health";
 
 const MINUTE_IN_SECS = 60;
@@ -51,7 +47,7 @@ export class DexRouter {
   private lookupTableAccounts: Record<string, AddressLookupTableAccount> = {};
   private connectionSvm: Connection;
   private expressRelayConfig?: ExpressRelaySvmConfig;
-  private recentBlockhash: Record<ChainId, Blockhash> = {};
+  private latestChainUpdate: Record<ChainId, SvmChainUpdate> = {};
   private readonly routers: Router[];
   private readonly executor: Keypair;
   private readonly chainId: string;
@@ -63,6 +59,8 @@ export class DexRouter {
     chainId: string,
     connectionSvm: Connection,
     maxAccountsJupiter: number[],
+    jupiterApiEndpoint: string,
+    jupiterApiKey?: string,
     baseLookupTableAddresses?: PublicKey[]
   ) {
     this.client = new Client(
@@ -79,7 +77,13 @@ export class DexRouter {
     this.connectionSvm = connectionSvm;
     this.routers = maxAccountsJupiter.map(
       (maxAccounts) =>
-        new JupiterRouter(this.chainId, this.executor.publicKey, maxAccounts)
+        new JupiterRouter(
+          this.chainId,
+          this.executor.publicKey,
+          maxAccounts,
+          jupiterApiEndpoint,
+          jupiterApiKey
+        )
     );
     this.baseLookupTableAddresses = baseLookupTableAddresses ?? [];
   }
@@ -100,9 +104,6 @@ export class DexRouter {
 
   async opportunityHandler(opportunity: Opportunity) {
     console.log("Received opportunity:", opportunity.opportunityId);
-    await new Promise((resolve) =>
-      setTimeout(resolve, OPPORTUNITY_WAIT_TIME_MS)
-    );
     try {
       const bid = await this.generateRouterBid(opportunity as OpportunitySvm);
       const result = await this.client.requestViaWebsocket({
@@ -125,7 +126,7 @@ export class DexRouter {
   }
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
-    this.recentBlockhash[update.chain_id] = update.blockhash;
+    this.latestChainUpdate[update.chainId] = update;
   }
 
   async getMintDecimalsCached(mint: PublicKey): Promise<number> {
@@ -141,6 +142,7 @@ export class DexRouter {
   /**
    * Generates a bid that routes through on-chain liquidity for the provided opportunity
    * @param opportunity The SVM opportunity to generate a bid for
+   * @returns The transaction and chain id for the bid
    */
   async generateRouterBid(opportunity: OpportunitySvm): Promise<{
     transaction: string;
@@ -159,23 +161,24 @@ export class DexRouter {
    * Creates a full transaction for the provided swap route and order
    * @param route The router output that contains the relevant swap information
    * @param order The order to be fulfilled
-   * @returns A VersionedTransaction that can be signed and submitted to the network
+   * @returns A VersionedTransaction that can be signed and submitted to the server as a bid
    */
   private async createRouterTransaction(
     route: RouterOutput,
     order: OrderStateAndAddress
   ): Promise<VersionedTransaction> {
-    const ixsComputeBudget = filterComputeBudgetIxs(route.ixsComputeBudget);
     const ixsRouter = route.ixsRouter;
 
     const clientLimo = new limo.LimoClient(
       this.connectionSvm,
       order.state.globalConfig
     );
-    const ixsFlashTakeOrder = await this.formFlashTakeOrderInstructions(
-      clientLimo,
+    const ixsFlashTakeOrder = clientLimo.flashTakeOrderIxs(
+      this.executor.publicKey,
       order,
-      Number(route.amountOut)
+      order.state.remainingInputAmount,
+      route.amountOut,
+      SVM_CONSTANTS[this.chainId].expressRelayProgram
     );
 
     const ixSubmitBid = await this.formSubmitBidInstruction(
@@ -186,7 +189,6 @@ export class DexRouter {
 
     const tx = await this.formTransaction(
       [
-        ...ixsComputeBudget,
         ...ixsFlashTakeOrder.createAtaIxs,
         ixsFlashTakeOrder.startFlashIx,
         ixSubmitBid,
@@ -242,44 +244,11 @@ export class DexRouter {
   }
 
   /**
-   * Creates the flash take order instructions on the Limo program
-   * @param clientLimo The Limo client
-   * @param order The limit order to be fulfilled
-   * @param amountOut The amount of the output token to be provided to the maker
-   */
-  private async formFlashTakeOrderInstructions(
-    clientLimo: limo.LimoClient,
-    order: OrderStateAndAddress,
-    amountOut: number
-  ): Promise<FlashTakeOrderIxs> {
-    const inputMintDecimals = await this.getMintDecimalsCached(
-      order.state.inputMint
-    );
-    const outputMintDecimals = await this.getMintDecimalsCached(
-      order.state.outputMint
-    );
-    const inputAmountDecimals = new Decimal(
-      order.state.remainingInputAmount.toNumber()
-    ).div(new Decimal(10).pow(inputMintDecimals));
-    const outputAmountDecimals = new Decimal(amountOut).div(
-      new Decimal(10).pow(outputMintDecimals)
-    );
-    return clientLimo.flashTakeOrderIxs(
-      this.executor.publicKey,
-      order,
-      inputAmountDecimals,
-      outputAmountDecimals,
-      SVM_CONSTANTS[this.chainId].expressRelayProgram,
-      inputMintDecimals,
-      outputMintDecimals
-    );
-  }
-
-  /**
    * Creates a 0-SOL bid SubmitBid instruction with the provided permission and router
    * @param permission The permission account to use for the bid
    * @param globalConfig The global config account to use to fetch the router
    * @param limoProgamId The Limo program ID
+   * @returns The SubmitBid instruction
    */
   private async formSubmitBidInstruction(
     permission: PublicKey,
@@ -309,26 +278,38 @@ export class DexRouter {
 
   /**
    * Creates a VersionedTransaction from the provided instructions and lookup table addresses
-   * @param instructions The instructions to include in the transaction
+   * @param txInstructions The instructions to include in the transaction
    * @param routerLookupTableAddresses The lookup table addresses to include in the transaction
+   * @returns The VersionedTransaction that can be signed and submitted to the server as a bid
    */
   private async formTransaction(
-    instructions: TransactionInstruction[],
+    txInstructions: TransactionInstruction[],
     routerLookupTableAddresses: PublicKey[]
   ): Promise<VersionedTransaction> {
-    if (!this.recentBlockhash[this.chainId]) {
+    let recentBlockhash;
+    let feeInstructions: TransactionInstruction[];
+    if (!this.latestChainUpdate[this.chainId]) {
       console.log(
-        `No recent blockhash for chain ${this.chainId}, getting manually`
+        `No recent update for chain ${this.chainId}, getting blockhash manually`
       );
-      this.recentBlockhash[this.chainId] = (
+      recentBlockhash = (
         await this.connectionSvm.getLatestBlockhash("confirmed")
       ).blockhash;
+      feeInstructions = [];
+    } else {
+      recentBlockhash = this.latestChainUpdate[this.chainId].blockhash;
+      feeInstructions = [
+        ComputeBudgetProgram.setComputeUnitPrice({
+          microLamports:
+            this.latestChainUpdate[this.chainId].latestPrioritizationFee,
+        }),
+      ];
     }
 
     const txMsg = new TransactionMessage({
       payerKey: this.executor.publicKey,
-      recentBlockhash: this.recentBlockhash[this.chainId],
-      instructions,
+      recentBlockhash,
+      instructions: [...feeInstructions, ...txInstructions],
     });
 
     const lookupTableAddresses = [
@@ -346,6 +327,7 @@ export class DexRouter {
   /**
    * Fetches lookup table accounts from the cache. If absent from the cache, fetches them from the network and caches them.
    * @param keys The keys of the lookup table accounts
+   * @returns The lookup table accounts used in constructing the versioned transaction
    */
   private async getLookupTableAccountsCached(
     keys: PublicKey[]
@@ -442,6 +424,17 @@ const argv = yargs(hideBin(process.argv))
     type: "array",
     default: [10, 20, 30],
   })
+  .option("jupiter-api-endpoint", {
+    description: "Jupiter API endpoint",
+    type: "string",
+    demandOption: false,
+    default: "https://quote-api.jup.ag/v6",
+  })
+  .option("jupiter-api-key", {
+    description: "Jupiter API key for jupiter-api-endpoint",
+    type: "string",
+    demandOption: false,
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -456,6 +449,8 @@ async function run() {
     argv["options-max-accounts-jupiter"].map((maxAccounts) =>
       Number(maxAccounts)
     ),
+    argv["jupiter-api-endpoint"],
+    argv["jupiter-api-key"],
     argv["lookup-table-addresses"]?.map((address) => new PublicKey(address))
   );
   checkRpcHealth(connection, HEALTH_RPC_THRESHOLD, HEALTH_RPC_INTERVAL).catch(
