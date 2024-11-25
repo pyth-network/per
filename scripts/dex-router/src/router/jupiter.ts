@@ -2,21 +2,36 @@ import { Router, RouterOutput } from "../types";
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import {
   createJupiterApiClient,
+  DefaultApi,
   Instruction as JupiterInstruction,
 } from "@jup-ag/api";
 
 const MAX_SLIPPAGE_BPS = 50;
+const BASE_PATH_QUICKNODE = "https://jupiter-swap-api.quiknode.pro";
 
 export class JupiterRouter implements Router {
   private chainId: string;
   private executor: PublicKey;
   private maxAccounts: number;
-  private jupiterClient = createJupiterApiClient();
+  private jupiterClient: DefaultApi;
 
-  constructor(chainId: string, executor: PublicKey, maxAccounts: number) {
+  constructor(
+    chainId: string,
+    executor: PublicKey,
+    maxAccounts: number,
+    apiKey?: string
+  ) {
     this.chainId = chainId;
     this.executor = executor;
     this.maxAccounts = maxAccounts;
+    if (apiKey) {
+      this.jupiterClient = createJupiterApiClient({
+        basePath: BASE_PATH_QUICKNODE,
+        apiKey: apiKey,
+      });
+    } else {
+      this.jupiterClient = createJupiterApiClient();
+    }
   }
 
   async route(
@@ -44,16 +59,9 @@ export class JupiterRouter implements Router {
       },
     });
 
-    const {
-      computeBudgetInstructions,
-      setupInstructions,
-      swapInstruction,
-      addressLookupTableAddresses,
-    } = instructions;
+    const { setupInstructions, swapInstruction, addressLookupTableAddresses } =
+      instructions;
 
-    const ixsComputeBudget = computeBudgetInstructions.map((ix) =>
-      this.convertInstruction(ix)
-    );
     const ixsSetupJupiter = setupInstructions.map((ix) =>
       this.convertInstruction(ix)
     );
@@ -63,7 +71,6 @@ export class JupiterRouter implements Router {
     ];
 
     return {
-      ixsComputeBudget,
       ixsRouter: ixsJupiter,
       amountIn,
       amountOut: BigInt(quoteResponse.outAmount),

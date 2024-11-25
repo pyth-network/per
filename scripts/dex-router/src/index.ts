@@ -14,7 +14,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import {
   AddressLookupTableAccount,
-  Blockhash,
+  ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
@@ -36,7 +36,6 @@ import {
   HEALTH_RPC_INTERVAL,
   MAX_TX_SIZE,
 } from "./const";
-import { filterComputeBudgetIxs } from "./utils/computeBudget";
 import { checkExpressRelayHealth, checkRpcHealth } from "./utils/health";
 
 const MINUTE_IN_SECS = 60;
@@ -49,7 +48,7 @@ export class DexRouter {
   private lookupTableAccounts: Record<string, AddressLookupTableAccount> = {};
   private connectionSvm: Connection;
   private expressRelayConfig?: ExpressRelaySvmConfig;
-  private recentBlockhash: Record<ChainId, Blockhash> = {};
+  private latestChainUpdate: Record<ChainId, SvmChainUpdate> = {};
   private readonly routers: Router[];
   private readonly executor: Keypair;
   private readonly chainId: string;
@@ -61,6 +60,7 @@ export class DexRouter {
     chainId: string,
     connectionSvm: Connection,
     maxAccountsJupiter: number[],
+    jupiterApiKey?: string,
     baseLookupTableAddresses?: PublicKey[]
   ) {
     this.client = new Client(
@@ -77,7 +77,12 @@ export class DexRouter {
     this.connectionSvm = connectionSvm;
     this.routers = maxAccountsJupiter.map(
       (maxAccounts) =>
-        new JupiterRouter(this.chainId, this.executor.publicKey, maxAccounts)
+        new JupiterRouter(
+          this.chainId,
+          this.executor.publicKey,
+          maxAccounts,
+          jupiterApiKey
+        )
     );
     this.baseLookupTableAddresses = baseLookupTableAddresses ?? [];
   }
@@ -123,7 +128,7 @@ export class DexRouter {
   }
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
-    this.recentBlockhash[update.chainId] = update.blockhash;
+    this.latestChainUpdate[update.chainId] = update;
   }
 
   async getMintDecimalsCached(mint: PublicKey): Promise<number> {
@@ -164,7 +169,6 @@ export class DexRouter {
     route: RouterOutput,
     order: OrderStateAndAddress
   ): Promise<VersionedTransaction> {
-    const ixsComputeBudget = filterComputeBudgetIxs(route.ixsComputeBudget);
     const ixsRouter = route.ixsRouter;
 
     const clientLimo = new limo.LimoClient(
@@ -174,8 +178,8 @@ export class DexRouter {
     const ixsFlashTakeOrder = clientLimo.flashTakeOrderIxs(
       this.executor.publicKey,
       order,
-      order.state.remainingInputAmount.toNumber(),
-      Number(route.amountOut),
+      order.state.remainingInputAmount,
+      route.amountOut,
       SVM_CONSTANTS[this.chainId].expressRelayProgram
     );
 
@@ -187,7 +191,6 @@ export class DexRouter {
 
     const tx = await this.formTransaction(
       [
-        ...ixsComputeBudget,
         ...ixsFlashTakeOrder.createAtaIxs,
         ixsFlashTakeOrder.startFlashIx,
         ixSubmitBid,
@@ -277,27 +280,38 @@ export class DexRouter {
 
   /**
    * Creates a VersionedTransaction from the provided instructions and lookup table addresses
-   * @param instructions The instructions to include in the transaction
+   * @param txInstructions The instructions to include in the transaction
    * @param routerLookupTableAddresses The lookup table addresses to include in the transaction
    * @returns The VersionedTransaction that can be signed and submitted to the server as a bid
    */
   private async formTransaction(
-    instructions: TransactionInstruction[],
+    txInstructions: TransactionInstruction[],
     routerLookupTableAddresses: PublicKey[]
   ): Promise<VersionedTransaction> {
-    if (!this.recentBlockhash[this.chainId]) {
+    let recentBlockhash;
+    let feeInstructions: TransactionInstruction[];
+    if (!this.latestChainUpdate[this.chainId]) {
       console.log(
-        `No recent blockhash for chain ${this.chainId}, getting manually`
+        `No recent update for chain ${this.chainId}, getting blockhash manually`
       );
-      this.recentBlockhash[this.chainId] = (
+      recentBlockhash = (
         await this.connectionSvm.getLatestBlockhash("confirmed")
       ).blockhash;
+      feeInstructions = [];
+    } else {
+      recentBlockhash = this.latestChainUpdate[this.chainId].blockhash;
+      feeInstructions = [
+        ComputeBudgetProgram.setComputeUnitPrice({
+          microLamports:
+            this.latestChainUpdate[this.chainId].latestPrioritizationFee,
+        }),
+      ];
     }
 
     const txMsg = new TransactionMessage({
       payerKey: this.executor.publicKey,
-      recentBlockhash: this.recentBlockhash[this.chainId],
-      instructions,
+      recentBlockhash,
+      instructions: [...feeInstructions, ...txInstructions],
     });
 
     const lookupTableAddresses = [
@@ -412,6 +426,11 @@ const argv = yargs(hideBin(process.argv))
     type: "array",
     default: [10, 20, 30],
   })
+  .option("jupiter-api-key", {
+    description: "Jupiter API key for quicknode endpoint",
+    type: "string",
+    demandOption: false,
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -426,6 +445,7 @@ async function run() {
     argv["options-max-accounts-jupiter"].map((maxAccounts) =>
       Number(maxAccounts)
     ),
+    argv["jupiter-api-key"],
     argv["lookup-table-addresses"]?.map((address) => new PublicKey(address))
   );
   checkRpcHealth(connection, HEALTH_RPC_THRESHOLD, HEALTH_RPC_INTERVAL).catch(
