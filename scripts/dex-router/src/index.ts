@@ -30,7 +30,6 @@ import {
   OrderStateAndAddress,
 } from "@kamino-finance/limo-sdk/dist/utils";
 import {
-  OPPORTUNITY_WAIT_TIME_MS,
   HEALTH_RPC_THRESHOLD,
   HEALTH_EXPRESS_RELAY_INTERVAL,
   HEALTH_RPC_INTERVAL,
@@ -60,6 +59,7 @@ export class DexRouter {
     chainId: string,
     connectionSvm: Connection,
     maxAccountsJupiter: number[],
+    jupiterApiEndpoint: string,
     jupiterApiKey?: string,
     baseLookupTableAddresses?: PublicKey[]
   ) {
@@ -81,6 +81,7 @@ export class DexRouter {
           this.chainId,
           this.executor.publicKey,
           maxAccounts,
+          jupiterApiEndpoint,
           jupiterApiKey
         )
     );
@@ -103,9 +104,6 @@ export class DexRouter {
 
   async opportunityHandler(opportunity: Opportunity) {
     console.log("Received opportunity:", opportunity.opportunityId);
-    await new Promise((resolve) =>
-      setTimeout(resolve, OPPORTUNITY_WAIT_TIME_MS)
-    );
     try {
       const bid = await this.generateRouterBid(opportunity as OpportunitySvm);
       const result = await this.client.requestViaWebsocket({
@@ -426,8 +424,14 @@ const argv = yargs(hideBin(process.argv))
     type: "array",
     default: [10, 20, 30],
   })
+  .option("jupiter-api-endpoint", {
+    description: "Jupiter API endpoint",
+    type: "string",
+    demandOption: false,
+    default: "https://quote-api.jup.ag/v6",
+  })
   .option("jupiter-api-key", {
-    description: "Jupiter API key for quicknode endpoint",
+    description: "Jupiter API key for jupiter-api-endpoint",
     type: "string",
     demandOption: false,
   })
@@ -445,6 +449,7 @@ async function run() {
     argv["options-max-accounts-jupiter"].map((maxAccounts) =>
       Number(maxAccounts)
     ),
+    argv["jupiter-api-endpoint"],
     argv["jupiter-api-key"],
     argv["lookup-table-addresses"]?.map((address) => new PublicKey(address))
   );

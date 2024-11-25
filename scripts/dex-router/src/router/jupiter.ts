@@ -7,7 +7,6 @@ import {
 } from "@jup-ag/api";
 
 const MAX_SLIPPAGE_BPS = 50;
-const BASE_PATH_QUICKNODE = "https://jupiter-swap-api.quiknode.pro";
 
 export class JupiterRouter implements Router {
   private chainId: string;
@@ -19,6 +18,7 @@ export class JupiterRouter implements Router {
     chainId: string,
     executor: PublicKey,
     maxAccounts: number,
+    basePath: string,
     apiKey?: string
   ) {
     this.chainId = chainId;
@@ -26,11 +26,13 @@ export class JupiterRouter implements Router {
     this.maxAccounts = maxAccounts;
     if (apiKey) {
       this.jupiterClient = createJupiterApiClient({
-        basePath: BASE_PATH_QUICKNODE,
+        basePath,
         apiKey: apiKey,
       });
     } else {
-      this.jupiterClient = createJupiterApiClient();
+      this.jupiterClient = createJupiterApiClient({
+        basePath,
+      });
     }
   }
 
