@@ -50,6 +50,13 @@ const argv = yargs(hideBin(process.argv))
   .alias("help", "h")
   .parseSync();
 
+function isCompletelyFilled(order: Order): boolean {
+  return (
+    order.remainingInputAmount.isZero() ||
+    order.expectedOutputAmount.eq(order.filledOutputAmount)
+  );
+}
+
 async function run() {
   const connection = new Connection(argv.rpcEndpoint);
 
@@ -96,7 +103,7 @@ async function run() {
       }))
       .filter(
         (opportunityCreate) =>
-          opportunityCreate.order.state.remainingInputAmount.toNumber() !== 0
+          !isCompletelyFilled(opportunityCreate.order.state)
       );
 
     console.log("Resubmitting opportunities", payloads.length);
@@ -113,7 +120,7 @@ async function run() {
     limoId,
     async (info, context) => {
       const order = Order.decode(info.accountInfo.data);
-      if (order.remainingInputAmount.toNumber() === 0) {
+      if (isCompletelyFilled(order)) {
         const router = getPdaAuthority(limoId, globalConfig);
 
         try {
