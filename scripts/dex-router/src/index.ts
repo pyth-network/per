@@ -23,10 +23,8 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
-import { Decimal } from "decimal.js";
 import * as limo from "@kamino-finance/limo-sdk";
 import {
-  FlashTakeOrderIxs,
   getMintDecimals,
   getPdaAuthority,
   OrderStateAndAddress,
@@ -125,7 +123,7 @@ export class DexRouter {
   }
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
-    this.recentBlockhash[update.chain_id] = update.blockhash;
+    this.recentBlockhash[update.chainId] = update.blockhash;
   }
 
   async getMintDecimalsCached(mint: PublicKey): Promise<number> {
@@ -173,10 +171,12 @@ export class DexRouter {
       this.connectionSvm,
       order.state.globalConfig
     );
-    const ixsFlashTakeOrder = await this.formFlashTakeOrderInstructions(
-      clientLimo,
+    const ixsFlashTakeOrder = clientLimo.flashTakeOrderIxs(
+      this.executor.publicKey,
       order,
-      Number(route.amountOut)
+      order.state.remainingInputAmount.toNumber(),
+      Number(route.amountOut),
+      SVM_CONSTANTS[this.chainId].expressRelayProgram
     );
 
     const ixSubmitBid = await this.formSubmitBidInstruction(
@@ -240,41 +240,6 @@ export class DexRouter {
         ? bestSoFar
         : curr;
     });
-  }
-
-  /**
-   * Creates the flash take order instructions on the Limo program
-   * @param clientLimo The Limo client
-   * @param order The limit order to be fulfilled
-   * @param amountOut The amount of the output token to be provided to the maker
-   * @returns The flash take order instructions
-   */
-  private async formFlashTakeOrderInstructions(
-    clientLimo: limo.LimoClient,
-    order: OrderStateAndAddress,
-    amountOut: number
-  ): Promise<FlashTakeOrderIxs> {
-    const inputMintDecimals = await this.getMintDecimalsCached(
-      order.state.inputMint
-    );
-    const outputMintDecimals = await this.getMintDecimalsCached(
-      order.state.outputMint
-    );
-    const inputAmountDecimals = new Decimal(
-      order.state.remainingInputAmount.toNumber()
-    ).div(new Decimal(10).pow(inputMintDecimals));
-    const outputAmountDecimals = new Decimal(amountOut).div(
-      new Decimal(10).pow(outputMintDecimals)
-    );
-    return clientLimo.flashTakeOrderIxs(
-      this.executor.publicKey,
-      order,
-      inputAmountDecimals,
-      outputAmountDecimals,
-      SVM_CONSTANTS[this.chainId].expressRelayProgram,
-      inputMintDecimals,
-      outputMintDecimals
-    );
   }
 
   /**
