@@ -35,7 +35,7 @@ where
             .repo
             .add_bid(input.bid_create, &chain_data, &amount)
             .await?;
-        tracing::Span::current().record("bid_id", &bid.id.to_string());
+        tracing::Span::current().record("bid_id", bid.id.to_string());
         Ok(bid)
     }
 }

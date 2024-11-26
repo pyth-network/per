@@ -221,7 +221,7 @@ impl AuctionManager<Evm> for Service<Evm> {
             .send()
             .await?
             .tx_hash();
-        tracing::Span::current().record("tx_hash", &tx_hash.to_string());
+        tracing::Span::current().record("tx_hash", tx_hash.to_string());
         Ok(tx_hash)
     }
 
@@ -240,7 +240,7 @@ impl AuctionManager<Evm> for Service<Evm> {
                     .collect::<Vec<String>>()
             ),
         );
-        tracing::Span::current().record("tx_hash", &bid_status_auction.tx_hash.to_string());
+        tracing::Span::current().record("tx_hash", bid_status_auction.tx_hash.to_string());
         tracing::Span::current().record("auction_id", bid_status_auction.id.to_string());
 
         let receipt = self
@@ -443,7 +443,7 @@ impl AuctionManager<Svm> for Service<Svm> {
         self.add_relayer_signature(&mut bid);
         match self.send_transaction(&bid).await {
             Ok(response) => {
-                tracing::Span::current().record("tx_hash", &response.to_string());
+                tracing::Span::current().record("tx_hash", response.to_string());
                 Ok(response)
             }
             Err(e) => {
@@ -468,7 +468,7 @@ impl AuctionManager<Svm> for Service<Svm> {
                     .collect::<Vec<String>>()
             ),
         );
-        tracing::Span::current().record("tx_hash", &bid_status_auction.tx_hash.to_string());
+        tracing::Span::current().record("tx_hash", bid_status_auction.tx_hash.to_string());
         tracing::Span::current().record("auction_id", bid_status_auction.id.to_string());
         if bids.is_empty() {
             return Ok(Some(vec![]));
@@ -587,8 +587,8 @@ impl Service<Svm> {
 
     #[tracing::instrument(skip_all, fields(bid_id, total_retries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>, signature: Signature) {
-        tracing::Span::current().record("bid_id", &bid.id.to_string());
-        tracing::Span::current().record("tx_hash", &signature.to_string());
+        tracing::Span::current().record("bid_id", bid.id.to_string());
+        tracing::Span::current().record("tx_hash", signature.to_string());
         let config = RpcSendTransactionConfig {
             skip_preflight: true,
             max_retries: Some(0),
@@ -624,7 +624,7 @@ impl Service<Svm> {
         &self,
         bid: &entities::Bid<Svm>,
     ) -> solana_client::client_error::Result<Signature> {
-        tracing::Span::current().record("bid_id", &bid.id.to_string());
+        tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
         let config = RpcSendTransactionConfig {
             skip_preflight: true,
