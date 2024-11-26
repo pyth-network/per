@@ -1,4 +1,8 @@
 use {
+    crate::{
+        auction::entities::Bid,
+        kernel::entities::Svm,
+    },
     litesvm::{
         types::{
             FailedTransactionMetadata,
@@ -35,27 +39,24 @@ use {
     time::Duration,
     tokio::sync::RwLock,
 };
-use crate::auction::entities;
-use crate::auction::entities::Bid;
-use crate::kernel::entities::Svm;
 
 pub struct Simulator {
-    receiver: RpcClient,
-    pending_txs: RwLock<Vec<(VersionedTransaction, Instant)>>,
+    receiver:      RpcClient,
+    pending_txs:   RwLock<Vec<(VersionedTransaction, Instant)>>,
     account_cache: RwLock<HashMap<Pubkey, (Account, Instant)>>,
 }
 
 struct AccountsConfig {
-    accounts: HashMap<Pubkey, Account>,
-    programs: HashMap<Pubkey, Account>,
+    accounts:            HashMap<Pubkey, Account>,
+    programs:            HashMap<Pubkey, Account>,
     upgradable_programs: HashMap<Pubkey, Account>,
 }
 
 impl AccountsConfig {
     fn new() -> Self {
         Self {
-            accounts: Default::default(),
-            programs: Default::default(),
+            accounts:            Default::default(),
+            programs:            Default::default(),
             upgradable_programs: Default::default(),
         }
     }
@@ -123,7 +124,7 @@ impl Simulator {
                 return None;
             }
         }
-        return Some(cache_result);
+        Some(cache_result)
     }
 
     async fn get_multiple_accounts_with_cache(
@@ -184,24 +185,23 @@ impl Simulator {
             if let Some(account) = account {
                 if account.owner == solana_sdk::bpf_loader_upgradeable::id() {
                     if let Ok(UpgradeableLoaderState::Program {
-                                  programdata_address,
-                              }) = account.state()
+                        programdata_address,
+                    }) = account.state()
                     {
                         programs_to_fetch.push((*account_key, programdata_address));
                     }
-                } else {
-                    if account.executable {
-                        if account.owner == solana_sdk::bpf_loader::id() {
-                            accounts_config
-                                .programs
-                                .insert(*account_key, account.clone());
-                        }
-                    } else {
+                } else if account.executable {
+                    if account.owner == solana_sdk::bpf_loader::id() {
                         accounts_config
-                            .accounts
+                            .programs
                             .insert(*account_key, account.clone());
                     }
+                } else {
+                    accounts_config
+                        .accounts
+                        .insert(*account_key, account.clone());
                 }
+
                 if let Some(indexes) = lookup_keys.get(account_key) {
                     if let Ok(table_data_deserialized) =
                         AddressLookupTable::deserialize(&account.data)
@@ -274,11 +274,11 @@ impl Simulator {
         })
     }
 
-    pub async fn optimize_bids(
-        &self,
-        bids: &[Bid<Svm>],
-    ) -> RpcResult<Vec<Bid<Svm>>> {
-        let txs: Vec<VersionedTransaction> = bids.iter().map(|bid| bid.chain_data.transaction.clone()).collect();
+    pub async fn optimize_bids(&self, bids: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
+        let txs: Vec<VersionedTransaction> = bids
+            .iter()
+            .map(|bid| bid.chain_data.transaction.clone())
+            .collect();
         let accounts_config_with_context = self.fetch_tx_accounts(&txs).await?;
         let accounts_config = accounts_config_with_context.value;
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
@@ -293,12 +293,15 @@ impl Simulator {
         });
         let mut res = vec![];
         for bid in bids {
-            if svm.send_transaction(bid.chain_data.transaction.clone()).is_ok() {
+            if svm
+                .send_transaction(bid.chain_data.transaction.clone())
+                .is_ok()
+            {
                 res.push(bid.clone());
             }
         }
         Ok(Response {
-            value: res,
+            value:   res,
             context: accounts_config_with_context.context,
         })
     }

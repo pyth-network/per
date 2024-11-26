@@ -4,7 +4,6 @@ use {
         Service,
     },
     crate::{
-        api::RestError,
         auction::entities,
         kernel::{
             contracts::MulticallIssuedFilter,
@@ -98,11 +97,12 @@ pub trait AuctionManager<T: ChainTrait> {
     ) -> Result<entities::TxHash<T>>;
     /// Get the bid results for the bids submitted for the auction after the transaction is concluded.
     /// Order of the returned BidStatus is as same as the order of the bids.
+    /// Returns None for each bid if the bid is not yet confirmed on chain.
     async fn get_bid_results(
         &self,
         bids: Vec<entities::Bid<T>>,
         bid_status_auction: entities::BidStatusAuction<T::BidStatusType>,
-    ) -> Result<Option<Vec<T::BidStatusType>>>;
+    ) -> Result<Vec<Option<T::BidStatusType>>>;
 
     /// Check if the auction winner transaction should be submitted on chain for the permission key.
     async fn get_submission_state(
@@ -211,7 +211,7 @@ impl AuctionManager<Evm> for Service<Evm> {
         &self,
         bids: Vec<entities::Bid<Evm>>,
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusEvm>,
-    ) -> Result<Option<Vec<entities::BidStatusEvm>>> {
+    ) -> Result<Vec<Option<entities::BidStatusEvm>>> {
         let receipt = self
             .config
             .chain_config
@@ -222,9 +222,10 @@ impl AuctionManager<Evm> for Service<Evm> {
         match receipt {
             Some(receipt) => {
                 let decoded_logs = Self::decode_logs_for_receipt(&receipt);
-                Ok(Some(
-                    bids.iter()
-                        .map(|b| {
+                Ok(bids
+                    .iter()
+                    .map(|b| {
+                        Some(
                             match decoded_logs
                                 .iter()
                                 .find(|decoded_log| Uuid::from_bytes(decoded_log.bid_id) == b.id)
@@ -245,12 +246,12 @@ impl AuctionManager<Evm> for Service<Evm> {
                                     auction: Some(bid_status_auction.clone()),
                                     index:   None,
                                 },
-                            }
-                        })
-                        .collect(),
-                ))
+                            },
+                        )
+                    })
+                    .collect())
             }
-            None => Ok(None),
+            None => Ok(vec![None; bids.len()]),
         }
     }
 
@@ -319,9 +320,19 @@ impl AuctionManager<Svm> for Service<Svm> {
     ) -> Result<Vec<entities::Bid<Svm>>> {
         let mut bids = auction.bids.clone();
         bids.sort_by(|a, b| b.amount.cmp(&a.amount));
-        return Ok(self.config.chain_config.simulator.optimize_bids(&bids).await.map(|x| x.value).unwrap_or(vec![bids[0].clone()]));
+        return Ok(self
+            .config
+            .chain_config
+            .simulator
+            .optimize_bids(&bids)
+            .await
+            .map(|x| x.value)
+            .unwrap_or(vec![bids[0].clone()]));
     }
 
+    /// Submit all the svm bids as separate transactions concurrently
+    /// Returns Ok if at least one of the transactions is successful
+    /// Returns Err if all transactions are failed
     #[tracing::instrument(skip_all)]
     async fn submit_bids(
         &self,
@@ -332,25 +343,39 @@ impl AuctionManager<Svm> for Service<Svm> {
             return Err(anyhow::anyhow!("No bids to submit"));
         }
 
-        // TODO: fix this shit
-        let mut bid = bids[0].clone();
-        self.add_relayer_signature(&mut bid);
-        match self.send_transaction(&bid.chain_data.transaction).await {
-            Ok(response) => Ok(response),
-            Err(e) => {
-                tracing::error!(error = ?e, "Error while submitting bid");
-                Err(anyhow::anyhow!(e))
+        let send_futures: Vec<_> = bids
+            .into_iter()
+            .map(|mut bid| {
+                self.add_relayer_signature(&mut bid);
+                async move { self.send_transaction(&bid.chain_data.transaction).await }
+            })
+            .collect();
+
+        let results = futures::future::join_all(send_futures).await;
+        let mut result = None;
+        for res in results.into_iter() {
+            match res {
+                Ok(sig) => {
+                    result = Some(Ok(sig));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e, "Error while submitting bid");
+                    if result.is_none() {
+                        result = Some(Err(anyhow::anyhow!(e)));
+                    }
+                }
             }
         }
+        result.expect("results should not be empty")
     }
 
     async fn get_bid_results(
         &self,
         bids: Vec<entities::Bid<Svm>>,
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
-    ) -> Result<Option<Vec<entities::BidStatusSvm>>> {
+    ) -> Result<Vec<Option<entities::BidStatusSvm>>> {
         if bids.is_empty() {
-            return Ok(Some(vec![]));
+            return Ok(vec![]);
         }
 
         if bids.len() != 1 {
@@ -358,51 +383,67 @@ impl AuctionManager<Svm> for Service<Svm> {
         }
 
         //TODO: this can be optimized out if triggered by websocket events
-        let statuses = self
-            .config
-            .chain_config
-            .client.get_signature_statuses(bids.iter().map(|bid| bid.chain_data.transaction.signatures.first().expect("No signature found")).collect()).await?.value;
-
-        let status = self
+        let signatures: Vec<_> = bids
+            .iter()
+            .map(|bid| {
+                *bid.chain_data
+                    .transaction
+                    .signatures
+                    .first()
+                    .expect("No signature found")
+            })
+            .collect();
+        let statuses: Vec<_> = self
             .config
             .chain_config
             .client
-            .get_signature_status_with_commitment(
-                &bid_status_auction.tx_hash,
-                CommitmentConfig::confirmed(),
-            )
-            .await?;
+            .get_signature_statuses(&signatures)
+            .await?
+            .value
+            .into_iter()
+            .map(|status| {
+                status
+                    .filter(|status| status.satisfies_commitment(CommitmentConfig::confirmed()))
+                    .map(|status_meta| status_meta.status)
+            })
+            .collect();
 
+        let res = statuses
+            .iter()
+            .map(|status| {
+                let bid_status_auction = bid_status_auction.clone();
 
-        let res = statuses.iter().map(|status|{
-
-        match status {
-            Some(res) => match res {
-                Ok(()) => entities::BidStatusSvm::Won {
-                    auction: bid_status_auction,
-                },
-                Err(_) => entities::BidStatusSvm::Lost {
-                    auction: Some(bid_status_auction),
-                },
-            },
-            None => {
-                // not yet confirmed
-                // TODO Use the correct version of the expiration algorithm, which is:
-                // the tx is not expired as long as the block hash is still recent.
-                // Assuming a certain block time, the two minute threshold is good enough but in some cases, it's not correct.
-                if bids[0].initiation_time + BID_MAXIMUM_LIFE_TIME_SVM < OffsetDateTime::now_utc() {
-                    // If the bid is older than the maximum lifetime, it means that the block hash is now too old and the transaction is expired.
-                    entities::BidStatusSvm::Expired {
-                        auction: bid_status_auction,
+                match status {
+                    Some(res) => Some(match res {
+                        Ok(()) => entities::BidStatusSvm::Won {
+                            auction: bid_status_auction,
+                        },
+                        Err(_) => entities::BidStatusSvm::Lost {
+                            auction: Some(bid_status_auction),
+                        },
+                    }),
+                    None => {
+                        // not yet confirmed
+                        // TODO Use the correct version of the expiration algorithm, which is:
+                        // the tx is not expired as long as the block hash is still recent.
+                        // Assuming a certain block time, the two minute threshold is good enough but in some cases, it's not correct.
+                        if bids[0].initiation_time + BID_MAXIMUM_LIFE_TIME_SVM
+                            < OffsetDateTime::now_utc()
+                        {
+                            // If the bid is older than the maximum lifetime, it means that the block hash is now too old and the transaction is expired.
+                            Some(entities::BidStatusSvm::Expired {
+                                auction: bid_status_auction,
+                            })
+                        } else {
+                            None
+                        }
                     }
-                } else {
-                    None
                 }
-            }
-        }}).collect();
+            })
+            .collect();
 
 
-        Ok(Some(res))
+        Ok(res)
     }
 
     async fn get_submission_state(
@@ -485,7 +526,11 @@ impl Service<Svm> {
             .chain_config
             .tx_broadcaster_client
             .send_transaction_with_config(tx, config)
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?e, "Failed to send transaction");
+                e
+            })?;
         self.config
             .chain_config
             .simulator

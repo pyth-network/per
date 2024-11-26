@@ -51,7 +51,7 @@ where
         tracing::info!(
             auction = ?auction,
             chain_id = self.config.chain_id,
-            "Auction submission stated...",
+            "Auction submission started",
         );
 
         match self

@@ -29,8 +29,12 @@ use {
         RpcTransactionLogsConfig,
         RpcTransactionLogsFilter,
     },
-    solana_sdk::commitment_config::CommitmentConfig,
+    solana_sdk::{
+        commitment_config::CommitmentConfig,
+        signature::Signature,
+    },
     std::{
+        str::FromStr,
         sync::atomic::Ordering,
         time::Duration,
     },
@@ -147,23 +151,22 @@ impl Service<Svm> {
                                 log = ?rpc_log.clone(),
                                 "New log trigger received",
                             );
+                            if let Ok(signature) = Signature::from_str(&rpc_log.value.signature){
                             self.task_tracker.spawn({
                                 let service = self.clone();
                                 async move {
                                     let submitted_auctions = service.repo.get_in_memory_submitted_auctions().await;
                                     if let Some(auction) = submitted_auctions.iter().find(|auction| {
-                                        auction.tx_hash.map(|tx_hash|
-                                            tx_hash.to_string() == rpc_log.value.signature,
-                                        ).unwrap_or(false)
+                                        auction.bids.iter().any(|bid| bid.chain_data.transaction.signatures[0] == signature)
                                     }) {
-                                        let sig = auction.tx_hash.as_ref().unwrap();
-                                        service.config.chain_config.simulator.remove_pending_transaction(sig).await;
+                                        service.config.chain_config.simulator.remove_pending_transaction(&signature).await;
                                         if let Err(err) = service.conclude_auction(ConcludeAuctionInput{auction: auction.clone()}).await {
                                             tracing::error!(error = ?err, auction = ?auction, "Error while concluding submitted auction");
                                         }
                                     }
                                 }
                             });
+                                }
                         }
                     }
                 }

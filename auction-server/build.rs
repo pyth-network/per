@@ -113,7 +113,7 @@ fn build_svm_contracts() {
 fn main() {
     println!("cargo:rerun-if-changed=migrations");
 
-    // build_evm_contracts();
-    // build_svm_contracts();
+    build_evm_contracts();
+    build_svm_contracts();
     verify_and_extract_idl_data();
 }
