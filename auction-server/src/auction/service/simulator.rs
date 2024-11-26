@@ -33,7 +33,10 @@ use {
         transaction::VersionedTransaction,
     },
     std::{
-        collections::HashMap,
+        collections::{
+            HashMap,
+            HashSet,
+        },
         time::Instant,
     },
     time::Duration,
@@ -127,6 +130,11 @@ impl Simulator {
         Some(cache_result)
     }
 
+    /// Tries to get accounts from cache, if any of them are not found, fetches all of them from RPC
+    /// and updates the cache.
+    /// You should only use this function for accounts that are not expected to change frequently:
+    /// - Program accounts
+    /// - Lookup Table accounts
     async fn get_multiple_accounts_with_cache(
         &self,
         keys: &[Pubkey],
@@ -147,38 +155,68 @@ impl Simulator {
         Ok(result.value)
     }
 
-    async fn fetch_tx_accounts_via_rpc(
+    async fn resolve_lookup_addresses(
         &self,
         transactions: &[VersionedTransaction],
-    ) -> RpcResult<AccountsConfig> {
-        let keys = transactions
-            .iter()
-            .flat_map(|tx| tx.message.static_account_keys())
-            .cloned()
-            .collect::<Vec<_>>();
-        let lookup_keys: HashMap<Pubkey, Vec<u8>> = transactions
+    ) -> client_error::Result<Vec<Pubkey>> {
+        let mut lookup_table_keys: HashMap<Pubkey, HashSet<u8>> = HashMap::default();
+        transactions
             .iter()
             .flat_map(|tx| tx.message.address_table_lookups().unwrap_or_default())
-            .map(|x| {
-                (
-                    x.account_key,
+            .for_each(|x| {
+                lookup_table_keys.entry(x.account_key).or_default().extend(
                     x.readonly_indexes
                         .iter()
                         .chain(x.writable_indexes.iter())
                         .cloned()
                         .collect::<Vec<_>>(),
                 )
-            })
-            .collect();
+            });
+
+        let accs = self
+            .get_multiple_accounts_with_cache(
+                &lookup_table_keys.keys().cloned().collect::<Vec<_>>(),
+            )
+            .await?;
+        let mut results = vec![];
+        for (indexes, lookup_table_account) in lookup_table_keys.values().zip(accs.iter()) {
+            if let Some(lookup_account) = lookup_table_account {
+                if let Ok(table_data_deserialized) =
+                    AddressLookupTable::deserialize(&lookup_account.data)
+                {
+                    if let Ok(addrs) = table_data_deserialized.lookup(
+                        table_data_deserialized.meta.last_extended_slot + 1,
+                        &indexes.iter().cloned().collect::<Vec<_>>(),
+                        &SlotHashes::default(),
+                    ) {
+                        results.extend(addrs.iter());
+                    }
+                }
+            }
+        }
+        Ok(results)
+    }
+
+    async fn fetch_tx_accounts_via_rpc(
+        &self,
+        transactions: &[VersionedTransaction],
+    ) -> RpcResult<AccountsConfig> {
+        let mut keys = transactions
+            .iter()
+            .flat_map(|tx| tx.message.static_account_keys())
+            .cloned()
+            .collect::<HashSet<_>>();
+
+        keys.extend(self.resolve_lookup_addresses(transactions).await?);
+        let keys = keys.into_iter().collect::<Vec<_>>();
+
         let accounts_with_context = self
             .receiver
             .get_multiple_accounts_with_commitment(&keys, CommitmentConfig::processed())
             .await?;
-        let slot = accounts_with_context.context.slot;
         let accounts = accounts_with_context.value;
         let mut accounts_config = AccountsConfig::new();
         let mut programs_to_fetch = vec![];
-        let mut lookup_accounts_to_fetch: Vec<Pubkey> = vec![];
 
         for (account_key, account) in keys.iter().zip(accounts.iter()) {
             // it's ok to not have an account (this account is created by the transaction)
@@ -201,47 +239,23 @@ impl Simulator {
                         .accounts
                         .insert(*account_key, account.clone());
                 }
-
-                if let Some(indexes) = lookup_keys.get(account_key) {
-                    if let Ok(table_data_deserialized) =
-                        AddressLookupTable::deserialize(&account.data)
-                    {
-                        if let Ok(addrs) =
-                            table_data_deserialized.lookup(slot, indexes, &SlotHashes::default())
-                        {
-                            lookup_accounts_to_fetch.extend(addrs.iter());
-                        }
-                    }
-                }
             }
         }
 
         let indirect_keys = programs_to_fetch
             .iter()
             .map(|(_, programdata_address)| *programdata_address)
-            .chain(lookup_accounts_to_fetch.iter().cloned())
             .collect::<Vec<_>>();
         let indirect_accounts = self
             .get_multiple_accounts_with_cache(&indirect_keys)
             .await?;
-        let program_accounts = &indirect_accounts[..programs_to_fetch.len()];
-        let lookup_accounts = &indirect_accounts[programs_to_fetch.len()..];
         for ((program_key, _), program_account) in
-            programs_to_fetch.iter().zip(program_accounts.iter())
+            programs_to_fetch.iter().zip(indirect_accounts.iter())
         {
             if let Some(program_account) = program_account {
                 accounts_config
                     .upgradable_programs
                     .insert(*program_key, program_account.clone());
-            }
-        }
-        for (lookup_key, lookup_account) in
-            lookup_accounts_to_fetch.iter().zip(lookup_accounts.iter())
-        {
-            if let Some(lookup_account) = lookup_account {
-                accounts_config
-                    .accounts
-                    .insert(*lookup_key, lookup_account.clone());
             }
         }
 
@@ -255,11 +269,18 @@ impl Simulator {
         &self,
         transaction: &VersionedTransaction,
     ) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
-        let accounts_config_with_context = self
-            .fetch_tx_accounts_via_rpc(&[transaction.clone()])
-            .await?;
-        let accounts_config = accounts_config_with_context.value;
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
+        let txs_to_fetch = pending_txs
+            .iter()
+            .chain(std::iter::once(transaction))
+            .cloned()
+            .collect::<Vec<_>>();
+        let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
+
+
+        let accounts_config = accounts_config_with_context.value;
+        tracing::info!("Fetched accounts {:?}", accounts_config.accounts.keys());
+        tracing::info!("Tx to simulate {:?}", transaction);
         let mut svm = LiteSVM::new()
             .with_sigverify(false)
             .with_blockhash_check(false)
@@ -277,13 +298,14 @@ impl Simulator {
     }
 
     pub async fn optimize_bids(&self, bids: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
-        let txs: Vec<VersionedTransaction> = bids
-            .iter()
-            .map(|bid| bid.chain_data.transaction.clone())
-            .collect();
-        let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs).await?;
-        let accounts_config = accounts_config_with_context.value;
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
+        let txs_to_fetch = pending_txs
+            .iter()
+            .chain(bids.iter().map(|bid| &bid.chain_data.transaction))
+            .cloned()
+            .collect::<Vec<_>>();
+        let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
+        let accounts_config = accounts_config_with_context.value;
         let mut svm = LiteSVM::new()
             .with_sigverify(false)
             .with_blockhash_check(false)

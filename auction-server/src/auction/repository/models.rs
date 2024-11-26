@@ -443,7 +443,7 @@ impl ModelTrait<Svm> for Svm {
                 )),
             entities::BidStatusSvm::Won { .. } | entities::BidStatusSvm::Expired { .. } | entities::BidStatusSvm::Failed { .. } | entities::BidStatusSvm::Lost { auction: None } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status = $4",
-                Self::get_bid_status(&bid.status) as _,
+                Self::get_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
                 BidStatus::Submitted as _,
