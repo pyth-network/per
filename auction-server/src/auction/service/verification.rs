@@ -585,11 +585,6 @@ impl Service<Svm> {
         })?;
         match result.value {
             Err(err) => {
-                tracing::error!(
-                    error = ?err,
-                    context = ?result.context,
-                    "Error while simulating bid",
-                );
                 let msgs = err.meta.logs;
                 Err(RestError::SimulationError {
                     result: Default::default(),

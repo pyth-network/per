@@ -279,8 +279,6 @@ impl Simulator {
 
 
         let accounts_config = accounts_config_with_context.value;
-        tracing::info!("Fetched accounts {:?}", accounts_config.accounts.keys());
-        tracing::info!("Tx to simulate {:?}", transaction);
         let mut svm = LiteSVM::new()
             .with_sigverify(false)
             .with_blockhash_check(false)

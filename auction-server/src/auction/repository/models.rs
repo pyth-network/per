@@ -441,7 +441,14 @@ impl ModelTrait<Svm> for Svm {
                     bid.id,
                     BidStatus::Pending as _
                 )),
-            entities::BidStatusSvm::Won { .. } | entities::BidStatusSvm::Expired { .. } | entities::BidStatusSvm::Failed { .. } | entities::BidStatusSvm::Lost { auction: None } => Ok(sqlx::query!(
+            entities::BidStatusSvm::Lost { auction: None } => Ok(sqlx::query!(
+                    "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status = $4",
+                    BidStatus::Lost as _,
+                    PrimitiveDateTime::new(now.date(), now.time()),
+                    bid.id,
+                    BidStatus::Pending as _
+                )),
+            entities::BidStatusSvm::Won { .. } | entities::BidStatusSvm::Expired { .. } | entities::BidStatusSvm::Failed { .. }  => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status = $4",
                 Self::get_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
