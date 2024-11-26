@@ -1,5 +1,6 @@
 use {
     crate::api::RestError,
+    base64::Engine,
     bincode::serialized_size,
     ethers::types::Bytes,
     serde::{
@@ -19,6 +20,7 @@ use {
         packet::PACKET_DATA_SIZE,
         transaction::VersionedTransaction,
     },
+    std::fmt::Display,
 };
 
 pub type ChainId = String;
@@ -33,6 +35,16 @@ impl Serialize for PermissionKeySvm {
         S: serde::Serializer,
     {
         Base64::<Standard, Padded>::serialize_as(&self.0, serializer)
+    }
+}
+
+impl Display for PermissionKeySvm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            base64::engine::general_purpose::STANDARD.encode(self.0)
+        )
     }
 }
 

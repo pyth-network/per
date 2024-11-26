@@ -422,10 +422,6 @@ impl AuctionManager<Svm> for Service<Svm> {
             return Ok(vec![]);
         }
 
-        if bids.len() != 1 {
-            tracing::warn!(bid_status_auction = ?bid_status_auction, bids = ?bids, "multiple bids found for transaction hash");
-        }
-
         //TODO: this can be optimized out if triggered by websocket events
         let signatures: Vec<_> = bids
             .iter()
