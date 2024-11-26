@@ -24,11 +24,25 @@ impl<T: ChainTrait> Service<T>
 where
     Service<T>: AuctionManager<T>,
 {
+    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, winner_bid_ids))]
     async fn submit_auction<'a>(
         &self,
         auction: entities::Auction<T>,
         _auction_mutex_gaurd: MutexGuard<'a, ()>,
     ) -> anyhow::Result<()> {
+        tracing::Span::current().record("auction_id", auction.id.to_string());
+        tracing::Span::current().record(
+            "bid_ids",
+            format!(
+                "{:?}",
+                auction
+                    .bids
+                    .iter()
+                    .map(|bid| bid.id.to_string())
+                    .collect::<Vec<String>>()
+            ),
+        );
+
         let permission_key = auction.permission_key.clone();
         if !auction.is_ready(Service::AUCTION_MINIMUM_LIFETIME) {
             tracing::info!(permission_key = ?permission_key, "Auction is not ready yet");
@@ -36,6 +50,16 @@ where
         }
 
         let winner_bids = self.get_winner_bids(&auction).await?;
+        tracing::Span::current().record(
+            "winner_bid_ids",
+            format!(
+                "{:?}",
+                winner_bids
+                    .iter()
+                    .map(|bid| bid.id.to_string())
+                    .collect::<Vec<String>>()
+            ),
+        );
         if winner_bids.is_empty() {
             join_all(auction.bids.into_iter().map(|bid| {
                 self.update_bid_status(UpdateBidStatusInput {
@@ -83,6 +107,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip_all, fields(bid_ids, auction_id))]
     async fn submit_auction_for_lock(
         &self,
         permission_key: &entities::PermissionKey<T>,
@@ -96,8 +121,21 @@ where
             .get_in_memory_bids_by_permission_key(permission_key)
             .await;
 
+        tracing::Span::current().record(
+            "bid_ids",
+            format!(
+                "{:?}",
+                bids.iter()
+                    .map(|bid| bid.id.to_string())
+                    .collect::<Vec<String>>()
+            ),
+        );
+
         match entities::Auction::try_new(bids, bid_collection_time) {
-            Some(auction) => self.submit_auction(auction, acquired_lock).await,
+            Some(auction) => {
+                tracing::Span::current().record("auction_id", auction.id.to_string());
+                self.submit_auction(auction, acquired_lock).await
+            }
             None => Ok(()),
         }
     }

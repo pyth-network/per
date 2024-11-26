@@ -170,7 +170,7 @@ pub type PermissionKey<T> = <<T as ChainTrait>::BidChainDataType as BidChainData
 pub type TxHash<T> = <<T as ChainTrait>::BidStatusType as BidStatus>::TxHash;
 
 pub trait BidChainData: Send + Sync + Clone + Debug + PartialEq {
-    type PermissionKey: Send + Sync + Debug + Hash + Eq + Clone;
+    type PermissionKey: Send + Sync + Debug + Hash + Eq + Clone + Debug;
 
     fn get_permission_key(&self) -> Self::PermissionKey;
 }
