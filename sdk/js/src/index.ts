@@ -37,8 +37,8 @@ export * from "./types";
 export * from "./const";
 
 export class ClientError extends Error {
-  static newHttpError(error: string, status: number) {
-    const message = `Auction server http error ${status} - ${error}`;
+  static newHttpError(error: string, status?: number) {
+    const message = `Auction server http error ${status ?? ""} - ${error}`;
     return new ClientError(message);
   }
 
@@ -471,7 +471,7 @@ export class Client {
           response.response.status
         );
       } else if (response.data === undefined) {
-        throw new ClientError("Auction server: No data returned");
+        throw ClientError.newHttpError("No data returned");
       } else {
         return response.data.id;
       }
@@ -494,7 +494,7 @@ export class Client {
         response.response.status
       );
     } else if (response.data === undefined) {
-      throw new ClientError("Auction server: No data returned");
+      throw ClientError.newHttpError("No data returned");
     } else {
       return response.data;
     }
