@@ -147,7 +147,7 @@ impl Simulator {
         Ok(result.value)
     }
 
-    async fn fetch_tx_accounts(
+    async fn fetch_tx_accounts_via_rpc(
         &self,
         transactions: &[VersionedTransaction],
     ) -> RpcResult<AccountsConfig> {
@@ -255,7 +255,9 @@ impl Simulator {
         &self,
         transaction: &VersionedTransaction,
     ) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
-        let accounts_config_with_context = self.fetch_tx_accounts(&[transaction.clone()]).await?;
+        let accounts_config_with_context = self
+            .fetch_tx_accounts_via_rpc(&[transaction.clone()])
+            .await?;
         let accounts_config = accounts_config_with_context.value;
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let mut svm = LiteSVM::new()
@@ -279,7 +281,7 @@ impl Simulator {
             .iter()
             .map(|bid| bid.chain_data.transaction.clone())
             .collect();
-        let accounts_config_with_context = self.fetch_tx_accounts(&txs).await?;
+        let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs).await?;
         let accounts_config = accounts_config_with_context.value;
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let mut svm = LiteSVM::new()

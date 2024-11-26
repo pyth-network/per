@@ -24,7 +24,7 @@ where
         if let Some(tx_hash) = auction.tx_hash.clone() {
             let bids = self
                 .repo
-                .get_in_memory_submitted_bids_for_auction(auction.clone())
+                .get_in_memory_submitted_bids_for_auction(&auction)
                 .await;
 
             let bid_statuses = self
@@ -62,7 +62,7 @@ where
 
             if self
                 .repo
-                .get_in_memory_submitted_bids_for_auction(auction.clone())
+                .get_in_memory_submitted_bids_for_auction(&auction)
                 .await
                 .is_empty()
             {

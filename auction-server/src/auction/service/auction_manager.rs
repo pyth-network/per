@@ -369,6 +369,8 @@ impl AuctionManager<Svm> for Service<Svm> {
             .optimize_bids(&bids)
             .await
             .map(|x| x.value)
+            // If the optimization fails (mainly because of rpc issues)
+            // we just submit the first bid
             .unwrap_or(vec![bids[0].clone()]));
     }
 
@@ -432,7 +434,7 @@ impl AuctionManager<Svm> for Service<Svm> {
                     .transaction
                     .signatures
                     .first()
-                    .expect("No signature found")
+                    .expect("Signature array is empty on svm bid tx")
             })
             .collect();
         let statuses: Vec<_> = self
@@ -568,11 +570,7 @@ impl Service<Svm> {
             .chain_config
             .tx_broadcaster_client
             .send_transaction_with_config(tx, config)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = ?e, "Failed to send transaction");
-                e
-            })?;
+            .await?;
         self.config
             .chain_config
             .simulator

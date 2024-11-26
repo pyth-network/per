@@ -12,7 +12,7 @@ use {
 impl<T: ChainTrait> Repository<T> {
     pub async fn get_in_memory_submitted_bids_for_auction(
         &self,
-        auction: entities::Auction<T>,
+        auction: &entities::Auction<T>,
     ) -> Vec<entities::Bid<T>> {
         // Filter out the bids that are in the auction and submitted
         let bids = self
