@@ -371,7 +371,7 @@ impl AuctionManager<Svm> for Service<Svm> {
             .map(|x| x.value)
             // If the optimization fails (mainly because of rpc issues)
             // we just submit the first bid
-            .unwrap_or(vec![bids[0].clone()]));
+            .unwrap_or(bids.first().cloned().map(|b| vec![b]).unwrap_or_default()));
     }
 
     /// Submit all the svm bids as separate transactions concurrently
