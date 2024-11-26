@@ -36,7 +36,12 @@ import * as svm from "./svm";
 export * from "./types";
 export * from "./const";
 
-export class ClientError extends Error {}
+export class ClientError extends Error {
+  static newHttpError(error: string, status: number) {
+    const message = `Auction server http error ${status} - ${error}`;
+    return new ClientError(message);
+  }
+}
 
 type ClientOptions = FetchClientOptions & {
   baseUrl: string;
@@ -380,7 +385,10 @@ export class Client {
       body: body,
     });
     if (response.error) {
-      throw new ClientError(response.error.error);
+      throw ClientError.newHttpError(
+        response.error.error,
+        response.response.status
+      );
     }
   }
 
@@ -410,7 +418,10 @@ export class Client {
       body,
     });
     if (response.error) {
-      throw new ClientError(response.error.error);
+      throw ClientError.newHttpError(
+        response.error.error,
+        response.response.status
+      );
     }
   }
 
@@ -430,7 +441,9 @@ export class Client {
         },
       });
       if (result === null) {
-        throw new ClientError("Empty response in websocket for bid submission");
+        throw new ClientError(
+          "Auction server: Empty response in websocket for bid submission"
+        );
       }
       return result.id;
     } else {
@@ -439,9 +452,12 @@ export class Client {
         body: serverBid,
       });
       if (response.error) {
-        throw new ClientError(response.error.error);
+        throw ClientError.newHttpError(
+          response.error.error,
+          response.response.status
+        );
       } else if (response.data === undefined) {
-        throw new ClientError("No data returned");
+        throw new ClientError("Auction server: No data returned");
       } else {
         return response.data.id;
       }
@@ -459,9 +475,12 @@ export class Client {
       params: { query: { from_time: fromTime?.toISOString() } },
     });
     if (response.error) {
-      throw new ClientError(response.error.error);
+      throw ClientError.newHttpError(
+        response.error.error,
+        response.response.status
+      );
     } else if (response.data === undefined) {
-      throw new ClientError("No data returned");
+      throw new ClientError("Auction server: No data returned");
     } else {
       return response.data;
     }
