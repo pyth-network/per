@@ -103,6 +103,11 @@ where
     }
 
     pub async fn handle_auction(&self, input: HandleAuctionInput<T>) -> anyhow::Result<()> {
+        tracing::info!(
+            chain_id = self.0.config.chain_id,
+            permission_key = ?input.permission_key,
+            "Handling auction",
+        );
         let permission_key = input.permission_key;
         match self.get_submission_state(&permission_key).await {
             entities::SubmitType::ByOther => Ok(()),

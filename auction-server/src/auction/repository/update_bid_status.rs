@@ -52,7 +52,7 @@ impl<T: ChainTrait> Repository<T> {
         bid: entities::Bid<T>,
         new_status: T::BidStatusType,
     ) -> anyhow::Result<bool> {
-        let update_query = T::get_update_query(&bid, new_status.clone())?;
+        let update_query = T::get_update_bid_query(&bid, new_status.clone())?;
         let query_result = update_query.execute(&self.db).await?;
 
         if new_status.is_submitted() {

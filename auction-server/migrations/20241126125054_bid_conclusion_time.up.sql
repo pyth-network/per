@@ -1,0 +1,1 @@
+ALTER TABLE bid ADD COLUMN conclusion_time TIMESTAMP;

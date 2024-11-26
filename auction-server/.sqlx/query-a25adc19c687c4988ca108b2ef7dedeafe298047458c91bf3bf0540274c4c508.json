@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5)",
+  "query": "UPDATE bid SET status = $1, auction_id = $2, conclusion_time = $3 WHERE id = $4 AND status = $5",
   "describe": {
     "columns": [],
     "parameters": {
@@ -21,22 +21,8 @@
           }
         },
         "Uuid",
+        "Timestamp",
         "Uuid",
-        {
-          "Custom": {
-            "name": "bid_status",
-            "kind": {
-              "Enum": [
-                "pending",
-                "lost",
-                "submitted",
-                "won",
-                "expired",
-                "failed"
-              ]
-            }
-          }
-        },
         {
           "Custom": {
             "name": "bid_status",
@@ -56,5 +42,5 @@
     },
     "nullable": []
   },
-  "hash": "744013026c0b31750c2452f98851bb38e8bebeba59012b86ac6b0de653332cea"
+  "hash": "a25adc19c687c4988ca108b2ef7dedeafe298047458c91bf3bf0540274c4c508"
 }
