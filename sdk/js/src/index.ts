@@ -260,7 +260,7 @@ export class Client {
 
   async requestViaWebsocket(
     msg: components["schemas"]["ClientMessage"]
-  ): Promise<components["schemas"]["APIResponse"]> {
+  ): Promise<components["schemas"]["APIResponse"] | null> {
     const msg_with_id: components["schemas"]["ClientRequest"] = {
       ...msg,
       id: (this.idCounter++).toString(),
@@ -268,15 +268,7 @@ export class Client {
     return new Promise((resolve, reject) => {
       this.callbackRouter[msg_with_id.id] = (response) => {
         if (response.status === "success") {
-          if (response.result === null) {
-            reject(
-              ClientError.newWebsocketError(
-                "Empty response in websocket for bid submission"
-              )
-            );
-          } else {
-            resolve(response.result);
-          }
+          resolve(response.result);
         } else {
           reject(ClientError.newWebsocketError(response.result));
         }
@@ -460,6 +452,13 @@ export class Client {
           bid: serverBid,
         },
       });
+
+      if (result === null) {
+        throw ClientError.newWebsocketError(
+          "Empty response in websocket for bid submission"
+        );
+      }
+
       return result.id;
     } else {
       const client = createClient<paths>(this.clientOptions);
