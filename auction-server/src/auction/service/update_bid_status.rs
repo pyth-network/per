@@ -31,6 +31,9 @@ impl<T: ChainTrait> Service<T> {
                 RestError::TemporarilyUnavailable
             })?;
 
+        // TODO: Do not rely on db to see if the status is changed
+        // we can rely on the write guard and our in memory structure
+
         // It is possible to call this function multiple times from different threads if receipts are delayed
         // Or the new block is mined faster than the bid status is updated.
         // To ensure we do not broadcast the update more than once, we need to check the below "if"

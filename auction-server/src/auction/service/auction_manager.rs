@@ -39,7 +39,6 @@ use {
     solana_client::{
         nonblocking::pubsub_client::PubsubClient,
         rpc_config::RpcSendTransactionConfig,
-        rpc_response::SlotInfo,
     },
     solana_sdk::{
         bs58,
@@ -57,9 +56,17 @@ use {
         fmt::Debug,
         pin::Pin,
         result,
+        task::{
+            Context,
+            Poll,
+        },
         time::Duration,
     },
     time::OffsetDateTime,
+    tokio::time::{
+        interval,
+        Interval,
+    },
     uuid::Uuid,
 };
 
@@ -236,10 +243,14 @@ impl AuctionManager<Evm> for Service<Evm> {
                                             index:   decoded_log.multicall_index.as_u32(),
                                             auction: bid_status_auction.clone(),
                                         },
-                                        false => entities::BidStatusEvm::Lost {
-                                            index:   Some(decoded_log.multicall_index.as_u32()),
-                                            auction: Some(bid_status_auction.clone()),
-                                        },
+                                        false =>
+                                        // TODO: add BidStatusEvm::Failed for when the bid gets submitted but fails on-chain
+                                        {
+                                            entities::BidStatusEvm::Lost {
+                                                index:   Some(decoded_log.multicall_index.as_u32()),
+                                                auction: Some(bid_status_auction.clone()),
+                                            }
+                                        }
                                     }
                                 }
                                 None => entities::BidStatusEvm::Lost {
@@ -282,14 +293,43 @@ impl AuctionManager<Evm> for Service<Evm> {
 }
 
 /// This is to make sure we are not missing any transaction.
-/// We run this once every minute (150 slots).
-const CONCLUSION_TRIGGER_SLOT_INTERVAL_SVM: u64 = 150;
+/// We run this once every minute (150 * 0.4).
+const CONCLUSION_TRIGGER_INTERVAL_SVM: u64 = 150;
 const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(120);
+const TRIGGER_DURATION_SVM: Duration = Duration::from_millis(400);
+
+pub struct TriggerStreamSvm {
+    number:   u64,
+    interval: Interval,
+}
+
+impl TriggerStreamSvm {
+    fn new(interval: Interval) -> Self {
+        Self {
+            number: 0,
+            interval,
+        }
+    }
+}
+
+impl Stream for TriggerStreamSvm {
+    type Item = u64;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.interval.poll_tick(cx) {
+            Poll::Ready(_) => {
+                self.number += 1;
+                Poll::Ready(Some(self.number))
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
 
 #[async_trait]
 impl AuctionManager<Svm> for Service<Svm> {
-    type Trigger = SlotInfo;
-    type TriggerStream<'a> = Pin<Box<dyn Stream<Item = Self::Trigger> + Send + 'a>>;
+    type Trigger = u64;
+    type TriggerStream<'a> = TriggerStreamSvm;
     type WsClient = PubsubClient;
     type ConclusionResult = result::Result<(), TransactionError>;
 
@@ -304,13 +344,15 @@ impl AuctionManager<Svm> for Service<Svm> {
             })
     }
 
-    async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>> {
-        let (slot_subscribe, _) = client.slot_subscribe().await?;
-        Ok(slot_subscribe)
+    async fn get_trigger_stream<'a>(
+        _client: &'a Self::WsClient,
+    ) -> Result<Self::TriggerStream<'a>> {
+        Ok(TriggerStreamSvm::new(interval(TRIGGER_DURATION_SVM)))
     }
 
     fn is_ready_to_conclude(trigger: Self::Trigger) -> bool {
-        trigger.slot % CONCLUSION_TRIGGER_SLOT_INTERVAL_SVM == 0
+        // To make sure we run it once at the beginning
+        trigger % CONCLUSION_TRIGGER_INTERVAL_SVM == 1
     }
 
     #[tracing::instrument(skip_all)]
@@ -418,8 +460,8 @@ impl AuctionManager<Svm> for Service<Svm> {
                         Ok(()) => entities::BidStatusSvm::Won {
                             auction: bid_status_auction,
                         },
-                        Err(_) => entities::BidStatusSvm::Lost {
-                            auction: Some(bid_status_auction),
+                        Err(_) => entities::BidStatusSvm::Failed {
+                            auction: bid_status_auction,
                         },
                     }),
                     None => {
@@ -494,7 +536,7 @@ impl AuctionManager<Svm> for Service<Svm> {
     }
 }
 
-const SEND_TRANSACTION_RETRY_COUNT_SVM: i32 = 5;
+const SEND_TRANSACTION_RETRY_COUNT_SVM: i32 = 30;
 
 impl Service<Svm> {
     pub fn add_relayer_signature(&self, bid: &mut entities::Bid<Svm>) {

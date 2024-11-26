@@ -21,8 +21,8 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
     "@coral-xyz/anchor-cli": "^0.30.1",
-    "@kamino-finance/limo-sdk": "^0.7.0",
-    "@pythnetwork/express-relay-js": "^0.14.3",
+    "@kamino-finance/limo-sdk": "^0.7.1",
+    "@pythnetwork/express-relay-js": "^0.15.0",
     "@solana/web3.js": "^1.95.3",
     "axios": "^1.7.3",
     "bs58": "^6.0.0",

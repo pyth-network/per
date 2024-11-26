@@ -14,7 +14,8 @@
                 "lost",
                 "submitted",
                 "won",
-                "expired"
+                "expired",
+                "failed"
               ]
             }
           }
@@ -29,7 +30,8 @@
                 "lost",
                 "submitted",
                 "won",
-                "expired"
+                "expired",
+                "failed"
               ]
             }
           }

@@ -2,6 +2,7 @@ import { Router, RouterOutput } from "../types";
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import {
   createJupiterApiClient,
+  DefaultApi,
   Instruction as JupiterInstruction,
 } from "@jup-ag/api";
 
@@ -11,12 +12,28 @@ export class JupiterRouter implements Router {
   private chainId: string;
   private executor: PublicKey;
   private maxAccounts: number;
-  private jupiterClient = createJupiterApiClient();
+  private jupiterClient: DefaultApi;
 
-  constructor(chainId: string, executor: PublicKey, maxAccounts: number) {
+  constructor(
+    chainId: string,
+    executor: PublicKey,
+    maxAccounts: number,
+    basePath: string,
+    apiKey?: string
+  ) {
     this.chainId = chainId;
     this.executor = executor;
     this.maxAccounts = maxAccounts;
+    if (apiKey) {
+      this.jupiterClient = createJupiterApiClient({
+        basePath,
+        apiKey: apiKey,
+      });
+    } else {
+      this.jupiterClient = createJupiterApiClient({
+        basePath,
+      });
+    }
   }
 
   async route(
@@ -44,16 +61,9 @@ export class JupiterRouter implements Router {
       },
     });
 
-    const {
-      computeBudgetInstructions,
-      setupInstructions,
-      swapInstruction,
-      addressLookupTableAddresses,
-    } = instructions;
+    const { setupInstructions, swapInstruction, addressLookupTableAddresses } =
+      instructions;
 
-    const ixsComputeBudget = computeBudgetInstructions.map((ix) =>
-      this.convertInstruction(ix)
-    );
     const ixsSetupJupiter = setupInstructions.map((ix) =>
       this.convertInstruction(ix)
     );
@@ -63,7 +73,6 @@ export class JupiterRouter implements Router {
     ];
 
     return {
-      ixsComputeBudget,
       ixsRouter: ixsJupiter,
       amountIn,
       amountOut: BigInt(quoteResponse.outAmount),

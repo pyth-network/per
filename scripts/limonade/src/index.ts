@@ -185,7 +185,13 @@ async function run() {
           );
         }
       } catch (e) {
-        console.error("Health Error (RPC endpoint), failure to fetch: ", e);
+        if (e instanceof Error) {
+          if (!e.message.includes("Block not available for slot")) {
+            console.error("Health Error (RPC endpoint), failure to fetch: ", e);
+          }
+        } else {
+          console.error("Health Error (RPC endpoint), failure to fetch: ", e);
+        }
       }
       // Wait for 10 seconds before rechecking
       await new Promise((resolve) => setTimeout(resolve, 10 * 1000));

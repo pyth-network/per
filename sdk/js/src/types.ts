@@ -230,9 +230,9 @@ export type BidStatusUpdateEvm = {
   id: BidId;
 } & components["schemas"]["BidStatusEvm"];
 
-export type BidResponse = components["schemas"]["SimulatedBid"];
-export type BidResponseSvm = components["schemas"]["SimulatedBidSvm"];
-export type BidResponseEvm = components["schemas"]["SimulatedBidEvm"];
+export type BidResponse = components["schemas"]["Bid"];
+export type BidResponseSvm = components["schemas"]["BidSvm"];
+export type BidResponseEvm = components["schemas"]["BidEvm"];
 
 export type BidsResponse = {
   items: BidResponse[];
