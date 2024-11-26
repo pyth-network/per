@@ -41,6 +41,11 @@ export class ClientError extends Error {
     const message = `Auction server http error ${status} - ${error}`;
     return new ClientError(message);
   }
+
+  static newWebsocketError(error: string) {
+    const message = `Auction server websocket error - ${error}`;
+    return new ClientError(message);
+  }
 }
 
 type ClientOptions = FetchClientOptions & {
@@ -214,6 +219,9 @@ export class Client {
         console.error(message.error);
       }
     });
+    this.websocket.on("error", (error) => {
+      console.error(ClientError.newWebsocketError(error.message));
+    });
   }
 
   /**
@@ -252,7 +260,7 @@ export class Client {
 
   async requestViaWebsocket(
     msg: components["schemas"]["ClientMessage"]
-  ): Promise<components["schemas"]["APIResponse"] | null> {
+  ): Promise<components["schemas"]["APIResponse"]> {
     const msg_with_id: components["schemas"]["ClientRequest"] = {
       ...msg,
       id: (this.idCounter++).toString(),
@@ -260,9 +268,17 @@ export class Client {
     return new Promise((resolve, reject) => {
       this.callbackRouter[msg_with_id.id] = (response) => {
         if (response.status === "success") {
-          resolve(response.result);
+          if (response.result === null) {
+            reject(
+              ClientError.newWebsocketError(
+                "Empty response in websocket for bid submission"
+              )
+            );
+          } else {
+            resolve(response.result);
+          }
         } else {
-          reject(response.result);
+          reject(ClientError.newWebsocketError(response.result));
         }
       };
       if (this.websocket === undefined) {
@@ -276,12 +292,16 @@ export class Client {
         } else if (this.websocket.readyState === WebSocket.OPEN) {
           this.websocket.send(JSON.stringify(msg_with_id));
         } else {
-          reject("Websocket connection closing or already closed");
+          reject(
+            ClientError.newWebsocketError(
+              "Websocket connection closing or already closed"
+            )
+          );
         }
       }
       setTimeout(() => {
         delete this.callbackRouter[msg_with_id.id];
-        reject("Websocket response timeout");
+        reject(ClientError.newWebsocketError("Websocket response timeout"));
       }, this.wsOptions.response_timeout);
     });
   }
@@ -440,11 +460,6 @@ export class Client {
           bid: serverBid,
         },
       });
-      if (result === null) {
-        throw new ClientError(
-          "Auction server: Empty response in websocket for bid submission"
-        );
-      }
       return result.id;
     } else {
       const client = createClient<paths>(this.clientOptions);
