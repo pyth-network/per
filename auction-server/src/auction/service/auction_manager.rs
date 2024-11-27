@@ -401,7 +401,7 @@ impl AuctionManager<Svm> for Service<Svm> {
                 }) => {}
                 // Either simulation was successful or we can't simulate at this moment
                 _ => {
-                    tracing::Span::current().record("simulation_result", format!("{:?}", result));
+                    tracing::Span::current().record("simulation_result", format!("{:?}", results));
                     return Ok(vec![bid.clone()]);
                 }
             }
