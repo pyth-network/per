@@ -8,10 +8,12 @@ use {
 };
 
 impl<T: ChainTrait> Repository<T> {
+    #[tracing::instrument(skip_all, name = "add_auction_repo", fields(auction_id))]
     pub async fn add_auction(
         &self,
         auction: entities::Auction<T>,
     ) -> anyhow::Result<entities::Auction<T>> {
+        tracing::Span::current().record("auction_id", auction.id.to_string());
         sqlx::query!(
             "INSERT INTO auction (id, creation_time, permission_key, chain_id, chain_type, bid_collection_time) VALUES ($1, $2, $3, $4, $5, $6)",
             auction.id,

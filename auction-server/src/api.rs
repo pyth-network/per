@@ -89,7 +89,7 @@ async fn root() -> String {
 pub mod profile;
 pub(crate) mod ws;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RestError {
     /// The request contained invalid parameters.
     BadParameters(String),

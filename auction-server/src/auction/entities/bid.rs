@@ -32,7 +32,11 @@ use {
         transaction::VersionedTransaction,
     },
     std::{
-        fmt::Debug,
+        fmt::{
+            Debug,
+            Display,
+            Formatter,
+        },
         hash::Hash,
     },
     time::OffsetDateTime,
@@ -170,7 +174,7 @@ pub type PermissionKey<T> = <<T as ChainTrait>::BidChainDataType as BidChainData
 pub type TxHash<T> = <<T as ChainTrait>::BidStatusType as BidStatus>::TxHash;
 
 pub trait BidChainData: Send + Sync + Clone + Debug + PartialEq {
-    type PermissionKey: Send + Sync + Debug + Hash + Eq + Clone;
+    type PermissionKey: Send + Sync + Debug + Hash + Eq + Clone + Debug;
 
     fn get_permission_key(&self) -> Self::PermissionKey;
 }
@@ -267,5 +271,19 @@ impl From<(Bid<Evm>, bool)> for MulticallData {
             gas_limit: bid.chain_data.gas_limit,
             revert_on_failure,
         }
+    }
+}
+
+pub struct BidContainerTracing<'a, T: ChainTrait>(pub &'a [Bid<T>]);
+impl<T: ChainTrait> Display for BidContainerTracing<'_, T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?}",
+            self.0
+                .iter()
+                .map(|x| x.id.to_string())
+                .collect::<Vec<String>>()
+        )
     }
 }

@@ -19,13 +19,21 @@ impl<T: ChainTrait> Service<T>
 where
     Service<T>: AuctionManager<T>,
 {
+    #[tracing::instrument(skip_all, fields(auction_id, tx_hash, bid_ids, bid_statuses))]
     pub async fn conclude_auction(&self, input: ConcludeAuctionInput<T>) -> anyhow::Result<()> {
         let auction = input.auction;
+        tracing::Span::current().record("auction_id", auction.id.to_string());
         if let Some(tx_hash) = auction.tx_hash.clone() {
+            tracing::Span::current().record("tx_hash", format!("{:?}", tx_hash));
             let bids = self
                 .repo
                 .get_in_memory_submitted_bids_for_auction(auction.clone())
                 .await;
+
+            tracing::Span::current().record(
+                "bid_ids",
+                tracing::field::display(entities::BidContainerTracing(&bids)),
+            );
 
             if let Some(bid_statuses) = self
                 .get_bid_results(
@@ -37,6 +45,8 @@ where
                 )
                 .await?
             {
+                tracing::Span::current().record("bid_statuses", format!("{:?}", bid_statuses));
+
                 let auction = self
                     .repo
                     .conclude_auction(auction)

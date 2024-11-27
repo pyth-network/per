@@ -42,16 +42,12 @@ use {
         rpc_config::RpcSendTransactionConfig,
     },
     solana_sdk::{
-        bs58,
         commitment_config::CommitmentConfig,
         signature::{
             Signature,
             Signer,
         },
-        transaction::{
-            TransactionError,
-            VersionedTransaction,
-        },
+        transaction::TransactionError,
     },
     std::{
         fmt::Debug,
@@ -156,17 +152,23 @@ impl AuctionManager<Evm> for Service<Evm> {
         true
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, simulation_result))]
     async fn get_winner_bids(
         &self,
         auction: &entities::Auction<Evm>,
     ) -> Result<Vec<entities::Bid<Evm>>> {
+        tracing::Span::current().record("auction_id", auction.id.to_string());
+
         // TODO How we want to perform simulation, pruning, and determination
         if auction.bids.is_empty() {
             return Ok(vec![]);
         }
 
         let mut bids = auction.bids.clone();
+        tracing::Span::current().record(
+            "bid_ids",
+            tracing::field::display(entities::BidContainerTracing(&bids)),
+        );
         bids.sort_by(|a, b| b.amount.cmp(&a.amount));
         let bids: Vec<entities::Bid<Evm>> =
             bids.into_iter().take(TOTAL_BIDS_PER_AUCTION_EVM).collect();
@@ -180,6 +182,8 @@ impl AuctionManager<Evm> for Service<Evm> {
             )
             .await?;
 
+        tracing::Span::current().record("simulation_result", format!("{:?}", simulation_result));
+
         match simulation_result
             .iter()
             .position(|status| status.external_success)
@@ -189,7 +193,7 @@ impl AuctionManager<Evm> for Service<Evm> {
         }
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(tx_hash))]
     async fn submit_bids(
         &self,
         permission_key: entities::PermissionKey<Evm>,
@@ -211,14 +215,23 @@ impl AuctionManager<Evm> for Service<Evm> {
             .send()
             .await?
             .tx_hash();
+        tracing::Span::current().record("tx_hash", format!("{:?}", tx_hash));
         Ok(tx_hash)
     }
 
+    #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, result))]
     async fn get_bid_results(
         &self,
         bids: Vec<entities::Bid<Evm>>,
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusEvm>,
     ) -> Result<Option<Vec<entities::BidStatusEvm>>> {
+        tracing::Span::current().record(
+            "bid_ids",
+            tracing::field::display(entities::BidContainerTracing(&bids)),
+        );
+        tracing::Span::current().record("tx_hash", format!("{:?}", bid_status_auction.tx_hash));
+        tracing::Span::current().record("auction_id", bid_status_auction.id.to_string());
+
         let receipt = self
             .config
             .chain_config
@@ -226,9 +239,11 @@ impl AuctionManager<Evm> for Service<Evm> {
             .get_transaction_receipt(bid_status_auction.tx_hash)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get transaction receipt: {:?}", e))?;
+
         match receipt {
             Some(receipt) => {
                 let decoded_logs = Self::decode_logs_for_receipt(&receipt);
+                tracing::Span::current().record("result", format!("{:?}", decoded_logs));
                 Ok(Some(
                     bids.iter()
                         .map(|b| {
@@ -354,14 +369,21 @@ impl AuctionManager<Svm> for Service<Svm> {
         trigger % CONCLUSION_TRIGGER_INTERVAL_SVM == 1
     }
 
+    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, simulation_result))]
     async fn get_winner_bids(
         &self,
         auction: &entities::Auction<Svm>,
     ) -> Result<Vec<entities::Bid<Svm>>> {
+        tracing::Span::current().record("auction_id", auction.id.to_string());
+        tracing::Span::current().record(
+            "bid_ids",
+            tracing::field::display(entities::BidContainerTracing(&auction.bids)),
+        );
         let mut bids = auction.bids.clone();
         bids.sort_by(|a, b| b.amount.cmp(&a.amount));
+        let mut results = vec![];
         for bid in bids.iter() {
-            match self
+            let result = self
                 .simulate_bid(&entities::BidCreate {
                     chain_id:        bid.chain_id.clone(),
                     initiation_time: bid.initiation_time,
@@ -370,20 +392,26 @@ impl AuctionManager<Svm> for Service<Svm> {
                         transaction: bid.chain_data.transaction.clone(),
                     },
                 })
-                .await
-            {
+                .await;
+            results.push(result.clone());
+            match result {
                 Err(RestError::SimulationError {
                     result: _,
                     reason: _,
                 }) => {}
                 // Either simulation was successful or we can't simulate at this moment
-                _ => return Ok(vec![bid.clone()]),
+                _ => {
+                    tracing::Span::current().record("simulation_result", format!("{:?}", results));
+                    return Ok(vec![bid.clone()]);
+                }
             }
         }
+
+        tracing::Span::current().record("simulation_result", format!("{:?}", results));
         Ok(vec![])
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(tx_hash))]
     async fn submit_bids(
         &self,
         _permission_key: entities::PermissionKey<Svm>,
@@ -395,8 +423,11 @@ impl AuctionManager<Svm> for Service<Svm> {
 
         let mut bid = bids[0].clone();
         self.add_relayer_signature(&mut bid);
-        match self.send_transaction(&bid.chain_data.transaction).await {
-            Ok(response) => Ok(response),
+        match self.send_transaction(&bid).await {
+            Ok(response) => {
+                tracing::Span::current().record("tx_hash", response.to_string());
+                Ok(response)
+            }
             Err(e) => {
                 tracing::error!(error = ?e, "Error while submitting bid");
                 Err(anyhow::anyhow!(e))
@@ -404,11 +435,18 @@ impl AuctionManager<Svm> for Service<Svm> {
         }
     }
 
+    #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, result))]
     async fn get_bid_results(
         &self,
         bids: Vec<entities::Bid<Svm>>,
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
     ) -> Result<Option<Vec<entities::BidStatusSvm>>> {
+        tracing::Span::current().record(
+            "bid_ids",
+            tracing::field::display(entities::BidContainerTracing(&bids)),
+        );
+        tracing::Span::current().record("tx_hash", bid_status_auction.tx_hash.to_string());
+        tracing::Span::current().record("auction_id", bid_status_auction.id.to_string());
         if bids.is_empty() {
             return Ok(Some(vec![]));
         }
@@ -427,6 +465,8 @@ impl AuctionManager<Svm> for Service<Svm> {
                 CommitmentConfig::confirmed(),
             )
             .await?;
+
+        tracing::Span::current().record("status", format!("{:?}", status));
 
         let status = match status {
             Some(res) => match res {
@@ -522,10 +562,48 @@ impl Service<Svm> {
             relayer.sign_message(&serialized_message);
     }
 
+    #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
+    async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>, signature: Signature) {
+        tracing::Span::current().record("bid_id", bid.id.to_string());
+        tracing::Span::current().record("tx_hash", signature.to_string());
+        let config = RpcSendTransactionConfig {
+            skip_preflight: true,
+            max_retries: Some(0),
+            ..RpcSendTransactionConfig::default()
+        };
+        let mut receiver = self.config.chain_config.log_sender.subscribe();
+        for retry_count in 0..SEND_TRANSACTION_RETRY_COUNT_SVM {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+
+            // Do not wait for the logs to be received
+            // just check if the transaction is in the logs already
+            while let Ok(log) = receiver.try_recv() {
+                if log.value.signature.eq(&signature.to_string()) {
+                    tracing::Span::current().record("total_tries", retry_count + 1);
+                    return;
+                }
+            }
+            if let Err(e) = self
+                .config
+                .chain_config
+                .client
+                .send_transaction_with_config(&bid.chain_data.transaction, config)
+                .await
+            {
+                tracing::error!(error = ?e, "Failed to resend transaction");
+            }
+        }
+
+        tracing::Span::current().record("total_tries", SEND_TRANSACTION_RETRY_COUNT_SVM + 1);
+    }
+
+    #[tracing::instrument(skip_all, fields(bid_id))]
     async fn send_transaction(
         &self,
-        tx: &VersionedTransaction,
+        bid: &entities::Bid<Svm>,
     ) -> solana_client::client_error::Result<Signature> {
+        tracing::Span::current().record("bid_id", bid.id.to_string());
+        let tx = &bid.chain_data.transaction;
         let config = RpcSendTransactionConfig {
             skip_preflight: true,
             max_retries: Some(0),
@@ -537,32 +615,10 @@ impl Service<Svm> {
             .tx_broadcaster_client
             .send_transaction_with_config(tx, config)
             .await?;
-        let tx_cloned = tx.clone();
-        let mut receiver = self.config.chain_config.log_sender.subscribe();
-        let signature_bs58 = bs58::encode(res).into_string();
         self.task_tracker.spawn({
-            let service = self.clone();
+            let (service, bid) = (self.clone(), bid.clone());
             async move {
-                for _ in 0..SEND_TRANSACTION_RETRY_COUNT_SVM {
-                    tokio::time::sleep(Duration::from_secs(2)).await;
-
-                    // Do not wait for the logs to be received
-                    // just check if the transaction is in the logs already
-                    while let Ok(log) = receiver.try_recv() {
-                        if log.value.signature.eq(&signature_bs58) {
-                            return;
-                        }
-                    }
-                    if let Err(e) = service
-                        .config
-                        .chain_config
-                        .client
-                        .send_transaction_with_config(&tx_cloned, config)
-                        .await
-                    {
-                        tracing::error!(error = ?e, "Failed to resend transaction");
-                    }
-                }
+                service.blocking_send_transaction(bid, res).await;
             }
         });
         Ok(res)

@@ -21,7 +21,7 @@ impl<T: ChainTrait> Service<T>
 where
     Service<T>: Verification<T>,
 {
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(bid_id))]
     pub async fn handle_bid(
         &self,
         input: HandleBidInput<T>,
@@ -31,8 +31,11 @@ where
                 bid_create: input.bid_create.clone(),
             })
             .await?;
-        self.repo
+        let bid = self
+            .repo
             .add_bid(input.bid_create, &chain_data, &amount)
-            .await
+            .await?;
+        tracing::Span::current().record("bid_id", bid.id.to_string());
+        Ok(bid)
     }
 }
