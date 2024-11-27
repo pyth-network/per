@@ -562,7 +562,7 @@ impl Service<Svm> {
             relayer.sign_message(&serialized_message);
     }
 
-    #[tracing::instrument(skip_all, fields(bid_id, total_retries, tx_hash))]
+    #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>, signature: Signature) {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
@@ -593,6 +593,8 @@ impl Service<Svm> {
                 tracing::error!(error = ?e, "Failed to resend transaction");
             }
         }
+
+        tracing::Span::current().record("total_tries", SEND_TRANSACTION_RETRY_COUNT_SVM + 1);
     }
 
     #[tracing::instrument(skip_all, fields(bid_id))]
