@@ -3,6 +3,7 @@ use {
         auction::entities::Bid,
         kernel::entities::Svm,
     },
+    futures::future::join_all,
     litesvm::{
         types::{
             FailedTransactionMetadata,
@@ -64,6 +65,7 @@ impl AccountsConfig {
         }
     }
 
+    /// Adds all the accounts to the LiteSVM instance according to their type
     fn apply(&self, svm: &mut LiteSVM) {
         for (key, account) in self.accounts.iter() {
             if let Err(e) = svm.set_account(*key, account.clone()) {
@@ -82,7 +84,13 @@ impl AccountsConfig {
     }
 }
 
+// TODO: Remove pending transactions if the submit bid deadline is reached
+/// Maximum duration for a transaction to be considered pending without any confirmation on-chain
+/// This value may differ from how long the auction server retries to send the transaction
 const MAX_PENDING_DURATION: Duration = Duration::seconds(15);
+
+/// Cache duration for accounts that are not expected to change frequently
+/// (Program accounts, Lookup Table accounts)
 const ACCOUNT_CACHE_DURATION: Duration = Duration::hours(1);
 
 impl Simulator {
@@ -102,11 +110,15 @@ impl Simulator {
     }
 
 
+    /// Adds a pending transaction to the simulator to be considered in the next simulations
+    /// This function should be called when a transaction is submitted to the chain
     pub async fn add_pending_transaction(&self, tx: &VersionedTransaction) {
         let now = Instant::now();
         self.pending_txs.write().await.push((tx.clone(), now));
     }
 
+    /// Removes a pending transaction from the simulator
+    /// This function should be called when a transaction is confirmed on-chain
     pub async fn remove_pending_transaction(&self, sig: &Signature) {
         self.pending_txs.write().await.retain(|(tx, _)| {
             !tx.signatures
@@ -145,10 +157,7 @@ impl Simulator {
         if let Some(accounts) = self.try_get_accounts_from_cache(keys).await {
             return Ok(accounts.into_iter().map(Some).collect());
         }
-        let result = self
-            .receiver
-            .get_multiple_accounts_with_commitment(keys, CommitmentConfig::processed())
-            .await?;
+        let result = self.get_multiple_accounts_chunked(keys).await?;
         let mut cache = self.account_cache.write().await;
         for (key, account) in keys.iter().zip(result.value.iter()) {
             if let Some(account) = account {
@@ -156,6 +165,37 @@ impl Simulator {
             }
         }
         Ok(result.value)
+    }
+
+    async fn get_multiple_accounts_chunked(
+        &self,
+        keys: &[Pubkey],
+    ) -> RpcResult<Vec<Option<Account>>> {
+        let mut result = vec![];
+        let mut last_context = None;
+        const MAX_RPC_ACCOUNT_LIMIT: usize = 100;
+        // Ensure at least one call is made, even if keys is empty
+        let key_chunks = if keys.is_empty() {
+            vec![&[][..]]
+        } else {
+            keys.chunks(MAX_RPC_ACCOUNT_LIMIT).collect()
+        };
+
+        // Process chunks in parallel
+        let chunk_results = join_all(key_chunks.into_iter().map(|chunk| {
+            self.receiver
+                .get_multiple_accounts_with_commitment(chunk, CommitmentConfig::processed())
+        }))
+        .await;
+        for chunk_result in chunk_results {
+            let chunk_result = chunk_result?;
+            result.extend(chunk_result.value);
+            last_context = Some(chunk_result.context);
+        }
+        Ok(Response {
+            value:   result,
+            context: last_context.unwrap(), // Safe because we ensured at least one call was made
+        })
     }
 
     async fn resolve_lookup_addresses(
@@ -216,10 +256,7 @@ impl Simulator {
         keys.extend(self.resolve_lookup_addresses(transactions).await?);
         let keys = keys.into_iter().collect::<Vec<_>>();
 
-        let accounts_with_context = self
-            .receiver
-            .get_multiple_accounts_with_commitment(&keys, CommitmentConfig::processed())
-            .await?;
+        let accounts_with_context = self.get_multiple_accounts_chunked(&keys).await?;
         let accounts = accounts_with_context.value;
         let mut accounts_config = AccountsConfig::new();
         let mut programs_to_fetch = vec![];
@@ -271,6 +308,11 @@ impl Simulator {
         })
     }
 
+    /// Simulates a transaction with the current state of the chain
+    /// applying pending transactions beforehand. The simulation is done locally via fetching
+    /// all the necessary accounts from the RPC.
+    /// Simulation happens even if some of the pending transactions are failed.
+    /// Returns the simulation result and the context of the accounts fetched.
     pub async fn simulate_transaction(
         &self,
         transaction: &VersionedTransaction,
@@ -302,6 +344,10 @@ impl Simulator {
         })
     }
 
+    /// Given a list of bids, tries to find the optimal set of bids that can be submitted to the chain
+    /// considering the current state of the chain and the pending transactions.
+    /// Right now, for simplicity, the method assume the bids are sorted, and tries to submit them in order
+    /// and only return the ones that are successfully submitted.
     pub async fn optimize_bids(&self, bids: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let txs_to_fetch = pending_txs

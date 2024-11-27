@@ -344,38 +344,51 @@ impl ModelTrait<Svm> for Svm {
             .map_err(|e: ParseIntError| anyhow::anyhow!(e))
     }
 
+    /// In SVM, the tx_hash is the signature of the transaction if the bid is submitted
+    /// otherwise it is the signature of the transaction that caused the bid to be lost
     fn get_bid_status_entity(
         bid: &Bid<Svm>,
         auction: Option<Auction>,
     ) -> anyhow::Result<entities::BidStatusSvm> {
-        let bid_status_auction = Self::get_bid_status_auction_entity(auction)?;
-        match bid.status {
-            BidStatus::Pending => Ok(entities::BidStatusSvm::Pending),
-            BidStatus::Submitted => match bid_status_auction {
-                Some(auction) => Ok(entities::BidStatusSvm::Submitted { auction }),
-                None => Err(anyhow::anyhow!(
-                    "Submitted bid should have a bid_status_auction"
-                )),
-            },
-            BidStatus::Won => match bid_status_auction {
-                Some(auction) => Ok(entities::BidStatusSvm::Won { auction }),
-                None => Err(anyhow::anyhow!("Won bid should have a bid_status_auction")),
-            },
-            BidStatus::Lost => Ok(entities::BidStatusSvm::Lost {
-                auction: bid_status_auction,
+        let sig = *Self::get_chain_data_entity(bid)?
+            .transaction
+            .signatures
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get transaction signature"))?;
+        match (bid.status.clone(), auction) {
+            (BidStatus::Pending, _) => Ok(entities::BidStatusSvm::Pending),
+            (BidStatus::Lost, auction) => Ok(entities::BidStatusSvm::Lost {
+                auction: Self::get_bid_status_auction_entity(auction)?,
             }),
-            BidStatus::Failed => match bid_status_auction {
-                Some(auction) => Ok(entities::BidStatusSvm::Failed { auction }),
-                None => Err(anyhow::anyhow!(
-                    "Failed bid should have a bid_status_auction"
-                )),
-            },
-            BidStatus::Expired => match bid_status_auction {
-                Some(auction) => Ok(entities::BidStatusSvm::Expired { auction }),
-                None => Err(anyhow::anyhow!(
-                    "Expired bid should have a bid_status_auction"
-                )),
-            },
+            (_, None) => Err(anyhow::anyhow!(
+                "Bid with status {:?} should have an auction",
+                bid.status
+            )),
+
+            (BidStatus::Submitted, Some(auction)) => Ok(entities::BidStatusSvm::Submitted {
+                auction: entities::BidStatusAuction {
+                    tx_hash: sig,
+                    id:      auction.id,
+                },
+            }),
+            (BidStatus::Won, Some(auction)) => Ok(entities::BidStatusSvm::Won {
+                auction: entities::BidStatusAuction {
+                    tx_hash: sig,
+                    id:      auction.id,
+                },
+            }),
+            (BidStatus::Expired, Some(auction)) => Ok(entities::BidStatusSvm::Expired {
+                auction: entities::BidStatusAuction {
+                    tx_hash: sig,
+                    id:      auction.id,
+                },
+            }),
+            (BidStatus::Failed, Some(auction)) => Ok(entities::BidStatusSvm::Failed {
+                auction: entities::BidStatusAuction {
+                    tx_hash: sig,
+                    id:      auction.id,
+                },
+            }),
         }
     }
 
@@ -470,6 +483,8 @@ pub struct Bid<T: ChainTrait + ModelTrait<T>> {
     pub status:          BidStatus,
     pub auction_id:      Option<entities::AuctionId>,
     pub initiation_time: PrimitiveDateTime,
+    #[allow(dead_code)]
+    pub conclusion_time: Option<PrimitiveDateTime>,
     pub profile_id:      Option<ProfileId>,
     pub metadata:        Json<T::BidMetadataType>,
 }
@@ -494,6 +509,7 @@ impl<T: ChainTrait + ModelTrait<T>> Bid<T> {
                 bid.initiation_time.date(),
                 bid.initiation_time.time(),
             ),
+            conclusion_time: None,
             profile_id:      bid.profile.map(|p| p.id),
             metadata:        Json(T::get_metadata(chain_data)),
         }

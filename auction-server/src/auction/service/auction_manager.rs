@@ -35,7 +35,10 @@ use {
             U256,
         },
     },
-    futures::Stream,
+    futures::{
+        future::join_all,
+        Stream,
+    },
     solana_client::{
         nonblocking::pubsub_client::PubsubClient,
         rpc_config::RpcSendTransactionConfig,
@@ -395,7 +398,7 @@ impl AuctionManager<Svm> for Service<Svm> {
             })
             .collect();
 
-        let results = futures::future::join_all(send_futures).await;
+        let results = join_all(send_futures).await;
         let mut result = None;
         for res in results.into_iter() {
             match res {
@@ -445,6 +448,24 @@ impl AuctionManager<Svm> for Service<Svm> {
                 status.filter(|status| status.satisfies_commitment(CommitmentConfig::confirmed()))
             })
             .collect();
+
+
+        // TODO: find a better place to put this
+        // Remove the pending transactions from the simulator
+        join_all(
+            statuses
+                .iter()
+                .zip(signatures.iter())
+                .filter_map(|(status, sig)| {
+                    status.as_ref().map(|_| {
+                        self.config
+                            .chain_config
+                            .simulator
+                            .remove_pending_transaction(sig)
+                    })
+                }),
+        )
+        .await;
 
         let res = statuses
             .iter()

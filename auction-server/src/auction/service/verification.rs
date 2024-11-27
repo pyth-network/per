@@ -273,6 +273,7 @@ const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
 const BID_MINIMUM_LIFE_TIME_SVM_OTHER: Duration = Duration::from_secs(10);
 
 impl Service<Svm> {
+    //TODO: merge this logic with simulator logic
     async fn query_lookup_table(&self, table: &Pubkey, index: usize) -> Result<Pubkey, RestError> {
         if let Some(addresses) = self.repo.get_lookup_table(table).await {
             if let Some(account) = addresses.get(index) {
