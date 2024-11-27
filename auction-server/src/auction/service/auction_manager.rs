@@ -42,7 +42,6 @@ use {
         rpc_config::RpcSendTransactionConfig,
     },
     solana_sdk::{
-        bs58,
         commitment_config::CommitmentConfig,
         signature::{
             Signature,
@@ -168,12 +167,7 @@ impl AuctionManager<Evm> for Service<Evm> {
         let mut bids = auction.bids.clone();
         tracing::Span::current().record(
             "bid_ids",
-            format!(
-                "{:?}",
-                bids.iter()
-                    .map(|bid| bid.id.to_string())
-                    .collect::<Vec<String>>()
-            ),
+            tracing::field::display(entities::BidContainerTracing(&bids)),
         );
         bids.sort_by(|a, b| b.amount.cmp(&a.amount));
         let bids: Vec<entities::Bid<Evm>> =
@@ -221,7 +215,7 @@ impl AuctionManager<Evm> for Service<Evm> {
             .send()
             .await?
             .tx_hash();
-        tracing::Span::current().record("tx_hash", tx_hash.to_string());
+        tracing::Span::current().record("tx_hash", format!("{:?}", tx_hash));
         Ok(tx_hash)
     }
 
@@ -233,14 +227,9 @@ impl AuctionManager<Evm> for Service<Evm> {
     ) -> Result<Option<Vec<entities::BidStatusEvm>>> {
         tracing::Span::current().record(
             "bid_ids",
-            format!(
-                "{:?}",
-                bids.iter()
-                    .map(|bid| bid.id.to_string())
-                    .collect::<Vec<String>>()
-            ),
+            tracing::field::display(entities::BidContainerTracing(&bids)),
         );
-        tracing::Span::current().record("tx_hash", bid_status_auction.tx_hash.to_string());
+        tracing::Span::current().record("tx_hash", format!("{:?}", bid_status_auction.tx_hash));
         tracing::Span::current().record("auction_id", bid_status_auction.id.to_string());
 
         let receipt = self
@@ -388,14 +377,7 @@ impl AuctionManager<Svm> for Service<Svm> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
         tracing::Span::current().record(
             "bid_ids",
-            format!(
-                "{:?}",
-                auction
-                    .bids
-                    .iter()
-                    .map(|bid| bid.id.to_string())
-                    .collect::<Vec<String>>()
-            ),
+            tracing::field::display(entities::BidContainerTracing(&auction.bids)),
         );
         let mut bids = auction.bids.clone();
         bids.sort_by(|a, b| b.amount.cmp(&a.amount));
@@ -461,12 +443,7 @@ impl AuctionManager<Svm> for Service<Svm> {
     ) -> Result<Option<Vec<entities::BidStatusSvm>>> {
         tracing::Span::current().record(
             "bid_ids",
-            format!(
-                "{:?}",
-                bids.iter()
-                    .map(|bid| bid.id.to_string())
-                    .collect::<Vec<String>>()
-            ),
+            tracing::field::display(entities::BidContainerTracing(&bids)),
         );
         tracing::Span::current().record("tx_hash", bid_status_auction.tx_hash.to_string());
         tracing::Span::current().record("auction_id", bid_status_auction.id.to_string());
@@ -595,15 +572,14 @@ impl Service<Svm> {
             ..RpcSendTransactionConfig::default()
         };
         let mut receiver = self.config.chain_config.log_sender.subscribe();
-        let signature_bs58 = bs58::encode(signature).into_string();
-        for try_count in 0..SEND_TRANSACTION_RETRY_COUNT_SVM {
+        for retry_count in 0..SEND_TRANSACTION_RETRY_COUNT_SVM {
             tokio::time::sleep(Duration::from_secs(2)).await;
 
             // Do not wait for the logs to be received
             // just check if the transaction is in the logs already
             while let Ok(log) = receiver.try_recv() {
-                if log.value.signature.eq(&signature_bs58) {
-                    tracing::Span::current().record("total_retries", try_count + 1);
+                if log.value.signature.eq(&signature.to_string()) {
+                    tracing::Span::current().record("total_tries", retry_count + 1);
                     return;
                 }
             }

@@ -32,12 +32,7 @@ where
 
             tracing::Span::current().record(
                 "bid_ids",
-                format!(
-                    "{:?}",
-                    bids.iter()
-                        .map(|bid| bid.id.to_string())
-                        .collect::<Vec<String>>()
-                ),
+                tracing::field::display(entities::BidContainerTracing(&bids)),
             );
 
             if let Some(bid_statuses) = self

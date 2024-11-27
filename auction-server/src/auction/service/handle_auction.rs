@@ -33,14 +33,7 @@ where
         tracing::Span::current().record("auction_id", auction.id.to_string());
         tracing::Span::current().record(
             "bid_ids",
-            format!(
-                "{:?}",
-                auction
-                    .bids
-                    .iter()
-                    .map(|bid| bid.id.to_string())
-                    .collect::<Vec<String>>()
-            ),
+            tracing::field::display(entities::BidContainerTracing(&auction.bids)),
         );
 
         let permission_key = auction.permission_key.clone();
@@ -52,13 +45,7 @@ where
         let winner_bids = self.get_winner_bids(&auction).await?;
         tracing::Span::current().record(
             "winner_bid_ids",
-            format!(
-                "{:?}",
-                winner_bids
-                    .iter()
-                    .map(|bid| bid.id.to_string())
-                    .collect::<Vec<String>>()
-            ),
+            tracing::field::display(entities::BidContainerTracing(&winner_bids)),
         );
         if winner_bids.is_empty() {
             join_all(auction.bids.into_iter().map(|bid| {
@@ -123,12 +110,7 @@ where
 
         tracing::Span::current().record(
             "bid_ids",
-            format!(
-                "{:?}",
-                bids.iter()
-                    .map(|bid| bid.id.to_string())
-                    .collect::<Vec<String>>()
-            ),
+            tracing::field::display(entities::BidContainerTracing(&bids)),
         );
 
         match entities::Auction::try_new(bids, bid_collection_time) {
