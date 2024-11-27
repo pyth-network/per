@@ -291,7 +291,9 @@ impl Service<Svm> {
                 RestError::TemporarilyUnavailable
             })?
             .value
-            .ok_or_else(|| RestError::BadParameters("Account not found".to_string()))?;
+            .ok_or_else(|| {
+                RestError::BadParameters(format!("Lookup table account {} not found", table))
+            })?;
 
         let table_data_deserialized =
             AddressLookupTable::deserialize(&table_data.data).map_err(|e| {

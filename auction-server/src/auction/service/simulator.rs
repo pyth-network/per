@@ -179,7 +179,10 @@ impl Simulator {
             )
             .await?;
         let mut results = vec![];
-        for (indexes, lookup_table_account) in lookup_table_keys.values().zip(accs.iter()) {
+        for ((lookup_table_address, indexes), lookup_table_account) in
+            lookup_table_keys.iter().zip(accs.iter())
+        {
+            results.push(*lookup_table_address);
             if let Some(lookup_account) = lookup_table_account {
                 if let Ok(table_data_deserialized) =
                     AddressLookupTable::deserialize(&lookup_account.data)
@@ -283,6 +286,9 @@ impl Simulator {
             .with_sigverify(false)
             .with_blockhash_check(false)
             .with_transaction_history(0);
+        // this is necessary for correct lookup table access
+        // otherwise 0 = slot < table.last_extended_slot
+        svm.warp_to_slot(accounts_config_with_context.context.slot);
         accounts_config.apply(&mut svm);
 
         pending_txs.into_iter().for_each(|tx| {
