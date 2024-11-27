@@ -41,7 +41,6 @@ const MINUTE_IN_SECS = 60;
 
 export class DexRouter {
   private client: Client;
-  private pingTimeout: NodeJS.Timeout | undefined;
   private mintDecimals: Record<string, number> = {};
   private baseLookupTableAddresses: PublicKey[] = [];
   private lookupTableAccounts: Record<string, AddressLookupTableAccount> = {};
@@ -51,7 +50,6 @@ export class DexRouter {
   private readonly routers: Router[];
   private readonly executor: Keypair;
   private readonly chainId: string;
-  private readonly PING_INTERVAL = 30000;
 
   constructor(
     endpoint: string,
@@ -365,15 +363,6 @@ export class DexRouter {
     }
 
     return accountsToReturn;
-  }
-
-  heartbeat() {
-    if (this.pingTimeout !== undefined) clearTimeout(this.pingTimeout);
-
-    this.pingTimeout = setTimeout(() => {
-      console.error("Received no ping. Terminating connection.");
-      this.client.websocket?.terminate();
-    }, this.PING_INTERVAL + 2000); // 2 seconds for latency
   }
 
   async start() {

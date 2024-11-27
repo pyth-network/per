@@ -58,12 +58,15 @@ export interface WsOptions {
    * Max time to wait for a response from the server in milliseconds
    */
   response_timeout: number;
+  /**
+   * Heartbeat interval at which the server is expected to send a ping
+   */
   ping_interval: number;
 }
 
 const DEFAULT_WS_OPTIONS: WsOptions = {
   response_timeout: 10000,
-  ping_interval: 30000,
+  ping_interval: 32000, // 30 seconds + 2 seconds to account for extra latency
 };
 
 export function checkHex(hex: string): Hex {
@@ -99,7 +102,7 @@ export class Client {
     string,
     (response: components["schemas"]["ServerResultMessage"]) => void
   > = {};
-  private pongCallback?: () => void;
+  private pingTimeout: NodeJS.Timeout | undefined;
   private websocketOpportunityCallback?: (
     opportunity: Opportunity
   ) => Promise<void>;
@@ -140,6 +143,7 @@ export class Client {
       ...this.getAuthorization(),
     };
     this.wsOptions = { ...DEFAULT_WS_OPTIONS, ...wsOptions };
+    this.pingTimeout = undefined;
     this.websocketOpportunityCallback = opportunityCallback;
     this.websocketBidStatusCallback = bidStatusCallback;
     this.websocketSvmChainUpdateCallback = svmChainUpdateCallback;
@@ -225,14 +229,20 @@ export class Client {
     this.websocket.on("error", (error) => {
       console.error(ClientError.newWebsocketError(error.message));
     });
-    this.websocket.on("pong", () => {
-      if (this.pongCallback !== undefined) {
-        this.pongCallback();
+    this.websocket.on("ping", () => {
+      if (this.pingTimeout !== undefined) {
+        clearTimeout(this.pingTimeout);
       }
+
+      this.pingTimeout = setTimeout(() => {
+        console.error(
+          ClientError.newWebsocketError(
+            "Received no ping. Terminating connection."
+          )
+        );
+        this.websocket?.terminate();
+      }, this.wsOptions.ping_interval);
     });
-    setInterval(async () => {
-      await this.ping();
-    }, this.wsOptions.ping_interval);
   }
 
   /**
@@ -266,35 +276,6 @@ export class Client {
       params: {
         chain_ids: chains,
       },
-    });
-  }
-
-  async ping(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.pongCallback = () => {
-        resolve();
-      };
-      if (this.websocket === undefined) {
-        this.connectWebsocket();
-      }
-      if (this.websocket !== undefined) {
-        if (this.websocket.readyState === WebSocket.CONNECTING) {
-          this.websocket.on("open", () => {
-            this.websocket?.ping();
-          });
-        } else if (this.websocket.readyState === WebSocket.OPEN) {
-          this.websocket.ping();
-        } else {
-          reject(
-            ClientError.newWebsocketError(
-              "Websocket connection closing or already closed"
-            )
-          );
-        }
-      }
-      setTimeout(() => {
-        reject(ClientError.newWebsocketError("Websocket response timeout"));
-      }, this.wsOptions.response_timeout);
     });
   }
 
