@@ -59,11 +59,13 @@ export class DexRouter {
     maxAccountsJupiter: number[],
     jupiterApiEndpoint: string,
     jupiterApiKey?: string,
-    baseLookupTableAddresses?: PublicKey[]
+    baseLookupTableAddresses?: PublicKey[],
+    expressRelayServerApiKey?: string
   ) {
     this.client = new Client(
       {
         baseUrl: endpoint,
+        apiKey: expressRelayServerApiKey,
       },
       undefined,
       this.opportunityHandler.bind(this),
@@ -424,6 +426,12 @@ const argv = yargs(hideBin(process.argv))
     type: "string",
     demandOption: false,
   })
+  .option("express-relay-server-api-key", {
+    description:
+      "API key to authenticate with the express relay server for submitting bids.",
+    type: "string",
+    demandOption: true,
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -440,7 +448,8 @@ async function run() {
     ),
     argv["jupiter-api-endpoint"],
     argv["jupiter-api-key"],
-    argv["lookup-table-addresses"]?.map((address) => new PublicKey(address))
+    argv["lookup-table-addresses"]?.map((address) => new PublicKey(address)),
+    argv["express-relay-server-api-key"]
   );
   checkRpcHealth(connection, HEALTH_RPC_THRESHOLD, HEALTH_RPC_INTERVAL).catch(
     console.error
