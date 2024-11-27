@@ -36,7 +36,17 @@ import * as svm from "./svm";
 export * from "./types";
 export * from "./const";
 
-export class ClientError extends Error {}
+export class ClientError extends Error {
+  static newHttpError(error: string, status?: number) {
+    const message = `Auction server http error ${status ?? ""} - ${error}`;
+    return new ClientError(message);
+  }
+
+  static newWebsocketError(error: string) {
+    const message = `Auction server websocket error - ${error}`;
+    return new ClientError(message);
+  }
+}
 
 type ClientOptions = FetchClientOptions & {
   baseUrl: string;
@@ -48,10 +58,15 @@ export interface WsOptions {
    * Max time to wait for a response from the server in milliseconds
    */
   response_timeout: number;
+  /**
+   * Heartbeat interval at which the server is expected to send a ping
+   */
+  ping_interval: number;
 }
 
 const DEFAULT_WS_OPTIONS: WsOptions = {
   response_timeout: 10000,
+  ping_interval: 32000, // 30 seconds + 2 seconds to account for extra latency
 };
 
 export function checkHex(hex: string): Hex {
@@ -87,6 +102,7 @@ export class Client {
     string,
     (response: components["schemas"]["ServerResultMessage"]) => void
   > = {};
+  private pingTimeout: NodeJS.Timeout | undefined;
   private websocketOpportunityCallback?: (
     opportunity: Opportunity
   ) => Promise<void>;
@@ -127,6 +143,7 @@ export class Client {
       ...this.getAuthorization(),
     };
     this.wsOptions = { ...DEFAULT_WS_OPTIONS, ...wsOptions };
+    this.pingTimeout = undefined;
     this.websocketOpportunityCallback = opportunityCallback;
     this.websocketBidStatusCallback = bidStatusCallback;
     this.websocketSvmChainUpdateCallback = svmChainUpdateCallback;
@@ -209,6 +226,23 @@ export class Client {
         console.error(message.error);
       }
     });
+    this.websocket.on("error", (error) => {
+      console.error(ClientError.newWebsocketError(error.message));
+    });
+    this.websocket.on("ping", () => {
+      if (this.pingTimeout !== undefined) {
+        clearTimeout(this.pingTimeout);
+      }
+
+      this.pingTimeout = setTimeout(() => {
+        console.error(
+          ClientError.newWebsocketError(
+            "Received no ping. Terminating connection."
+          )
+        );
+        this.websocket?.terminate();
+      }, this.wsOptions.ping_interval);
+    });
   }
 
   /**
@@ -257,7 +291,7 @@ export class Client {
         if (response.status === "success") {
           resolve(response.result);
         } else {
-          reject(response.result);
+          reject(ClientError.newWebsocketError(response.result));
         }
       };
       if (this.websocket === undefined) {
@@ -271,12 +305,16 @@ export class Client {
         } else if (this.websocket.readyState === WebSocket.OPEN) {
           this.websocket.send(JSON.stringify(msg_with_id));
         } else {
-          reject("Websocket connection closing or already closed");
+          reject(
+            ClientError.newWebsocketError(
+              "Websocket connection closing or already closed"
+            )
+          );
         }
       }
       setTimeout(() => {
         delete this.callbackRouter[msg_with_id.id];
-        reject("Websocket response timeout");
+        reject(ClientError.newWebsocketError("Websocket response timeout"));
       }, this.wsOptions.response_timeout);
     });
   }
@@ -380,7 +418,10 @@ export class Client {
       body: body,
     });
     if (response.error) {
-      throw new ClientError(response.error.error);
+      throw ClientError.newHttpError(
+        response.error.error,
+        response.response.status
+      );
     }
   }
 
@@ -410,7 +451,10 @@ export class Client {
       body,
     });
     if (response.error) {
-      throw new ClientError(response.error.error);
+      throw ClientError.newHttpError(
+        response.error.error,
+        response.response.status
+      );
     }
   }
 
@@ -429,9 +473,13 @@ export class Client {
           bid: serverBid,
         },
       });
+
       if (result === null) {
-        throw new ClientError("Empty response in websocket for bid submission");
+        throw ClientError.newWebsocketError(
+          "Empty response in websocket for bid submission"
+        );
       }
+
       return result.id;
     } else {
       const client = createClient<paths>(this.clientOptions);
@@ -439,9 +487,12 @@ export class Client {
         body: serverBid,
       });
       if (response.error) {
-        throw new ClientError(response.error.error);
+        throw ClientError.newHttpError(
+          response.error.error,
+          response.response.status
+        );
       } else if (response.data === undefined) {
-        throw new ClientError("No data returned");
+        throw ClientError.newHttpError("No data returned");
       } else {
         return response.data.id;
       }
@@ -459,9 +510,12 @@ export class Client {
       params: { query: { from_time: fromTime?.toISOString() } },
     });
     if (response.error) {
-      throw new ClientError(response.error.error);
+      throw ClientError.newHttpError(
+        response.error.error,
+        response.response.status
+      );
     } else if (response.data === undefined) {
-      throw new ClientError("No data returned");
+      throw ClientError.newHttpError("No data returned");
     } else {
       return response.data;
     }
