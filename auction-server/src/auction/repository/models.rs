@@ -128,7 +128,7 @@ pub trait ModelTrait<T: ChainTrait> {
         auction: Option<Auction>,
     ) -> anyhow::Result<T::BidStatusType>;
 
-    fn get_bid_status(status: &T::BidStatusType) -> BidStatus;
+    fn convert_bid_status(status: &T::BidStatusType) -> BidStatus;
     fn get_chain_data_entity(bid: &Bid<T>) -> anyhow::Result<T::BidChainDataType>;
 
     fn convert_permission_key(permission_key: &entities::PermissionKey<T>) -> Vec<u8>;
@@ -214,7 +214,7 @@ impl ModelTrait<Evm> for Evm {
             BidStatus::Expired => Err(anyhow::anyhow!("Evm bid cannot be expired")),
         }
     }
-    fn get_bid_status(status: &entities::BidStatusEvm) -> BidStatus {
+    fn convert_bid_status(status: &entities::BidStatusEvm) -> BidStatus {
         match status {
             entities::BidStatusEvm::Pending => BidStatus::Pending,
             entities::BidStatusEvm::Submitted { .. } => BidStatus::Submitted,
@@ -379,7 +379,7 @@ impl ModelTrait<Svm> for Svm {
         }
     }
 
-    fn get_bid_status(status: &entities::BidStatusSvm) -> BidStatus {
+    fn convert_bid_status(status: &entities::BidStatusSvm) -> BidStatus {
         match status {
             entities::BidStatusSvm::Pending => BidStatus::Pending,
             entities::BidStatusSvm::Submitted { .. } => BidStatus::Submitted,
@@ -450,7 +450,7 @@ impl ModelTrait<Svm> for Svm {
                 )),
             entities::BidStatusSvm::Won { .. } | entities::BidStatusSvm::Expired { .. } | entities::BidStatusSvm::Failed { .. }  => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status = $4",
-                Self::get_bid_status(&new_status) as _,
+                Self::convert_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
                 BidStatus::Submitted as _,

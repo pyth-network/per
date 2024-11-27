@@ -108,13 +108,16 @@ impl Simulator {
     }
 
     pub async fn remove_pending_transaction(&self, sig: &Signature) {
-        self.pending_txs
-            .write()
-            .await
-            .retain(|tx| !tx.0.signatures[0].eq(sig));
+        self.pending_txs.write().await.retain(|(tx, _)| {
+            !tx.signatures
+                .first()
+                .map(|tx_sig| tx_sig.eq(sig))
+                .unwrap_or(false)
+        });
     }
 
-    async fn try_get_accounts_from_cache(&self, keys: &[Pubkey]) -> Option<Vec<Option<Account>>> {
+    /// Tries to get accounts from cache, if any of them are not found, returns None.
+    async fn try_get_accounts_from_cache(&self, keys: &[Pubkey]) -> Option<Vec<Account>> {
         let mut cache_result = vec![];
         let cache = self.account_cache.read().await;
         for key in keys.iter() {
@@ -122,7 +125,7 @@ impl Simulator {
                 if Instant::now().duration_since(*update_time) > ACCOUNT_CACHE_DURATION {
                     return None;
                 }
-                cache_result.push(Some(account.clone()));
+                cache_result.push(account.clone());
             } else {
                 return None;
             }
@@ -140,7 +143,7 @@ impl Simulator {
         keys: &[Pubkey],
     ) -> client_error::Result<Vec<Option<Account>>> {
         if let Some(accounts) = self.try_get_accounts_from_cache(keys).await {
-            return Ok(accounts);
+            return Ok(accounts.into_iter().map(Some).collect());
         }
         let result = self
             .receiver
@@ -279,8 +282,6 @@ impl Simulator {
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
-
-
         let accounts_config = accounts_config_with_context.value;
         let mut svm = LiteSVM::new()
             .with_sigverify(false)

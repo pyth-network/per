@@ -104,7 +104,7 @@ where
 
     pub async fn handle_auction(&self, input: HandleAuctionInput<T>) -> anyhow::Result<()> {
         tracing::info!(
-            chain_id = self.0.config.chain_id,
+            chain_id = self.config.chain_id,
             permission_key = input.permission_key.to_string(),
             "Handling auction",
         );

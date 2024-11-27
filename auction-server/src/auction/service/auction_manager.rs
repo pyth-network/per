@@ -442,23 +442,22 @@ impl AuctionManager<Svm> for Service<Svm> {
             .value
             .into_iter()
             .map(|status| {
-                status
-                    .filter(|status| status.satisfies_commitment(CommitmentConfig::confirmed()))
-                    .map(|status_meta| status_meta.status)
+                status.filter(|status| status.satisfies_commitment(CommitmentConfig::confirmed()))
             })
             .collect();
 
         let res = statuses
             .iter()
-            .map(|status| {
+            .zip(bids.iter())
+            .map(|(status, bid)| {
                 let bid_status_auction = bid_status_auction.clone();
 
                 match status {
-                    Some(res) => Some(match res {
-                        Ok(()) => entities::BidStatusSvm::Won {
+                    Some(res) => Some(match res.err {
+                        Some(_) => entities::BidStatusSvm::Failed {
                             auction: bid_status_auction,
                         },
-                        Err(_) => entities::BidStatusSvm::Failed {
+                        None => entities::BidStatusSvm::Won {
                             auction: bid_status_auction,
                         },
                     }),
@@ -467,7 +466,7 @@ impl AuctionManager<Svm> for Service<Svm> {
                         // TODO Use the correct version of the expiration algorithm, which is:
                         // the tx is not expired as long as the block hash is still recent.
                         // Assuming a certain block time, the two minute threshold is good enough but in some cases, it's not correct.
-                        if bids[0].initiation_time + BID_MAXIMUM_LIFE_TIME_SVM
+                        if bid.initiation_time + BID_MAXIMUM_LIFE_TIME_SVM
                             < OffsetDateTime::now_utc()
                         {
                             // If the bid is older than the maximum lifetime, it means that the block hash is now too old and the transaction is expired.

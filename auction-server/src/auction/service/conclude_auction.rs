@@ -21,7 +21,7 @@ where
 {
     pub async fn conclude_auction(&self, input: ConcludeAuctionInput<T>) -> anyhow::Result<()> {
         let mut auction = input.auction;
-        tracing::info!(chain_id = self.config.chain_id, auction_id =? auction.id, permission_key = auction.permission_key.to_string(), "Concluding auction");
+        tracing::info!(chain_id = self.config.chain_id, auction_id = ?auction.id, permission_key = auction.permission_key.to_string(), "Concluding auction");
         if let Some(tx_hash) = auction.tx_hash.clone() {
             let bids = self
                 .repo
@@ -54,19 +54,16 @@ where
             .await;
 
 
-            if bid_statuses.iter().all(|status| status.is_some()) {
-                self.repo
-                    .conclude_auction(&mut auction)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Failed to conclude auction: {:?}", e))?;
-            }
-
             if self
                 .repo
                 .get_in_memory_submitted_bids_for_auction(&auction)
                 .await
                 .is_empty()
             {
+                self.repo
+                    .conclude_auction(&mut auction)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to conclude auction: {:?}", e))?;
                 self.repo.remove_in_memory_submitted_auction(auction).await;
             }
         }
