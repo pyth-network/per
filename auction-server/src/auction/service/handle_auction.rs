@@ -38,7 +38,10 @@ where
 
         let permission_key = auction.permission_key.clone();
         if !auction.is_ready(Service::AUCTION_MINIMUM_LIFETIME) {
-            tracing::info!(permission_key = ?permission_key, "Auction is not ready yet");
+            tracing::info!(
+                permission_key = display(permission_key),
+                "Auction is not ready yet"
+            );
             return Ok(());
         }
 

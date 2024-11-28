@@ -4,7 +4,10 @@ use {
         Service,
     },
     crate::{
-        auction::entities,
+        auction::{
+            entities,
+            entities::BidStatusAuction,
+        },
         kernel::{
             contracts::MulticallIssuedFilter,
             entities::{
@@ -571,7 +574,15 @@ impl AuctionManager<Svm> for Service<Svm> {
     ) -> entities::BidStatusSvm {
         if submitted_bids.iter().any(|b| b.id == bid.id) {
             entities::BidStatusSvm::Submitted {
-                auction: bid_status_auction,
+                auction: BidStatusAuction {
+                    id:      bid_status_auction.id,
+                    tx_hash: *bid
+                        .chain_data
+                        .transaction
+                        .signatures
+                        .first()
+                        .expect("Bid has no signature"),
+                },
             }
         } else {
             entities::BidStatusSvm::Lost {

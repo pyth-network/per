@@ -312,6 +312,7 @@ impl Simulator {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     fn setup_lite_svm(&self, accounts_config_with_context: &Response<AccountsConfig>) -> LiteSVM {
         let mut svm = LiteSVM::new()
             .with_sigverify(false)
