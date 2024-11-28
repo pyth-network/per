@@ -50,7 +50,7 @@ const argv = yargs(hideBin(process.argv))
   .option("number-of-concurrent-submissions", {
     description: "Number of concurrent submissions to the express relay server",
     type: "number",
-    default: 10,
+    default: 100,
   })
   .help()
   .alias("help", "h")
@@ -79,6 +79,16 @@ async function run() {
   console.log("Listening for program account changes");
   const client = new Client({ baseUrl: argv.endpoint, apiKey: argv.apiKey });
 
+  const handleSubmitError = (e: unknown) => {
+    if (
+      !(
+        e instanceof ClientError &&
+        e.message.includes("Same opportunity is submitted recently")
+      )
+    ) {
+      console.error("Failed to submit opportunity", e);
+    }
+  };
   const submitExistingOpportunities = async () => {
     const response = await connection.getProgramAccounts(limoId, {
       commitment: "confirmed",
@@ -114,14 +124,7 @@ async function run() {
           try {
             await client.submitOpportunity(payload);
           } catch (e) {
-            if (
-              e instanceof ClientError &&
-              e.message.includes("Same opportunity is submitted recently")
-            ) {
-              console.log(e); // We don't want to pollute stderr with this
-            } else {
-              console.error(e);
-            }
+            handleSubmitError(e);
           }
         })
       );
@@ -167,7 +170,7 @@ async function run() {
           await client.submitOpportunity(payload);
           lastChange[info.accountId.toBase58()] = Date.now();
         } catch (e) {
-          console.error("Failed to submit opportunity", e);
+          handleSubmitError(e);
         }
       }
       handleUpdate().catch(console.error);
