@@ -24,7 +24,7 @@ from per_sdk.svm.helpers import configure_logger, read_kp_from_json
 
 logger = logging.getLogger(__name__)
 
-DEADLINE_MAX = 2**63 - 1
+DEADLINE_MAX = 253402300799  # 9999-12-31T23:59:59Z
 
 
 def parse_args() -> argparse.Namespace:

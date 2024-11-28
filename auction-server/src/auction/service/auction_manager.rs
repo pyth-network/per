@@ -4,8 +4,10 @@ use {
         Service,
     },
     crate::{
-        api::RestError,
-        auction::entities,
+        auction::{
+            entities,
+            entities::BidStatusAuction,
+        },
         kernel::{
             contracts::MulticallIssuedFilter,
             entities::{
@@ -36,7 +38,10 @@ use {
             U256,
         },
     },
-    futures::Stream,
+    futures::{
+        future::join_all,
+        Stream,
+    },
     solana_client::{
         nonblocking::pubsub_client::PubsubClient,
         rpc_config::RpcSendTransactionConfig,
@@ -101,11 +106,12 @@ pub trait AuctionManager<T: ChainTrait> {
     ) -> Result<entities::TxHash<T>>;
     /// Get the bid results for the bids submitted for the auction after the transaction is concluded.
     /// Order of the returned BidStatus is as same as the order of the bids.
+    /// Returns None for each bid if the bid is not yet confirmed on chain.
     async fn get_bid_results(
         &self,
         bids: Vec<entities::Bid<T>>,
         bid_status_auction: entities::BidStatusAuction<T::BidStatusType>,
-    ) -> Result<Option<Vec<T::BidStatusType>>>;
+    ) -> Result<Vec<Option<T::BidStatusType>>>;
 
     /// Check if the auction winner transaction should be submitted on chain for the permission key.
     async fn get_submission_state(
@@ -224,7 +230,7 @@ impl AuctionManager<Evm> for Service<Evm> {
         &self,
         bids: Vec<entities::Bid<Evm>>,
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusEvm>,
-    ) -> Result<Option<Vec<entities::BidStatusEvm>>> {
+    ) -> Result<Vec<Option<entities::BidStatusEvm>>> {
         tracing::Span::current().record(
             "bid_ids",
             tracing::field::display(entities::BidContainerTracing(&bids)),
@@ -244,9 +250,10 @@ impl AuctionManager<Evm> for Service<Evm> {
             Some(receipt) => {
                 let decoded_logs = Self::decode_logs_for_receipt(&receipt);
                 tracing::Span::current().record("result", format!("{:?}", decoded_logs));
-                Ok(Some(
-                    bids.iter()
-                        .map(|b| {
+                Ok(bids
+                    .iter()
+                    .map(|b| {
+                        Some(
                             match decoded_logs
                                 .iter()
                                 .find(|decoded_log| Uuid::from_bytes(decoded_log.bid_id) == b.id)
@@ -271,12 +278,12 @@ impl AuctionManager<Evm> for Service<Evm> {
                                     auction: Some(bid_status_auction.clone()),
                                     index:   None,
                                 },
-                            }
-                        })
-                        .collect(),
-                ))
+                            },
+                        )
+                    })
+                    .collect())
             }
-            None => Ok(None),
+            None => Ok(vec![None; bids.len()]),
         }
     }
 
@@ -369,7 +376,7 @@ impl AuctionManager<Svm> for Service<Svm> {
         trigger % CONCLUSION_TRIGGER_INTERVAL_SVM == 1
     }
 
-    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, simulation_result))]
+    #[tracing::instrument(skip_all, fields(auction_id, bid_ids))]
     async fn get_winner_bids(
         &self,
         auction: &entities::Auction<Svm>,
@@ -381,36 +388,21 @@ impl AuctionManager<Svm> for Service<Svm> {
         );
         let mut bids = auction.bids.clone();
         bids.sort_by(|a, b| b.amount.cmp(&a.amount));
-        let mut results = vec![];
-        for bid in bids.iter() {
-            let result = self
-                .simulate_bid(&entities::BidCreate {
-                    chain_id:        bid.chain_id.clone(),
-                    initiation_time: bid.initiation_time,
-                    profile:         None,
-                    chain_data:      entities::BidChainDataCreateSvm {
-                        transaction: bid.chain_data.transaction.clone(),
-                    },
-                })
-                .await;
-            results.push(result.clone());
-            match result {
-                Err(RestError::SimulationError {
-                    result: _,
-                    reason: _,
-                }) => {}
-                // Either simulation was successful or we can't simulate at this moment
-                _ => {
-                    tracing::Span::current().record("simulation_result", format!("{:?}", results));
-                    return Ok(vec![bid.clone()]);
-                }
-            }
-        }
-
-        tracing::Span::current().record("simulation_result", format!("{:?}", results));
-        Ok(vec![])
+        return Ok(self
+            .config
+            .chain_config
+            .simulator
+            .optimize_bids(&bids)
+            .await
+            .map(|x| x.value)
+            // If the optimization fails (mainly because of rpc issues)
+            // we just submit the first bid
+            .unwrap_or(bids.first().cloned().map(|b| vec![b]).unwrap_or_default()));
     }
 
+    /// Submit all the svm bids as separate transactions concurrently
+    /// Returns Ok if at least one of the transactions is successful
+    /// Returns Err if all transactions are failed
     #[tracing::instrument(skip_all, fields(tx_hash))]
     async fn submit_bids(
         &self,
@@ -421,26 +413,38 @@ impl AuctionManager<Svm> for Service<Svm> {
             return Err(anyhow::anyhow!("No bids to submit"));
         }
 
-        let mut bid = bids[0].clone();
-        self.add_relayer_signature(&mut bid);
-        match self.send_transaction(&bid).await {
-            Ok(response) => {
-                tracing::Span::current().record("tx_hash", response.to_string());
-                Ok(response)
-            }
-            Err(e) => {
-                tracing::error!(error = ?e, "Error while submitting bid");
-                Err(anyhow::anyhow!(e))
+        let send_futures: Vec<_> = bids
+            .into_iter()
+            .map(|mut bid| {
+                self.add_relayer_signature(&mut bid);
+                async move { self.send_transaction(&bid).await }
+            })
+            .collect();
+
+        let results = join_all(send_futures).await;
+        let mut result = None;
+        for res in results.into_iter() {
+            match res {
+                Ok(sig) => {
+                    result = Some(Ok(sig));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e, "Error while submitting bid");
+                    if result.is_none() {
+                        result = Some(Err(anyhow::anyhow!(e)));
+                    }
+                }
             }
         }
+        result.expect("results should not be empty because bids is not empty")
     }
 
-    #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, result))]
+    #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, bid_statuses))]
     async fn get_bid_results(
         &self,
         bids: Vec<entities::Bid<Svm>>,
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
-    ) -> Result<Option<Vec<entities::BidStatusSvm>>> {
+    ) -> Result<Vec<Option<entities::BidStatusSvm>>> {
         tracing::Span::current().record(
             "bid_ids",
             tracing::field::display(entities::BidContainerTracing(&bids)),
@@ -448,52 +452,93 @@ impl AuctionManager<Svm> for Service<Svm> {
         tracing::Span::current().record("tx_hash", bid_status_auction.tx_hash.to_string());
         tracing::Span::current().record("auction_id", bid_status_auction.id.to_string());
         if bids.is_empty() {
-            return Ok(Some(vec![]));
-        }
-
-        if bids.len() != 1 {
-            tracing::warn!(bid_status_auction = ?bid_status_auction, bids = ?bids, "multiple bids found for transaction hash");
+            return Ok(vec![]);
         }
 
         //TODO: this can be optimized out if triggered by websocket events
-        let status = self
+        let signatures: Vec<_> = bids
+            .iter()
+            .map(|bid| {
+                *bid.chain_data
+                    .transaction
+                    .signatures
+                    .first()
+                    .expect("Signature array is empty on svm bid tx")
+            })
+            .collect();
+        let statuses: Vec<_> = self
             .config
             .chain_config
             .client
-            .get_signature_status_with_commitment(
-                &bid_status_auction.tx_hash,
-                CommitmentConfig::confirmed(),
-            )
-            .await?;
+            // TODO: Chunk this if signatures.len() > 256, RPC can only handle 256 signatures at a time
+            .get_signature_statuses(&signatures)
+            .await?
+            .value
+            .into_iter()
+            .map(|status| {
+                status.filter(|status| status.satisfies_commitment(CommitmentConfig::confirmed()))
+            })
+            .collect();
 
-        tracing::Span::current().record("status", format!("{:?}", status));
+        tracing::Span::current().record("bid_statuses", format!("{:?}", statuses));
+        // TODO: find a better place to put this
+        // Remove the pending transactions from the simulator
+        join_all(
+            statuses
+                .iter()
+                .zip(signatures.iter())
+                .filter_map(|(status, sig)| {
+                    status.as_ref().map(|_| {
+                        self.config
+                            .chain_config
+                            .simulator
+                            .remove_pending_transaction(sig)
+                    })
+                }),
+        )
+        .await;
 
-        let status = match status {
-            Some(res) => match res {
-                Ok(()) => entities::BidStatusSvm::Won {
-                    auction: bid_status_auction,
-                },
-                Err(_) => entities::BidStatusSvm::Failed {
-                    auction: bid_status_auction,
-                },
-            },
-            None => {
-                // not yet confirmed
-                // TODO Use the correct version of the expiration algorithm, which is:
-                // the tx is not expired as long as the block hash is still recent.
-                // Assuming a certain block time, the two minute threshold is good enough but in some cases, it's not correct.
-                if bids[0].initiation_time + BID_MAXIMUM_LIFE_TIME_SVM < OffsetDateTime::now_utc() {
-                    // If the bid is older than the maximum lifetime, it means that the block hash is now too old and the transaction is expired.
-                    entities::BidStatusSvm::Expired {
-                        auction: bid_status_auction,
+        let res = statuses
+            .iter()
+            .zip(bids.iter())
+            .map(|(status, bid)| {
+                let auction_id = bid_status_auction.id;
+                let auction = BidStatusAuction {
+                    id:      auction_id,
+                    // use bid signature as tx hash instead of auction tx hash
+                    // since this bid is definitely submitted
+                    tx_hash: *bid
+                        .chain_data
+                        .transaction
+                        .signatures
+                        .first()
+                        .expect("Bid has no signature"),
+                };
+                match status {
+                    Some(res) => Some(match res.err {
+                        Some(_) => entities::BidStatusSvm::Failed { auction },
+                        None => entities::BidStatusSvm::Won { auction },
+                    }),
+                    None => {
+                        // not yet confirmed
+                        // TODO Use the correct version of the expiration algorithm, which is:
+                        // the tx is not expired as long as the block hash is still recent.
+                        // Assuming a certain block time, the two minute threshold is good enough but in some cases, it's not correct.
+                        if bid.initiation_time + BID_MAXIMUM_LIFE_TIME_SVM
+                            < OffsetDateTime::now_utc()
+                        {
+                            // If the bid is older than the maximum lifetime, it means that the block hash is now too old and the transaction is expired.
+                            Some(entities::BidStatusSvm::Expired { auction })
+                        } else {
+                            None
+                        }
                     }
-                } else {
-                    return Ok(None);
                 }
-            }
-        };
+            })
+            .collect();
 
-        Ok(Some(vec![status; bids.len()]))
+
+        Ok(res)
     }
 
     async fn get_submission_state(
@@ -534,7 +579,15 @@ impl AuctionManager<Svm> for Service<Svm> {
     ) -> entities::BidStatusSvm {
         if submitted_bids.iter().any(|b| b.id == bid.id) {
             entities::BidStatusSvm::Submitted {
-                auction: bid_status_auction,
+                auction: BidStatusAuction {
+                    id:      bid_status_auction.id,
+                    tx_hash: *bid
+                        .chain_data
+                        .transaction
+                        .signatures
+                        .first()
+                        .expect("Bid has no signature"),
+                },
             }
         } else {
             entities::BidStatusSvm::Lost {
@@ -562,15 +615,18 @@ impl Service<Svm> {
             relayer.sign_message(&serialized_message);
     }
 
+    fn get_send_transaction_config(&self) -> RpcSendTransactionConfig {
+        RpcSendTransactionConfig {
+            skip_preflight: true,
+            max_retries: Some(0),
+            ..RpcSendTransactionConfig::default()
+        }
+    }
+
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>, signature: Signature) {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
-        let config = RpcSendTransactionConfig {
-            skip_preflight: true,
-            max_retries: Some(0),
-            ..RpcSendTransactionConfig::default()
-        };
         let mut receiver = self.config.chain_config.log_sender.subscribe();
         for retry_count in 0..SEND_TRANSACTION_RETRY_COUNT_SVM {
             tokio::time::sleep(Duration::from_secs(2)).await;
@@ -586,8 +642,11 @@ impl Service<Svm> {
             if let Err(e) = self
                 .config
                 .chain_config
-                .client
-                .send_transaction_with_config(&bid.chain_data.transaction, config)
+                .tx_broadcaster_client
+                .send_transaction_with_config(
+                    &bid.chain_data.transaction,
+                    self.get_send_transaction_config(),
+                )
                 .await
             {
                 tracing::error!(error = ?e, "Failed to resend transaction");
@@ -604,17 +663,17 @@ impl Service<Svm> {
     ) -> solana_client::client_error::Result<Signature> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
-        let config = RpcSendTransactionConfig {
-            skip_preflight: true,
-            max_retries: Some(0),
-            ..RpcSendTransactionConfig::default()
-        };
         let res = self
             .config
             .chain_config
             .tx_broadcaster_client
-            .send_transaction_with_config(tx, config)
+            .send_transaction_with_config(tx, self.get_send_transaction_config())
             .await?;
+        self.config
+            .chain_config
+            .simulator
+            .add_pending_transaction(tx)
+            .await;
         self.task_tracker.spawn({
             let (service, bid) = (self.clone(), bid.clone());
             async move {

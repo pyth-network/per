@@ -12,7 +12,6 @@ where
     Service<T>: AuctionManager<T>,
 {
     pub async fn conclude_auctions(&self) {
-        tracing::info!(chain_id = self.config.chain_id, "Concluding auctions...");
         let auctions = self.repo.get_in_memory_submitted_auctions().await;
         for auction in auctions {
             self.task_tracker.spawn({

@@ -127,13 +127,15 @@ pub trait ModelTrait<T: ChainTrait> {
         bid: &Bid<T>,
         auction: Option<Auction>,
     ) -> anyhow::Result<T::BidStatusType>;
+
+    fn convert_bid_status(status: &T::BidStatusType) -> BidStatus;
     fn get_chain_data_entity(bid: &Bid<T>) -> anyhow::Result<T::BidChainDataType>;
 
     fn convert_permission_key(permission_key: &entities::PermissionKey<T>) -> Vec<u8>;
     fn convert_amount(amount: &T::BidAmountType) -> BigDecimal;
 
     fn get_metadata(chain_data: &T::BidChainDataType) -> Self::BidMetadataType;
-    fn get_update_query(
+    fn get_update_bid_query(
         bid: &entities::Bid<T>,
         new_status: T::BidStatusType,
     ) -> anyhow::Result<Query<'_, Postgres, PgArguments>>;
@@ -212,6 +214,14 @@ impl ModelTrait<Evm> for Evm {
             BidStatus::Expired => Err(anyhow::anyhow!("Evm bid cannot be expired")),
         }
     }
+    fn convert_bid_status(status: &entities::BidStatusEvm) -> BidStatus {
+        match status {
+            entities::BidStatusEvm::Pending => BidStatus::Pending,
+            entities::BidStatusEvm::Submitted { .. } => BidStatus::Submitted,
+            entities::BidStatusEvm::Lost { .. } => BidStatus::Lost,
+            entities::BidStatusEvm::Won { .. } => BidStatus::Won,
+        }
+    }
 
     fn get_chain_data_entity(
         bid: &Bid<Evm>,
@@ -241,7 +251,7 @@ impl ModelTrait<Evm> for Evm {
         }
     }
 
-    fn get_update_query(
+    fn get_update_bid_query(
         bid: &entities::Bid<Evm>,
         new_status: <Evm as ChainTrait>::BidStatusType,
     ) -> anyhow::Result<Query<'_, Postgres, PgArguments>> {
@@ -334,38 +344,62 @@ impl ModelTrait<Svm> for Svm {
             .map_err(|e: ParseIntError| anyhow::anyhow!(e))
     }
 
+    /// In SVM, the tx_hash is the signature of the transaction if the bid is submitted
+    /// otherwise it is the signature of the transaction that caused the bid to be lost
     fn get_bid_status_entity(
         bid: &Bid<Svm>,
         auction: Option<Auction>,
     ) -> anyhow::Result<entities::BidStatusSvm> {
-        let bid_status_auction = Self::get_bid_status_auction_entity(auction)?;
-        match bid.status {
-            BidStatus::Pending => Ok(entities::BidStatusSvm::Pending),
-            BidStatus::Submitted => match bid_status_auction {
-                Some(auction) => Ok(entities::BidStatusSvm::Submitted { auction }),
-                None => Err(anyhow::anyhow!(
-                    "Submitted bid should have a bid_status_auction"
-                )),
-            },
-            BidStatus::Won => match bid_status_auction {
-                Some(auction) => Ok(entities::BidStatusSvm::Won { auction }),
-                None => Err(anyhow::anyhow!("Won bid should have a bid_status_auction")),
-            },
-            BidStatus::Lost => Ok(entities::BidStatusSvm::Lost {
-                auction: bid_status_auction,
+        let sig = *Self::get_chain_data_entity(bid)?
+            .transaction
+            .signatures
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get transaction signature"))?;
+        match (bid.status.clone(), auction) {
+            (BidStatus::Pending, _) => Ok(entities::BidStatusSvm::Pending),
+            (BidStatus::Lost, auction) => Ok(entities::BidStatusSvm::Lost {
+                auction: Self::get_bid_status_auction_entity(auction)?,
             }),
-            BidStatus::Failed => match bid_status_auction {
-                Some(auction) => Ok(entities::BidStatusSvm::Failed { auction }),
-                None => Err(anyhow::anyhow!(
-                    "Failed bid should have a bid_status_auction"
-                )),
-            },
-            BidStatus::Expired => match bid_status_auction {
-                Some(auction) => Ok(entities::BidStatusSvm::Expired { auction }),
-                None => Err(anyhow::anyhow!(
-                    "Expired bid should have a bid_status_auction"
-                )),
-            },
+            (_, None) => Err(anyhow::anyhow!(
+                "Bid with status {:?} should have an auction",
+                bid.status
+            )),
+
+            (BidStatus::Submitted, Some(auction)) => Ok(entities::BidStatusSvm::Submitted {
+                auction: entities::BidStatusAuction {
+                    tx_hash: sig,
+                    id:      auction.id,
+                },
+            }),
+            (BidStatus::Won, Some(auction)) => Ok(entities::BidStatusSvm::Won {
+                auction: entities::BidStatusAuction {
+                    tx_hash: sig,
+                    id:      auction.id,
+                },
+            }),
+            (BidStatus::Expired, Some(auction)) => Ok(entities::BidStatusSvm::Expired {
+                auction: entities::BidStatusAuction {
+                    tx_hash: sig,
+                    id:      auction.id,
+                },
+            }),
+            (BidStatus::Failed, Some(auction)) => Ok(entities::BidStatusSvm::Failed {
+                auction: entities::BidStatusAuction {
+                    tx_hash: sig,
+                    id:      auction.id,
+                },
+            }),
+        }
+    }
+
+    fn convert_bid_status(status: &entities::BidStatusSvm) -> BidStatus {
+        match status {
+            entities::BidStatusSvm::Pending => BidStatus::Pending,
+            entities::BidStatusSvm::Submitted { .. } => BidStatus::Submitted,
+            entities::BidStatusSvm::Lost { .. } => BidStatus::Lost,
+            entities::BidStatusSvm::Won { .. } => BidStatus::Won,
+            entities::BidStatusSvm::Failed { .. } => BidStatus::Failed,
+            entities::BidStatusSvm::Expired { .. } => BidStatus::Expired,
         }
     }
 
@@ -396,11 +430,12 @@ impl ModelTrait<Svm> for Svm {
         }
     }
 
-    fn get_update_query(
+    fn get_update_bid_query(
         bid: &entities::Bid<Svm>,
         new_status: <Svm as ChainTrait>::BidStatusType,
     ) -> anyhow::Result<Query<'_, Postgres, PgArguments>> {
-        match new_status {
+        let now = OffsetDateTime::now_utc();
+        match &new_status {
             entities::BidStatusSvm::Pending => {
                 Err(anyhow::anyhow!("Cannot update bid status to pending"))
             }
@@ -411,36 +446,25 @@ impl ModelTrait<Svm> for Svm {
                 bid.id,
                 BidStatus::Pending as _,
             )),
-            entities::BidStatusSvm::Lost { auction } => match auction {
-                Some(auction) => Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+            entities::BidStatusSvm::Lost { auction: Some(auction) } => Ok(sqlx::query!(
+                    "UPDATE bid SET status = $1, auction_id = $2, conclusion_time = $3 WHERE id = $4 AND status = $5",
                     BidStatus::Lost as _,
                     auction.id,
+                    PrimitiveDateTime::new(now.date(), now.time()),
                     bid.id,
                     BidStatus::Pending as _
                 )),
-                None => Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
+            entities::BidStatusSvm::Lost { auction: None } => Ok(sqlx::query!(
+                    "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status = $4",
                     BidStatus::Lost as _,
+                    PrimitiveDateTime::new(now.date(), now.time()),
                     bid.id,
                     BidStatus::Pending as _
                 )),
-            },
-            entities::BidStatusSvm::Won { .. } => Ok(sqlx::query!(
-                "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
-                BidStatus::Won as _,
-                bid.id,
-                BidStatus::Submitted as _,
-            )),
-            entities::BidStatusSvm::Failed { .. } => Ok(sqlx::query!(
-                "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
-                BidStatus::Failed as _,
-                bid.id,
-                BidStatus::Submitted as _,
-            )),
-            entities::BidStatusSvm::Expired { .. } => Ok(sqlx::query!(
-                "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
-                BidStatus::Expired as _,
+            entities::BidStatusSvm::Won { .. } | entities::BidStatusSvm::Expired { .. } | entities::BidStatusSvm::Failed { .. }  => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status = $4",
+                Self::convert_bid_status(&new_status) as _,
+                PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
                 BidStatus::Submitted as _,
             )),
@@ -459,6 +483,8 @@ pub struct Bid<T: ChainTrait + ModelTrait<T>> {
     pub status:          BidStatus,
     pub auction_id:      Option<entities::AuctionId>,
     pub initiation_time: PrimitiveDateTime,
+    #[allow(dead_code)]
+    pub conclusion_time: Option<PrimitiveDateTime>,
     pub profile_id:      Option<ProfileId>,
     pub metadata:        Json<T::BidMetadataType>,
 }
@@ -483,6 +509,7 @@ impl<T: ChainTrait + ModelTrait<T>> Bid<T> {
                 bid.initiation_time.date(),
                 bid.initiation_time.time(),
             ),
+            conclusion_time: None,
             profile_id:      bid.profile.map(|p| p.id),
             metadata:        Json(T::get_metadata(chain_data)),
         }

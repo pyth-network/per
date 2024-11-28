@@ -273,6 +273,7 @@ const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
 const BID_MINIMUM_LIFE_TIME_SVM_OTHER: Duration = Duration::from_secs(10);
 
 impl Service<Svm> {
+    //TODO: merge this logic with simulator logic
     async fn query_lookup_table(&self, table: &Pubkey, index: usize) -> Result<Pubkey, RestError> {
         if let Some(addresses) = self.repo.get_lookup_table(table).await {
             if let Some(account) = addresses.get(index) {
@@ -291,7 +292,9 @@ impl Service<Svm> {
                 RestError::TemporarilyUnavailable
             })?
             .value
-            .ok_or_else(|| RestError::BadParameters("Account not found".to_string()))?;
+            .ok_or_else(|| {
+                RestError::BadParameters(format!("Lookup table account {} not found", table))
+            })?;
 
         let table_data_deserialized =
             AddressLookupTable::deserialize(&table_data.data).map_err(|e| {
@@ -576,28 +579,22 @@ impl Service<Svm> {
         let response = self
             .config
             .chain_config
-            .client
+            .simulator
             .simulate_transaction(&bid.chain_data.transaction)
             .await;
         let result = response.map_err(|e| {
             tracing::error!("Error while simulating bid: {:?}", e);
             RestError::TemporarilyUnavailable
         })?;
-        match result.value.err {
-            Some(err) => {
-                tracing::error!(
-                    error = ?err,
-                    context = ?result.context,
-                    "Error while simulating bid",
-                );
-                let mut msgs = result.value.logs.unwrap_or_default();
-                msgs.push(err.to_string());
+        match result.value {
+            Err(err) => {
+                let msgs = err.meta.logs;
                 Err(RestError::SimulationError {
                     result: Default::default(),
                     reason: msgs.join("\n"),
                 })
             }
-            None => Ok(()),
+            Ok(_) => Ok(()),
         }
     }
 

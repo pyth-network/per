@@ -6,6 +6,7 @@ use {
         },
         auction::service::{
             self as auction_service,
+            simulator::Simulator,
         },
         config::{
             ChainId,
@@ -312,6 +313,14 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                                 chain_store.config.rpc_read_url.as_str(),
                                 chain_store.config.rpc_timeout,
                                 RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                            ),
+                            simulator:                     Simulator::new(
+                                TracedSenderSvm::new_client(
+                                    chain_id.clone(),
+                                    chain_store.config.rpc_read_url.as_str(),
+                                    chain_store.config.rpc_timeout,
+                                    RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                                ),
                             ),
                             wallet_program_router_account: chain_store
                                 .config

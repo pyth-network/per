@@ -14,12 +14,8 @@ use {
 
 impl<T: ChainTrait> Repository<T> {
     #[tracing::instrument(skip_all, name = "conclude_auction_repo", fields(auction_id))]
-    pub async fn conclude_auction(
-        &self,
-        auction: entities::Auction<T>,
-    ) -> anyhow::Result<entities::Auction<T>> {
+    pub async fn conclude_auction(&self, auction: &mut entities::Auction<T>) -> anyhow::Result<()> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
-        let mut auction = auction.clone();
         let now = OffsetDateTime::now_utc();
         auction.conclusion_time = Some(now);
         sqlx::query!(
@@ -29,6 +25,6 @@ impl<T: ChainTrait> Repository<T> {
         )
         .execute(&self.db)
         .await?;
-        Ok(auction)
+        Ok(())
     }
 }

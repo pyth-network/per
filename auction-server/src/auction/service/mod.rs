@@ -8,6 +8,7 @@ use {
     },
     crate::{
         api::ws::UpdateEvent,
+        auction::service::simulator::Simulator,
         kernel::{
             contracts::{
                 LegacyTxTransformer,
@@ -76,6 +77,7 @@ pub mod get_permission_keys_for_auction;
 pub mod handle_auction;
 pub mod handle_auctions;
 pub mod handle_bid;
+pub mod simulator;
 pub mod update_bid_status;
 pub mod update_recent_prioritization_fee;
 pub mod update_submitted_auction;
@@ -93,6 +95,7 @@ pub struct ConfigSvm {
     pub client:                        RpcClient,
     pub wallet_program_router_account: Pubkey,
     pub express_relay:                 ExpressRelaySvm,
+    pub simulator:                     Simulator,
     pub ws_address:                    String,
     pub tx_broadcaster_client:         RpcClient,
     pub log_sender:                    Sender<Response<RpcLogsResponse>>,

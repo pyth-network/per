@@ -38,7 +38,10 @@ where
 
         let permission_key = auction.permission_key.clone();
         if !auction.is_ready(Service::AUCTION_MINIMUM_LIFETIME) {
-            tracing::info!(permission_key = ?permission_key, "Auction is not ready yet");
+            tracing::info!(
+                permission_key = permission_key.to_string(),
+                "Auction is not ready yet"
+            );
             return Ok(());
         }
 
@@ -62,7 +65,7 @@ where
         tracing::info!(
             auction = ?auction,
             chain_id = self.config.chain_id,
-            "Auction submission stated...",
+            "Auction submission started",
         );
 
         match self
@@ -123,6 +126,11 @@ where
     }
 
     pub async fn handle_auction(&self, input: HandleAuctionInput<T>) -> anyhow::Result<()> {
+        tracing::info!(
+            chain_id = self.config.chain_id,
+            permission_key = input.permission_key.to_string(),
+            "Handling auction",
+        );
         let permission_key = input.permission_key;
         match self.get_submission_state(&permission_key).await {
             entities::SubmitType::ByOther => Ok(()),
