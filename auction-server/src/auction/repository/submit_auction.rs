@@ -14,12 +14,15 @@ use {
 };
 
 impl<T: ChainTrait> Repository<T> {
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, name = "submit_auction_repo", fields(auction_id, tx_hash))]
     pub async fn submit_auction(
         &self,
         auction: entities::Auction<T>,
         transaction_hash: entities::TxHash<T>,
     ) -> anyhow::Result<entities::Auction<T>> {
+        tracing::Span::current().record("auction_id", auction.id.to_string());
+        tracing::Span::current().record("tx_hash", format!("{:?}", transaction_hash));
+
         let mut auction = auction.clone();
         let now = OffsetDateTime::now_utc();
         auction.tx_hash = Some(transaction_hash.clone());

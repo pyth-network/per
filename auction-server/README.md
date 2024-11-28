@@ -66,7 +66,7 @@ docker run --name jaeger \
   -e COLLECTOR_OTLP_ENABLED=true \
   -p 16686:16686 \
   -p 4317:4317 \
-  jaegertracing/all-in-one
+  jaegertracing/all-in-one:1.63.0
 ```
 
 And access the jaeger UI at `http://127.0.0.1:16686`.

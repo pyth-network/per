@@ -35,6 +35,7 @@ use {
         fmt::{
             Debug,
             Display,
+            Formatter,
         },
         hash::Hash,
     },
@@ -270,5 +271,19 @@ impl From<(Bid<Evm>, bool)> for MulticallData {
             gas_limit: bid.chain_data.gas_limit,
             revert_on_failure,
         }
+    }
+}
+
+pub struct BidContainerTracing<'a, T: ChainTrait>(pub &'a [Bid<T>]);
+impl<T: ChainTrait> Display for BidContainerTracing<'_, T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?}",
+            self.0
+                .iter()
+                .map(|x| x.id.to_string())
+                .collect::<Vec<String>>()
+        )
     }
 }
