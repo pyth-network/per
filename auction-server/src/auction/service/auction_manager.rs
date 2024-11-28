@@ -501,16 +501,22 @@ impl AuctionManager<Svm> for Service<Svm> {
             .iter()
             .zip(bids.iter())
             .map(|(status, bid)| {
-                let bid_status_auction = bid_status_auction.clone();
-
+                let auction_id = bid_status_auction.id;
+                let auction = BidStatusAuction {
+                    id:      auction_id,
+                    // use bid signature as tx hash instead of auction tx hash
+                    // since this bid is definitely submitted
+                    tx_hash: *bid
+                        .chain_data
+                        .transaction
+                        .signatures
+                        .first()
+                        .expect("Bid has no signature"),
+                };
                 match status {
                     Some(res) => Some(match res.err {
-                        Some(_) => entities::BidStatusSvm::Failed {
-                            auction: bid_status_auction,
-                        },
-                        None => entities::BidStatusSvm::Won {
-                            auction: bid_status_auction,
-                        },
+                        Some(_) => entities::BidStatusSvm::Failed { auction },
+                        None => entities::BidStatusSvm::Won { auction },
                     }),
                     None => {
                         // not yet confirmed
@@ -521,9 +527,7 @@ impl AuctionManager<Svm> for Service<Svm> {
                             < OffsetDateTime::now_utc()
                         {
                             // If the bid is older than the maximum lifetime, it means that the block hash is now too old and the transaction is expired.
-                            Some(entities::BidStatusSvm::Expired {
-                                auction: bid_status_auction,
-                            })
+                            Some(entities::BidStatusSvm::Expired { auction })
                         } else {
                             None
                         }
