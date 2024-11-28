@@ -70,7 +70,9 @@ async fn main() -> Result<()> {
 
     let registry = tracing_subscriber::registry()
         .with(MetricsLayer.with_filter(filter::filter_fn(is_metrics)))
-        .with(telemetry.with_filter(filter::filter_fn(|metadata| !is_metrics(metadata))));
+        .with(telemetry.with_filter(filter::filter_fn(|metadata| {
+            !is_metrics(metadata) && metadata.target().starts_with("auction_server")
+        })));
 
     if std::io::stderr().is_terminal() {
         registry
