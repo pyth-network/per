@@ -10,6 +10,7 @@ import yargs from "yargs";
 import {
   ChainType,
   Client,
+  ClientError,
   OpportunityCreate,
 } from "@pythnetwork/express-relay-js";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
@@ -104,51 +105,61 @@ async function run() {
       try {
         await client.submitOpportunity(payload);
       } catch (e) {
-        console.error(e);
+        if (
+          e instanceof ClientError &&
+          e.message.includes("Same opportunity is submitted recently")
+        ) {
+          console.log(e); // We don't want to pollute stderr with this
+        } else {
+          console.error(e);
+        }
       }
     }
   };
 
   connection.onProgramAccountChange(
     limoId,
-    async (info, context) => {
-      const order = Order.decode(info.accountInfo.data);
-      if (order.remainingInputAmount.toNumber() === 0) {
-        const router = getPdaAuthority(limoId, globalConfig);
+    (info, context) => {
+      async function handleUpdate() {
+        const order = Order.decode(info.accountInfo.data);
+        if (order.remainingInputAmount.toNumber() === 0) {
+          const router = getPdaAuthority(limoId, globalConfig);
+
+          try {
+            await client.removeOpportunity({
+              chainType: ChainType.SVM,
+              program: "limo",
+              chainId: argv.chainId,
+              permissionAccount: info.accountId,
+              router,
+            });
+          } catch (e) {
+            console.error("Failed to remove opportunity", e);
+          }
+          return;
+        }
+        console.log(
+          "Fetched order with address:",
+          info.accountId.toBase58(),
+          "slot:",
+          context.slot
+        );
+
+        const payload: OpportunityCreate = {
+          program: "limo",
+          chainId: argv.chainId,
+          slot: context.slot,
+          order: { state: order, address: info.accountId },
+        };
 
         try {
-          await client.removeOpportunity({
-            chainType: ChainType.SVM,
-            program: "limo",
-            chainId: argv.chainId,
-            permissionAccount: info.accountId,
-            router,
-          });
+          await client.submitOpportunity(payload);
+          lastChange[info.accountId.toBase58()] = Date.now();
         } catch (e) {
-          console.error("Failed to remove opportunity", e);
+          console.error("Failed to submit opportunity", e);
         }
-        return;
       }
-      console.log(
-        "Fetched order with address:",
-        info.accountId.toBase58(),
-        "slot:",
-        context.slot
-      );
-
-      const payload: OpportunityCreate = {
-        program: "limo",
-        chainId: argv.chainId,
-        slot: context.slot,
-        order: { state: order, address: info.accountId },
-      };
-
-      try {
-        await client.submitOpportunity(payload);
-        lastChange[info.accountId.toBase58()] = Date.now();
-      } catch (e) {
-        console.error("Failed to submit opportunity", e);
-      }
+      handleUpdate().catch(console.error);
     },
     {
       commitment: "processed",
@@ -165,65 +176,7 @@ async function run() {
     }
   };
 
-  const RPC_HEALTH_CHECK_SECONDS_THRESHOLD = 300;
-  const checkRpcHealth = async () => {
-    //eslint-disable-next-line no-constant-condition
-    while (true) {
-      try {
-        const slot = await connection.getSlot("finalized");
-        const blockTime = await connection.getBlockTime(slot);
-        const timeNow = Date.now() / 1000;
-        if (blockTime === null) {
-          console.error(
-            `Health Error (RPC endpoint): unable to poll block time for slot ${slot}`
-          );
-        } else if (blockTime < timeNow - RPC_HEALTH_CHECK_SECONDS_THRESHOLD) {
-          console.error(
-            `Health Error (RPC endpoint): block time is stale by ${
-              timeNow - blockTime
-            } seconds`
-          );
-        }
-      } catch (e) {
-        if (e instanceof Error) {
-          if (!e.message.includes("Block not available for slot")) {
-            console.error("Health Error (RPC endpoint), failure to fetch: ", e);
-          }
-        } else {
-          console.error("Health Error (RPC endpoint), failure to fetch: ", e);
-        }
-      }
-      // Wait for 10 seconds before rechecking
-      await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
-    }
-  };
-
-  const urlExpressRelayHealth = new URL("/live", argv.endpoint);
-  const checkExpressRelayHealth = async () => {
-    //eslint-disable-next-line no-constant-condition
-    while (true) {
-      try {
-        const responseHealth = await fetch(urlExpressRelayHealth);
-        if (responseHealth.status !== 200) {
-          console.error(
-            "Health Error (Express Relay endpoint): ",
-            responseHealth
-          );
-        }
-      } catch (e) {
-        console.error(
-          "Health Error (Express Relay endpoint), failure to fetch: ",
-          e
-        );
-      }
-      // Wait for 10 seconds before rechecking
-      await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
-    }
-  };
-
   resubmitOpportunities().catch(console.error);
-  checkRpcHealth().catch(console.error);
-  checkExpressRelayHealth().catch(console.error);
 }
 
 run();
