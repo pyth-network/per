@@ -470,6 +470,7 @@ impl AuctionManager<Svm> for Service<Svm> {
             .config
             .chain_config
             .client
+            // TODO: Chunk this if signatures.len() > 256, RPC can only handle 256 signatures at a time
             .get_signature_statuses(&signatures)
             .await?
             .value
