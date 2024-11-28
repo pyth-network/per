@@ -642,7 +642,7 @@ impl Service<Svm> {
             if let Err(e) = self
                 .config
                 .chain_config
-                .client
+                .tx_broadcaster_client
                 .send_transaction_with_config(
                     &bid.chain_data.transaction,
                     self.get_send_transaction_config(),
