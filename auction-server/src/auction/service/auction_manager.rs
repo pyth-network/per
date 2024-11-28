@@ -599,15 +599,18 @@ impl Service<Svm> {
             relayer.sign_message(&serialized_message);
     }
 
+    fn get_send_transaction_config(&self) -> RpcSendTransactionConfig {
+        RpcSendTransactionConfig {
+            skip_preflight: true,
+            max_retries: Some(0),
+            ..RpcSendTransactionConfig::default()
+        }
+    }
+
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>, signature: Signature) {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
-        let config = RpcSendTransactionConfig {
-            skip_preflight: true,
-            max_retries: Some(0),
-            ..RpcSendTransactionConfig::default()
-        };
         let mut receiver = self.config.chain_config.log_sender.subscribe();
         for retry_count in 0..SEND_TRANSACTION_RETRY_COUNT_SVM {
             tokio::time::sleep(Duration::from_secs(2)).await;
@@ -624,7 +627,10 @@ impl Service<Svm> {
                 .config
                 .chain_config
                 .client
-                .send_transaction_with_config(&bid.chain_data.transaction, config)
+                .send_transaction_with_config(
+                    &bid.chain_data.transaction,
+                    self.get_send_transaction_config(),
+                )
                 .await
             {
                 tracing::error!(error = ?e, "Failed to resend transaction");
@@ -641,16 +647,11 @@ impl Service<Svm> {
     ) -> solana_client::client_error::Result<Signature> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
-        let config = RpcSendTransactionConfig {
-            skip_preflight: true,
-            max_retries: Some(0),
-            ..RpcSendTransactionConfig::default()
-        };
         let res = self
             .config
             .chain_config
             .tx_broadcaster_client
-            .send_transaction_with_config(tx, config)
+            .send_transaction_with_config(tx, self.get_send_transaction_config())
             .await?;
         self.config
             .chain_config
