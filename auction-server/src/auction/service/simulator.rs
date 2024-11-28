@@ -243,6 +243,10 @@ impl Simulator {
         Ok(results)
     }
 
+    /// Fetches all the accounts needed for simulating the transactions via RPC
+    /// Uses the account cache to avoid fetching programs and lookup tables multiple times
+    /// Returns an AccountsConfig struct that can be used to initialize the LiteSVM instance
+    #[tracing::instrument(skip_all)]
     async fn fetch_tx_accounts_via_rpc(
         &self,
         transactions: &[VersionedTransaction],
@@ -308,6 +312,18 @@ impl Simulator {
         })
     }
 
+    fn setup_lite_svm(&self, accounts_config_with_context: &Response<AccountsConfig>) -> LiteSVM {
+        let mut svm = LiteSVM::new()
+            .with_sigverify(false)
+            .with_blockhash_check(false)
+            .with_transaction_history(0);
+        // this is necessary for correct lookup table access
+        // otherwise 0 = slot < table.last_extended_slot
+        svm.warp_to_slot(accounts_config_with_context.context.slot);
+        accounts_config_with_context.value.apply(&mut svm);
+        svm
+    }
+
     /// Simulates a transaction with the current state of the chain
     /// applying pending transactions beforehand. The simulation is done locally via fetching
     /// all the necessary accounts from the RPC.
@@ -324,15 +340,7 @@ impl Simulator {
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
-        let accounts_config = accounts_config_with_context.value;
-        let mut svm = LiteSVM::new()
-            .with_sigverify(false)
-            .with_blockhash_check(false)
-            .with_transaction_history(0);
-        // this is necessary for correct lookup table access
-        // otherwise 0 = slot < table.last_extended_slot
-        svm.warp_to_slot(accounts_config_with_context.context.slot);
-        accounts_config.apply(&mut svm);
+        let mut svm = self.setup_lite_svm(&accounts_config_with_context);
 
         pending_txs.into_iter().for_each(|tx| {
             let _ = svm.send_transaction(tx);
@@ -348,6 +356,7 @@ impl Simulator {
     /// considering the current state of the chain and the pending transactions.
     /// Right now, for simplicity, the method assume the bids are sorted, and tries to submit them in order
     /// and only return the ones that are successfully submitted.
+    #[tracing::instrument(skip_all)]
     pub async fn optimize_bids(&self, bids: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let txs_to_fetch = pending_txs
@@ -356,12 +365,7 @@ impl Simulator {
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
-        let accounts_config = accounts_config_with_context.value;
-        let mut svm = LiteSVM::new()
-            .with_sigverify(false)
-            .with_blockhash_check(false)
-            .with_transaction_history(0);
-        accounts_config.apply(&mut svm);
+        let mut svm = self.setup_lite_svm(&accounts_config_with_context);
 
         pending_txs.into_iter().for_each(|tx| {
             let _ = svm.send_transaction(tx);

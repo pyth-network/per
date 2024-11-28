@@ -373,7 +373,7 @@ impl AuctionManager<Svm> for Service<Svm> {
         trigger % CONCLUSION_TRIGGER_INTERVAL_SVM == 1
     }
 
-    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, simulation_result))]
+    #[tracing::instrument(skip_all, fields(auction_id, bid_ids))]
     async fn get_winner_bids(
         &self,
         auction: &entities::Auction<Svm>,
