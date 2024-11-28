@@ -101,20 +101,22 @@ async function run() {
       );
 
     console.log("Resubmitting opportunities", payloads.length);
-    for (const payload of payloads) {
-      try {
-        await client.submitOpportunity(payload);
-      } catch (e) {
-        if (
-          e instanceof ClientError &&
-          e.message.includes("Same opportunity is submitted recently")
-        ) {
-          console.log(e); // We don't want to pollute stderr with this
-        } else {
-          console.error(e);
+    await Promise.all(
+      payloads.map(async (payload) => {
+        try {
+          await client.submitOpportunity(payload);
+        } catch (e) {
+          if (
+            e instanceof ClientError &&
+            e.message.includes("Same opportunity is submitted recently")
+          ) {
+            console.log(e); // We don't want to pollute stderr with this
+          } else {
+            console.error(e);
+          }
         }
-      }
-    }
+      })
+    );
   };
 
   connection.onProgramAccountChange(
