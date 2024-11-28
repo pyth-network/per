@@ -47,6 +47,11 @@ const argv = yargs(hideBin(process.argv))
     type: "string",
     demandOption: true,
   })
+  .option("number-of-concurrent-submissions", {
+    description: "Number of concurrent submissions to the express relay server",
+    type: "number",
+    default: 10,
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -55,6 +60,7 @@ async function run() {
   const connection = new Connection(argv.rpcEndpoint);
 
   const globalConfig = new PublicKey(argv.globalConfig);
+  const numberOfConcurrentSubmissions = argv.numberOfConcurrentSubmissions;
   const filters: GetProgramAccountsFilter[] = [
     {
       memcmp: {
@@ -101,22 +107,25 @@ async function run() {
       );
 
     console.log("Resubmitting opportunities", payloads.length);
-    await Promise.all(
-      payloads.map(async (payload) => {
-        try {
-          await client.submitOpportunity(payload);
-        } catch (e) {
-          if (
-            e instanceof ClientError &&
-            e.message.includes("Same opportunity is submitted recently")
-          ) {
-            console.log(e); // We don't want to pollute stderr with this
-          } else {
-            console.error(e);
+    for (let i = 0; i < payloads.length; i += numberOfConcurrentSubmissions) {
+      const batch = payloads.slice(i, i + numberOfConcurrentSubmissions);
+      await Promise.all(
+        batch.map(async (payload) => {
+          try {
+            await client.submitOpportunity(payload);
+          } catch (e) {
+            if (
+              e instanceof ClientError &&
+              e.message.includes("Same opportunity is submitted recently")
+            ) {
+              console.log(e); // We don't want to pollute stderr with this
+            } else {
+              console.error(e);
+            }
           }
-        }
-      })
-    );
+        })
+      );
+    }
   };
 
   connection.onProgramAccountChange(
