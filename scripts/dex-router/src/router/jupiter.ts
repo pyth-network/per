@@ -29,6 +29,9 @@ export class JupiterRouter implements Router {
         basePath,
         apiKey: apiKey,
       });
+      console.log(`Jupiter client created with API key`);
+      console.log(`base path: ${basePath}`);
+      console.log(`API key: ${apiKey}`);
     } else {
       this.jupiterClient = createJupiterApiClient({
         basePath,
@@ -45,6 +48,10 @@ export class JupiterRouter implements Router {
       throw new Error("Jupiter error: chain id not supported");
     }
 
+    console.log(`tokenIn: ${tokenIn.toBase58()}`);
+    console.log(`tokenOut: ${tokenOut.toBase58()}`);
+    console.log(`amountIn: ${amountIn}`);
+
     const quoteResponse = await this.jupiterClient.quoteGet({
       inputMint: tokenIn.toBase58(),
       outputMint: tokenOut.toBase58(),
@@ -54,12 +61,16 @@ export class JupiterRouter implements Router {
       maxAccounts: this.maxAccounts,
     });
 
+    console.log(`Jupiter quote response: ${JSON.stringify(quoteResponse)}`);
+
     const instructions = await this.jupiterClient.swapInstructionsPost({
       swapRequest: {
         userPublicKey: this.executor.toBase58(),
         quoteResponse,
       },
     });
+
+    console.log(`Jupiter swap instructions: ${JSON.stringify(instructions)}`);
 
     const { setupInstructions, swapInstruction, addressLookupTableAddresses } =
       instructions;
