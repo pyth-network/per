@@ -1,6 +1,6 @@
 {
   "name": "@pythnetwork/express-relay-js",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "description": "Utilities for interacting with the express relay protocol",
   "homepage": "https://github.com/pyth-network/per/tree/main/sdk/js",
   "author": "Douro Labs",
@@ -15,16 +15,16 @@
   "scripts": {
     "build": "tsc",
     "test": "jest src/ --passWithNoTests",
-    "simple-searcher-evm": "npm run build && node lib/examples/simpleSearcherEvm.js",
-    "simple-searcher-limo": "npm run build && node lib/examples/simpleSearcherLimo.js",
-    "testing-searcher-limo": "npm run build && node lib/examples/testingSearcherLimo.js",
+    "simple-searcher-evm": "pnpm build && node lib/examples/simpleSearcherEvm.js",
+    "simple-searcher-limo": "pnpm build && node lib/examples/simpleSearcherLimo.js",
+    "testing-searcher-limo": "pnpm build && node lib/examples/testingSearcherLimo.js",
     "generate-api-types": "openapi-typescript http://127.0.0.1:9000/docs/openapi.json --output src/serverTypes.d.ts",
     "generate-anchor-types": "anchor idl type src/idl/idlExpressRelay.json --out src/expressRelayTypes.d.ts && anchor idl type src/examples/idl/idlDummy.json --out src/examples/dummyTypes.d.ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint src",
-    "prepublishOnly": "npm run build && npm test && npm run lint",
-    "preversion": "npm run lint",
-    "version": "npm run format && git add -A src"
+    "prepublishOnly": "pnpm build && pnpm test && pnpm lint",
+    "preversion": "pnpm lint",
+    "version": "pnpm format && git add -A src"
   },
   "keywords": [
     "pyth",
@@ -37,28 +37,25 @@
     "directory": "sdk/js"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.30.1",
-    "@kamino-finance/limo-sdk": "^0.7.1",
-    "@solana/web3.js": "^1.95.3",
+    "@coral-xyz/anchor": "catalog:",
+    "@kamino-finance/limo-sdk": "catalog:",
+    "@solana/web3.js": "catalog:",
     "decimal.js": "^10.4.3",
     "isomorphic-ws": "^5.0.0",
     "openapi-client-axios": "^7.5.5",
     "openapi-fetch": "^0.8.2",
-    "viem": "^2.16.2",
+    "viem": "catalog:",
     "ws": "^8.17.1"
   },
   "devDependencies": {
     "@pythnetwork/pyth-evm-js": "^1.73.0",
-    "@types/node": "^20.14.9",
-    "@types/yargs": "^17.0.32",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "eslint": "^8.57.0",
-    "jest": "^27.5.1",
+    "@types/node": "catalog:",
+    "@types/yargs": "catalog:",
+    "jest": "catalog:",
     "openapi-typescript": "6.5.5",
     "prettier": "^2.8.8",
-    "typescript": "^5.5.2",
-    "yargs": "^17.7.2"
+    "typescript": "catalog:",
+    "yargs": "catalog:"
   },
   "license": "Apache-2.0"
 }

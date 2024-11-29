@@ -6,23 +6,23 @@
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dex-router": "npm run build && node dist/index.js",
+    "dex-router": "pnpm run build && node dist/index.js",
     "lint": "eslint --ext .ts src"
   },
   "author": "",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/yargs": "^17.0.33",
-    "typescript": "^5.5.4"
+    "@types/node": "catalog:",
+    "@types/yargs": "catalog:",
+    "typescript": "catalog:"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.30.1",
+    "@coral-xyz/anchor": "catalog:",
     "@jup-ag/api": "^6.0.29",
-    "@kamino-finance/limo-sdk": "^0.7.1",
-    "@pythnetwork/express-relay-js": "^0.15.0",
-    "@solana/web3.js": "^1.95.3",
-    "@types/yargs": "^17.0.33",
-    "yargs": "^17.7.2"
+    "@kamino-finance/limo-sdk": "catalog:",
+    "@pythnetwork/express-relay-js": "workspace:*",
+    "@solana/web3.js": "catalog:",
+    "@types/yargs": "catalog:",
+    "yargs": "catalog:"
   }
 }
