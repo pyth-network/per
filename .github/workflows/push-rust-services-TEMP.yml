@@ -40,5 +40,5 @@ jobs:
         with:
           context: ./scripts/dex-router
           push: true
-          tags: ani-debug-dex-router
+          tags: ghcr.io/pyth-network/per-dex-router:ani-debug
           labels: ${{ steps.meta_dex_router.outputs.labels }}
