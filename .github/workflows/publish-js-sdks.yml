@@ -22,9 +22,6 @@ jobs:
         with:
           run_install: true
 
-      - name: Install dependencies
-        run: pnpm --filter @pythnetwork/express-relay-js install
-
       - name: Run tests
         run: pnpm --filter @pythnetwork/express-relay-js test # Ensure your tests pass before publishing
 

@@ -1,0 +1,44 @@
+# Ignore Python cache and virtual environments
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.egg
+**/*.egg-info
+**/dist
+**/build
+**/pip-wheel-metadata
+**/*.venv
+**/.venv
+
+# Ignore Node.js and TypeScript build artifacts
+**/node_modules
+**/*.log
+**/dist
+**/lib
+**/out
+**/cache
+**/coverage
+**/tslib
+**/*.tsbuildinfo
+
+# Ignore svm contract build artifacts
+**/test-ledger
+
+# Ignore Rust build artifacts
+**/target
+
+# General IDE and OS files
+**/*.swp
+**/*~
+**/.vscode
+**/.idea
+**/*.DS_Store
+**/Thumbs.db
+
+# Git and version control
+**/.git
+**/.gitignore
+
+# Ignore keys
+**/keypairs/*.json

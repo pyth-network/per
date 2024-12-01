@@ -1,8 +1,4 @@
 {
-  "scripts": {
-    "build": "pnpm -r build",
-    "lint": "pnpm -r lint"
-  },
   "engines": {
     "node": "^18.20.2",
     "pnpm": "^9.14.3"

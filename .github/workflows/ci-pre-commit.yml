@@ -43,8 +43,6 @@ jobs:
         name: Install pnpm
         with:
           run_install: true
-      - name: Install dependencies
-        run: pnpm install
       - name: Install forge dependencies 1
         working-directory: contracts/evm
         run: forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit

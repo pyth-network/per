@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "swap-beacon": "npm run build && node dist/index.js"
+    "test": "jest src/ --passWithNoTests",
+    "swap-beacon": "pnpm build && node dist/index.js"
   },
   "keywords": [],
   "author": "",
@@ -14,7 +14,8 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/yargs": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "jest": "catalog:"
   },
   "dependencies": {
     "@pythnetwork/express-relay-evm-js": "^0.8.1",

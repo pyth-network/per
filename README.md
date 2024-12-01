@@ -37,7 +37,7 @@ Here are the installation instructions for each:
 
 Note that for the Solana CLI, you may need to alter your terminal's `PATH` variable to include the Solana programs. To make this work with Tilt, you should include the `PATH` update in your `~/.bashrc` or `~/.zshrc` file depending on which shell your machine uses.
 
-Run `tilt up` in the root of the repo to start the development environment. Make sure you installed and build all of the dependencies. Most of them will be installed using `pnpm install` and `pnpm build` commands in the project root.
+Run `tilt up` in the root of the repo to start the development environment. Make sure you installed and build all of the dependencies. Most of them will be installed using `pnpm install` and `pnpm -r build` commands in the project root.
 You can access the ui at `http://localhost:10350/`.
 
 Here is what tilt up does in order:

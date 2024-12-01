@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest src/ --passWithNoTests",
     "limonade": "pnpm build && node dist/index.js",
     "lint": "eslint src",
     "format": "prettier --write \"src/**/*.ts\""
@@ -16,7 +16,8 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/yargs": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "jest": "catalog:"
   },
   "dependencies": {
     "@coral-xyz/anchor": "catalog:",

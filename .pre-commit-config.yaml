@@ -72,7 +72,7 @@ repos:
       # EsLint hooks
       - id: eslint
         name: eslint
-        entry: pnpm lint
+        entry: pnpm -r lint
         pass_filenames: false
         language: system
         files: .

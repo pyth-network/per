@@ -27,9 +27,6 @@ jobs:
         with:
           version: nightly
 
-      - name: Install dependencies
-        run: pnpm --filter @pythnetwork/express-relay-sdk-solidity install
-
       - name: Generate ABIs
         run: pnpm generate-abi
 
