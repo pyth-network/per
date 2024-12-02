@@ -55,7 +55,7 @@ const argv = yargs(hideBin(process.argv))
   .option("solana-websocket-timeout", {
     description: "Solana websocket timeout (milliseconds)",
     type: "number",
-    default: 10 * 1000,
+    default: 30 * 1000,
   })
   .help()
   .alias("help", "h")
