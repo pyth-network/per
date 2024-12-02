@@ -29,4 +29,9 @@ export const SVM_CONSTANTS: Record<string, SvmConstantsConfig> = {
       "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
     ),
   },
+  solana: {
+    expressRelayProgram: new PublicKey(
+      "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
+    ),
+  },
 };
