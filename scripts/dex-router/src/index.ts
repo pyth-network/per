@@ -70,7 +70,6 @@ export class DexRouter {
     this.routers = maxAccountsJupiter.map(
       (maxAccounts) =>
         new JupiterRouter(
-          this.chainId,
           this.executor.publicKey,
           maxAccounts,
           jupiterApiEndpoint,
