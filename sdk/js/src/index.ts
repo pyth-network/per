@@ -119,6 +119,8 @@ export class Client {
     opportunityDelete: OpportunityDelete
   ) => Promise<void>;
 
+  private websocketCloseCallback: () => Promise<void>;
+
   private getAuthorization() {
     return this.clientOptions.apiKey
       ? {
@@ -135,7 +137,8 @@ export class Client {
     svmChainUpdateCallback?: (update: SvmChainUpdate) => Promise<void>,
     removeOpportunitiesCallback?: (
       opportunityDelete: OpportunityDelete
-    ) => Promise<void>
+    ) => Promise<void>,
+    websocketCloseCallback?: () => Promise<void>
   ) {
     this.clientOptions = clientOptions;
     this.clientOptions.headers = {
@@ -148,6 +151,11 @@ export class Client {
     this.websocketBidStatusCallback = bidStatusCallback;
     this.websocketSvmChainUpdateCallback = svmChainUpdateCallback;
     this.websocketRemoveOpportunitiesCallback = removeOpportunitiesCallback;
+    this.websocketCloseCallback =
+      websocketCloseCallback ??
+      (() => {
+        throw ClientError.newWebsocketError("Websocket closed");
+      });
   }
 
   private connectWebsocket() {
@@ -235,11 +243,17 @@ export class Client {
       }
 
       this.pingTimeout = setTimeout(() => {
-        this.websocket?.terminate();
-        throw ClientError.newWebsocketError(
-          "Received no ping. Terminating connection."
+        console.error(
+          ClientError.newWebsocketError(
+            "Received no ping. Terminating connection."
+          )
         );
+        this.websocket?.terminate();
       }, this.wsOptions.ping_interval);
+    });
+
+    this.websocket.on("close", () => {
+      this.websocketCloseCallback();
     });
   }
 
