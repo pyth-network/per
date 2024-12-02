@@ -307,7 +307,7 @@ export function getKeypair(
     if (privateKeyJsonFile) {
       return Keypair.fromSecretKey(
         Buffer.from(
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
           JSON.parse(require("fs").readFileSync(privateKeyJsonFile))
         )
       );

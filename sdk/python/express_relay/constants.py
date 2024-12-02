@@ -39,5 +39,10 @@ SVM_CONFIGS: Dict[str, SvmProgramConfig] = {
         "express_relay_program": Pubkey.from_string(
             "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
         ),
+    },
+    "solana": {
+        "express_relay_program": Pubkey.from_string(
+            "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
+        ),
     }
 }
