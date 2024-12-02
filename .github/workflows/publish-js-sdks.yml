@@ -17,20 +17,23 @@ jobs:
           node-version-file: "package.json"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Install dependencies
-        run: npm install
-        working-directory: sdk/js/
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: true
 
       - name: Run tests
-        run: npm test # Ensure your tests pass before publishing
-        working-directory: sdk/js/
+        run: pnpm --filter @pythnetwork/express-relay-js test # Ensure your tests pass before publishing
+
+      - name: Set publishing config
+        run: pnpm config set '//registry.npmjs.org/:_authToken' "${NODE_AUTH_TOKEN}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build package
-        run: npm run build # If your package requires a build step
-        working-directory: sdk/js/
+        run: pnpm --filter @pythnetwork/express-relay-js build # If your package requires a build step
 
       - name: Publish to npm
-        run: npm publish
-        working-directory: sdk/js/
+        run: pnpm --filter @pythnetwork/express-relay-js publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

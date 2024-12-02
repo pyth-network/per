@@ -215,7 +215,7 @@ local_resource(
 
 local_resource(
     "svm-limonade",
-    serve_cmd="npm run --prefix scripts/limonade limonade -- --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id development-solana --api-key $(poetry -C per_sdk run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
+    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id development-solana --api-key $(poetry -C per_sdk run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
@@ -228,7 +228,7 @@ local_resource(
 
 local_resource(
     "svm-searcher-js",
-    serve_cmd="npm run testing-searcher-limo -- --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
+    serve_cmd="pnpm run testing-searcher-limo --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
     serve_dir="sdk/js",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )

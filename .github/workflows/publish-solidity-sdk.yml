@@ -17,25 +17,28 @@ jobs:
           node-version-file: "package.json"
           registry-url: "https://registry.npmjs.org"
 
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: true
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1.1.1
         with:
           version: nightly
 
-      - name: Install dependencies
-        run: npm install
-        working-directory: sdk/solidity/
-
       - name: Generate ABIs
-        run: npm run generate-abi
-        working-directory: sdk/solidity/
+        run: pnpm generate-abi
 
       - name: Check ABIs
-        run: npm run check-abi
-        working-directory: sdk/solidity/
+        run: pnpm check-abi
+
+      - name: Set publishing config
+        run: pnpm config set '//registry.npmjs.org/:_authToken' "${NODE_AUTH_TOKEN}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
-        run: npm publish
-        working-directory: sdk/solidity/
+        run: pnpm --filter @pythnetwork/express-relay-sdk-solidity publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

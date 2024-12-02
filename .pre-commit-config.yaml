@@ -70,36 +70,12 @@ repos:
         pass_filenames: false
         files: contracts/svm
       # EsLint hooks
-      - id: eslint-limonade
-        name: eslint limonade
-        entry: npm run --prefix scripts/limonade lint
+      - id: eslint
+        name: eslint
+        entry: pnpm -r lint
         pass_filenames: false
         language: system
-        files: scripts/limonade/
-      - id: eslint-js-sdk
-        name: eslint js sdk
-        entry: npm run --prefix sdk/js lint
-        pass_filenames: false
-        language: system
-        files: sdk/js/
-      - id: eslint-dex-router
-        name: eslint dex-router
-        entry: npm run --prefix scripts/dex-router lint
-        pass_filenames: false
-        language: system
-        files: scripts/dex-router
-      - id: eslint-opp-provider-limo
-        name: eslint opp-provider-limo
-        entry: npm run --prefix scripts/opportunity-provider-limo lint
-        pass_filenames: false
-        language: system
-        files: scripts/opportunity-provider-limo
-      - id: eslint-opp-provider
-        name: eslint opp-provider
-        entry: npm run --prefix scripts/opportunity-provider lint
-        pass_filenames: false
-        language: system
-        files: scripts/opportunity-provider
+        files: .
       # For python files
       - id: isort
         name: isort

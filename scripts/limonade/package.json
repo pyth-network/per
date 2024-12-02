@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "limonade": "npm run build && node dist/index.js",
+    "test": "jest src/ --passWithNoTests",
+    "limonade": "pnpm build && node dist/index.js",
     "lint": "eslint src",
     "format": "prettier --write \"src/**/*.ts\""
   },
@@ -14,18 +14,19 @@
   "author": "",
   "license": "APACHE-2.0",
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/yargs": "^17.0.33",
-    "typescript": "^5.5.4"
+    "@types/node": "catalog:",
+    "@types/yargs": "catalog:",
+    "typescript": "catalog:",
+    "jest": "catalog:"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.30.1",
-    "@coral-xyz/anchor-cli": "^0.30.1",
-    "@kamino-finance/limo-sdk": "^0.7.1",
-    "@pythnetwork/express-relay-js": "^0.15.1",
-    "@solana/web3.js": "^1.95.3",
+    "@coral-xyz/anchor": "catalog:",
+    "@coral-xyz/anchor-cli": "catalog:",
+    "@kamino-finance/limo-sdk": "catalog:",
+    "@pythnetwork/express-relay-js": "workspace:*",
+    "@solana/web3.js": "catalog:",
     "axios": "^1.7.3",
     "bs58": "^6.0.0",
-    "yargs": "^17.7.2"
+    "yargs": "catalog:"
   }
 }

@@ -39,8 +39,10 @@ jobs:
       - name: Install evm contracts npm dependencies
         working-directory: contracts/evm
         run: npm ci
-      - name: Install npm dependencies
-        run: npm ci
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: true
       - name: Install forge dependencies 1
         working-directory: contracts/evm
         run: forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit

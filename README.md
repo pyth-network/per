@@ -24,7 +24,7 @@ The checks are also performed in the CI to ensure the code follows consistent fo
 
 Since express relay is a multi-service project, we use [Tilt](https://tilt.dev/) to manage the development environment.
 It is a great tool for local development and testing.
-Tilt requires `anvil`, `forge`, `poetry`, rust, and the Solana CLI to be installed on your machine.
+Tilt requires `anvil`, `forge`, `poetry`, `rust`, `pnpm`, and the `Solana CLI` to be installed on your machine.
 
 Here are the installation instructions for each:
 
@@ -32,11 +32,12 @@ Here are the installation instructions for each:
 - Foundry (anvil,forge,cast, etc.): https://book.getfoundry.sh/getting-started/installation
 - Poetry: https://python-poetry.org/docs/#installation
 - Tilt: https://docs.tilt.dev/install.html
+- Pnpm: https://pnpm.io/installation
 - Solana CLI: https://docs.solanalabs.com/cli/install
 
 Note that for the Solana CLI, you may need to alter your terminal's `PATH` variable to include the Solana programs. To make this work with Tilt, you should include the `PATH` update in your `~/.bashrc` or `~/.zshrc` file depending on which shell your machine uses.
 
-Run `tilt up` in the root of the repo to start the development environment.
+Run `tilt up` in the root of the repo to start the development environment. Make sure you installed and build all of the dependencies. Most of them will be installed using `pnpm install` and `pnpm -r build` commands in the project root.
 You can access the ui at `http://localhost:10350/`.
 
 Here is what tilt up does in order:
