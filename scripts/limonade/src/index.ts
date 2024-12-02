@@ -187,7 +187,8 @@ async function run() {
       filters,
     }
   );
-  connection.onSlotChange(() => {
+  connection.onSlotChange((slot) => {
+    console.log("Slot changed", slot.slot);
     if (solanaConnectionTimeout !== undefined) {
       clearTimeout(solanaConnectionTimeout);
     }
