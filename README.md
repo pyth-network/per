@@ -40,7 +40,7 @@ Note that for the Solana CLI, you may need to alter your terminal's `PATH` varia
 Run `tilt up` in the root of the repo to start the development environment. Make sure you installed and build all of the dependencies. Most of them will be installed using `pnpm install` and `pnpm -r build` commands in the project root.
 You can access the ui at `http://localhost:10350/`.
 
-Here is what tilt up does in order:
+Here is what `tilt up` does in order:
 
 1. [EVM] Starts `anvil`: local EVM chain to test the contracts with
 2. [EVM] Deploy express relay contracts
