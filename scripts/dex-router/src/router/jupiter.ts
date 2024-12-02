@@ -9,19 +9,16 @@ import {
 const MAX_SLIPPAGE_BPS = 50;
 
 export class JupiterRouter implements Router {
-  private chainId: string;
   private executor: PublicKey;
   private maxAccounts: number;
   private jupiterClient: DefaultApi;
 
   constructor(
-    chainId: string,
     executor: PublicKey,
     maxAccounts: number,
     basePath: string,
     apiKey?: string
   ) {
-    this.chainId = chainId;
     this.executor = executor;
     this.maxAccounts = maxAccounts;
     if (apiKey) {
@@ -41,10 +38,6 @@ export class JupiterRouter implements Router {
     tokenOut: PublicKey,
     amountIn: bigint
   ): Promise<RouterOutput> {
-    if (!["mainnet-beta-solana", "development-solana"].includes(this.chainId)) {
-      throw new Error("Jupiter error: chain id not supported");
-    }
-
     const quoteResponse = await this.jupiterClient.quoteGet({
       inputMint: tokenIn.toBase58(),
       outputMint: tokenOut.toBase58(),
