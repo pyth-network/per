@@ -39,6 +39,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
-        run: pnpm --filter @pythnetwork/express-relay-sdk-solidity publish
+        run: pnpm --filter @pythnetwork/express-relay-sdk-solidity publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
