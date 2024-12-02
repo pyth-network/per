@@ -154,7 +154,7 @@ export class Client {
     this.websocketCloseCallback =
       websocketCloseCallback ??
       (() => {
-        throw ClientError.newWebsocketError("Websocket closed");
+        throw ClientError.newWebsocketError("Websocket connection was closed");
       });
   }
 
