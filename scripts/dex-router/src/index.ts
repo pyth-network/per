@@ -25,23 +25,15 @@ import {
 import * as anchor from "@coral-xyz/anchor";
 import * as limo from "@kamino-finance/limo-sdk";
 import {
-  getMintDecimals,
   getPdaAuthority,
   OrderStateAndAddress,
 } from "@kamino-finance/limo-sdk/dist/utils";
-import {
-  HEALTH_RPC_THRESHOLD,
-  HEALTH_EXPRESS_RELAY_INTERVAL,
-  HEALTH_RPC_INTERVAL,
-  MAX_TX_SIZE,
-} from "./const";
-import { checkExpressRelayHealth, checkRpcHealth } from "./utils/health";
+import { MAX_TX_SIZE } from "./const";
 
 const MINUTE_IN_SECS = 60;
 
 export class DexRouter {
   private client: Client;
-  private mintDecimals: Record<string, number> = {};
   private baseLookupTableAddresses: PublicKey[] = [];
   private lookupTableAccounts: Record<string, AddressLookupTableAccount> = {};
   private connectionSvm: Connection;
@@ -127,16 +119,6 @@ export class DexRouter {
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
     this.latestChainUpdate[update.chainId] = update;
-  }
-
-  async getMintDecimalsCached(mint: PublicKey): Promise<number> {
-    const mintAddress = mint.toBase58();
-    if (this.mintDecimals[mintAddress]) {
-      return this.mintDecimals[mintAddress];
-    }
-    const decimals = await getMintDecimals(this.connectionSvm, mint);
-    this.mintDecimals[mintAddress] = decimals;
-    return decimals;
   }
 
   /**
@@ -430,7 +412,6 @@ const argv = yargs(hideBin(process.argv))
     description:
       "API key to authenticate with the express relay server for submitting bids.",
     type: "string",
-    demandOption: true,
   })
   .help()
   .alias("help", "h")
@@ -451,13 +432,6 @@ async function run() {
     argv["lookup-table-addresses"]?.map((address) => new PublicKey(address)),
     argv["express-relay-server-api-key"]
   );
-  checkRpcHealth(connection, HEALTH_RPC_THRESHOLD, HEALTH_RPC_INTERVAL).catch(
-    console.error
-  );
-  checkExpressRelayHealth(
-    argv["endpoint-express-relay"],
-    HEALTH_EXPRESS_RELAY_INTERVAL
-  ).catch(console.error);
   await dexRouter.start();
 }
 
