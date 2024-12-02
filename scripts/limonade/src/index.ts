@@ -52,6 +52,11 @@ const argv = yargs(hideBin(process.argv))
     type: "number",
     default: 100,
   })
+  .option("solana-websocket-timeout", {
+    description: "Solana websocket timeout (milliseconds)",
+    type: "number",
+    default: 10 * 1000,
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -61,6 +66,8 @@ async function run() {
 
   const globalConfig = new PublicKey(argv.globalConfig);
   const numberOfConcurrentSubmissions = argv.numberOfConcurrentSubmissions;
+  let solanaConnectionTimeout: NodeJS.Timeout | undefined;
+
   const filters: GetProgramAccountsFilter[] = [
     {
       memcmp: {
@@ -180,6 +187,16 @@ async function run() {
       filters,
     }
   );
+  connection.onSlotChange(() => {
+    if (solanaConnectionTimeout !== undefined) {
+      clearTimeout(solanaConnectionTimeout);
+    }
+
+    solanaConnectionTimeout = setTimeout(() => {
+      throw new Error("Solana websocket timeout");
+    }, argv.solanaWebsocketTimeout);
+  });
+
   const resubmitOpportunities = async () => {
     //eslint-disable-next-line no-constant-condition
     while (true) {
