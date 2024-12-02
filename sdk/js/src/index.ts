@@ -253,6 +253,7 @@ export class Client {
     });
 
     this.websocket.on("close", () => {
+      // TODO: can we reconnect?
       this.websocketCloseCallback();
     });
   }
