@@ -70,7 +70,7 @@ jobs:
           push: true
           tags: ${{ steps.meta_monitor.outputs.tags }}
           labels: ${{ steps.meta_monitor.outputs.labels }}
-  build-and-push-node-services:
+  node-services:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -101,7 +101,7 @@ jobs:
           context: .
           file: ./Dockerfile.node
           build-args: |
-            package="${{ matrix.service }}"
+            package=${{ matrix.service }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
