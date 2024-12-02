@@ -66,7 +66,7 @@ export interface WsOptions {
 
 const DEFAULT_WS_OPTIONS: WsOptions = {
   response_timeout: 10000,
-  ping_interval: 1000, // 30 seconds + 2 seconds to account for extra latency
+  ping_interval: 32000, // 30 seconds + 2 seconds to account for extra latency
 };
 
 export function checkHex(hex: string): Hex {
