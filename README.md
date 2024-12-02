@@ -39,7 +39,7 @@ Note that for the Solana CLI, you may need to alter your terminal's `PATH` varia
 Run `tilt up` in the root of the repo to start the development environment.
 You can access the ui at `http://localhost:10350/`.
 
-Here is what Tilt up does in order:
+Here is what `tilt up` does in order:
 
 1. [EVM] Starts `anvil`: local EVM chain to test the contracts with
 2. [EVM] Deploy express relay contracts
