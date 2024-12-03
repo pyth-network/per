@@ -69,6 +69,18 @@ repos:
         entry: cargo +stable clippy --manifest-path ./contracts/svm/Cargo.toml --tests -- -D warnings
         pass_filenames: false
         files: contracts/svm
+      - id: cargo-fmt-express-relay-client
+        name: Cargo format for express relay client
+        language: "rust"
+        entry: cargo +nightly-2024-04-10 fmt --manifest-path ./sdk/rust/Cargo.toml --all -- --config-path rustfmt.toml
+        pass_filenames: false
+        files: sdk/rust
+      - id: cargo-clippy-express-relay-client
+        name: Cargo clippy for express relay client
+        language: "rust"
+        entry: cargo +stable clippy --manifest-path ./sdk/rust/Cargo.toml --tests -- -D warnings
+        pass_filenames: false
+        files: sdk/rust
       # EsLint hooks
       - id: eslint
         name: eslint
