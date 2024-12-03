@@ -1,0 +1,22 @@
+# OpportunitySvm
+
+## Properties
+
+| Name                            | Type                                            | Description                                                                                              | Notes |
+| ------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----- |
+| **order**                       | **String**                                      | The Limo order to be executed, encoded in base64.                                                        |
+| **order_address**               | **String**                                      | Address of the order account.                                                                            |
+| **program**                     | **String**                                      |                                                                                                          |
+| **buy_token**                   | [**models::TokenAmountSvm**](TokenAmountSvm.md) |                                                                                                          |
+| **maximum_slippage_percentage** | **f64**                                         | The maximum slippage percentage that the user is willing to accept.                                      |
+| **permission_account**          | **String**                                      | The permission account to be permitted by the ER contract for the opportunity execution of the protocol. |
+| **router_account**              | **String**                                      | The router account to be used for the opportunity execution of the protocol.                             |
+| **sell_token**                  | [**models::TokenAmountSvm**](TokenAmountSvm.md) |                                                                                                          |
+| **user_wallet_address**         | **String**                                      | The user wallet address which requested the quote from the wallet.                                       |
+| **chain_id**                    | **String**                                      |                                                                                                          |
+| **version**                     | **String**                                      |                                                                                                          |
+| **creation_time**               | **i32**                                         | Creation time of the opportunity (in microseconds since the Unix epoch).                                 |
+| **opportunity_id**              | **String**                                      | The opportunity unique id.                                                                               |
+| **slot**                        | **i64**                                         | The slot where the program params were fetched from using the RPC.                                       |
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
