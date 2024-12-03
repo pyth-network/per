@@ -7,3 +7,4 @@ repository = "https://github.com/pyth-network/per"
 license = "Apache-2.0"
 
 [dependencies]
+server-types = { path = "./server-types" }

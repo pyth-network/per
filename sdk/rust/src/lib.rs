@@ -1,14 +1,15 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+pub struct Client {
+    pub host: String,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl Client {
+    pub fn new(host: &str) -> Self {
+        Self {
+            host: host.to_string(),
+        }
+    }
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    pub fn test() {
+        println!("test");
     }
 }
