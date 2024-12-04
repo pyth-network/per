@@ -8,8 +8,8 @@ use {
         },
         opportunity::repository,
     },
-    api_types::opportunity as api,
     ethers::types::Bytes,
+    express_relay_api_types::opportunity as api,
     std::{
         fmt::Debug,
         ops::Deref,

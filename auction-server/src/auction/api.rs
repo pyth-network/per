@@ -148,7 +148,7 @@ pub enum BidStatusSvm {
     #[schema(title = "Lost")]
     Lost {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = Option<String>)]
-        #[serde(with = "api_types::serde::nullable_signature_svm")]
+        #[serde(with = "express_relay_api_types::serde::nullable_signature_svm")]
         result: Option<Signature>,
     },
     /// The bid won the auction and was submitted to the chain, with the transaction with the signature.
@@ -225,7 +225,7 @@ pub struct BidSvm {
     pub status:         BidStatusSvm,
     /// The transaction of the bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
-    #[serde(with = "api_types::serde::transaction_svm")]
+    #[serde(with = "express_relay_api_types::serde::transaction_svm")]
     pub transaction:    VersionedTransaction,
     /// Amount of bid in lamports.
     #[schema(example = "1000", value_type = u64)]
@@ -251,11 +251,11 @@ pub struct BidEvm {
     pub target_calldata: Bytes,
     /// The gas limit for the contract call.
     #[schema(example = "2000000", value_type = String)]
-    #[serde(with = "api_types::serde::u256")]
+    #[serde(with = "express_relay_api_types::serde::u256")]
     pub gas_limit:       U256,
     /// Amount of bid in wei.
     #[schema(example = "10", value_type = String)]
-    #[serde(with = "api_types::serde::u256")]
+    #[serde(with = "express_relay_api_types::serde::u256")]
     pub bid_amount:      entities::BidAmountEvm,
     /// The permission key for bid.
     #[schema(example = "0xdeadbeef", value_type = String)]
@@ -302,7 +302,7 @@ pub struct BidCreateEvm {
     pub target_calldata: Bytes,
     /// Amount of bid in wei.
     #[schema(example = "10", value_type = String)]
-    #[serde(with = "api_types::serde::u256")]
+    #[serde(with = "express_relay_api_types::serde::u256")]
     pub amount:          entities::BidAmountEvm,
 }
 
@@ -313,7 +313,7 @@ pub struct BidCreateSvm {
     pub chain_id:    ChainId,
     /// The transaction for bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
-    #[serde(with = "api_types::serde::transaction_svm")]
+    #[serde(with = "express_relay_api_types::serde::transaction_svm")]
     pub transaction: VersionedTransaction,
 }
 
@@ -429,7 +429,7 @@ pub struct Bids {
 #[derive(Serialize, Deserialize, IntoParams)]
 pub struct GetBidsByTimeQueryParams {
     #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
-    #[serde(default, with = "api_types::serde::nullable_datetime")]
+    #[serde(default, with = "express_relay_api_types::serde::nullable_datetime")]
     pub from_time: Option<OffsetDateTime>,
 }
 

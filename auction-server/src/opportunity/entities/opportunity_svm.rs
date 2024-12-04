@@ -13,7 +13,7 @@ use {
         kernel::entities::PermissionKey,
         opportunity::repository,
     },
-    api_types::opportunity as api,
+    express_relay_api_types::opportunity as api,
     solana_sdk::{
         clock::Slot,
         pubkey::Pubkey,

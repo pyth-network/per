@@ -23,12 +23,6 @@ use {
         anyhow,
         Result,
     },
-    api_types::opportunity::{
-        Opportunity,
-        OpportunityBidEvm,
-        OpportunityDelete,
-        OpportunityId,
-    },
     axum::{
         extract::{
             ws::{
@@ -39,6 +33,12 @@ use {
             WebSocketUpgrade,
         },
         response::IntoResponse,
+    },
+    express_relay_api_types::opportunity::{
+        Opportunity,
+        OpportunityBidEvm,
+        OpportunityDelete,
+        OpportunityId,
     },
     futures::{
         stream::{

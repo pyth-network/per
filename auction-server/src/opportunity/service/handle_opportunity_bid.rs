@@ -24,13 +24,13 @@ use {
             entities::Evm,
         },
     },
-    api_types::opportunity::{
-        OpportunityBidEvm,
-        OpportunityId,
-    },
     ethers::{
         contract::ContractRevert,
         types::Bytes,
+    },
+    express_relay_api_types::opportunity::{
+        OpportunityBidEvm,
+        OpportunityId,
     },
     time::OffsetDateTime,
     uuid::Uuid,
