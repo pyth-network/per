@@ -1,5 +1,5 @@
 [package]
-name = "api-types"
+name = "express-relay-api-types"
 version = "0.1.0"
 edition = "2021"
 

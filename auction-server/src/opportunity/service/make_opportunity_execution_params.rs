@@ -14,7 +14,7 @@ use {
         },
         opportunity::entities,
     },
-    api_types::opportunity::OpportunityBidEvm,
+    express_relay_api_types::opportunity::OpportunityBidEvm,
 };
 
 pub struct MakeOpportunityExecutionParamsInput {

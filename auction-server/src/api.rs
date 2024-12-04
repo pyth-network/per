@@ -59,6 +59,7 @@ use {
     },
     clap::crate_version,
     ethers::types::Bytes,
+    express_relay_api_types as api_types,
     serde::Serialize,
     std::sync::{
         atomic::Ordering,
