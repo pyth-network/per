@@ -7,4 +7,4 @@ repository = "https://github.com/pyth-network/per"
 license = "Apache-2.0"
 
 [dependencies]
-express-relay-api-types = { version = "0.1.0", path = "../../auction-server/api-types" }
+express-relay-api-types = { version = "0.0.0", path = "../../auction-server/api-types" }
