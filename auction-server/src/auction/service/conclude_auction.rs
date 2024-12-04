@@ -60,7 +60,6 @@ where
             )
             .await;
 
-
             if self
                 .repo
                 .get_in_memory_submitted_bids_for_auction(&auction)

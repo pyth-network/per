@@ -67,7 +67,6 @@ pub enum ChainType {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Evm;
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct Svm;
 
