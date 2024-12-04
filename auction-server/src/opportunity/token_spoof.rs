@@ -16,7 +16,6 @@ use {
     },
     anyhow::anyhow,
     ethers::{
-        core::rand,
         prelude::{
             spoof,
             Bytes,

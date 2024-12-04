@@ -23,10 +23,10 @@ use {
             },
             entities::Evm,
         },
-        opportunity::api::{
-            OpportunityBidEvm,
-            OpportunityId,
-        },
+    },
+    api_types::opportunity::{
+        OpportunityBidEvm,
+        OpportunityId,
     },
     ethers::{
         contract::ContractRevert,

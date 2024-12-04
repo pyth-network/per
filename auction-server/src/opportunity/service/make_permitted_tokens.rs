@@ -6,11 +6,9 @@ use {
     crate::{
         api::RestError,
         kernel::contracts::TokenPermissions,
-        opportunity::{
-            api::OpportunityBidEvm,
-            entities,
-        },
+        opportunity::entities,
     },
+    api_types::opportunity::OpportunityBidEvm,
     ethers::types::U256,
 };
 

@@ -7,11 +7,9 @@ use {
     crate::{
         api::RestError,
         kernel::contracts::OpportunityAdapter,
-        opportunity::{
-            api::OpportunityBidEvm,
-            entities,
-        },
+        opportunity::entities,
     },
+    api_types::opportunity::OpportunityBidEvm,
     ethers::types::Bytes,
     std::sync::Arc,
 };

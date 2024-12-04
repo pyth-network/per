@@ -12,15 +12,7 @@ use {
             entities::BidId,
         },
         config::ChainId,
-        opportunity::{
-            api::{
-                Opportunity,
-                OpportunityBidEvm,
-                OpportunityDelete,
-                OpportunityId,
-            },
-            service::handle_opportunity_bid::HandleOpportunityBidInput,
-        },
+        opportunity::service::handle_opportunity_bid::HandleOpportunityBidInput,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -30,6 +22,12 @@ use {
     anyhow::{
         anyhow,
         Result,
+    },
+    api_types::opportunity::{
+        Opportunity,
+        OpportunityBidEvm,
+        OpportunityDelete,
+        OpportunityId,
     },
     axum::{
         extract::{

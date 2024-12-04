@@ -1,6 +1,6 @@
 use {
     super::token_amount::TokenAmount,
-    crate::opportunity::api,
+    api_types::opportunity as api,
     ethers::types::{
         Address,
         U256,
@@ -18,7 +18,7 @@ impl TokenAmount for TokenAmountEvm {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TokenAmountEvm {
     pub token:  Address,
-    #[serde(with = "crate::serde::u256")]
+    #[serde(with = "api_types::serde::u256")]
     pub amount: U256,
 }
 

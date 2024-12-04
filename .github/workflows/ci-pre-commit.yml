@@ -21,13 +21,13 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2023-03-01
-          components: rustfmt, clippy
+          toolchain: 1.83.0
+          components: clippy
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2024-04-10
-          components: rustfmt, clippy
+          toolchain: nightly-2024-12-03
+          components: rustfmt
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:

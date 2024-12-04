@@ -35,7 +35,6 @@ use {
     solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
-        default::Default,
         sync::Arc,
         time::Duration,
     },
