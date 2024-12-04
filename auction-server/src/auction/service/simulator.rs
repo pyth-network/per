@@ -109,7 +109,6 @@ impl Simulator {
         pending_txs.iter().map(|(tx, _)| tx.clone()).collect()
     }
 
-
     /// Adds a pending transaction to the simulator to be considered in the next simulations
     /// This function should be called when a transaction is submitted to the chain
     pub async fn add_pending_transaction(&self, tx: &VersionedTransaction) {

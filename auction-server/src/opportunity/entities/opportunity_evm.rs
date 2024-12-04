@@ -11,13 +11,9 @@ use {
     },
     crate::{
         kernel::entities::PermissionKey,
-        opportunity::{
-            api,
-            repository::{
-                self,
-            },
-        },
+        opportunity::repository,
     },
+    api_types::opportunity as api,
     ethers::types::{
         Bytes,
         U256,

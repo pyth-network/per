@@ -103,7 +103,7 @@ pub struct BidMetadataEvm {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BidMetadataSvm {
-    #[serde(with = "crate::serde::transaction_svm")]
+    #[serde(with = "api_types::serde::transaction_svm")]
     pub transaction: VersionedTransaction,
 }
 

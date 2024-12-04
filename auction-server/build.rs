@@ -36,7 +36,6 @@ fn build_evm_contracts() {
     }
 }
 
-
 const SUBMIT_BID_INSTRUCTION_SVM: &str = "submit_bid";
 const PERMISSION_ACCOUNT_SVM: &str = "permission";
 const ROUTER_ACCOUNT_SVM: &str = "router";

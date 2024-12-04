@@ -27,7 +27,6 @@ pub fn initialize_instruction(
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
 
-
     Instruction {
         program_id: express_relay::id(),
         data:       express_relay::instruction::Initialize {
