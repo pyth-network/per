@@ -33,7 +33,6 @@ use {
     std::str::FromStr,
 };
 
-
 /// CLI utility for interacting with Express Relay SVM program.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -49,7 +48,6 @@ struct Args {
     #[command(subcommand)]
     command: Commands,
 }
-
 
 #[derive(Debug, Parser)]
 struct Initialize {

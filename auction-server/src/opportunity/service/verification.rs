@@ -16,12 +16,12 @@ use {
             MulticallReturn,
         },
         opportunity::{
-            api::OpportunityBidEvm,
             entities,
             repository::InMemoryStore,
             token_spoof,
         },
     },
+    api_types::opportunity::OpportunityBidEvm,
     ethers::{
         abi::AbiDecode,
         providers::RawCall,

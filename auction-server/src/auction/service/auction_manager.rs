@@ -127,7 +127,6 @@ pub trait AuctionManager<T: ChainTrait> {
     ) -> T::BidStatusType;
 }
 
-
 // While we are submitting bids together, increasing this number will have the following effects:
 // 1. There will be more gas required for the transaction, which will result in a higher minimum bid amount.
 // 2. The transaction size limit will be reduced for each bid.
@@ -535,7 +534,6 @@ impl AuctionManager<Svm> for Service<Svm> {
                 }
             })
             .collect();
-
 
         Ok(res)
     }

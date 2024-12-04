@@ -5,13 +5,11 @@ use {
     },
     crate::{
         api::RestError,
-        opportunity::{
-            api::{
-                GetOpportunitiesQueryParams,
-                OpportunityMode,
-            },
-            repository::InMemoryStore,
-        },
+        opportunity::repository::InMemoryStore,
+    },
+    api_types::opportunity::{
+        GetOpportunitiesQueryParams,
+        OpportunityMode,
     },
 };
 
