@@ -246,7 +246,7 @@ impl Simulator {
     /// Fetches all the accounts needed for simulating the transactions via RPC
     /// Uses the account cache to avoid fetching programs and lookup tables multiple times
     /// Returns an AccountsConfig struct that can be used to initialize the LiteSVM instance
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(slot))]
     async fn fetch_tx_accounts_via_rpc(
         &self,
         transactions: &[VersionedTransaction],
@@ -261,6 +261,7 @@ impl Simulator {
         let keys = keys.into_iter().collect::<Vec<_>>();
 
         let accounts_with_context = self.get_multiple_accounts_chunked(&keys).await?;
+        tracing::Span::current().record("slot", accounts_with_context.context.slot);
         let accounts = accounts_with_context.value;
         let mut accounts_config = AccountsConfig::new();
         let mut programs_to_fetch = vec![];

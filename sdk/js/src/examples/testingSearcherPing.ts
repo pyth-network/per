@@ -40,7 +40,7 @@ class SearcherPinger extends SimpleSearcherLimo {
       this.searcher.publicKey,
       this.searcher.publicKey,
       this.searcher.publicKey,
-      new anchor.BN(0),
+      this.bid,
       new anchor.BN(Math.round(Date.now() / 1000 + 60)),
       this.chainId,
       config.relayerSigner,
