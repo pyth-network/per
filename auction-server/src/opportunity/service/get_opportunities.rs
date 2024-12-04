@@ -7,7 +7,7 @@ use {
         api::RestError,
         opportunity::repository::InMemoryStore,
     },
-    api_types::opportunity::{
+    express_relay_api_types::opportunity::{
         GetOpportunitiesQueryParams,
         OpportunityMode,
     },
