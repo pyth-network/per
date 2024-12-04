@@ -8,8 +8,8 @@ use {
         kernel::contracts::TokenPermissions,
         opportunity::entities,
     },
-    api_types::opportunity::OpportunityBidEvm,
     ethers::types::U256,
+    express_relay_api_types::opportunity::OpportunityBidEvm,
 };
 
 pub struct MakePermittedTokensInput {

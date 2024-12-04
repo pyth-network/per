@@ -21,7 +21,6 @@ use {
             token_spoof,
         },
     },
-    api_types::opportunity::OpportunityBidEvm,
     ethers::{
         abi::AbiDecode,
         providers::RawCall,
@@ -42,6 +41,7 @@ use {
         },
         utils::get_create2_address_from_hash,
     },
+    express_relay_api_types::opportunity::OpportunityBidEvm,
     rand::Rng,
     std::{
         collections::HashMap,

@@ -52,4 +52,4 @@ solana-rpc-client ={ workspace = true }
 solana-transaction-status = { workspace = true }
 borsh = "1.5.1"
 litesvm = "0.3.0"
-api-types = { path = "api-types" }
+express-relay-api-types = { path = "api-types" }

@@ -13,11 +13,11 @@ use {
         kernel::entities::PermissionKey,
         opportunity::repository,
     },
-    api_types::opportunity as api,
     ethers::types::{
         Bytes,
         U256,
     },
+    express_relay_api_types::opportunity as api,
     std::ops::Deref,
     time::OffsetDateTime,
 };

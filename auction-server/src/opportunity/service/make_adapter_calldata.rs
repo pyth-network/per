@@ -9,8 +9,8 @@ use {
         kernel::contracts::OpportunityAdapter,
         opportunity::entities,
     },
-    api_types::opportunity::OpportunityBidEvm,
     ethers::types::Bytes,
+    express_relay_api_types::opportunity::OpportunityBidEvm,
     std::sync::Arc,
 };
 
