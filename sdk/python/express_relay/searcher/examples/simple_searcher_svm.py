@@ -191,7 +191,7 @@ class SimpleSearcherSvm:
             f"Sell token {order['state'].input_mint} amount: {Decimal(input_amount) / Decimal(10 ** input_mint_decimals)}\n"
             f"Buy token {order['state'].output_mint} amount: {Decimal(output_amount) / Decimal(10**output_mint_decimals)}"
         )
-        ixs_take_order = await self.limo_client.take_order_ix(
+        ixs_take_order = self.limo_client.take_order_ix(
             self.private_key.pubkey(),
             order,
             input_amount,
