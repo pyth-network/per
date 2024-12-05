@@ -2,13 +2,7 @@ use {
     super::Auth,
     crate::{
         auction::{
-            api::{
-                process_bid,
-                BidCreate,
-                BidResult,
-                BidStatusWithId,
-                SvmChainUpdate,
-            },
+            api::process_bid,
             entities::BidId,
         },
         config::ChainId,
@@ -34,11 +28,19 @@ use {
         },
         response::IntoResponse,
     },
-    express_relay_api_types::opportunity::{
-        Opportunity,
-        OpportunityBidEvm,
-        OpportunityDelete,
-        OpportunityId,
+    express_relay_api_types::{
+        bid::{
+            BidCreate,
+            BidResult,
+            BidStatusWithId,
+        },
+        opportunity::{
+            Opportunity,
+            OpportunityBidEvm,
+            OpportunityDelete,
+            OpportunityId,
+        },
+        SvmChainUpdate,
     },
     futures::{
         stream::{

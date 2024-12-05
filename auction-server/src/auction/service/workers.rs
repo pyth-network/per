@@ -6,10 +6,7 @@ use {
     },
     crate::{
         api::ws::UpdateEvent,
-        auction::{
-            api::SvmChainUpdate,
-            service::conclude_auction::ConcludeAuctionInput,
-        },
+        auction::service::conclude_auction::ConcludeAuctionInput,
         kernel::entities::{
             Evm,
             Svm,
@@ -25,6 +22,7 @@ use {
     },
     axum_prometheus::metrics,
     ethers::providers::Middleware,
+    express_relay_api_types::SvmChainUpdate,
     solana_client::rpc_config::{
         RpcTransactionLogsConfig,
         RpcTransactionLogsFilter,

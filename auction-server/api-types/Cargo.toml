@@ -17,3 +17,5 @@ ethers = { workspace = true }
 time = { workspace = true, features = ["serde"] }
 base64 = { workspace = true }
 bincode = { workspace = true }
+email_address = { workspace = true }
+http = "1.2.0"
