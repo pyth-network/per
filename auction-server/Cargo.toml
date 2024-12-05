@@ -30,7 +30,7 @@ axum-macros = "0.4.0"
 sqlx = { version = "0.7.4", features = [ "runtime-tokio", "tls-native-tls", "postgres", "time", "uuid", "bigdecimal", "json" ] }
 tokio-util = { version = "0.7.10", features = ["rt"] }
 axum-extra = { version = "0.9.3", features = ["typed-header"] }
-email_address = "0.2.4"
+email_address = { workspace = true }
 rand = "0.8.5"
 base64 = { workspace = true }
 time = { workspace = true, features = ["serde"] }

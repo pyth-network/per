@@ -1,7 +1,6 @@
 use {
     crate::{
         api::{
-            profile as ApiProfile,
             ws::WsState,
             RestError,
         },
@@ -186,7 +185,7 @@ impl StoreNew {
 impl Store {
     pub async fn create_profile(
         &self,
-        create_profile: ApiProfile::CreateProfile,
+        create_profile: express_relay_api_types::profile::CreateProfile,
     ) -> Result<models::Profile, RestError> {
         let id = Uuid::new_v4();
         let role: models::ProfileRole = create_profile.role.clone().into();

@@ -1,7 +1,8 @@
 use {
     crate::{
-        auction::BidId,
+        bid::BidId,
         ChainId,
+        PermissionKeyEvm,
     },
     ethers::types::{
         Address,
@@ -85,7 +86,7 @@ pub struct OpportunityDeleteV1Svm {
 pub struct OpportunityDeleteV1Evm {
     /// The permission key of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
-    pub permission_key: Bytes,
+    pub permission_key: PermissionKeyEvm,
     /// The chain id for the opportunity.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:       ChainId,
@@ -138,7 +139,7 @@ pub struct TokenAmountEvm {
 pub struct OpportunityCreateV1Evm {
     /// The permission key required for successful execution of the opportunity.
     #[schema(example = "0xdeadbeefcafe", value_type = String)]
-    pub permission_key:    Bytes,
+    pub permission_key:    PermissionKeyEvm,
     /// The chain id where the opportunity will be executed.
     #[schema(example = "op_sepolia", value_type = String)]
     pub chain_id:          String,
@@ -397,7 +398,7 @@ pub struct GetOpportunitiesQueryParams {
     pub mode:           OpportunityMode,
     /// The permission key to filter the opportunities by. Used only in historical mode.
     #[param(example = "0xdeadbeef", value_type = Option< String >)]
-    pub permission_key: Option<Bytes>,
+    pub permission_key: Option<PermissionKeyEvm>,
     /// The time to get the opportunities from.
     #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
     #[serde(default, with = "crate::serde::nullable_datetime")]
@@ -412,7 +413,7 @@ pub struct GetOpportunitiesQueryParams {
 pub struct OpportunityBidEvm {
     /// The opportunity permission key.
     #[schema(example = "0xdeadbeefcafe", value_type=String)]
-    pub permission_key: Bytes,
+    pub permission_key: PermissionKeyEvm,
     /// The bid amount in wei.
     #[schema(example = "1000000000000000000", value_type=String)]
     #[serde(with = "crate::serde::u256")]

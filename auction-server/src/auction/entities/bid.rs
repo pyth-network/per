@@ -1,10 +1,7 @@
 use {
     super::AuctionId,
     crate::{
-        auction::{
-            api,
-            service::ChainTrait,
-        },
+        auction::service::ChainTrait,
         kernel::{
             contracts::MulticallData,
             entities::{
@@ -26,6 +23,7 @@ use {
         H256,
         U256,
     },
+    express_relay_api_types::bid as api,
     solana_sdk::{
         pubkey::Pubkey,
         signature::Signature,

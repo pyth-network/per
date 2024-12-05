@@ -8,10 +8,7 @@ use {
             ServerResultResponse,
             ServerUpdateResponse,
         },
-        auction::api::{
-            self as bid,
-            SvmChainUpdate,
-        },
+        auction::api as bid,
         config::RunOptions,
         models,
         opportunity::api as opportunity,
@@ -59,8 +56,10 @@ use {
     },
     clap::crate_version,
     ethers::types::Bytes,
-    express_relay_api_types as api_types,
-    serde::Serialize,
+    express_relay_api_types::{
+        self as api_types,
+        ErrorBodyResponse,
+    },
     std::sync::{
         atomic::Ordering,
         Arc,
@@ -74,8 +73,6 @@ use {
         },
         Modify,
         OpenApi,
-        ToResponse,
-        ToSchema,
     },
     utoipa_redoc::{
         Redoc,
@@ -164,12 +161,6 @@ impl RestError {
             ),
         }
     }
-}
-
-#[derive(ToResponse, ToSchema, Serialize)]
-#[response(description = "An error occurred processing the request")]
-pub struct ErrorBodyResponse {
-    error: String,
 }
 
 impl IntoResponse for RestError {
@@ -294,19 +285,19 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     components(
     schemas(
     APIResponse,
-    bid::BidCreate,
-    bid::BidCreateEvm,
-    bid::BidCreateSvm,
-    bid::BidStatus,
-    bid::BidStatusEvm,
-    bid::BidStatusSvm,
-    bid::BidStatusWithId,
-    bid::BidResult,
-    bid::Bid,
-    bid::BidEvm,
-    bid::BidSvm,
-    bid::Bids,
-    SvmChainUpdate,
+    api_types::bid::BidCreate,
+    api_types::bid::BidCreateEvm,
+    api_types::bid::BidCreateSvm,
+    api_types::bid::BidStatus,
+    api_types::bid::BidStatusEvm,
+    api_types::bid::BidStatusSvm,
+    api_types::bid::BidStatusWithId,
+    api_types::bid::BidResult,
+    api_types::bid::Bid,
+    api_types::bid::BidEvm,
+    api_types::bid::BidSvm,
+    api_types::bid::Bids,
+    api_types::SvmChainUpdate,
 
     api_types::opportunity::OpportunityBidEvm,
     api_types::opportunity::OpportunityBidResult,
@@ -350,8 +341,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     responses(
     ErrorBodyResponse,
     api_types::opportunity::Opportunity,
-    bid::BidResult,
-    bid::Bids,
+    api_types::bid::BidResult,
+    api_types::bid::Bids,
     ),
     ),
     tags(
