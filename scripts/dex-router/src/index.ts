@@ -132,6 +132,16 @@ export class DexRouter {
     const order = opportunity.order;
     const routeBest = await this.getBestRoute(order);
 
+    const remainingOutput = order.state.expectedOutputAmount.sub(
+      order.state.filledOutputAmount
+    );
+    if (routeBest.output.amountOut < remainingOutput) {
+      throw new Error(
+        `Route output amount is less than remaining output amount: ${routeBest.output.amountOut.toString(
+          10
+        )} < ${remainingOutput.toString(10)}`
+      );
+    }
     return {
       transaction: Buffer.from(routeBest.tx.serialize()).toString("base64"),
       chain_id: this.chainId,
