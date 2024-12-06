@@ -17,6 +17,7 @@ use {
         io::IsTerminal,
         time::Duration,
     },
+    tracing::Metadata,
     tracing_subscriber::{
         filter::{
             self,
@@ -39,6 +40,10 @@ mod serde;
 mod server;
 mod state;
 mod subwallet;
+
+fn is_internal(metadata: &Metadata) -> bool {
+    metadata.target().starts_with("auction_server")
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -71,7 +76,7 @@ async fn main() -> Result<()> {
     let registry = tracing_subscriber::registry()
         .with(MetricsLayer.with_filter(filter::filter_fn(is_metrics)))
         .with(telemetry.with_filter(filter::filter_fn(|metadata| {
-            !is_metrics(metadata) && metadata.target().starts_with("auction_server")
+            !is_metrics(metadata) && is_internal(metadata)
         })));
 
     if std::io::stderr().is_terminal() {
@@ -80,7 +85,9 @@ async fn main() -> Result<()> {
                 log_layer
                     .compact()
                     .with_filter(LevelFilter::INFO)
-                    .with_filter(filter::filter_fn(|metadata| !is_metrics(metadata))),
+                    .with_filter(filter::filter_fn(|metadata| {
+                        !is_metrics(metadata) && is_internal(metadata)
+                    })),
             )
             .init();
     } else {
@@ -89,7 +96,9 @@ async fn main() -> Result<()> {
                 log_layer
                     .json()
                     .with_filter(LevelFilter::INFO)
-                    .with_filter(filter::filter_fn(|metadata| !is_metrics(metadata))),
+                    .with_filter(filter::filter_fn(|metadata| {
+                        !is_metrics(metadata) && is_internal(metadata)
+                    })),
             )
             .init();
     }
