@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "auction-server",
     "gas-oracle",
+    "sdk/rust/simple-searcher",
     "sdk/rust",
 ]
 exclude = ["vault-simulator", "contracts/svm"]
@@ -23,6 +24,7 @@ solana-rpc-client = "2.0.13"
 solana-transaction-status = "2.0.13"
 solana-client = "2.0.13"
 email_address = "0.2.4"
+anyhow = "1.0.75"
 
 # The curve25519-dalek crate is a dependency of solana-sdk.
 # This crate relies on a specific version of zeroize that is incompatible with many other packages.
