@@ -143,9 +143,8 @@ pub enum BidStatusSvm {
     #[schema(title = "Pending")]
     Pending,
     /// The bid lost the auction.
-    /// The result will be None if the auction had no winner (because all bids were found to be invalid).
-    /// The result will be Some if this bid lost to another bid.
-    /// The signature of the transaction for the submitted bid is the result value.
+    /// This bid status will have a result field containing the signature of the transaction corresponding to the winning bid,
+    /// unless the auction had no winner (because all bids were found to be invalid).
     #[schema(title = "Lost")]
     Lost {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = Option<String>)]
