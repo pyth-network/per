@@ -121,7 +121,7 @@ class LimoClient:
         return ata, [ix]
 
     def get_init_if_needed_wsol_create_and_close_ixs(
-        self, owner: Pubkey, payer: Pubkey, amount_to_deposit_lamports: int
+        self, owner: Pubkey, amount_to_deposit_lamports: int
     ) -> WSOLInstructions:
         """
         Returns necessary instructions to create, fill and close a wrapped SOL account.
@@ -129,20 +129,19 @@ class LimoClient:
         Filling instruction doesn't take into account the current WSOL balance.
         Closing instruction always closes the WSOL account and unwraps all WSOL back to SOL.
         Args:
-            owner: Who owns the WSOL token account
-            payer: Who pays for the instructions
+            owner: Who owns the funds and also pays for creating it and funding it
             amount_to_deposit_lamports: Amount of lamports to deposit into the WSOL account
         """
         ata = self.get_ata(owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
 
         create_ixs = [
             self.create_associated_token_account_idempotent(
-                payer, owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
+                owner, owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
             )
         ]
 
         fill_ixs = []
-        if amount_to_deposit_lamports > 0 and payer == owner:
+        if amount_to_deposit_lamports > 0:
             fill_ixs = [
                 system_program.transfer(
                     TransferParams(
@@ -156,18 +155,16 @@ class LimoClient:
                 ),
             ]
 
-        close_ixs = []
-        if payer == owner:
-            close_ixs = [
-                spl_token.close_account(
-                    spl_token.CloseAccountParams(
-                        program_id=TOKEN_PROGRAM_ID,
-                        account=ata,
-                        dest=owner,
-                        owner=owner,
-                    )
+        close_ixs = [
+            spl_token.close_account(
+                spl_token.CloseAccountParams(
+                    program_id=TOKEN_PROGRAM_ID,
+                    account=ata,
+                    dest=owner,
+                    owner=owner,
                 )
-            ]
+            )
+        ]
         return WSOLInstructions(
             create_ixs=create_ixs, fill_ixs=fill_ixs, close_ixs=close_ixs, ata=ata
         )
@@ -228,7 +225,9 @@ class LimoClient:
             close_wsol_ixns.extend(instructions["close_ixs"])
             taker_output_ata = instructions["ata"]
 
-            intermediary_output_token_account = self.get_intermediary_token_account_pda(PROGRAM_ID, order["address"])
+            intermediary_output_token_account = self.get_intermediary_token_account_pda(
+                PROGRAM_ID, order["address"]
+            )
         else:
             (
                 taker_output_ata,
@@ -348,7 +347,10 @@ class LimoClient:
         )[0]
 
     @staticmethod
-    def get_intermediary_token_account_pda(program_id: Pubkey, order_address: Pubkey) -> Pubkey:
+    def get_intermediary_token_account_pda(
+        program_id: Pubkey, order_address: Pubkey
+    ) -> Pubkey:
         return Pubkey.find_program_address(
-            seeds=[INTERMEDIARY_OUTPUT_TOKEN_ACCOUNT_SEED, bytes(order_address)], program_id=program_id
+            seeds=[INTERMEDIARY_OUTPUT_TOKEN_ACCOUNT_SEED, bytes(order_address)],
+            program_id=program_id,
         )[0]
