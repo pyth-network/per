@@ -8,11 +8,9 @@ use {
             ws::UpdateEvent,
             RestError,
         },
-        auction::{
-            api::BidStatusWithId,
-            entities,
-        },
+        auction::entities,
     },
+    express_relay_api_types::bid::BidStatusWithId,
 };
 
 pub struct UpdateBidStatusInput<T: ChainTrait> {

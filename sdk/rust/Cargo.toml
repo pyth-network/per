@@ -1,0 +1,11 @@
+[package]
+name = "express-relay-client"
+version = "0.1.1"
+edition = "2021"
+description = "Pyth Express Relay client"
+repository = "https://github.com/pyth-network/per"
+license = "Apache-2.0"
+
+[dependencies]
+express-relay-api-types = { version = "0.0.0", path = "../../auction-server/api-types" }
+url = "2.5.4"

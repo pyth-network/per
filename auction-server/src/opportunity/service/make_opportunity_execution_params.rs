@@ -12,11 +12,9 @@ use {
             PermitBatchTransferFrom,
             TokenAmount,
         },
-        opportunity::{
-            api::OpportunityBidEvm,
-            entities,
-        },
+        opportunity::entities,
     },
+    express_relay_api_types::opportunity::OpportunityBidEvm,
 };
 
 pub struct MakeOpportunityExecutionParamsInput {

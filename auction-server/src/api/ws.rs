@@ -2,25 +2,11 @@ use {
     super::Auth,
     crate::{
         auction::{
-            api::{
-                process_bid,
-                BidCreate,
-                BidResult,
-                BidStatusWithId,
-                SvmChainUpdate,
-            },
+            api::process_bid,
             entities::BidId,
         },
         config::ChainId,
-        opportunity::{
-            api::{
-                Opportunity,
-                OpportunityBidEvm,
-                OpportunityDelete,
-                OpportunityId,
-            },
-            service::handle_opportunity_bid::HandleOpportunityBidInput,
-        },
+        opportunity::service::handle_opportunity_bid::HandleOpportunityBidInput,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -41,6 +27,20 @@ use {
             WebSocketUpgrade,
         },
         response::IntoResponse,
+    },
+    express_relay_api_types::{
+        bid::{
+            BidCreate,
+            BidResult,
+            BidStatusWithId,
+        },
+        opportunity::{
+            Opportunity,
+            OpportunityBidEvm,
+            OpportunityDelete,
+            OpportunityId,
+        },
+        SvmChainUpdate,
     },
     futures::{
         stream::{
