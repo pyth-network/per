@@ -8,3 +8,4 @@ license = "Apache-2.0"
 
 [dependencies]
 express-relay-api-types = { version = "0.0.0", path = "../../auction-server/api-types" }
+url = "2.5.4"

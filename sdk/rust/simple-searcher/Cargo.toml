@@ -1,0 +1,8 @@
+[package]
+name = "express-relay-simple-searcher"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+express-relay-client = { path = ".." }
+anyhow = { workspace = true }

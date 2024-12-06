@@ -19,7 +19,7 @@ axum = { version = "0.7.5", features = ["ws", "tracing"] }
 axum-streams = { version = "0.10.0", features = ["json", "text"] }
 clap = { version = "4.4.4", features = ["derive", "env", "cargo"] }
 tracing = { version = "0.1.40", features = ["log"] }
-anyhow = "1.0.75"
+anyhow = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
 async-stream = "0.3.5"
 utoipa = { workspace = true, features = ["axum_extras"] }
