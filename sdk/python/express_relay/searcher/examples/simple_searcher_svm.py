@@ -90,7 +90,7 @@ class SimpleSearcherSvm:
             self.logger.info(f"No recent blockhash for chain, {opp.chain_id} skipping bid")
             return None
 
-        bid = await self.assess_opportunity(typing.cast(OpportunitySvm, opp))
+        bid = await self.generate_bid(typing.cast(OpportunitySvm, opp))
 
         if bid:
             try:
@@ -127,14 +127,15 @@ class SimpleSearcherSvm:
             ] = await self.limo_client.get_mint_decimals(mint)
         return self.mint_decimals_cache[str(mint)]
 
-    async def assess_opportunity(self, opp: OpportunitySvm) -> BidSvm | None:
+    async def generate_bid(self, opp: OpportunitySvm) -> BidSvm:
         """
-        Method to assess an opportunity and return a bid if the opportunity is worth taking. This method always returns a bid for any valid opportunity. The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
+        Generates a bid for a given opportunity.
+        The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
 
         Args:
-            opp: An object representing a single opportunity.
+            opp: The SVM opportunity to bid on
         Returns:
-            A bid object if the opportunity is worth taking to be submitted to the Express Relay server, otherwise None.
+            The generated bid object
         """
         order: OrderStateAndAddress = {"address": opp.order_address, "state": opp.order}
 
