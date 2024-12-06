@@ -88,10 +88,9 @@ export class SimpleSearcherLimo {
   }
 
   /**
-   * Generates a bid for a given opportunity.
-   * The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
-   * @param opportunity The SVM opportunity to bid on.
-   * @returns The generated bid object.
+   * Generates a bid for a given opportunity. The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
+   * @param opportunity The SVM opportunity to bid on
+   * @returns The generated bid object
    */
   async generateBid(opportunity: OpportunitySvm): Promise<BidSvm> {
     const order = opportunity.order;
