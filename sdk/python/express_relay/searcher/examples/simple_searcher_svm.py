@@ -133,9 +133,9 @@ class SimpleSearcherSvm:
         The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
 
         Args:
-            opp: The SVM opportunity to bid on
+            opp: The SVM opportunity to bid on.
         Returns:
-            The generated bid object
+            The generated bid object.
         """
         order: OrderStateAndAddress = {"address": opp.order_address, "state": opp.order}
 
