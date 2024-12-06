@@ -35,7 +35,7 @@ impl Service<ChainTypeEvm> {
                 let result = find_spoof_info(input.token, Arc::new(config.provider.clone()))
                     .await
                     .unwrap_or_else(|e| {
-                        tracing::error!("Error finding spoof info: {:?}", e);
+                        tracing::warn!(error = ?e, "Couldn't find spoof info");
                         entities::SpoofInfo {
                             token: input.token,
                             state: entities::SpoofState::UnableToSpoof,

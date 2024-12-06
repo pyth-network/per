@@ -109,11 +109,11 @@ impl Service<ChainTypeEvm> {
         {
             Ok(bid) => Ok(bid.id),
             Err(e) => {
-                tracing::error!(
+                tracing::warn!(
                     error = ?e,
                     opportunity = ?opportunity,
                     bid_create = ?bid_create,
-                    "Error handling bid",
+                    "Handling bid failed for opportunity_bid",
                 );
                 match e {
                     RestError::SimulationError { result, reason } => {
