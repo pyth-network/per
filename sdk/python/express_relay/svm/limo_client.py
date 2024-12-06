@@ -127,7 +127,7 @@ class LimoClient:
         Returns necessary instructions to create, fill and close a wrapped SOL account.
         Creation instruction is idempotent.
         Filling instruction doesn't take into account the current WSOL balance.
-        Closing instruction unwraps all the WSOL back to the owner, even if it was deposited by another transaction.
+        Closing instruction always closes the WSOL account and unwraps all WSOL back to SOL.
         Args:
             owner: Who owns the WSOL token account
             payer: Who pays for the instructions
