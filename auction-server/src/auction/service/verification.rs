@@ -186,6 +186,8 @@ impl Verification<Evm> for Service<Evm> {
         input: VerifyBidInput<Evm>,
     ) -> Result<VerificationResult<Evm>, RestError> {
         let bid = input.bid_create;
+        tracing::Span::current()
+            .record("permission_key", bid.chain_data.permission_key.to_string());
         let call = self.get_simulation_call(
             bid.chain_data.permission_key.clone(),
             vec![MulticallData::from((
@@ -671,6 +673,7 @@ impl Verification<Svm> for Service<Svm> {
             transaction:        bid.chain_data.transaction.clone(),
         };
         let permission_key = bid_chain_data.get_permission_key();
+        tracing::Span::current().record("permission_key", bid_data.permission_account.to_string());
         self.check_deadline(&permission_key, bid_data.deadline)
             .await?;
         self.verify_signatures(&bid, &bid_chain_data).await?;

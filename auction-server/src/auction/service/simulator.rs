@@ -326,6 +326,35 @@ impl Simulator {
         svm
     }
 
+
+    #[allow(clippy::result_large_err)]
+    fn check_rent_exemption(
+        svm: &LiteSVM,
+        simulation_result: Result<SimulatedTransactionInfo, FailedTransactionMetadata>,
+    ) -> Result<SimulatedTransactionInfo, FailedTransactionMetadata> {
+        let tx_info = simulation_result?;
+        for (pubkey, data) in &tx_info.post_accounts {
+            // Ignore if lamports are zero since the account may be closed in the transaction
+            if 0 < data.lamports()
+                && data.lamports() < svm.minimum_balance_for_rent_exemption(data.data().len())
+            {
+                let mut metadata = tx_info.meta.clone();
+                metadata
+                    .logs
+                    .push(format!("Insufficient Funds For Rent: {}", pubkey));
+                return Err(FailedTransactionMetadata {
+                    //TODO: account_index is not correct, we should find it from the transaction
+                    // the meta logs reflect a successful transaction which is inconsistent with the error
+                    err:  solana_sdk::transaction::TransactionError::InsufficientFundsForRent {
+                        account_index: 0,
+                    },
+                    meta: metadata,
+                });
+            }
+        }
+        Ok(tx_info)
+    }
+
     /// Simulates a transaction with the current state of the chain
     /// applying pending transactions beforehand. The simulation is done locally via fetching
     /// all the necessary accounts from the RPC.
@@ -348,6 +377,7 @@ impl Simulator {
             let _ = svm.send_transaction(tx);
         });
         let res = svm.simulate_transaction(transaction.clone());
+        let res = Self::check_rent_exemption(&svm, res);
         Ok(Response {
             value:   res,
             context: accounts_config_with_context.context,

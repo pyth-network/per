@@ -21,7 +21,10 @@ impl<T: ChainTrait> Service<T>
 where
     Service<T>: Verification<T>,
 {
-    #[tracing::instrument(skip_all, fields(bid_id, profile_name, simulation_error))]
+    #[tracing::instrument(
+        skip_all,
+        fields(bid_id, profile_name, simulation_error, permission_key)
+    )]
     pub async fn handle_bid(
         &self,
         input: HandleBidInput<T>,
