@@ -196,7 +196,7 @@ class LimoClient:
         taker_input_ata: Pubkey
         if order["state"].input_mint == WRAPPED_SOL_MINT:
             instructions = self.get_init_if_needed_wsol_create_and_close_ixs(
-                owner=taker, payer=taker, amount_to_deposit_lamports=0
+                owner=taker, amount_to_deposit_lamports=0
             )
             ixs.extend(instructions["create_ixs"])
             close_wsol_ixns.extend(instructions["close_ixs"])
@@ -218,7 +218,7 @@ class LimoClient:
         intermediary_output_token_account: Pubkey | None = None
         if order["state"].output_mint == WRAPPED_SOL_MINT:
             instructions = self.get_init_if_needed_wsol_create_and_close_ixs(
-                owner=taker, payer=taker, amount_to_deposit_lamports=output_amount
+                owner=taker, amount_to_deposit_lamports=output_amount
             )
             ixs.extend(instructions["create_ixs"])
             ixs.extend(instructions["fill_ixs"])
