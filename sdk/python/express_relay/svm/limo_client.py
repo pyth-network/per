@@ -129,7 +129,7 @@ class LimoClient:
         Filling instruction doesn't take into account the current WSOL balance.
         Closing instruction always closes the WSOL account and unwraps all WSOL back to SOL.
         Args:
-            owner: Who owns the funds and also pays for creating it and funding it
+            owner: Who owns the WSOL token account and also pays for creating it and funding it
             amount_to_deposit_lamports: Amount of lamports to deposit into the WSOL account
         """
         ata = self.get_ata(owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
