@@ -13,6 +13,7 @@ use {
         U256,
     },
     serde::{
+        de,
         Deserialize,
         Serialize,
     },
@@ -376,12 +377,35 @@ pub struct OpportunitySvm {
     pub params: OpportunityParamsSvm,
 }
 
-#[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
+#[derive(Serialize, ToResponse, ToSchema, Clone)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum Opportunity {
     Evm(OpportunityEvm),
     Svm(OpportunitySvm),
+}
+
+// Default deserialize implementation is not working for opportunity
+impl<'de> ::serde::Deserialize<'de> for Opportunity {
+    fn deserialize<D>(deserializer: D) -> Result<Opportunity, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        let json_value = serde_json::Value::deserialize(deserializer)?;
+        let value: Result<OpportunityEvm, serde_json::Error> =
+            serde_json::from_value(json_value.clone());
+        match value {
+            Ok(opportunity) => Ok(Opportunity::Evm(opportunity)),
+            Err(evm_error) => serde_json::from_value(json_value)
+                .map(Opportunity::Svm)
+                .map_err(|svm_error| {
+                    de::Error::custom(format!(
+                        "Failed to deserialize opportunity as EVM: {:?}, as SVM: {:?}",
+                        evm_error, svm_error
+                    ))
+                }),
+        }
+    }
 }
 
 fn default_opportunity_mode() -> OpportunityMode {
@@ -596,7 +620,7 @@ pub enum Route {
 }
 
 impl RouteTrait for Route {
-    fn get_access_level(&self) -> AccessLevel {
+    fn access_level(&self) -> AccessLevel {
         match self {
             Route::PostOpportunity => AccessLevel::Public,
             Route::PostQuote => AccessLevel::Public,
@@ -614,5 +638,15 @@ impl RouteTrait for Route {
             Route::OpportunityBid => http::Method::POST,
             Route::DeleteOpportunities => http::Method::DELETE,
         }
+    }
+
+    fn full_path(&self) -> String {
+        let path = format!(
+            "{}{}{}",
+            crate::Route::V1.as_ref(),
+            crate::Route::Opportunity.as_ref(),
+            self.as_ref()
+        );
+        path.trim_end_matches("/").to_string()
     }
 }

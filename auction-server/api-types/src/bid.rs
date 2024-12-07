@@ -315,7 +315,7 @@ pub enum Route {
 }
 
 impl RouteTrait for Route {
-    fn get_access_level(&self) -> AccessLevel {
+    fn access_level(&self) -> AccessLevel {
         match self {
             Route::GetBidsByTime => AccessLevel::LoggedIn,
             Route::PostBid => AccessLevel::Public,
@@ -329,5 +329,15 @@ impl RouteTrait for Route {
             Route::PostBid => http::Method::POST,
             Route::GetBidStatus => http::Method::GET,
         }
+    }
+
+    fn full_path(&self) -> String {
+        let path = format!(
+            "{}{}{}",
+            crate::Route::V1.as_ref(),
+            crate::Route::Bid.as_ref(),
+            self.as_ref()
+        );
+        path.trim_end_matches('/').to_string()
     }
 }
