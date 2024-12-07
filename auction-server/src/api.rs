@@ -43,7 +43,6 @@ use {
             patch,
             post,
             put,
-            MethodRouter,
         },
         Json,
         Router,
@@ -69,12 +68,9 @@ use {
         Route,
         RouteTrait,
     },
-    std::{
-        convert::Infallible,
-        sync::{
-            atomic::Ordering,
-            Arc,
-        },
+    std::sync::{
+        atomic::Ordering,
+        Arc,
     },
     tower_http::cors::CorsLayer,
     utoipa::{
@@ -275,31 +271,6 @@ fn remove_discriminators(doc: &mut serde_json::Value) {
     }
 }
 
-fn get_method_router<H, T>(
-    route: impl RouteTrait,
-    handler: H,
-    store: Arc<StoreNew>,
-) -> MethodRouter<Arc<StoreNew>, Infallible>
-where
-    H: Handler<T, Arc<StoreNew>>,
-    T: 'static,
-{
-    let handler = match route.method() {
-        Method::GET => get(handler),
-        Method::POST => post(handler),
-        Method::DELETE => delete(handler),
-        Method::PUT => put(handler),
-        Method::PATCH => patch(handler),
-        _ => panic!("Unsupported method"),
-    };
-
-    match route.get_access_level() {
-        AccessLevel::Admin => admin_only!(store, handler),
-        AccessLevel::LoggedIn => login_required!(store, handler),
-        AccessLevel::Public => handler,
-    }
-}
-
 pub struct WrappedRouter {
     store:      Arc<StoreNew>,
     pub router: Router<Arc<StoreNew>>,
@@ -318,12 +289,24 @@ impl WrappedRouter {
         H: Handler<T, Arc<StoreNew>>,
         T: 'static,
     {
+        let handler = match route.method() {
+            Method::GET => get(handler),
+            Method::POST => post(handler),
+            Method::DELETE => delete(handler),
+            Method::PUT => put(handler),
+            Method::PATCH => patch(handler),
+            _ => panic!("Unsupported method"),
+        };
+
+        let handler = match route.get_access_level() {
+            AccessLevel::Admin => admin_only!(self.store, handler),
+            AccessLevel::LoggedIn => login_required!(self.store, handler),
+            AccessLevel::Public => handler,
+        };
+
         Self {
-            store:  self.store.clone(),
-            router: self.router.route(
-                route.as_ref(),
-                get_method_router(route.clone(), handler, self.store),
-            ),
+            store:  self.store,
+            router: self.router.route(route.as_ref(), handler),
         }
     }
 }
