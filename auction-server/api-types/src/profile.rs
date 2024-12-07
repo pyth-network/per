@@ -1,9 +1,14 @@
 use {
+    crate::{
+        AccessLevel,
+        RouteTrait,
+    },
     email_address::EmailAddress,
     serde::{
         Deserialize,
         Serialize,
     },
+    strum::AsRefStr,
     utoipa::{
         IntoParams,
         ToResponse,
@@ -67,4 +72,37 @@ pub struct AccessToken {
     /// The token for later use.
     #[schema(example = "_q9zUYP-tQg8F7kQi2Rfl5c6sSy7xcc2yWh2H-nI-iI", value_type = String)]
     pub token: String,
+}
+
+#[derive(AsRefStr, Clone)]
+#[strum(prefix = "/")]
+pub enum Route {
+    #[strum(serialize = "")]
+    PostProfile,
+    #[strum(serialize = "")]
+    GetProfile,
+    #[strum(serialize = "access_tokens")]
+    PostProfileAccessToken,
+    #[strum(serialize = "access_tokens")]
+    DeleteProfileAccessToken,
+}
+
+impl RouteTrait for Route {
+    fn get_access_level(&self) -> AccessLevel {
+        match self {
+            Route::PostProfile => AccessLevel::Admin,
+            Route::GetProfile => AccessLevel::Admin,
+            Route::PostProfileAccessToken => AccessLevel::Admin,
+            Route::DeleteProfileAccessToken => AccessLevel::LoggedIn,
+        }
+    }
+
+    fn method(&self) -> http::Method {
+        match self {
+            Route::PostProfile => http::Method::POST,
+            Route::GetProfile => http::Method::GET,
+            Route::PostProfileAccessToken => http::Method::POST,
+            Route::DeleteProfileAccessToken => http::Method::DELETE,
+        }
+    }
 }

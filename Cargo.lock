@@ -2574,6 +2574,7 @@ dependencies = [
  "serde_json",
  "serde_with 3.11.0",
  "solana-sdk",
+ "strum",
  "time",
  "utoipa",
  "uuid 1.11.0",
