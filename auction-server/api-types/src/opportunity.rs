@@ -1,8 +1,10 @@
 use {
     crate::{
         bid::BidId,
+        AccessLevel,
         ChainId,
         PermissionKeyEvm,
+        RouteTrait,
     },
     ethers::types::{
         Address,
@@ -24,6 +26,7 @@ use {
         pubkey::Pubkey,
         transaction::VersionedTransaction,
     },
+    strum::AsRefStr,
     time::OffsetDateTime,
     utoipa::{
         IntoParams,
@@ -573,6 +576,43 @@ impl OpportunityDelete {
         match self {
             OpportunityDelete::Svm(OpportunityDeleteSvm::V1(params)) => &params.chain_id,
             OpportunityDelete::Evm(OpportunityDeleteEvm::V1(params)) => &params.chain_id,
+        }
+    }
+}
+
+#[derive(AsRefStr, Clone)]
+#[strum(prefix = "/")]
+pub enum Route {
+    #[strum(serialize = "")]
+    PostOpportunity,
+    #[strum(serialize = "quote")]
+    PostQuote,
+    #[strum(serialize = "")]
+    GetOpportunities,
+    #[strum(serialize = ":opportunity_id/bids")]
+    OpportunityBid,
+    #[strum(serialize = "")]
+    DeleteOpportunities,
+}
+
+impl RouteTrait for Route {
+    fn get_access_level(&self) -> AccessLevel {
+        match self {
+            Route::PostOpportunity => AccessLevel::Public,
+            Route::PostQuote => AccessLevel::Public,
+            Route::GetOpportunities => AccessLevel::Public,
+            Route::OpportunityBid => AccessLevel::Public,
+            Route::DeleteOpportunities => AccessLevel::LoggedIn,
+        }
+    }
+
+    fn method(&self) -> http::Method {
+        match self {
+            Route::PostOpportunity => http::Method::POST,
+            Route::PostQuote => http::Method::POST,
+            Route::GetOpportunities => http::Method::GET,
+            Route::OpportunityBid => http::Method::POST,
+            Route::DeleteOpportunities => http::Method::DELETE,
         }
     }
 }
