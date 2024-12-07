@@ -16,16 +16,15 @@ use {
     },
     crate::{
         api::{
-            require_login_middleware,
             Auth,
             RestError,
+            WrappedRouter,
         },
         kernel::entities::{
             ChainId,
             Evm,
             Svm,
         },
-        login_required,
         models,
         state::StoreNew,
     },
@@ -35,11 +34,6 @@ use {
             Path,
             Query,
             State,
-        },
-        middleware,
-        routing::{
-            get,
-            post,
         },
         Json,
         Router,
@@ -61,6 +55,7 @@ use {
             Bids,
             GetBidStatusParams,
             GetBidsByTimeQueryParams,
+            Route,
         },
         ErrorBodyResponse,
     },
@@ -234,19 +229,18 @@ pub async fn get_bids_by_time_deprecated(
 
 pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     #[allow(deprecated)]
-    Router::new()
-        .route("/", post(post_bid))
-        .route(
-            "/",
-            login_required!(store, get(get_bids_by_time_deprecated)),
-        )
-        .route("/:bid_id", get(get_bid_status_deprecated))
+    WrappedRouter::new(store)
+        .route(Route::PostBid, post_bid)
+        .route(Route::GetBidsByTime, get_bids_by_time_deprecated)
+        .route(Route::GetBidStatus, get_bid_status_deprecated)
+        .router
 }
 
 pub fn get_routes_with_chain_id(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
-    Router::new()
-        .route("/", login_required!(store, get(get_bids_by_time)))
-        .route("/:bid_id", get(get_bid_status))
+    WrappedRouter::new(store)
+        .route(Route::GetBidsByTime, get_bids_by_time)
+        .route(Route::GetBidStatus, get_bid_status)
+        .router
 }
 
 impl From<entities::BidStatusEvm> for BidStatusEvm {

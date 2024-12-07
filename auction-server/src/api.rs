@@ -26,8 +26,10 @@ use {
             FromRef,
             FromRequestParts,
         },
+        handler::Handler,
         http::{
             request::Parts,
+            Method,
             StatusCode,
         },
         middleware,
@@ -38,7 +40,10 @@ use {
         routing::{
             delete,
             get,
+            patch,
             post,
+            put,
+            MethodRouter,
         },
         Json,
         Router,
@@ -58,11 +63,18 @@ use {
     ethers::types::Bytes,
     express_relay_api_types::{
         self as api_types,
+        profile::Route as ProfileRoute,
+        AccessLevel,
         ErrorBodyResponse,
+        Route,
+        RouteTrait,
     },
-    std::sync::{
-        atomic::Ordering,
-        Arc,
+    std::{
+        convert::Infallible,
+        sync::{
+            atomic::Ordering,
+            Arc,
+        },
     },
     tower_http::cors::CorsLayer,
     utoipa::{
@@ -263,6 +275,59 @@ fn remove_discriminators(doc: &mut serde_json::Value) {
     }
 }
 
+fn get_method_router<H, T>(
+    route: impl RouteTrait,
+    handler: H,
+    store: Arc<StoreNew>,
+) -> MethodRouter<Arc<StoreNew>, Infallible>
+where
+    H: Handler<T, Arc<StoreNew>>,
+    T: 'static,
+{
+    let handler = match route.method() {
+        Method::GET => get(handler),
+        Method::POST => post(handler),
+        Method::DELETE => delete(handler),
+        Method::PUT => put(handler),
+        Method::PATCH => patch(handler),
+        _ => panic!("Unsupported method"),
+    };
+
+    match route.get_access_level() {
+        AccessLevel::Admin => admin_only!(store, handler),
+        AccessLevel::LoggedIn => login_required!(store, handler),
+        AccessLevel::Public => handler,
+    }
+}
+
+pub struct WrappedRouter {
+    store:      Arc<StoreNew>,
+    pub router: Router<Arc<StoreNew>>,
+}
+
+impl WrappedRouter {
+    pub fn new(store: Arc<StoreNew>) -> Self {
+        Self {
+            store,
+            router: Router::new(),
+        }
+    }
+
+    pub fn route<H, T>(self, route: impl RouteTrait, handler: H) -> Self
+    where
+        H: Handler<T, Arc<StoreNew>>,
+        T: 'static,
+    {
+        Self {
+            store:  self.store.clone(),
+            router: self.router.route(
+                route.as_ref(),
+                get_method_router(route.clone(), handler, self.store),
+            ),
+        }
+    }
+}
+
 pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
@@ -368,30 +433,37 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         }
     }
 
-    let profile_routes = Router::new()
-        .route("/", admin_only!(store, post(profile::post_profile)))
-        .route("/", admin_only!(store, get(profile::get_profile)))
+    let profile_routes = WrappedRouter::new(store.clone())
+        .route(ProfileRoute::PostProfile, profile::post_profile)
+        .route(ProfileRoute::GetProfile, profile::get_profile)
         .route(
-            "/access_tokens",
-            admin_only!(store, post(profile::post_profile_access_token)),
+            ProfileRoute::PostProfileAccessToken,
+            profile::post_profile_access_token,
         )
         .route(
-            "/access_tokens",
-            login_required!(store, delete(profile::delete_profile_access_token)),
-        );
+            ProfileRoute::DeleteProfileAccessToken,
+            profile::delete_profile_access_token,
+        )
+        .router;
 
     let v1_routes = Router::new().nest(
-        "/v1",
+        Route::V1.as_ref(),
         Router::new()
-            .nest("/bids", bid::get_routes(store.clone()))
-            .nest("/opportunities", opportunity::get_routes(store.clone()))
-            .nest("/profiles", profile_routes)
-            .route("/ws", get(ws::ws_route_handler)),
+            .nest(Route::Bid.as_ref(), bid::get_routes(store.clone()))
+            .nest(
+                Route::Opportunity.as_ref(),
+                opportunity::get_routes(store.clone()),
+            )
+            .nest(Route::Profile.as_ref(), profile_routes)
+            .route(Route::Ws.as_ref(), get(ws::ws_route_handler)),
     );
 
     let v1_routes_with_chain_id = Router::new().nest(
-        "/v1/:chain_id",
-        Router::new().nest("/bids", bid::get_routes_with_chain_id(store.clone())),
+        Route::V1Chain.as_ref(),
+        Router::new().nest(
+            Route::Bid.as_ref(),
+            bid::get_routes_with_chain_id(store.clone()),
+        ),
     );
 
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
@@ -409,12 +481,12 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     remove_discriminators(&mut redoc_doc);
 
     let app: Router<()> = Router::new()
-        .merge(Redoc::with_url("/docs", redoc_doc.clone()))
+        .merge(Redoc::with_url(Route::Docs.as_ref(), redoc_doc.clone()))
         .merge(v1_routes)
         .merge(v1_routes_with_chain_id)
-        .route("/", get(root))
-        .route("/live", get(live))
-        .route("/docs/openapi.json", get(original_doc.to_string()))
+        .route(Route::Root.as_ref(), get(root))
+        .route(Route::Liveness.as_ref(), get(live))
+        .route(Route::OpenApi.as_ref(), get(original_doc.to_string()))
         .layer(CorsLayer::permissive())
         .layer(middleware::from_extractor_with_state::<Auth, Arc<StoreNew>>(store.clone()))
         .layer(prometheus_layer)

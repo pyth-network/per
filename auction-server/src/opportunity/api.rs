@@ -11,11 +11,10 @@ use {
     },
     crate::{
         api::{
-            require_login_middleware,
             Auth,
             RestError,
+            WrappedRouter,
         },
-        login_required,
         models,
         state::StoreNew,
     },
@@ -26,12 +25,6 @@ use {
             State,
         },
         http::StatusCode,
-        middleware,
-        routing::{
-            delete,
-            get,
-            post,
-        },
         Json,
         Router,
     },
@@ -48,6 +41,7 @@ use {
             ProgramSvm,
             Quote,
             QuoteCreate,
+            Route,
         },
         ErrorBodyResponse,
     },
@@ -269,10 +263,11 @@ pub async fn delete_opportunities(
 }
 
 pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
-    Router::new()
-        .route("/", post(post_opportunity))
-        .route("/quote", post(post_quote))
-        .route("/", get(get_opportunities))
-        .route("/:opportunity_id/bids", post(opportunity_bid))
-        .route("/", login_required!(store, delete(delete_opportunities)))
+    WrappedRouter::new(store)
+        .route(Route::PostOpportunity, post_opportunity)
+        .route(Route::PostQuote, post_quote)
+        .route(Route::OpportunityBid, opportunity_bid)
+        .route(Route::GetOpportunities, get_opportunities)
+        .route(Route::DeleteOpportunities, delete_opportunities)
+        .router
 }

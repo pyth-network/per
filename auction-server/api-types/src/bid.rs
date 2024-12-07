@@ -1,9 +1,11 @@
 use {
     crate::{
         profile::ProfileId,
+        AccessLevel,
         ChainId,
         PermissionKeyEvm,
         PermissionKeySvm,
+        RouteTrait,
     },
     ethers::types::{
         Address,
@@ -23,6 +25,7 @@ use {
         signature::Signature,
         transaction::VersionedTransaction,
     },
+    strum::AsRefStr,
     time::OffsetDateTime,
     utoipa::{
         IntoParams,
@@ -296,6 +299,35 @@ impl BidCreate {
         match self {
             BidCreate::Evm(bid_create_evm) => bid_create_evm.chain_id.clone(),
             BidCreate::Svm(bid_create_svm) => bid_create_svm.chain_id.clone(),
+        }
+    }
+}
+
+#[derive(AsRefStr, Clone)]
+#[strum(prefix = "/")]
+pub enum Route {
+    #[strum(serialize = "")]
+    GetBidsByTime,
+    #[strum(serialize = "")]
+    PostBid,
+    #[strum(serialize = ":bid_id")]
+    GetBidStatus,
+}
+
+impl RouteTrait for Route {
+    fn get_access_level(&self) -> AccessLevel {
+        match self {
+            Route::GetBidsByTime => AccessLevel::LoggedIn,
+            Route::PostBid => AccessLevel::Public,
+            Route::GetBidStatus => AccessLevel::Public,
+        }
+    }
+
+    fn method(&self) -> http::Method {
+        match self {
+            Route::GetBidsByTime => http::Method::GET,
+            Route::PostBid => http::Method::POST,
+            Route::GetBidStatus => http::Method::GET,
         }
     }
 }

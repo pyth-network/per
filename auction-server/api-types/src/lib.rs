@@ -16,6 +16,7 @@ use {
         SerializeAs,
     },
     solana_sdk::hash::Hash,
+    strum::AsRefStr,
     utoipa::{
         ToResponse,
         ToSchema,
@@ -68,4 +69,40 @@ pub struct SvmChainUpdate {
 #[response(description = "An error occurred processing the request")]
 pub struct ErrorBodyResponse {
     pub error: String,
+}
+
+#[derive(AsRefStr)]
+#[strum(prefix = "/")]
+pub enum Route {
+    #[strum(serialize = "v1")]
+    V1,
+    #[strum(serialize = "v1/:chain_id")]
+    V1Chain,
+    #[strum(serialize = "bids")]
+    Bid,
+    #[strum(serialize = "opportunities")]
+    Opportunity,
+    #[strum(serialize = "profiles")]
+    Profile,
+    #[strum(serialize = "ws")]
+    Ws,
+    #[strum(serialize = "")]
+    Root,
+    #[strum(serialize = "live")]
+    Liveness,
+    #[strum(serialize = "docs")]
+    Docs,
+    #[strum(serialize = "docs/openapi.json")]
+    OpenApi,
+}
+
+pub enum AccessLevel {
+    Admin,
+    LoggedIn,
+    Public,
+}
+
+pub trait RouteTrait: AsRef<str> + Clone {
+    fn get_access_level(&self) -> AccessLevel;
+    fn method(&self) -> http::Method;
 }
