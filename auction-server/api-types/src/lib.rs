@@ -96,6 +96,7 @@ pub enum Route {
     OpenApi,
 }
 
+#[derive(PartialEq)]
 pub enum AccessLevel {
     Admin,
     LoggedIn,
@@ -103,6 +104,7 @@ pub enum AccessLevel {
 }
 
 pub trait RouteTrait: AsRef<str> + Clone {
-    fn get_access_level(&self) -> AccessLevel;
+    fn access_level(&self) -> AccessLevel;
     fn method(&self) -> http::Method;
+    fn full_path(&self) -> String;
 }

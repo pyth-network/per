@@ -88,7 +88,7 @@ pub enum Route {
 }
 
 impl RouteTrait for Route {
-    fn get_access_level(&self) -> AccessLevel {
+    fn access_level(&self) -> AccessLevel {
         match self {
             Route::PostProfile => AccessLevel::Admin,
             Route::GetProfile => AccessLevel::Admin,
@@ -104,5 +104,15 @@ impl RouteTrait for Route {
             Route::PostProfileAccessToken => http::Method::POST,
             Route::DeleteProfileAccessToken => http::Method::DELETE,
         }
+    }
+
+    fn full_path(&self) -> String {
+        let path = format!(
+            "{}{}{}",
+            crate::Route::V1.as_ref(),
+            crate::Route::Profile.as_ref(),
+            self.as_ref()
+        );
+        path.trim_end_matches("/").to_string()
     }
 }

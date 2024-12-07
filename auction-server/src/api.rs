@@ -298,7 +298,7 @@ impl WrappedRouter {
             _ => panic!("Unsupported method"),
         };
 
-        let handler = match route.get_access_level() {
+        let handler = match route.access_level() {
             AccessLevel::Admin => admin_only!(self.store, handler),
             AccessLevel::LoggedIn => login_required!(self.store, handler),
             AccessLevel::Public => handler,
