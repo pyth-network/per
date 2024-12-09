@@ -167,7 +167,7 @@ pub async fn get_opportunities(
 
     if opportunities_evm.is_err() && opportunities_svm.is_err() {
         // TODO better error handling, if the chain_id is svm and we have some serious error there, we would just return chain_id is not found on evm side
-        Err(opportunities_evm.expect_err("Failed to get error from opportunities_evm"))
+        Err(opportunities_svm.expect_err("Failed to get error from opportunities_evm"))
     } else {
         let mut opportunities: Vec<Opportunity> = vec![];
         if let Ok(opportunities_evm) = opportunities_evm {

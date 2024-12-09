@@ -27,6 +27,7 @@ pub mod bid;
 pub mod opportunity;
 pub mod profile;
 pub mod serde;
+pub mod ws;
 
 pub type MicroLamports = u64;
 pub type ChainId = String;
@@ -65,7 +66,7 @@ pub struct SvmChainUpdate {
     pub latest_prioritization_fee: MicroLamports,
 }
 
-#[derive(ToResponse, ToSchema, Serialize)]
+#[derive(ToResponse, ToSchema, Serialize, Deserialize)]
 #[response(description = "An error occurred processing the request")]
 pub struct ErrorBodyResponse {
     pub error: String,
