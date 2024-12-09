@@ -8,8 +8,8 @@ license-file = "license.txt"
 anchor-lang-idl = { version = "0.1.1", features = ["convert"] }
 
 [dependencies]
-tokio = { version = "1.28", features = ["macros", "sync", "rt-multi-thread", "signal"] }
-tokio-stream = "0.1.14"
+tokio = { workspace = true, features = ["macros", "sync", "rt-multi-thread", "signal"] }
+tokio-stream = { workspace = true }
 tower-http = { version = "0.5.2", features = ["cors"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

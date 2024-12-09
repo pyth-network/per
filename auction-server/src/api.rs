@@ -1,13 +1,5 @@
 use {
     crate::{
-        api::ws::{
-            APIResponse,
-            ClientMessage,
-            ClientRequest,
-            ServerResultMessage,
-            ServerResultResponse,
-            ServerUpdateResponse,
-        },
         auction::api as bid,
         config::RunOptions,
         models,
@@ -332,7 +324,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     ),
     components(
     schemas(
-    APIResponse,
+    api_types::ws::APIResponse,
     api_types::bid::BidCreate,
     api_types::bid::BidCreateEvm,
     api_types::bid::BidCreateSvm,
@@ -380,11 +372,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::opportunity::ProgramSvm,
 
     ErrorBodyResponse,
-    ClientRequest,
-    ClientMessage,
-    ServerResultMessage,
-    ServerUpdateResponse,
-    ServerResultResponse,
+    api_types::ws::ClientRequest,
+    api_types::ws::ClientMessage,
+    api_types::ws::ServerResultMessage,
+    api_types::ws::ServerUpdateResponse,
+    api_types::ws::ServerResultResponse,
     ),
     responses(
     ErrorBodyResponse,

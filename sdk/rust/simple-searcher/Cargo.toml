@@ -7,3 +7,4 @@ edition = "2021"
 express-relay-client = { path = ".." }
 anyhow = { workspace = true }
 tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread"] }
+time = { workspace = true }
