@@ -25,6 +25,9 @@ solana-transaction-status = "2.0.13"
 solana-client = "2.0.13"
 email_address = "0.2.4"
 anyhow = "1.0.75"
+strum = "0.26.3"
+tokio-stream = "0.1.14"
+tokio = "1.28"
 
 # The curve25519-dalek crate is a dependency of solana-sdk.
 # This crate relies on a specific version of zeroize that is incompatible with many other packages.

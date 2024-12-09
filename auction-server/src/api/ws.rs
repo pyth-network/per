@@ -40,6 +40,14 @@ use {
             OpportunityDelete,
             OpportunityId,
         },
+        ws::{
+            APIResponse,
+            ClientMessage,
+            ClientRequest,
+            ServerResultMessage,
+            ServerResultResponse,
+            ServerUpdateResponse,
+        },
         SvmChainUpdate,
     },
     futures::{
@@ -49,10 +57,6 @@ use {
         },
         SinkExt,
         StreamExt,
-    },
-    serde::{
-        Deserialize,
-        Serialize,
     },
     std::{
         collections::HashSet,
@@ -71,83 +75,12 @@ use {
         instrument,
         Instrument,
     },
-    utoipa::ToSchema,
 };
 
 pub struct WsState {
     pub subscriber_counter: AtomicUsize,
     pub broadcast_sender:   broadcast::Sender<UpdateEvent>,
     pub broadcast_receiver: broadcast::Receiver<UpdateEvent>,
-}
-
-#[derive(Deserialize, Clone, ToSchema)]
-#[serde(tag = "method", content = "params")]
-pub enum ClientMessage {
-    #[serde(rename = "subscribe")]
-    Subscribe {
-        #[schema(value_type = Vec<String>)]
-        chain_ids: Vec<ChainId>,
-    },
-    #[serde(rename = "unsubscribe")]
-    Unsubscribe {
-        #[schema(value_type = Vec<String>)]
-        chain_ids: Vec<ChainId>,
-    },
-    #[serde(rename = "post_bid")]
-    PostBid { bid: BidCreate },
-
-    #[serde(rename = "post_opportunity_bid")]
-    PostOpportunityBid {
-        #[schema(value_type = String)]
-        opportunity_id:  OpportunityId,
-        opportunity_bid: OpportunityBidEvm,
-    },
-}
-
-#[derive(Deserialize, Clone, ToSchema)]
-pub struct ClientRequest {
-    id:  String,
-    #[serde(flatten)]
-    msg: ClientMessage,
-}
-
-/// This enum is used to send an update to the client for any subscriptions made.
-#[derive(Serialize, Clone, ToSchema)]
-#[serde(tag = "type")]
-pub enum ServerUpdateResponse {
-    #[serde(rename = "new_opportunity")]
-    NewOpportunity { opportunity: Opportunity },
-    #[serde(rename = "bid_status_update")]
-    BidStatusUpdate { status: BidStatusWithId },
-    #[serde(rename = "svm_chain_update")]
-    SvmChainUpdate { update: SvmChainUpdate },
-    #[serde(rename = "remove_opportunities")]
-    RemoveOpportunities {
-        opportunity_delete: OpportunityDelete,
-    },
-}
-
-#[derive(Serialize, Clone, ToSchema)]
-#[serde(untagged)]
-pub enum APIResponse {
-    BidResult(BidResult),
-}
-#[derive(Serialize, Clone, ToSchema)]
-#[serde(tag = "status", content = "result")]
-pub enum ServerResultMessage {
-    #[serde(rename = "success")]
-    Success(Option<APIResponse>),
-    #[serde(rename = "error")]
-    Err(String),
-}
-
-/// This enum is used to send the result for a specific client request with the same id.
-/// Id is only None when the client message is invalid.
-#[derive(Serialize, Clone, ToSchema)]
-pub struct ServerResultResponse {
-    id:     Option<String>,
-    #[serde(flatten)]
-    result: ServerResultMessage,
 }
 
 pub async fn ws_route_handler(
@@ -461,6 +394,7 @@ impl Subscriber {
         skip_all
     )]
     async fn handle_client_message(&mut self, message: Message) -> Result<()> {
+        println!("Hello dani new message: {:?}", message);
         let maybe_client_message = match message {
             Message::Close(_) => {
                 // Closing the connection. We don't remove it from the subscribers
@@ -500,6 +434,7 @@ impl Subscriber {
             Ok(ClientRequest { msg, id }) => match msg {
                 ClientMessage::Subscribe { chain_ids } => {
                     tracing::Span::current().record("name", "subscribe");
+                    println!("Hello dani chain_ids: {:?}", chain_ids);
                     self.handle_subscribe(id, chain_ids).await
                 }
                 ClientMessage::Unsubscribe { chain_ids } => {

@@ -56,6 +56,7 @@ pub mod nullable_datetime {
     use {
         serde::{
             de::Error,
+            ser,
             Deserialize,
             Deserializer,
             Serializer,
@@ -71,7 +72,10 @@ pub mod nullable_datetime {
         S: Serializer,
     {
         match b {
-            Some(b) => s.serialize_str(b.to_string().as_str()),
+            Some(b) => {
+                let formatted = b.format(&Rfc3339).map_err(ser::Error::custom)?;
+                s.serialize_str(formatted.as_str())
+            }
             None => s.serialize_none(),
         }
     }
