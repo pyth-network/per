@@ -2590,11 +2590,13 @@ dependencies = [
 name = "express-relay-client"
 version = "0.1.1"
 dependencies = [
+ "ethers",
  "express-relay-api-types",
  "futures-util",
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "solana-sdk",
  "strum",
  "tokio",
  "tokio-stream",
@@ -2608,8 +2610,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "express-relay-client",
+ "rand 0.8.5",
  "time",
  "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
