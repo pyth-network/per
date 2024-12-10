@@ -54,7 +54,7 @@ pub struct ClientRequest {
 }
 
 /// This enum is used to send an update to the client for any subscriptions made.
-#[derive(Serialize, Clone, ToSchema)]
+#[derive(Serialize, Clone, ToSchema, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ServerUpdateResponse {
     #[serde(rename = "new_opportunity")]

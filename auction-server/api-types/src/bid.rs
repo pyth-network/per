@@ -266,7 +266,7 @@ pub enum BidCreate {
     Svm(BidCreateSvm),
 }
 
-#[derive(Serialize, Clone, ToSchema, ToResponse)]
+#[derive(Serialize, Clone, ToSchema, ToResponse, Deserialize, Debug)]
 pub struct BidStatusWithId {
     #[schema(value_type = String)]
     pub id:         BidId,
