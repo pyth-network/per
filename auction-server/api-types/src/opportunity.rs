@@ -276,7 +276,7 @@ pub enum OpportunityParamsEvm {
     V1(OpportunityParamsV1Evm),
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse, Debug)]
 pub struct OpportunityEvm {
     /// The opportunity unique id.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
@@ -377,7 +377,7 @@ pub struct OpportunitySvm {
     pub params: OpportunityParamsSvm,
 }
 
-#[derive(Serialize, ToResponse, ToSchema, Clone)]
+#[derive(Serialize, ToResponse, ToSchema, Clone, Debug)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum Opportunity {

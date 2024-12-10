@@ -12,10 +12,12 @@ use {
         Client,
         ClientConfig,
     },
+    std::time::Duration as StdDuration,
     time::{
         Duration,
         OffsetDateTime,
     },
+    tokio::time::sleep,
 };
 
 #[tokio::main]
@@ -59,5 +61,7 @@ async fn main() -> Result<()> {
             anyhow!("Failed to subscribe chains")
         })?;
 
-    Ok(())
+    loop {
+        sleep(StdDuration::from_secs(5)).await;
+    }
 }

@@ -18,6 +18,7 @@ use {
     reqwest::Response,
     serde::{
         de::DeserializeOwned,
+        Deserialize,
         Serialize,
     },
     std::{
@@ -77,6 +78,7 @@ pub enum ClientError {
     DecodeResponseFailed(reqwest::Error),
     AuthenticationRequired,
     SubscribeFailed(String),
+    InvalidResponse(String),
 }
 
 enum DecodedResponse<T: DeserializeOwned> {
@@ -112,6 +114,13 @@ pub struct WsClient {
     request_id:     usize,
 }
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum MessageType {
+    Response(api_types::ws::ServerResultResponse),
+    Update(api_types::ws::ServerUpdateResponse),
+}
+
 impl WsClient {
     async fn run(
         mut ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
@@ -121,63 +130,67 @@ impl WsClient {
         loop {
             tokio::select! {
                 message = ws_stream.next() => {
-                    match message {
+                    let message = match message {
                         Some(message) => {
                             match message {
-                                Ok(Message::Text(text)) => {
-                                    let response: Result<api_types::ws::ServerResultResponse, serde_json::Error> = serde_json::from_str(&text);
-                                    match response {
-                                        Ok(response) => {
-                                            if let Some(id) = response.id.clone() {
-                                                if let Some(sender) = requests_map.remove(&id) {
-                                                    if sender.send(response.result).is_err() {
-                                                        eprintln!("Failed to send response for {}", id);
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        Err(e) => {
-                                            eprintln!("Failed to decode response: {} - {}", e, text);
-                                        },
-                                    }
-                                },
-                                Ok(Message::Close(_)) => break,
-                                _ => (),
+                                Ok(message) => message,
+                                Err(_) => continue,
                             }
                         }
-                        None => {
-                            eprint!("Ws stream closed");
-                            break;
+                        None => break,
+                    };
+
+                    let message = match message {
+                        Message::Text(text) => {
+                            let response: Result<MessageType, serde_json::Error> = serde_json::from_str(&text);
+                            match response {
+                                Ok(response) => response,
+                                Err(_) => continue,
+                            }
+                        }
+                        Message::Binary(binary) => {
+                            let response: Result<MessageType, serde_json::Error> = serde_json::from_slice(binary.as_slice());
+                            match response {
+                                Ok(response) => response,
+                                Err(_) => continue,
+                            }
+                        }
+                        Message::Close(_) => break,
+                        Message::Pong(_) => continue,
+                        Message::Ping(data) => {
+                            let _ = ws_stream.send(Message::Pong(data)).await;
+                            continue;
+                        },
+                        Message::Frame(_) => continue,
+                    };
+
+                    match message {
+                        MessageType::Response(response) => {
+                            response.id.and_then(|id| requests_map.remove(&id)).map(|sender| sender.send(response.result));
+                        }
+                        MessageType::Update(update) => {
+                            println!("Update: {:?}", update);
                         }
                     }
                 }
                 request = request_receiver.recv() => {
                     match request {
                         Some((request, response_sender)) => {
-                            match ws_stream.send(Message::Text(serde_json::to_string(&request).unwrap())).await {
-                                Ok(_) => {
-                                    requests_map.insert(request.id.clone(), response_sender);
-                                },
-                                Err(e) => eprintln!("Failed to send request: {}", e),
+                            if ws_stream.send(Message::Text(serde_json::to_string(&request).unwrap())).await.is_ok() {
+                                requests_map.insert(request.id.clone(), response_sender);
                             }
                         }
-                        None => {
-                            eprint!("Request sender closed");
-                            break;
-                        }
+                        None => break,
                     }
                 }
             }
         }
     }
 
-    pub async fn chain_subscribe(&mut self, chain_ids: Vec<ChainId>) -> Result<(), ClientError> {
-        let message = api_types::ws::ClientMessage::Subscribe {
-            chain_ids: chain_ids
-                .iter()
-                .map(|chain_id| chain_id.to_string())
-                .collect(),
-        };
+    async fn send(
+        &mut self,
+        message: api_types::ws::ClientMessage,
+    ) -> Result<ServerResultMessage, ClientError> {
         let request_id = self.request_id.to_string();
         self.request_id += 1;
         let request = api_types::ws::ClientRequest {
@@ -198,12 +211,7 @@ impl WsClient {
 
         match tokio::time::timeout(Duration::from_secs(5), response_receiver).await {
             Ok(response) => match response {
-                Ok(response) => match response {
-                    api_types::ws::ServerResultMessage::Success(_) => Ok(()),
-                    api_types::ws::ServerResultMessage::Err(error) => {
-                        Err(ClientError::SubscribeFailed(error))
-                    }
-                },
+                Ok(response) => Ok(response),
                 Err(_) => Err(ClientError::SubscribeFailed(
                     "Response channel closed".to_string(),
                 )),
@@ -211,6 +219,51 @@ impl WsClient {
             Err(_) => Err(ClientError::SubscribeFailed(
                 "Ws request timeout".to_string(),
             )),
+        }
+    }
+
+    pub async fn chain_subscribe(&mut self, chain_ids: Vec<ChainId>) -> Result<(), ClientError> {
+        let message = api_types::ws::ClientMessage::Subscribe {
+            chain_ids: chain_ids
+                .iter()
+                .map(|chain_id| chain_id.to_string())
+                .collect(),
+        };
+        let result = self.send(message).await?;
+        match result {
+            ServerResultMessage::Success(_) => Ok(()),
+            ServerResultMessage::Err(error) => Err(ClientError::SubscribeFailed(error)),
+        }
+    }
+
+    pub async fn chain_unsubscribe(&mut self, chain_ids: Vec<ChainId>) -> Result<(), ClientError> {
+        let message = api_types::ws::ClientMessage::Unsubscribe {
+            chain_ids: chain_ids
+                .iter()
+                .map(|chain_id| chain_id.to_string())
+                .collect(),
+        };
+        let result = self.send(message).await?;
+        match result {
+            ServerResultMessage::Success(_) => Ok(()),
+            ServerResultMessage::Err(error) => Err(ClientError::SubscribeFailed(error)),
+        }
+    }
+
+    pub async fn post_bid(
+        &mut self,
+        bid: api_types::bid::BidCreate,
+    ) -> Result<api_types::bid::BidResult, ClientError> {
+        let message = api_types::ws::ClientMessage::PostBid { bid };
+        let result = self.send(message).await?;
+        match result {
+            ServerResultMessage::Success(response) => {
+                let response =
+                    response.ok_or(ClientError::InvalidResponse("Invalid response".to_string()))?;
+                let api_types::ws::APIResponse::BidResult(response) = response;
+                Ok(response)
+            }
+            ServerResultMessage::Err(error) => Err(ClientError::SubscribeFailed(error)),
         }
     }
 }

@@ -54,7 +54,7 @@ impl<'de> Deserialize<'de> for PermissionKeySvm {
 }
 
 #[serde_as]
-#[derive(Serialize, Clone, ToSchema, ToResponse)]
+#[derive(Serialize, Clone, ToSchema, ToResponse, Deserialize, Debug)]
 pub struct SvmChainUpdate {
     #[schema(example = "solana", value_type = String)]
     pub chain_id:                  ChainId,
