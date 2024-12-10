@@ -4,21 +4,69 @@ use {
         Result,
     },
     express_relay_client::{
-        api_types::opportunity::{
-            GetOpportunitiesQueryParams,
-            OpportunityMode,
+        api_types::{
+            opportunity::{
+                self,
+                GetOpportunitiesQueryParams,
+                Opportunity,
+                OpportunityMode,
+            },
+            ws::ServerUpdateResponse,
         },
+        ethers::types::U256,
+        evm::BidParamsEvm,
         ChainId,
         Client,
         ClientConfig,
+        WsClient,
     },
-    std::time::Duration as StdDuration,
+    rand::Rng,
+    std::{
+        collections::HashMap,
+        sync::Arc,
+    },
     time::{
         Duration,
         OffsetDateTime,
     },
-    tokio::time::sleep,
+    tokio_stream::StreamExt,
 };
+
+async fn random() -> U256 {
+    let mut rng = rand::thread_rng();
+    U256::from(rng.gen::<u128>())
+}
+
+async fn handle_opportunity(ws_client: Arc<WsClient>, opportunity: Opportunity) -> Result<()> {
+    let bid = match opportunity {
+        opportunity::Opportunity::Evm(opportunity) => {
+            // Assess opportunity
+            Client::new_bid(
+                opportunity,
+                BidParamsEvm {
+                    amount:   U256::from(100),
+                    nonce:    random().await,
+                    deadline: U256::from(
+                        (OffsetDateTime::now_utc() + Duration::days(1)).unix_timestamp(),
+                    ),
+                },
+            )
+            .await
+        }
+        opportunity::Opportunity::Svm(opportunity) => Client::new_bid(opportunity, 2).await,
+    }
+    .map_err(|e| {
+        println!("Failed to create bid: {:?}", e);
+        anyhow!("Failed to create bid: {:?}", e)
+    })?;
+
+    let result = ws_client.submit_bid(bid).await;
+    match result {
+        Ok(_) => println!("Bid submitted"),
+        Err(e) => eprintln!("Failed to submit bid: {:?}", e),
+    };
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -48,10 +96,10 @@ async fn main() -> Result<()> {
 
     println!("Opportunities: {:?}", opportunities.len());
 
-    let mut ws_client = client.connect_websocket().await.map_err(|e| {
+    let ws_client = Arc::new(client.connect_websocket().await.map_err(|e| {
         eprintln!("Failed to connect websocket: {:?}", e);
         anyhow!("Failed to connect websocket")
-    })?;
+    })?);
 
     ws_client
         .chain_subscribe(vec![ChainId::DevelopmentEvm, ChainId::DevelopmentSvm])
@@ -61,7 +109,27 @@ async fn main() -> Result<()> {
             anyhow!("Failed to subscribe chains")
         })?;
 
-    loop {
-        sleep(StdDuration::from_secs(5)).await;
+    let mut stream = ws_client.update_stream.write().await;
+    let mut block_hash_map = HashMap::new();
+    while let Some(update) = stream.next().await {
+        match update {
+            ServerUpdateResponse::NewOpportunity { opportunity } => {
+                println!("New opportunity: {:?}", opportunity);
+                tokio::spawn(handle_opportunity(ws_client.clone(), opportunity));
+            }
+            ServerUpdateResponse::SvmChainUpdate { update } => {
+                block_hash_map.insert(update.chain_id.clone(), update.blockhash);
+                println!("SVM chain");
+            }
+            ServerUpdateResponse::RemoveOpportunities { opportunity_delete } => {
+                println!("Remove opportunities: {:?}", opportunity_delete);
+            }
+            ServerUpdateResponse::BidStatusUpdate { status } => {
+                println!("Bid status update: {:?}", status);
+            }
+        }
     }
+
+    println!("Websocket closed");
+    Ok(())
 }

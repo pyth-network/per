@@ -17,3 +17,5 @@ tokio-tungstenite = { version = "0.24.0", features = ["native-tls"] }
 tokio-stream = { workspace = true }
 tokio = { workspace = true }
 futures-util = "0.3.31"
+ethers = { workspace = true }
+solana-sdk = { workspace = true }

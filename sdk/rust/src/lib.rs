@@ -1,5 +1,9 @@
-pub use express_relay_api_types as api_types;
+pub use {
+    ethers,
+    express_relay_api_types as api_types,
+};
 use {
+    evm::BidParamsEvm,
     express_relay_api_types::{
         opportunity::{
             GetOpportunitiesQueryParams,
@@ -25,14 +29,20 @@ use {
         collections::BTreeMap,
         time::Duration,
     },
-    strum::Display,
+    strum::{
+        Display,
+        EnumString,
+    },
     tokio::{
         net::TcpStream,
         sync::{
             mpsc,
             oneshot,
+            RwLock,
         },
+        time::sleep,
     },
+    tokio_stream::wrappers::UnboundedReceiverStream,
     tokio_tungstenite::{
         connect_async,
         tungstenite::Message,
@@ -42,7 +52,9 @@ use {
     url::Url,
 };
 
-#[derive(Display)]
+pub mod evm;
+
+#[derive(Display, EnumString)]
 pub enum ChainId {
     #[strum(serialize = "development")]
     DevelopmentEvm,
@@ -79,6 +91,8 @@ pub enum ClientError {
     AuthenticationRequired,
     SubscribeFailed(String),
     InvalidResponse(String),
+    ChainNotSupported,
+    NewBidError(String),
 }
 
 enum DecodedResponse<T: DeserializeOwned> {
@@ -111,7 +125,9 @@ pub struct WsClient {
     #[allow(dead_code)]
     ws:             tokio::task::JoinHandle<()>,
     request_sender: mpsc::UnboundedSender<WsRequest>,
-    request_id:     usize,
+    request_id:     RwLock<usize>,
+
+    pub update_stream: RwLock<UnboundedReceiverStream<api_types::ws::ServerUpdateResponse>>,
 }
 
 #[derive(Deserialize)]
@@ -125,6 +141,7 @@ impl WsClient {
     async fn run(
         mut ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
         mut request_receiver: mpsc::UnboundedReceiver<WsRequest>,
+        update_sender: mpsc::UnboundedSender<api_types::ws::ServerUpdateResponse>,
     ) {
         let mut requests_map = BTreeMap::<String, oneshot::Sender<ServerResultMessage>>::new();
         loop {
@@ -169,7 +186,9 @@ impl WsClient {
                             response.id.and_then(|id| requests_map.remove(&id)).map(|sender| sender.send(response.result));
                         }
                         MessageType::Update(update) => {
-                            println!("Update: {:?}", update);
+                            if update_sender.send(update).is_err() {
+                                break;
+                            }
                         }
                     }
                 }
@@ -188,11 +207,14 @@ impl WsClient {
     }
 
     async fn send(
-        &mut self,
+        &self,
         message: api_types::ws::ClientMessage,
     ) -> Result<ServerResultMessage, ClientError> {
-        let request_id = self.request_id.to_string();
-        self.request_id += 1;
+        let mut write_gaurd = self.request_id.write().await;
+        let request_id = write_gaurd.to_string();
+        *write_gaurd += 1;
+        drop(write_gaurd);
+
         let request = api_types::ws::ClientRequest {
             id:  request_id.clone(),
             msg: message,
@@ -222,7 +244,7 @@ impl WsClient {
         }
     }
 
-    pub async fn chain_subscribe(&mut self, chain_ids: Vec<ChainId>) -> Result<(), ClientError> {
+    pub async fn chain_subscribe(&self, chain_ids: Vec<ChainId>) -> Result<(), ClientError> {
         let message = api_types::ws::ClientMessage::Subscribe {
             chain_ids: chain_ids
                 .iter()
@@ -236,7 +258,7 @@ impl WsClient {
         }
     }
 
-    pub async fn chain_unsubscribe(&mut self, chain_ids: Vec<ChainId>) -> Result<(), ClientError> {
+    pub async fn chain_unsubscribe(&self, chain_ids: Vec<ChainId>) -> Result<(), ClientError> {
         let message = api_types::ws::ClientMessage::Unsubscribe {
             chain_ids: chain_ids
                 .iter()
@@ -250,8 +272,8 @@ impl WsClient {
         }
     }
 
-    pub async fn post_bid(
-        &mut self,
+    pub async fn submit_bid(
+        &self,
         bid: api_types::bid::BidCreate,
     ) -> Result<api_types::bid::BidResult, ClientError> {
         let message = api_types::ws::ClientMessage::PostBid { bid };
@@ -332,11 +354,15 @@ impl Client {
             .map_err(|e| ClientError::SubscribeFailed(e.to_string()))?;
 
         let (request_sender, request_receiver) = mpsc::unbounded_channel();
+        let (update_sender, update_receiver) = mpsc::unbounded_channel();
 
         Ok(WsClient {
             request_sender,
-            request_id: 0,
-            ws: tokio::spawn(WsClient::run(ws_stream, request_receiver)),
+            update_stream: RwLock::new(UnboundedReceiverStream::<
+                api_types::ws::ServerUpdateResponse,
+            >::new(update_receiver)),
+            request_id: RwLock::new(0),
+            ws: tokio::spawn(WsClient::run(ws_stream, request_receiver, update_sender)),
         })
     }
 
@@ -345,5 +371,43 @@ impl Client {
         params: Option<GetOpportunitiesQueryParams>,
     ) -> Result<Vec<Opportunity>, ClientError> {
         self.send(Route::GetOpportunities, params).await
+    }
+
+    pub async fn new_bid<T: OpportunityTrait>(
+        _opportunity: T,
+        _params: T::Params,
+    ) -> Result<api_types::bid::BidCreate, ClientError> {
+        sleep(Duration::from_secs(5)).await;
+        Err(ClientError::ChainNotSupported)
+    }
+}
+
+pub trait OpportunityTrait {
+    type Params;
+    fn new_bid(
+        opportunity: Self,
+        params: Self::Params,
+    ) -> Result<api_types::bid::BidCreate, ClientError>;
+}
+
+impl OpportunityTrait for api_types::opportunity::OpportunityEvm {
+    type Params = BidParamsEvm;
+
+    fn new_bid(
+        _opportunity: Self,
+        _params: Self::Params,
+    ) -> Result<express_relay_api_types::bid::BidCreate, ClientError> {
+        todo!()
+    }
+}
+
+impl OpportunityTrait for api_types::opportunity::OpportunitySvm {
+    type Params = i64;
+
+    fn new_bid(
+        _opportunity: Self,
+        _params: Self::Params,
+    ) -> Result<express_relay_api_types::bid::BidCreate, ClientError> {
+        todo!()
     }
 }
