@@ -21,10 +21,7 @@ use {
         WsClient,
     },
     rand::Rng,
-    std::{
-        collections::HashMap,
-        sync::Arc,
-    },
+    std::collections::HashMap,
     time::{
         Duration,
         OffsetDateTime,
@@ -37,7 +34,7 @@ async fn random() -> U256 {
     U256::from(rng.gen::<u128>())
 }
 
-async fn handle_opportunity(ws_client: Arc<WsClient>, opportunity: Opportunity) -> Result<()> {
+async fn handle_opportunity(ws_client: WsClient, opportunity: Opportunity) -> Result<()> {
     let bid = match opportunity {
         opportunity::Opportunity::Evm(opportunity) => {
             // Assess opportunity
@@ -96,10 +93,10 @@ async fn main() -> Result<()> {
 
     println!("Opportunities: {:?}", opportunities.len());
 
-    let ws_client = Arc::new(client.connect_websocket().await.map_err(|e| {
+    let ws_client = client.connect_websocket().await.map_err(|e| {
         eprintln!("Failed to connect websocket: {:?}", e);
         anyhow!("Failed to connect websocket")
-    })?);
+    })?;
 
     ws_client
         .chain_subscribe(vec![ChainId::DevelopmentEvm, ChainId::DevelopmentSvm])
@@ -109,9 +106,18 @@ async fn main() -> Result<()> {
             anyhow!("Failed to subscribe chains")
         })?;
 
-    let mut stream = ws_client.update_stream.write().await;
+    let mut stream = ws_client.get_update_stream();
     let mut block_hash_map = HashMap::new();
     while let Some(update) = stream.next().await {
+        let update = match update {
+            Ok(update) => update,
+            Err(e) => {
+                // The stream is fallen behind
+                eprintln!("The stream is fallen behind: {:?}", e);
+                continue;
+            }
+        };
+
         match update {
             ServerUpdateResponse::NewOpportunity { opportunity } => {
                 println!("New opportunity: {:?}", opportunity);
