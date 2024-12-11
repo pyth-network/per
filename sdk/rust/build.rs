@@ -7,7 +7,7 @@ fn build_evm_contracts() {
     let mut current_dir = env::current_dir().expect("Failed to get current directory");
     loop {
         if current_dir.join("contracts").exists() {
-            current_dir = current_dir.join("contracts");
+            current_dir = current_dir.join("contracts/evm");
             break;
         }
         current_dir = current_dir
@@ -28,7 +28,7 @@ fn build_evm_contracts() {
         r#"
         cd {}
         forge build --via-ir
-        cd ../sdk/rust
+        cd ../../sdk/rust
         mkdir -p abi
     "#,
         current_dir.to_str().unwrap()
