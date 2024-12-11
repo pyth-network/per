@@ -67,6 +67,11 @@ const argv = yargs(hideBin(process.argv))
     type: "string",
     default: "https://hermes.pyth.network/",
   })
+  .option("off-market-threshold", {
+    description: "Threshold for off market opportunities",
+    type: "number",
+    default: 1.05,
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -162,7 +167,6 @@ async function run() {
   const isOffMarket = (order: { state: Order; address: PublicKey }) => {
     const priceInputMint = priceStore[order.state.inputMint.toString()];
     const priceOutputMint = priceStore[order.state.outputMint.toString()];
-    console.log("prices ", priceInputMint, priceOutputMint);
 
     const priceInputMintDecimals = priceConfigs.find(
       (priceConfig) => priceConfig.mint.toString() === order.state.inputMint.toString()
@@ -185,9 +189,10 @@ async function run() {
         (Number(priceOutputMint.price) / Number(priceInputMint.price)) *
         10 ** (priceOutputMint.exponent - priceInputMint.exponent + priceInputMintDecimals - priceOutputMintDecimals);
 
-      if (ratio > 1.05) {
+      if (ratio > argv.offMarketThreshold) {
         return true;
       }
+
       return false;
     }
   };
@@ -253,9 +258,8 @@ async function run() {
 
   const hermesClient = new HermesClient(argv.hermesEndpoint, {});
 
-  const priceIds = priceConfigs.map((priceConfig) => priceConfig.pythFeedId);
-  console.log(priceIds);
-  const eventSource = await hermesClient.getPriceUpdatesStream(priceIds, {
+ 
+  const eventSource = await hermesClient.getPriceUpdatesStream(priceConfigs.map((priceConfig) => priceConfig.pythFeedId), {
     encoding: "hex",
     parsed: true,
     ignoreInvalidPriceIds: true,
