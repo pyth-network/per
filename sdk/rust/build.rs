@@ -4,15 +4,16 @@ use std::{
 };
 
 fn build_evm_contracts() {
-    // Get the directory of the current build.rs file
-    let current_dir = env::current_dir().expect("Failed to get current directory");
-    let mut contract_path = "../../contracts";
-    if current_dir
-        .ancestors()
-        .any(|ancestor| ancestor.ends_with("target"))
-    {
-        // If the build.rs file is in the target directory.
-        contract_path = "../../../contracts";
+    let mut current_dir = env::current_dir().expect("Failed to get current directory");
+    loop {
+        if current_dir.join("contracts").exists() {
+            current_dir = current_dir.join("contracts");
+            break;
+        }
+        current_dir = current_dir
+            .parent()
+            .expect("Failed to find contracts directory")
+            .into();
     }
 
     let abis = [
@@ -30,7 +31,7 @@ fn build_evm_contracts() {
         cd ../sdk/rust
         mkdir -p abi
     "#,
-        contract_path
+        current_dir.to_str().unwrap()
     );
 
     // Generate `cp` commands for each ABI
@@ -41,7 +42,10 @@ fn build_evm_contracts() {
         .join("\n");
 
     let full_script = format!("{contract_setup}\n{copy_commands}");
-    println!("cargo:rerun-if-changed={}/evm", contract_path);
+    println!(
+        "cargo:rerun-if-changed={}/evm",
+        current_dir.to_str().unwrap()
+    );
     // Build the contracts and generate the ABIs. This is required for abigen! macro expansions to work.
     let output = Command::new("sh")
         .args(["-c", full_script.as_str()])
