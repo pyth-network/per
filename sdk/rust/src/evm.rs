@@ -1,8 +1,5 @@
 use {
-    crate::{
-        ChainId,
-        ClientError,
-    },
+    crate::ClientError,
     ethers::{
         contract::abigen,
         providers::{
@@ -30,14 +27,12 @@ use {
         },
     },
     express_relay_api_types::opportunity::{
+        OpportunityCreateV1Evm,
         OpportunityEvm,
         OpportunityParamsEvm,
         OpportunityParamsV1Evm,
     },
-    std::{
-        str::FromStr,
-        sync::Arc,
-    },
+    std::sync::Arc,
 };
 
 abigen!(
@@ -61,20 +56,18 @@ pub struct BidParamsEvm {
     pub nonce:    ethers::types::U256,
 }
 
-struct Config {
-    weth:                     Address,
-    adapter_factory_contract: Address,
-    #[allow(dead_code)]
-    express_relay_contract:   Address,
-    permit2:                  Address,
-    adapter_bytecode_hash:    [u8; 32],
-    chain_id_num:             u64,
+pub struct Config {
+    pub weth:                     Address,
+    pub adapter_factory_contract: Address,
+    pub express_relay_contract:   Address,
+    pub permit2:                  Address,
+    pub adapter_bytecode_hash:    [u8; 32],
+    pub chain_id_num:             u64,
 }
 
-fn get_config(chain_id: &str) -> Result<Config, ClientError> {
-    let chain_id = ChainId::from_str(chain_id).map_err(|_| ClientError::ChainNotSupported)?;
+pub fn get_config(chain_id: &str) -> Result<Config, ClientError> {
     match chain_id {
-        ChainId::DevelopmentEvm => Ok(Config {
+        "development" => Ok(Config {
             weth:                     "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
                 .parse()
                 .expect("Invalid Ethereum address"),
@@ -104,7 +97,7 @@ pub fn make_permitted_tokens(
     bid_params: BidParamsEvm,
 ) -> Result<Vec<TokenPermissions>, ClientError> {
     let config = get_config(opportunity.get_chain_id())?;
-    let OpportunityParamsEvm::V1(OpportunityParamsV1Evm(params)) = opportunity.params;
+    let params = get_params(opportunity);
     let mut permitted_tokens: Vec<TokenPermissions> = params
         .sell_tokens
         .clone()
@@ -135,7 +128,7 @@ pub fn make_opportunity_execution_params(
     bid_params: BidParamsEvm,
     executor: Address,
 ) -> Result<ExecutionParams, ClientError> {
-    let OpportunityParamsEvm::V1(OpportunityParamsV1Evm(params)) = opportunity.params.clone();
+    let params = get_params(opportunity.clone());
     Ok(ExecutionParams {
         permit:  PermitBatchTransferFrom {
             permitted: make_permitted_tokens(opportunity, bid_params.clone())?,
@@ -281,4 +274,9 @@ pub fn make_adapter_calldata(
         ))?;
 
     Ok(calldata)
+}
+
+pub fn get_params(opportunity: OpportunityEvm) -> OpportunityCreateV1Evm {
+    let OpportunityParamsEvm::V1(OpportunityParamsV1Evm(params)) = opportunity.params;
+    params
 }
