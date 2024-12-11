@@ -43,6 +43,7 @@ pub type BidAmountEvm = U256;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatusEvm {
     /// The temporary state which means the auction for this bid is pending.
+    /// It will be updated to Lost or Submitted after the auction takes place.
     #[schema(title = "Pending")]
     Pending,
     /// The bid is submitted to the chain, which is placed at the given index of the transaction with the given hash.
@@ -81,19 +82,19 @@ pub enum BidStatusEvm {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BidStatusSvm {
     /// The temporary state which means the auction for this bid is pending.
+    /// It will be updated to Lost or Submitted after the auction takes place.
     #[schema(title = "Pending")]
     Pending,
     /// The bid lost the auction.
-    /// The result will be None if the auction does not result in a transaction being submitted to the chain.
-    /// The result will be Some if this bid lost to another bid and the winning bid was submitted to the chain.
-    /// The signature of the transaction for the submitted bid is the result value.
+    /// This bid status will have a result field containing the signature of the transaction corresponding to the winning bid,
+    /// unless the auction had no winner (because all bids were found to be invalid).
     #[schema(title = "Lost")]
     Lost {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = Option<String>)]
         #[serde(with = "crate::serde::nullable_signature_svm")]
         result: Option<Signature>,
     },
-    /// The bid won the auction and was submitted to the chain, with the transaction with the signature.
+    /// The bid won the auction and was submitted to the chain, with the signature of the corresponding transaction provided in the result field.
     /// This state is temporary and will be updated to either Won or Failed after the transaction is included in a block, or Expired if the transaction expires before it is included.
     #[schema(title = "Submitted")]
     Submitted {
