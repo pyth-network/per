@@ -5,6 +5,7 @@ fn build_evm_contracts() {
     let contract_setup = r#"
         cd ../../contracts/evm
         forge build --via-ir
+        cp -r ./out ../../sdk/rust/contracts/evm
     "#;
     println!("cargo:rerun-if-changed=../../contracts/evm");
     // Build the contracts and generate the ABIs. This is required for abigen! macro expansions to work.
