@@ -28,7 +28,6 @@
     "@solana/web3.js": "catalog:",
     "axios": "^1.7.3",
     "bs58": "^6.0.0",
-    "joi": "^17.13.3",
     "yaml": "^2.6.1",
     "yargs": "catalog:"
   }
