@@ -91,7 +91,7 @@ async fn handle_opportunity(
         }
     }
     .map_err(|e| {
-        println!("Failed to create bid: {:?}", e);
+        eprintln!("Failed to create bid: {:?}", e);
         anyhow!("Failed to create bid: {:?}", e)
     })?;
 
@@ -135,7 +135,6 @@ async fn main() -> Result<()> {
             eprintln!("Failed to get opportunities: {:?}", e);
             anyhow!("Failed to get opportunities")
         })?;
-
     println!("Opportunities: {:?}", opportunities.len());
 
     let ws_client = client.connect_websocket().await.map_err(|e| {

@@ -134,7 +134,7 @@ pub struct WsClientInner {
     request_sender: mpsc::UnboundedSender<WsRequest>,
     request_id:     RwLock<usize>,
 
-    update_sender: broadcast::Sender<api_types::ws::ServerUpdateResponse>,
+    update_receiver: broadcast::Receiver<api_types::ws::ServerUpdateResponse>,
 }
 
 #[derive(Clone)]
@@ -175,7 +175,9 @@ impl Stream for WsClientUpdateStream<'_> {
 
 impl WsClient {
     pub fn get_update_stream(&self) -> WsClientUpdateStream {
-        WsClientUpdateStream::new(BroadcastStream::new(self.inner.update_sender.subscribe()))
+        WsClientUpdateStream::new(BroadcastStream::new(
+            self.inner.update_receiver.resubscribe(),
+        ))
     }
 
     async fn run(
@@ -183,6 +185,8 @@ impl WsClient {
         mut request_receiver: mpsc::UnboundedReceiver<WsRequest>,
         update_sender: broadcast::Sender<api_types::ws::ServerUpdateResponse>,
     ) {
+        let mut ping_interval = tokio::time::interval(Duration::from_secs(30));
+        let mut responded_to_ping = true;
         let mut requests_map = BTreeMap::<String, oneshot::Sender<ServerResultMessage>>::new();
         loop {
             tokio::select! {
@@ -213,7 +217,10 @@ impl WsClient {
                             }
                         }
                         Message::Close(_) => break,
-                        Message::Pong(_) => continue,
+                        Message::Pong(_) => {
+                            responded_to_ping = true;
+                            continue;
+                        }
                         Message::Ping(data) => {
                             let _ = ws_stream.send(Message::Pong(data)).await;
                             continue;
@@ -241,8 +248,16 @@ impl WsClient {
                         None => break,
                     }
                 }
+                _  = ping_interval.tick() => {
+                    if !responded_to_ping {
+                        break;
+                    }
+                    responded_to_ping = false;
+                    _ = ws_stream.send(Message::Ping(vec![])).await;
+                },
             }
         }
+        println!("dropped");
     }
 
     async fn send(
@@ -409,12 +424,12 @@ impl Client {
             .map_err(|e| ClientError::WsConnectFailed(e.to_string()))?;
 
         let (request_sender, request_receiver) = mpsc::unbounded_channel();
-        let (update_sender, _) = broadcast::channel(1000);
+        let (update_sender, update_receiver) = broadcast::channel(1000);
 
         Ok(WsClient {
             inner: Arc::new(WsClientInner {
                 request_sender,
-                update_sender: update_sender.clone(),
+                update_receiver,
                 request_id: RwLock::new(0),
                 ws: tokio::spawn(WsClient::run(ws_stream, request_receiver, update_sender)),
             }),

@@ -394,7 +394,6 @@ impl Subscriber {
         skip_all
     )]
     async fn handle_client_message(&mut self, message: Message) -> Result<()> {
-        println!("Hello dani new message: {:?}", message);
         let maybe_client_message = match message {
             Message::Close(_) => {
                 // Closing the connection. We don't remove it from the subscribers
@@ -434,7 +433,6 @@ impl Subscriber {
             Ok(ClientRequest { msg, id }) => match msg {
                 ClientMessage::Subscribe { chain_ids } => {
                     tracing::Span::current().record("name", "subscribe");
-                    println!("Hello dani chain_ids: {:?}", chain_ids);
                     self.handle_subscribe(id, chain_ids).await
                 }
                 ClientMessage::Unsubscribe { chain_ids } => {
