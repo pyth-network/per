@@ -65,7 +65,8 @@ const argv = yargs(hideBin(process.argv))
     default: 5 * 1000,
   })
   .option("price-config", {
-    description: "Path to the price config file",
+    description:
+      "Path to the price config file, if not provided, we will not get price info from Hermes",
     type: "string",
   })
   .option("hermes-endpoint", {
