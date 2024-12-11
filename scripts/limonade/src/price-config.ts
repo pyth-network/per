@@ -18,7 +18,6 @@ export async function loadPriceConfig(path: string, connection: Connection): Pro
       priceConfig.decimals = await getMintDecimals(connection, new PublicKey(priceConfig.mint));
     }
 
-    console.log(priceConfigs)
     return priceConfigs.map((priceConfig: any) => ({
       alias: priceConfig.alias,
       mint: new PublicKey(priceConfig.mint),
