@@ -59,7 +59,6 @@ pub struct BidParamsEvm {
 pub struct Config {
     pub weth:                     Address,
     pub adapter_factory_contract: Address,
-    pub express_relay_contract:   Address,
     pub permit2:                  Address,
     pub adapter_bytecode_hash:    [u8; 32],
     pub chain_id_num:             u64,
@@ -67,17 +66,14 @@ pub struct Config {
 
 pub fn get_config(chain_id: &str) -> Result<Config, ClientError> {
     match chain_id {
-        "development" => Ok(Config {
-            weth:                     "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+        "mode" => Ok(Config {
+            weth:                     "0x74A4A85C611679B73F402B36c0F84A7D2CcdFDa3"
                 .parse()
                 .expect("Invalid Ethereum address"),
-            permit2:                  "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318"
+            permit2:                  "0x000000000022D473030F116dDEE9F6B43aC78BA3"
                 .parse()
                 .expect("Invalid Ethereum address"),
-            adapter_factory_contract: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
-                .parse()
-                .expect("Invalid Ethereum address"),
-            express_relay_contract:   "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
+            adapter_factory_contract: "0x59F78DE21a0b05d96Ae00c547BA951a3B905602f"
                 .parse()
                 .expect("Invalid Ethereum address"),
             adapter_bytecode_hash:    hex::decode(
@@ -86,7 +82,25 @@ pub fn get_config(chain_id: &str) -> Result<Config, ClientError> {
             .expect("Invalid bytecode hash")
             .try_into()
             .expect("Invalid bytecode hash length"),
-            chain_id_num:             31337,
+            chain_id_num:             34443,
+        }),
+        "op-sepolia" => Ok(Config {
+            weth:                     "0x4200000000000000000000000000000000000006"
+                .parse()
+                .expect("Invalid Ethereum address"),
+            permit2:                  "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+                .parse()
+                .expect("Invalid Ethereum address"),
+            adapter_factory_contract: "0xfA119693864b2F185742A409c66f04865c787754"
+                .parse()
+                .expect("Invalid Ethereum address"),
+            adapter_bytecode_hash:    hex::decode(
+                "0x3d71516d94b96a8fdca4e3a5825a6b41c9268a8e94610367e69a8462cc543533",
+            )
+            .expect("Invalid bytecode hash")
+            .try_into()
+            .expect("Invalid bytecode hash length"),
+            chain_id_num:             11155420,
         }),
         _ => Err(ClientError::ChainNotSupported),
     }
