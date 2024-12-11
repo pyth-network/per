@@ -61,7 +61,7 @@ const argv = yargs(hideBin(process.argv))
   .option("hermes-streaming-timeout", {
     description: "Hermes streaming timeout (milliseconds)",
     type: "number",
-    default: 10 * 1000,
+    default: 5 * 1000,
   })
   .option("price-config", {
     description: "Path to the price config file",
@@ -73,9 +73,16 @@ const argv = yargs(hideBin(process.argv))
     default: "https://hermes.pyth.network/",
   })
   .option("off-market-threshold", {
-    description: "Threshold of price ratio to consider an opportunity off-market",
+    description:
+      "Threshold of price ratio to consider an opportunity off-market",
     type: "number",
     default: 1.05,
+  })
+  .option("price-staleness-threshold", {
+    description:
+      "Threshold of price staleness in seconds, if price is stale, we will not use it",
+    type: "number",
+    default: 10,
   })
   .help()
   .alias("help", "h")
@@ -83,7 +90,10 @@ const argv = yargs(hideBin(process.argv))
 
 async function run() {
   const connection = new Connection(argv.rpcEndpoint);
-  const priceStore: Record<string, { price: string; exponent: number, mintDecimals: number }> = {};
+  const priceStore: Record<
+    string,
+    { price: string; exponent: number; mintDecimals: number }
+  > = {};
 
   const globalConfig = new PublicKey(argv.globalConfig);
   const numberOfConcurrentSubmissions = argv.numberOfConcurrentSubmissions;
@@ -180,7 +190,11 @@ async function run() {
       const ratio =
         (outputAmount.toNumber() / inputAmount.toNumber()) *
         (Number(priceOutputMint.price) / Number(priceInputMint.price)) *
-        10 ** (priceOutputMint.exponent - priceInputMint.exponent + priceInputMint.mintDecimals - priceOutputMint.mintDecimals);
+        10 **
+          (priceOutputMint.exponent -
+            priceInputMint.exponent +
+            priceInputMint.mintDecimals -
+            priceOutputMint.mintDecimals);
 
       if (ratio > argv.offMarketThreshold) {
         return true;
@@ -239,6 +253,7 @@ async function run() {
       filters,
     }
   );
+
   connection.onSlotChange(() => {
     if (solanaConnectionTimeout !== undefined) {
       clearTimeout(solanaConnectionTimeout);
@@ -249,41 +264,67 @@ async function run() {
     }, argv.solanaWebsocketTimeout);
   });
 
-  const hermesClient = new HermesClient(argv.hermesEndpoint, {});
+  if (priceConfigs.length > 0) {
+    const hermesClient = new HermesClient(argv.hermesEndpoint, {});
 
- 
-  const eventSource = await hermesClient.getPriceUpdatesStream(priceConfigs.map((priceConfig) => priceConfig.pythFeedId), {
-    encoding: "hex",
-    parsed: true,
-    ignoreInvalidPriceIds: true,
-  });
-
-  eventSource.onmessage = (event: MessageEvent<string>) => {
-    const data: PriceUpdate = JSON.parse(event.data);
-    const parsed = data.parsed;
-    if (parsed) {
-      for (const parsedUpdate of parsed) {
-        const priceConfig = priceConfigs.find(
-          (priceConfig) => priceConfig.pythFeedId === parsedUpdate.id
-        );
-        if (priceConfig) {
-          priceStore[priceConfig.mint.toString()] = {
-            price: parsedUpdate.price.price,
-            exponent: parsedUpdate.price.expo,
-            mintDecimals: priceConfig.decimals,
-          };
-        }
+    const eventSource = await hermesClient.getPriceUpdatesStream(
+      priceConfigs.map((priceConfig) => priceConfig.pythFeedId),
+      {
+        encoding: "hex",
+        parsed: true,
+        ignoreInvalidPriceIds: true,
       }
-    }
+    );
 
-    if (hermesConnectionTimeout !== undefined) {
-      clearTimeout(hermesConnectionTimeout);
-    }
+    /// Await for the first message before continuing
+    await new Promise<void>((resolve, reject) => {
+      setTimeout(() => {
+        reject(new Error("Hermes streaming timeout"));
+      }, argv.hermesStreamingTimeout);
 
-    hermesConnectionTimeout = setTimeout(() => {
-      throw new Error("Hermes streaming timeout");
-    }, argv.hermesStreamingTimeout);
-  };
+      eventSource.onmessage = (event: MessageEvent<string>) => {
+        resolve();
+
+        const data: PriceUpdate = JSON.parse(event.data);
+        const parsed = data.parsed;
+        const now = Date.now();
+        if (parsed) {
+          for (const parsedUpdate of parsed) {
+            const priceConfig = priceConfigs.find(
+              (priceConfig) => priceConfig.pythFeedId === parsedUpdate.id
+            );
+            if (priceConfig) {
+              if (
+                parsedUpdate.price.publish_time * 1000 <
+                now - argv.priceStalenessThreshold * 1000
+              ) {
+                console.log(
+                  "The price for",
+                  priceConfig.alias,
+                  "from Hermes is stale, dropping it"
+                );
+                delete priceStore[priceConfig.mint.toString()];
+              } else {
+                priceStore[priceConfig.mint.toString()] = {
+                  price: parsedUpdate.price.price,
+                  exponent: parsedUpdate.price.expo,
+                  mintDecimals: priceConfig.decimals,
+                };
+              }
+            }
+          }
+        }
+
+        if (hermesConnectionTimeout !== undefined) {
+          clearTimeout(hermesConnectionTimeout);
+        }
+
+        hermesConnectionTimeout = setTimeout(() => {
+          throw new Error("Hermes streaming timeout");
+        }, argv.hermesStreamingTimeout);
+      };
+    });
+  }
 
   const resubmitOpportunities = async () => {
     //eslint-disable-next-line no-constant-condition
