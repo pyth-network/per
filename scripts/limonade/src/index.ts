@@ -47,6 +47,7 @@ const argv = yargs(hideBin(process.argv))
     description:
       "API key to authenticate with the express relay server for publishing opportunities.",
     type: "string",
+    demandOption: true,
   })
   .option("number-of-concurrent-submissions", {
     description: "Number of concurrent submissions to the express relay server",
