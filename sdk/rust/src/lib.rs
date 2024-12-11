@@ -3,8 +3,18 @@ pub use {
     express_relay_api_types as api_types,
 };
 use {
-    evm::BidParamsEvm,
+    ethers::signers::LocalWallet,
+    evm::{
+        get_config,
+        get_params,
+        make_adapter_calldata,
+        BidParamsEvm,
+    },
     express_relay_api_types::{
+        bid::{
+            BidCreate,
+            BidCreateEvm,
+        },
         opportunity::{
             GetOpportunitiesQueryParams,
             Opportunity,
@@ -37,10 +47,6 @@ use {
         },
         time::Duration,
     },
-    strum::{
-        Display,
-        EnumString,
-    },
     tokio::{
         net::TcpStream,
         sync::{
@@ -49,7 +55,6 @@ use {
             oneshot,
             RwLock,
         },
-        time::sleep,
     },
     tokio_stream::wrappers::{
         errors::BroadcastStreamRecvError,
@@ -65,20 +70,6 @@ use {
 };
 
 pub mod evm;
-
-#[derive(Display, EnumString)]
-pub enum ChainId {
-    #[strum(serialize = "development")]
-    DevelopmentEvm,
-    #[strum(serialize = "development-solana")]
-    DevelopmentSvm,
-    #[strum(serialize = "op-sepolia")]
-    OpSepolia,
-    #[strum(serialize = "solana")]
-    Solana,
-    #[strum(serialize = "mode")]
-    Mode,
-}
 
 pub struct Client {
     http_url: Url,
@@ -101,7 +92,8 @@ pub enum ClientError {
     RequestError(String),
     DecodeResponseFailed(reqwest::Error),
     AuthenticationRequired,
-    SubscribeFailed(String),
+    WsConnectFailed(String),
+    WsRequestFailed(String),
     InvalidResponse(String),
     ChainNotSupported,
     NewBidError(String),
@@ -243,10 +235,7 @@ impl WsClient {
                                 requests_map.insert(request.id.clone(), response_sender);
                             }
                         }
-                        None => {
-                            println!("Request receiver closed");
-                            break;
-                        }
+                        None => break,
                     }
                 }
             }
@@ -274,7 +263,7 @@ impl WsClient {
             .send((request, response_sender))
             .is_err()
         {
-            return Err(ClientError::SubscribeFailed(
+            return Err(ClientError::WsRequestFailed(
                 "Failed to send request".to_string(),
             ));
         }
@@ -282,17 +271,17 @@ impl WsClient {
         match tokio::time::timeout(Duration::from_secs(5), response_receiver).await {
             Ok(response) => match response {
                 Ok(response) => Ok(response),
-                Err(_) => Err(ClientError::SubscribeFailed(
+                Err(_) => Err(ClientError::WsRequestFailed(
                     "Response channel closed".to_string(),
                 )),
             },
-            Err(_) => Err(ClientError::SubscribeFailed(
+            Err(_) => Err(ClientError::WsRequestFailed(
                 "Ws request timeout".to_string(),
             )),
         }
     }
 
-    pub async fn chain_subscribe(&self, chain_ids: Vec<ChainId>) -> Result<(), ClientError> {
+    pub async fn chain_subscribe(&self, chain_ids: Vec<String>) -> Result<(), ClientError> {
         let message = api_types::ws::ClientMessage::Subscribe {
             chain_ids: chain_ids
                 .iter()
@@ -302,11 +291,11 @@ impl WsClient {
         let result = self.send(message).await?;
         match result {
             ServerResultMessage::Success(_) => Ok(()),
-            ServerResultMessage::Err(error) => Err(ClientError::SubscribeFailed(error)),
+            ServerResultMessage::Err(error) => Err(ClientError::WsRequestFailed(error)),
         }
     }
 
-    pub async fn chain_unsubscribe(&self, chain_ids: Vec<ChainId>) -> Result<(), ClientError> {
+    pub async fn chain_unsubscribe(&self, chain_ids: Vec<String>) -> Result<(), ClientError> {
         let message = api_types::ws::ClientMessage::Unsubscribe {
             chain_ids: chain_ids
                 .iter()
@@ -316,7 +305,7 @@ impl WsClient {
         let result = self.send(message).await?;
         match result {
             ServerResultMessage::Success(_) => Ok(()),
-            ServerResultMessage::Err(error) => Err(ClientError::SubscribeFailed(error)),
+            ServerResultMessage::Err(error) => Err(ClientError::WsRequestFailed(error)),
         }
     }
 
@@ -333,7 +322,7 @@ impl WsClient {
                 let api_types::ws::APIResponse::BidResult(response) = response;
                 Ok(response)
             }
-            ServerResultMessage::Err(error) => Err(ClientError::SubscribeFailed(error)),
+            ServerResultMessage::Err(error) => Err(ClientError::WsRequestFailed(error)),
         }
     }
 }
@@ -399,7 +388,7 @@ impl Client {
         );
         let (ws_stream, _) = connect_async(url_string)
             .await
-            .map_err(|e| ClientError::SubscribeFailed(e.to_string()))?;
+            .map_err(|e| ClientError::WsConnectFailed(e.to_string()))?;
 
         let (request_sender, request_receiver) = mpsc::unbounded_channel();
         let (update_sender, _) = broadcast::channel(1000);
@@ -422,19 +411,21 @@ impl Client {
     }
 
     pub async fn new_bid<T: OpportunityTrait>(
-        _opportunity: T,
-        _params: T::Params,
+        opportunity: T,
+        params: T::Params,
+        private_key: String,
     ) -> Result<api_types::bid::BidCreate, ClientError> {
-        sleep(Duration::from_secs(5)).await;
-        Err(ClientError::ChainNotSupported)
+        T::new_bid(opportunity, params, private_key)
     }
 }
 
 pub trait OpportunityTrait {
     type Params;
+
     fn new_bid(
         opportunity: Self,
         params: Self::Params,
+        private_key: String,
     ) -> Result<api_types::bid::BidCreate, ClientError>;
 }
 
@@ -442,10 +433,24 @@ impl OpportunityTrait for api_types::opportunity::OpportunityEvm {
     type Params = BidParamsEvm;
 
     fn new_bid(
-        _opportunity: Self,
-        _params: Self::Params,
-    ) -> Result<express_relay_api_types::bid::BidCreate, ClientError> {
-        todo!()
+        opportunity: Self,
+        bid_params: Self::Params,
+        private_key: String,
+    ) -> Result<BidCreate, ClientError> {
+        let private_key = private_key.parse::<LocalWallet>().map_err(|e| {
+            ClientError::NewBidError(format!("Failed to parse private key: {:?}", e))
+        })?;
+        let params = get_params(opportunity.clone());
+        let config = get_config(params.chain_id.as_str())?;
+        let wallet = LocalWallet::from(private_key);
+        let bid = BidCreateEvm {
+            permission_key:  params.permission_key,
+            chain_id:        params.chain_id,
+            target_contract: config.adapter_factory_contract,
+            amount:          bid_params.amount,
+            target_calldata: make_adapter_calldata(opportunity.clone(), bid_params, wallet)?,
+        };
+        Ok(BidCreate::Evm(bid))
     }
 }
 
@@ -455,7 +460,8 @@ impl OpportunityTrait for api_types::opportunity::OpportunitySvm {
     fn new_bid(
         _opportunity: Self,
         _params: Self::Params,
-    ) -> Result<express_relay_api_types::bid::BidCreate, ClientError> {
+        _private_key: String,
+    ) -> Result<BidCreate, ClientError> {
         todo!()
     }
 }

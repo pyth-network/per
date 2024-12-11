@@ -11,7 +11,6 @@ express-relay-api-types = { version = "0.0.0", path = "../../auction-server/api-
 reqwest = { version = "0.12.9", features = ["json"] }
 url = "2.5.4"
 serde = { workspace = true }
-strum = { workspace = true }
 serde_json = { workspace = true }
 tokio-tungstenite = { version = "0.24.0", features = ["native-tls"] }
 tokio-stream = { workspace = true, features = ["sync"] }
