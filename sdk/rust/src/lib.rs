@@ -62,7 +62,10 @@ use {
     },
     tokio_tungstenite::{
         connect_async,
-        tungstenite::Message,
+        tungstenite::{
+            client::IntoClientRequest,
+            Message,
+        },
         MaybeTlsStream,
         WebSocketStream,
     },
@@ -350,6 +353,9 @@ impl Client {
             .join(route.full_path().as_str())
             .map_err(|e| ClientError::InvalidHttpUrl(e.to_string()))?;
         let mut request = self.client.request(route.method(), url);
+        if let Some(api_key) = self.api_key.clone() {
+            request = request.bearer_auth(api_key);
+        }
         if let Some(query) = query {
             request = request.query(&query);
         }
@@ -386,7 +392,19 @@ impl Client {
             api_types::Route::V1.as_ref(),
             api_types::Route::Ws.as_ref()
         );
-        let (ws_stream, _) = connect_async(url_string)
+        let mut request = url_string
+            .into_client_request()
+            .map_err(|e| ClientError::WsConnectFailed(e.to_string()))?;
+        if let Some(api_key) = self.api_key.clone() {
+            let bearer_token = format!("Bearer {}", api_key);
+            request.headers_mut().insert(
+                "Authorization",
+                bearer_token.parse().map_err(|_| {
+                    ClientError::WsConnectFailed("Failed to parse api key".to_string())
+                })?,
+            );
+        }
+        let (ws_stream, _) = connect_async(request)
             .await
             .map_err(|e| ClientError::WsConnectFailed(e.to_string()))?;
 

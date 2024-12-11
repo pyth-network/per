@@ -51,6 +51,11 @@ pub struct RunOptions {
     #[arg(long = "chain-ids", required = true)]
     #[arg(env = "CHAIN_IDS")]
     pub chains: Vec<String>,
+
+    /// Chain ids to subscribe to.
+    #[arg(long = "api-key")]
+    #[arg(env = "API_KEY")]
+    pub api_key: Option<String>,
 }
 
 
@@ -110,7 +115,7 @@ async fn main() -> Result<()> {
     let client = Client::try_new(ClientConfig {
         http_url: args.server_url,
         ws_url,
-        api_key: Some("Test".to_string()),
+        api_key: args.api_key,
     })
     .map_err(|e| {
         eprintln!("Failed to create client: {:?}", e);
