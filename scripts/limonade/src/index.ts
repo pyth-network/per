@@ -78,7 +78,7 @@ const argv = yargs(hideBin(process.argv))
 
 async function run() {
   const connection = new Connection(argv.rpcEndpoint);
-  const priceStore: Record<string, { price: string; exponent: number }> = {};
+  const priceStore: Record<string, { price: string; exponent: number, mintDecimals: number }> = {};
 
   const globalConfig = new PublicKey(argv.globalConfig);
   const numberOfConcurrentSubmissions = argv.numberOfConcurrentSubmissions;
@@ -122,7 +122,6 @@ async function run() {
       filters,
       withContext: true,
     });
-    console.log("Found ", response.value.length, " orders");
 
     const payloads: OpportunityCreate[] = response.value
       .filter(
@@ -164,26 +163,18 @@ async function run() {
     const priceInputMint = priceStore[order.state.inputMint.toString()];
     const priceOutputMint = priceStore[order.state.outputMint.toString()];
 
-    const priceInputMintDecimals = priceConfigs.find(
-      (priceConfig) => priceConfig.mint.toString() === order.state.inputMint.toString()
-    )?.decimals!;
-    const priceOutputMintDecimals = priceConfigs.find(
-      (priceConfig) => priceConfig.mint.toString() === order.state.outputMint.toString()
-    )?.decimals!;
-
     if (!priceInputMint || !priceOutputMint) {
       return false;
     } else {
       const inputAmount = order.state.remainingInputAmount;
-      const outputAmount : BN = order.state.expectedOutputAmount.sub(
+      const outputAmount = order.state.expectedOutputAmount.sub(
         order.state.filledOutputAmount
       );
-
 
       const ratio =
         (outputAmount.toNumber() / inputAmount.toNumber()) *
         (Number(priceOutputMint.price) / Number(priceInputMint.price)) *
-        10 ** (priceOutputMint.exponent - priceInputMint.exponent + priceInputMintDecimals - priceOutputMintDecimals);
+        10 ** (priceOutputMint.exponent - priceInputMint.exponent + priceInputMint.mintDecimals - priceOutputMint.mintDecimals);
 
       if (ratio > argv.offMarketThreshold) {
         return true;
@@ -266,13 +257,14 @@ async function run() {
     const parsed = data.parsed;
     if (parsed) {
       for (const parsedUpdate of parsed) {
-        const mint = priceConfigs.find(
+        const priceConfig = priceConfigs.find(
           (priceConfig) => priceConfig.pythFeedId === parsedUpdate.id
-        )?.mint;
-        if (mint) {
-          priceStore[mint.toString()] = {
+        );
+        if (priceConfig) {
+          priceStore[priceConfig.mint.toString()] = {
             price: parsedUpdate.price.price,
             exponent: parsedUpdate.price.expo,
+            mintDecimals: priceConfig.decimals,
           };
         }
       }
