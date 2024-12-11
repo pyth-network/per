@@ -58,6 +58,11 @@ const argv = yargs(hideBin(process.argv))
     type: "number",
     default: 30 * 1000,
   })
+  .option("hermes-streaming-timeout", {
+    description: "Hermes streaming timeout (milliseconds)",
+    type: "number",
+    default: 10 * 1000,
+  })
   .option("price-config", {
     description: "Path to the price config file",
     type: "string",
@@ -83,6 +88,7 @@ async function run() {
   const globalConfig = new PublicKey(argv.globalConfig);
   const numberOfConcurrentSubmissions = argv.numberOfConcurrentSubmissions;
   let solanaConnectionTimeout: NodeJS.Timeout | undefined;
+  let hermesConnectionTimeout: NodeJS.Timeout | undefined;
 
   const priceConfigs: PriceConfig[] = argv.priceConfig
     ? await loadPriceConfig(argv.priceConfig, connection)
@@ -269,6 +275,14 @@ async function run() {
         }
       }
     }
+
+    if (hermesConnectionTimeout !== undefined) {
+      clearTimeout(hermesConnectionTimeout);
+    }
+
+    hermesConnectionTimeout = setTimeout(() => {
+      throw new Error("Hermes streaming timeout");
+    }, argv.hermesStreamingTimeout);
   };
 
   const resubmitOpportunities = async () => {
