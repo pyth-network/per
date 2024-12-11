@@ -16,17 +16,20 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/yargs": "catalog:",
-    "typescript": "catalog:",
-    "jest": "catalog:"
+    "jest": "catalog:",
+    "typescript": "catalog:"
   },
   "dependencies": {
     "@coral-xyz/anchor": "catalog:",
     "@coral-xyz/anchor-cli": "catalog:",
     "@kamino-finance/limo-sdk": "catalog:",
     "@pythnetwork/express-relay-js": "workspace:*",
+    "@pythnetwork/hermes-client": "^1.2.0",
     "@solana/web3.js": "catalog:",
     "axios": "^1.7.3",
     "bs58": "^6.0.0",
+    "joi": "^17.13.3",
+    "yaml": "^2.6.1",
     "yargs": "catalog:"
   }
 }

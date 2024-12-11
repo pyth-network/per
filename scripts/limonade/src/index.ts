@@ -8,12 +8,14 @@ import bs58 from "bs58";
 import { hideBin } from "yargs/helpers";
 import yargs from "yargs";
 import {
-  ChainType,
   Client,
   ClientError,
   OpportunityCreate,
 } from "@pythnetwork/express-relay-js";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
+import { HermesClient, PriceUpdate } from "@pythnetwork/hermes-client";
+import { PriceConfig, readPriceConfigFile } from "./price-config";
+import { Pubkey } from "@kamino-finance/limo-sdk/dist/rpc_client/types/UpdateGlobalConfigValue";
 
 const lastChange: Record<string, number> = {};
 
@@ -45,7 +47,6 @@ const argv = yargs(hideBin(process.argv))
     description:
       "API key to authenticate with the express relay server for publishing opportunities.",
     type: "string",
-    demandOption: true,
   })
   .option("number-of-concurrent-submissions", {
     description: "Number of concurrent submissions to the express relay server",
@@ -57,16 +58,30 @@ const argv = yargs(hideBin(process.argv))
     type: "number",
     default: 30 * 1000,
   })
+  .option("price-config", {
+    description: "Path to the price config file",
+    type: "string",
+  })
+  .option("hermes-endpoint", {
+    description: "Hermes endpoint to use for fetching price updates",
+    type: "string",
+    default: "https://hermes.pyth.network/",
+  })
   .help()
   .alias("help", "h")
   .parseSync();
 
 async function run() {
   const connection = new Connection(argv.rpcEndpoint);
+  const priceStore: Record<string, { price: string; exponent: number }> = {};
 
   const globalConfig = new PublicKey(argv.globalConfig);
   const numberOfConcurrentSubmissions = argv.numberOfConcurrentSubmissions;
   let solanaConnectionTimeout: NodeJS.Timeout | undefined;
+
+  const priceConfigs: PriceConfig[] = argv.priceConfig
+    ? readPriceConfigFile(argv.priceConfig)
+    : [];
 
   const filters: GetProgramAccountsFilter[] = [
     {
@@ -121,7 +136,13 @@ async function run() {
       .filter(
         (opportunityCreate) =>
           opportunityCreate.order.state.remainingInputAmount.toNumber() !== 0
-      );
+      )
+      .filter((opportunityCreate) =>
+        opportunityCreate.order.address.equals(
+          new PublicKey("FcrkTHX99fPokp5CtJzHp5MmvujFnnip57C78TLiaryj")
+        )
+      )
+      .filter((opportunityCreate) => isOffMarket(opportunityCreate.order));
 
     console.log("Resubmitting opportunities", payloads.length);
     for (let i = 0; i < payloads.length; i += numberOfConcurrentSubmissions) {
@@ -129,12 +150,40 @@ async function run() {
       await Promise.all(
         batch.map(async (payload) => {
           try {
-            await client.submitOpportunity(payload);
+            // await client.submitOpportunity(payload);
           } catch (e) {
             handleSubmitError(e);
           }
         })
       );
+    }
+  };
+
+  const isOffMarket = (order: { state: Order; address: PublicKey }) => {
+    const priceInputMint = priceStore[order.state.inputMint.toString()];
+    const priceOutputMint = priceStore[order.state.outputMint.toString()];
+    console.log("prices ", priceInputMint, priceOutputMint);
+    if (!priceInputMint || !priceOutputMint) {
+      return false;
+    } else {
+      const inputAmount = order.state.remainingInputAmount;
+      const outputAmount = order.state.expectedOutputAmount.sub(
+        order.state.filledOutputAmount
+      );
+
+      console.log("amounts ", inputAmount.toNumber(), outputAmount.toNumber());
+
+      const ratio =
+        (inputAmount.toNumber() / outputAmount.toNumber()) *
+        (Number(priceInputMint.price) / Number(priceOutputMint.price)) *
+        10 ** (priceInputMint.exponent - priceOutputMint.exponent);
+
+      console.log(ratio);
+      if (ratio > 2) {
+        console.log("Off market", order.address.toBase58());
+        return true;
+      }
+      return true;
     }
   };
 
@@ -147,13 +196,13 @@ async function run() {
           const router = getPdaAuthority(limoId, globalConfig);
 
           try {
-            await client.removeOpportunity({
-              chainType: ChainType.SVM,
-              program: "limo",
-              chainId: argv.chainId,
-              permissionAccount: info.accountId,
-              router,
-            });
+            // await client.removeOpportunity({
+            //   chainType: ChainType.SVM,
+            //   program: "limo",
+            //   chainId: argv.chainId,
+            //   permissionAccount: info.accountId,
+            //   router,
+            // });
           } catch (e) {
             console.error("Failed to remove opportunity", e);
           }
@@ -174,7 +223,7 @@ async function run() {
         };
 
         try {
-          await client.submitOpportunity(payload);
+          // await client.submitOpportunity(payload);
           lastChange[info.accountId.toBase58()] = Date.now();
         } catch (e) {
           handleSubmitError(e);
@@ -197,13 +246,41 @@ async function run() {
     }, argv.solanaWebsocketTimeout);
   });
 
+  const hermesClient = new HermesClient(argv.hermesEndpoint, {});
+
+  const priceIds = priceConfigs.map((priceConfig) => priceConfig.pythFeedId);
+  console.log(priceIds);
+  const eventSource = await hermesClient.getPriceUpdatesStream(priceIds, {
+    encoding: "hex",
+    parsed: true,
+    ignoreInvalidPriceIds: true,
+  });
+
+  eventSource.onmessage = (event: MessageEvent<string>) => {
+    const data: PriceUpdate = JSON.parse(event.data);
+    const parsed = data.parsed;
+    if (parsed) {
+      for (const parsedUpdate of parsed) {
+        const mint = priceConfigs.find(
+          (priceConfig) => priceConfig.pythFeedId === parsedUpdate.id
+        )?.mint;
+        if (mint) {
+          priceStore[mint.toString()] = {
+            price: parsedUpdate.price.price,
+            exponent: parsedUpdate.price.expo,
+          };
+        }
+      }
+    }
+  };
+
   const resubmitOpportunities = async () => {
     //eslint-disable-next-line no-constant-condition
     while (true) {
       submitExistingOpportunities().catch(console.error);
       // Server expires opportunities after 2 minutes
       // We should resubmit them before server expire them to avoid creating a new row in the database
-      await new Promise((resolve) => setTimeout(resolve, 50 * 1000));
+      await new Promise((resolve) => setTimeout(resolve, 5 * 1000));
     }
   };
 
