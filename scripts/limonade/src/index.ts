@@ -8,6 +8,7 @@ import bs58 from "bs58";
 import { hideBin } from "yargs/helpers";
 import yargs from "yargs";
 import {
+  ChainType,
   Client,
   ClientError,
   OpportunityCreate,
@@ -15,7 +16,6 @@ import {
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 import { HermesClient, PriceUpdate } from "@pythnetwork/hermes-client";
 import { PriceConfig, loadPriceConfig } from "./price-config";
-import { BN } from "@coral-xyz/anchor";
 
 const lastChange: Record<string, number> = {};
 
@@ -166,7 +166,7 @@ async function run() {
       await Promise.all(
         batch.map(async (payload) => {
           try {
-            // await client.submitOpportunity(payload);
+            await client.submitOpportunity(payload);
           } catch (e) {
             handleSubmitError(e);
           }
@@ -213,13 +213,13 @@ async function run() {
           const router = getPdaAuthority(limoId, globalConfig);
 
           try {
-            // await client.removeOpportunity({
-            //   chainType: ChainType.SVM,
-            //   program: "limo",
-            //   chainId: argv.chainId,
-            //   permissionAccount: info.accountId,
-            //   router,
-            // });
+            await client.removeOpportunity({
+              chainType: ChainType.SVM,
+              program: "limo",
+              chainId: argv.chainId,
+              permissionAccount: info.accountId,
+              router,
+            });
           } catch (e) {
             console.error("Failed to remove opportunity", e);
           }
@@ -240,7 +240,7 @@ async function run() {
         };
 
         try {
-          // await client.submitOpportunity(payload);
+          await client.submitOpportunity(payload);
           lastChange[info.accountId.toBase58()] = Date.now();
         } catch (e) {
           handleSubmitError(e);
@@ -332,7 +332,7 @@ async function run() {
       submitExistingOpportunities().catch(console.error);
       // Server expires opportunities after 2 minutes
       // We should resubmit them before server expire them to avoid creating a new row in the database
-      await new Promise((resolve) => setTimeout(resolve, 5 * 1000));
+      await new Promise((resolve) => setTimeout(resolve, 50 * 1000));
     }
   };
 

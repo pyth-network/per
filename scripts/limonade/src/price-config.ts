@@ -11,17 +11,30 @@ export type PriceConfig = {
   decimals: number;
 };
 
-export async function loadPriceConfig(path: string, connection: Connection): Promise<PriceConfig[]> {
-    const priceConfigs = yaml.parse(fs.readFileSync(path, "utf8"));
+export async function loadPriceConfig(
+  path: string,
+  connection: Connection
+): Promise<PriceConfig[]> {
+  const priceConfigs = yaml.parse(fs.readFileSync(path, "utf8"));
 
-    for (const priceConfig of priceConfigs){
-      priceConfig.decimals = await getMintDecimals(connection, new PublicKey(priceConfig.mint));
-    }
+  for (const priceConfig of priceConfigs) {
+    priceConfig.decimals = await getMintDecimals(
+      connection,
+      new PublicKey(priceConfig.mint)
+    );
+  }
 
-    return priceConfigs.map((priceConfig: any) => ({
+  return priceConfigs.map(
+    (priceConfig: {
+      alias: string;
+      mint: string;
+      id: string;
+      decimals: number;
+    }) => ({
       alias: priceConfig.alias,
       mint: new PublicKey(priceConfig.mint),
       pythFeedId: priceConfig.id,
       decimals: priceConfig.decimals,
-    }));
+    })
+  );
 }
