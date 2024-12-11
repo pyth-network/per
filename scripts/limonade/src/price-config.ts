@@ -7,6 +7,7 @@ export type PriceConfig = {
   alias: string;
   mint: PublicKey;
   pythFeedId: HexString;
+  decimals: number;
 };
 
 export function readPriceConfigFile(path: string): PriceConfig[] {
@@ -16,6 +17,7 @@ export function readPriceConfigFile(path: string): PriceConfig[] {
       alias: priceConfig.alias,
       mint: new PublicKey(priceConfig.mint),
       pythFeedId: priceConfig.id,
+      decimals: priceConfig.decimals,
     }));
   } catch (error) {
     console.error(`Error reading price config file ${path}: ${error}`);

@@ -15,7 +15,7 @@ import {
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 import { HermesClient, PriceUpdate } from "@pythnetwork/hermes-client";
 import { PriceConfig, readPriceConfigFile } from "./price-config";
-import { Pubkey } from "@kamino-finance/limo-sdk/dist/rpc_client/types/UpdateGlobalConfigValue";
+import { BN } from "@coral-xyz/anchor";
 
 const lastChange: Record<string, number> = {};
 
@@ -137,12 +137,12 @@ async function run() {
         (opportunityCreate) =>
           opportunityCreate.order.state.remainingInputAmount.toNumber() !== 0
       )
-      .filter((opportunityCreate) =>
-        opportunityCreate.order.address.equals(
-          new PublicKey("FcrkTHX99fPokp5CtJzHp5MmvujFnnip57C78TLiaryj")
-        )
-      )
-      .filter((opportunityCreate) => isOffMarket(opportunityCreate.order));
+      // .filter((opportunityCreate) =>
+      //   opportunityCreate.order.address.equals(
+      //     new PublicKey("FcrkTHX99fPokp5CtJzHp5MmvujFnnip57C78TLiaryj")
+      //   )
+      // )
+      .filter((opportunityCreate) => !isOffMarket(opportunityCreate.order));
 
     console.log("Resubmitting opportunities", payloads.length);
     for (let i = 0; i < payloads.length; i += numberOfConcurrentSubmissions) {
@@ -163,27 +163,32 @@ async function run() {
     const priceInputMint = priceStore[order.state.inputMint.toString()];
     const priceOutputMint = priceStore[order.state.outputMint.toString()];
     console.log("prices ", priceInputMint, priceOutputMint);
+
+    const priceInputMintDecimals = priceConfigs.find(
+      (priceConfig) => priceConfig.mint.toString() === order.state.inputMint.toString()
+    )?.decimals!;
+    const priceOutputMintDecimals = priceConfigs.find(
+      (priceConfig) => priceConfig.mint.toString() === order.state.outputMint.toString()
+    )?.decimals!;
+
     if (!priceInputMint || !priceOutputMint) {
       return false;
     } else {
       const inputAmount = order.state.remainingInputAmount;
-      const outputAmount = order.state.expectedOutputAmount.sub(
+      const outputAmount : BN = order.state.expectedOutputAmount.sub(
         order.state.filledOutputAmount
       );
 
-      console.log("amounts ", inputAmount.toNumber(), outputAmount.toNumber());
 
       const ratio =
-        (inputAmount.toNumber() / outputAmount.toNumber()) *
-        (Number(priceInputMint.price) / Number(priceOutputMint.price)) *
-        10 ** (priceInputMint.exponent - priceOutputMint.exponent);
+        (outputAmount.toNumber() / inputAmount.toNumber()) *
+        (Number(priceOutputMint.price) / Number(priceInputMint.price)) *
+        10 ** (priceOutputMint.exponent - priceInputMint.exponent + priceInputMintDecimals - priceOutputMintDecimals);
 
-      console.log(ratio);
-      if (ratio > 2) {
-        console.log("Off market", order.address.toBase58());
+      if (ratio > 1.05) {
         return true;
       }
-      return true;
+      return false;
     }
   };
 
