@@ -80,7 +80,7 @@ const argv = yargs(hideBin(process.argv))
   })
   .option("price-staleness-threshold", {
     description:
-      "Threshold of price staleness in seconds, if price is stale, we will not use it",
+      "Threshold of price staleness (seconds), if price is stale, we will not use it",
     type: "number",
     default: 10,
   })
