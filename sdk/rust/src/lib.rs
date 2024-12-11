@@ -17,6 +17,7 @@ use {
     },
     futures_util::{
         SinkExt,
+        Stream,
         StreamExt,
     },
     reqwest::Response,
@@ -27,6 +28,13 @@ use {
     },
     std::{
         collections::BTreeMap,
+        marker::PhantomData,
+        pin::Pin,
+        sync::Arc,
+        task::{
+            Context,
+            Poll,
+        },
         time::Duration,
     },
     strum::{
@@ -36,13 +44,17 @@ use {
     tokio::{
         net::TcpStream,
         sync::{
+            broadcast,
             mpsc,
             oneshot,
             RwLock,
         },
         time::sleep,
     },
-    tokio_stream::wrappers::UnboundedReceiverStream,
+    tokio_stream::wrappers::{
+        errors::BroadcastStreamRecvError,
+        BroadcastStream,
+    },
     tokio_tungstenite::{
         connect_async,
         tungstenite::Message,
@@ -121,13 +133,18 @@ type WsRequest = (
     oneshot::Sender<ServerResultMessage>,
 );
 
-pub struct WsClient {
+pub struct WsClientInner {
     #[allow(dead_code)]
     ws:             tokio::task::JoinHandle<()>,
     request_sender: mpsc::UnboundedSender<WsRequest>,
     request_id:     RwLock<usize>,
 
-    pub update_stream: RwLock<UnboundedReceiverStream<api_types::ws::ServerUpdateResponse>>,
+    update_sender: broadcast::Sender<api_types::ws::ServerUpdateResponse>,
+}
+
+#[derive(Clone)]
+pub struct WsClient {
+    inner: Arc<WsClientInner>,
 }
 
 #[derive(Deserialize)]
@@ -137,11 +154,39 @@ enum MessageType {
     Update(api_types::ws::ServerUpdateResponse),
 }
 
+pub struct WsClientUpdateStream<'a> {
+    stream:    BroadcastStream<api_types::ws::ServerUpdateResponse>,
+    _lifetime: PhantomData<&'a ()>,
+}
+
+impl WsClientUpdateStream<'_> {
+    pub fn new(stream: BroadcastStream<api_types::ws::ServerUpdateResponse>) -> Self {
+        Self {
+            stream,
+            _lifetime: PhantomData,
+        }
+    }
+}
+
+// Implementing Stream trait
+impl Stream for WsClientUpdateStream<'_> {
+    type Item = Result<api_types::ws::ServerUpdateResponse, BroadcastStreamRecvError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let stream = &mut self.get_mut().stream;
+        stream.poll_next_unpin(cx)
+    }
+}
+
 impl WsClient {
+    pub fn get_update_stream(&self) -> WsClientUpdateStream {
+        WsClientUpdateStream::new(BroadcastStream::new(self.inner.update_sender.subscribe()))
+    }
+
     async fn run(
         mut ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
         mut request_receiver: mpsc::UnboundedReceiver<WsRequest>,
-        update_sender: mpsc::UnboundedSender<api_types::ws::ServerUpdateResponse>,
+        update_sender: broadcast::Sender<api_types::ws::ServerUpdateResponse>,
     ) {
         let mut requests_map = BTreeMap::<String, oneshot::Sender<ServerResultMessage>>::new();
         loop {
@@ -186,9 +231,8 @@ impl WsClient {
                             response.id.and_then(|id| requests_map.remove(&id)).map(|sender| sender.send(response.result));
                         }
                         MessageType::Update(update) => {
-                            if update_sender.send(update).is_err() {
-                                break;
-                            }
+                            _ = update_sender.send(update);
+                            continue;
                         }
                     }
                 }
@@ -199,7 +243,10 @@ impl WsClient {
                                 requests_map.insert(request.id.clone(), response_sender);
                             }
                         }
-                        None => break,
+                        None => {
+                            println!("Request receiver closed");
+                            break;
+                        }
                     }
                 }
             }
@@ -210,7 +257,7 @@ impl WsClient {
         &self,
         message: api_types::ws::ClientMessage,
     ) -> Result<ServerResultMessage, ClientError> {
-        let mut write_gaurd = self.request_id.write().await;
+        let mut write_gaurd = self.inner.request_id.write().await;
         let request_id = write_gaurd.to_string();
         *write_gaurd += 1;
         drop(write_gaurd);
@@ -222,6 +269,7 @@ impl WsClient {
 
         let (response_sender, response_receiver) = oneshot::channel();
         if self
+            .inner
             .request_sender
             .send((request, response_sender))
             .is_err()
@@ -354,15 +402,15 @@ impl Client {
             .map_err(|e| ClientError::SubscribeFailed(e.to_string()))?;
 
         let (request_sender, request_receiver) = mpsc::unbounded_channel();
-        let (update_sender, update_receiver) = mpsc::unbounded_channel();
+        let (update_sender, _) = broadcast::channel(1000);
 
         Ok(WsClient {
-            request_sender,
-            update_stream: RwLock::new(UnboundedReceiverStream::<
-                api_types::ws::ServerUpdateResponse,
-            >::new(update_receiver)),
-            request_id: RwLock::new(0),
-            ws: tokio::spawn(WsClient::run(ws_stream, request_receiver, update_sender)),
+            inner: Arc::new(WsClientInner {
+                request_sender,
+                update_sender: update_sender.clone(),
+                request_id: RwLock::new(0),
+                ws: tokio::spawn(WsClient::run(ws_stream, request_receiver, update_sender)),
+            }),
         })
     }
 
