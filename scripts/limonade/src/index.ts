@@ -180,6 +180,7 @@ async function run() {
     const priceOutputMint = priceStore[order.state.outputMint.toString()];
 
     if (!priceInputMint || !priceOutputMint) {
+      // If we don't have price info, we will not consider it off-market
       return false;
     } else {
       const inputAmount = order.state.remainingInputAmount;
@@ -275,6 +276,10 @@ async function run() {
         ignoreInvalidPriceIds: true,
       }
     );
+
+    eventSource.onerror = (event: Event) => {
+      console.error("Hermes streaming error", event);
+    };
 
     /// Await for the first message before continuing
     await new Promise<void>((resolve, reject) => {
