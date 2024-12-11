@@ -122,6 +122,7 @@ async function run() {
       filters,
       withContext: true,
     });
+    console.log("Found ", response.value.length, " orders");
 
     const payloads: OpportunityCreate[] = response.value
       .filter(
@@ -142,11 +143,6 @@ async function run() {
         (opportunityCreate) =>
           opportunityCreate.order.state.remainingInputAmount.toNumber() !== 0
       )
-      // .filter((opportunityCreate) =>
-      //   opportunityCreate.order.address.equals(
-      //     new PublicKey("FcrkTHX99fPokp5CtJzHp5MmvujFnnip57C78TLiaryj")
-      //   )
-      // )
       .filter((opportunityCreate) => !isOffMarket(opportunityCreate.order));
 
     console.log("Resubmitting opportunities", payloads.length);
