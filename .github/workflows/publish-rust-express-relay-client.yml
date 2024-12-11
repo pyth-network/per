@@ -12,6 +12,35 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1.1.1
+        with:
+          version: nightly
+      - name: Install evm contracts npm dependencies
+        working-directory: contracts/evm
+        run: npm ci
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: true
+      - name: Install forge dependencies 1
+        working-directory: contracts/evm
+        run: forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit
+      - name: Install forge dependencies 2
+        working-directory: contracts/evm
+        run: forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commit
+      - name: Install forge dependencies 3
+        working-directory: contracts/evm
+        run: forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
+      - name: Install forge dependencies 4
+        working-directory: contracts/evm
+        run: forge install Uniswap/permit2@0x000000000022D473030F116dDEE9F6B43aC78BA3 --no-git --no-commit
+      - name: Install forge dependencies 5
+        working-directory: contracts/evm
+        run: forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1fcb4e286 --no-git --no-commit
+      - name: Install Anchor CLI
+        run: npm install -g @coral-xyz/anchor-cli@v0.30.1
+
       - run: cargo publish -p express-relay-client --token ${CARGO_REGISTRY_TOKEN}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.PYTH_NETWORK_PYTH_OPS_CARGO_PUSH }}
