@@ -14,7 +14,7 @@ import {
 } from "@pythnetwork/express-relay-js";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 import { HermesClient, PriceUpdate } from "@pythnetwork/hermes-client";
-import { PriceConfig, readPriceConfigFile } from "./price-config";
+import { PriceConfig, loadPriceConfig } from "./price-config";
 import { BN } from "@coral-xyz/anchor";
 
 const lastChange: Record<string, number> = {};
@@ -68,7 +68,7 @@ const argv = yargs(hideBin(process.argv))
     default: "https://hermes.pyth.network/",
   })
   .option("off-market-threshold", {
-    description: "Threshold for off market opportunities",
+    description: "Threshold of price ratio to consider an opportunity off-market",
     type: "number",
     default: 1.05,
   })
@@ -85,7 +85,7 @@ async function run() {
   let solanaConnectionTimeout: NodeJS.Timeout | undefined;
 
   const priceConfigs: PriceConfig[] = argv.priceConfig
-    ? readPriceConfigFile(argv.priceConfig)
+    ? await loadPriceConfig(argv.priceConfig, connection)
     : [];
 
   const filters: GetProgramAccountsFilter[] = [

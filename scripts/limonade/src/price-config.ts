@@ -1,7 +1,8 @@
 import { HexString } from "@pythnetwork/hermes-client";
-import { PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import yaml from "yaml";
 import fs from "fs";
+import { getMintDecimals } from "@kamino-finance/limo-sdk/dist/utils";
 
 export type PriceConfig = {
   alias: string;
@@ -10,17 +11,18 @@ export type PriceConfig = {
   decimals: number;
 };
 
-export function readPriceConfigFile(path: string): PriceConfig[] {
-  try {
+export async function loadPriceConfig(path: string, connection: Connection): Promise<PriceConfig[]> {
     const priceConfigs = yaml.parse(fs.readFileSync(path, "utf8"));
+
+    for (const priceConfig of priceConfigs){
+      priceConfig.decimals = await getMintDecimals(connection, new PublicKey(priceConfig.mint));
+    }
+
+    console.log(priceConfigs)
     return priceConfigs.map((priceConfig: any) => ({
       alias: priceConfig.alias,
       mint: new PublicKey(priceConfig.mint),
       pythFeedId: priceConfig.id,
       decimals: priceConfig.decimals,
     }));
-  } catch (error) {
-    console.error(`Error reading price config file ${path}: ${error}`);
-    throw error;
-  }
 }
