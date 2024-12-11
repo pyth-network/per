@@ -293,10 +293,9 @@ async function run() {
         resolve();
 
         const data: PriceUpdate = JSON.parse(event.data);
-        const parsed = data.parsed;
         const now = Date.now();
-        if (parsed) {
-          for (const parsedUpdate of parsed) {
+        if (data.parsed) {
+          for (const parsedUpdate of data.parsed) {
             const priceConfig = priceConfigs.find(
               (priceConfig) => priceConfig.pythFeedId === parsedUpdate.id
             );
