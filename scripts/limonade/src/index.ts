@@ -86,6 +86,12 @@ const argv = yargs(hideBin(process.argv))
     type: "number",
     default: 10 * 1000,
   })
+  .option("resubmission-interval", {
+    description:
+      "Interval of resubmission (milliseconds). We will resubmit all existing active opportunities every interval",
+    type: "number",
+    default: 50 * 1000,
+  })
   .help()
   .alias("help", "h")
   .parseSync();
@@ -300,7 +306,7 @@ async function run() {
       console.error("Hermes streaming error", event);
     };
 
-    /// Await for the first message before continuing
+    // Await for the first message before continuing
     await new Promise<void>((resolve, reject) => {
       setTimeout(() => {
         reject(new Error("Hermes streaming timeout"));
@@ -349,7 +355,9 @@ async function run() {
       submitExistingOpportunities().catch(console.error);
       // Server expires opportunities after 2 minutes
       // We should resubmit them before server expire them to avoid creating a new row in the database
-      await new Promise((resolve) => setTimeout(resolve, 50 * 1000));
+      await new Promise((resolve) =>
+        setTimeout(resolve, argv.resubmissionInterval)
+      );
     }
   };
 
