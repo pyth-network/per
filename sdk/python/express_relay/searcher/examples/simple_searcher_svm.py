@@ -163,7 +163,7 @@ class SimpleSearcherSvm:
         transaction.partial_sign(
             [self.private_key], recent_blockhash=latest_chain_update.blockhash
         )
-        bid = BidSvm(transaction=transaction, chain_id=self.chain_id)
+        bid = BidSvm(transaction=transaction, chain_id=self.chain_id, slot=opp.slot)
         return bid
 
     async def generate_take_order_ixs(

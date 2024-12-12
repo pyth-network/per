@@ -119,6 +119,13 @@ export interface components {
        */
       chain_id: string;
       /**
+       * Format: int64
+       * @description The minimum slot required for the bid to be executed successfully
+       * None if the bid can be executed at any recent slot
+       * @example 293106477
+       */
+      slot?: number | null;
+      /**
        * @description The transaction for bid.
        * @example SGVsbG8sIFdvcmxkIQ==
        */

@@ -547,6 +547,7 @@ export class Client {
 
     return {
       chain_id: bid.chainId,
+      slot: bid.slot,
       transaction: bid.transaction
         .serialize({ requireAllSignatures: false })
         .toString("base64"),

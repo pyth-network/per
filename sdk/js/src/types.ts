@@ -214,6 +214,12 @@ export type BidSvm = {
    */
   chainId: ChainId;
   /**
+   * @description The minimum slot required for the bid to be executed successfully
+   * None if the bid can be executed at any recent slot
+   * @example 293106477
+   */
+  slot?: number | null;
+  /**
    * @description The execution environment for the bid.
    */
   env: "svm";

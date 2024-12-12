@@ -124,6 +124,7 @@ export class SimpleSearcherLimo {
       config.relayerSigner,
       config.feeReceiverRelayer
     );
+    bid.slot = opportunity.slot;
 
     bid.transaction.recentBlockhash =
       this.latestChainUpdate[this.chainId].blockhash;
