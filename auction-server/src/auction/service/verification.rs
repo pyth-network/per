@@ -578,7 +578,7 @@ impl Service<Svm> {
     }
 
     pub async fn simulate_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
-        const RETRY_LIMIT: usize = 3;
+        const RETRY_LIMIT: usize = 5;
         let mut retry_count = 0;
         loop {
             let response = self
@@ -604,6 +604,7 @@ impl Service<Svm> {
                             retry_count,
                             err
                         );
+                        tokio::time::sleep(Duration::from_millis(100)).await;
                         continue;
                     }
                     let msgs = err.meta.logs;
