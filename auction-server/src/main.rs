@@ -36,7 +36,6 @@ mod kernel;
 mod models;
 mod opportunity;
 mod per_metrics;
-mod serde;
 mod server;
 mod state;
 mod subwallet;
@@ -54,7 +53,6 @@ async fn main() -> Result<()> {
         .with_thread_ids(true)
         .with_target(true)
         .with_ansi(std::io::stderr().is_terminal());
-
 
     // Will use env variable OTEL_EXPORTER_OTLP_ENDPOINT or defaults to 127.0.0.1:4317
     let otlp_exporter = opentelemetry_otlp::new_exporter()

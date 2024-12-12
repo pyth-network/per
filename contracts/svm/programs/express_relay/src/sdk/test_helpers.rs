@@ -87,7 +87,6 @@ pub fn add_express_relay_submit_bid_instruction(
     ixs.to_vec()
 }
 
-
 pub fn create_submit_bid_instruction(
     searcher: Pubkey,
     relayer_signer: Pubkey,

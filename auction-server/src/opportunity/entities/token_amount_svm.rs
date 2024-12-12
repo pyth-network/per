@@ -1,6 +1,6 @@
 use {
     super::token_amount::TokenAmount,
-    crate::opportunity::api,
+    express_relay_api_types::opportunity as api,
     serde::{
         Deserialize,
         Serialize,

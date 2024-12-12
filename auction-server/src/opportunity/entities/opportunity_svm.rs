@@ -11,13 +11,9 @@ use {
     },
     crate::{
         kernel::entities::PermissionKey,
-        opportunity::{
-            api,
-            repository::{
-                self,
-            },
-        },
+        opportunity::repository,
     },
+    express_relay_api_types::opportunity as api,
     solana_sdk::{
         clock::Slot,
         pubkey::Pubkey,
@@ -211,7 +207,6 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
         }
     }
 }
-
 
 impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for OpportunitySvm {
     type Error = anyhow::Error;

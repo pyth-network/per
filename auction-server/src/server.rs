@@ -60,7 +60,6 @@ use {
     },
     std::{
         collections::HashMap,
-        default::Default,
         sync::{
             atomic::{
                 AtomicBool,
@@ -138,7 +137,6 @@ pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
         .install_recorder()
         .map_err(|err| anyhow!("Failed to set up metrics recorder: {:?}", err))
 }
-
 
 async fn setup_chain_store_evm(config_map: ConfigMap) -> Result<HashMap<ChainId, ChainStoreEvm>> {
     join_all(

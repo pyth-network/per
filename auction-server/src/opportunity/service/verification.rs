@@ -16,7 +16,6 @@ use {
             MulticallReturn,
         },
         opportunity::{
-            api::OpportunityBidEvm,
             entities,
             repository::InMemoryStore,
             token_spoof,
@@ -42,6 +41,7 @@ use {
         },
         utils::get_create2_address_from_hash,
     },
+    express_relay_api_types::opportunity::OpportunityBidEvm,
     rand::Rng,
     std::{
         collections::HashMap,

@@ -41,7 +41,7 @@ pub enum OpportunityRemovalReason {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpportunityMetadataEvm {
     pub target_contract:   Address,
-    #[serde(with = "crate::serde::u256")]
+    #[serde(with = "express_relay_api_types::serde::u256")]
     pub target_call_value: U256,
     pub target_calldata:   Bytes,
 }

@@ -1,9 +1,7 @@
 use {
     super::token_amount_svm::TokenAmountSvm,
-    crate::{
-        kernel::entities::ChainId,
-        opportunity::api,
-    },
+    crate::kernel::entities::ChainId,
+    express_relay_api_types::opportunity as api,
     solana_sdk::{
         pubkey::Pubkey,
         transaction::VersionedTransaction,
