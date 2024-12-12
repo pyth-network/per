@@ -186,7 +186,13 @@ async function run() {
     const priceInputMint = priceStore[order.state.inputMint.toString()];
     const priceOutputMint = priceStore[order.state.outputMint.toString()];
 
-    if (!priceInputMint || !priceOutputMint) {
+    const now = Date.now();
+    if (
+      !priceInputMint ||
+      !priceOutputMint ||
+      now - priceInputMint.publishTime * 1000 > argv.priceStalenessThreshold ||
+      now - priceOutputMint.publishTime * 1000 > argv.priceStalenessThreshold
+    ) {
       // If we don't have price info, we will not consider it off-market
       return false;
     } else {
@@ -281,6 +287,7 @@ async function run() {
         encoding: "hex",
         parsed: true,
         ignoreInvalidPriceIds: true,
+        allowUnordered: true,
       }
     );
 
