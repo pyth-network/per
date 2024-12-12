@@ -191,10 +191,13 @@ class BidSvm(BaseModel):
     Attributes:
         transaction: The transaction including the bid
         chain_id: The chain ID to bid on.
+        slot: The minimum slot required for the bid to be executed successfully
+              None if the bid can be executed at any recent slot
     """
 
     transaction: SvmTransaction
     chain_id: str
+    slot: int | None
 
 
 class _OrderPydanticAnnotation:

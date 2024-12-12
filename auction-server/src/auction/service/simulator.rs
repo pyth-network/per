@@ -15,6 +15,7 @@ use {
         client_error,
         rpc_response::{
             Response,
+            RpcResponseContext,
             RpcResult,
         },
     },
@@ -172,7 +173,7 @@ impl Simulator {
         keys: &[Pubkey],
     ) -> RpcResult<Vec<Option<Account>>> {
         let mut result = vec![];
-        let mut last_context = None;
+        let mut context_with_min_slot: Option<RpcResponseContext> = None;
         const MAX_RPC_ACCOUNT_LIMIT: usize = 100;
         // Ensure at least one call is made, even if keys is empty
         let key_chunks = if keys.is_empty() {
@@ -190,11 +191,15 @@ impl Simulator {
         for chunk_result in chunk_results {
             let chunk_result = chunk_result?;
             result.extend(chunk_result.value);
-            last_context = Some(chunk_result.context);
+            if context_with_min_slot.is_none()
+                || context_with_min_slot.as_ref().unwrap().slot > chunk_result.context.slot
+            {
+                context_with_min_slot = Some(chunk_result.context);
+            }
         }
         Ok(Response {
             value:   result,
-            context: last_context.unwrap(), // Safe because we ensured at least one call was made
+            context: context_with_min_slot.unwrap(), // Safe because we ensured at least one call was made
         })
     }
 

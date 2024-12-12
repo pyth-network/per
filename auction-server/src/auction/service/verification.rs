@@ -578,25 +578,42 @@ impl Service<Svm> {
     }
 
     pub async fn simulate_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
-        let response = self
-            .config
-            .chain_config
-            .simulator
-            .simulate_transaction(&bid.chain_data.transaction)
-            .await;
-        let result = response.map_err(|e| {
-            tracing::error!("Error while simulating bid: {:?}", e);
-            RestError::TemporarilyUnavailable
-        })?;
-        match result.value {
-            Err(err) => {
-                let msgs = err.meta.logs;
-                Err(RestError::SimulationError {
-                    result: Default::default(),
-                    reason: msgs.join("\n"),
-                })
-            }
-            Ok(_) => Ok(()),
+        const RETRY_LIMIT: usize = 3;
+        let mut retry_count = 0;
+        loop {
+            let response = self
+                .config
+                .chain_config
+                .simulator
+                .simulate_transaction(&bid.chain_data.transaction)
+                .await;
+            let result = response.map_err(|e| {
+                tracing::error!("Error while simulating bid: {:?}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+            return match result.value {
+                Err(err) => {
+                    if result.context.slot < bid.chain_data.slot.unwrap_or_default()
+                        && retry_count < RETRY_LIMIT
+                    {
+                        retry_count += 1;
+                        tracing::warn!(
+                            "Simulation failed with stale slot. Simulation slot: {}, Bid Slot: {} Retry count: {}, Error: {:?}",
+                            result.context.slot,
+                            bid.chain_data.slot.unwrap_or_default(),
+                            retry_count,
+                            err
+                        );
+                        continue;
+                    }
+                    let msgs = err.meta.logs;
+                    Err(RestError::SimulationError {
+                        result: Default::default(),
+                        reason: msgs.join("\n"),
+                    })
+                }
+                Ok(_) => Ok(()),
+            };
         }
     }
 
