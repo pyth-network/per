@@ -94,7 +94,12 @@ async function run() {
   const connection = new Connection(argv.rpcEndpoint);
   const priceStore: Record<
     string,
-    { price: string; exponent: number; mintDecimals: number }
+    {
+      price: string;
+      exponent: number;
+      mintDecimals: number;
+      publishTime: number;
+    }
   > = {};
 
   const globalConfig = new PublicKey(argv.globalConfig);
@@ -293,30 +298,18 @@ async function run() {
         resolve();
 
         const data: PriceUpdate = JSON.parse(event.data);
-        const now = Date.now();
         if (data.parsed) {
           for (const parsedUpdate of data.parsed) {
             const priceConfig = priceConfigs.find(
               (priceConfig) => priceConfig.pythFeedId === parsedUpdate.id
             );
             if (priceConfig) {
-              if (
-                parsedUpdate.price.publish_time * 1000 <
-                now - argv.priceStalenessThreshold
-              ) {
-                console.log(
-                  "The price for",
-                  priceConfig.alias,
-                  "from Hermes is stale, dropping it"
-                );
-                delete priceStore[priceConfig.mint.toString()];
-              } else {
-                priceStore[priceConfig.mint.toString()] = {
-                  price: parsedUpdate.price.price,
-                  exponent: parsedUpdate.price.expo,
-                  mintDecimals: priceConfig.decimals,
-                };
-              }
+              priceStore[priceConfig.mint.toString()] = {
+                price: parsedUpdate.price.price,
+                exponent: parsedUpdate.price.expo,
+                mintDecimals: priceConfig.decimals,
+                publishTime: parsedUpdate.price.publish_time,
+              };
             }
           }
         }
