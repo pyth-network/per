@@ -82,9 +82,9 @@ const argv = yargs(hideBin(process.argv))
   })
   .option("price-staleness-threshold", {
     description:
-      "Threshold of price staleness (seconds), if price is stale, we will not use it",
+      "Threshold of price staleness (milliseconds). If price for quote or base is stale, we will submit all existing opportunities, even those that are off-market",
     type: "number",
-    default: 10,
+    default: 10 * 1000,
   })
   .help()
   .alias("help", "h")
@@ -302,7 +302,7 @@ async function run() {
             if (priceConfig) {
               if (
                 parsedUpdate.price.publish_time * 1000 <
-                now - argv.priceStalenessThreshold * 1000
+                now - argv.priceStalenessThreshold
               ) {
                 console.log(
                   "The price for",
