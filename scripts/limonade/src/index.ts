@@ -111,7 +111,6 @@ async function run() {
   const globalConfig = new PublicKey(argv.globalConfig);
   const numberOfConcurrentSubmissions = argv.numberOfConcurrentSubmissions;
   let solanaConnectionTimeout: NodeJS.Timeout | undefined;
-  let hermesConnectionTimeout: NodeJS.Timeout | undefined;
 
   const priceConfigs: PriceConfig[] = argv.priceConfig
     ? await loadPriceConfig(argv.priceConfig, connection)
@@ -306,14 +305,14 @@ async function run() {
       console.error("Hermes streaming error", event);
     };
 
-    // Await for the first message before continuing
-    await new Promise<void>((resolve, reject) => {
-      setTimeout(() => {
-        reject(new Error("Hermes streaming timeout"));
-      }, argv.hermesStreamingTimeout);
+    let hermesConnectionTimeout: NodeJS.Timeout = setTimeout(() => {
+      throw new Error("Hermes streaming failed to start");
+    }, argv.hermesStreamingTimeout);
 
+    // Await for the first message before continuing
+    await new Promise<void>((resolve) => {
       eventSource.onmessage = (event: MessageEvent<string>) => {
-        resolve();
+        clearTimeout(hermesConnectionTimeout);
 
         const data: PriceUpdate = JSON.parse(event.data);
         if (data.parsed) {
@@ -338,10 +337,7 @@ async function run() {
           }
         }
 
-        if (hermesConnectionTimeout !== undefined) {
-          clearTimeout(hermesConnectionTimeout);
-        }
-
+        resolve();
         hermesConnectionTimeout = setTimeout(() => {
           throw new Error("Hermes streaming timeout");
         }, argv.hermesStreamingTimeout);
