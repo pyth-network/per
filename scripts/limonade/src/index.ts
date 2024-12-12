@@ -74,11 +74,11 @@ const argv = yargs(hideBin(process.argv))
     type: "string",
     default: "https://hermes.pyth.network/",
   })
-  .option("off-market-threshold", {
+  .option("active-opportunity-price-band", {
     description:
-      "Threshold of price ratio to consider an opportunity off-market",
+      "Number of basis points an opportunity's implied price needs to be within the price from Hermes for the opportunity to be considered active",
     type: "number",
-    default: 1.05,
+    default: 500,
   })
   .option("price-staleness-threshold", {
     description:
@@ -199,7 +199,7 @@ async function run() {
             priceInputMint.mintDecimals -
             priceOutputMint.mintDecimals);
 
-      if (ratio > argv.offMarketThreshold) {
+      if (ratio > 1 + argv.activeOpportunityPriceBand / 10000) {
         return true;
       }
 
