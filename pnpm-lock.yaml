@@ -30,6 +30,9 @@ catalogs:
     typescript:
       specifier: 5.5.4
       version: 5.5.4
+    viem:
+      specifier: 2.16.2
+      version: 2.16.2
     yargs:
       specifier: 17.7.2
       version: 17.7.2
@@ -144,6 +147,9 @@ importers:
       "@pythnetwork/hermes-client":
         specifier: ^1.2.0
         version: 1.2.0(axios@1.7.8)
+      "@solana/spl-token":
+        specifier: ^0.4.9
+        version: 0.4.9(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(bufferutil@4.0.8)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)(utf-8-validate@5.0.10)
       "@solana/web3.js":
         specifier: "catalog:"
         version: 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
@@ -1062,6 +1068,15 @@ packages:
     peerDependencies:
       typescript: ">=5"
 
+  "@solana/spl-token-group@0.0.7":
+    resolution:
+      {
+        integrity: sha512-V1N/iX7Cr7H0uazWUT2uk27TMqlqedpXHRqqAbVO2gvmJyT0E0ummMEAVQeXZ05ZhQ/xF39DLSdBp90XebWEug==,
+      }
+    engines: { node: ">=16" }
+    peerDependencies:
+      "@solana/web3.js": ^1.95.3
+
   "@solana/spl-token-metadata@0.1.6":
     resolution:
       {
@@ -1079,6 +1094,15 @@ packages:
     engines: { node: ">=16" }
     peerDependencies:
       "@solana/web3.js": ^1.88.0
+
+  "@solana/spl-token@0.4.9":
+    resolution:
+      {
+        integrity: sha512-g3wbj4F4gq82YQlwqhPB0gHFXfgsC6UmyGMxtSLf/BozT/oKd59465DbnlUK8L8EcimKMavxsVAMoLcEdeCicg==,
+      }
+    engines: { node: ">=16" }
+    peerDependencies:
+      "@solana/web3.js": ^1.95.3
 
   "@solana/web3.js@1.95.3":
     resolution:
@@ -5307,6 +5331,14 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
+  "@solana/spl-token-group@0.0.7(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)":
+    dependencies:
+      "@solana/codecs": 2.0.0-rc.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)
+      "@solana/web3.js": 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - fastestsmallesttextencoderdecoder
+      - typescript
+
   "@solana/spl-token-metadata@0.1.6(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)":
     dependencies:
       "@solana/codecs": 2.0.0-rc.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)
@@ -5319,6 +5351,21 @@ snapshots:
     dependencies:
       "@solana/buffer-layout": 4.0.1
       "@solana/buffer-layout-utils": 0.2.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      "@solana/spl-token-metadata": 0.1.6(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)
+      "@solana/web3.js": 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - fastestsmallesttextencoderdecoder
+      - typescript
+      - utf-8-validate
+
+  "@solana/spl-token@0.4.9(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(bufferutil@4.0.8)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)(utf-8-validate@5.0.10)":
+    dependencies:
+      "@solana/buffer-layout": 4.0.1
+      "@solana/buffer-layout-utils": 0.2.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      "@solana/spl-token-group": 0.0.7(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)
       "@solana/spl-token-metadata": 0.1.6(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)
       "@solana/web3.js": 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       buffer: 6.0.3

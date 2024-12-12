@@ -2,7 +2,7 @@ import { HexString } from "@pythnetwork/hermes-client";
 import { Connection, PublicKey } from "@solana/web3.js";
 import yaml from "yaml";
 import fs from "fs";
-import { getMintDecimals } from "@kamino-finance/limo-sdk/dist/utils";
+import { getMint } from "@solana/spl-token";
 
 export type PriceConfig = {
   alias: string;
@@ -37,4 +37,12 @@ export async function loadPriceConfig(
       decimals: priceConfig.decimals,
     })
   );
+}
+
+async function getMintDecimals(
+  connection: Connection,
+  mint: PublicKey
+): Promise<number> {
+  const info = await getMint(connection, mint);
+  return info.decimals;
 }
