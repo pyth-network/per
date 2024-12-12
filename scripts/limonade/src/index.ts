@@ -304,12 +304,18 @@ async function run() {
               (priceConfig) => priceConfig.pythFeedId === parsedUpdate.id
             );
             if (priceConfig) {
-              priceStore[priceConfig.mint.toString()] = {
-                price: parsedUpdate.price.price,
-                exponent: parsedUpdate.price.expo,
-                mintDecimals: priceConfig.decimals,
-                publishTime: parsedUpdate.price.publish_time,
-              };
+              const currentPrice = priceStore[priceConfig.mint.toString()];
+              if (
+                currentPrice === undefined ||
+                parsedUpdate.price.publish_time > currentPrice.publishTime
+              ) {
+                priceStore[priceConfig.mint.toString()] = {
+                  price: parsedUpdate.price.price,
+                  exponent: parsedUpdate.price.expo,
+                  mintDecimals: priceConfig.decimals,
+                  publishTime: parsedUpdate.price.publish_time,
+                };
+              }
             }
           }
         }
