@@ -257,7 +257,6 @@ impl WsClient {
                 },
             }
         }
-        println!("dropped");
     }
 
     async fn send(
