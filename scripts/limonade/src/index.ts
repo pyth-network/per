@@ -165,7 +165,9 @@ async function run() {
         (opportunityCreate) =>
           opportunityCreate.order.state.remainingInputAmount.toNumber() !== 0
       )
-      .filter((opportunityCreate) => !isOffMarket(opportunityCreate.order));
+      .filter((opportunityCreate) =>
+        isWithinMarketPriceBand(opportunityCreate.order)
+      );
 
     console.log("Resubmitting opportunities", payloads.length);
     for (let i = 0; i < payloads.length; i += numberOfConcurrentSubmissions) {
@@ -182,7 +184,10 @@ async function run() {
     }
   };
 
-  const isOffMarket = (order: { state: Order; address: PublicKey }) => {
+  const isWithinMarketPriceBand = (order: {
+    state: Order;
+    address: PublicKey;
+  }) => {
     const priceInputMint = priceStore[order.state.inputMint.toString()];
     const priceOutputMint = priceStore[order.state.outputMint.toString()];
 
@@ -194,7 +199,7 @@ async function run() {
       now - priceOutputMint.publishTime * 1000 > argv.priceStalenessThreshold
     ) {
       // If we don't have price info, we will not consider it off-market
-      return false;
+      return true;
     } else {
       const inputAmount = order.state.remainingInputAmount;
       const outputAmount = order.state.expectedOutputAmount.sub(
@@ -210,7 +215,7 @@ async function run() {
             priceInputMint.mintDecimals -
             priceOutputMint.mintDecimals);
 
-      if (ratio > 1 + argv.activeOpportunityPriceBand / 10000) {
+      if (ratio < 1 + argv.activeOpportunityPriceBand / 10000) {
         return true;
       }
 
