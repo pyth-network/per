@@ -144,6 +144,11 @@ async function run() {
       console.error("Failed to submit opportunity", e);
     }
   };
+  const setHermesConnectionTimeout = () => {
+    return setTimeout(() => {
+      throw new Error("Hermes streaming timeout");
+    }, argv.hermesStreamingTimeout);
+  };
   const submitExistingOpportunities = async () => {
     const response = await connection.getProgramAccounts(limoId, {
       commitment: "confirmed",
@@ -305,9 +310,7 @@ async function run() {
       console.error("Hermes streaming error", event);
     };
 
-    let hermesConnectionTimeout: NodeJS.Timeout = setTimeout(() => {
-      throw new Error("Hermes streaming failed to start");
-    }, argv.hermesStreamingTimeout);
+    let hermesConnectionTimeout: NodeJS.Timeout = setHermesConnectionTimeout();
 
     // Await for the first message before continuing
     await new Promise<void>((resolve) => {
@@ -338,9 +341,7 @@ async function run() {
         }
 
         resolve();
-        hermesConnectionTimeout = setTimeout(() => {
-          throw new Error("Hermes streaming timeout");
-        }, argv.hermesStreamingTimeout);
+        hermesConnectionTimeout = setHermesConnectionTimeout();
       };
     });
   }
