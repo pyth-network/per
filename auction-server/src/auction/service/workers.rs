@@ -8,7 +8,8 @@ use {
         api::ws::UpdateEvent,
         auction::{
             api::SvmChainUpdate,
-            service::conclude_auction::ConcludeAuctionInput,
+            entities,
+            service::conclude_auction::ConcludeAuctionWithStatusesInput,
         },
         kernel::entities::{
             Evm,
@@ -151,21 +152,41 @@ impl Service<Svm> {
                                 log = ?rpc_log.clone(),
                                 "New log trigger received",
                             );
-                            if let Ok(signature) = Signature::from_str(&rpc_log.value.signature){
-                            self.task_tracker.spawn({
-                                let service = self.clone();
-                                async move {
-                                    let submitted_auctions = service.repo.get_in_memory_submitted_auctions().await;
-                                    if let Some(auction) = submitted_auctions.iter().find(|auction| {
-                                        auction.bids.iter().any(|bid| bid.chain_data.transaction.signatures[0] == signature)
-                                    }) {
-                                        if let Err(err) = service.conclude_auction(ConcludeAuctionInput{auction: auction.clone()}).await {
-                                            tracing::error!(error = ?err, auction = ?auction, "Error while concluding submitted auction");
+                            if let Ok(signature) = Signature::from_str(&rpc_log.value.signature) {
+                                self.task_tracker.spawn({
+                                    let service = self.clone();
+                                    async move {
+                                        let submitted_auctions = service.repo.get_in_memory_submitted_auctions().await;
+                                        if let Some(auction) = submitted_auctions.iter().find(|auction| {
+                                            auction.bids.iter().any(|bid| {
+                                                bid.chain_data.transaction.signatures[0] == signature
+                                            })
+                                        }) {
+                                            let bid_statuses = auction.bids.iter().map(|bid| {
+                                                if bid.chain_data.transaction.signatures[0] == signature {
+                                                    Some(match rpc_log.value.err {
+                                                        Some(_) => entities::BidStatusSvm::Failed { auction: entities::BidStatusAuction { id: auction.id, tx_hash: signature } },
+                                                        None => entities::BidStatusSvm::Won { auction: entities::BidStatusAuction { id: auction.id, tx_hash: signature } },
+                                                    })
+                                                } else {
+                                                    None
+                                                }
+                                            });
+                                            if let Err(e) = service.conclude_auction_with_statuses(ConcludeAuctionWithStatusesInput {
+                                                auction: auction.clone(),
+                                                bid_statuses: bid_statuses.collect(),
+                                            }).await {
+                                                tracing::error!(
+                                                    error = ?e,
+                                                    auction_id = ?auction.id,
+                                                    tx_hash = ?signature,
+                                                    "Failed to conclude auction with statuses"
+                                                );
+                                            }
                                         }
                                     }
-                                }
-                            });
-                                }
+                                });
+                            }
                         }
                     }
                 }
