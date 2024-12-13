@@ -26,9 +26,13 @@ use {
     },
     axum_prometheus::metrics,
     ethers::providers::Middleware,
-    solana_client::rpc_config::{
-        RpcTransactionLogsConfig,
-        RpcTransactionLogsFilter,
+    futures::future::join_all,
+    solana_client::{
+        rpc_config::{
+            RpcTransactionLogsConfig,
+            RpcTransactionLogsFilter,
+        },
+        rpc_response::RpcLogsResponse,
     },
     solana_sdk::{
         commitment_config::CommitmentConfig,
@@ -133,6 +137,53 @@ impl Service<Evm> {
 const GET_LATEST_BLOCKHASH_INTERVAL_SVM: Duration = Duration::from_secs(5);
 
 impl Service<Svm> {
+    pub async fn conclude_auction_for_log(
+        &self,
+        auction: entities::Auction<Svm>,
+        log: RpcLogsResponse,
+    ) -> Result<()> {
+        let signature = Signature::from_str(&log.signature)?;
+        let submitted_bids = self
+            .repo
+            .get_in_memory_submitted_bids_for_auction(&auction)
+            .await;
+        if let Some(bid) = submitted_bids
+            .iter()
+            .find(|bid| bid.chain_data.transaction.signatures[0] == signature)
+        {
+            let bid_status = match log.err {
+                Some(_) => entities::BidStatusSvm::Failed {
+                    auction: entities::BidStatusAuction {
+                        id:      auction.id,
+                        tx_hash: signature,
+                    },
+                },
+                None => entities::BidStatusSvm::Won {
+                    auction: entities::BidStatusAuction {
+                        id:      auction.id,
+                        tx_hash: signature,
+                    },
+                },
+            };
+
+            self.conclude_auction_with_statuses(ConcludeAuctionWithStatusesInput {
+                auction:      auction.clone(),
+                bid_statuses: vec![(bid_status, bid.clone())],
+            })
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = ?e,
+                    auction_id = ?auction.id,
+                    tx_hash = ?signature,
+                    "Failed to conclude auction with statuses"
+                );
+                e
+            })?;
+        }
+        Ok(())
+    }
+
     pub async fn run_auction_conclusion_loop(&self) -> Result<()> {
         tracing::info!(
             chain_id = self.config.chain_id,
@@ -157,31 +208,14 @@ impl Service<Svm> {
                                     let service = self.clone();
                                     async move {
                                         let submitted_auctions = service.repo.get_in_memory_submitted_auctions().await;
-                                        if let Some(auction) = submitted_auctions.iter().find(|auction| {
+                                        let auctions = submitted_auctions.iter().filter(|auction| {
                                             auction.bids.iter().any(|bid| {
                                                 bid.chain_data.transaction.signatures[0] == signature
                                             })
-                                        }) {
-                                            if let Some(bid) = auction.bids.iter().find(|bid| bid.chain_data.transaction.signatures[0] == signature)
-                                            {
-                                                let bid_status = match rpc_log.value.err {
-                                                    Some(_) => entities::BidStatusSvm::Failed { auction: entities::BidStatusAuction { id: auction.id, tx_hash: signature } },
-                                                    None => entities::BidStatusSvm::Won { auction: entities::BidStatusAuction { id: auction.id, tx_hash: signature } },
-                                                };
-
-                                                if let Err(e) = service.conclude_auction_with_statuses(ConcludeAuctionWithStatusesInput {
-                                                    auction: auction.clone(),
-                                                    bid_statuses: vec![(bid_status, bid.clone())],
-                                                }).await {
-                                                    tracing::error!(
-                                                        error = ?e,
-                                                        auction_id = ?auction.id,
-                                                        tx_hash = ?signature,
-                                                        "Failed to conclude auction with statuses"
-                                                    );
-                                                }
-                                            }
-                                        }
+                                        });
+                                        join_all(
+                                            auctions.map(|auction| service.conclude_auction_for_log(auction.clone(), rpc_log.value.clone()))
+                                        ).await;
                                     }
                                 });
                             }
