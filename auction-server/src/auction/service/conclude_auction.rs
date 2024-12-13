@@ -60,6 +60,7 @@ where
         Ok(())
     }
 
+    /// This one concludes an auction by getting the auction transaction status from the chain.
     #[tracing::instrument(skip_all, fields(auction_id, tx_hash, bid_ids))]
     pub async fn conclude_auction(&self, input: ConcludeAuctionInput<T>) -> anyhow::Result<()> {
         let auction = input.auction;
