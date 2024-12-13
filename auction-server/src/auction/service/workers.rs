@@ -162,26 +162,24 @@ impl Service<Svm> {
                                                 bid.chain_data.transaction.signatures[0] == signature
                                             })
                                         }) {
-                                            let bid_statuses = auction.bids.iter().map(|bid| {
-                                                if bid.chain_data.transaction.signatures[0] == signature {
-                                                    Some(match rpc_log.value.err {
-                                                        Some(_) => entities::BidStatusSvm::Failed { auction: entities::BidStatusAuction { id: auction.id, tx_hash: signature } },
-                                                        None => entities::BidStatusSvm::Won { auction: entities::BidStatusAuction { id: auction.id, tx_hash: signature } },
-                                                    })
-                                                } else {
-                                                    None
+                                            if let Some(bid) = auction.bids.iter().find(|bid| bid.chain_data.transaction.signatures[0] == signature)
+                                            {
+                                                let bid_status = match rpc_log.value.err {
+                                                    Some(_) => entities::BidStatusSvm::Failed { auction: entities::BidStatusAuction { id: auction.id, tx_hash: signature } },
+                                                    None => entities::BidStatusSvm::Won { auction: entities::BidStatusAuction { id: auction.id, tx_hash: signature } },
+                                                };
+
+                                                if let Err(e) = service.conclude_auction_with_statuses(ConcludeAuctionWithStatusesInput {
+                                                    auction: auction.clone(),
+                                                    bid_statuses: vec![(bid_status, bid.clone())],
+                                                }).await {
+                                                    tracing::error!(
+                                                        error = ?e,
+                                                        auction_id = ?auction.id,
+                                                        tx_hash = ?signature,
+                                                        "Failed to conclude auction with statuses"
+                                                    );
                                                 }
-                                            });
-                                            if let Err(e) = service.conclude_auction_with_statuses(ConcludeAuctionWithStatusesInput {
-                                                auction: auction.clone(),
-                                                bid_statuses: bid_statuses.collect(),
-                                            }).await {
-                                                tracing::error!(
-                                                    error = ?e,
-                                                    auction_id = ?auction.id,
-                                                    tx_hash = ?signature,
-                                                    "Failed to conclude auction with statuses"
-                                                );
                                             }
                                         }
                                     }

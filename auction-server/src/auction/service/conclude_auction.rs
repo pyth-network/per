@@ -17,7 +17,7 @@ pub struct ConcludeAuctionInput<T: ChainTrait> {
 
 pub struct ConcludeAuctionWithStatusesInput<T: ChainTrait> {
     pub auction:      entities::Auction<T>,
-    pub bid_statuses: Vec<Option<T::BidStatusType>>,
+    pub bid_statuses: Vec<(T::BidStatusType, entities::Bid<T>)>,
 }
 
 impl<T: ChainTrait> Service<T>
@@ -35,20 +35,13 @@ where
             tracing::field::display(entities::BidContainerTracing(&auction.bids)),
         );
         tracing::Span::current().record("auction_id", auction.id.to_string());
-        join_all(
-            input
-                .bid_statuses
-                .iter()
-                .zip(auction.bids.iter())
-                .filter_map(|(status, bid)| {
-                    status.as_ref().map(|status| {
-                        self.update_bid_status(UpdateBidStatusInput {
-                            bid:        bid.clone(),
-                            new_status: status.clone(),
-                        })
-                    })
-                }),
-        )
+        tracing::Span::current().record("bid_statuses", format!("{:?}", input.bid_statuses));
+        join_all(input.bid_statuses.into_iter().map(|(status, bid)| {
+            self.update_bid_status(UpdateBidStatusInput {
+                bid:        bid.clone(),
+                new_status: status.clone(),
+            })
+        }))
         .await;
 
         if self
@@ -57,7 +50,6 @@ where
             .await
             .is_empty()
         {
-            tracing::Span::current().record("bid_statuses", format!("{:?}", input.bid_statuses));
             self.repo
                 .conclude_auction(&mut auction)
                 .await
@@ -96,7 +88,13 @@ where
 
             self.conclude_auction_with_statuses(ConcludeAuctionWithStatusesInput {
                 auction,
-                bid_statuses,
+                bid_statuses: bid_statuses
+                    .iter()
+                    .zip(bids)
+                    .filter_map(|(status, bid)| {
+                        status.as_ref().map(|status| (status.clone(), bid.clone()))
+                    })
+                    .collect(),
             })
             .await?;
         }
