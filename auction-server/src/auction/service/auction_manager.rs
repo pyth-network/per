@@ -455,7 +455,6 @@ impl AuctionManager<Svm> for Service<Svm> {
             return Ok(vec![]);
         }
 
-        //TODO: this can be optimized out if triggered by websocket events
         let signatures: Vec<_> = bids
             .iter()
             .map(|bid| {
