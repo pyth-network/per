@@ -1,11 +1,8 @@
 use {
     crate::ClientError,
     ethers::{
+        abi::AbiEncode,
         contract::abigen,
-        providers::{
-            Http,
-            Provider,
-        },
         signers::{
             LocalWallet,
             Signer,
@@ -32,7 +29,6 @@ use {
         OpportunityParamsEvm,
         OpportunityParamsV1Evm,
     },
-    std::sync::Arc,
 };
 
 abigen!(
@@ -269,22 +265,17 @@ pub fn make_adapter_calldata(
     bid_params: BidParamsEvm,
     wallet: LocalWallet,
 ) -> Result<Bytes, ClientError> {
-    let config = get_config(opportunity.get_chain_id())?;
-    let adapter_contract = config.adapter_factory_contract;
     let signature = get_signature(opportunity.clone(), bid_params.clone(), wallet.clone())?;
-    let execution_params =
-        make_opportunity_execution_params(opportunity, bid_params, wallet.address())?;
+    let params = make_opportunity_execution_params(opportunity, bid_params, wallet.address())?;
 
-    let provider = Provider::<Http>::try_from("https://eth.llamarpc.com")
-        .map_err(|e| ClientError::NewBidError(format!("Failed to create provider: {:?}", e)))?;
-    let calldata = OpportunityAdapter::new(adapter_contract, Arc::new(provider))
-        .execute_opportunity(execution_params, signature.to_vec().into())
-        .calldata()
-        .ok_or(ClientError::NewBidError(
-            "Failed to generate calldata for opportunity adapter".to_string(),
-        ))?;
+    let calldata = opportunity_adapter::ExecuteOpportunityCall::encode(
+        opportunity_adapter::ExecuteOpportunityCall {
+            params,
+            signature: signature.to_vec().into(),
+        },
+    );
 
-    Ok(calldata)
+    Ok(calldata.into())
 }
 
 pub fn get_params(opportunity: OpportunityEvm) -> OpportunityCreateV1Evm {

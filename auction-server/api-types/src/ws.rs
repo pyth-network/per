@@ -12,12 +12,15 @@ use {
             OpportunityId,
         },
         ChainId,
+        Routable,
         SvmChainUpdate,
     },
+    http::Method,
     serde::{
         Deserialize,
         Serialize,
     },
+    strum::AsRefStr,
     utoipa::ToSchema,
 };
 
@@ -90,4 +93,26 @@ pub struct ServerResultResponse {
     pub id:     Option<String>,
     #[serde(flatten)]
     pub result: ServerResultMessage,
+}
+
+#[derive(AsRefStr, Clone)]
+#[strum(prefix = "/")]
+pub enum Route {
+    #[strum(serialize = "ws")]
+    Ws,
+}
+
+impl Routable for Route {
+    fn properties(&self) -> crate::RouteProperties {
+        let full_path = format!("{}{}", crate::Route::V1.as_ref(), self.as_ref())
+            .trim_end_matches('/')
+            .to_string();
+        match self {
+            Route::Ws => crate::RouteProperties {
+                access_level: crate::AccessLevel::Public,
+                method: Method::GET,
+                full_path,
+            },
+        }
+    }
 }

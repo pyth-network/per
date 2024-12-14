@@ -1,7 +1,7 @@
 use {
     crate::{
         AccessLevel,
-        RouteTrait,
+        Routable,
     },
     email_address::EmailAddress,
     serde::{
@@ -87,32 +87,37 @@ pub enum Route {
     DeleteProfileAccessToken,
 }
 
-impl RouteTrait for Route {
-    fn access_level(&self) -> AccessLevel {
-        match self {
-            Route::PostProfile => AccessLevel::Admin,
-            Route::GetProfile => AccessLevel::Admin,
-            Route::PostProfileAccessToken => AccessLevel::Admin,
-            Route::DeleteProfileAccessToken => AccessLevel::LoggedIn,
-        }
-    }
-
-    fn method(&self) -> http::Method {
-        match self {
-            Route::PostProfile => http::Method::POST,
-            Route::GetProfile => http::Method::GET,
-            Route::PostProfileAccessToken => http::Method::POST,
-            Route::DeleteProfileAccessToken => http::Method::DELETE,
-        }
-    }
-
-    fn full_path(&self) -> String {
-        let path = format!(
+impl Routable for Route {
+    fn properties(&self) -> crate::RouteProperties {
+        let full_path = format!(
             "{}{}{}",
             crate::Route::V1.as_ref(),
             crate::Route::Profile.as_ref(),
             self.as_ref()
-        );
-        path.trim_end_matches("/").to_string()
+        )
+        .trim_end_matches("/")
+        .to_string();
+        match self {
+            Route::PostProfile => crate::RouteProperties {
+                access_level: AccessLevel::Admin,
+                method: http::Method::POST,
+                full_path,
+            },
+            Route::GetProfile => crate::RouteProperties {
+                access_level: AccessLevel::Admin,
+                method: http::Method::GET,
+                full_path,
+            },
+            Route::PostProfileAccessToken => crate::RouteProperties {
+                access_level: AccessLevel::Admin,
+                method: http::Method::POST,
+                full_path,
+            },
+            Route::DeleteProfileAccessToken => crate::RouteProperties {
+                access_level: AccessLevel::LoggedIn,
+                method: http::Method::DELETE,
+                full_path,
+            },
+        }
     }
 }

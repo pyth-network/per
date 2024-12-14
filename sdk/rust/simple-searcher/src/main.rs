@@ -52,7 +52,7 @@ pub struct RunOptions {
     #[arg(env = "CHAIN_IDS")]
     pub chains: Vec<String>,
 
-    /// Chain ids to subscribe to.
+    /// The API key to use for authentication.
     #[arg(long = "api-key")]
     #[arg(env = "API_KEY")]
     pub api_key: Option<String>,
@@ -64,13 +64,11 @@ async fn random() -> U256 {
     U256::from(rng.gen::<u128>())
 }
 
-async fn handle_opportunity(
+async fn submit_opportunity(
     ws_client: WsClient,
     opportunity: Opportunity,
     private_key: String,
 ) -> Result<()> {
-    // Assess the opportunity to see if it is worth bidding
-    // For the sake of this example, we will always bid
     let bid = match opportunity {
         opportunity::Opportunity::Evm(opportunity) => {
             Client::new_bid(
@@ -103,6 +101,32 @@ async fn handle_opportunity(
     Ok(())
 }
 
+async fn handle_opportunity(ws_client: WsClient, opportunity: Opportunity, args: RunOptions) {
+    // Assess the opportunity to see if it is worth bidding
+    // For the sake of this example, we will always bid
+    let private_key = match opportunity {
+        Opportunity::Evm(_) => {
+            println!("EVM opportunity Received");
+            args.private_key_evm.clone()
+        }
+        Opportunity::Svm(_) => {
+            println!("SVM opportunity Received");
+            args.private_key_svm.clone()
+        }
+    };
+
+    match private_key {
+        Some(private_key) => {
+            if let Err(e) = submit_opportunity(ws_client, opportunity, private_key).await {
+                eprintln!("Failed to submit opportunity: {:?}", e);
+            }
+        }
+        None => {
+            eprintln!("Private key not provided");
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: RunOptions = RunOptions::parse();
@@ -113,19 +137,24 @@ async fn main() -> Result<()> {
     };
 
     let client = Client::try_new(ClientConfig {
-        http_url: args.server_url,
+        http_url: args.server_url.clone(),
         ws_url,
-        api_key: args.api_key,
+        api_key: args.api_key.clone(),
     })
     .map_err(|e| {
         eprintln!("Failed to create client: {:?}", e);
         anyhow!("Failed to create client")
     })?;
 
+    let ws_client = client.connect_websocket().await.map_err(|e| {
+        eprintln!("Failed to connect websocket: {:?}", e);
+        anyhow!("Failed to connect websocket")
+    })?;
+
     let opportunities = client
         .get_opportunities(Some(GetOpportunitiesQueryParams {
             chain_id:       Some(args.chains[0].clone()),
-            mode:           OpportunityMode::Historical,
+            mode:           OpportunityMode::Live,
             permission_key: None,
             limit:          100,
             from_time:      Some(OffsetDateTime::now_utc() - Duration::days(1)),
@@ -135,17 +164,22 @@ async fn main() -> Result<()> {
             eprintln!("Failed to get opportunities: {:?}", e);
             anyhow!("Failed to get opportunities")
         })?;
-    println!("Opportunities: {:?}", opportunities.len());
 
-    let ws_client = client.connect_websocket().await.map_err(|e| {
-        eprintln!("Failed to connect websocket: {:?}", e);
-        anyhow!("Failed to connect websocket")
-    })?;
+    opportunities.iter().for_each(|opportunity| {
+        tokio::spawn(handle_opportunity(
+            ws_client.clone(),
+            opportunity.clone(),
+            args.clone(),
+        ));
+    });
 
-    ws_client.chain_subscribe(args.chains).await.map_err(|e| {
-        eprintln!("Failed to subscribe chains: {:?}", e);
-        anyhow!("Failed to subscribe chains")
-    })?;
+    ws_client
+        .chain_subscribe(args.chains.clone())
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to subscribe chains: {:?}", e);
+            anyhow!("Failed to subscribe chains")
+        })?;
 
     let mut stream = ws_client.get_update_stream();
     let mut block_hash_map = HashMap::new();
@@ -153,7 +187,6 @@ async fn main() -> Result<()> {
         let update = match update {
             Ok(update) => update,
             Err(e) => {
-                // The stream is fallen behind
                 eprintln!("The stream is fallen behind: {:?}", e);
                 continue;
             }
@@ -161,29 +194,11 @@ async fn main() -> Result<()> {
 
         match update {
             ServerUpdateResponse::NewOpportunity { opportunity } => {
-                let private_key = match opportunity {
-                    Opportunity::Evm(_) => {
-                        println!("EVM opportunity Received");
-                        args.private_key_evm.clone()
-                    }
-                    Opportunity::Svm(_) => {
-                        println!("SVM opportunity Received");
-                        args.private_key_svm.clone()
-                    }
-                };
-
-                match private_key {
-                    Some(private_key) => {
-                        tokio::spawn(handle_opportunity(
-                            ws_client.clone(),
-                            opportunity,
-                            private_key,
-                        ));
-                    }
-                    None => {
-                        eprintln!("Private key not provided");
-                    }
-                }
+                tokio::spawn(handle_opportunity(
+                    ws_client.clone(),
+                    opportunity,
+                    args.clone(),
+                ));
             }
             ServerUpdateResponse::SvmChainUpdate { update } => {
                 block_hash_map.insert(update.chain_id.clone(), update.blockhash);

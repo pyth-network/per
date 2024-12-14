@@ -85,8 +85,6 @@ pub enum Route {
     Opportunity,
     #[strum(serialize = "profiles")]
     Profile,
-    #[strum(serialize = "ws")]
-    Ws,
     #[strum(serialize = "")]
     Root,
     #[strum(serialize = "live")]
@@ -104,8 +102,12 @@ pub enum AccessLevel {
     Public,
 }
 
-pub trait RouteTrait: AsRef<str> + Clone {
-    fn access_level(&self) -> AccessLevel;
-    fn method(&self) -> http::Method;
-    fn full_path(&self) -> String;
+pub struct RouteProperties {
+    pub access_level: AccessLevel,
+    pub method:       http::Method,
+    pub full_path:    String,
+}
+
+pub trait Routable: AsRef<str> + Clone {
+    fn properties(&self) -> RouteProperties;
 }

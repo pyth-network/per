@@ -1,5 +1,8 @@
 use {
-    super::Auth,
+    super::{
+        Auth,
+        WrappedRouter,
+    },
     crate::{
         auction::{
             api::process_bid,
@@ -27,6 +30,7 @@ use {
             WebSocketUpgrade,
         },
         response::IntoResponse,
+        Router,
     },
     express_relay_api_types::{
         bid::{
@@ -44,6 +48,7 @@ use {
             APIResponse,
             ClientMessage,
             ClientRequest,
+            Route,
             ServerResultMessage,
             ServerResultResponse,
             ServerUpdateResponse,
@@ -465,4 +470,11 @@ impl Subscriber {
 
         Ok(())
     }
+}
+
+
+pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
+    WrappedRouter::new(store)
+        .route(Route::Ws, ws_route_handler)
+        .router
 }

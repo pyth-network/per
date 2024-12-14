@@ -5,7 +5,7 @@ use {
         ChainId,
         PermissionKeyEvm,
         PermissionKeySvm,
-        RouteTrait,
+        Routable,
     },
     ethers::types::{
         Address,
@@ -304,41 +304,99 @@ impl BidCreate {
     }
 }
 
+// We get clippy warning when we use AsRefStr macro with deprecated.
+// Disabled the strum for deprecated routes to avoid clippy warnings.
 #[derive(AsRefStr, Clone)]
 #[strum(prefix = "/")]
 pub enum Route {
     #[strum(serialize = "")]
-    GetBidsByTime,
-    #[strum(serialize = "")]
     PostBid,
+    #[strum(serialize = "")]
+    GetBidsByTime,
     #[strum(serialize = ":bid_id")]
     GetBidStatus,
 }
 
-impl RouteTrait for Route {
-    fn access_level(&self) -> AccessLevel {
-        match self {
-            Route::GetBidsByTime => AccessLevel::LoggedIn,
-            Route::PostBid => AccessLevel::Public,
-            Route::GetBidStatus => AccessLevel::Public,
-        }
-    }
+#[derive(Clone)]
+#[deprecated = "Use Route instead"]
+pub enum DeprecatedRoute {
+    DeprecatedGetBidsByTime,
+    DeprecatedGetBidStatus,
+}
 
-    fn method(&self) -> http::Method {
-        match self {
-            Route::GetBidsByTime => http::Method::GET,
-            Route::PostBid => http::Method::POST,
-            Route::GetBidStatus => http::Method::GET,
-        }
-    }
-
-    fn full_path(&self) -> String {
-        let path = format!(
+impl Routable for Route {
+    fn properties(&self) -> crate::RouteProperties {
+        let full_path = format!(
             "{}{}{}",
             crate::Route::V1.as_ref(),
             crate::Route::Bid.as_ref(),
             self.as_ref()
-        );
-        path.trim_end_matches('/').to_string()
+        )
+        .trim_end_matches('/')
+        .to_string();
+
+        let full_path_with_chain = format!(
+            "{}{}{}",
+            crate::Route::V1.as_ref(),
+            crate::Route::Bid.as_ref(),
+            self.as_ref()
+        )
+        .trim_end_matches('/')
+        .to_string();
+
+        match self {
+            Route::PostBid => crate::RouteProperties {
+                method: http::Method::POST,
+                access_level: AccessLevel::Public,
+                full_path,
+            },
+            Route::GetBidsByTime => crate::RouteProperties {
+                method:       http::Method::GET,
+                access_level: AccessLevel::LoggedIn,
+                full_path:    full_path_with_chain,
+            },
+            Route::GetBidStatus => crate::RouteProperties {
+                method:       http::Method::GET,
+                access_level: AccessLevel::Public,
+                full_path:    full_path_with_chain,
+            },
+        }
+    }
+}
+
+#[allow(deprecated)]
+impl AsRef<str> for DeprecatedRoute {
+    fn as_ref(&self) -> &str {
+        match self {
+            DeprecatedRoute::DeprecatedGetBidStatus => "/:bid_id",
+            DeprecatedRoute::DeprecatedGetBidsByTime => "/",
+        }
+    }
+}
+
+#[allow(deprecated)]
+impl Routable for DeprecatedRoute {
+    fn properties(&self) -> crate::RouteProperties {
+        let full_path = format!(
+            "{}{}{}",
+            crate::Route::V1.as_ref(),
+            crate::Route::Bid.as_ref(),
+            self.as_ref(),
+        )
+        .trim_end_matches('/')
+        .to_string();
+
+        match self {
+            DeprecatedRoute::DeprecatedGetBidsByTime => crate::RouteProperties {
+                method: http::Method::GET,
+                access_level: AccessLevel::LoggedIn,
+                full_path,
+            },
+            DeprecatedRoute::DeprecatedGetBidStatus => crate::RouteProperties {
+                method: http::Method::GET,
+                access_level: AccessLevel::Public,
+                full_path,
+            },
+        }
     }
 }

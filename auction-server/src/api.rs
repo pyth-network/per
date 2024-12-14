@@ -57,8 +57,8 @@ use {
         profile::Route as ProfileRoute,
         AccessLevel,
         ErrorBodyResponse,
+        Routable,
         Route,
-        RouteTrait,
     },
     std::sync::{
         atomic::Ordering,
@@ -276,12 +276,13 @@ impl WrappedRouter {
         }
     }
 
-    pub fn route<H, T>(self, route: impl RouteTrait, handler: H) -> Self
+    pub fn route<H, T>(self, path: impl Routable, handler: H) -> Self
     where
         H: Handler<T, Arc<StoreNew>>,
         T: 'static,
     {
-        let handler = match route.method() {
+        let properties = path.properties();
+        let router = match properties.method {
             Method::GET => get(handler),
             Method::POST => post(handler),
             Method::DELETE => delete(handler),
@@ -290,15 +291,15 @@ impl WrappedRouter {
             _ => panic!("Unsupported method"),
         };
 
-        let handler = match route.access_level() {
-            AccessLevel::Admin => admin_only!(self.store, handler),
-            AccessLevel::LoggedIn => login_required!(self.store, handler),
-            AccessLevel::Public => handler,
+        let router = match properties.access_level {
+            AccessLevel::Admin => admin_only!(self.store, router),
+            AccessLevel::LoggedIn => login_required!(self.store, router),
+            AccessLevel::Public => router,
         };
 
         Self {
             store:  self.store,
-            router: self.router.route(route.as_ref(), handler),
+            router: self.router.route(&properties.full_path, router),
         }
     }
 }
@@ -421,25 +422,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         )
         .router;
 
-    let v1_routes = Router::new().nest(
-        Route::V1.as_ref(),
-        Router::new()
-            .nest(Route::Bid.as_ref(), bid::get_routes(store.clone()))
-            .nest(
-                Route::Opportunity.as_ref(),
-                opportunity::get_routes(store.clone()),
-            )
-            .nest(Route::Profile.as_ref(), profile_routes)
-            .route(Route::Ws.as_ref(), get(ws::ws_route_handler)),
-    );
-
-    let v1_routes_with_chain_id = Router::new().nest(
-        Route::V1Chain.as_ref(),
-        Router::new().nest(
-            Route::Bid.as_ref(),
-            bid::get_routes_with_chain_id(store.clone()),
-        ),
-    );
+    let routes = Router::new()
+        .merge(bid::get_routes(store.clone()))
+        .merge(opportunity::get_routes(store.clone()))
+        .merge(profile_routes)
+        .merge(ws::get_routes(store.clone()));
 
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
         .with_metrics_from_fn(|| store.store.metrics_recorder.clone())
@@ -457,8 +444,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
 
     let app: Router<()> = Router::new()
         .merge(Redoc::with_url(Route::Docs.as_ref(), redoc_doc.clone()))
-        .merge(v1_routes)
-        .merge(v1_routes_with_chain_id)
+        .merge(routes)
         .route(Route::Root.as_ref(), get(root))
         .route(Route::Liveness.as_ref(), get(live))
         .route(Route::OpenApi.as_ref(), get(original_doc.to_string()))

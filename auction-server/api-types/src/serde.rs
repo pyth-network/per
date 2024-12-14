@@ -73,6 +73,7 @@ pub mod nullable_datetime {
     {
         match b {
             Some(b) => {
+                // This formatting is critical because the server expects incoming date-time values in the Rfc3339 format for deserialization.
                 let formatted = b.format(&Rfc3339).map_err(ser::Error::custom)?;
                 s.serialize_str(formatted.as_str())
             }

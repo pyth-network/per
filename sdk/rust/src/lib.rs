@@ -21,9 +21,8 @@ use {
             Route,
         },
         ws::ServerResultMessage,
-        AccessLevel,
         ErrorBodyResponse,
-        RouteTrait,
+        Routable,
     },
     futures_util::{
         SinkExt,
@@ -37,7 +36,7 @@ use {
         Serialize,
     },
     std::{
-        collections::BTreeMap,
+        collections::HashMap,
         marker::PhantomData,
         pin::Pin,
         sync::Arc,
@@ -94,7 +93,6 @@ pub enum ClientError {
     RequestFailed(reqwest::Error),
     RequestError(String),
     DecodeResponseFailed(reqwest::Error),
-    AuthenticationRequired,
     WsConnectFailed(String),
     WsRequestFailed(String),
     InvalidResponse(String),
@@ -132,7 +130,7 @@ pub struct WsClientInner {
     #[allow(dead_code)]
     ws:             tokio::task::JoinHandle<()>,
     request_sender: mpsc::UnboundedSender<WsRequest>,
-    request_id:     RwLock<usize>,
+    request_id:     RwLock<u64>,
 
     update_receiver: broadcast::Receiver<api_types::ws::ServerUpdateResponse>,
 }
@@ -187,7 +185,7 @@ impl WsClient {
     ) {
         let mut ping_interval = tokio::time::interval(Duration::from_secs(30));
         let mut responded_to_ping = true;
-        let mut requests_map = BTreeMap::<String, oneshot::Sender<ServerResultMessage>>::new();
+        let mut requests_map = HashMap::<String, oneshot::Sender<ServerResultMessage>>::new();
         loop {
             tokio::select! {
                 message = ws_stream.next() => {
@@ -292,6 +290,7 @@ impl WsClient {
                     "Response channel closed".to_string(),
                 )),
             },
+            // TODO: Clear this request from the requests_map
             Err(_) => Err(ClientError::WsRequestFailed(
                 "Ws request timeout".to_string(),
             )),
@@ -334,8 +333,9 @@ impl WsClient {
         let result = self.send(message).await?;
         match result {
             ServerResultMessage::Success(response) => {
-                let response =
-                    response.ok_or(ClientError::InvalidResponse("Invalid response".to_string()))?;
+                let response = response.ok_or(ClientError::InvalidResponse(
+                    "Invalid server response: Expected BidResult but got None.".to_string(),
+                ))?;
                 let api_types::ws::APIResponse::BidResult(response) = response;
                 Ok(response)
             }
@@ -355,18 +355,15 @@ impl Client {
 
     async fn send<T: Serialize, R: DeserializeOwned>(
         &self,
-        route: impl RouteTrait,
+        route: impl Routable,
         query: Option<T>,
     ) -> Result<R, ClientError> {
-        if self.api_key.is_none() && route.access_level() != AccessLevel::Public {
-            return Err(ClientError::AuthenticationRequired);
-        }
-
+        let properties = route.properties();
         let url = self
             .http_url
-            .join(route.full_path().as_str())
+            .join(properties.full_path.as_str())
             .map_err(|e| ClientError::InvalidHttpUrl(e.to_string()))?;
-        let mut request = self.client.request(route.method(), url);
+        let mut request = self.client.request(properties.method, url);
         if let Some(api_key) = self.api_key.clone() {
             request = request.bearer_auth(api_key);
         }
@@ -384,11 +381,17 @@ impl Client {
             .map_err(|e| ClientError::InvalidWsUrl(e.to_string()))?;
 
         if http_url.scheme() != "http" && http_url.scheme() != "https" {
-            return Err(ClientError::InvalidHttpUrl("Invalid scheme".to_string()));
+            return Err(ClientError::InvalidHttpUrl(format!(
+                "Invalid scheme {}",
+                http_url.scheme()
+            )));
         }
 
         if ws_url.scheme() != "ws" && ws_url.scheme() != "wss" {
-            return Err(ClientError::InvalidWsUrl("Invalid scheme".to_string()));
+            return Err(ClientError::InvalidWsUrl(format!(
+                "Invalid scheme {}",
+                ws_url.scheme()
+            )));
         }
 
         Ok(Self {
@@ -400,13 +403,12 @@ impl Client {
     }
 
     pub async fn connect_websocket(&self) -> Result<WsClient, ClientError> {
-        let url_string = format!(
-            "{}{}{}",
-            self.ws_url.as_str().trim_end_matches("/"),
-            api_types::Route::V1.as_ref(),
-            api_types::Route::Ws.as_ref()
-        );
-        let mut request = url_string
+        let url = self
+            .ws_url
+            .join(api_types::ws::Route::Ws.properties().full_path.as_str())
+            .map_err(|e| ClientError::WsConnectFailed(e.to_string()))?;
+        let mut request = url
+            .as_str()
             .into_client_request()
             .map_err(|e| ClientError::WsConnectFailed(e.to_string()))?;
         if let Some(api_key) = self.api_key.clone() {

@@ -231,15 +231,16 @@ pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     #[allow(deprecated)]
     WrappedRouter::new(store)
         .route(Route::PostBid, post_bid)
-        .route(Route::GetBidsByTime, get_bids_by_time_deprecated)
-        .route(Route::GetBidStatus, get_bid_status_deprecated)
-        .router
-}
-
-pub fn get_routes_with_chain_id(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
-    WrappedRouter::new(store)
         .route(Route::GetBidsByTime, get_bids_by_time)
         .route(Route::GetBidStatus, get_bid_status)
+        .route(
+            express_relay_api_types::bid::DeprecatedRoute::DeprecatedGetBidsByTime,
+            get_bids_by_time_deprecated,
+        )
+        .route(
+            express_relay_api_types::bid::DeprecatedRoute::DeprecatedGetBidStatus,
+            get_bid_status_deprecated,
+        )
         .router
 }
 

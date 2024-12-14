@@ -4,7 +4,7 @@ use {
         AccessLevel,
         ChainId,
         PermissionKeyEvm,
-        RouteTrait,
+        Routable,
     },
     ethers::types::{
         Address,
@@ -178,7 +178,9 @@ pub struct TokenAmountSvm {
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub token:  Pubkey,
-    /// The token amount in lamports.
+    /// The token amount, represented in the smallest unit of the respective token:
+    /// - For Solana, it is measured in lamports.
+    /// - For other tokens, it follows the smallest denomination of that token.
     #[schema(example = 1000)]
     pub amount: u64,
 }
@@ -619,34 +621,42 @@ pub enum Route {
     DeleteOpportunities,
 }
 
-impl RouteTrait for Route {
-    fn access_level(&self) -> AccessLevel {
-        match self {
-            Route::PostOpportunity => AccessLevel::Public,
-            Route::PostQuote => AccessLevel::Public,
-            Route::GetOpportunities => AccessLevel::Public,
-            Route::OpportunityBid => AccessLevel::Public,
-            Route::DeleteOpportunities => AccessLevel::LoggedIn,
-        }
-    }
-
-    fn method(&self) -> http::Method {
-        match self {
-            Route::PostOpportunity => http::Method::POST,
-            Route::PostQuote => http::Method::POST,
-            Route::GetOpportunities => http::Method::GET,
-            Route::OpportunityBid => http::Method::POST,
-            Route::DeleteOpportunities => http::Method::DELETE,
-        }
-    }
-
-    fn full_path(&self) -> String {
-        let path = format!(
+impl Routable for Route {
+    fn properties(&self) -> crate::RouteProperties {
+        let full_path = format!(
             "{}{}{}",
             crate::Route::V1.as_ref(),
             crate::Route::Opportunity.as_ref(),
             self.as_ref()
-        );
-        path.trim_end_matches("/").to_string()
+        )
+        .trim_end_matches("/")
+        .to_string();
+        match self {
+            Route::PostOpportunity => crate::RouteProperties {
+                access_level: AccessLevel::Public,
+                method: http::Method::POST,
+                full_path,
+            },
+            Route::PostQuote => crate::RouteProperties {
+                access_level: AccessLevel::Public,
+                method: http::Method::POST,
+                full_path,
+            },
+            Route::GetOpportunities => crate::RouteProperties {
+                access_level: AccessLevel::Public,
+                method: http::Method::GET,
+                full_path,
+            },
+            Route::OpportunityBid => crate::RouteProperties {
+                access_level: AccessLevel::Public,
+                method: http::Method::POST,
+                full_path,
+            },
+            Route::DeleteOpportunities => crate::RouteProperties {
+                access_level: AccessLevel::LoggedIn,
+                method: http::Method::DELETE,
+                full_path,
+            },
+        }
     }
 }
