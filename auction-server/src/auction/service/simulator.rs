@@ -168,6 +168,8 @@ impl Simulator {
         Ok(result.value)
     }
 
+    /// Fetches multiple accounts from the RPC in chunks
+    /// There is no guarantee that all the accounts will be fetched with the same slot
     async fn get_multiple_accounts_chunked(
         &self,
         keys: &[Pubkey],

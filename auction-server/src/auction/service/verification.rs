@@ -59,8 +59,10 @@ use {
             U256,
         },
     },
+    litesvm::types::FailedTransactionMetadata,
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
+        clock::Slot,
         commitment_config::CommitmentConfig,
         compute_budget,
         instruction::CompiledInstruction,
@@ -579,7 +581,28 @@ impl Service<Svm> {
 
     pub async fn simulate_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
         const RETRY_LIMIT: usize = 5;
+        const RETRY_DELAY: Duration = Duration::from_millis(100);
         let mut retry_count = 0;
+        let bid_slot = bid.chain_data.slot.unwrap_or_default();
+
+        let should_retry = |result_slot: Slot,
+                            retry_count: usize,
+                            err: &FailedTransactionMetadata|
+         -> bool {
+            if result_slot < bid_slot && retry_count < RETRY_LIMIT {
+                tracing::warn!(
+                "Simulation failed with stale slot. Simulation slot: {}, Bid Slot: {}, Retry count: {}, Error: {:?}",
+                result_slot,
+                bid_slot,
+                retry_count,
+                err
+            );
+                true
+            } else {
+                false
+            }
+        };
+
         loop {
             let response = self
                 .config
@@ -593,18 +616,9 @@ impl Service<Svm> {
             })?;
             return match result.value {
                 Err(err) => {
-                    if result.context.slot < bid.chain_data.slot.unwrap_or_default()
-                        && retry_count < RETRY_LIMIT
-                    {
+                    if should_retry(result.context.slot, retry_count, &err) {
+                        tokio::time::sleep(RETRY_DELAY).await;
                         retry_count += 1;
-                        tracing::warn!(
-                            "Simulation failed with stale slot. Simulation slot: {}, Bid Slot: {} Retry count: {}, Error: {:?}",
-                            result.context.slot,
-                            bid.chain_data.slot.unwrap_or_default(),
-                            retry_count,
-                            err
-                        );
-                        tokio::time::sleep(Duration::from_millis(100)).await;
                         continue;
                     }
                     let msgs = err.meta.logs;
@@ -613,6 +627,8 @@ impl Service<Svm> {
                         reason: msgs.join("\n"),
                     })
                 }
+                // Not important to check if bid slot is less than simulation slot if simulation is successful
+                // since we want to fix incorrect verifications due to stale slot
                 Ok(_) => Ok(()),
             };
         }
