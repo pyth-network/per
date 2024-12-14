@@ -60,23 +60,17 @@ where
         Ok(())
     }
 
-    /// This one concludes an auction by getting the auction transaction status from the chain.
-    #[tracing::instrument(skip_all, fields(auction_id, tx_hash, bid_ids))]
+    /// Concludes an auction by getting the auction transaction status from the chain.
+    #[tracing::instrument(skip_all)]
     pub async fn conclude_auction(&self, input: ConcludeAuctionInput<T>) -> anyhow::Result<()> {
         let auction = input.auction;
         tracing::info!(chain_id = self.config.chain_id, auction_id = ?auction.id, permission_key = auction.permission_key.to_string(), "Concluding auction");
-        tracing::Span::current().record("auction_id", auction.id.to_string());
         if let Some(tx_hash) = auction.tx_hash.clone() {
-            tracing::Span::current().record("tx_hash", format!("{:?}", tx_hash));
             let bids = self
                 .repo
                 .get_in_memory_submitted_bids_for_auction(&auction)
                 .await;
 
-            tracing::Span::current().record(
-                "bid_ids",
-                tracing::field::display(entities::BidContainerTracing(&bids)),
-            );
             let bid_statuses = self
                 .get_bid_results(
                     bids.clone(),
@@ -90,11 +84,9 @@ where
             self.conclude_auction_with_statuses(ConcludeAuctionWithStatusesInput {
                 auction,
                 bid_statuses: bid_statuses
-                    .iter()
+                    .into_iter()
                     .zip(bids)
-                    .filter_map(|(status, bid)| {
-                        status.as_ref().map(|status| (status.clone(), bid.clone()))
-                    })
+                    .filter_map(|(status, bid)| status.map(|status| (status, bid)))
                     .collect(),
             })
             .await?;
