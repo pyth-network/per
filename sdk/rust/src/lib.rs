@@ -82,14 +82,12 @@ pub struct Client {
 
 pub struct ClientConfig {
     pub http_url: String,
-    pub ws_url:   String,
     pub api_key:  Option<String>,
 }
 
 #[derive(Debug)]
 pub enum ClientError {
     InvalidHttpUrl(String),
-    InvalidWsUrl(String),
     RequestFailed(reqwest::Error),
     RequestError(String),
     DecodeResponseFailed(reqwest::Error),
@@ -183,8 +181,9 @@ impl WsClient {
         mut request_receiver: mpsc::UnboundedReceiver<WsRequest>,
         update_sender: broadcast::Sender<api_types::ws::ServerUpdateResponse>,
     ) {
-        let mut ping_interval = tokio::time::interval(Duration::from_secs(30));
-        let mut responded_to_ping = true;
+        let mut connection_check = tokio::time::interval(Duration::from_secs(1));
+        let ping_duration = Duration::from_secs(32); // 30 seconds + 2 seconds to account for extra latency
+        let mut latest_ping = tokio::time::Instant::now();
         let mut requests_map = HashMap::<String, oneshot::Sender<ServerResultMessage>>::new();
         loop {
             tokio::select! {
@@ -215,11 +214,9 @@ impl WsClient {
                             }
                         }
                         Message::Close(_) => break,
-                        Message::Pong(_) => {
-                            responded_to_ping = true;
-                            continue;
-                        }
+                        Message::Pong(_) => continue,
                         Message::Ping(data) => {
+                            latest_ping = tokio::time::Instant::now();
                             let _ = ws_stream.send(Message::Pong(data)).await;
                             continue;
                         },
@@ -246,28 +243,28 @@ impl WsClient {
                         None => break,
                     }
                 }
-                _  = ping_interval.tick() => {
-                    if !responded_to_ping {
+                _  = connection_check.tick() => {
+                    if latest_ping.elapsed() > ping_duration {
                         break;
                     }
-                    responded_to_ping = false;
-                    _ = ws_stream.send(Message::Ping(vec![])).await;
                 },
             }
         }
+    }
+
+    async fn fetch_add_request_id(&self) -> u64 {
+        let mut write_gaurd = self.inner.request_id.write().await;
+        *write_gaurd += 1;
+        *write_gaurd
     }
 
     async fn send(
         &self,
         message: api_types::ws::ClientMessage,
     ) -> Result<ServerResultMessage, ClientError> {
-        let mut write_gaurd = self.inner.request_id.write().await;
-        let request_id = write_gaurd.to_string();
-        *write_gaurd += 1;
-        drop(write_gaurd);
-
+        let request_id = self.fetch_add_request_id().await;
         let request = api_types::ws::ClientRequest {
-            id:  request_id.clone(),
+            id:  request_id.to_string(),
             msg: message,
         };
 
@@ -377,8 +374,6 @@ impl Client {
     pub fn try_new(config: ClientConfig) -> Result<Self, ClientError> {
         let http_url = Url::parse(config.http_url.as_str())
             .map_err(|e| ClientError::InvalidHttpUrl(e.to_string()))?;
-        let ws_url = Url::parse(config.ws_url.as_str())
-            .map_err(|e| ClientError::InvalidWsUrl(e.to_string()))?;
 
         if http_url.scheme() != "http" && http_url.scheme() != "https" {
             return Err(ClientError::InvalidHttpUrl(format!(
@@ -387,12 +382,12 @@ impl Client {
             )));
         }
 
-        if ws_url.scheme() != "ws" && ws_url.scheme() != "wss" {
-            return Err(ClientError::InvalidWsUrl(format!(
-                "Invalid scheme {}",
-                ws_url.scheme()
-            )));
-        }
+        let ws_url_string = if http_url.scheme() == "http" {
+            config.http_url.replace("http", "ws")
+        } else {
+            config.http_url.replace("https", "wss")
+        };
+        let ws_url = Url::parse(ws_url_string.as_str()).expect("Failed to parse ws url");
 
         Ok(Self {
             http_url,

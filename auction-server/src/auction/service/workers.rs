@@ -3,7 +3,8 @@ use {
         auction_manager::AuctionManager,
         ChainTrait,
         Service,
-    }, crate::{
+    },
+    crate::{
         api::ws::UpdateEvent,
         auction::{
             entities,
@@ -17,23 +18,33 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-    }, anyhow::{
+    },
+    anyhow::{
         anyhow,
         Result,
-    }, axum_prometheus::metrics, ethers::providers::Middleware, express_relay_api_types::SvmChainUpdate, futures::future::join_all, solana_client::{
+    },
+    axum_prometheus::metrics,
+    ethers::providers::Middleware,
+    express_relay_api_types::SvmChainUpdate,
+    futures::future::join_all,
+    solana_client::{
         rpc_config::{
             RpcTransactionLogsConfig,
             RpcTransactionLogsFilter,
         },
         rpc_response::RpcLogsResponse,
-    }, solana_sdk::{
+    },
+    solana_sdk::{
         commitment_config::CommitmentConfig,
         signature::Signature,
-    }, std::{
+    },
+    std::{
         str::FromStr,
         sync::atomic::Ordering,
         time::Duration,
-    }, time::OffsetDateTime, tokio_stream::StreamExt
+    },
+    time::OffsetDateTime,
+    tokio_stream::StreamExt,
 };
 
 impl<T: ChainTrait> Service<T>

@@ -14,7 +14,10 @@ use {
             },
             ws::ServerUpdateResponse,
         },
-        ethers::types::U256,
+        ethers::{
+            signers::LocalWallet,
+            types::U256,
+        },
         evm::BidParamsEvm,
         Client,
         ClientConfig,
@@ -130,16 +133,15 @@ async fn handle_opportunity(ws_client: WsClient, opportunity: Opportunity, args:
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: RunOptions = RunOptions::parse();
-    let ws_url = if args.server_url.starts_with("http") {
-        args.server_url.replace("http", "ws")
-    } else {
-        args.server_url.replace("https", "wss")
-    };
+    if let Some(private_key) = args.private_key_evm.clone() {
+        private_key
+            .parse::<LocalWallet>()
+            .map_err(|e| anyhow!("Invalid evm private key: {}", e))?;
+    }
 
     let client = Client::try_new(ClientConfig {
         http_url: args.server_url.clone(),
-        ws_url,
-        api_key: args.api_key.clone(),
+        api_key:  args.api_key.clone(),
     })
     .map_err(|e| {
         eprintln!("Failed to create client: {:?}", e);
