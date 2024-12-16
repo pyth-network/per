@@ -36,7 +36,7 @@ repos:
       - id: cargo-fmt-vault-simulator
         name: Cargo format for vault simulator
         language: "rust"
-        entry: cargo fmt --manifest-path ./vault-simulator/Cargo.toml --all -- --config-path rustfmt.toml
+        entry: cargo +nightly-2024-12-03 fmt --manifest-path ./vault-simulator/Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
         files: vault-simulator
       - id: cargo-clippy-vault-simulator
