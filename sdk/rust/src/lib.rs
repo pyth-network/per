@@ -253,9 +253,9 @@ impl WsClient {
     }
 
     async fn fetch_add_request_id(&self) -> u64 {
-        let mut write_gaurd = self.inner.request_id.write().await;
-        *write_gaurd += 1;
-        *write_gaurd
+        let mut write_guard = self.inner.request_id.write().await;
+        *write_guard += 1;
+        *write_guard
     }
 
     async fn send(

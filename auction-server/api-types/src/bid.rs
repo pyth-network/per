@@ -337,7 +337,7 @@ impl Routable for Route {
 
         let full_path_with_chain = format!(
             "{}{}{}",
-            crate::Route::V1.as_ref(),
+            crate::Route::V1Chain.as_ref(),
             crate::Route::Bid.as_ref(),
             self.as_ref()
         )
