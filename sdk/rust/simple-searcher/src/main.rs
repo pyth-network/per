@@ -130,6 +130,34 @@ async fn handle_opportunity(ws_client: WsClient, opportunity: Opportunity, args:
     }
 }
 
+async fn bid_on_existing_opps(
+    client: &Client,
+    ws_client: WsClient,
+    args: RunOptions,
+) -> Result<()> {
+    let opportunities = client
+        .get_opportunities(Some(GetOpportunitiesQueryParams {
+            chain_id:       Some(args.chains[0].clone()),
+            mode:           OpportunityMode::Live,
+            permission_key: None,
+            limit:          100,
+            from_time:      Some(OffsetDateTime::now_utc() - Duration::days(1)),
+        }))
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to get opportunities: {:?}", e);
+            anyhow!("Failed to get opportunities")
+        })?;
+    opportunities.iter().for_each(|opportunity| {
+        tokio::spawn(handle_opportunity(
+            ws_client.clone(),
+            opportunity.clone(),
+            args.clone(),
+        ));
+    });
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: RunOptions = RunOptions::parse();
@@ -153,27 +181,7 @@ async fn main() -> Result<()> {
         anyhow!("Failed to connect websocket")
     })?;
 
-    let opportunities = client
-        .get_opportunities(Some(GetOpportunitiesQueryParams {
-            chain_id:       Some(args.chains[0].clone()),
-            mode:           OpportunityMode::Live,
-            permission_key: None,
-            limit:          100,
-            from_time:      Some(OffsetDateTime::now_utc() - Duration::days(1)),
-        }))
-        .await
-        .map_err(|e| {
-            eprintln!("Failed to get opportunities: {:?}", e);
-            anyhow!("Failed to get opportunities")
-        })?;
-
-    opportunities.iter().for_each(|opportunity| {
-        tokio::spawn(handle_opportunity(
-            ws_client.clone(),
-            opportunity.clone(),
-            args.clone(),
-        ));
-    });
+    bid_on_existing_opps(&client, ws_client.clone(), args.clone()).await?;
 
     ws_client
         .chain_subscribe(args.chains.clone())
@@ -204,7 +212,7 @@ async fn main() -> Result<()> {
             }
             ServerUpdateResponse::SvmChainUpdate { update } => {
                 block_hash_map.insert(update.chain_id.clone(), update.blockhash);
-                println!("SVM chain");
+                println!("SVM chain update: {:?}", update);
             }
             ServerUpdateResponse::RemoveOpportunities { opportunity_delete } => {
                 println!("Remove opportunities: {:?}", opportunity_delete);

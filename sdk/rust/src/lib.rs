@@ -439,7 +439,7 @@ impl Client {
         self.send(Route::GetOpportunities, params).await
     }
 
-    pub async fn new_bid<T: OpportunityTrait>(
+    pub async fn new_bid<T: Biddable>(
         opportunity: T,
         params: T::Params,
         private_key: String,
@@ -448,7 +448,7 @@ impl Client {
     }
 }
 
-pub trait OpportunityTrait {
+pub trait Biddable {
     type Params;
 
     fn new_bid(
@@ -458,7 +458,7 @@ pub trait OpportunityTrait {
     ) -> Result<api_types::bid::BidCreate, ClientError>;
 }
 
-impl OpportunityTrait for api_types::opportunity::OpportunityEvm {
+impl Biddable for api_types::opportunity::OpportunityEvm {
     type Params = BidParamsEvm;
 
     fn new_bid(
@@ -483,7 +483,7 @@ impl OpportunityTrait for api_types::opportunity::OpportunityEvm {
     }
 }
 
-impl OpportunityTrait for api_types::opportunity::OpportunitySvm {
+impl Biddable for api_types::opportunity::OpportunitySvm {
     type Params = i64;
 
     fn new_bid(
