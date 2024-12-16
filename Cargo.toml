@@ -6,8 +6,9 @@ members = [
     "gas-oracle",
     "sdk/rust/simple-searcher",
     "sdk/rust",
+    "vault-simulator",
 ]
-exclude = ["vault-simulator", "contracts/svm"]
+exclude = ["contracts/svm"]
 
 [workspace.dependencies]
 time = "0.3.36"
