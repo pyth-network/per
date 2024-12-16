@@ -1,26 +1,15 @@
 use {
-    super::Auth,
+    super::{
+        Auth,
+        WrappedRouter,
+    },
     crate::{
         auction::{
-            api::{
-                process_bid,
-                BidCreate,
-                BidResult,
-                BidStatusWithId,
-                SvmChainUpdate,
-            },
+            api::process_bid,
             entities::BidId,
         },
         config::ChainId,
-        opportunity::{
-            api::{
-                Opportunity,
-                OpportunityBidEvm,
-                OpportunityDelete,
-                OpportunityId,
-            },
-            service::handle_opportunity_bid::HandleOpportunityBidInput,
-        },
+        opportunity::service::handle_opportunity_bid::HandleOpportunityBidInput,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -41,6 +30,30 @@ use {
             WebSocketUpgrade,
         },
         response::IntoResponse,
+        Router,
+    },
+    express_relay_api_types::{
+        bid::{
+            BidCreate,
+            BidResult,
+            BidStatusWithId,
+        },
+        opportunity::{
+            Opportunity,
+            OpportunityBidEvm,
+            OpportunityDelete,
+            OpportunityId,
+        },
+        ws::{
+            APIResponse,
+            ClientMessage,
+            ClientRequest,
+            Route,
+            ServerResultMessage,
+            ServerResultResponse,
+            ServerUpdateResponse,
+        },
+        SvmChainUpdate,
     },
     futures::{
         stream::{
@@ -49,10 +62,6 @@ use {
         },
         SinkExt,
         StreamExt,
-    },
-    serde::{
-        Deserialize,
-        Serialize,
     },
     std::{
         collections::HashSet,
@@ -71,83 +80,12 @@ use {
         instrument,
         Instrument,
     },
-    utoipa::ToSchema,
 };
 
 pub struct WsState {
     pub subscriber_counter: AtomicUsize,
     pub broadcast_sender:   broadcast::Sender<UpdateEvent>,
     pub broadcast_receiver: broadcast::Receiver<UpdateEvent>,
-}
-
-#[derive(Deserialize, Clone, ToSchema)]
-#[serde(tag = "method", content = "params")]
-pub enum ClientMessage {
-    #[serde(rename = "subscribe")]
-    Subscribe {
-        #[schema(value_type = Vec<String>)]
-        chain_ids: Vec<ChainId>,
-    },
-    #[serde(rename = "unsubscribe")]
-    Unsubscribe {
-        #[schema(value_type = Vec<String>)]
-        chain_ids: Vec<ChainId>,
-    },
-    #[serde(rename = "post_bid")]
-    PostBid { bid: BidCreate },
-
-    #[serde(rename = "post_opportunity_bid")]
-    PostOpportunityBid {
-        #[schema(value_type = String)]
-        opportunity_id:  OpportunityId,
-        opportunity_bid: OpportunityBidEvm,
-    },
-}
-
-#[derive(Deserialize, Clone, ToSchema)]
-pub struct ClientRequest {
-    id:  String,
-    #[serde(flatten)]
-    msg: ClientMessage,
-}
-
-/// This enum is used to send an update to the client for any subscriptions made.
-#[derive(Serialize, Clone, ToSchema)]
-#[serde(tag = "type")]
-pub enum ServerUpdateResponse {
-    #[serde(rename = "new_opportunity")]
-    NewOpportunity { opportunity: Opportunity },
-    #[serde(rename = "bid_status_update")]
-    BidStatusUpdate { status: BidStatusWithId },
-    #[serde(rename = "svm_chain_update")]
-    SvmChainUpdate { update: SvmChainUpdate },
-    #[serde(rename = "remove_opportunities")]
-    RemoveOpportunities {
-        opportunity_delete: OpportunityDelete,
-    },
-}
-
-#[derive(Serialize, Clone, ToSchema)]
-#[serde(untagged)]
-pub enum APIResponse {
-    BidResult(BidResult),
-}
-#[derive(Serialize, Clone, ToSchema)]
-#[serde(tag = "status", content = "result")]
-pub enum ServerResultMessage {
-    #[serde(rename = "success")]
-    Success(Option<APIResponse>),
-    #[serde(rename = "error")]
-    Err(String),
-}
-
-/// This enum is used to send the result for a specific client request with the same id.
-/// Id is only None when the client message is invalid.
-#[derive(Serialize, Clone, ToSchema)]
-pub struct ServerResultResponse {
-    id:     Option<String>,
-    #[serde(flatten)]
-    result: ServerResultMessage,
 }
 
 pub async fn ws_route_handler(
@@ -532,4 +470,11 @@ impl Subscriber {
 
         Ok(())
     }
+}
+
+
+pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
+    WrappedRouter::new(store)
+        .route(Route::Ws, ws_route_handler)
+        .router
 }

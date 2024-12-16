@@ -7,7 +7,6 @@ use {
     crate::{
         api::ws::UpdateEvent,
         auction::{
-            api::SvmChainUpdate,
             entities,
             service::conclude_auction::ConcludeAuctionWithStatusesInput,
         },
@@ -26,6 +25,7 @@ use {
     },
     axum_prometheus::metrics,
     ethers::providers::Middleware,
+    express_relay_api_types::SvmChainUpdate,
     futures::future::join_all,
     solana_client::{
         rpc_config::{
