@@ -57,6 +57,20 @@ pub struct Config {
     pub chain_id_num:             u64,
 }
 
+
+/// Retrieves the EVM configuration for a specific chain.
+///
+/// # Arguments
+///
+/// * `chain_id` - A string slice representing the blockchain chain ID.
+///
+/// # Returns
+///
+/// * `Result<Config, ClientError>` - A result containing the configuration or an error if the chain is unsupported.
+///
+/// # Errors
+///
+/// Returns `ClientError::ChainNotSupported` if the chain ID is unrecognized.
 pub fn get_config(chain_id: &str) -> Result<Config, ClientError> {
     match chain_id {
         "mode" => Ok(Config {
@@ -99,6 +113,20 @@ pub fn get_config(chain_id: &str) -> Result<Config, ClientError> {
     }
 }
 
+/// Constructs the Permit2 compatible permitted tokens list for a given opportunity and bid parameters.
+///
+/// # Arguments
+///
+/// * `opportunity` - The EVM opportunity structure.
+/// * `bid_params` - Bid parameters.
+///
+/// # Returns
+///
+/// * `Result<Vec<TokenPermissions>, ClientError>` - A list of token permissions or an error.
+///
+/// # Errors
+///
+/// Returns an error if the configuration for the chain cannot be retrieved.
 pub fn make_permitted_tokens(
     opportunity: OpportunityEvm,
     bid_params: BidParamsEvm,
@@ -130,6 +158,21 @@ pub fn make_permitted_tokens(
     Ok(permitted_tokens)
 }
 
+/// Creates execution parameters required for executing an opportunity through the ER contract.
+///
+/// # Arguments
+///
+/// * `opportunity` - The EVM opportunity structure.
+/// * `bid_params` - Bid parameters.
+/// * `executor` - The address of the executor.
+///
+/// # Returns
+///
+/// * `Result<ExecutionParams, ClientError>` - Execution parameters including permits and witness details.
+///
+/// # Errors
+///
+/// Returns an error if permit2 compatible permitted tokens cannot be constructed.
 pub fn make_opportunity_execution_params(
     opportunity: OpportunityEvm,
     bid_params: BidParamsEvm,
@@ -260,6 +303,21 @@ fn get_signature(
         .map_err(|e| ClientError::NewBidError(format!("Failed to sign eip712 data: {:?}", e)))
 }
 
+/// Generates adapter calldata for executing an opportunity.
+///
+/// # Arguments
+///
+/// * `opportunity` - The EVM opportunity structure.
+/// * `bid_params` - Bid parameters.
+/// * `wallet` - A `LocalWallet` object for signing transactions.
+///
+/// # Returns
+///
+/// * `Result<Bytes, ClientError>` - The calldata bytes for the opportunity adapter.
+///
+/// # Errors
+///
+/// Returns an error if signature generation or execution parameter creation fails.
 pub fn make_adapter_calldata(
     opportunity: OpportunityEvm,
     bid_params: BidParamsEvm,
@@ -278,6 +336,15 @@ pub fn make_adapter_calldata(
     Ok(calldata.into())
 }
 
+/// Retrieves opportunity parameters from an `OpportunityEvm` object.
+///
+/// # Arguments
+///
+/// * `opportunity` - The EVM opportunity structure.
+///
+/// # Returns
+///
+/// * `OpportunityCreateV1Evm` - The extracted opportunity parameters.
 pub fn get_params(opportunity: OpportunityEvm) -> OpportunityCreateV1Evm {
     let OpportunityParamsEvm::V1(OpportunityParamsV1Evm(params)) = opportunity.params;
     params

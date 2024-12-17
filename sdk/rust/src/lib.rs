@@ -145,6 +145,21 @@ enum MessageType {
     Update(api_types::ws::ServerUpdateResponse),
 }
 
+/// A stream of WebSocket updates received from the server.
+///
+/// # Developer Notes
+///
+/// - This struct wraps a `BroadcastStream` that delivers updates as `ServerUpdateResponse` objects.
+/// - The `PhantomData` ensures that the lifetime of this stream is explicitly tied to the `WsClient` instance.
+///
+/// ## Why PhantomData?
+///
+/// - `PhantomData<&'a ()>` acts as a marker to indicate that this struct's lifetime `'a`
+///   depends on the `WsClient` that created it.
+/// - Without `PhantomData`, the compiler cannot ensure that the `WsClientUpdateStream` does not outlive
+///   the `WsClient`. This can lead to dangling references or invalid state.
+/// - By including `PhantomData`, the borrow checker guarantees at compile time that the stream
+///   remains valid only as long as the `WsClient` exists.
 pub struct WsClientUpdateStream<'a> {
     stream:    BroadcastStream<api_types::ws::ServerUpdateResponse>,
     _lifetime: PhantomData<&'a ()>,
@@ -170,12 +185,40 @@ impl Stream for WsClientUpdateStream<'_> {
 }
 
 impl WsClient {
+    /// Retrieves a stream of WebSocket updates from the server.
+    ///
+    /// # Returns
+    ///
+    /// * `WsClientUpdateStream` - A stream of updates that can be polled asynchronously.
+    ///
+    /// # Lifetime
+    ///
+    /// The lifetime of the update stream is guaranteed at compile time to be tied to the `WsClient`.
+    /// If the `WsClient` is dropped, the stream will also become invalid.
     pub fn get_update_stream(&self) -> WsClientUpdateStream {
         WsClientUpdateStream::new(BroadcastStream::new(
             self.inner.update_receiver.resubscribe(),
         ))
     }
 
+    /// Runs the WebSocket event loop, managing incoming messages, outgoing requests, and connection health.
+    ///
+    /// # Developer Notes
+    ///
+    /// - This function runs continuously and listens for three main events:
+    ///   1. **Incoming WebSocket messages**: Handles text, binary, ping, and close frames.
+    ///      - WebSocket messages can be of two types:
+    ///         - **Updates**: Broadcasted to all clients via the `update_sender` channel.
+    ///         - **Responses**: Sent as a response to a specific client request and delivered to the
+    ///           corresponding `oneshot` channel for that request (tracked via `requests_map`).
+    ///   2. **Requests from the client**: Sends messages through the WebSocket when received from the request channel.
+    ///   3. **Connection health check**: Monitors for pings to ensure the connection is alive.
+    ///
+    /// - Uses a `HashMap` (`requests_map`) to track pending requests and match responses based on their IDs.
+    /// - If no ping is received for 32 seconds, the function assumes the connection is broken and terminates.
+    ///
+    /// This function is spawned as a background task and must be resilient to message errors
+    /// or other intermittent failures.
     async fn run(
         mut ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
         mut request_receiver: mpsc::UnboundedReceiver<WsRequest>,
@@ -258,6 +301,18 @@ impl WsClient {
         *write_guard
     }
 
+    /// Sends a WebSocket message and waits for a response.
+    ///
+    /// # Developer Notes
+    ///
+    /// - Generates a unique request ID using `fetch_add_request_id` to match requests with responses.
+    /// - Sends a `ClientRequest` message through the internal `request_sender` channel.
+    /// - Uses a `oneshot` channel to wait for the response corresponding to the request ID.
+    /// - Times out after 5 seconds if no response is received, returning a `WsRequestFailed` error.
+    ///
+    /// **Request Matching**:
+    /// Responses are matched to their corresponding requests via the `requests_map` in the `run` loop.
+    /// If the timeout occurs, developers must ensure that orphaned requests are handled appropriately.
     async fn send(
         &self,
         message: api_types::ws::ClientMessage,
@@ -294,6 +349,19 @@ impl WsClient {
         }
     }
 
+    /// Subscribes to updates for specific blockchain chains.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain_ids` - A vector of chain IDs as strings.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), ClientError>` - Returns `Ok(())` on success or an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription request fails or times out.
     pub async fn chain_subscribe(&self, chain_ids: Vec<String>) -> Result<(), ClientError> {
         let message = api_types::ws::ClientMessage::Subscribe {
             chain_ids: chain_ids
@@ -308,6 +376,19 @@ impl WsClient {
         }
     }
 
+    /// Unsubscribes from updates for specific blockchain chains.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain_ids` - A vector of chain IDs as strings.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), ClientError>` - Returns `Ok(())` on success or an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the unsubscription request fails or times out.
     pub async fn chain_unsubscribe(&self, chain_ids: Vec<String>) -> Result<(), ClientError> {
         let message = api_types::ws::ClientMessage::Unsubscribe {
             chain_ids: chain_ids
@@ -322,6 +403,19 @@ impl WsClient {
         }
     }
 
+    /// Submits a bid to the server.
+    ///
+    /// # Arguments
+    ///
+    /// * `bid` - The bid object to be submitted, which contains the relevant parameters for the transaction.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<api_types::bid::BidResult, ClientError>` - The result of the bid submission.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the WebSocket request fails or the server responds with an error.
     pub async fn submit_bid(
         &self,
         bid: api_types::bid::BidCreate,
@@ -350,6 +444,31 @@ impl Client {
         }
     }
 
+    /// Sends an HTTP request to the server and decodes the response.
+    ///
+    /// # Developer Notes
+    ///
+    /// - Constructs an HTTP request using the specified route and optional query parameters.
+    /// - If an `api_key` is set, it adds a `Bearer` authorization header to the request.
+    /// - This function expects the server response to conform to the following structure:
+    ///    - `DecodedResponse::Ok` for successful responses.
+    ///    - `DecodedResponse::Err` for error bodies returned by the server.
+    /// - The function uses `reqwest::Client` internally and decodes the response using `serde`.
+    ///
+    /// # Parameters
+    ///
+    /// - `route` - Defines the API endpoint and HTTP method via the `Routable` trait.
+    /// - `query` - Optional query parameters that are serialized into the request URL.
+    ///
+    /// # Implementation Details
+    ///
+    /// - If the HTTP response is valid but contains an error body, the function returns a
+    ///   `ClientError::RequestError` with the server's error message.
+    /// - If the HTTP response fails to decode, it returns `ClientError::DecodeResponseFailed`.
+    /// - Errors due to request failure (e.g., network issues) are returned as `ClientError::RequestFailed`.
+    ///
+    /// **Timeouts**:
+    /// The default `reqwest` client timeout applies here. Ensure proper timeout handling in the caller.
     async fn send<T: Serialize, R: DeserializeOwned>(
         &self,
         route: impl Routable,
@@ -371,6 +490,19 @@ impl Client {
         Client::decode(response).await
     }
 
+    /// Creates a new HTTP client with the provided configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The client configuration containing HTTP URL and optional API key.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Self, ClientError>` - A result containing the initialized client or an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP URL is invalid or has an unsupported scheme.
     pub fn try_new(config: ClientConfig) -> Result<Self, ClientError> {
         let http_url = Url::parse(config.http_url.as_str())
             .map_err(|e| ClientError::InvalidHttpUrl(e.to_string()))?;
@@ -397,6 +529,19 @@ impl Client {
         })
     }
 
+    /// Establishes a WebSocket connection to the server.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<WsClient, ClientError>` - A thread-safe WebSocket client for interacting with the server.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection or WebSocket handshake fails.
+    ///
+    /// # Thread Safety
+    ///
+    /// The returned `WsClient` is thread-safe and can be cloned to share across multiple tasks.
     pub async fn connect_websocket(&self) -> Result<WsClient, ClientError> {
         let url = self
             .ws_url
@@ -432,6 +577,15 @@ impl Client {
         })
     }
 
+    /// Fetches opportunities based on optional query parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Optional query parameters for filtering opportunities.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Vec<Opportunity>, ClientError>` - A list of opportunities or an error.
     pub async fn get_opportunities(
         &self,
         params: Option<GetOpportunitiesQueryParams>,
@@ -439,6 +593,21 @@ impl Client {
         self.send(Route::GetOpportunities, params).await
     }
 
+    /// Creates a new bid for an opportunity.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - A type that implements the `Biddable` trait.
+    ///
+    /// # Arguments
+    ///
+    /// * `opportunity` - The opportunity to bid on.
+    /// * `params` - Bid parameters specific to the opportunity type.
+    /// * `private_key` - The private key for signing the bid.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<BidCreate, ClientError>` - A bid creation object or an error.
     pub async fn new_bid<T: Biddable>(
         opportunity: T,
         params: T::Params,
