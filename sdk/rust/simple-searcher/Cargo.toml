@@ -9,5 +9,5 @@ anyhow = { workspace = true }
 tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread"] }
 time = { workspace = true }
 tokio-stream = { workspace = true }
-rand = "0.8.5"
-clap = { version = "4.5.23", features = ["derive", "env"] }
+rand = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"] }
