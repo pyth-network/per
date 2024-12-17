@@ -32,19 +32,6 @@ repos:
         entry: cargo +stable clippy --manifest-path ./Cargo.toml --tests -- -D warnings
         pass_filenames: false
         files: .
-      # Hooks for vault-simulator
-      - id: cargo-fmt-vault-simulator
-        name: Cargo format for vault simulator
-        language: "rust"
-        entry: cargo +nightly-2024-12-03 fmt --manifest-path ./vault-simulator/Cargo.toml --all -- --config-path rustfmt.toml
-        pass_filenames: false
-        files: vault-simulator
-      - id: cargo-clippy-vault-simulator
-        name: Cargo clippy for vault simulator
-        language: "rust"
-        entry: cargo clippy --manifest-path ./vault-simulator/Cargo.toml --tests -- -D warnings
-        pass_filenames: false
-        files: vault-simulator
       # Hooks for contracts-svm
       - id: cargo-fmt-contracts-svm
         name: Cargo format for svm contracts

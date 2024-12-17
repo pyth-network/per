@@ -49,12 +49,7 @@ WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/root/.cargo/registry cargo build -p auction-server --release
 
-# Build vault-simulator
-WORKDIR /src/vault-simulator
-RUN --mount=type=cache,target=/root/.cargo/registry cargo build --release
-
-
 FROM rust:${RUST_VERSION}
 # Copy artifacts from other images
 COPY --from=build /src/target/release/auction-server /usr/local/bin/
-COPY --from=build /src/vault-simulator/target/release/vault-simulator /usr/local/bin/
+COPY --from=build /src/target/release/vault-simulator /usr/local/bin/
