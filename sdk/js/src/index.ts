@@ -32,6 +32,7 @@ import { limoId, Order } from "@kamino-finance/limo-sdk";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 import * as evm from "./evm";
 import * as svm from "./svm";
+import { BN } from "@coral-xyz/anchor";
 
 export * from "./types";
 export * from "./const";
