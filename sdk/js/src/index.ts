@@ -32,6 +32,7 @@ import { limoId, Order } from "@kamino-finance/limo-sdk";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 import * as evm from "./evm";
 import * as svm from "./svm";
+import { BN } from "@coral-xyz/anchor";
 
 export * from "./types";
 export * from "./const";
@@ -379,10 +380,12 @@ export class Client {
         encoded_order,
         Order.discriminator.length
       );
-      const remainingOutputAmount =
+      const remainingOutputAmount = BN.max(
         opportunity.order.state.expectedOutputAmount.sub(
           opportunity.order.state.filledOutputAmount
-        );
+        ),
+        new BN(0)
+      );
       body = {
         chain_id: opportunity.chainId,
         version: "v1" as const,
