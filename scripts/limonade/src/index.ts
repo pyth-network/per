@@ -47,7 +47,6 @@ const argv = yargs(hideBin(process.argv))
     description:
       "API key to authenticate with the express relay server for publishing opportunities.",
     type: "string",
-    demandOption: true,
   })
   .option("number-of-concurrent-submissions", {
     description: "Number of concurrent submissions to the express relay server",
@@ -141,7 +140,11 @@ async function run() {
         e.message.includes("Same opportunity is submitted recently")
       )
     ) {
-      console.error("Failed to submit opportunity", e);
+      console.error(
+        "Failed to submit opportunity",
+        e,
+        e.message ? e.message : ""
+      );
     }
   };
   const setHermesConnectionTimeout = () => {
@@ -187,7 +190,9 @@ async function run() {
           try {
             await client.submitOpportunity(payload);
           } catch (e) {
-            handleSubmitError(e);
+            if (e instanceof ClientError && e.message.includes("422")) {
+              console.log(payload);
+            }
           }
         })
       );
