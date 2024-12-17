@@ -22,26 +22,50 @@ pub struct Quote {
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuoteCreate {
     pub user_wallet_address:         Pubkey,
-    pub input_token:                 TokenAmountSvm,
-    pub output_mint_token:           Pubkey,
+    pub tokens:                      QuoteTokens,
     pub maximum_slippage_percentage: f64,
     pub chain_id:                    ChainId,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum QuoteTokens {
+    InputTokenSpecified {
+        input_token:  TokenAmountSvm,
+        output_token: Pubkey,
+    },
+    OutputTokenSpecified {
+        input_token:  Pubkey,
+        output_token: TokenAmountSvm,
+    },
+}
+
 impl From<api::QuoteCreate> for QuoteCreate {
     fn from(quote_create: api::QuoteCreate) -> Self {
-        let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(api::QuoteCreateV1Svm::Phantom(params))) =
+        let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(api::QuoteCreateV1Svm::Swap(params))) =
             quote_create;
 
-        Self {
-            user_wallet_address:         params.user_wallet_address,
-            input_token:                 TokenAmountSvm {
-                token:  params.input_token_mint,
-                amount: params.input_token_amount,
+        let tokens = match params.token_amount {
+            api::QuoteTokenAmount::InputToken { amount } => QuoteTokens::InputTokenSpecified {
+                input_token:  TokenAmountSvm {
+                    token:  params.input_token_mint,
+                    amount: amount,
+                },
+                output_token: params.output_token_mint,
             },
-            output_mint_token:           params.output_token_mint,
+            api::QuoteTokenAmount::OutputToken { amount } => QuoteTokens::OutputTokenSpecified {
+                input_token:  params.input_token_mint,
+                output_token: TokenAmountSvm {
+                    token:  params.output_token_mint,
+                    amount: amount,
+                },
+            },
+        };
+
+        Self {
+            user_wallet_address: params.user_wallet_address,
+            tokens,
             maximum_slippage_percentage: params.maximum_slippage_percentage,
-            chain_id:                    params.chain_id,
+            chain_id: params.chain_id,
         }
     }
 }

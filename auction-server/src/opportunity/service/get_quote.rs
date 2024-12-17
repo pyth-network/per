@@ -25,10 +25,7 @@ use {
         },
         opportunity::{
             entities,
-            service::{
-                add_opportunity::AddOpportunityInput,
-                estimate_price::EstimatePriceInput,
-            },
+            service::add_opportunity::AddOpportunityInput,
         },
     },
     axum_prometheus::metrics,
@@ -54,11 +51,22 @@ impl Service<ChainTypeSvm> {
     async fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
-        output_amount: u64,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let chain_config = self.get_config(&quote_create.chain_id)?;
         let router = chain_config.wallet_program_router_account;
         let permission_account = Pubkey::new_from_array(rand::thread_rng().gen());
+
+        // TODO: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
+        let (input_mint, input_amount, output_mint, output_amount) = match quote_create.tokens {
+            entities::QuoteTokens::InputTokenSpecified {
+                input_token,
+                output_token,
+            } => (input_token.token, input_token.amount, output_token, 0),
+            entities::QuoteTokens::OutputTokenSpecified {
+                input_token,
+                output_token,
+            } => (input_token, 0, output_token.token, output_token.amount),
+        };
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
             permission_key: entities::OpportunitySvm::get_permission_key(
@@ -66,9 +74,12 @@ impl Service<ChainTypeSvm> {
                 permission_account,
             ),
             chain_id:       quote_create.chain_id,
-            sell_tokens:    vec![quote_create.input_token],
+            sell_tokens:    vec![entities::TokenAmountSvm {
+                token:  input_mint,
+                amount: input_amount,
+            }],
             buy_tokens:     vec![entities::TokenAmountSvm {
-                token:  quote_create.output_mint_token,
+                token:  output_mint,
                 amount: output_amount,
             }],
         };
@@ -77,12 +88,10 @@ impl Service<ChainTypeSvm> {
             core_fields,
             router,
             permission_account,
-            program: entities::OpportunitySvmProgram::Phantom(
-                entities::OpportunitySvmProgramWallet {
-                    user_wallet_address:         quote_create.user_wallet_address,
-                    maximum_slippage_percentage: quote_create.maximum_slippage_percentage,
-                },
-            ),
+            program: entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramWallet {
+                user_wallet_address:         quote_create.user_wallet_address,
+                maximum_slippage_percentage: quote_create.maximum_slippage_percentage,
+            }),
             // TODO extract latest slot
             slot: Slot::default(),
         })
@@ -93,22 +102,22 @@ impl Service<ChainTypeSvm> {
         let config = self.get_config(&input.quote_create.chain_id)?;
         let auction_service = config.get_auction_service().await;
 
-        // TODO Check for the input amount
         tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");
-        let output_amount = self
-            .estimate_price(EstimatePriceInput {
-                quote_create: input.quote_create.clone(),
-            })
-            .await?;
 
         let opportunity_create = self
-            .get_opportunity_create_for_quote(input.quote_create.clone(), output_amount)
+            .get_opportunity_create_for_quote(input.quote_create.clone())
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {
                 opportunity: opportunity_create,
             })
             .await?;
+        let input_specified = matches!(
+            input.quote_create.tokens,
+            entities::QuoteTokens::InputTokenSpecified { .. }
+        );
+        let input_token = opportunity.buy_tokens[0].clone();
+        let output_token = opportunity.sell_tokens[0].clone();
 
         // NOTE: This part will be removed after refactoring the permission key type
         let slice: [u8; 64] = opportunity
@@ -135,7 +144,7 @@ impl Service<ChainTypeSvm> {
         // Add metrics
         let labels = [
             ("chain_id", input.quote_create.chain_id.to_string()),
-            ("wallet", "phantom".to_string()),
+            ("wallet", "phantom".to_string()), // TODO: deduce the originator based on the router account
             ("total_bids", total_bids),
         ];
         metrics::counter!("get_quote_total_bids", &labels).increment(1);
@@ -146,24 +155,32 @@ impl Service<ChainTypeSvm> {
             return Err(RestError::QuoteNotFound);
         }
 
-        // Find winner bid: the bid with the highest bid amount
-        bids.sort_by(|a, b| b.amount.cmp(&a.amount));
+        // Find winner bid:
+        if input_specified {
+            // highest bid = best (most output token returned)
+            bids.sort_by(|a, b| b.amount.cmp(&a.amount));
+        } else {
+            // lowest bid = best (least input token consumed)
+            bids.sort_by(|a, b| a.amount.cmp(&b.amount));
+        }
         let winner_bid = bids.first().expect("failed to get first bid");
 
-        // Find the submit bid instruction from bid transaction to extract the deadline
-        let submit_bid_instruction = auction_service
-            .verify_submit_bid_instruction(winner_bid.chain_data.transaction.clone())
-            .map_err(|e| {
-                tracing::error!("Failed to verify submit bid instruction: {:?}", e);
-                RestError::TemporarilyUnavailable
-            })?;
-        let submit_bid_data = AuctionService::<Svm>::extract_submit_bid_data(
-            &submit_bid_instruction,
-        )
-        .map_err(|e| {
-            tracing::error!("Failed to extract submit bid data: {:?}", e);
-            RestError::TemporarilyUnavailable
-        })?;
+        // // TODO: uncomment this once Swap instruction is implemented
+        // // Find the swap instruction from bid transaction to extract the deadline
+        // let swap_instruction = auction_service
+        //     .verify_swap_instruction(winner_bid.chain_data.transaction.clone())
+        //     .map_err(|e| {
+        //         tracing::error!("Failed to verify swap instruction: {:?}", e);
+        //         RestError::TemporarilyUnavailable
+        //     })?;
+        // let swap_data = AuctionService::<Svm>::extract_swap_data(
+        //     &swap_instruction,
+        // )
+        // .map_err(|e| {
+        //     tracing::error!("Failed to extract swap data: {:?}", e);
+        //     RestError::TemporarilyUnavailable
+        // })?;
+        let deadline = i64::MAX;
 
         // Bids is not empty
         let auction = Auction::try_new(bids.clone(), bid_collection_time)
@@ -224,15 +241,12 @@ impl Service<ChainTypeSvm> {
         });
 
         Ok(entities::Quote {
-            transaction:                 bid.chain_data.transaction.clone(),
-            expiration_time:             submit_bid_data.deadline,
-            input_token:                 input.quote_create.input_token,
-            output_token:                entities::TokenAmountSvm {
-                token:  input.quote_create.output_mint_token,
-                amount: output_amount,
-            },
+            transaction: bid.chain_data.transaction.clone(),
+            expiration_time: deadline,
+            input_token,
+            output_token,
             maximum_slippage_percentage: input.quote_create.maximum_slippage_percentage,
-            chain_id:                    input.quote_create.chain_id,
+            chain_id: input.quote_create.chain_id,
         })
     }
 }

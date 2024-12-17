@@ -269,6 +269,13 @@ struct BidDataSvm {
     router:             Pubkey,
     permission_account: Pubkey,
     deadline:           OffsetDateTime,
+    bid_type:           BidType,
+}
+
+#[derive(PartialEq)]
+pub enum BidType {
+    SubmitBid,
+    SwapBid,
 }
 
 const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
@@ -429,6 +436,55 @@ impl Service<Svm> {
         }
     }
 
+    // // TODO: implement this once Swap instruction is implemented
+    // pub fn extract_swap_data(
+    //     instruction: &CompiledInstruction,
+    // ) -> Result<express_relay_svm::SwapArgs, RestError> {
+    //     let discriminator = express_relay_svm::instruction::Swap::discriminator();
+    //     express_relay_svm::SwapArgs::try_from_slice(
+    //         &instruction.data.as_slice()[discriminator.len()..],
+    //     )
+    //     .map_err(|e| {
+    //         RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e))
+    //     })
+    // }
+
+    // TODO: implement this once Swap instruction is implemented
+    // Checks that the transaction includes exactly one swap instruction to the Express Relay on-chain program
+    pub fn verify_swap_instruction(
+        &self,
+        transaction: VersionedTransaction,
+    ) -> Result<CompiledInstruction, RestError> {
+        // let swap_instructions: Vec<CompiledInstruction> = transaction
+        //     .message
+        //     .instructions()
+        //     .iter()
+        //     .filter(|instruction| {
+        //         let program_id = instruction.program_id(transaction.message.static_account_keys());
+        //         if *program_id != self.config.chain_config.express_relay.program_id {
+        //             return false;
+        //         }
+
+        //         instruction
+        //             .data
+        //             .starts_with(&express_relay_svm::instruction::Swap::discriminator())
+        //     })
+        //     .cloned()
+        //     .collect();
+
+        // match swap_instructions.len() {
+        //     1 => Ok(swap_instructions[0].clone()),
+        //     _ => Err(RestError::BadParameters(
+        //         "Bid has to include exactly one swap instruction to Express Relay program"
+        //             .to_string(),
+        //     )),
+        // }
+
+        Err(RestError::BadParameters(
+            "Swap instruction not implemented".to_string(),
+        ))
+    }
+
     async fn check_deadline(
         &self,
         permission_key: &PermissionKeySvm,
@@ -463,42 +519,95 @@ impl Service<Svm> {
         &self,
         transaction: VersionedTransaction,
     ) -> Result<BidDataSvm, RestError> {
-        let submit_bid_instruction = self.verify_submit_bid_instruction(transaction.clone())?;
-        let submit_bid_data = Self::extract_submit_bid_data(&submit_bid_instruction)?;
+        let submit_bid_instruction_result = self.verify_submit_bid_instruction(transaction.clone());
+        let swap_instruction_result = self.verify_swap_instruction(transaction.clone());
 
-        let permission_account = self
-            .extract_account(
-                &transaction,
-                &submit_bid_instruction,
-                self.config
-                    .chain_config
-                    .express_relay
-                    .permission_account_position,
-            )
-            .await?;
-        let router = self
-            .extract_account(
-                &transaction,
-                &submit_bid_instruction,
-                self.config
-                    .chain_config
-                    .express_relay
-                    .router_account_position,
-            )
-            .await?;
-        Ok(BidDataSvm {
-            amount: submit_bid_data.bid_amount,
-            permission_account,
-            router,
-            deadline: OffsetDateTime::from_unix_timestamp(submit_bid_data.deadline).map_err(
-                |e| {
-                    RestError::BadParameters(format!(
-                        "Invalid deadline: {:?} {:?}",
-                        submit_bid_data.deadline, e
-                    ))
-                },
-            )?,
-        })
+        assert!(
+            submit_bid_instruction_result.is_err() != swap_instruction_result.is_err(),
+            "Either submit_bid or swap must be present, but not both"
+        );
+
+        if submit_bid_instruction_result.is_ok() {
+            let submit_bid_instruction = submit_bid_instruction_result?;
+            let submit_bid_data = Self::extract_submit_bid_data(&submit_bid_instruction)?;
+
+            let permission_account = self
+                .extract_account(
+                    &transaction,
+                    &submit_bid_instruction,
+                    self.config
+                        .chain_config
+                        .express_relay
+                        .permission_account_position,
+                )
+                .await?;
+            let router = self
+                .extract_account(
+                    &transaction,
+                    &submit_bid_instruction,
+                    self.config
+                        .chain_config
+                        .express_relay
+                        .router_account_position,
+                )
+                .await?;
+            Ok(BidDataSvm {
+                amount: submit_bid_data.bid_amount,
+                permission_account,
+                router,
+                deadline: OffsetDateTime::from_unix_timestamp(submit_bid_data.deadline).map_err(
+                    |e| {
+                        RestError::BadParameters(format!(
+                            "Invalid deadline: {:?} {:?}",
+                            submit_bid_data.deadline, e
+                        ))
+                    },
+                )?,
+                bid_type: BidType::SubmitBid,
+            })
+        } else {
+            let swap_instruction = swap_instruction_result?;
+            // TODO: implement this once Swap instruction is implemented
+            Err(RestError::BadParameters(
+                "Swap instruction not implemented".to_string(),
+            ))
+            // let swap_data = Self::extract_swap_data(&swap_instruction)?;
+
+            // let permission_account = self
+            //     .extract_account(
+            //         &transaction,
+            //         &submit_bid_instruction,
+            //         self.config
+            //             .chain_config
+            //             .express_relay
+            //             .permission_account_position,
+            //     )
+            //     .await?;
+            // let router = self
+            //     .extract_account(
+            //         &transaction,
+            //         &submit_bid_instruction,
+            //         self.config
+            //             .chain_config
+            //             .express_relay
+            //             .router_account_position,
+            //     )
+            //     .await?;
+            // Ok(BidDataSvm {
+            //     amount: swap_data.bid_amount,
+            //     permission_account: swap_data.permission_account,
+            //     router: swap_data.router,
+            //     deadline: OffsetDateTime::from_unix_timestamp(swap_data.deadline).map_err(
+            //         |e| {
+            //             RestError::BadParameters(format!(
+            //                 "Invalid deadline: {:?} {:?}",
+            //                 swap_data.deadline, e
+            //             ))
+            //         },
+            //     )?,
+            //     bid_type: BidType::SwapBid,
+            // })
+        }
     }
 
     fn all_signatures_exists(
@@ -538,12 +647,13 @@ impl Service<Svm> {
         &self,
         bid: &entities::BidCreate<Svm>,
         chain_data: &entities::BidChainDataSvm,
+        submit_type: entities::SubmitType,
     ) -> Result<(), RestError> {
         let message_bytes = chain_data.transaction.message.serialize();
         let signatures = chain_data.transaction.signatures.clone();
         let accounts = chain_data.transaction.message.static_account_keys();
         let permission_key = chain_data.get_permission_key();
-        match self.get_submission_state(&permission_key).await {
+        match submit_type {
             entities::SubmitType::Invalid => {
                 // TODO Look at the todo comment in get_quote.rs file in opportunity module
                 Err(RestError::BadParameters(format!(
@@ -673,10 +783,16 @@ impl Verification<Svm> for Service<Svm> {
             transaction:        bid.chain_data.transaction.clone(),
         };
         let permission_key = bid_chain_data.get_permission_key();
+        let submit_type = self.get_submission_state(&permission_key).await;
+        assert!(
+            bid_data.bid_type == BidType::SubmitBid && submit_type == entities::SubmitType::ByOther,
+            "Invalid bid format for swap, should not use submit_bid instruction"
+        );
         tracing::Span::current().record("permission_key", bid_data.permission_account.to_string());
         self.check_deadline(&permission_key, bid_data.deadline)
             .await?;
-        self.verify_signatures(&bid, &bid_chain_data).await?;
+        self.verify_signatures(&bid, &bid_chain_data, submit_type)
+            .await?;
         // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
         self.simulate_bid(&bid).await?;
 

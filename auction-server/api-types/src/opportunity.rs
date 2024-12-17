@@ -60,7 +60,7 @@ pub struct OpportunityBidResult {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum ProgramSvm {
-    Phantom,
+    Swap,
     Limo,
 }
 
@@ -206,10 +206,10 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
     },
-    /// Phantom program specific parameters for the opportunity.
-    #[serde(rename = "phantom")]
-    #[schema(title = "phantom")]
-    Phantom {
+    /// Swap program specific parameters for the opportunity.
+    #[serde(rename = "swap")]
+    #[schema(title = "swap")]
+    Swap {
         /// The user wallet address which requested the quote from the wallet.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
@@ -311,10 +311,10 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
     },
-    /// Phantom program specific parameters for the opportunity.
-    #[serde(rename = "phantom")]
-    #[schema(title = "phantom")]
-    Phantom {
+    /// Swap program specific parameters for the opportunity.
+    #[serde(rename = "swap")]
+    #[schema(title = "swap")]
+    Swap {
         /// The user wallet address which requested the quote from the wallet.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
@@ -334,11 +334,21 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         router_account: Pubkey,
 
-        /// The token searcher will send.
-        sell_token: TokenAmountSvm,
+        /// Details about the tokens to be swapped. Either the input token amount or the output token amount must be specified.
+        #[schema(inline)]
+        tokens: QuoteTokens,
+    },
+}
 
-        /// The token searcher will receive.
-        buy_token: TokenAmountSvm,
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+pub enum QuoteTokens {
+    InputTokenSpecified {
+        input_token:  TokenAmountSvm,
+        output_token: Pubkey,
+    },
+    OutputTokenSpecified {
+        input_token:  Pubkey,
+        output_token: TokenAmountSvm,
     },
 }
 
@@ -466,11 +476,11 @@ pub struct OpportunityBidEvm {
     pub signature:      Signature,
 }
 
-/// Parameters needed to create a new opportunity from the Phantom wallet.
+/// Parameters needed to create a new opportunity from the swap request.
 /// Auction server will extract the output token price for the auction.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct QuoteCreatePhantomV1Svm {
+pub struct QuoteCreateSwapV1Svm {
     /// The user wallet address which requested the quote from the wallet.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
@@ -483,9 +493,8 @@ pub struct QuoteCreatePhantomV1Svm {
     #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub output_token_mint:           Pubkey,
-    /// The input token amount that the user wants to swap.
-    #[schema(example = 100)]
-    pub input_token_amount:          u64,
+    /// The token amount that the user wants to swap out of/into.
+    pub token_amount:                QuoteTokenAmount,
     /// The maximum slippage percentage that the user is willing to accept.
     #[schema(example = 0.5)]
     pub maximum_slippage_percentage: f64,
@@ -495,11 +504,17 @@ pub struct QuoteCreatePhantomV1Svm {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub enum QuoteTokenAmount {
+    InputToken { amount: u64 },
+    OutputToken { amount: u64 },
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "program")]
 pub enum QuoteCreateV1Svm {
-    #[serde(rename = "phantom")]
-    #[schema(title = "phantom")]
-    Phantom(QuoteCreatePhantomV1Svm),
+    #[serde(rename = "swap")]
+    #[schema(title = "swap")]
+    Swap(QuoteCreateSwapV1Svm),
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
@@ -558,7 +573,7 @@ impl OpportunityCreateSvm {
         match self {
             OpportunityCreateSvm::V1(params) => match &params.program_params {
                 OpportunityCreateProgramParamsV1Svm::Limo { .. } => ProgramSvm::Limo,
-                OpportunityCreateProgramParamsV1Svm::Phantom { .. } => ProgramSvm::Phantom,
+                OpportunityCreateProgramParamsV1Svm::Swap { .. } => ProgramSvm::Swap,
             },
         }
     }

@@ -50,7 +50,6 @@ pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
 pub mod verification;
 
-mod estimate_price;
 mod get_spoof_info;
 mod make_adapter_calldata;
 mod make_opportunity_execution_params;
