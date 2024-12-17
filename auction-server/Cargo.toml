@@ -35,7 +35,7 @@ rand = { workspace = true }
 base64 = { workspace = true }
 time = { workspace = true, features = ["serde"] }
 axum-prometheus = "0.6.1"
-reqwest = "0.11.23"
+reqwest = { version = "0.11.27" }
 tracing-opentelemetry = "0.24.0"
 opentelemetry = "0.23.0"
 opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"] }
