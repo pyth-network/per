@@ -793,7 +793,6 @@ impl Verification<Svm> for Service<Svm> {
             .await?;
         self.verify_signatures(&bid, &bid_chain_data, submit_type)
             .await?;
-        // TODO we should verify that the wallet bids also include another instruction to the swap program with the appropriate accounts and fields
         self.simulate_bid(&bid).await?;
 
         // Check if the bid is not duplicate

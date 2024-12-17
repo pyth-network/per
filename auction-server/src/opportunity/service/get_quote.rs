@@ -57,6 +57,7 @@ impl Service<ChainTypeSvm> {
         let permission_account = Pubkey::new_from_array(rand::thread_rng().gen());
 
         // TODO: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
+        // currently, we are using the same struct and just setting the unspecified token amount to 0
         let (input_mint, input_amount, output_mint, output_amount) = match quote_create.tokens {
             entities::QuoteTokens::InputTokenSpecified {
                 input_token,
