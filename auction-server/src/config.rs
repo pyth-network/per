@@ -164,7 +164,7 @@ pub struct ConfigSvm {
     /// Timeout for RPC requests in seconds.
     #[serde(default = "default_rpc_timeout_svm")]
     pub rpc_timeout:                   u64,
-    /// The router account for swap program. // TODO: this should be refactored to a different check
+    /// The router account for swap program. // TODO: this should be replaced with a different check
     #[serde_as(as = "DisplayFromStr")]
     pub wallet_program_router_account: Pubkey,
     #[serde(default)]
