@@ -364,6 +364,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::opportunity::QuoteCreateSwapV1Svm,
     api_types::opportunity::Quote,
     api_types::opportunity::QuoteSvm,
+    api_types::opportunity::QuoteTokenAmount,
+    api_types::opportunity::QuoteTokens,
     api_types::opportunity::QuoteV1Svm,
     api_types::opportunity::OpportunityDelete,
     api_types::opportunity::OpportunityDeleteSvm,

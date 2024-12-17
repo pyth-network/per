@@ -90,8 +90,8 @@ impl Service<ChainTypeSvm> {
             router,
             permission_account,
             program: entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramWallet {
-                user_wallet_address:         quote_create.user_wallet_address,
-                maximum_slippage_percentage: quote_create.maximum_slippage_percentage,
+                user_wallet_address:  quote_create.user_wallet_address,
+                maximum_slippage_bps: quote_create.maximum_slippage_bps,
             }),
             // TODO extract latest slot
             slot: Slot::default(),
@@ -246,7 +246,7 @@ impl Service<ChainTypeSvm> {
             expiration_time: deadline,
             input_token,
             output_token,
-            maximum_slippage_percentage: input.quote_create.maximum_slippage_percentage,
+            maximum_slippage_bps: input.quote_create.maximum_slippage_bps,
             chain_id: input.quote_create.chain_id,
         })
     }

@@ -33,8 +33,8 @@ pub struct OpportunitySvmProgramLimo {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramWallet {
-    pub user_wallet_address:         Pubkey,
-    pub maximum_slippage_percentage: f64,
+    pub user_wallet_address:  Pubkey,
+    pub maximum_slippage_bps: u16,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -96,8 +96,8 @@ impl Opportunity for OpportunitySvm {
             OpportunitySvmProgram::Swap(program) => {
                 repository::OpportunityMetadataSvmProgram::Swap(
                     repository::OpportunityMetadataSvmProgramWallet {
-                        user_wallet_address:         program.user_wallet_address,
-                        maximum_slippage_percentage: program.maximum_slippage_percentage,
+                        user_wallet_address:  program.user_wallet_address,
+                        maximum_slippage_bps: program.maximum_slippage_bps,
                     },
                 )
             }
@@ -204,7 +204,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 };
                 api::OpportunityParamsV1ProgramSvm::Swap {
                     user_wallet_address: program.user_wallet_address,
-                    maximum_slippage_percentage: program.maximum_slippage_percentage,
+                    maximum_slippage_bps: program.maximum_slippage_bps,
                     permission_account: val.permission_account,
                     router_account: val.router,
                     // TODO can we make it type safe?
@@ -255,8 +255,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             }
             repository::OpportunityMetadataSvmProgram::Swap(program) => {
                 OpportunitySvmProgram::Swap(OpportunitySvmProgramWallet {
-                    user_wallet_address:         program.user_wallet_address,
-                    maximum_slippage_percentage: program.maximum_slippage_percentage,
+                    user_wallet_address:  program.user_wallet_address,
+                    maximum_slippage_bps: program.maximum_slippage_bps,
                 })
             }
         };
@@ -291,10 +291,10 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             }),
             api::OpportunityCreateProgramParamsV1Svm::Swap {
                 user_wallet_address,
-                maximum_slippage_percentage,
+                maximum_slippage_bps,
             } => OpportunitySvmProgram::Swap(OpportunitySvmProgramWallet {
                 user_wallet_address,
-                maximum_slippage_percentage,
+                maximum_slippage_bps,
             }),
         };
 
