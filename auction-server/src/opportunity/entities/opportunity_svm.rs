@@ -208,22 +208,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     permission_account: val.permission_account,
                     router_account: val.router,
                     // TODO can we make it type safe?
-                    tokens, // sell_token:                  val
-                            //     .sell_tokens
-                            //     .first()
-                            //     .map(|t| t.clone().into())
-                            //     .ok_or(anyhow::anyhow!(
-                            //         "Failed to get sell token from opportunity svm"
-                            //     ))
-                            //     .expect("Failed to get sell token from opportunity svm"),
-                            // buy_token:                   val
-                            //     .sell_tokens
-                            //     .first()
-                            //     .map(|t| t.clone().into())
-                            //     .ok_or(anyhow::anyhow!(
-                            //         "Failed to get sell token from opportunity svm"
-                            //     ))
-                            //     .expect("Failed to get sell token from opportunity svm"),
+                    tokens,
                 }
             }
         };
