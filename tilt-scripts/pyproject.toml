@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "per-sdk"
+name = "tilt-scripts"
 version = "0.1.0"
 description = "Python SDK for interacting with Pyth Express Relay"
 authors = []

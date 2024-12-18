@@ -10,8 +10,8 @@ import httpx
 import web3
 from eth_abi import encode
 
-from per_sdk.utils.pyth_prices import PriceFeed, PriceFeedClient, price_to_tuple
-from per_sdk.utils.types_liquidation_adapter import Opportunity
+from ..utils.pyth_prices import PriceFeed, PriceFeedClient, price_to_tuple
+from ..utils.types_liquidation_adapter import Opportunity
 
 logger = logging.getLogger(__name__)
 
