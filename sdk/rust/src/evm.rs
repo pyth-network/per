@@ -70,7 +70,7 @@ pub struct Config {
 ///
 /// # Errors
 ///
-/// Returns `ClientError::ChainNotSupported` if the chain ID is unrecognized.
+/// Returns `ClientError::ChainNotSupported` if the chain ID is unsupported.
 pub fn get_config(chain_id: &str) -> Result<Config, ClientError> {
     match chain_id {
         "mode" => Ok(Config {
@@ -168,11 +168,11 @@ pub fn make_permitted_tokens(
 ///
 /// # Returns
 ///
-/// * `Result<ExecutionParams, ClientError>` - Execution parameters including permits and witness details.
+/// * `Result<ExecutionParams, ClientError>` - Execution parameters including permit and witness details.
 ///
 /// # Errors
 ///
-/// Returns an error if permit2 compatible permitted tokens cannot be constructed.
+/// Returns an error if Permit2 compatible permitted tokens cannot be constructed.
 pub fn make_opportunity_execution_params(
     opportunity: OpportunityEvm,
     bid_params: BidParamsEvm,

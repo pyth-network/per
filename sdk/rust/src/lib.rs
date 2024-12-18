@@ -349,7 +349,7 @@ impl WsClient {
         }
     }
 
-    /// Subscribes to updates for specific blockchain chains.
+    /// Subscribes to updates for specific blockchains.
     ///
     /// # Arguments
     ///
@@ -376,7 +376,7 @@ impl WsClient {
         }
     }
 
-    /// Unsubscribes from updates for specific blockchain chains.
+    /// Unsubscribes from updates for specific blockchains.
     ///
     /// # Arguments
     ///
@@ -462,7 +462,7 @@ impl Client {
     ///
     /// # Implementation Details
     ///
-    /// - If the HTTP response is valid but contains an error body, the function returns a
+    /// - If the HTTP response is valid but contains an error body that can be decoded to `ErrorBodyResponse`, the function returns a
     ///   `ClientError::RequestError` with the server's error message.
     /// - If the HTTP response fails to decode, it returns `ClientError::DecodeResponseFailed`.
     /// - Errors due to request failure (e.g., network issues) are returned as `ClientError::RequestFailed`.
@@ -494,7 +494,7 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `config` - The client configuration containing HTTP URL and optional API key.
+    /// * `config` - The client configuration containing an HTTP URL and an optional API key.
     ///
     /// # Returns
     ///
@@ -537,7 +537,7 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// Returns an error if the connection or WebSocket handshake fails.
+    /// Returns an error if the connection or the WebSocket handshake fails.
     ///
     /// # Thread Safety
     ///
