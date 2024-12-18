@@ -18,8 +18,6 @@ pub enum ErrorCode {
     InsufficientSearcherFunds,
     #[msg("Insufficient funds for rent")]
     InsufficientRent,
-    #[msg("Invalid referral fee")]
-    InvalidReferralFee,
     #[msg("Invalid ATA provided")]
     InvalidAta,
 }
