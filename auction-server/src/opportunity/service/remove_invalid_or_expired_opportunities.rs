@@ -4,29 +4,37 @@ use {
             Verification,
             VerifyOpportunityInput,
         },
-        ChainTypeEvm,
+        ChainType,
         Service,
     },
     crate::{
-        api::RestError,
-        opportunity::entities,
-        state::UnixTimestampMicros,
+        api::{
+            ws::UpdateEvent,
+            RestError,
+        },
+        opportunity::{
+            entities::{
+                self,
+                Opportunity as _,
+            },
+            service::ChainTypeEnum,
+        },
     },
-    std::time::{
-        SystemTime,
-        UNIX_EPOCH,
+    time::{
+        Duration,
+        OffsetDateTime,
     },
 };
 
-const MAX_STALE_OPPORTUNITY_MICROS: i128 = 60_000_000;
+const MAX_STALE_OPPORTUNITY_DURATION: Duration = Duration::minutes(2);
 
-impl Service<ChainTypeEvm>
+impl<T: ChainType> Service<T>
 where
-    Service<ChainTypeEvm>: Verification<ChainTypeEvm>,
+    Service<T>: Verification<T>,
 {
     pub async fn remove_invalid_or_expired_opportunities(&self) {
-        let all_opportunities = self.repo.get_opportunities().await;
-        for (_permission_key, opportunities) in all_opportunities.iter() {
+        let all_opportunities = self.repo.get_in_memory_opportunities().await;
+        for (_, opportunities) in all_opportunities.iter() {
             // check each of the opportunities for this permission key for validity
             for opportunity in opportunities.iter() {
                 let reason = match self
@@ -36,12 +44,9 @@ where
                     .await
                 {
                     Ok(entities::OpportunityVerificationResult::UnableToSpoof) => {
-                        let current_time = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .expect("Current time older than 1970!")
-                            .as_micros()
-                            as UnixTimestampMicros;
-                        if current_time - opportunity.creation_time > MAX_STALE_OPPORTUNITY_MICROS {
+                        if OffsetDateTime::now_utc() - opportunity.refresh_time
+                            > MAX_STALE_OPPORTUNITY_DURATION
+                        {
                             Some(entities::OpportunityRemovalReason::Expired)
                         } else {
                             None
@@ -59,16 +64,46 @@ where
 
                 if let Some(reason) = reason {
                     tracing::info!(
-                        "Removing Opportunity {} for reason {:?}",
-                        opportunity.id,
-                        reason
+                        opportunity = ?opportunity,
+                        reason = ?reason,
+                        "Removing Opportunity",
                     );
-                    if let Err(e) = self
+                    match self
                         .repo
-                        .remove_opportunity(&self.db, opportunity, reason.into())
+                        .remove_opportunity(&self.db, opportunity, reason)
                         .await
                     {
-                        tracing::error!("Failed to remove opportunity: {}", e);
+                        Ok(()) => {
+                            // TODO Remove this later
+                            // For now we don't want searchers to update any of their code on EVM chains.
+                            // So we are not broadcasting remove opportunities event for EVM chains.
+                            if T::get_type() == ChainTypeEnum::Evm {
+                                continue;
+                            }
+
+                            // If there are no more opportunities with this key, it means all of the
+                            // opportunities have been removed for this key, so we can broadcast remove opportunities event.
+                            if self
+                                .repo
+                                .get_in_memory_opportunities_by_key(&opportunity.get_key())
+                                .await
+                                .is_empty()
+                            {
+                                if let Err(e) = self.store.ws.broadcast_sender.send(
+                                    UpdateEvent::RemoveOpportunities(
+                                        opportunity.get_opportunity_delete(),
+                                    ),
+                                ) {
+                                    tracing::error!(
+                                        error = e.to_string(),
+                                        "Failed to broadcast remove opportunity"
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(error = ?e, "Failed to remove opportunity");
+                        }
                     }
                 }
             }

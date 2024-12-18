@@ -17,7 +17,6 @@ use {
     },
     solana_sdk::{
         clock::Slot,
-        hash::Hash,
         pubkey::Pubkey,
     },
     sqlx::{
@@ -28,6 +27,7 @@ use {
             JsonValue,
         },
     },
+    std::fmt::Debug,
     uuid::Uuid,
 };
 
@@ -41,7 +41,7 @@ pub enum OpportunityRemovalReason {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpportunityMetadataEvm {
     pub target_contract:   Address,
-    #[serde(with = "crate::serde::u256")]
+    #[serde(with = "express_relay_api_types::serde::u256")]
     pub target_call_value: U256,
     pub target_calldata:   Bytes,
 }
@@ -55,10 +55,19 @@ pub struct OpportunityMetadataSvmProgramLimo {
     pub order_address: Pubkey,
 }
 
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OpportunityMetadataSvmProgramWallet {
+    #[serde_as(as = "DisplayFromStr")]
+    pub user_wallet_address:         Pubkey,
+    pub maximum_slippage_percentage: f64,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "program", rename_all = "lowercase")]
 pub enum OpportunityMetadataSvmProgram {
     Limo(OpportunityMetadataSvmProgramLimo),
+    Phantom(OpportunityMetadataSvmProgramWallet),
 }
 
 #[serde_as]
@@ -70,13 +79,11 @@ pub struct OpportunityMetadataSvm {
     pub router:             Pubkey,
     #[serde_as(as = "DisplayFromStr")]
     pub permission_account: Pubkey,
-    #[serde_as(as = "DisplayFromStr")]
-    pub block_hash:         Hash,
     pub slot:               Slot,
 }
 
 pub trait OpportunityMetadata:
-    std::fmt::Debug + Clone + Serialize + DeserializeOwned + Send + Sync + Unpin + 'static
+    Debug + Clone + Serialize + DeserializeOwned + Send + Sync + Unpin + 'static
 {
     fn get_chain_type() -> ChainType;
 }
@@ -95,6 +102,7 @@ impl OpportunityMetadata for OpportunityMetadataSvm {
 
 // TODO Update metdata to exection_params
 #[derive(Clone, FromRow, Debug)]
+#[allow(dead_code)]
 pub struct Opportunity<T: OpportunityMetadata> {
     pub id:             Uuid,
     pub creation_time:  PrimitiveDateTime,

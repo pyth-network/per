@@ -6,13 +6,11 @@ use {
     },
     crate::{
         api::RestError,
-        opportunity::{
-            api::OpportunityBidEvm,
-            contracts::OpportunityAdapter,
-            entities,
-        },
+        kernel::contracts::OpportunityAdapter,
+        opportunity::entities,
     },
     ethers::types::Bytes,
+    express_relay_api_types::opportunity::OpportunityBidEvm,
     std::sync::Arc,
 };
 
@@ -22,7 +20,7 @@ pub struct MakeAdapterCalldataInput {
 }
 
 impl Service<ChainTypeEvm> {
-    pub(super) async fn make_adapter_calldata(
+    pub(super) fn make_adapter_calldata(
         &self,
         input: MakeAdapterCalldataInput,
     ) -> Result<Bytes, RestError> {

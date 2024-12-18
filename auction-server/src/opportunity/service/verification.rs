@@ -10,16 +10,12 @@ use {
     },
     crate::{
         api::RestError,
-        auction::{
-            get_simulation_call,
+        kernel::contracts::{
+            ExecutionParams,
             MulticallData,
+            MulticallReturn,
         },
         opportunity::{
-            api::OpportunityBidEvm,
-            contracts::{
-                ExecutionParams,
-                MulticallReturn,
-            },
             entities,
             repository::InMemoryStore,
             token_spoof,
@@ -45,6 +41,7 @@ use {
         },
         utils::get_create2_address_from_hash,
     },
+    express_relay_api_types::opportunity::OpportunityBidEvm,
     rand::Rng,
     std::{
         collections::HashMap,
@@ -137,6 +134,7 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
         input: VerifyOpportunityInput<entities::OpportunityCreateEvm>,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {
         let config = self.get_config(&input.opportunity.core_fields.chain_id)?;
+        let auction_service = config.get_auction_service().await;
         let client = Arc::new(config.provider.clone());
         let fake_wallet = LocalWallet::new(&mut rand::thread_rng());
 
@@ -186,33 +184,24 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
             RestError::TemporarilyUnavailable
         })?;
 
-        let adapter_calldata = self
-            .make_adapter_calldata(MakeAdapterCalldataInput {
-                opportunity:     input.opportunity.clone(),
-                opportunity_bid: fake_bid.clone(),
-            })
-            .await?;
+        let adapter_calldata = self.make_adapter_calldata(MakeAdapterCalldataInput {
+            opportunity:     input.opportunity.clone(),
+            opportunity_bid: fake_bid.clone(),
+        })?;
 
-        let chain_store = self
-            .store
-            .chains
-            .get(&input.opportunity.core_fields.chain_id)
-            .ok_or(RestError::BadParameters("Chain not found".to_string()))?;
-        let call = get_simulation_call(
-            chain_store.express_relay_contract.get_relayer_address(),
-            config.provider.clone(),
-            chain_store.config.clone(),
-            input.opportunity.core_fields.permission_key.clone(),
-            vec![MulticallData::from((
-                Uuid::new_v4().to_bytes_le(),
-                config.adapter_factory_contract,
-                adapter_calldata,
-                fake_bid.amount,
-                U256::max_value(),
-                false,
-            ))],
-        )
-        .tx;
+        let call = auction_service
+            .get_simulation_call(
+                input.opportunity.core_fields.permission_key.clone(),
+                vec![MulticallData::from((
+                    Uuid::new_v4().to_bytes_le(),
+                    config.adapter_factory_contract,
+                    adapter_calldata,
+                    fake_bid.amount,
+                    U256::max_value(),
+                    false,
+                ))],
+            )
+            .tx;
         let mut state = spoof::State::default();
         let required_tokens = params.permit.permitted.clone();
         let mut tokens_map = HashMap::<Address, U256>::new();

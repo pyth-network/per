@@ -1,0 +1,29 @@
+ARG NODE_VERSION=18.20.2
+
+FROM node:${NODE_VERSION}-slim as builder-base
+WORKDIR /usr/src/app
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN apt-get update && apt-get install -y git python3 make gcc g++ curl && corepack enable
+COPY . .
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+
+
+FROM node:${NODE_VERSION}-slim as runner-base
+WORKDIR /srv
+ENV NODE_ENV production
+RUN addgroup --system --gid 1001 per && adduser --system --uid 1001 --ingroup per per && chown per:per .
+USER per
+
+
+FROM builder-base AS builder
+ARG package
+ENV CI true
+RUN pnpm -r build
+RUN pnpm deploy --filter $package --prod /srv/$package
+
+
+FROM runner-base AS runner
+ARG package
+COPY --from=builder --chown=per:per /srv/${package}/node_modules ./node_modules
+COPY --from=builder --chown=per:per /srv/${package}/dist ./dist

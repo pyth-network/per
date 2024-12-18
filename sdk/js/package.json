@@ -1,0 +1,62 @@
+{
+  "name": "@pythnetwork/express-relay-js",
+  "version": "0.16.1",
+  "description": "Utilities for interacting with the express relay protocol",
+  "homepage": "https://github.com/pyth-network/per/tree/main/sdk/js",
+  "author": "Douro Labs",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib/**/*"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest src/ --passWithNoTests",
+    "simple-searcher-evm": "pnpm build && node lib/examples/simpleSearcherEvm.js",
+    "simple-searcher-limo": "pnpm build && node lib/examples/simpleSearcherLimo.js",
+    "testing-searcher-limo": "pnpm build && node lib/examples/testingSearcherLimo.js",
+    "testing-searcher-ping": "pnpm build && node lib/examples/testingSearcherPing.js",
+    "generate-api-types": "openapi-typescript http://127.0.0.1:9000/docs/openapi.json --output src/serverTypes.d.ts",
+    "generate-anchor-types": "anchor idl type src/idl/idlExpressRelay.json --out src/expressRelayTypes.d.ts && anchor idl type src/examples/idl/idlDummy.json --out src/examples/dummyTypes.d.ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "lint": "eslint src",
+    "prepublishOnly": "pnpm build && pnpm test && pnpm lint",
+    "preversion": "pnpm lint",
+    "version": "pnpm format && git add -A src"
+  },
+  "keywords": [
+    "pyth",
+    "oracle",
+    "relay"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pyth-network/per",
+    "directory": "sdk/js"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "catalog:",
+    "@kamino-finance/limo-sdk": "catalog:",
+    "@solana/web3.js": "catalog:",
+    "decimal.js": "^10.4.3",
+    "isomorphic-ws": "^5.0.0",
+    "openapi-client-axios": "^7.5.5",
+    "openapi-fetch": "^0.8.2",
+    "viem": "catalog:",
+    "ws": "^8.17.1"
+  },
+  "devDependencies": {
+    "@pythnetwork/pyth-evm-js": "^1.73.0",
+    "@types/node": "catalog:",
+    "@types/yargs": "catalog:",
+    "jest": "catalog:",
+    "openapi-typescript": "6.5.5",
+    "prettier": "^2.8.8",
+    "typescript": "catalog:",
+    "yargs": "catalog:"
+  },
+  "license": "Apache-2.0"
+}

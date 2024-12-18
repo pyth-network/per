@@ -1,0 +1,29 @@
+name: Upload express-relay Python Package to PyPI
+
+on:
+  push:
+    tags:
+      - "python-v*"
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  publish-python:
+    name: Publish Python SDK Package to PyPI
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade poetry
+          poetry install
+        working-directory: "sdk/python/express_relay"
+      - name: Build and publish
+        run: |
+          poetry build
+          poetry publish --username __token__ --password ${{ secrets.PYPI_TOKEN }}
+        working-directory: "sdk/python/express_relay"

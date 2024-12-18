@@ -12,10 +12,7 @@ use {
         },
     },
     sqlx::Postgres,
-    time::{
-        OffsetDateTime,
-        PrimitiveDateTime,
-    },
+    time::PrimitiveDateTime,
 };
 
 impl<T: InMemoryStore> Repository<T> {
@@ -26,8 +23,6 @@ impl<T: InMemoryStore> Repository<T> {
     ) -> Result<T::Opportunity, RestError> {
         let opportunity: T::Opportunity =
             <T::Opportunity as entities::Opportunity>::new_with_current_time(opportunity);
-        let odt = OffsetDateTime::from_unix_timestamp_nanos(opportunity.creation_time * 1000)
-            .expect("creation_time is valid");
         let metadata = opportunity.get_models_metadata();
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
         sqlx::query!("INSERT INTO opportunity (id,
@@ -39,13 +34,13 @@ impl<T: InMemoryStore> Repository<T> {
                                                         sell_tokens,
                                                         buy_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         opportunity.id,
-        PrimitiveDateTime::new(odt.date(), odt.time()),
+        PrimitiveDateTime::new(opportunity.creation_time.date(), opportunity.creation_time.time()),
         opportunity.permission_key.to_vec(),
         opportunity.chain_id,
         chain_type as _,
         serde_json::to_value(metadata).expect("Failed to serialize metadata"),
-        serde_json::to_value(&opportunity.sell_tokens).unwrap(),
-        serde_json::to_value(&opportunity.buy_tokens).unwrap())
+        serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
+        serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
             .execute(db)
             .await
             .map_err(|e| {
@@ -57,7 +52,7 @@ impl<T: InMemoryStore> Repository<T> {
             .opportunities
             .write()
             .await
-            .entry(opportunity.permission_key.clone())
+            .entry(opportunity.get_key())
             .or_insert_with(Vec::new)
             .push(opportunity.clone());
 

@@ -5,13 +5,11 @@ use {
     },
     crate::{
         api::RestError,
-        opportunity::{
-            api::OpportunityBidEvm,
-            contracts::TokenPermissions,
-            entities,
-        },
+        kernel::contracts::TokenPermissions,
+        opportunity::entities,
     },
     ethers::types::U256,
+    express_relay_api_types::opportunity::OpportunityBidEvm,
 };
 
 pub struct MakePermittedTokensInput {

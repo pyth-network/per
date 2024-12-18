@@ -9,7 +9,6 @@ import {
   encodeFunctionData,
   isHex,
   http,
-  PublicClient,
 } from "viem";
 import { abi as providerAbi } from "./abi/provider";
 import { abi as erc20Abi } from "./abi/erc20";

@@ -5,24 +5,24 @@ use {
             OpportunityCoreFields,
         },
         token_amount_svm::TokenAmountSvm,
+        OpportunityComparison,
         OpportunityCoreFieldsCreate,
         OpportunityCreate,
     },
     crate::{
         kernel::entities::PermissionKey,
-        opportunity::{
-            api,
-            repository::{
-                self,
-            },
-        },
+        opportunity::repository,
     },
+    express_relay_api_types::opportunity as api,
     solana_sdk::{
         clock::Slot,
-        hash::Hash,
         pubkey::Pubkey,
     },
     std::ops::Deref,
+    time::{
+        Duration,
+        OffsetDateTime,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -32,8 +32,15 @@ pub struct OpportunitySvmProgramLimo {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct OpportunitySvmProgramWallet {
+    pub user_wallet_address:         Pubkey,
+    pub maximum_slippage_percentage: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum OpportunitySvmProgram {
     Limo(OpportunitySvmProgramLimo),
+    Phantom(OpportunitySvmProgramWallet),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,7 +49,6 @@ pub struct OpportunitySvm {
 
     pub router:             Pubkey,
     pub permission_account: Pubkey,
-    pub block_hash:         Hash,
     pub program:            OpportunitySvmProgram,
     pub slot:               Slot,
 }
@@ -53,10 +59,12 @@ pub struct OpportunityCreateSvm {
 
     pub router:             Pubkey,
     pub permission_account: Pubkey,
-    pub block_hash:         Hash,
     pub program:            OpportunitySvmProgram,
     pub slot:               Slot,
 }
+
+// Opportunity can be refreshed after 10 seconds
+const MIN_REFRESH_TIME: Duration = Duration::seconds(30);
 
 impl Opportunity for OpportunitySvm {
     type TokenAmount = TokenAmountSvm;
@@ -70,7 +78,6 @@ impl Opportunity for OpportunitySvm {
             ),
             router:             val.router,
             permission_account: val.permission_account,
-            block_hash:         val.block_hash,
             program:            val.program,
             slot:               val.slot,
         }
@@ -86,22 +93,59 @@ impl Opportunity for OpportunitySvm {
                     },
                 )
             }
+            OpportunitySvmProgram::Phantom(program) => {
+                repository::OpportunityMetadataSvmProgram::Phantom(
+                    repository::OpportunityMetadataSvmProgramWallet {
+                        user_wallet_address:         program.user_wallet_address,
+                        maximum_slippage_percentage: program.maximum_slippage_percentage,
+                    },
+                )
+            }
         };
         Self::ModelMetadata {
             program,
             router: self.router,
             permission_account: self.permission_account,
-            block_hash: self.block_hash,
             slot: self.slot,
         }
+    }
+
+    fn get_opportunity_delete(&self) -> api::OpportunityDelete {
+        api::OpportunityDelete::Svm(api::OpportunityDeleteSvm::V1(api::OpportunityDeleteV1Svm {
+            chain_id:           self.chain_id.clone(),
+            permission_account: self.permission_account,
+            router:             self.router,
+            program:            self.program.clone().into(),
+        }))
+    }
+
+    fn compare(&self, other: &Self::OpportunityCreate) -> super::OpportunityComparison {
+        let mut self_clone: OpportunityCreateSvm = self.clone().into();
+        self_clone.slot = other.slot;
+        if *other == self_clone {
+            if self.refresh_time + MIN_REFRESH_TIME < OffsetDateTime::now_utc() {
+                OpportunityComparison::NeedsRefresh
+            } else {
+                OpportunityComparison::Duplicate
+            }
+        } else {
+            OpportunityComparison::New
+        }
+    }
+
+    fn refresh(&mut self) {
+        self.core_fields.refresh_time = OffsetDateTime::now_utc();
     }
 }
 
 impl OpportunityCreate for OpportunityCreateSvm {
     type ApiOpportunityCreate = api::OpportunityCreateSvm;
 
-    fn permission_key(&self) -> crate::kernel::entities::PermissionKey {
-        self.core_fields.permission_key.clone()
+    fn get_key(&self) -> super::OpportunityKey {
+        super::OpportunityKey(
+            self.core_fields.chain_id.clone(),
+            self.core_fields.permission_key.clone(),
+        )
     }
 }
 
@@ -126,12 +170,36 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 order:         prgoram.order,
                 order_address: prgoram.order_address,
             },
+            OpportunitySvmProgram::Phantom(program) => {
+                api::OpportunityParamsV1ProgramSvm::Phantom {
+                    user_wallet_address:         program.user_wallet_address,
+                    maximum_slippage_percentage: program.maximum_slippage_percentage,
+                    permission_account:          val.permission_account,
+                    router_account:              val.router,
+                    // TODO can we make it type safe?
+                    sell_token:                  val
+                        .sell_tokens
+                        .first()
+                        .map(|t| t.clone().into())
+                        .ok_or(anyhow::anyhow!(
+                            "Failed to get sell token from opportunity svm"
+                        ))
+                        .expect("Failed to get sell token from opportunity svm"),
+                    buy_token:                   val
+                        .sell_tokens
+                        .first()
+                        .map(|t| t.clone().into())
+                        .ok_or(anyhow::anyhow!(
+                            "Failed to get sell token from opportunity svm"
+                        ))
+                        .expect("Failed to get sell token from opportunity svm"),
+                }
+            }
         };
         api::OpportunitySvm {
             opportunity_id: val.id,
-            creation_time:  val.creation_time,
+            creation_time:  val.creation_time.unix_timestamp_nanos() / 1000,
             slot:           val.slot,
-            block_hash:     val.block_hash,
             params:         api::OpportunityParamsSvm::V1(api::OpportunityParamsV1Svm {
                 program,
                 chain_id: val.chain_id.clone(),
@@ -139,7 +207,6 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
         }
     }
 }
-
 
 impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for OpportunitySvm {
     type Error = anyhow::Error;
@@ -170,11 +237,18 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     order_address: program.order_address,
                 })
             }
+            repository::OpportunityMetadataSvmProgram::Phantom(program) => {
+                OpportunitySvmProgram::Phantom(OpportunitySvmProgramWallet {
+                    user_wallet_address:         program.user_wallet_address,
+                    maximum_slippage_percentage: program.maximum_slippage_percentage,
+                })
+            }
         };
         Ok(OpportunitySvm {
             core_fields: OpportunityCoreFields {
                 id: val.id,
-                creation_time: val.creation_time.assume_utc().unix_timestamp_nanos(),
+                creation_time: val.creation_time.assume_utc(),
+                refresh_time: val.creation_time.assume_utc(),
                 permission_key: PermissionKey::from(val.permission_key),
                 chain_id: val.chain_id,
                 sell_tokens,
@@ -182,7 +256,6 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             },
             router: val.metadata.router,
             permission_account: val.metadata.permission_account,
-            block_hash: val.metadata.block_hash,
             program,
             slot: val.metadata.slot,
         })
@@ -200,7 +273,15 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 order,
                 order_address,
             }),
+            api::OpportunityCreateProgramParamsV1Svm::Phantom {
+                user_wallet_address,
+                maximum_slippage_percentage,
+            } => OpportunitySvmProgram::Phantom(OpportunitySvmProgramWallet {
+                user_wallet_address,
+                maximum_slippage_percentage,
+            }),
         };
+
         OpportunityCreateSvm {
             core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
                 permission_key: [
@@ -216,7 +297,6 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             program,
             permission_account: params.permission_account,
             router: params.router,
-            block_hash: params.block_hash,
             slot: params.slot,
         }
     }
@@ -233,9 +313,30 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
             },
             router:             val.router,
             permission_account: val.permission_account,
-            block_hash:         val.block_hash,
             program:            val.program,
             slot:               val.slot,
+        }
+    }
+}
+
+impl OpportunitySvm {
+    pub fn get_missing_signers(&self) -> Vec<Pubkey> {
+        match self.program.clone() {
+            OpportunitySvmProgram::Phantom(data) => vec![data.user_wallet_address],
+            OpportunitySvmProgram::Limo(_) => vec![],
+        }
+    }
+
+    pub fn get_permission_key(router: Pubkey, permission_account: Pubkey) -> PermissionKey {
+        PermissionKey::from([router.to_bytes(), permission_account.to_bytes()].concat())
+    }
+}
+
+impl From<OpportunitySvmProgram> for api::ProgramSvm {
+    fn from(val: OpportunitySvmProgram) -> Self {
+        match val {
+            OpportunitySvmProgram::Limo(_) => api::ProgramSvm::Limo,
+            OpportunitySvmProgram::Phantom(_) => api::ProgramSvm::Phantom,
         }
     }
 }

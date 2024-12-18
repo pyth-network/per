@@ -1,0 +1,26 @@
+{
+  "name": "opportunity-provider-limo",
+  "version": "1.0.0",
+  "description": "Provides opportunities in the Limo program by creating limit orders",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest src/ --passWithNoTests",
+    "create-order": "pnpm build && node dist/index.js",
+    "lint": "eslint . --ext .ts"
+  },
+  "author": "",
+  "license": "APACHE-2.0",
+  "devDependencies": {
+    "@types/yargs": "catalog:",
+    "typescript": "catalog:",
+    "jest": "catalog:"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "catalog:",
+    "@kamino-finance/limo-sdk": "catalog:",
+    "@solana/web3.js": "catalog:",
+    "yargs": "catalog:",
+    "decimal.js": "^10.4.3"
+  }
+}

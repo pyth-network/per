@@ -127,8 +127,8 @@ pub struct PermissionInfo<'info> {
     pub express_relay_metadata: AccountInfo<'info>,
 }
 
-/// Performs instruction introspection to retrieve a vector of SubmitBid instructions in the current transaction
-/// If permission_info is specified, only instructions with matching permission and router accounts are returned
+/// Performs instruction introspection to retrieve a vector of `SubmitBid` instructions in the current transaction.
+/// If `permission_info` is specified, only instructions with matching permission and router accounts are returned.
 pub fn get_matching_submit_bid_instructions(
     sysvar_instructions: AccountInfo,
     permission_info: Option<&PermissionInfo>,
@@ -170,7 +170,7 @@ pub fn get_matching_submit_bid_instructions(
     Ok(matching_instructions)
 }
 
-/// Extracts the bid paid from a SubmitBid instruction
+/// Extracts the bid paid from a `SubmitBid` instruction.
 pub fn extract_bid_from_submit_bid_ix(submit_bid_ix: &Instruction) -> Result<u64> {
     let submit_bid_args = SubmitBidArgs::try_from_slice(
         &submit_bid_ix.data[crate::instruction::SubmitBid::DISCRIMINATOR.len()..],
@@ -179,7 +179,7 @@ pub fn extract_bid_from_submit_bid_ix(submit_bid_ix: &Instruction) -> Result<u64
     Ok(submit_bid_args.bid_amount)
 }
 
-/// Computes the fee to pay the router based on the specified bid_amount and the split_router
+/// Computes the fee to pay the router based on the specified `bid_amount` and the `split_router`.
 fn perform_fee_split_router(bid_amount: u64, split_router: u64) -> Result<u64> {
     let fee_router = bid_amount
         .checked_mul(split_router)
@@ -192,8 +192,8 @@ fn perform_fee_split_router(bid_amount: u64, split_router: u64) -> Result<u64> {
     Ok(fee_router)
 }
 
-/// Performs fee splits on a bid amount
-/// Returns amount to pay to router and amount to pay to relayer
+/// Performs fee splits on a bid amount.
+/// Returns amount to pay to router and amount to pay to relayer.
 pub fn perform_fee_splits(
     bid_amount: u64,
     split_router: u64,
@@ -220,9 +220,9 @@ pub fn perform_fee_splits(
     Ok((fee_router, fee_relayer))
 }
 
-/// Performs instruction introspection on the current transaction to query SubmitBid instructions that match the specified permission and router
-/// Returns the number of matching instructions and the total fees paid to the router
-/// The config_router and express_relay_metadata accounts passed in permission_info are assumed to have already been validated. Note these are not validated in this function.
+/// Performs instruction introspection on the current transaction to query SubmitBid instructions that match the specified permission and router.
+/// Returns the number of matching instructions and the total fees paid to the router.
+/// The `config_router` and `express_relay_metadata` accounts passed in `permission_info` are assumed to have already been validated. Note these are not validated in this function.
 pub fn inspect_permissions_in_tx(
     sysvar_instructions: UncheckedAccount,
     permission_info: PermissionInfo,

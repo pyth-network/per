@@ -2,21 +2,20 @@
 /// ERC20 token.
 /// This is used to alter the balance and allowance of an address in a token to verify
 /// the opportunities in a simulation environment.
-/// The spoofing is done by finding the storage slot of the balance and allowance of an address
+/// The spoofing is done by finding the storage slot of the balance and allowance of an address.
 /// This approach is just a heuristic and will not work for all tokens, specially if the token
 /// has a custom storage layout or logic to calculate the balance or allowance
 /// Finding the storage slot is done by brute forcing the storage slots (only the first 32 slots)
-/// and checking if the output of the balance or allowance is the expected value
+/// and checking if the output of the balance or allowance is the expected value.
 use ethers::addressbook::Address;
 use {
-    super::{
+    super::entities,
+    crate::kernel::{
         contracts::ERC20,
-        entities,
+        traced_client::TracedClient,
     },
-    crate::traced_client::TracedClient,
     anyhow::anyhow,
     ethers::{
-        core::rand,
         prelude::{
             spoof,
             Bytes,
@@ -32,12 +31,12 @@ use {
     std::sync::Arc,
 };
 
-/// Calculate the storage key for the balance of an address in an ERC20 token. This is used to spoof the balance
+/// Calculate the storage key for the balance of an address in an ERC20 token. This is used to spoof the balance.
 ///
 /// # Arguments
 ///
-/// * `owner`: The address of the owner of the balance
-/// * `balance_slot`: The slot where the balance mapping is located inside the contract storage
+/// * `owner`: The address of the owner of the balance.
+/// * `balance_slot`: The slot where the balance mapping is located inside the contract storage.
 pub fn calculate_balance_storage_key(owner: Address, balance_slot: U256) -> H256 {
     let mut buffer: [u8; 64] = [0; 64];
     buffer[12..32].copy_from_slice(owner.as_bytes());
@@ -46,13 +45,13 @@ pub fn calculate_balance_storage_key(owner: Address, balance_slot: U256) -> H256
 }
 
 /// Calculate the storage key for the allowance of an spender for an address in an ERC20 token.
-/// This is used to spoof the allowance
+/// This is used to spoof the allowance.
 ///
 /// # Arguments
 ///
-/// * `owner`: The address of the owner where the allowance is calculated
-/// * `spender`: The address of the spender where the allowance is calculated
-/// * `allowance_slot`: The slot where the allowance mapping is located inside the contract storage
+/// * `owner`: The address of the owner where the allowance is calculated.
+/// * `spender`: The address of the spender where the allowance is calculated.
+/// * `allowance_slot`: The slot where the allowance mapping is located inside the contract storage.
 pub fn calculate_allowance_storage_key(
     owner: Address,
     spender: Address,
@@ -71,13 +70,13 @@ pub fn calculate_allowance_storage_key(
 
 const MAX_SLOT_FOR_BRUTEFORCE: i32 = 32;
 
-/// Find the balance slot of an ERC20 token that can be used to spoof the balance of an address
-/// Returns an error if no slot is found or if the network calls fail
+/// Find the balance slot of an ERC20 token that can be used to spoof the balance of an address.
+/// Returns an error if no slot is found or if the network calls fail.
 ///
 /// # Arguments
 ///
-/// * `token`: ERC20 token address
-/// * `client`: Client to interact with the blockchain
+/// * `token`: ERC20 token address.
+/// * `client`: Client to interact with the blockchain.
 #[tracing::instrument(skip_all)]
 async fn find_spoof_balance_slot(
     token: Address,
@@ -102,13 +101,13 @@ async fn find_spoof_balance_slot(
     Err(anyhow!("Could not find balance slot"))
 }
 
-/// Find the allowance slot of an ERC20 token that can be used to spoof the allowance of an address
-/// Returns an error if no slot is found or if the network calls fail
+/// Find the allowance slot of an ERC20 token that can be used to spoof the allowance of an address.
+/// Returns an error if no slot is found or if the network calls fail.
 ///
 /// # Arguments
 ///
-/// * `token`: ERC20 token address
-/// * `client`: Client to interact with the blockchain
+/// * `token`: ERC20 token address.
+/// * `client`: Client to interact with the blockchain.
 #[tracing::instrument(skip_all)]
 async fn find_spoof_allowance_slot(
     token: Address,
@@ -140,12 +139,12 @@ async fn find_spoof_allowance_slot(
     Err(anyhow!("Could not find allowance slot"))
 }
 
-/// Find the spoof info for an ERC20 token. This includes the balance slot and the allowance slot
-/// Returns an error if no balance or allowance slot is found
+/// Find the spoof info for an ERC20 token. This includes the balance slot and the allowance slot.
+/// Returns an error if no balance or allowance slot is found.
 /// # Arguments
 ///
-/// * `token`: ERC20 token address
-/// * `client`: Client to interact with the blockchain
+/// * `token`: ERC20 token address.
+/// * `client`: Client to interact with the blockchain.
 #[tracing::instrument(skip_all, fields(token=%token))]
 pub async fn find_spoof_info(
     token: Address,

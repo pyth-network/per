@@ -12,6 +12,8 @@ use {
         opportunity::{
             entities::{
                 self,
+                Opportunity,
+                OpportunityCreate,
             },
             repository::InMemoryStore,
             service::verification::VerifyOpportunityInput,
@@ -23,19 +25,49 @@ pub struct AddOpportunityInput<T: entities::OpportunityCreate> {
     pub opportunity: T,
 }
 
+type OpportunityType<T> = <<T as ChainType>::InMemoryStore as InMemoryStore>::Opportunity;
+type OpportunityCreateType<T> = <OpportunityType<T> as entities::Opportunity>::OpportunityCreate;
+
+#[derive(Debug, Clone)]
+enum OpportunityAction<T: entities::Opportunity> {
+    Add,
+    Refresh(T),
+    Ignore,
+}
+
 impl<T: ChainType> Service<T>
 where
     Service<T>: Verification<T>,
 {
+    async fn assess_action(
+        &self,
+        opportunity: &OpportunityCreateType<T>,
+    ) -> OpportunityAction<OpportunityType<T>> {
+        let opportunities = self
+            .repo
+            .get_in_memory_opportunities_by_key(&opportunity.get_key())
+            .await;
+        for opp in opportunities.into_iter() {
+            let comparison = opp.compare(opportunity);
+            if let entities::OpportunityComparison::Duplicate = comparison {
+                return OpportunityAction::Ignore;
+            }
+            if let entities::OpportunityComparison::NeedsRefresh = comparison {
+                return OpportunityAction::Refresh(opp);
+            }
+        }
+        OpportunityAction::Add
+    }
     pub async fn add_opportunity(
         &self,
-        input: AddOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as entities::Opportunity>::OpportunityCreate>,
+        input: AddOpportunityInput<OpportunityCreateType<T>>,
     ) -> Result<<T::InMemoryStore as InMemoryStore>::Opportunity, RestError> {
         let opportunity_create = input.opportunity;
-        if self.repo.opportunity_exists(&opportunity_create).await {
-            tracing::warn!("Duplicate opportunity submission: {:?}", opportunity_create);
+        let action = self.assess_action(&opportunity_create).await;
+        if let OpportunityAction::Ignore = action {
+            tracing::info!("Submitted opportunity ignored: {:?}", opportunity_create);
             return Err(RestError::BadParameters(
-                "Duplicate opportunity submission".to_string(),
+                "Same opportunity is submitted recently".to_string(),
             ));
         }
 
@@ -52,10 +84,13 @@ where
             e
         })?;
 
-        let opportunity = self
-            .repo
-            .add_opportunity(&self.db, opportunity_create.clone())
-            .await?;
+        let opportunity = if let OpportunityAction::Refresh(opp) = action {
+            self.repo.refresh_in_memory_opportunity(opp.clone()).await
+        } else {
+            self.repo
+                .add_opportunity(&self.db, opportunity_create.clone())
+                .await?
+        };
 
         self.store
             .ws
@@ -70,12 +105,12 @@ where
                 RestError::TemporarilyUnavailable
             })?;
 
-        let opportunities_map = &self.repo.get_opportunities().await;
+        let opportunities_map = &self.repo.get_in_memory_opportunities().await;
         tracing::debug!("number of permission keys: {}", opportunities_map.len());
         tracing::debug!(
             "number of opportunities for key: {}",
             opportunities_map
-                .get(&opportunity.permission_key)
+                .get(&opportunity.get_key())
                 .map_or(0, |opps| opps.len())
         );
 

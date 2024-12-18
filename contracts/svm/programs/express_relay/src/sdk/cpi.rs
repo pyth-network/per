@@ -6,9 +6,9 @@ use {
     anchor_lang::prelude::*,
 };
 
-/// Makes a CPI call to the CheckPermission instruction in the Express Relay program.
-/// Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts
-/// Returns the fees paid to the router in the matching instructions
+/// Makes a CPI call to the `CheckPermission` instruction in the Express Relay program.
+/// Permissioning takes the form of a `SubmitBid` instruction with matching permission and router accounts.
+/// Returns the fees paid to the router in the matching instructions.
 pub fn check_permission_cpi<'info>(
     check_permission_accounts: CheckPermission<'info>,
     express_relay_program: AccountInfo<'info>,

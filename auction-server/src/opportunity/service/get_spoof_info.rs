@@ -21,8 +21,8 @@ pub struct GetSpoofInfoInput {
 }
 
 impl Service<ChainTypeEvm> {
-    /// Find the spoof info for an ERC20 token. This includes the balance slot and the allowance slot
-    /// Returns an error if no balance or allowance slot is found
+    /// Find the spoof info for an ERC20 token. This includes the balance slot and the allowance slot.
+    /// Returns an error if no balance or allowance slot is found.
     #[tracing::instrument(skip_all, fields(token=%input.token))]
     pub(super) async fn get_spoof_info(
         &self,
@@ -35,7 +35,7 @@ impl Service<ChainTypeEvm> {
                 let result = find_spoof_info(input.token, Arc::new(config.provider.clone()))
                     .await
                     .unwrap_or_else(|e| {
-                        tracing::error!("Error finding spoof info: {:?}", e);
+                        tracing::warn!(error = ?e, "Couldn't find spoof info");
                         entities::SpoofInfo {
                             token: input.token,
                             state: entities::SpoofState::UnableToSpoof,

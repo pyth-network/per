@@ -1,29 +1,20 @@
 use {
-    super::Auth,
+    super::{
+        Auth,
+        WrappedRouter,
+    },
     crate::{
-        api::bid::{
-            process_bid,
-            BidResult,
+        auction::{
+            api::process_bid,
+            entities::BidId,
         },
-        auction::Bid,
         config::ChainId,
-        opportunity::{
-            api::{
-                Opportunity,
-                OpportunityBidEvm,
-                OpportunityId,
-            },
-            service::handle_opportunity_bid::HandleOpportunityBidInput,
-        },
+        opportunity::service::handle_opportunity_bid::HandleOpportunityBidInput,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        state::{
-            BidId,
-            BidStatusWithId,
-            StoreNew,
-        },
+        state::StoreNew,
     },
     anyhow::{
         anyhow,
@@ -39,6 +30,30 @@ use {
             WebSocketUpgrade,
         },
         response::IntoResponse,
+        Router,
+    },
+    express_relay_api_types::{
+        bid::{
+            BidCreate,
+            BidResult,
+            BidStatusWithId,
+        },
+        opportunity::{
+            Opportunity,
+            OpportunityBidEvm,
+            OpportunityDelete,
+            OpportunityId,
+        },
+        ws::{
+            APIResponse,
+            ClientMessage,
+            ClientRequest,
+            Route,
+            ServerResultMessage,
+            ServerResultResponse,
+            ServerUpdateResponse,
+        },
+        SvmChainUpdate,
     },
     futures::{
         stream::{
@@ -47,10 +62,6 @@ use {
         },
         SinkExt,
         StreamExt,
-    },
-    serde::{
-        Deserialize,
-        Serialize,
     },
     std::{
         collections::HashSet,
@@ -69,77 +80,12 @@ use {
         instrument,
         Instrument,
     },
-    utoipa::ToSchema,
 };
 
 pub struct WsState {
     pub subscriber_counter: AtomicUsize,
     pub broadcast_sender:   broadcast::Sender<UpdateEvent>,
     pub broadcast_receiver: broadcast::Receiver<UpdateEvent>,
-}
-
-#[derive(Deserialize, Clone, ToSchema)]
-#[serde(tag = "method", content = "params")]
-pub enum ClientMessage {
-    #[serde(rename = "subscribe")]
-    Subscribe {
-        #[schema(value_type = Vec<String>)]
-        chain_ids: Vec<ChainId>,
-    },
-    #[serde(rename = "unsubscribe")]
-    Unsubscribe {
-        #[schema(value_type = Vec<String>)]
-        chain_ids: Vec<ChainId>,
-    },
-    #[serde(rename = "post_bid")]
-    PostBid { bid: Bid },
-
-    #[serde(rename = "post_opportunity_bid")]
-    PostOpportunityBid {
-        #[schema(value_type = String)]
-        opportunity_id:  OpportunityId,
-        opportunity_bid: OpportunityBidEvm,
-    },
-}
-
-#[derive(Deserialize, Clone, ToSchema)]
-pub struct ClientRequest {
-    id:  String,
-    #[serde(flatten)]
-    msg: ClientMessage,
-}
-
-/// This enum is used to send an update to the client for any subscriptions made
-#[derive(Serialize, Clone, ToSchema)]
-#[serde(tag = "type")]
-pub enum ServerUpdateResponse {
-    #[serde(rename = "new_opportunity")]
-    NewOpportunity { opportunity: Opportunity },
-    #[serde(rename = "bid_status_update")]
-    BidStatusUpdate { status: BidStatusWithId },
-}
-
-#[derive(Serialize, Clone, ToSchema)]
-#[serde(untagged)]
-pub enum APIResponse {
-    BidResult(BidResult),
-}
-#[derive(Serialize, Clone, ToSchema)]
-#[serde(tag = "status", content = "result")]
-pub enum ServerResultMessage {
-    #[serde(rename = "success")]
-    Success(Option<APIResponse>),
-    #[serde(rename = "error")]
-    Err(String),
-}
-
-/// This enum is used to send the result for a specific client request with the same id
-/// id is only None when the client message is invalid
-#[derive(Serialize, Clone, ToSchema)]
-pub struct ServerResultResponse {
-    id:     Option<String>,
-    #[serde(flatten)]
-    result: ServerResultMessage,
 }
 
 pub async fn ws_route_handler(
@@ -163,6 +109,8 @@ async fn websocket_handler(stream: WebSocket, state: Arc<StoreNew>, auth: Auth) 
 pub enum UpdateEvent {
     NewOpportunity(Opportunity),
     BidStatusUpdate(BidStatusWithId),
+    SvmChainUpdate(SvmChainUpdate),
+    RemoveOpportunities(OpportunityDelete),
 }
 
 pub type SubscriberId = usize;
@@ -266,7 +214,6 @@ impl Subscriber {
     }
 
     async fn handle_new_opportunity(&mut self, opportunity: Opportunity) -> Result<()> {
-        tracing::Span::current().record("name", "new_opportunity");
         if !self.chain_ids.contains(opportunity.get_chain_id()) {
             // Irrelevant update
             return Ok(());
@@ -277,12 +224,38 @@ impl Subscriber {
     }
 
     async fn handle_bid_status_update(&mut self, status: BidStatusWithId) -> Result<()> {
-        tracing::Span::current().record("name", "bid_status_update");
         if !self.bid_ids.contains(&status.id) {
             // Irrelevant update
             return Ok(());
         }
         let message = serde_json::to_string(&ServerUpdateResponse::BidStatusUpdate { status })?;
+        self.sender.send(message.into()).await?;
+        Ok(())
+    }
+
+    async fn handle_svm_chain_update(&mut self, svm_chain_update: SvmChainUpdate) -> Result<()> {
+        if !self.chain_ids.contains(&svm_chain_update.chain_id) {
+            // Irrelevant update
+            return Ok(());
+        }
+        let message = serde_json::to_string(&ServerUpdateResponse::SvmChainUpdate {
+            update: svm_chain_update,
+        })?;
+        self.sender.send(message.into()).await?;
+        Ok(())
+    }
+
+    async fn handle_remove_opportunities(
+        &mut self,
+        opportunity_delete: OpportunityDelete,
+    ) -> Result<()> {
+        if !self.chain_ids.contains(opportunity_delete.get_chain_id()) {
+            // Irrelevant update
+            return Ok(());
+        }
+        let message = serde_json::to_string(&ServerUpdateResponse::RemoveOpportunities {
+            opportunity_delete,
+        })?;
         self.sender.send(message.into()).await?;
         Ok(())
     }
@@ -302,6 +275,14 @@ impl Subscriber {
                 tracing::Span::current().record("name", "bid_status_update");
                 self.handle_bid_status_update(status).await
             }
+            UpdateEvent::SvmChainUpdate(svm_chain_update) => {
+                tracing::Span::current().record("name", "svm_chain_update");
+                self.handle_svm_chain_update(svm_chain_update).await
+            }
+            UpdateEvent::RemoveOpportunities(opportunity_delete) => {
+                tracing::Span::current().record("name", "remove_opportunity");
+                self.handle_remove_opportunities(opportunity_delete).await
+            }
         };
         if result.is_err() {
             tracing::Span::current().record("result", "error");
@@ -318,7 +299,7 @@ impl Subscriber {
         let available_chain_ids: Vec<&ChainId> = self
             .store
             .store
-            .chains
+            .chains_evm
             .keys()
             .chain(self.store.store.chains_svm.keys())
             .collect();
@@ -356,10 +337,10 @@ impl Subscriber {
     async fn handle_post_bid(
         &mut self,
         id: String,
-        bid: Bid,
+        bid: BidCreate,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         tracing::Span::current().record("name", "post_bid");
-        match process_bid(self.store.clone(), bid, self.auth.clone()).await {
+        match process_bid(self.auth.clone(), self.store.clone(), bid).await {
             Ok(bid_result) => {
                 self.bid_ids.insert(bid_result.id);
                 Ok(ServerResultResponse {
@@ -489,4 +470,11 @@ impl Subscriber {
 
         Ok(())
     }
+}
+
+
+pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
+    WrappedRouter::new(store)
+        .route(Route::Ws, ws_route_handler)
+        .router
 }

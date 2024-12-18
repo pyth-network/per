@@ -6,17 +6,15 @@ use {
     },
     crate::{
         api::RestError,
-        opportunity::{
-            api::OpportunityBidEvm,
-            contracts::{
-                ExecutionParams,
-                ExecutionWitness,
-                PermitBatchTransferFrom,
-                TokenAmount,
-            },
-            entities,
+        kernel::contracts::{
+            ExecutionParams,
+            ExecutionWitness,
+            PermitBatchTransferFrom,
+            TokenAmount,
         },
+        opportunity::entities,
     },
+    express_relay_api_types::opportunity::OpportunityBidEvm,
 };
 
 pub struct MakeOpportunityExecutionParamsInput {

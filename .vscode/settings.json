@@ -1,8 +1,3 @@
 {
-  "rust-analyzer.linkedProjects": [
-    "./auction-server/Cargo.toml",
-    "./gas-oracle/Cargo.toml",
-    "./vault-simulator/Cargo.toml",
-    "./contracts/svm/Cargo.toml"
-  ]
+  "rust-analyzer.linkedProjects": ["./contracts/svm/Cargo.toml", "./Cargo.toml"]
 }

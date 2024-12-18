@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "bid_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "lost",
+                "submitted",
+                "won",
+                "expired",
+                "failed"
+              ]
+            }
+          }
+        },
+        "Timestamp",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "bid_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "lost",
+                "submitted",
+                "won",
+                "expired",
+                "failed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e57e8bee9fbc6c2c16396d0900f44a734f7cfc94637ff3a8f1b52a329a704522"
+}

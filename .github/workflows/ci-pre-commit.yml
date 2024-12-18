@@ -13,24 +13,36 @@ jobs:
         with:
           # Need to grab the history of the PR
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: "package.json"
+          registry-url: "https://registry.npmjs.org"
       - uses: ./.github/actions/python-poetry
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2023-03-01
-          components: rustfmt, clippy
+          toolchain: 1.83.0
+          components: clippy
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2024-04-10
-          components: rustfmt, clippy
+          toolchain: nightly-2024-12-03
+          components: rustfmt
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1.1.1
         with:
           version: nightly
-      - name: Install npm dependencies
+      - name: Install evm contracts npm dependencies
         working-directory: contracts/evm
-        run: npm install
+        run: npm ci
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: true
       - name: Install forge dependencies 1
         working-directory: contracts/evm
         run: forge install foundry-rs/forge-std@v1.8.0 --no-git --no-commit

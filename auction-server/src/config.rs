@@ -32,8 +32,18 @@ mod server;
 pub enum Options {
     /// Run the auction server service.
     Run(RunOptions),
-    /// Sync the relayer subwallets
+    /// Sync the relayer subwallets.
     SyncSubwallets(SubwalletOptions),
+    /// Run db migrations and exit.
+    Migrate(MigrateOptions),
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct MigrateOptions {
+    /// database url to run the migrations for.
+    #[arg(long = "database-url")]
+    #[arg(env = "DATABASE_URL")]
+    pub database_url: String,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -49,7 +59,7 @@ pub struct SubwalletOptions {
 
 #[derive(Args, Clone, Debug)]
 pub struct RunOptions {
-    /// Server Options
+    /// The options for server.
     #[command(flatten)]
     pub server: server::Options,
 
@@ -62,7 +72,7 @@ pub struct RunOptions {
     #[arg(env = "SUBWALLET_PRIVATE_KEY")]
     pub subwallet_private_key: String,
 
-    /// SVM relayer private key in base58 format
+    /// SVM relayer private key in base58 format.
     #[arg(long = "private-key-svm")]
     #[arg(env = "PRIVATE_KEY_SVM")]
     pub private_key_svm: Option<String>,
@@ -76,7 +86,7 @@ pub struct RunOptions {
 #[command(next_help_heading = "Config Options")]
 #[group(id = "Config")]
 pub struct ConfigOptions {
-    /// Path to a configuration file containing the list of supported blockchains
+    /// Path to a configuration file containing the list of supported blockchains.
     #[arg(long = "config")]
     #[arg(env = "PER_CONFIG")]
     #[arg(default_value = "config.yaml")]
@@ -130,7 +140,7 @@ pub struct ConfigEvm {
     /// Subwallets available for relaying bids. Only used in the subwallet sync command.
     pub subwallets: Option<Vec<Address>>,
 
-    /// Use the legacy transaction format (for networks without EIP 1559)
+    /// Use the legacy transaction format (for networks without EIP 1559).
     #[serde(default)]
     pub legacy_tx: bool,
 }
@@ -144,12 +154,22 @@ fn default_rpc_timeout_svm() -> u64 {
 pub struct ConfigSvm {
     /// Id of the express relay program.
     #[serde_as(as = "DisplayFromStr")]
-    pub express_relay_program_id: Pubkey,
-    /// RPC endpoint to use for interacting with the blockchain.
-    pub rpc_addr:                 String,
+    pub express_relay_program_id:      Pubkey,
+    /// RPC endpoint to use for reading from the blockchain.
+    pub rpc_read_url:                  String,
+    /// RPC endpoint to use for broadcasting transactions
+    pub rpc_tx_submission_url:         String,
     /// WS endpoint to use for interacting with the blockchain.
-    pub ws_addr:                  String,
+    pub ws_addr:                       String,
     /// Timeout for RPC requests in seconds.
     #[serde(default = "default_rpc_timeout_svm")]
-    pub rpc_timeout:              u64,
+    pub rpc_timeout:                   u64,
+    /// The router account for Phantom.
+    #[serde_as(as = "DisplayFromStr")]
+    pub wallet_program_router_account: Pubkey,
+    #[serde(default)]
+    /// Percentile of prioritization fees to query from the `rpc_read_url`.
+    /// This should be None unless the RPC `getRecentPrioritizationFees`'s supports the percentile parameter, for example Triton RPC.
+    /// It is an integer between 0 and 10000 with 10000 representing 100%.
+    pub prioritization_fee_percentile: Option<u64>,
 }

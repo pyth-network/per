@@ -5,23 +5,21 @@ use {
             OpportunityCoreFields,
         },
         token_amount_evm::TokenAmountEvm,
+        OpportunityComparison,
         OpportunityCoreFieldsCreate,
         OpportunityCreate,
     },
     crate::{
-        opportunity::{
-            api,
-            repository::{
-                self,
-            },
-        },
-        state::PermissionKey,
+        kernel::entities::PermissionKey,
+        opportunity::repository,
     },
     ethers::types::{
         Bytes,
         U256,
     },
+    express_relay_api_types::opportunity as api,
     std::ops::Deref,
+    time::OffsetDateTime,
 };
 
 // TODO revise the entities for opportunity, Maybe generic opportunity with params
@@ -64,13 +62,35 @@ impl Opportunity for OpportunityEvm {
             target_calldata:   self.target_calldata.clone(),
         }
     }
+
+    fn get_opportunity_delete(&self) -> api::OpportunityDelete {
+        api::OpportunityDelete::Evm(api::OpportunityDeleteEvm::V1(api::OpportunityDeleteV1Evm {
+            permission_key: self.core_fields.permission_key.clone(),
+            chain_id:       self.core_fields.chain_id.clone(),
+        }))
+    }
+
+    fn compare(&self, other: &Self::OpportunityCreate) -> super::OpportunityComparison {
+        if *other == self.clone().into() {
+            OpportunityComparison::Duplicate
+        } else {
+            OpportunityComparison::New
+        }
+    }
+
+    fn refresh(&mut self) {
+        self.core_fields.refresh_time = OffsetDateTime::now_utc();
+    }
 }
 
 impl OpportunityCreate for OpportunityCreateEvm {
     type ApiOpportunityCreate = api::OpportunityCreateEvm;
 
-    fn permission_key(&self) -> crate::kernel::entities::PermissionKey {
-        self.core_fields.permission_key.clone()
+    fn get_key(&self) -> super::OpportunityKey {
+        super::OpportunityKey(
+            self.core_fields.chain_id.clone(),
+            self.core_fields.permission_key.clone(),
+        )
     }
 }
 
@@ -92,7 +112,7 @@ impl From<OpportunityEvm> for api::OpportunityEvm {
     fn from(val: OpportunityEvm) -> Self {
         api::OpportunityEvm {
             opportunity_id: val.id,
-            creation_time:  val.creation_time,
+            creation_time:  val.creation_time.unix_timestamp_nanos() / 1000,
             params:         api::OpportunityParamsEvm::V1(api::OpportunityParamsV1Evm(
                 api::OpportunityCreateV1Evm {
                     permission_key:    val.permission_key.clone(),
@@ -160,7 +180,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataEvm>> for Op
         Ok(OpportunityEvm {
             core_fields:       OpportunityCoreFields {
                 id: val.id,
-                creation_time: val.creation_time.assume_utc().unix_timestamp_nanos(),
+                creation_time: val.creation_time.assume_utc(),
+                refresh_time: val.creation_time.assume_utc(),
                 permission_key: PermissionKey::from(val.permission_key),
                 chain_id: val.chain_id,
                 sell_tokens,

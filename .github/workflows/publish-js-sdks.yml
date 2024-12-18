@@ -1,0 +1,39 @@
+name: Publish Express Relay JS packages
+
+on:
+  push:
+    tags:
+      - "js-v*"
+jobs:
+  publish-js:
+    name: Publish Javascript SDK Package to NPM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: "package.json"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: true
+
+      - name: Run tests
+        run: pnpm --filter @pythnetwork/express-relay-js test # Ensure your tests pass before publishing
+
+      - name: Set publishing config
+        run: pnpm config set '//registry.npmjs.org/:_authToken' "${NODE_AUTH_TOKEN}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build package
+        run: pnpm --filter @pythnetwork/express-relay-js build # If your package requires a build step
+
+      - name: Publish to npm
+        run: pnpm --filter @pythnetwork/express-relay-js publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

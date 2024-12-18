@@ -1,0 +1,44 @@
+name: Publish Express Relay Solidity SDK
+
+on:
+  push:
+    tags:
+      - "solidity-v*"
+jobs:
+  publish-solidity:
+    name: Publish Solidity SDK Package to NPM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: "package.json"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: true
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1.1.1
+        with:
+          version: nightly
+
+      - name: Generate ABIs
+        run: pnpm generate-abi
+
+      - name: Check ABIs
+        run: pnpm check-abi
+
+      - name: Set publishing config
+        run: pnpm config set '//registry.npmjs.org/:_authToken' "${NODE_AUTH_TOKEN}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to npm
+        run: pnpm --filter @pythnetwork/express-relay-sdk-solidity publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

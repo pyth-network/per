@@ -1,0 +1,29 @@
+{
+  "name": "dex-router",
+  "version": "0.0.4",
+  "description": "Client to route Express Relay SVM orders to on-chain liquidity sources",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest src/ --passWithNoTests",
+    "dex-router": "pnpm run build && node dist/index.js",
+    "lint": "eslint --ext .ts src"
+  },
+  "author": "",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/yargs": "catalog:",
+    "typescript": "catalog:",
+    "jest": "catalog:"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "catalog:",
+    "@jup-ag/api": "^6.0.29",
+    "@kamino-finance/limo-sdk": "catalog:",
+    "@pythnetwork/express-relay-js": "workspace:*",
+    "@solana/web3.js": "catalog:",
+    "@types/yargs": "catalog:",
+    "yargs": "catalog:"
+  }
+}

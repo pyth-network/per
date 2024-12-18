@@ -86,20 +86,20 @@ pub mod express_relay {
         Ok(())
     }
 
-    /// Submits a bid for a particular (permission, router) pair and distributes bids according to splits
+    /// Submits a bid for a particular (permission, router) pair and distributes bids according to splits.
     pub fn submit_bid(ctx: Context<SubmitBid>, data: SubmitBidArgs) -> Result<()> {
         if data.deadline < Clock::get()?.unix_timestamp {
             return err!(ErrorCode::DeadlinePassed);
         }
 
-        // check that not cpi
+        // check that not cpi.
         if get_stack_height() > TRANSACTION_LEVEL_STACK_HEIGHT {
             return err!(ErrorCode::InvalidCPISubmitBid);
         }
 
-        // check "no reentrancy"--SubmitBid instruction only used once in transaction
-        // this is done to prevent an exploit where a searcher submits a transaction with multiple SubmitBid instructions with different permission keys
-        // that could allow the searcher to win the right to perform the transaction if they won just one of the auctions
+        // Check "no reentrancy"--SubmitBid instruction only used once in transaction.
+        // This is done to prevent an exploit where a searcher submits a transaction with multiple `SubmitBid`` instructions with different permission keys.
+        // That could allow the searcher to win the right to perform the transaction if they won just one of the auctions.
         let matching_ixs = get_matching_submit_bid_instructions(
             ctx.accounts.sysvar_instructions.to_account_info(),
             None,
@@ -111,9 +111,9 @@ pub mod express_relay {
         handle_bid_payment(ctx, data.bid_amount)
     }
 
-    /// Checks if permissioning exists for a particular (permission, router) pair within the same transaction
-    /// Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts
-    /// Returns the fees paid to the router in the matching instructions
+    /// Checks if permissioning exists for a particular (permission, router) pair within the same transaction.
+    /// Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts.
+    /// Returns the fees paid to the router in the matching instructions.
     pub fn check_permission(ctx: Context<CheckPermission>) -> Result<u64> {
         let (num_permissions, total_router_fees) = inspect_permissions_in_tx(
             ctx.accounts.sysvar_instructions.clone(),
@@ -317,13 +317,13 @@ pub struct Initialize<'info> {
     #[account(init, payer = payer, space = RESERVE_EXPRESS_RELAY_METADATA, seeds = [SEED_METADATA], bump)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just the admin's PK
+    /// CHECK: this is just the admin's PK.
     pub admin: UncheckedAccount<'info>,
 
-    /// CHECK: this is just the relayer's signer PK
+    /// CHECK: this is just the relayer's signer PK.
     pub relayer_signer: UncheckedAccount<'info>,
 
-    /// CHECK: this is just a PK for the relayer to receive fees at
+    /// CHECK: this is just a PK for the relayer to receive fees at.
     pub fee_receiver_relayer: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
@@ -337,7 +337,7 @@ pub struct SetAdmin<'info> {
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just the new admin PK
+    /// CHECK: this is just the new admin PK.
     pub admin_new: UncheckedAccount<'info>,
 }
 
@@ -349,10 +349,10 @@ pub struct SetRelayer<'info> {
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just the relayer's signer PK
+    /// CHECK: this is just the relayer's signer PK.
     pub relayer_signer: UncheckedAccount<'info>,
 
-    /// CHECK: this is just a PK for the relayer to receive fees at
+    /// CHECK: this is just a PK for the relayer to receive fees at.
     pub fee_receiver_relayer: UncheckedAccount<'info>,
 }
 
@@ -387,7 +387,7 @@ pub struct SetRouterSplit<'info> {
     #[account(seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just the router fee receiver PK
+    /// CHECK: this is just the router fee receiver PK.
     pub router: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
@@ -409,7 +409,7 @@ pub struct SubmitBid<'info> {
     /// CHECK: this is the permission key. Often the permission key refers to an on-chain account storing the opportunity; other times, it could refer to the 32 byte hash of identifying opportunity data. We include the permission as an account instead of putting it in the instruction data to save transaction size via caching in case of repeated use.
     pub permission: UncheckedAccount<'info>,
 
-    /// CHECK: don't care what this looks like
+    /// CHECK: don't care what this looks like.
     #[account(mut)]
     pub router: UncheckedAccount<'info>,
 
@@ -420,27 +420,27 @@ pub struct SubmitBid<'info> {
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer, has_one = fee_receiver_relayer)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just a PK for the relayer to receive fees at
+    /// CHECK: this is just a PK for the relayer to receive fees at.
     #[account(mut)]
     pub fee_receiver_relayer: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 
-    /// CHECK: this is the sysvar instructions account
+    /// CHECK: this is the sysvar instructions account.
     #[account(address = sysvar_instructions::ID)]
     pub sysvar_instructions: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
 pub struct CheckPermission<'info> {
-    /// CHECK: this is the sysvar instructions account
+    /// CHECK: this is the sysvar instructions account.
     #[account(address = sysvar_instructions::ID)]
     pub sysvar_instructions: UncheckedAccount<'info>,
 
     /// CHECK: this is the permission key. Often the permission key refers to an on-chain account storing the opportunity; other times, it could refer to the 32 byte hash of identifying opportunity data. We include the permission as an account instead of putting it in the instruction data to save transaction size via caching in case of repeated use.
     pub permission: UncheckedAccount<'info>,
 
-    /// CHECK: this is the router address
+    /// CHECK: this is the router address.
     pub router: UncheckedAccount<'info>,
 
     /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized.
@@ -456,7 +456,7 @@ pub struct WithdrawFees<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
-    /// CHECK: this is just the PK where the fees should be sent
+    /// CHECK: this is just the PK where the fees should be sent.
     #[account(mut)]
     pub fee_receiver_admin: UncheckedAccount<'info>,
 

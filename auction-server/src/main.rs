@@ -1,4 +1,5 @@
 use {
+    crate::server::run_migrations,
     anyhow::Result,
     clap::Parser,
     opentelemetry::KeyValue,
@@ -16,6 +17,7 @@ use {
         io::IsTerminal,
         time::Duration,
     },
+    tracing::Metadata,
     tracing_subscriber::{
         filter::{
             self,
@@ -34,12 +36,13 @@ mod kernel;
 mod models;
 mod opportunity;
 mod per_metrics;
-mod serde;
 mod server;
 mod state;
 mod subwallet;
-mod traced_client;
-mod traced_sender_svm;
+
+fn is_internal(metadata: &Metadata) -> bool {
+    metadata.target().starts_with("auction_server")
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -50,7 +53,6 @@ async fn main() -> Result<()> {
         .with_thread_ids(true)
         .with_target(true)
         .with_ansi(std::io::stderr().is_terminal());
-
 
     // Will use env variable OTEL_EXPORTER_OTLP_ENDPOINT or defaults to 127.0.0.1:4317
     let otlp_exporter = opentelemetry_otlp::new_exporter()
@@ -71,7 +73,9 @@ async fn main() -> Result<()> {
 
     let registry = tracing_subscriber::registry()
         .with(MetricsLayer.with_filter(filter::filter_fn(is_metrics)))
-        .with(telemetry.with_filter(filter::filter_fn(|metadata| !is_metrics(metadata))));
+        .with(telemetry.with_filter(filter::filter_fn(|metadata| {
+            !is_metrics(metadata) && is_internal(metadata)
+        })));
 
     if std::io::stderr().is_terminal() {
         registry
@@ -79,7 +83,9 @@ async fn main() -> Result<()> {
                 log_layer
                     .compact()
                     .with_filter(LevelFilter::INFO)
-                    .with_filter(filter::filter_fn(|metadata| !is_metrics(metadata))),
+                    .with_filter(filter::filter_fn(|metadata| {
+                        !is_metrics(metadata) && is_internal(metadata)
+                    })),
             )
             .init();
     } else {
@@ -88,7 +94,9 @@ async fn main() -> Result<()> {
                 log_layer
                     .json()
                     .with_filter(LevelFilter::INFO)
-                    .with_filter(filter::filter_fn(|metadata| !is_metrics(metadata))),
+                    .with_filter(filter::filter_fn(|metadata| {
+                        !is_metrics(metadata) && is_internal(metadata)
+                    })),
             )
             .init();
     }
@@ -98,5 +106,6 @@ async fn main() -> Result<()> {
     match config::Options::parse() {
         config::Options::Run(opts) => start_server(opts).await,
         config::Options::SyncSubwallets(opts) => subwallet::sync_subwallets(opts).await,
+        config::Options::Migrate(opts) => run_migrations(opts).await,
     }
 }

@@ -1,6 +1,6 @@
 use {
     crate::{
-        auction::get_express_relay_contract,
+        auction::service::get_express_relay_contract,
         config::{
             ChainId,
             Config,
@@ -8,7 +8,7 @@ use {
             ConfigMap,
             SubwalletOptions,
         },
-        server::get_chain_provider,
+        state::ChainStoreEvm,
     },
     anyhow::{
         anyhow,
@@ -51,7 +51,7 @@ async fn sync_subwallets_for_chain(
     chain_config: &ConfigEvm,
     wallet: LocalWallet,
 ) -> Result<()> {
-    let provider = get_chain_provider(chain_id, chain_config)?;
+    let provider = ChainStoreEvm::get_chain_provider(chain_id, chain_config)?;
     let id = provider.get_chainid().await?.as_u64();
     let express_relay_contract = get_express_relay_contract(
         chain_config.express_relay_contract,

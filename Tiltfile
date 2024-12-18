@@ -77,6 +77,7 @@ cmd_button(
     resource="evm-deploy-contracts",
     env=["PRIVATE_KEY=" + private_key],
     icon_name="add",
+    text="Add Evm Opportunity",
 )
 
 local_resource(
@@ -96,12 +97,16 @@ local_resource(
         && solana-keygen new -o keypairs/mint_sell.json -f --no-bip39-passphrase \
         && spl-token create-token -u localhost --fee-payer keypairs/admin.json --mint-authority keypairs/admin.json keypairs/mint_sell.json \
         && spl-token create-token -u localhost --fee-payer keypairs/admin.json --mint-authority keypairs/admin.json keypairs/mint_buy.json \
-        && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher.json \
-        && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher.json \
+        && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher_js.json \
+        && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher_js.json \
+        && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher_py.json \
+        && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher_py.json \
         && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/admin.json \
         && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/admin.json \
-        && spl-token mint -u localhost keypairs/mint_buy.json 1000000000 --recipient-owner keypairs/searcher.json --mint-authority keypairs/admin.json \
-        && spl-token mint -u localhost keypairs/mint_sell.json 1000000000 --recipient-owner keypairs/searcher.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_buy.json 1000000000 --recipient-owner keypairs/searcher_js.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_sell.json 1000000000 --recipient-owner keypairs/searcher_js.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_buy.json 1000000000 --recipient-owner keypairs/searcher_py.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_sell.json 1000000000 --recipient-owner keypairs/searcher_py.json --mint-authority keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_buy.json 1000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_sell.json 1000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json""",
     resource_deps=["svm-setup-accounts"]
@@ -197,19 +202,33 @@ local_resource(
 # need to run initialize instructions for the programs one time, script skips if already initialized
 local_resource(
     "svm-initialize-programs",
-    "poetry -C per_sdk run python3 -m per_sdk.svm.initialize_programs -v --file-private-key-payer keypairs/searcher.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --rpc-url %s" % rpc_url_solana,
+    "poetry -C per_sdk run python3 -m per_sdk.svm.initialize_programs -v --file-private-key-payer keypairs/searcher_py.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --rpc-url %s" % rpc_url_solana,
     resource_deps=["svm-setup-accounts"]
 )
 
 # craft dummy tx, submits as a bid to auction server or submits relayer-signed tx directly to solana cluster
 local_resource(
     "svm-submit-bid",
-    "poetry -C per_sdk run python3 -m per_sdk.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100000000 --auction-server-url http://localhost:9000 --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --dummy-program DUmmYXYFZugRn2DS4REc5F9UbQNoxYsHP1VMZ6j5U7kZ",
+    "poetry -C per_sdk run python3 -m per_sdk.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher_py.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100000000 --auction-server-url http://localhost:9000 --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --dummy-program DUmmYXYFZugRn2DS4REc5F9UbQNoxYsHP1VMZ6j5U7kZ --rpc-url %s --use-lookup-table" % rpc_url_solana,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
 local_resource(
     "svm-limonade",
-    serve_cmd="npm run --prefix scripts/limonade limonade -- --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id development-solana --api-key $(poetry -C per_sdk run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
+    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id development-solana --api-key $(poetry -C per_sdk run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
+    resource_deps=["svm-initialize-programs", "auction-server"],
+)
+
+local_resource(
+    "svm-searcher-py",
+    serve_cmd="poetry run python3 -m express_relay.searcher.examples.testing_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
+    serve_dir="sdk/python",
+    resource_deps=["svm-initialize-programs", "auction-server"],
+)
+
+local_resource(
+    "svm-searcher-js",
+    serve_cmd="pnpm run testing-searcher-limo --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
+    serve_dir="sdk/js",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
