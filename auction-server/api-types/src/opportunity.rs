@@ -197,7 +197,7 @@ pub enum OpportunityCreateProgramParamsV1Svm {
     #[schema(title = "limo")]
     Limo {
         /// The Limo order to be executed, encoded in base64.
-        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[schema(example = "UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...", value_type = String)]
         #[serde_as(as = "Base64")]
         order: Vec<u8>,
 
@@ -303,7 +303,7 @@ pub enum OpportunityParamsV1ProgramSvm {
     #[schema(title = "limo")]
     Limo {
         /// The Limo order to be executed, encoded in base64.
-        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[schema(example = "UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...", value_type = String)]
         #[serde_as(as = "Base64")]
         order:         Vec<u8>,
         /// Address of the order account.
