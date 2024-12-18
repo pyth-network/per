@@ -21,7 +21,7 @@ use {
     },
 };
 
-// TODO: possibly refactor this method to just return the bid instruction? and combine the ixs manually, that's pretty easy
+#[allow(clippy::too_many_arguments)]
 pub fn bid_instructions(
     relayer_signer: &Keypair,
     searcher: &Keypair,
