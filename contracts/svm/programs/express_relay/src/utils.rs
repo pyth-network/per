@@ -324,3 +324,16 @@ pub fn validate_ata(ata: &Pubkey, owner: &Pubkey, mint: &Pubkey) -> Result<()> {
     }
     Ok(())
 }
+
+pub fn perform_fee_split(amount: u64, split_ratio: u64) -> Result<(u64, u64)> {
+    let fee = amount
+        .checked_mul(split_ratio)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        / 1_000_000;
+    Ok((
+        amount
+            .checked_sub(fee)
+            .ok_or(ProgramError::ArithmeticOverflow)?,
+        fee,
+    ))
+}

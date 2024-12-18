@@ -15,6 +15,7 @@ pub struct ExpressRelayMetadata {
     pub split_router_default: u64,
     // the portion of the remaining bid (after router fees) that goes to the relayer, in bps
     pub split_relayer:        u64,
+    pub split_protocol:       u64,
 }
 
 pub const RESERVE_EXPRESS_RELAY_CONFIG_ROUTER: usize = 8 + 40 + 200;

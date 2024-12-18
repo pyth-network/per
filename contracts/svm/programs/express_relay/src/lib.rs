@@ -5,10 +5,7 @@ pub mod utils;
 
 use {
     crate::{
-        cpi::accounts::CheckPermission as CheckPermissionCPI,
         error::ErrorCode,
-        program::ExpressRelay,
-        sdk::cpi::check_permission_cpi,
         state::*,
         utils::*,
     },
@@ -24,10 +21,10 @@ use {
         system_program::System,
     },
     anchor_spl::token_interface::{
-        Mint,
-        TokenAccount,
-        TokenInterface,
-    },
+            Mint,
+            TokenAccount,
+            TokenInterface,
+        },
 };
 
 declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
@@ -157,98 +154,150 @@ pub mod express_relay {
     }
 
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
-        // check permission
-        let check_permission_accounts = CheckPermissionCPI {
-            sysvar_instructions:    ctx.accounts.sysvar_instructions.to_account_info(),
-            permission:             ctx.accounts.permission.to_account_info(),
-            router:                 ctx.accounts.router.to_account_info(),
-            config_router:          ctx.accounts.config_router.to_account_info(),
-            express_relay_metadata: ctx.accounts.express_relay_metadata.to_account_info(),
-        };
-        check_permission_cpi(
-            check_permission_accounts,
-            ctx.accounts.express_relay_program.to_account_info(),
-        )?;
-
-        // this is just a defensive programming measure, since an excessive referral fee should fail the checked_sub calls below
-        if data.referral_fee_ppm > 1_000_000 {
-            return err!(ErrorCode::InvalidReferralFee);
-        }
-
         validate_ata(
-            &ctx.accounts.ta_input_trader.key(),
+            &ctx.accounts.trader_input_ata.key(),
             &ctx.accounts.trader.key(),
             &ctx.accounts.mint_input.key(),
         )?;
         validate_ata(
-            &ctx.accounts.ta_input_router.key(),
-            &ctx.accounts.router.key(),
-            &ctx.accounts.mint_input.key(),
-        )?;
-        validate_ata(
-            &ctx.accounts.ta_output_router.key(),
-            &ctx.accounts.router.key(),
+            &ctx.accounts.trader_output_ata.key(),
+            &ctx.accounts.trader.key(),
             &ctx.accounts.mint_output.key(),
         )?;
 
-        let (fees_input, fees_output) = match data.referral_fee_input {
-            true => {
-                let fees_referral = compute_and_transfer_fee(
-                    &ctx.accounts.ta_input_searcher.to_account_info(),
-                    &ctx.accounts.ta_input_router.to_account_info(),
+        let (input_after_fees, output_after_fees) = match data.fee_token {
+            FeeToken::Input => {
+                validate_ata(
+                    &ctx.accounts.router_fee_receiver_ata.key(),
+                    &ctx.accounts.router.key(),
+                    &ctx.accounts.mint_input.key(),
+                )?;
+
+                validate_ata(
+                    &ctx.accounts.relayer_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_metadata.relayer_signer,
+                    &ctx.accounts.mint_input.key(),
+                )?;
+
+                validate_ata(
+                    &ctx.accounts.protocol_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_metadata.key(),
+                    &ctx.accounts.mint_input.key(),
+                )?;
+
+                let (remaining_amount, fee_protocol) = perform_fee_split(
+                    data.amount_input,
+                    ctx.accounts.express_relay_metadata.split_protocol * 100,
+                )?;
+                let (remaining_amount, fee_relayer) = perform_fee_split(
+                    remaining_amount,
+                    ctx.accounts.express_relay_metadata.split_relayer * 100,
+                )?;
+                let (remaining_amount, fee_router) =
+                    perform_fee_split(remaining_amount, data.referral_fee)?;
+
+                transfer_spl(
+                    &ctx.accounts.searcher_input_ta.to_account_info(),
+                    &ctx.accounts.protocol_fee_receiver_ata.to_account_info(),
                     &ctx.accounts.token_program_input.to_account_info(),
                     &ctx.accounts.searcher.to_account_info(),
                     &ctx.accounts.mint_input,
-                    data.amount_input,
-                    data.referral_fee_ppm,
+                    fee_protocol,
+                )?;
+                transfer_spl(
+                    &ctx.accounts.searcher_input_ta.to_account_info(),
+                    &ctx.accounts.relayer_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_input.to_account_info(),
+                    &ctx.accounts.searcher.to_account_info(),
+                    &ctx.accounts.mint_input,
+                    fee_relayer,
+                )?;
+                transfer_spl(
+                    &ctx.accounts.searcher_input_ta.to_account_info(),
+                    &ctx.accounts.router_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_input.to_account_info(),
+                    &ctx.accounts.searcher.to_account_info(),
+                    &ctx.accounts.mint_input,
+                    fee_router,
+                )?;
+                (remaining_amount, data.amount_output)
+            }
+            FeeToken::Output => {
+                validate_ata(
+                    &ctx.accounts.router_fee_receiver_ata.key(),
+                    &ctx.accounts.router.key(),
+                    &ctx.accounts.mint_output.key(),
                 )?;
 
-                (fees_referral, 0)
-            }
-            false => {
-                let fees_referral = compute_and_transfer_fee(
-                    &ctx.accounts.ta_output_trader.to_account_info(),
-                    &ctx.accounts.ta_output_router.to_account_info(),
+                validate_ata(
+                    &ctx.accounts.relayer_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_metadata.relayer_signer,
+                    &ctx.accounts.mint_output.key(),
+                )?;
+
+                validate_ata(
+                    &ctx.accounts.protocol_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_metadata.key(),
+                    &ctx.accounts.mint_output.key(),
+                )?;
+
+                let (remaining_amount, fee_protocol) = perform_fee_split(
+                    data.amount_output,
+                    ctx.accounts.express_relay_metadata.split_protocol * 100,
+                )?;
+                let (remaining_amount, fee_relayer) = perform_fee_split(
+                    remaining_amount,
+                    ctx.accounts.express_relay_metadata.split_relayer * 100,
+                )?;
+                let (remaining_amount, fee_router) =
+                    perform_fee_split(remaining_amount, data.referral_fee)?;
+
+                transfer_spl(
+                    &ctx.accounts.trader_output_ata.to_account_info(),
+                    &ctx.accounts.protocol_fee_receiver_ata.to_account_info(),
                     &ctx.accounts.token_program_output.to_account_info(),
                     &ctx.accounts.trader.to_account_info(),
                     &ctx.accounts.mint_output,
-                    data.amount_output,
-                    data.referral_fee_ppm,
+                    fee_protocol,
                 )?;
-
-                (0, fees_referral)
+                transfer_spl(
+                    &ctx.accounts.trader_output_ata.to_account_info(),
+                    &ctx.accounts.relayer_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_output.to_account_info(),
+                    &ctx.accounts.trader.to_account_info(),
+                    &ctx.accounts.mint_output,
+                    fee_relayer,
+                )?;
+                transfer_spl(
+                    &ctx.accounts.trader_output_ata.to_account_info(),
+                    &ctx.accounts.router_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_output.to_account_info(),
+                    &ctx.accounts.trader.to_account_info(),
+                    &ctx.accounts.mint_output,
+                    fee_router,
+                )?;
+                (data.amount_input, remaining_amount)
             }
         };
 
-        let amount_to_trader = data
-            .amount_input
-            .checked_sub(fees_input)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        if amount_to_trader > 0 {
-            transfer_spl(
-                &ctx.accounts.ta_input_searcher.to_account_info(),
-                &ctx.accounts.ta_input_trader.to_account_info(),
-                &ctx.accounts.token_program_input.to_account_info(),
-                &ctx.accounts.searcher.to_account_info(),
-                &ctx.accounts.mint_input,
-                amount_to_trader,
-            )?;
-        }
+        transfer_spl(
+            &ctx.accounts.searcher_input_ta.to_account_info(),
+            &ctx.accounts.trader_input_ata.to_account_info(),
+            &ctx.accounts.token_program_input.to_account_info(),
+            &ctx.accounts.searcher.to_account_info(),
+            &ctx.accounts.mint_input,
+            input_after_fees,
+        )?;
 
-        let amount_to_searcher = data
-            .amount_output
-            .checked_sub(fees_output)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        if amount_to_searcher > 0 {
-            transfer_spl(
-                &ctx.accounts.ta_output_trader.to_account_info(),
-                &ctx.accounts.ta_output_searcher.to_account_info(),
-                &ctx.accounts.token_program_output.to_account_info(),
-                &ctx.accounts.trader.to_account_info(),
-                &ctx.accounts.mint_output,
-                amount_to_searcher,
-            )?;
-        }
+        transfer_spl(
+            &ctx.accounts.trader_output_ata.to_account_info(),
+            &ctx.accounts.searcher_output_ta.to_account_info(),
+            &ctx.accounts.token_program_output.to_account_info(),
+            &ctx.accounts.trader.to_account_info(),
+            &ctx.accounts.mint_output,
+            output_after_fees,
+        )?;
+
 
         Ok(())
     }
@@ -415,47 +464,86 @@ pub struct WithdrawFees<'info> {
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
+pub enum FeeToken {
+    Input,
+    Output,
+}
+
 /// For all swap instructions and contexts, input and output are defined with respect to the searcher
 /// So mint_input refers to the token that the searcher provides to the trader
 /// mint_output refers to the token that the searcher receives from the trader
 /// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapArgs {
-    pub amount_input:       u64,
-    pub amount_output:      u64,
+    pub amount_input:  u64,
+    pub amount_output: u64,
     // The referral fee is specified in parts per million (e.g. 100 = 1 bp)
-    pub referral_fee_ppm:   u64,
-    // Whether the referral fee should be applied to the input token
-    pub referral_fee_input: bool,
+    pub referral_fee:  u64,
+    // Token in which the fees will be paid
+    pub fee_token:     FeeToken,
 }
 
 #[derive(Accounts)]
 #[instruction(data: Box<SwapArgs>)]
 pub struct Swap<'info> {
-    #[account(mut)]
-    pub searcher: Signer<'info>,
-
-    pub trader: Signer<'info>,
-
-    #[account(seeds = [
-        SEED_SWAP,
-        trader.key().as_ref(),
-        mint_input.key().as_ref(),
-        mint_output.key().as_ref(),
-        &data.amount_input.to_le_bytes(),
-        &data.amount_output.to_le_bytes(),
-    ], bump)]
-    pub permission: AccountInfo<'info>,
-
-    /// CHECK: don't care what this looks like
-    pub router: UncheckedAccount<'info>,
-
-    /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist
-    #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
-    pub config_router: UncheckedAccount<'info>,
-
+    /// Express relay configuration
     #[account(seeds = [SEED_METADATA], bump)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+
+    /// Searcher is the party that sends the input token and receives the output token
+    pub searcher: Signer<'info>,
+
+    #[account(
+        mut,
+        token::mint = mint_input,
+        token::authority = searcher,
+        token::token_program = token_program_input
+    )]
+    pub searcher_input_ta: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = mint_output,
+        token::authority = searcher,
+        token::token_program = token_program_output
+    )]
+    pub searcher_output_ta: InterfaceAccount<'info, TokenAccount>,
+
+    /// Trader is the party that sends the output token and receives the input token
+    pub trader: Signer<'info>,
+
+    #[account(
+        mut,
+        token::mint = mint_input,
+        token::authority = trader,
+        token::token_program = token_program_input
+    )]
+    pub trader_input_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = mint_output,
+        token::authority = trader,
+        token::token_program = token_program_output
+    )]
+    pub trader_output_ata: InterfaceAccount<'info, TokenAccount>,
+
+    // Accounts for the fee split
+    // TODO can we trust the Associated Token Program or should we check mint and token_program
+    /// CHECK: this is just used to check router_fee_receiver_ata is a valid ATA
+    pub router:                  UncheckedAccount<'info>,
+    pub router_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(mut,
+        token::authority = express_relay_metadata.relayer_signer,
+    )]
+    pub relayer_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(mut,
+        token::authority = express_relay_metadata.key(),
+    )]
+    pub protocol_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
 
     #[account(mint::token_program = token_program_input)]
     pub mint_input: InterfaceAccount<'info, Mint>,
@@ -463,75 +551,6 @@ pub struct Swap<'info> {
     #[account(mint::token_program = token_program_output)]
     pub mint_output: InterfaceAccount<'info, Mint>,
 
-    #[account(
-        mut,
-        token::mint = mint_input,
-        token::authority = searcher,
-        token::token_program = token_program_input
-    )]
-    pub ta_input_searcher: InterfaceAccount<'info, TokenAccount>,
-
-    // This account may not be initialized. Because the searcher is initiating the transaction, they can set it
-    // to whatever token account they wish to receive the tokens at. To initialize it, the transaction must contain
-    // an instruction to create the token account.
-    #[account(
-        mut,
-        token::mint = mint_output,
-        token::authority = searcher,
-        token::token_program = token_program_output
-    )]
-    pub ta_output_searcher: InterfaceAccount<'info, TokenAccount>,
-
-    // This account may not be initialized, and it should be set to the trader's ATA to prevent the trader from
-    // receiving the input tokens in an arbitrary token account. We perform this check within the instruction.
-    // To initialize the ATA, the transaction must contain an instruction to create the associated token account.
-    #[account(
-        mut,
-        token::mint = mint_input,
-        token::authority = trader,
-        token::token_program = token_program_input
-    )]
-    pub ta_input_trader: InterfaceAccount<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        token::mint = mint_output,
-        token::authority = trader,
-        token::token_program = token_program_output
-    )]
-    pub ta_output_trader: InterfaceAccount<'info, TokenAccount>,
-
-    // This account may not be initialized, and it should be set to the router's ATA to prevent the router from
-    // receiving input tokens in an arbitrary token account. We perform this check within the instruction.
-    // To initialize the ATA, the transaction must contain an instruction to create the associated token account.
-    #[account(
-        mut,
-        token::mint = mint_input,
-        token::authority = router,
-        token::token_program = token_program_input
-    )]
-    pub ta_input_router: InterfaceAccount<'info, TokenAccount>,
-
-    // This account may not be initialized, and it should be set to the router's ATA to prevent the router from
-    // receiving output tokens in an arbitrary token account. We perform this check within the instruction.
-    // To initialize the ATA, the transaction must contain an instruction to create the associated token account.
-    #[account(
-        mut,
-        token::mint = mint_output,
-        token::authority = router,
-        token::token_program = token_program_output
-    )]
-    pub ta_output_router: InterfaceAccount<'info, TokenAccount>,
-
-    pub express_relay_program: Program<'info, ExpressRelay>,
-
-    pub token_program_input: Interface<'info, TokenInterface>,
-
+    pub token_program_input:  Interface<'info, TokenInterface>,
     pub token_program_output: Interface<'info, TokenInterface>,
-
-    pub system_program: Program<'info, System>,
-
-    /// CHECK: this is the sysvar instructions account
-    #[account(address = sysvar_instructions::ID)]
-    pub sysvar_instructions: UncheckedAccount<'info>,
 }
