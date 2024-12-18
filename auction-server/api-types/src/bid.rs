@@ -22,8 +22,8 @@ use {
         DisplayFromStr,
     },
     solana_sdk::{
+        clock::Slot,
         signature::Signature,
-        slot_history::Slot,
         transaction::VersionedTransaction,
     },
     strum::AsRefStr,
