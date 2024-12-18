@@ -21,10 +21,10 @@ use {
         system_program::System,
     },
     anchor_spl::token_interface::{
-            Mint,
-            TokenAccount,
-            TokenInterface,
-        },
+        Mint,
+        TokenAccount,
+        TokenInterface,
+    },
 };
 
 declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
