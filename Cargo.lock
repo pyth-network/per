@@ -2608,7 +2608,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-client"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ethers",
  "express-relay-api-types",
