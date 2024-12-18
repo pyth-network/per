@@ -379,10 +379,12 @@ export class Client {
         encoded_order,
         Order.discriminator.length
       );
-      const remainingOutputAmount =
+      const remainingOutputAmount = anchor.BN.max(
         opportunity.order.state.expectedOutputAmount.sub(
           opportunity.order.state.filledOutputAmount
-        );
+        ),
+        new anchor.BN(0)
+      );
       body = {
         chain_id: opportunity.chainId,
         version: "v1" as const,

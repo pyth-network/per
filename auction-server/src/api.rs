@@ -1,17 +1,6 @@
 use {
     crate::{
-        api::ws::{
-            APIResponse,
-            ClientMessage,
-            ClientRequest,
-            ServerResultMessage,
-            ServerResultResponse,
-            ServerUpdateResponse,
-        },
-        auction::api::{
-            self as bid,
-            SvmChainUpdate,
-        },
+        auction::api as bid,
         config::RunOptions,
         models,
         opportunity::api as opportunity,
@@ -29,8 +18,10 @@ use {
             FromRef,
             FromRequestParts,
         },
+        handler::Handler,
         http::{
             request::Parts,
+            Method,
             StatusCode,
         },
         middleware,
@@ -41,7 +32,9 @@ use {
         routing::{
             delete,
             get,
+            patch,
             post,
+            put,
         },
         Json,
         Router,
@@ -59,7 +52,14 @@ use {
     },
     clap::crate_version,
     ethers::types::Bytes,
-    serde::Serialize,
+    express_relay_api_types::{
+        self as api_types,
+        profile::Route as ProfileRoute,
+        AccessLevel,
+        ErrorBodyResponse,
+        Routable,
+        Route,
+    },
     std::sync::{
         atomic::Ordering,
         Arc,
@@ -73,8 +73,6 @@ use {
         },
         Modify,
         OpenApi,
-        ToResponse,
-        ToSchema,
     },
     utoipa_redoc::{
         Redoc,
@@ -163,12 +161,6 @@ impl RestError {
             ),
         }
     }
-}
-
-#[derive(ToResponse, ToSchema, Serialize)]
-#[response(description = "An error occurred processing the request")]
-pub struct ErrorBodyResponse {
-    error: String,
 }
 
 impl IntoResponse for RestError {
@@ -271,6 +263,47 @@ fn remove_discriminators(doc: &mut serde_json::Value) {
     }
 }
 
+pub struct WrappedRouter {
+    store:      Arc<StoreNew>,
+    pub router: Router<Arc<StoreNew>>,
+}
+
+impl WrappedRouter {
+    pub fn new(store: Arc<StoreNew>) -> Self {
+        Self {
+            store,
+            router: Router::new(),
+        }
+    }
+
+    pub fn route<H, T>(self, path: impl Routable, handler: H) -> Self
+    where
+        H: Handler<T, Arc<StoreNew>>,
+        T: 'static,
+    {
+        let properties = path.properties();
+        let router = match properties.method {
+            Method::GET => get(handler),
+            Method::POST => post(handler),
+            Method::DELETE => delete(handler),
+            Method::PUT => put(handler),
+            Method::PATCH => patch(handler),
+            _ => panic!("Unsupported method"),
+        };
+
+        let router = match properties.access_level {
+            AccessLevel::Admin => admin_only!(self.store, router),
+            AccessLevel::LoggedIn => login_required!(self.store, router),
+            AccessLevel::Public => router,
+        };
+
+        Self {
+            store:  self.store,
+            router: self.router.route(&properties.full_path, router),
+        }
+    }
+}
+
 pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
@@ -292,65 +325,65 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     ),
     components(
     schemas(
-    APIResponse,
-    bid::BidCreate,
-    bid::BidCreateEvm,
-    bid::BidCreateSvm,
-    bid::BidStatus,
-    bid::BidStatusEvm,
-    bid::BidStatusSvm,
-    bid::BidStatusWithId,
-    bid::BidResult,
-    bid::Bid,
-    bid::BidEvm,
-    bid::BidSvm,
-    bid::Bids,
-    SvmChainUpdate,
+    api_types::ws::APIResponse,
+    api_types::bid::BidCreate,
+    api_types::bid::BidCreateEvm,
+    api_types::bid::BidCreateSvm,
+    api_types::bid::BidStatus,
+    api_types::bid::BidStatusEvm,
+    api_types::bid::BidStatusSvm,
+    api_types::bid::BidStatusWithId,
+    api_types::bid::BidResult,
+    api_types::bid::Bid,
+    api_types::bid::BidEvm,
+    api_types::bid::BidSvm,
+    api_types::bid::Bids,
+    api_types::SvmChainUpdate,
 
-    opportunity::OpportunityBidEvm,
-    opportunity::OpportunityBidResult,
-    opportunity::OpportunityMode,
-    opportunity::OpportunityCreate,
-    opportunity::OpportunityCreateEvm,
-    opportunity::OpportunityCreateSvm,
-    opportunity::OpportunityCreateV1Evm,
-    opportunity::OpportunityCreateV1Svm,
-    opportunity::OpportunityCreateProgramParamsV1Svm,
-    opportunity::Opportunity,
-    opportunity::OpportunityEvm,
-    opportunity::OpportunitySvm,
-    opportunity::TokenAmountEvm,
-    opportunity::TokenAmountSvm,
-    opportunity::OpportunityParamsSvm,
-    opportunity::OpportunityParamsEvm,
-    opportunity::OpportunityParamsV1Svm,
-    opportunity::OpportunityParamsV1Evm,
-    opportunity::QuoteCreate,
-    opportunity::QuoteCreateSvm,
-    opportunity::QuoteCreateV1Svm,
-    opportunity::QuoteCreatePhantomV1Svm,
-    opportunity::Quote,
-    opportunity::QuoteSvm,
-    opportunity::QuoteV1Svm,
-    opportunity::OpportunityDelete,
-    opportunity::OpportunityDeleteSvm,
-    opportunity::OpportunityDeleteEvm,
-    opportunity::OpportunityDeleteV1Svm,
-    opportunity::OpportunityDeleteV1Evm,
-    opportunity::ProgramSvm,
+    api_types::opportunity::OpportunityBidEvm,
+    api_types::opportunity::OpportunityBidResult,
+    api_types::opportunity::OpportunityMode,
+    api_types::opportunity::OpportunityCreate,
+    api_types::opportunity::OpportunityCreateEvm,
+    api_types::opportunity::OpportunityCreateSvm,
+    api_types::opportunity::OpportunityCreateV1Evm,
+    api_types::opportunity::OpportunityCreateV1Svm,
+    api_types::opportunity::OpportunityCreateProgramParamsV1Svm,
+    api_types::opportunity::Opportunity,
+    api_types::opportunity::OpportunityEvm,
+    api_types::opportunity::OpportunitySvm,
+    api_types::opportunity::TokenAmountEvm,
+    api_types::opportunity::TokenAmountSvm,
+    api_types::opportunity::OpportunityParamsSvm,
+    api_types::opportunity::OpportunityParamsEvm,
+    api_types::opportunity::OpportunityParamsV1Svm,
+    api_types::opportunity::OpportunityParamsV1Evm,
+    api_types::opportunity::QuoteCreate,
+    api_types::opportunity::QuoteCreateSvm,
+    api_types::opportunity::QuoteCreateV1Svm,
+    api_types::opportunity::QuoteCreatePhantomV1Svm,
+    api_types::opportunity::Quote,
+    api_types::opportunity::QuoteSvm,
+    api_types::opportunity::QuoteV1Svm,
+    api_types::opportunity::OpportunityDelete,
+    api_types::opportunity::OpportunityDeleteSvm,
+    api_types::opportunity::OpportunityDeleteEvm,
+    api_types::opportunity::OpportunityDeleteV1Svm,
+    api_types::opportunity::OpportunityDeleteV1Evm,
+    api_types::opportunity::ProgramSvm,
 
     ErrorBodyResponse,
-    ClientRequest,
-    ClientMessage,
-    ServerResultMessage,
-    ServerUpdateResponse,
-    ServerResultResponse,
+    api_types::ws::ClientRequest,
+    api_types::ws::ClientMessage,
+    api_types::ws::ServerResultMessage,
+    api_types::ws::ServerUpdateResponse,
+    api_types::ws::ServerResultResponse,
     ),
     responses(
     ErrorBodyResponse,
-    opportunity::Opportunity,
-    bid::BidResult,
-    bid::Bids,
+    api_types::opportunity::Opportunity,
+    api_types::bid::BidResult,
+    api_types::bid::Bids,
     ),
     ),
     tags(
@@ -376,31 +409,24 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         }
     }
 
-    let profile_routes = Router::new()
-        .route("/", admin_only!(store, post(profile::post_profile)))
-        .route("/", admin_only!(store, get(profile::get_profile)))
+    let profile_routes = WrappedRouter::new(store.clone())
+        .route(ProfileRoute::PostProfile, profile::post_profile)
+        .route(ProfileRoute::GetProfile, profile::get_profile)
         .route(
-            "/access_tokens",
-            admin_only!(store, post(profile::post_profile_access_token)),
+            ProfileRoute::PostProfileAccessToken,
+            profile::post_profile_access_token,
         )
         .route(
-            "/access_tokens",
-            login_required!(store, delete(profile::delete_profile_access_token)),
-        );
+            ProfileRoute::DeleteProfileAccessToken,
+            profile::delete_profile_access_token,
+        )
+        .router;
 
-    let v1_routes = Router::new().nest(
-        "/v1",
-        Router::new()
-            .nest("/bids", bid::get_routes(store.clone()))
-            .nest("/opportunities", opportunity::get_routes(store.clone()))
-            .nest("/profiles", profile_routes)
-            .route("/ws", get(ws::ws_route_handler)),
-    );
-
-    let v1_routes_with_chain_id = Router::new().nest(
-        "/v1/:chain_id",
-        Router::new().nest("/bids", bid::get_routes_with_chain_id(store.clone())),
-    );
+    let routes = Router::new()
+        .merge(bid::get_routes(store.clone()))
+        .merge(opportunity::get_routes(store.clone()))
+        .merge(profile_routes)
+        .merge(ws::get_routes(store.clone()));
 
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
         .with_metrics_from_fn(|| store.store.metrics_recorder.clone())
@@ -417,12 +443,11 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     remove_discriminators(&mut redoc_doc);
 
     let app: Router<()> = Router::new()
-        .merge(Redoc::with_url("/docs", redoc_doc.clone()))
-        .merge(v1_routes)
-        .merge(v1_routes_with_chain_id)
-        .route("/", get(root))
-        .route("/live", get(live))
-        .route("/docs/openapi.json", get(original_doc.to_string()))
+        .merge(Redoc::with_url(Route::Docs.as_ref(), redoc_doc.clone()))
+        .merge(routes)
+        .route(Route::Root.as_ref(), get(root))
+        .route(Route::Liveness.as_ref(), get(live))
+        .route(Route::OpenApi.as_ref(), get(original_doc.to_string()))
         .layer(CorsLayer::permissive())
         .layer(middleware::from_extractor_with_state::<Auth, Arc<StoreNew>>(store.clone()))
         .layer(prometheus_layer)

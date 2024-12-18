@@ -7,7 +7,6 @@ use {
     uuid::Uuid,
 };
 
-
 #[derive(Clone, Debug)]
 pub struct EmailAddress(pub email_address::EmailAddress);
 

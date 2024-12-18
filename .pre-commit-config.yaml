@@ -4,6 +4,7 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+        exclude: "^sdk/rust/abi/.*"
       - id: check-added-large-files
         exclude: package-lock.json
   # Hook to format many type of files in the repo
@@ -15,52 +16,27 @@ repos:
         additional_dependencies:
           - "prettier@2.7.1"
           - "prettier-plugin-solidity@1.0.0-rc.1"
+        exclude: "^sdk/rust/abi/.*"
   - repo: local
     hooks:
-      # Hooks for auction server
-      - id: cargo-fmt-auction-server
-        name: Cargo format for auction server
+      # Hooks for workspace
+      - id: cargo-fmt-workspace
+        name: Cargo format for workspace
         language: "rust"
-        entry: cargo +nightly-2024-04-10 fmt --manifest-path ./auction-server/Cargo.toml --all -- --config-path rustfmt.toml
+        entry: cargo +nightly-2024-12-03 fmt --manifest-path ./Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
-        files: auction-server
-      - id: cargo-clippy-auction-server
-        name: Cargo clippy for auction server
+        files: .
+      - id: cargo-clippy-workspace
+        name: Cargo clippy for workspace
         language: "rust"
-        entry: cargo +stable clippy --manifest-path ./auction-server/Cargo.toml --tests -- -D warnings
+        entry: cargo +stable clippy --manifest-path ./Cargo.toml --tests -- -D warnings
         pass_filenames: false
-        files: auction-server
-      # Hooks for vault-simulator
-      - id: cargo-fmt-vault-simulator
-        name: Cargo format for vault simulator
-        language: "rust"
-        entry: cargo +nightly-2024-04-10 fmt --manifest-path ./vault-simulator/Cargo.toml --all -- --config-path rustfmt.toml
-        pass_filenames: false
-        files: vault-simulator
-      - id: cargo-clippy-vault-simulator
-        name: Cargo clippy for vault simulator
-        language: "rust"
-        entry: cargo +stable clippy --manifest-path ./vault-simulator/Cargo.toml --tests -- -D warnings
-        pass_filenames: false
-        files: vault-simulator
-      # Hooks for gas-oracle
-      - id: cargo-fmt-gas-oracle
-        name: Cargo format for gas oracle
-        language: "rust"
-        entry: cargo +nightly-2024-04-10 fmt --manifest-path ./gas-oracle/Cargo.toml --all -- --config-path rustfmt.toml
-        pass_filenames: false
-        files: gas-oracle
-      - id: cargo-clippy-gas-oracle
-        name: Cargo clippy for gas oracle
-        language: "rust"
-        entry: cargo +stable clippy --manifest-path ./gas-oracle/Cargo.toml --tests -- -D warnings
-        pass_filenames: false
-        files: gas-oracle
+        files: .
       # Hooks for contracts-svm
       - id: cargo-fmt-contracts-svm
         name: Cargo format for svm contracts
         language: "rust"
-        entry: cargo +nightly-2024-04-10 fmt --manifest-path ./contracts/svm/Cargo.toml --all -- --config-path rustfmt.toml
+        entry: cargo +nightly-2024-12-03 fmt --manifest-path ./contracts/svm/Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
         files: contracts/svm
       - id: cargo-clippy-contracts-svm

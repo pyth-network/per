@@ -7,12 +7,10 @@ use {
     crate::{
         api::RestError,
         kernel::contracts::OpportunityAdapter,
-        opportunity::{
-            api::OpportunityBidEvm,
-            entities,
-        },
+        opportunity::entities,
     },
     ethers::types::Bytes,
+    express_relay_api_types::opportunity::OpportunityBidEvm,
     std::sync::Arc,
 };
 

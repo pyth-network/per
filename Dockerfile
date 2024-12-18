@@ -1,4 +1,4 @@
-ARG RUST_VERSION=1.66.1
+ARG RUST_VERSION=1.83.0
 
 # Get the solidity dependencies using npm
 FROM node:21-alpine3.18 AS npm_build
@@ -45,19 +45,11 @@ RUN forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1
 
 # Build auction-server
 WORKDIR /src
-COPY auction-server auction-server
-COPY gas-oracle gas-oracle
-WORKDIR /src/auction-server
-RUN --mount=type=cache,target=/root/.cargo/registry cargo build --release
 
-# Build vault-simulator
-WORKDIR /src
-COPY vault-simulator vault-simulator
-WORKDIR /src/vault-simulator
-RUN --mount=type=cache,target=/root/.cargo/registry cargo build --release
-
+COPY . .
+RUN --mount=type=cache,target=/root/.cargo/registry cargo build -p auction-server -p vault-simulator --release
 
 FROM rust:${RUST_VERSION}
 # Copy artifacts from other images
-COPY --from=build /src/auction-server/target/release/auction-server /usr/local/bin/
-COPY --from=build /src/vault-simulator/target/release/vault-simulator /usr/local/bin/
+COPY --from=build /src/target/release/auction-server /usr/local/bin/
+COPY --from=build /src/target/release/vault-simulator /usr/local/bin/

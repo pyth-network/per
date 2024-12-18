@@ -6,14 +6,10 @@ use {
             ChainId,
             PermissionKey,
         },
-        opportunity::{
-            api,
-            repository::{
-                self,
-            },
-        },
+        opportunity::repository,
     },
     ethers::types::Bytes,
+    express_relay_api_types::opportunity as api,
     std::{
         fmt::Debug,
         ops::Deref,

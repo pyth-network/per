@@ -11,17 +11,13 @@ use {
     },
     crate::{
         kernel::entities::PermissionKey,
-        opportunity::{
-            api,
-            repository::{
-                self,
-            },
-        },
+        opportunity::repository,
     },
     ethers::types::{
         Bytes,
         U256,
     },
+    express_relay_api_types::opportunity as api,
     std::ops::Deref,
     time::OffsetDateTime,
 };
