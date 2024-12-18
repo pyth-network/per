@@ -11,6 +11,7 @@ import {
   BidSvm,
   ChainId,
   OpportunityDelete,
+  QuoteTokens,
   SvmChainUpdate,
 } from "../types";
 import { SVM_CONSTANTS } from "../const";
@@ -24,16 +25,9 @@ import {
   ComputeBudgetProgram,
 } from "@solana/web3.js";
 
-import * as limo from "@kamino-finance/limo-sdk";
-import {
-  getMintDecimals,
-  getPdaAuthority,
-  OrderStateAndAddress,
-} from "@kamino-finance/limo-sdk/dist/utils";
-
 const DAY_IN_SECONDS = 60 * 60 * 24;
 
-export class SimpleSearcherLimo {
+export class SimpleSearcherSwap {
   protected client: Client;
   protected readonly connectionSvm: Connection;
   protected mintDecimals: Record<string, number> = {};
@@ -56,8 +50,7 @@ export class SimpleSearcherLimo {
       undefined,
       this.opportunityHandler.bind(this),
       this.bidStatusHandler.bind(this),
-      this.svmChainUpdateHandler.bind(this),
-      this.removeOpportunitiesHandler.bind(this)
+      this.svmChainUpdateHandler.bind(this)
     );
     this.bid = new anchor.BN(bid);
     this.connectionSvm = new Connection(endpointSvm, "confirmed");
@@ -77,61 +70,18 @@ export class SimpleSearcherLimo {
     );
   }
 
-  async getMintDecimalsCached(mint: PublicKey): Promise<number> {
-    const mintAddress = mint.toBase58();
-    if (this.mintDecimals[mintAddress]) {
-      return this.mintDecimals[mintAddress];
-    }
-    const decimals = await getMintDecimals(this.connectionSvm, mint);
-    this.mintDecimals[mintAddress] = decimals;
-    return decimals;
-  }
-
   /**
    * Generates a bid for a given opportunity.
-   * The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
+   * The transaction in this bid transfers assets from the searcher's wallet to fulfill the swap request.
    * @param opportunity The SVM opportunity to bid on.
    * @returns The generated bid object.
    */
   async generateBid(opportunity: OpportunitySvm): Promise<BidSvm> {
-    if (opportunity.program != "limo") {
-      throw new Error("Opportunity is not a Limo opportunity");
+    if (opportunity.program != "swap") {
+      throw new Error("Opportunity is not a swap opportunity");
     }
-    const order = opportunity.order;
-    const limoClient = new limo.LimoClient(
-      this.connectionSvm,
-      order.state.globalConfig
-    );
-
-    const ixsTakeOrder = await this.generateTakeOrderIxs(limoClient, order);
-    const feeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
-      microLamports:
-        this.latestChainUpdate[this.chainId].latestPrioritizationFee,
-    });
-    const txRaw = new anchor.web3.Transaction().add(
-      feeInstruction,
-      ...ixsTakeOrder
-    );
-
-    const bidAmount = await this.getBidAmount(order);
-
-    const config = await this.getExpressRelayConfig();
-    const bid = await this.client.constructSvmBid(
-      txRaw,
-      this.searcher.publicKey,
-      getPdaAuthority(limoClient.getProgramID(), order.state.globalConfig),
-      order.address,
-      bidAmount,
-      new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
-      this.chainId,
-      config.relayerSigner,
-      config.feeReceiverRelayer
-    );
-
-    bid.transaction.recentBlockhash =
-      this.latestChainUpdate[this.chainId].blockhash;
-    bid.transaction.sign(this.searcher);
-    return bid;
+    // TODO*: implement
+    throw new Error("Not implemented");
   }
 
   async getExpressRelayConfig(): Promise<ExpressRelaySvmConfig> {
@@ -145,69 +95,14 @@ export class SimpleSearcherLimo {
   }
 
   /**
-   * Calculates the bid amount for a given order.
-   * @param order The limit order to be fulfilled
-   * @returns The bid amount in lamports
+   * Calculates the bid amount for a given swap request.
+   * @param tokens The tokens to be swapped
+   * @returns The bid amount for the unspecified token
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getBidAmount(order: OrderStateAndAddress): Promise<anchor.BN> {
+  async getBidAmount(tokens: QuoteTokens): Promise<anchor.BN> {
     // this should be replaced by a more sophisticated logic to determine the bid amount
     return this.bid;
-  }
-
-  /**
-   * Creates the take order instructions on the Limo program
-   * @param limoClient The Limo client
-   * @param order The limit order to be fulfilled
-   * @returns The Limo TakeOrder instructions used to fulfill the order
-   */
-  async generateTakeOrderIxs(
-    limoClient: limo.LimoClient,
-    order: OrderStateAndAddress
-  ): Promise<TransactionInstruction[]> {
-    const inputMintDecimals = await this.getMintDecimalsCached(
-      order.state.inputMint
-    );
-    const outputMintDecimals = await this.getMintDecimalsCached(
-      order.state.outputMint
-    );
-    const inputAmount = this.getInputAmount(order);
-    // take the ceiling of the division by adding order.state.initialInputAmount - 1
-    const outputAmount = inputAmount
-      .mul(order.state.expectedOutputAmount)
-      .add(order.state.initialInputAmount)
-      .sub(new anchor.BN(1))
-      .div(order.state.initialInputAmount);
-
-    console.log("Order address", order.address.toBase58());
-    console.log(
-      "Fill rate",
-      inputAmount.toNumber() / order.state.initialInputAmount.toNumber()
-    );
-    console.log(
-      "Sell token",
-      order.state.inputMint.toBase58(),
-      "amount:",
-      inputAmount.toNumber() / 10 ** inputMintDecimals
-    );
-    console.log(
-      "Buy token",
-      order.state.outputMint.toBase58(),
-      "amount:",
-      outputAmount.toNumber() / 10 ** outputMintDecimals
-    );
-
-    return limoClient.takeOrderIx(
-      this.searcher.publicKey,
-      order,
-      inputAmount,
-      outputAmount,
-      SVM_CONSTANTS[this.chainId].expressRelayProgram
-    );
-  }
-
-  protected getInputAmount(order: OrderStateAndAddress): anchor.BN {
-    return order.state.remainingInputAmount;
   }
 
   async opportunityHandler(opportunity: Opportunity) {
@@ -217,7 +112,7 @@ export class SimpleSearcherLimo {
       );
       return;
     }
-    if ((opportunity as OpportunitySvm).program != "limo") {
+    if ((opportunity as OpportunitySvm).program != "swap") {
       return;
     }
     const bid = await this.generateBid(opportunity as OpportunitySvm);
@@ -235,13 +130,6 @@ export class SimpleSearcherLimo {
 
   async svmChainUpdateHandler(update: SvmChainUpdate) {
     this.latestChainUpdate[update.chainId] = update;
-  }
-
-  // NOTE: Developers are responsible for implementing custom removal logic specific to their use case.
-  async removeOpportunitiesHandler(opportunityDelete: OpportunityDelete) {
-    console.log(
-      `Opportunities ${JSON.stringify(opportunityDelete)} don't exist anymore`
-    );
   }
 
   async start() {
@@ -329,7 +217,7 @@ export function getKeypair(
 async function run() {
   const argv = makeParser().parseSync();
   const searcherKeyPair = getKeypair(argv.privateKey, argv.privateKeyJsonFile);
-  const simpleSearcher = new SimpleSearcherLimo(
+  const simpleSearcher = new SimpleSearcherSwap(
     argv.endpointExpressRelay,
     argv.chainId,
     searcherKeyPair,

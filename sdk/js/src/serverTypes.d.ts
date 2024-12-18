@@ -3,6 +3,17 @@
  * Do not make direct changes to the file.
  */
 
+/** OneOf type helpers */
+type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never };
+type XOR<T, U> = T | U extends object
+  ? (Without<T, U> & U) | (Without<U, T> & T)
+  : T | U;
+type OneOf<T extends any[]> = T extends [infer Only]
+  ? Only
+  : T extends [infer A, infer B, ...infer Rest]
+  ? OneOf<[XOR<A, B>, ...Rest]>
+  : never;
+
 export interface paths {
   "/v1/bids": {
     /**
@@ -412,13 +423,13 @@ export interface components {
         }
       | {
           /**
-           * Format: double
-           * @description The maximum slippage percentage that the user is willing to accept.
-           * @example 0.5
+           * Format: int32
+           * @description The maximum slippage in basis points that the user is willing to accept.
+           * @example 50
            */
-          maximum_slippage_percentage: number;
+          maximum_slippage_bps: number;
           /** @enum {string} */
-          program: "phantom";
+          program: "swap";
           /**
            * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -485,13 +496,13 @@ export interface components {
         }
       | {
           /**
-           * Format: double
-           * @description The maximum slippage percentage that the user is willing to accept.
-           * @example 0.5
+           * Format: int32
+           * @description The maximum slippage in basis points that the user is willing to accept.
+           * @example 50
            */
-          maximum_slippage_percentage: number;
+          maximum_slippage_bps: number;
           /** @enum {string} */
-          program: "phantom";
+          program: "swap";
           /**
            * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -619,26 +630,40 @@ export interface components {
           program: "limo";
         }
       | {
-          buy_token: components["schemas"]["TokenAmountSvm"];
           /**
-           * Format: double
-           * @description The maximum slippage percentage that the user is willing to accept.
-           * @example 0.5
+           * Format: int32
+           * @description The maximum slippage in basis points that the user is willing to accept.
+           * @example 50
            */
-          maximum_slippage_percentage: number;
+          maximum_slippage_bps: number;
           /**
            * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           permission_account: string;
           /** @enum {string} */
-          program: "phantom";
+          program: "swap";
           /**
            * @description The router account to be used for the opportunity execution of the protocol.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           router_account: string;
-          sell_token: components["schemas"]["TokenAmountSvm"];
+          tokens: OneOf<
+            [
+              {
+                InputTokenSpecified: {
+                  input_token: components["schemas"]["TokenAmountSvm"];
+                  output_token: components["schemas"]["Pubkey"];
+                };
+              },
+              {
+                OutputTokenSpecified: {
+                  input_token: components["schemas"]["Pubkey"];
+                  output_token: components["schemas"]["TokenAmountSvm"];
+                };
+              }
+            ]
+          >;
           /**
            * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -671,59 +696,86 @@ export interface components {
       slot: number;
     };
     /** @enum {string} */
-    ProgramSvm: "phantom" | "limo";
+    ProgramSvm: "swap" | "limo";
     Quote: components["schemas"]["QuoteSvm"];
     QuoteCreate: components["schemas"]["QuoteCreateSvm"];
+    QuoteCreateSvm: components["schemas"]["QuoteCreateV1Svm"] & {
+      /** @enum {string} */
+      version: "v1";
+    };
     /**
-     * @description Parameters needed to create a new opportunity from the Phantom wallet.
+     * @description Parameters needed to create a new opportunity from the swap request.
      * Auction server will extract the output token price for the auction.
      */
-    QuoteCreatePhantomV1Svm: {
+    QuoteCreateSwapV1Svm: {
       /**
        * @description The chain id for creating the quote.
        * @example solana
        */
       chain_id: string;
       /**
-       * Format: int64
-       * @description The input token amount that the user wants to swap.
-       * @example 100
-       */
-      input_token_amount: number;
-      /**
        * @description The token mint address of the input token.
        * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
        */
       input_token_mint: string;
       /**
-       * Format: double
-       * @description The maximum slippage percentage that the user is willing to accept.
-       * @example 0.5
+       * Format: int32
+       * @description The maximum slippage in basis points that the user is willing to accept.
+       * @example 50
        */
-      maximum_slippage_percentage: number;
+      maximum_slippage_bps: number;
       /**
        * @description The token mint address of the output token.
        * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
        */
       output_token_mint: string;
+      token_amount: components["schemas"]["QuoteTokenAmount"];
       /**
        * @description The user wallet address which requested the quote from the wallet.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       user_wallet_address: string;
     };
-    QuoteCreateSvm: components["schemas"]["QuoteCreateV1Svm"] & {
+    QuoteCreateV1Svm: components["schemas"]["QuoteCreateSwapV1Svm"] & {
       /** @enum {string} */
-      version: "v1";
-    };
-    QuoteCreateV1Svm: components["schemas"]["QuoteCreatePhantomV1Svm"] & {
-      /** @enum {string} */
-      program: "phantom";
+      program: "swap";
     };
     QuoteSvm: components["schemas"]["QuoteV1Svm"] & {
       /** @enum {string} */
       version: "v1";
     };
+    QuoteTokenAmount: OneOf<
+      [
+        {
+          InputToken: {
+            /** Format: int64 */
+            amount: number;
+          };
+        },
+        {
+          OutputToken: {
+            /** Format: int64 */
+            amount: number;
+          };
+        }
+      ]
+    >;
+    QuoteTokens: OneOf<
+      [
+        {
+          InputTokenSpecified: {
+            input_token: components["schemas"]["TokenAmountSvm"];
+            output_token: components["schemas"]["Pubkey"];
+          };
+        },
+        {
+          OutputTokenSpecified: {
+            input_token: components["schemas"]["Pubkey"];
+            output_token: components["schemas"]["TokenAmountSvm"];
+          };
+        }
+      ]
+    >;
     QuoteV1Svm: {
       /**
        * @description The chain id for the quote.
@@ -738,11 +790,11 @@ export interface components {
       expiration_time: number;
       input_token: components["schemas"]["TokenAmountSvm"];
       /**
-       * Format: double
-       * @description The maximum slippage percentage that the user is willing to accept.
-       * @example 0.5
+       * Format: int32
+       * @description The maximum slippage in basis points that the user is willing to accept.
+       * @example 50
        */
-      maximum_slippage_percentage: number;
+      maximum_slippage_bps: number;
       output_token: components["schemas"]["TokenAmountSvm"];
       /**
        * @description The signed transaction for the quote to be executed on chain which is valid until the expiration time.
@@ -817,7 +869,9 @@ export interface components {
     TokenAmountSvm: {
       /**
        * Format: int64
-       * @description The token amount in lamports.
+       * @description The token amount, represented in the smallest unit of the respective token:
+       * - For Solana, it is measured in lamports.
+       * - For other tokens, it follows the smallest denomination of that token.
        * @example 1000
        */
       amount: number;

@@ -6,7 +6,7 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
-import { BidSvm, ExpressRelaySvmConfig } from "./types";
+import { BidSvm, ExpressRelaySvmConfig, OpportunitySvm } from "./types";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { ExpressRelay } from "./expressRelayTypes";
 import expressRelayIdl from "./idl/idlExpressRelay.json";
@@ -109,6 +109,38 @@ export async function constructSvmBid(
   return {
     transaction: tx,
     chainId: chainId,
+    env: "svm",
+  };
+}
+
+export async function constructSwapInstruction(
+  searcher: PublicKey,
+  opportunity: OpportunitySvm,
+  bidAmount: anchor.BN,
+  deadline: anchor.BN,
+  relayerSigner: PublicKey,
+  feeReceiverRelayer: PublicKey
+): Promise<TransactionInstruction> {
+  // TODO*: generate anchor types for swap
+  // TODO*: implement
+  throw new Error("Not implemented");
+}
+
+export async function constructSvmSwap(
+  tx: Transaction,
+  searcher: PublicKey,
+  opportunity: OpportunitySvm,
+  bidAmount: anchor.BN,
+  deadline: anchor.BN,
+  relayerSigner: PublicKey,
+  feeReceiverRelayer: PublicKey
+): Promise<BidSvm> {
+  throw new Error("Not implemented");
+  // TODO*: implement
+
+  return {
+    transaction: tx,
+    chainId: opportunity.chainId,
     env: "svm",
   };
 }

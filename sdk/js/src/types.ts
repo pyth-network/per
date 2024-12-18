@@ -99,9 +99,22 @@ export type OpportunityEvm = {
   opportunityId: string;
 };
 
-export type OpportunitySvm = {
-  order: OrderStateAndAddress;
-  program: "limo";
+export type TokenAmountSvm = {
+  token: PublicKey;
+  amount: bigint;
+};
+
+export type QuoteTokens =
+  | {
+      inputTokenAmount: TokenAmountSvm;
+      outputToken: PublicKey;
+    }
+  | {
+      inputToken: PublicKey;
+      outputTokenAmount: TokenAmountSvm;
+    };
+
+export type OpportunitySvmBase = {
   /**
    * The chain id where the opportunity will be executed.
    */
@@ -115,6 +128,35 @@ export type OpportunitySvm = {
    */
   opportunityId: string;
 };
+
+export type OpportunitySvmSwap = OpportunitySvmBase & {
+  /**
+   * The address of the user that requested the quote
+   */
+  user: PublicKey;
+  /**
+   * The permission key generated from the relevant user and request data
+   */
+  permissionKey: PublicKey;
+  /**
+   * The router account
+   */
+  router: PublicKey;
+  /**
+   * The maximum slippage in basis points that the user is willing to accept.
+   */
+  maximumSlippageBps: number;
+  /**
+   * The tokens to be swapped
+   */
+  tokens: QuoteTokens;
+  program: "swap";
+};
+export type OpportunitySvmLimo = OpportunitySvmBase & {
+  order: OrderStateAndAddress;
+  program: "limo";
+};
+export type OpportunitySvm = OpportunitySvmSwap | OpportunitySvmLimo;
 
 export type OpportunityCreate =
   | Omit<OpportunityEvm, "opportunityId">

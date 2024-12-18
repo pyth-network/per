@@ -20,6 +20,7 @@ import {
   SvmChainUpdate,
   OpportunityDelete,
   ChainType,
+  OpportunitySvmLimo,
 } from "./types";
 import {
   Connection,
@@ -370,60 +371,62 @@ export class Client {
     const client = createClient<paths>(this.clientOptions);
     let body;
     if ("order" in opportunity) {
+      const opportunityLimo = opportunity as OpportunitySvmLimo;
       const encoded_order = Buffer.alloc(
         Order.discriminator.length + Order.layout.span
       );
       Order.discriminator.copy(encoded_order);
       Order.layout.encode(
-        opportunity.order.state,
+        opportunityLimo.order.state,
         encoded_order,
         Order.discriminator.length
       );
       const remainingOutputAmount = anchor.BN.max(
-        opportunity.order.state.expectedOutputAmount.sub(
-          opportunity.order.state.filledOutputAmount
+        opportunityLimo.order.state.expectedOutputAmount.sub(
+          opportunityLimo.order.state.filledOutputAmount
         ),
         new anchor.BN(0)
       );
       body = {
-        chain_id: opportunity.chainId,
+        chain_id: opportunityLimo.chainId,
         version: "v1" as const,
-        program: opportunity.program,
+        program: opportunityLimo.program,
 
         order: encoded_order.toString("base64"),
-        slot: opportunity.slot,
-        order_address: opportunity.order.address.toBase58(),
+        slot: opportunityLimo.slot,
+        order_address: opportunityLimo.order.address.toBase58(),
         buy_tokens: [
           {
-            token: opportunity.order.state.inputMint.toBase58(),
-            amount: opportunity.order.state.remainingInputAmount.toNumber(),
+            token: opportunityLimo.order.state.inputMint.toBase58(),
+            amount: opportunityLimo.order.state.remainingInputAmount.toNumber(),
           },
         ],
         sell_tokens: [
           {
-            token: opportunity.order.state.outputMint.toBase58(),
+            token: opportunityLimo.order.state.outputMint.toBase58(),
             amount: remainingOutputAmount.toNumber(),
           },
         ],
-        permission_account: opportunity.order.address.toBase58(),
+        permission_account: opportunityLimo.order.address.toBase58(),
         router: getPdaAuthority(
           limoId,
-          opportunity.order.state.globalConfig
+          opportunityLimo.order.state.globalConfig
         ).toBase58(),
       };
     } else {
+      const opportunityEvm = opportunity as OpportunityEvm;
       body = {
-        chain_id: opportunity.chainId,
+        chain_id: opportunityEvm.chainId,
         version: "v1" as const,
-        permission_key: opportunity.permissionKey,
-        target_contract: opportunity.targetContract,
-        target_calldata: opportunity.targetCalldata,
-        target_call_value: opportunity.targetCallValue.toString(),
-        sell_tokens: opportunity.sellTokens.map(({ token, amount }) => ({
+        permission_key: opportunityEvm.permissionKey,
+        target_contract: opportunityEvm.targetContract,
+        target_calldata: opportunityEvm.targetCalldata,
+        target_call_value: opportunityEvm.targetCallValue.toString(),
+        sell_tokens: opportunityEvm.sellTokens.map(({ token, amount }) => ({
           token,
           amount: amount.toString(),
         })),
-        buy_tokens: opportunity.buyTokens.map(({ token, amount }) => ({
+        buy_tokens: opportunityEvm.buyTokens.map(({ token, amount }) => ({
           token,
           amount: amount.toString(),
         })),
@@ -595,8 +598,51 @@ export class Client {
         program: "limo",
       };
     } else {
-      console.warn("Cannot handle wallet opportunities");
-      return undefined;
+      if ("tokens" in opportunity) {
+        const tokens = opportunity.tokens.InputTokenSpecified
+          ? {
+              inputTokenAmount: {
+                token: new PublicKey(
+                  opportunity.tokens.InputTokenSpecified.input_token.token
+                ),
+                amount: BigInt(
+                  opportunity.tokens.InputTokenSpecified.input_token.amount
+                ),
+              },
+              outputToken: new PublicKey(
+                opportunity.tokens.InputTokenSpecified.output_token
+              ),
+            }
+          : {
+              inputToken: new PublicKey(
+                opportunity.tokens.OutputTokenSpecified.input_token
+              ),
+              outputTokenAmount: {
+                token: new PublicKey(
+                  opportunity.tokens.OutputTokenSpecified.output_token.token
+                ),
+                amount: BigInt(
+                  opportunity.tokens.OutputTokenSpecified.output_token.amount
+                ),
+              },
+            };
+
+        return {
+          chainId: opportunity.chain_id,
+          slot: opportunity.slot,
+          opportunityId: opportunity.opportunity_id,
+          user: new PublicKey(opportunity.user_wallet_address),
+          permissionKey: new PublicKey(opportunity.permission_account),
+          router: new PublicKey(opportunity.router_account),
+          maximumSlippageBps: opportunity.maximum_slippage_bps,
+          tokens,
+          program: "swap",
+        };
+      }
+
+      throw new Error(
+        "Opportunity cannot be converted, as it is of invalid format"
+      );
     }
   }
 
