@@ -483,33 +483,45 @@ pub struct QuoteCreateV1SvmParams {
     /// The user wallet address which requested the quote from the wallet.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub user_wallet_address:  Pubkey,
+    pub user_wallet_address:    Pubkey,
     /// The token mint address of the input token.
     #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub input_token_mint:     Pubkey,
+    pub input_token_mint:       Pubkey,
     /// The token mint address of the output token.
     #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub output_token_mint:    Pubkey,
+    pub output_token_mint:      Pubkey,
     /// The token amount that the user wants to swap out of/into.
-    pub token_amount:         QuoteTokenAmount,
+    #[schema(inline)]
+    pub specified_token_amount: SpecifiedTokenAmount,
     /// The maximum slippage in basis points that the user is willing to accept.
     #[schema(example = 50)]
-    pub maximum_slippage_bps: u16,
+    pub maximum_slippage_bps:   u16,
     /// The router account to send referral fees to.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub router:               Pubkey,
+    pub router:                 Pubkey,
     /// The chain id for creating the quote.
     #[schema(example = "solana", value_type = String)]
-    pub chain_id:             ChainId,
+    pub chain_id:               ChainId,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub enum QuoteTokenAmount {
-    InputToken { amount: u64 },
-    OutputToken { amount: u64 },
+#[serde(tag = "side")]
+pub enum SpecifiedTokenAmount {
+    #[serde(rename = "input")]
+    #[schema(title = "input")]
+    InputToken {
+        #[schema(example = 100)]
+        amount: u64,
+    },
+    #[serde(rename = "output")]
+    #[schema(title = "output")]
+    OutputToken {
+        #[schema(example = 50)]
+        amount: u64,
+    },
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]

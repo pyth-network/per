@@ -44,21 +44,23 @@ impl From<api::QuoteCreate> for QuoteCreate {
     fn from(quote_create: api::QuoteCreate) -> Self {
         let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(params)) = quote_create;
 
-        let tokens = match params.token_amount {
-            api::QuoteTokenAmount::InputToken { amount } => QuoteTokens::InputTokenSpecified {
+        let tokens = match params.specified_token_amount {
+            api::SpecifiedTokenAmount::InputToken { amount } => QuoteTokens::InputTokenSpecified {
                 input_token:  TokenAmountSvm {
                     token:  params.input_token_mint,
                     amount: amount,
                 },
                 output_token: params.output_token_mint,
             },
-            api::QuoteTokenAmount::OutputToken { amount } => QuoteTokens::OutputTokenSpecified {
-                input_token:  params.input_token_mint,
-                output_token: TokenAmountSvm {
-                    token:  params.output_token_mint,
-                    amount: amount,
-                },
-            },
+            api::SpecifiedTokenAmount::OutputToken { amount } => {
+                QuoteTokens::OutputTokenSpecified {
+                    input_token:  params.input_token_mint,
+                    output_token: TokenAmountSvm {
+                        token:  params.output_token_mint,
+                        amount: amount,
+                    },
+                }
+            }
         };
 
         Self {

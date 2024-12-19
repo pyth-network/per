@@ -340,6 +340,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::bid::Bids,
     api_types::SvmChainUpdate,
 
+    api_types::opportunity::SpecifiedTokenAmount,
     api_types::opportunity::OpportunityBidEvm,
     api_types::opportunity::OpportunityBidResult,
     api_types::opportunity::OpportunityMode,
@@ -363,7 +364,6 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::opportunity::QuoteCreateV1SvmParams,
     api_types::opportunity::Quote,
     api_types::opportunity::QuoteSvm,
-    api_types::opportunity::QuoteTokenAmount,
     api_types::opportunity::QuoteTokens,
     api_types::opportunity::QuoteV1Svm,
     api_types::opportunity::OpportunityDelete,
