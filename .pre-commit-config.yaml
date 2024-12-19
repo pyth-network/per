@@ -55,16 +55,16 @@ repos:
       # For python files
       - id: isort
         name: isort
-        entry: poetry -C per_sdk run isort --profile=black per_sdk
+        entry: poetry -C tilt-scripts run isort --profile=black tilt-scripts
         pass_filenames: false
         language: system
       - id: black
         name: black
-        entry: poetry -C per_sdk run black per_sdk
+        entry: poetry -C tilt-scripts run black tilt-scripts
         pass_filenames: false
         language: system
       - id: pyflakes
         name: pyflakes
-        entry: poetry -C per_sdk run pyflakes per_sdk
+        entry: poetry -C tilt-scripts run pyflakes tilt-scripts
         pass_filenames: false
         language: system

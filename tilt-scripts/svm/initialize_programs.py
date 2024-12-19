@@ -11,7 +11,7 @@ from solders.instruction import AccountMeta, Instruction
 from solders.pubkey import Pubkey
 from solders.system_program import ID as system_pid
 
-from per_sdk.svm.helpers import configure_logger, read_kp_from_json
+from ..svm.helpers import configure_logger, read_kp_from_json
 
 logger = logging.getLogger(__name__)
 

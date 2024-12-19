@@ -81,7 +81,7 @@ cmd_button(
 )
 
 local_resource(
-    "create-server-configs", "poetry -C per_sdk run python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts","svm-setup-accounts"]
+    "create-server-configs", "poetry -C tilt-scripts run python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts","svm-setup-accounts"]
 )
 
 local_resource(
@@ -145,8 +145,8 @@ local_resource(
 
 monitor_command = (
     "source tilt-resources.env; "
-    + "poetry -C per_sdk run "
-    + "python3 -m per_sdk.protocols.token_vault_monitor "
+    + "poetry -C tilt-scripts run "
+    + "python3 -m tilt-scripts.protocols.token_vault_monitor "
     + "--chain-id development "
     + "--rpc-url %s " % (rpc_url_anvil)
     + "--vault-contract $TOKEN_VAULT "
@@ -163,17 +163,7 @@ local_resource(
 
 evm_searcher_command = (
     "source tilt-resources.env;"
-    + "poetry -C per_sdk run "
-    + "python3 -m per_sdk.searcher.simple_searcher "
-    + "--private-key $SEARCHER_SK "
-    + "--chain-id development "
-    + "--chain-id-num $CHAIN_ID_NUM "
-    + "--verbose "
-    + "--liquidation-server-url http://localhost:9000 "
-    + "--adapter-factory-address $ADAPTER_FACTORY "
-    + "--adapter-init-bytecode-hash $ADAPTER_BYTECODE_HASH "
-    + "--weth-address $WETH "
-    + "--permit2-address $PERMIT2 "
+    + "cargo run -p testing-searcher "
 )
 local_resource(
     "evm-searcher",
@@ -195,27 +185,27 @@ local_resource(
 
 local_resource(
     "svm-setup-accounts",
-    "poetry -C per_sdk run python3 -m per_sdk.svm.setup_accounts --rpc-url %s" % rpc_url_solana,
+    "poetry -C tilt-scripts run python3 -m tilt-scripts.svm.setup_accounts --rpc-url %s" % rpc_url_solana,
     resource_deps=["svm-localnet"],
 )
 
 # need to run initialize instructions for the programs one time, script skips if already initialized
 local_resource(
     "svm-initialize-programs",
-    "poetry -C per_sdk run python3 -m per_sdk.svm.initialize_programs -v --file-private-key-payer keypairs/searcher_py.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --rpc-url %s" % rpc_url_solana,
+    "poetry -C tilt-scripts run python3 -m tilt-scripts.svm.initialize_programs -v --file-private-key-payer keypairs/searcher_py.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --rpc-url %s" % rpc_url_solana,
     resource_deps=["svm-setup-accounts"]
 )
 
 # craft dummy tx, submits as a bid to auction server or submits relayer-signed tx directly to solana cluster
 local_resource(
     "svm-submit-bid",
-    "poetry -C per_sdk run python3 -m per_sdk.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher_py.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100000000 --auction-server-url http://localhost:9000 --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --dummy-program DUmmYXYFZugRn2DS4REc5F9UbQNoxYsHP1VMZ6j5U7kZ --rpc-url %s --use-lookup-table" % rpc_url_solana,
+    "poetry -C tilt-scripts run python3 -m tilt-scripts.svm.dummy_tx -v --file-private-key-searcher keypairs/searcher_py.json --file-private-key-relayer-signer keypairs/relayer_signer.json --bid 100000000 --auction-server-url http://localhost:9000 --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --dummy-program DUmmYXYFZugRn2DS4REc5F9UbQNoxYsHP1VMZ6j5U7kZ --rpc-url %s --use-lookup-table" % rpc_url_solana,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
 local_resource(
     "svm-limonade",
-    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id development-solana --api-key $(poetry -C per_sdk run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
+    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id development-solana --api-key $(poetry -C tilt-scripts run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 

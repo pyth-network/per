@@ -8,7 +8,7 @@ from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
 from solders.keypair import Keypair
 
-from per_sdk.svm.helpers import configure_logger, read_kp_from_json
+from .helpers import configure_logger, read_kp_from_json
 
 logger = logging.getLogger(__name__)
 

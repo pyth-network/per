@@ -5,6 +5,7 @@ members = [
     "auction-server",
     "gas-oracle",
     "sdk/rust/simple-searcher",
+    "sdk/rust/testing-searcher",
     "sdk/rust",
     "vault-simulator",
 ]
