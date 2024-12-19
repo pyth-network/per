@@ -167,11 +167,14 @@ class PostBidMessageParamsSvm(BaseModel):
         method: A string literal "post_bid".
         chain_id: The chain ID to bid on.
         transaction: The transaction including the bid.
+        slot: The minimum slot required for the bid to be executed successfully
+              None if the bid can be executed at any recent slot
     """
 
     method: Literal["post_bid"]
     chain_id: str
     transaction: SvmTransaction
+    slot: int | None
 
 
 def get_discriminator_value(v: Any) -> str:
