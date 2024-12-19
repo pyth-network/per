@@ -20,6 +20,11 @@ use {
         },
         system_program::System,
     },
+    anchor_spl::token_interface::{
+        Mint,
+        TokenAccount,
+        TokenInterface,
+    },
 };
 
 declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
@@ -147,6 +152,155 @@ pub mod express_relay {
             amount,
         )
     }
+
+    pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
+        validate_ata(
+            &ctx.accounts.trader_input_ata.key(),
+            &ctx.accounts.trader.key(),
+            &ctx.accounts.mint_input.key(),
+        )?;
+        validate_ata(
+            &ctx.accounts.trader_output_ata.key(),
+            &ctx.accounts.trader.key(),
+            &ctx.accounts.mint_output.key(),
+        )?;
+
+        let (input_after_fees, output_after_fees) = match data.fee_token {
+            FeeToken::Input => {
+                validate_ata(
+                    &ctx.accounts.router_fee_receiver_ata.key(),
+                    &ctx.accounts.router.key(),
+                    &ctx.accounts.mint_input.key(),
+                )?;
+
+                validate_ata(
+                    &ctx.accounts.relayer_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_metadata.relayer_signer,
+                    &ctx.accounts.mint_input.key(),
+                )?;
+
+                validate_ata(
+                    &ctx.accounts.protocol_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_metadata.key(),
+                    &ctx.accounts.mint_input.key(),
+                )?;
+
+                let (remaining_amount, fee_protocol) = perform_fee_split(
+                    data.amount_input,
+                    ctx.accounts.express_relay_metadata.split_protocol * 100,
+                )?;
+                let (remaining_amount, fee_relayer) = perform_fee_split(
+                    remaining_amount,
+                    ctx.accounts.express_relay_metadata.split_relayer * 100,
+                )?;
+                let (remaining_amount, fee_router) =
+                    perform_fee_split(remaining_amount, data.referral_fee)?;
+
+                transfer_spl(
+                    &ctx.accounts.searcher_input_ta.to_account_info(),
+                    &ctx.accounts.protocol_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_input.to_account_info(),
+                    &ctx.accounts.searcher.to_account_info(),
+                    &ctx.accounts.mint_input,
+                    fee_protocol,
+                )?;
+                transfer_spl(
+                    &ctx.accounts.searcher_input_ta.to_account_info(),
+                    &ctx.accounts.relayer_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_input.to_account_info(),
+                    &ctx.accounts.searcher.to_account_info(),
+                    &ctx.accounts.mint_input,
+                    fee_relayer,
+                )?;
+                transfer_spl(
+                    &ctx.accounts.searcher_input_ta.to_account_info(),
+                    &ctx.accounts.router_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_input.to_account_info(),
+                    &ctx.accounts.searcher.to_account_info(),
+                    &ctx.accounts.mint_input,
+                    fee_router,
+                )?;
+                (remaining_amount, data.amount_output)
+            }
+            FeeToken::Output => {
+                validate_ata(
+                    &ctx.accounts.router_fee_receiver_ata.key(),
+                    &ctx.accounts.router.key(),
+                    &ctx.accounts.mint_output.key(),
+                )?;
+
+                validate_ata(
+                    &ctx.accounts.relayer_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_metadata.relayer_signer,
+                    &ctx.accounts.mint_output.key(),
+                )?;
+
+                validate_ata(
+                    &ctx.accounts.protocol_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_metadata.key(),
+                    &ctx.accounts.mint_output.key(),
+                )?;
+
+                let (remaining_amount, fee_protocol) = perform_fee_split(
+                    data.amount_output,
+                    ctx.accounts.express_relay_metadata.split_protocol * 100,
+                )?;
+                let (remaining_amount, fee_relayer) = perform_fee_split(
+                    remaining_amount,
+                    ctx.accounts.express_relay_metadata.split_relayer * 100,
+                )?;
+                let (remaining_amount, fee_router) =
+                    perform_fee_split(remaining_amount, data.referral_fee)?;
+
+                transfer_spl(
+                    &ctx.accounts.trader_output_ata.to_account_info(),
+                    &ctx.accounts.protocol_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_output.to_account_info(),
+                    &ctx.accounts.trader.to_account_info(),
+                    &ctx.accounts.mint_output,
+                    fee_protocol,
+                )?;
+                transfer_spl(
+                    &ctx.accounts.trader_output_ata.to_account_info(),
+                    &ctx.accounts.relayer_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_output.to_account_info(),
+                    &ctx.accounts.trader.to_account_info(),
+                    &ctx.accounts.mint_output,
+                    fee_relayer,
+                )?;
+                transfer_spl(
+                    &ctx.accounts.trader_output_ata.to_account_info(),
+                    &ctx.accounts.router_fee_receiver_ata.to_account_info(),
+                    &ctx.accounts.token_program_output.to_account_info(),
+                    &ctx.accounts.trader.to_account_info(),
+                    &ctx.accounts.mint_output,
+                    fee_router,
+                )?;
+                (data.amount_input, remaining_amount)
+            }
+        };
+
+        transfer_spl(
+            &ctx.accounts.searcher_input_ta.to_account_info(),
+            &ctx.accounts.trader_input_ata.to_account_info(),
+            &ctx.accounts.token_program_input.to_account_info(),
+            &ctx.accounts.searcher.to_account_info(),
+            &ctx.accounts.mint_input,
+            input_after_fees,
+        )?;
+
+        transfer_spl(
+            &ctx.accounts.trader_output_ata.to_account_info(),
+            &ctx.accounts.searcher_output_ta.to_account_info(),
+            &ctx.accounts.token_program_output.to_account_info(),
+            &ctx.accounts.trader.to_account_info(),
+            &ctx.accounts.mint_output,
+            output_after_fees,
+        )?;
+
+
+        Ok(())
+    }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
@@ -259,7 +413,7 @@ pub struct SubmitBid<'info> {
     #[account(mut)]
     pub router: UncheckedAccount<'info>,
 
-    /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist.
+    /// CHECK: Some routers might have an initialized ConfigRouter at the enforced PDA address which specifies a custom routing fee split. If the ConfigRouter is unitialized we will default to the routing fee split defined in the global ExpressRelayMetadata. We need to pass this account to check whether it exists and therefore there is a custom fee split.
     #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
     pub config_router: UncheckedAccount<'info>,
 
@@ -308,4 +462,95 @@ pub struct WithdrawFees<'info> {
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
+pub enum FeeToken {
+    Input,
+    Output,
+}
+
+/// For all swap instructions and contexts, input and output are defined with respect to the searcher
+/// So mint_input refers to the token that the searcher provides to the trader
+/// mint_output refers to the token that the searcher receives from the trader
+/// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
+pub struct SwapArgs {
+    pub amount_input:  u64,
+    pub amount_output: u64,
+    // The referral fee is specified in parts per million (e.g. 100 = 1 bp)
+    pub referral_fee:  u64,
+    // Token in which the fees will be paid
+    pub fee_token:     FeeToken,
+}
+
+#[derive(Accounts)]
+#[instruction(data: Box<SwapArgs>)]
+pub struct Swap<'info> {
+    /// Express relay configuration
+    #[account(seeds = [SEED_METADATA], bump)]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+
+    /// Searcher is the party that sends the input token and receives the output token
+    pub searcher: Signer<'info>,
+
+    #[account(
+        mut,
+        token::mint = mint_input,
+        token::authority = searcher,
+        token::token_program = token_program_input
+    )]
+    pub searcher_input_ta: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = mint_output,
+        token::authority = searcher,
+        token::token_program = token_program_output
+    )]
+    pub searcher_output_ta: InterfaceAccount<'info, TokenAccount>,
+
+    /// Trader is the party that sends the output token and receives the input token
+    pub trader: Signer<'info>,
+
+    #[account(
+        mut,
+        token::mint = mint_input,
+        token::authority = trader,
+        token::token_program = token_program_input
+    )]
+    pub trader_input_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = mint_output,
+        token::authority = trader,
+        token::token_program = token_program_output
+    )]
+    pub trader_output_ata: InterfaceAccount<'info, TokenAccount>,
+
+    // Accounts for the fee split
+    // TODO can we trust the Associated Token Program or should we check mint and token_program
+    /// CHECK: this is just used to check router_fee_receiver_ata is a valid ATA
+    pub router:                  UncheckedAccount<'info>,
+    pub router_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(mut,
+        token::authority = express_relay_metadata.relayer_signer,
+    )]
+    pub relayer_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(mut,
+        token::authority = express_relay_metadata.key(),
+    )]
+    pub protocol_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(mint::token_program = token_program_input)]
+    pub mint_input: InterfaceAccount<'info, Mint>,
+
+    #[account(mint::token_program = token_program_output)]
+    pub mint_output: InterfaceAccount<'info, Mint>,
+
+    pub token_program_input:  Interface<'info, TokenInterface>,
+    pub token_program_output: Interface<'info, TokenInterface>,
 }
