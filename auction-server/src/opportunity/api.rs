@@ -58,7 +58,7 @@ fn get_program(auth: &Auth) -> Result<ProgramSvm, RestError> {
 
             match profile.name.as_str() {
                 "limo" => Ok(ProgramSvm::Limo),
-                "phantom" => Ok(ProgramSvm::Phantom),
+                "swap" => Ok(ProgramSvm::Swap),
                 _ => Err(RestError::Forbidden),
             }
         }
@@ -211,7 +211,7 @@ pub async fn post_quote(
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
 ) -> Result<Json<Quote>, RestError> {
-    if get_program(&auth)? != ProgramSvm::Phantom {
+    if get_program(&auth)? != ProgramSvm::Swap {
         return Err(RestError::Forbidden);
     }
 

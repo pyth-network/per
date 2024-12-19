@@ -34,6 +34,7 @@ pub struct Auction<T: ChainTrait> {
     pub bids: Vec<Bid<T>>,
 }
 
+#[derive(PartialEq)]
 pub enum SubmitType {
     ByServer,
     ByOther,
