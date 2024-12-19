@@ -58,7 +58,7 @@ fn get_program(auth: &Auth) -> Result<ProgramSvm, RestError> {
 
             match profile.name.as_str() {
                 "limo" => Ok(ProgramSvm::Limo),
-                "swap" => Ok(ProgramSvm::Swap),
+                "Kamino Market" => Ok(ProgramSvm::Swap),
                 _ => Err(RestError::Forbidden),
             }
         }

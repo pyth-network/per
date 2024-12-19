@@ -58,7 +58,6 @@ pub struct OpportunityBidResult {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(rename_all = "lowercase")]
 pub enum ProgramSvm {
     Swap,
     Limo,
@@ -480,7 +479,7 @@ pub struct OpportunityBidEvm {
 /// Auction server will extract the output token price for the auction.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct QuoteCreateSwapV1Svm {
+pub struct QuoteCreateV1SvmParams {
     /// The user wallet address which requested the quote from the wallet.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
@@ -498,6 +497,10 @@ pub struct QuoteCreateSwapV1Svm {
     /// The maximum slippage in basis points that the user is willing to accept.
     #[schema(example = 50)]
     pub maximum_slippage_bps: u16,
+    /// The router account to send referral fees to.
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub router:               Pubkey,
     /// The chain id for creating the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:             ChainId,
@@ -510,19 +513,11 @@ pub enum QuoteTokenAmount {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(tag = "program")]
-pub enum QuoteCreateV1Svm {
-    #[serde(rename = "swap")]
-    #[schema(title = "swap")]
-    Swap(QuoteCreateSwapV1Svm),
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "version")]
 pub enum QuoteCreateSvm {
     #[serde(rename = "v1")]
     #[schema(title = "v1")]
-    V1(QuoteCreateV1Svm),
+    V1(QuoteCreateV1SvmParams),
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]

@@ -8,6 +8,7 @@ use {
         auction::{
             entities::{
                 Auction,
+                BidStatus,
                 BidStatusAuction,
             },
             service::{
@@ -19,10 +20,7 @@ use {
                 Service as AuctionService,
             },
         },
-        kernel::entities::{
-            PermissionKeySvm,
-            Svm,
-        },
+        kernel::entities::PermissionKeySvm,
         opportunity::{
             entities,
             service::add_opportunity::AddOpportunityInput,
@@ -30,7 +28,6 @@ use {
     },
     axum_prometheus::metrics,
     futures::future::join_all,
-    rand::Rng,
     solana_sdk::{
         clock::Slot,
         pubkey::Pubkey,
@@ -47,16 +44,58 @@ pub struct GetQuoteInput {
     pub quote_create: entities::QuoteCreate,
 }
 
+pub fn get_quote_permission_key(
+    tokens: &entities::QuoteTokens,
+    user_wallet_address: &Pubkey,
+) -> Pubkey {
+    // get pda seeded by user_wallet_address, mints, and token amount
+    let input_token_amount: [u8; 8];
+    let output_token_amount: [u8; 8];
+    let seeds = match tokens {
+        entities::QuoteTokens::InputTokenSpecified {
+            input_token,
+            output_token,
+        } => {
+            let input_token_mint = input_token.token.as_ref();
+            let output_token_mint = output_token.as_ref();
+            input_token_amount = input_token.amount.to_le_bytes();
+            [
+                user_wallet_address.as_ref(),
+                input_token_mint,
+                input_token_amount.as_ref(),
+                output_token_mint,
+            ]
+        }
+        entities::QuoteTokens::OutputTokenSpecified {
+            input_token,
+            output_token,
+        } => {
+            let input_token_mint = input_token.as_ref();
+            let output_token_mint = output_token.token.as_ref();
+            output_token_amount = output_token.amount.to_le_bytes();
+            [
+                user_wallet_address.as_ref(),
+                input_token_mint,
+                output_token_mint,
+                output_token_amount.as_ref(),
+            ]
+        }
+    };
+    // since this permission key will not be used on-chain, we don't need to use the express relay program_id.
+    // we can use a distinctive bytes object for the program_id
+    Pubkey::find_program_address(&seeds, &Pubkey::default()).0
+}
+
 impl Service<ChainTypeSvm> {
     async fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
-        let chain_config = self.get_config(&quote_create.chain_id)?;
-        let router = chain_config.wallet_program_router_account;
-        let permission_account = Pubkey::new_from_array(rand::thread_rng().gen());
+        let router = quote_create.router;
+        let permission_account =
+            get_quote_permission_key(&quote_create.tokens, &quote_create.user_wallet_address);
 
-        // TODO: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
+        // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
         let (input_mint, input_amount, output_mint, output_amount) = match quote_create.tokens {
             entities::QuoteTokens::InputTokenSpecified {
@@ -113,12 +152,14 @@ impl Service<ChainTypeSvm> {
                 opportunity: opportunity_create,
             })
             .await?;
-        let input_specified = matches!(
-            input.quote_create.tokens,
-            entities::QuoteTokens::InputTokenSpecified { .. }
-        );
         let input_token = opportunity.buy_tokens[0].clone();
         let output_token = opportunity.sell_tokens[0].clone();
+        if input_token.amount == 0 && output_token.amount == 0 {
+            tracing::error!(opportunity = ?opportunity, "Both token amounts are zero for swap opportunity");
+            return Err(RestError::BadParameters(
+                "Both token amounts are zero for swap opportunity".to_string(),
+            ));
+        }
 
         // NOTE: This part will be removed after refactoring the permission key type
         let slice: [u8; 64] = opportunity
@@ -133,7 +174,7 @@ impl Service<ChainTypeSvm> {
         let bid_collection_time = OffsetDateTime::now_utc();
         let mut bids = auction_service
             .get_live_bids(GetLiveBidsInput {
-                permission_key: permission_key_svm,
+                permission_key: permission_key_svm.clone(),
             })
             .await;
 
@@ -145,7 +186,7 @@ impl Service<ChainTypeSvm> {
         // Add metrics
         let labels = [
             ("chain_id", input.quote_create.chain_id.to_string()),
-            ("wallet", "phantom".to_string()), // TODO: deduce the originator based on the router account
+            ("router", input.quote_create.router.to_string()),
             ("total_bids", total_bids),
         ];
         metrics::counter!("get_quote_total_bids", &labels).increment(1);
@@ -157,13 +198,17 @@ impl Service<ChainTypeSvm> {
         }
 
         // Find winner bid:
-        if input_specified {
-            // highest bid = best (most output token returned)
-            bids.sort_by(|a, b| b.amount.cmp(&a.amount));
-        } else {
-            // lowest bid = best (least input token consumed)
-            bids.sort_by(|a, b| a.amount.cmp(&b.amount));
+        match input.quote_create.tokens {
+            entities::QuoteTokens::InputTokenSpecified { .. } => {
+                // highest bid = best (most output token returned)
+                bids.sort_by(|a, b| b.amount.cmp(&a.amount));
+            }
+            entities::QuoteTokens::OutputTokenSpecified { .. } => {
+                // lowest bid = best (least input token consumed)
+                bids.sort_by(|a, b| a.amount.cmp(&b.amount));
+            }
         }
+
         let winner_bid = bids.first().expect("failed to get first bid");
 
         // // TODO: uncomment this once Swap instruction is implemented
@@ -202,50 +247,62 @@ impl Service<ChainTypeSvm> {
             })
             .await?;
 
-        self.task_tracker.spawn({
-            let (repo, db, winner_bid) = (self.repo.clone(), self.db.clone(), winner_bid.clone());
-            let auction_service = auction_service.clone();
-            async move {
-                join_all(auction.bids.iter().map(|bid| {
-                    auction_service.update_bid_status(UpdateBidStatusInput {
-                        new_status: AuctionService::get_new_status(
-                            bid,
-                            &vec![winner_bid.clone()],
-                            BidStatusAuction {
-                                tx_hash: signature,
-                                id:      auction.id,
-                            },
-                        ),
-                        bid:        bid.clone(),
-                    })
-                }))
-                .await;
-                // Remove opportunity to prevent further bids
-                // The handle auction loop will take care of the bids that were submitted late
+        join_all(auction.bids.iter().map(|bid| {
+            auction_service.update_bid_status(UpdateBidStatusInput {
+                new_status: AuctionService::get_new_status(
+                    bid,
+                    &vec![winner_bid.clone()],
+                    BidStatusAuction {
+                        tx_hash: signature,
+                        id:      auction.id,
+                    },
+                ),
+                bid:        bid.clone(),
+            })
+        }))
+        .await;
+        // Remove opportunity to prevent further bids
+        // The handle auction loop will take care of the bids that were submitted late
 
-                // TODO
-                // Maybe we should add state for opportunity.
-                // Right now logic for removing halted/expired bids, checks if opportunity exists.
-                // We should remove opportunity only after the auction bid result is broadcasted.
-                // This is to make sure we are not gonna remove the bids that are currently in the auction in the handle_auction loop.
-                let removal_reason =
-                    entities::OpportunityRemovalReason::Invalid(RestError::InvalidOpportunity(
-                        "Auction finished for the opportunity".to_string(),
-                    ));
-                if let Err(e) = repo
-                    .remove_opportunity(&db, &opportunity, removal_reason)
-                    .await
-                {
-                    tracing::error!("Failed to remove opportunity: {:?}", e);
-                }
-            }
-        });
+        // TODO
+        // Maybe we should add state for opportunity.
+        // Right now logic for removing halted/expired bids, checks if opportunity exists.
+        // We should remove opportunity only after the auction bid result is broadcasted.
+        // This is to make sure we are not gonna remove the bids that are currently in the auction in the handle_auction loop.
+        let removal_reason = entities::OpportunityRemovalReason::Invalid(
+            RestError::InvalidOpportunity("Auction finished for the opportunity".to_string()),
+        );
+        if let Err(e) = self
+            .repo
+            .remove_opportunity(&self.db, &opportunity, removal_reason)
+            .await
+        {
+            tracing::error!("Failed to remove opportunity: {:?}", e);
+        }
+
+        // we check the winner bid status here to make sure the winner bid was successfully entered into the db as submitted
+        // this is because: if the winner bid was not successfully entered as submitted, that could indicate the presence of
+        // duplicate auctions for the same quote. in such a scenario, one auction will conclude first and update the bid status
+        // of its winner bid, and we want to ensure that a winner bid whose status is already updated is not further updated
+        // to prevent a new status update from being broadcast
+        let live_bids = auction_service
+            .get_live_bids(GetLiveBidsInput {
+                permission_key: permission_key_svm,
+            })
+            .await;
+        if !live_bids
+            .iter()
+            .any(|bid| bid.id == winner_bid.id && bid.status.is_submitted())
+        {
+            tracing::error!(winner_bid = ?winner_bid, opportunity = ?opportunity, "Failed to update winner bid status");
+            return Err(RestError::TemporarilyUnavailable);
+        }
 
         Ok(entities::Quote {
             transaction: bid.chain_data.transaction.clone(),
             expiration_time: deadline,
             input_token,
-            output_token,
+            output_token, // TODO*: incorporate fees
             maximum_slippage_bps: input.quote_create.maximum_slippage_bps,
             chain_id: input.quote_create.chain_id,
         })

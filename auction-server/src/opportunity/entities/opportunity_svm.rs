@@ -166,9 +166,9 @@ impl From<OpportunitySvm> for api::Opportunity {
 impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
         let program = match val.program.clone() {
-            OpportunitySvmProgram::Limo(prgoram) => api::OpportunityParamsV1ProgramSvm::Limo {
-                order:         prgoram.order,
-                order_address: prgoram.order_address,
+            OpportunitySvmProgram::Limo(program) => api::OpportunityParamsV1ProgramSvm::Limo {
+                order:         program.order,
+                order_address: program.order_address,
             },
             OpportunitySvmProgram::Swap(program) => {
                 let buy_token = val
@@ -178,7 +178,6 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         "Failed to get buy token from opportunity svm"
                     ))
                     .expect("Failed to get buy token from opportunity svm");
-                let buy_token_zero = buy_token.amount == 0;
                 let sell_token = val
                     .sell_tokens
                     .first()
@@ -186,17 +185,15 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         "Failed to get sell token from opportunity svm"
                     ))
                     .expect("Failed to get sell token from opportunity svm");
-                let sell_token_zero = sell_token.amount == 0;
-                assert!(
-                    buy_token_zero != sell_token_zero,
-                    "Precisely one of the buy_token amount and sell_token amount must be zero"
-                );
-                let tokens = if buy_token_zero {
+                let tokens = if buy_token.amount == 0 {
                     api::QuoteTokens::OutputTokenSpecified {
                         input_token:  buy_token.token,
                         output_token: sell_token.clone().into(),
                     }
                 } else {
+                    if sell_token.amount != 0 {
+                        tracing::error!(opportunity = ?val, "Both token amounts are specified for swap opportunity");
+                    }
                     api::QuoteTokens::InputTokenSpecified {
                         input_token:  buy_token.clone().into(),
                         output_token: sell_token.token,

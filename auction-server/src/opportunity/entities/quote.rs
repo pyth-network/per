@@ -24,6 +24,7 @@ pub struct QuoteCreate {
     pub user_wallet_address:  Pubkey,
     pub tokens:               QuoteTokens,
     pub maximum_slippage_bps: u16,
+    pub router:               Pubkey,
     pub chain_id:             ChainId,
 }
 
@@ -41,8 +42,7 @@ pub enum QuoteTokens {
 
 impl From<api::QuoteCreate> for QuoteCreate {
     fn from(quote_create: api::QuoteCreate) -> Self {
-        let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(api::QuoteCreateV1Svm::Swap(params))) =
-            quote_create;
+        let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(params)) = quote_create;
 
         let tokens = match params.token_amount {
             api::QuoteTokenAmount::InputToken { amount } => QuoteTokens::InputTokenSpecified {
@@ -65,6 +65,7 @@ impl From<api::QuoteCreate> for QuoteCreate {
             user_wallet_address: params.user_wallet_address,
             tokens,
             maximum_slippage_bps: params.maximum_slippage_bps,
+            router: params.router,
             chain_id: params.chain_id,
         }
     }
