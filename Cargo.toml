@@ -38,12 +38,5 @@ async-stream = "0.3.5"
 serde_yaml = "0.9.25"
 url = "2.5.4"
 rand = "0.8.5"
-anchor-lang = { git = "https://github.com/coral-xyz/anchor", branch = "master" }
-
-# The curve25519-dalek crate is a dependency of solana-sdk.
-# This crate relies on a specific version of zeroize that is incompatible with many other packages.
-# You can find more details in this issue https://github.com/solana-labs/solana/issues/26688
-# Solana Labs has provided a solution for some of these package incompatibilities, which can be found here https://github.com/solana-labs/solana/blob/27eff8408b7223bb3c4ab70523f8a8dca3ca6645/Cargo.toml#L514
-[patch.crates-io.curve25519-dalek]
-git = "https://github.com/solana-labs/curve25519-dalek.git"
-rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464"
+anchor-lang = { git = "https://github.com/coral-xyz/anchor", rev = "6df05aa" }
+litesvm = { git = "https://github.com/LiteSVM/litesvm", rev = "5346e86" }
