@@ -9,4 +9,4 @@ anchor-lang = { workspace = true }
 solana-sdk = { workspace = true }
 express-relay = { path = "../programs/express_relay", features = ["no-entrypoint"] }
 dummy = { path = "../programs/dummy", features = ["no-entrypoint"] }
-litesvm = "0.1.0"
+litesvm = "0.3.0"
