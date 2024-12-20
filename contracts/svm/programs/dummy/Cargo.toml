@@ -17,9 +17,9 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
-anchor-lang = ">=0.29.0"
+anchor-lang = { workspace = true }
 express-relay = { path = "../express_relay", features = ["no-entrypoint", "cpi"] }
 
 [dev-dependencies]
-solana-program-test = ">=1.17.3"
-solana-sdk = ">=1.17.3"
+solana-program-test = { version = "1.18.0" }
+solana-sdk = { workspace = true }
