@@ -391,7 +391,7 @@ impl Service<Svm> {
     pub fn extract_submit_bid_data(
         instruction: &CompiledInstruction,
     ) -> Result<express_relay_svm::SubmitBidArgs, RestError> {
-        let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
+        let discriminator = express_relay_svm::instruction::SubmitBid::DISCRIMINATOR;
         express_relay_svm::SubmitBidArgs::try_from_slice(
             &instruction.data.as_slice()[discriminator.len()..],
         )
@@ -417,7 +417,7 @@ impl Service<Svm> {
 
                 instruction
                     .data
-                    .starts_with(&express_relay_svm::instruction::SubmitBid::discriminator())
+                    .starts_with(express_relay_svm::instruction::SubmitBid::DISCRIMINATOR)
             })
             .cloned()
             .collect();
