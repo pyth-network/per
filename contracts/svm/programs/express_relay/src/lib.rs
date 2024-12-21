@@ -164,40 +164,32 @@ pub mod express_relay {
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
         let (input_after_fees, output_after_fees, send_fee_args): (u64, u64, SendFeeArgs) =
             match data.fee_token {
-                FeeToken::Input => {
-                    let mint = ctx.accounts.mint_input.clone();
-                    let token_program = ctx.accounts.token_program_input.clone();
-                    (
-                        data.amount_input,
-                        data.amount_output,
-                        SendFeeArgs {
-                            fee_express_relay: 0,
-                            fee_relayer: 0,
-                            fee_router: 0,
-                            mint,
-                            token_program,
-                            from: ctx.accounts.searcher_input_ta.clone(),
-                            authority: ctx.accounts.searcher.clone(),
-                        },
-                    )
-                }
-                FeeToken::Output => {
-                    let mint = ctx.accounts.mint_output.clone();
-                    let token_program = ctx.accounts.token_program_output.clone();
-                    (
-                        data.amount_input,
-                        data.amount_output,
-                        SendFeeArgs {
-                            fee_express_relay: 0,
-                            fee_relayer: 0,
-                            fee_router: 0,
-                            from: ctx.accounts.trader_output_ata.clone(),
-                            authority: ctx.accounts.trader.clone(),
-                            mint,
-                            token_program,
-                        },
-                    )
-                }
+                FeeToken::Input => (
+                    data.amount_input,
+                    data.amount_output,
+                    SendFeeArgs {
+                        fee_express_relay: 0,
+                        fee_relayer:       0,
+                        fee_router:        0,
+                        mint:              ctx.accounts.mint_input.clone(),
+                        token_program:     ctx.accounts.token_program_input.clone(),
+                        from:              ctx.accounts.searcher_input_ta.clone(),
+                        authority:         ctx.accounts.searcher.clone(),
+                    },
+                ),
+                FeeToken::Output => (
+                    data.amount_input,
+                    data.amount_output,
+                    SendFeeArgs {
+                        fee_express_relay: 0,
+                        fee_relayer:       0,
+                        fee_router:        0,
+                        from:              ctx.accounts.trader_output_ata.clone(),
+                        authority:         ctx.accounts.trader.clone(),
+                        mint:              ctx.accounts.mint_output.clone(),
+                        token_program:     ctx.accounts.token_program_output.clone(),
+                    },
+                ),
             };
 
 
