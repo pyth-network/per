@@ -162,12 +162,12 @@ pub mod express_relay {
     }
 
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
-        let (input_after_fees, output_after_fees, send_fee_args): (u64, u64, SendFeeArgs) =
+        let (input_after_fees, output_after_fees, send_fee_args): (u64, u64, SendSwapFeeArgs) =
             match data.fee_token {
                 FeeToken::Input => (
                     data.amount_input,
                     data.amount_output,
-                    SendFeeArgs {
+                    SendSwapFeeArgs {
                         fee_express_relay: 0,
                         fee_relayer:       0,
                         fee_router:        0,
@@ -180,7 +180,7 @@ pub mod express_relay {
                 FeeToken::Output => (
                     data.amount_input,
                     data.amount_output,
-                    SendFeeArgs {
+                    SendSwapFeeArgs {
                         fee_express_relay: 0,
                         fee_relayer:       0,
                         fee_router:        0,
@@ -207,7 +207,7 @@ pub mod express_relay {
             &send_fee_args.token_program,
         )?;
         check_receiver_token_account(
-            &ctx.accounts.router_fee_receiver_ata,
+            &ctx.accounts.router_fee_receiver_ta,
             &send_fee_args.mint,
             &send_fee_args.token_program,
         )?;
@@ -233,7 +233,7 @@ pub mod express_relay {
 
         transfer_token_if_needed(
             &send_fee_args.from,
-            &ctx.accounts.router_fee_receiver_ata,
+            &ctx.accounts.router_fee_receiver_ta,
             &send_fee_args.token_program,
             &send_fee_args.authority,
             &send_fee_args.mint,
@@ -445,7 +445,7 @@ pub struct SwapArgs {
     pub fee_token:     FeeToken,
 }
 
-pub struct SendFeeArgs<'info> {
+pub struct SendSwapFeeArgs<'info> {
     /// Amount to which the fee will be applied
     pub fee_express_relay: u64,
     pub fee_relayer:       u64,
@@ -501,7 +501,7 @@ pub struct Swap<'info> {
 
     // Fee receivers
     #[account(mut)]
-    pub router_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
+    pub router_fee_receiver_ta: InterfaceAccount<'info, TokenAccount>,
 
     #[account(mut,
         token::authority = express_relay_metadata.relayer_signer,
