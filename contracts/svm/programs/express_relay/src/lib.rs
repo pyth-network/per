@@ -494,10 +494,6 @@ pub struct SwapArgs {
 #[derive(Accounts)]
 #[instruction(data: Box<SwapArgs>)]
 pub struct Swap<'info> {
-    /// Express relay configuration
-    #[account(seeds = [SEED_METADATA], bump)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
-
     /// Searcher is the party that sends the input token and receives the output token
     pub searcher: Signer<'info>,
 
@@ -560,4 +556,8 @@ pub struct Swap<'info> {
 
     pub token_program_input:  Interface<'info, TokenInterface>,
     pub token_program_output: Interface<'info, TokenInterface>,
+
+    /// Express relay configuration
+    #[account(seeds = [SEED_METADATA], bump)]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 }
