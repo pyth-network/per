@@ -187,7 +187,7 @@ pub mod express_relay {
                 )?;
 
                 check_ata(
-                    &ctx.accounts.protocol_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_fee_receiver_ata.key(),
                     &ctx.accounts.express_relay_metadata.key(),
                     &ctx.accounts.mint_input.key(),
                 )?;
@@ -205,7 +205,7 @@ pub mod express_relay {
 
                 transfer_token_if_needed(
                     &ctx.accounts.searcher_input_ta,
-                    &ctx.accounts.protocol_fee_receiver_ata,
+                    &ctx.accounts.express_relay_fee_receiver_ata,
                     &ctx.accounts.token_program_input,
                     &ctx.accounts.searcher,
                     &ctx.accounts.mint_input,
@@ -243,7 +243,7 @@ pub mod express_relay {
                 )?;
 
                 check_ata(
-                    &ctx.accounts.protocol_fee_receiver_ata.key(),
+                    &ctx.accounts.express_relay_fee_receiver_ata.key(),
                     &ctx.accounts.express_relay_metadata.key(),
                     &ctx.accounts.mint_output.key(),
                 )?;
@@ -261,7 +261,7 @@ pub mod express_relay {
 
                 transfer_token_if_needed(
                     &ctx.accounts.trader_output_ata,
-                    &ctx.accounts.protocol_fee_receiver_ata,
+                    &ctx.accounts.express_relay_fee_receiver_ata,
                     &ctx.accounts.token_program_output,
                     &ctx.accounts.trader,
                     &ctx.accounts.mint_output,
@@ -550,7 +550,7 @@ pub struct Swap<'info> {
     #[account(mut,
         token::authority = express_relay_metadata.key(),
     )]
-    pub protocol_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
+    pub express_relay_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
 
     #[account(mint::token_program = token_program_input)]
     pub mint_input: InterfaceAccount<'info, Mint>,
