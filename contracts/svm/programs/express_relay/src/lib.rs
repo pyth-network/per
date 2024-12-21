@@ -175,12 +175,6 @@ pub mod express_relay {
         let (input_after_fees, output_after_fees) = match data.fee_token {
             FeeToken::Input => {
                 check_ata(
-                    &ctx.accounts.router_fee_receiver_ata.key(),
-                    &ctx.accounts.router.key(),
-                    &ctx.accounts.mint_input.key(),
-                )?;
-
-                check_ata(
                     &ctx.accounts.relayer_fee_receiver_ata.key(),
                     &ctx.accounts.express_relay_metadata.relayer_signer,
                     &ctx.accounts.mint_input.key(),
@@ -230,12 +224,6 @@ pub mod express_relay {
                 (remaining_amount, data.amount_output)
             }
             FeeToken::Output => {
-                check_ata(
-                    &ctx.accounts.router_fee_receiver_ata.key(),
-                    &ctx.accounts.router.key(),
-                    &ctx.accounts.mint_output.key(),
-                )?;
-
                 check_ata(
                     &ctx.accounts.relayer_fee_receiver_ata.key(),
                     &ctx.accounts.express_relay_metadata.relayer_signer,
@@ -520,23 +508,22 @@ pub struct Swap<'info> {
     // Trader accounts
     #[account(
         mut,
-        token::mint = mint_input,
-        token::authority = trader,
-        token::token_program = token_program_input
+        associated_token::mint = mint_input,
+        associated_token::authority = trader,
+        associated_token::token_program = token_program_input
     )]
     pub trader_input_ata: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         mut,
-        token::mint = mint_output,
-        token::authority = trader,
-        token::token_program = token_program_output
+        associated_token::mint = mint_output,
+        associated_token::authority = trader,
+        associated_token::token_program = token_program_output
     )]
     pub trader_output_ata: InterfaceAccount<'info, TokenAccount>,
 
     // Fee receivers
-    /// CHECK: this is just used to check router_fee_receiver_ata is a valid ATA
-    pub router:                  UncheckedAccount<'info>,
+    #[account(mut)]
     pub router_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
 
     #[account(mut,
