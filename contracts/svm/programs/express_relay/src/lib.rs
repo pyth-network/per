@@ -500,6 +500,7 @@ pub struct Swap<'info> {
     /// Trader is the party that sends the output token and receives the input token
     pub trader: Signer<'info>,
 
+    // Searcher accounts
     #[account(
         mut,
         token::mint = mint_input,
@@ -516,6 +517,7 @@ pub struct Swap<'info> {
     )]
     pub searcher_output_ta: InterfaceAccount<'info, TokenAccount>,
 
+    // Trader accounts
     #[account(
         mut,
         token::mint = mint_input,
@@ -532,8 +534,7 @@ pub struct Swap<'info> {
     )]
     pub trader_output_ata: InterfaceAccount<'info, TokenAccount>,
 
-    // Accounts for the fee split
-    // TODO can we trust the Associated Token Program or should we check mint and token_program
+    // Fee receivers
     /// CHECK: this is just used to check router_fee_receiver_ata is a valid ATA
     pub router:                  UncheckedAccount<'info>,
     pub router_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
@@ -548,12 +549,14 @@ pub struct Swap<'info> {
     )]
     pub express_relay_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
 
+    // Mints
     #[account(mint::token_program = token_program_input)]
     pub mint_input: InterfaceAccount<'info, Mint>,
 
     #[account(mint::token_program = token_program_output)]
     pub mint_output: InterfaceAccount<'info, Mint>,
 
+    // Token programs
     pub token_program_input:  Interface<'info, TokenInterface>,
     pub token_program_output: Interface<'info, TokenInterface>,
 
