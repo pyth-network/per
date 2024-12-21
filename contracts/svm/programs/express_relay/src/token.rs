@@ -38,9 +38,21 @@ pub fn transfer_token_if_needed<'info>(
     Ok(())
 }
 
-pub fn check_ata(ata: &Pubkey, owner: &Pubkey, mint: &Pubkey) -> Result<()> {
+pub fn check_mint<'info>(
+    ta: &InterfaceAccount<'info, TokenAccount>,
+    mint: &InterfaceAccount<'info, Mint>,
+) -> Result<()> {
+    require!(ta.mint == mint.key(), ErrorCode::InvalidMint);
+    Ok(())
+}
+
+pub fn check_ata<'info>(
+    ata: &InterfaceAccount<'info, TokenAccount>,
+    owner: &Pubkey,
+    mint: &InterfaceAccount<'info, Mint>,
+) -> Result<()> {
     require!(
-        *ata == get_associated_token_address(owner, mint),
+        ata.key() == get_associated_token_address(owner, &mint.key()),
         ErrorCode::InvalidAta
     );
     Ok(())

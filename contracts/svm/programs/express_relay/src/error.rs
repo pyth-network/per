@@ -20,4 +20,6 @@ pub enum ErrorCode {
     InsufficientRent,
     #[msg("Invalid ATA provided")]
     InvalidAta,
+    #[msg("A token account has the wrong mint")]
+    InvalidMint,
 }

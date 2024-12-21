@@ -36,6 +36,7 @@ pub mod express_relay {
         super::*,
         token::{
             check_ata,
+            check_mint,
             transfer_token_if_needed,
         },
     };
@@ -161,120 +162,87 @@ pub mod express_relay {
     }
 
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
+        let (input_after_fees, output_after_fees, send_fee_args): (u64, u64, SendFeeArgs) =
+            match data.fee_token {
+                FeeToken::Input => {
+                    let mint = ctx.accounts.mint_input.clone();
+                    let token_program = ctx.accounts.token_program_input.clone();
+                    (
+                        data.amount_input,
+                        data.amount_output,
+                        SendFeeArgs {
+                            fee_express_relay: 0,
+                            fee_relayer: 0,
+                            fee_router: 0,
+                            mint,
+                            token_program,
+                            from: ctx.accounts.searcher_input_ta.clone(),
+                            authority: ctx.accounts.searcher.clone(),
+                        },
+                    )
+                }
+                FeeToken::Output => {
+                    let mint = ctx.accounts.mint_output.clone();
+                    let token_program = ctx.accounts.token_program_output.clone();
+                    (
+                        data.amount_input,
+                        data.amount_output,
+                        SendFeeArgs {
+                            fee_express_relay: 0,
+                            fee_relayer: 0,
+                            fee_router: 0,
+                            from: ctx.accounts.trader_output_ata.clone(),
+                            authority: ctx.accounts.trader.clone(),
+                            mint,
+                            token_program,
+                        },
+                    )
+                }
+            };
+
+
+        // Check ATAs
         check_ata(
-            &ctx.accounts.trader_input_ata.key(),
-            &ctx.accounts.trader.key(),
-            &ctx.accounts.mint_input.key(),
+            &ctx.accounts.express_relay_fee_receiver_ata,
+            &ctx.accounts.express_relay_metadata.key(),
+            &send_fee_args.mint,
         )?;
         check_ata(
-            &ctx.accounts.trader_output_ata.key(),
-            &ctx.accounts.trader.key(),
-            &ctx.accounts.mint_output.key(),
+            &ctx.accounts.relayer_fee_receiver_ata,
+            &ctx.accounts.express_relay_metadata.relayer_signer,
+            &send_fee_args.mint,
+        )?;
+        check_mint(&ctx.accounts.router_fee_receiver_ata, &send_fee_args.mint)?;
+
+        // Send fees
+        transfer_token_if_needed(
+            &send_fee_args.from,
+            &ctx.accounts.express_relay_fee_receiver_ata,
+            &send_fee_args.token_program,
+            &send_fee_args.authority,
+            &send_fee_args.mint,
+            send_fee_args.fee_express_relay,
         )?;
 
-        let (input_after_fees, output_after_fees) = match data.fee_token {
-            FeeToken::Input => {
-                check_ata(
-                    &ctx.accounts.relayer_fee_receiver_ata.key(),
-                    &ctx.accounts.express_relay_metadata.relayer_signer,
-                    &ctx.accounts.mint_input.key(),
-                )?;
+        transfer_token_if_needed(
+            &send_fee_args.from,
+            &ctx.accounts.relayer_fee_receiver_ata,
+            &send_fee_args.token_program,
+            &send_fee_args.authority,
+            &send_fee_args.mint,
+            send_fee_args.fee_relayer,
+        )?;
 
-                check_ata(
-                    &ctx.accounts.express_relay_fee_receiver_ata.key(),
-                    &ctx.accounts.express_relay_metadata.key(),
-                    &ctx.accounts.mint_input.key(),
-                )?;
+        transfer_token_if_needed(
+            &send_fee_args.from,
+            &ctx.accounts.router_fee_receiver_ata,
+            &send_fee_args.token_program,
+            &send_fee_args.authority,
+            &send_fee_args.mint,
+            send_fee_args.fee_router,
+        )?;
 
-                let (remaining_amount, fee_protocol) = perform_fee_split(
-                    data.amount_input,
-                    ctx.accounts.express_relay_metadata.split_protocol * 100,
-                )?;
-                let (remaining_amount, fee_relayer) = perform_fee_split(
-                    remaining_amount,
-                    ctx.accounts.express_relay_metadata.split_relayer * 100,
-                )?;
-                let (remaining_amount, fee_router) =
-                    perform_fee_split(remaining_amount, data.referral_fee)?;
-
-                transfer_token_if_needed(
-                    &ctx.accounts.searcher_input_ta,
-                    &ctx.accounts.express_relay_fee_receiver_ata,
-                    &ctx.accounts.token_program_input,
-                    &ctx.accounts.searcher,
-                    &ctx.accounts.mint_input,
-                    fee_protocol,
-                )?;
-                transfer_token_if_needed(
-                    &ctx.accounts.searcher_input_ta,
-                    &ctx.accounts.relayer_fee_receiver_ata,
-                    &ctx.accounts.token_program_input,
-                    &ctx.accounts.searcher,
-                    &ctx.accounts.mint_input,
-                    fee_relayer,
-                )?;
-                transfer_token_if_needed(
-                    &ctx.accounts.searcher_input_ta,
-                    &ctx.accounts.router_fee_receiver_ata,
-                    &ctx.accounts.token_program_input,
-                    &ctx.accounts.searcher,
-                    &ctx.accounts.mint_input,
-                    fee_router,
-                )?;
-                (remaining_amount, data.amount_output)
-            }
-            FeeToken::Output => {
-                check_ata(
-                    &ctx.accounts.relayer_fee_receiver_ata.key(),
-                    &ctx.accounts.express_relay_metadata.relayer_signer,
-                    &ctx.accounts.mint_output.key(),
-                )?;
-
-                check_ata(
-                    &ctx.accounts.express_relay_fee_receiver_ata.key(),
-                    &ctx.accounts.express_relay_metadata.key(),
-                    &ctx.accounts.mint_output.key(),
-                )?;
-
-                let (remaining_amount, fee_protocol) = perform_fee_split(
-                    data.amount_output,
-                    ctx.accounts.express_relay_metadata.split_protocol * 100,
-                )?;
-                let (remaining_amount, fee_relayer) = perform_fee_split(
-                    remaining_amount,
-                    ctx.accounts.express_relay_metadata.split_relayer * 100,
-                )?;
-                let (remaining_amount, fee_router) =
-                    perform_fee_split(remaining_amount, data.referral_fee)?;
-
-                transfer_token_if_needed(
-                    &ctx.accounts.trader_output_ata,
-                    &ctx.accounts.express_relay_fee_receiver_ata,
-                    &ctx.accounts.token_program_output,
-                    &ctx.accounts.trader,
-                    &ctx.accounts.mint_output,
-                    fee_protocol,
-                )?;
-                transfer_token_if_needed(
-                    &ctx.accounts.trader_output_ata,
-                    &ctx.accounts.relayer_fee_receiver_ata,
-                    &ctx.accounts.token_program_output,
-                    &ctx.accounts.trader,
-                    &ctx.accounts.mint_output,
-                    fee_relayer,
-                )?;
-                transfer_token_if_needed(
-                    &ctx.accounts.trader_output_ata,
-                    &ctx.accounts.router_fee_receiver_ata,
-                    &ctx.accounts.token_program_output,
-                    &ctx.accounts.trader,
-                    &ctx.accounts.mint_output,
-                    fee_router,
-                )?;
-                (data.amount_input, remaining_amount)
-            }
-        };
-
+        // Transfer tokens
         transfer_token_if_needed(
             &ctx.accounts.searcher_input_ta,
             &ctx.accounts.trader_input_ata,
@@ -477,6 +445,17 @@ pub struct SwapArgs {
     pub referral_fee:  u64,
     // Token in which the fees will be paid
     pub fee_token:     FeeToken,
+}
+
+pub struct SendFeeArgs<'info> {
+    /// Amount to which the fee will be applied
+    pub fee_express_relay: u64,
+    pub fee_relayer:       u64,
+    pub fee_router:        u64,
+    pub from:              InterfaceAccount<'info, TokenAccount>,
+    pub authority:         Signer<'info>,
+    pub mint:              InterfaceAccount<'info, Mint>,
+    pub token_program:     Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
