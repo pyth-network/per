@@ -22,6 +22,7 @@ use {
         DisplayFromStr,
     },
     solana_sdk::{
+        clock::Slot,
         signature::Signature,
         transaction::VersionedTransaction,
     },
@@ -258,6 +259,10 @@ pub struct BidCreateSvm {
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde(with = "crate::serde::transaction_svm")]
     pub transaction: VersionedTransaction,
+    /// The minimum slot required for the bid to be executed successfully
+    /// None if the bid can be executed at any recent slot
+    #[schema(example = 293106477, value_type = Option<u64>)]
+    pub slot:        Option<Slot>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]

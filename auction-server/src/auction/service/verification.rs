@@ -59,8 +59,10 @@ use {
             U256,
         },
     },
+    litesvm::types::FailedTransactionMetadata,
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
+        clock::Slot,
         commitment_config::CommitmentConfig,
         compute_budget,
         instruction::CompiledInstruction,
@@ -389,7 +391,7 @@ impl Service<Svm> {
     pub fn extract_submit_bid_data(
         instruction: &CompiledInstruction,
     ) -> Result<express_relay_svm::SubmitBidArgs, RestError> {
-        let discriminator = express_relay_svm::instruction::SubmitBid::discriminator();
+        let discriminator = express_relay_svm::instruction::SubmitBid::DISCRIMINATOR;
         express_relay_svm::SubmitBidArgs::try_from_slice(
             &instruction.data.as_slice()[discriminator.len()..],
         )
@@ -415,7 +417,7 @@ impl Service<Svm> {
 
                 instruction
                     .data
-                    .starts_with(&express_relay_svm::instruction::SubmitBid::discriminator())
+                    .starts_with(express_relay_svm::instruction::SubmitBid::DISCRIMINATOR)
             })
             .cloned()
             .collect();
@@ -578,25 +580,57 @@ impl Service<Svm> {
     }
 
     pub async fn simulate_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
-        let response = self
-            .config
-            .chain_config
-            .simulator
-            .simulate_transaction(&bid.chain_data.transaction)
-            .await;
-        let result = response.map_err(|e| {
-            tracing::error!("Error while simulating bid: {:?}", e);
-            RestError::TemporarilyUnavailable
-        })?;
-        match result.value {
-            Err(err) => {
-                let msgs = err.meta.logs;
-                Err(RestError::SimulationError {
-                    result: Default::default(),
-                    reason: msgs.join("\n"),
-                })
+        const RETRY_LIMIT: usize = 5;
+        const RETRY_DELAY: Duration = Duration::from_millis(100);
+        let mut retry_count = 0;
+        let bid_slot = bid.chain_data.slot.unwrap_or_default();
+
+        let should_retry = |result_slot: Slot,
+                            retry_count: usize,
+                            err: &FailedTransactionMetadata|
+         -> bool {
+            if result_slot < bid_slot && retry_count < RETRY_LIMIT {
+                tracing::warn!(
+                "Simulation failed with stale slot. Simulation slot: {}, Bid Slot: {}, Retry count: {}, Error: {:?}",
+                result_slot,
+                bid_slot,
+                retry_count,
+                err
+            );
+                true
+            } else {
+                false
             }
-            Ok(_) => Ok(()),
+        };
+
+        loop {
+            let response = self
+                .config
+                .chain_config
+                .simulator
+                .simulate_transaction(&bid.chain_data.transaction)
+                .await;
+            let result = response.map_err(|e| {
+                tracing::error!("Error while simulating bid: {:?}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+            return match result.value {
+                Err(err) => {
+                    if should_retry(result.context.slot, retry_count, &err) {
+                        tokio::time::sleep(RETRY_DELAY).await;
+                        retry_count += 1;
+                        continue;
+                    }
+                    let msgs = err.meta.logs;
+                    Err(RestError::SimulationError {
+                        result: Default::default(),
+                        reason: msgs.join("\n"),
+                    })
+                }
+                // Not important to check if bid slot is less than simulation slot if simulation is successful
+                // since we want to fix incorrect verifications due to stale slot
+                Ok(_) => Ok(()),
+            };
         }
     }
 
