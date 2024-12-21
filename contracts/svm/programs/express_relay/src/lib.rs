@@ -1,6 +1,7 @@
 pub mod error;
 pub mod sdk;
 pub mod state;
+pub mod token;
 pub mod utils;
 
 use {
@@ -31,7 +32,13 @@ declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
 
 #[program]
 pub mod express_relay {
-    use super::*;
+    use {
+        super::*,
+        token::{
+            check_ata,
+            transfer_token_if_needed,
+        },
+    };
 
     pub fn initialize(ctx: Context<Initialize>, data: InitializeArgs) -> Result<()> {
         validate_fee_split(data.split_router_default)?;
@@ -154,12 +161,12 @@ pub mod express_relay {
     }
 
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
-        validate_ata(
+        check_ata(
             &ctx.accounts.trader_input_ata.key(),
             &ctx.accounts.trader.key(),
             &ctx.accounts.mint_input.key(),
         )?;
-        validate_ata(
+        check_ata(
             &ctx.accounts.trader_output_ata.key(),
             &ctx.accounts.trader.key(),
             &ctx.accounts.mint_output.key(),
@@ -167,19 +174,19 @@ pub mod express_relay {
 
         let (input_after_fees, output_after_fees) = match data.fee_token {
             FeeToken::Input => {
-                validate_ata(
+                check_ata(
                     &ctx.accounts.router_fee_receiver_ata.key(),
                     &ctx.accounts.router.key(),
                     &ctx.accounts.mint_input.key(),
                 )?;
 
-                validate_ata(
+                check_ata(
                     &ctx.accounts.relayer_fee_receiver_ata.key(),
                     &ctx.accounts.express_relay_metadata.relayer_signer,
                     &ctx.accounts.mint_input.key(),
                 )?;
 
-                validate_ata(
+                check_ata(
                     &ctx.accounts.protocol_fee_receiver_ata.key(),
                     &ctx.accounts.express_relay_metadata.key(),
                     &ctx.accounts.mint_input.key(),
@@ -196,46 +203,46 @@ pub mod express_relay {
                 let (remaining_amount, fee_router) =
                     perform_fee_split(remaining_amount, data.referral_fee)?;
 
-                transfer_spl(
-                    &ctx.accounts.searcher_input_ta.to_account_info(),
-                    &ctx.accounts.protocol_fee_receiver_ata.to_account_info(),
-                    &ctx.accounts.token_program_input.to_account_info(),
-                    &ctx.accounts.searcher.to_account_info(),
+                transfer_token_if_needed(
+                    &ctx.accounts.searcher_input_ta,
+                    &ctx.accounts.protocol_fee_receiver_ata,
+                    &ctx.accounts.token_program_input,
+                    &ctx.accounts.searcher,
                     &ctx.accounts.mint_input,
                     fee_protocol,
                 )?;
-                transfer_spl(
-                    &ctx.accounts.searcher_input_ta.to_account_info(),
-                    &ctx.accounts.relayer_fee_receiver_ata.to_account_info(),
-                    &ctx.accounts.token_program_input.to_account_info(),
-                    &ctx.accounts.searcher.to_account_info(),
+                transfer_token_if_needed(
+                    &ctx.accounts.searcher_input_ta,
+                    &ctx.accounts.relayer_fee_receiver_ata,
+                    &ctx.accounts.token_program_input,
+                    &ctx.accounts.searcher,
                     &ctx.accounts.mint_input,
                     fee_relayer,
                 )?;
-                transfer_spl(
-                    &ctx.accounts.searcher_input_ta.to_account_info(),
-                    &ctx.accounts.router_fee_receiver_ata.to_account_info(),
-                    &ctx.accounts.token_program_input.to_account_info(),
-                    &ctx.accounts.searcher.to_account_info(),
+                transfer_token_if_needed(
+                    &ctx.accounts.searcher_input_ta,
+                    &ctx.accounts.router_fee_receiver_ata,
+                    &ctx.accounts.token_program_input,
+                    &ctx.accounts.searcher,
                     &ctx.accounts.mint_input,
                     fee_router,
                 )?;
                 (remaining_amount, data.amount_output)
             }
             FeeToken::Output => {
-                validate_ata(
+                check_ata(
                     &ctx.accounts.router_fee_receiver_ata.key(),
                     &ctx.accounts.router.key(),
                     &ctx.accounts.mint_output.key(),
                 )?;
 
-                validate_ata(
+                check_ata(
                     &ctx.accounts.relayer_fee_receiver_ata.key(),
                     &ctx.accounts.express_relay_metadata.relayer_signer,
                     &ctx.accounts.mint_output.key(),
                 )?;
 
-                validate_ata(
+                check_ata(
                     &ctx.accounts.protocol_fee_receiver_ata.key(),
                     &ctx.accounts.express_relay_metadata.key(),
                     &ctx.accounts.mint_output.key(),
@@ -252,27 +259,27 @@ pub mod express_relay {
                 let (remaining_amount, fee_router) =
                     perform_fee_split(remaining_amount, data.referral_fee)?;
 
-                transfer_spl(
-                    &ctx.accounts.trader_output_ata.to_account_info(),
-                    &ctx.accounts.protocol_fee_receiver_ata.to_account_info(),
-                    &ctx.accounts.token_program_output.to_account_info(),
-                    &ctx.accounts.trader.to_account_info(),
+                transfer_token_if_needed(
+                    &ctx.accounts.trader_output_ata,
+                    &ctx.accounts.protocol_fee_receiver_ata,
+                    &ctx.accounts.token_program_output,
+                    &ctx.accounts.trader,
                     &ctx.accounts.mint_output,
                     fee_protocol,
                 )?;
-                transfer_spl(
-                    &ctx.accounts.trader_output_ata.to_account_info(),
-                    &ctx.accounts.relayer_fee_receiver_ata.to_account_info(),
-                    &ctx.accounts.token_program_output.to_account_info(),
-                    &ctx.accounts.trader.to_account_info(),
+                transfer_token_if_needed(
+                    &ctx.accounts.trader_output_ata,
+                    &ctx.accounts.relayer_fee_receiver_ata,
+                    &ctx.accounts.token_program_output,
+                    &ctx.accounts.trader,
                     &ctx.accounts.mint_output,
                     fee_relayer,
                 )?;
-                transfer_spl(
-                    &ctx.accounts.trader_output_ata.to_account_info(),
-                    &ctx.accounts.router_fee_receiver_ata.to_account_info(),
-                    &ctx.accounts.token_program_output.to_account_info(),
-                    &ctx.accounts.trader.to_account_info(),
+                transfer_token_if_needed(
+                    &ctx.accounts.trader_output_ata,
+                    &ctx.accounts.router_fee_receiver_ata,
+                    &ctx.accounts.token_program_output,
+                    &ctx.accounts.trader,
                     &ctx.accounts.mint_output,
                     fee_router,
                 )?;
@@ -280,20 +287,20 @@ pub mod express_relay {
             }
         };
 
-        transfer_spl(
-            &ctx.accounts.searcher_input_ta.to_account_info(),
-            &ctx.accounts.trader_input_ata.to_account_info(),
-            &ctx.accounts.token_program_input.to_account_info(),
-            &ctx.accounts.searcher.to_account_info(),
+        transfer_token_if_needed(
+            &ctx.accounts.searcher_input_ta,
+            &ctx.accounts.trader_input_ata,
+            &ctx.accounts.token_program_input,
+            &ctx.accounts.searcher,
             &ctx.accounts.mint_input,
             input_after_fees,
         )?;
 
-        transfer_spl(
-            &ctx.accounts.trader_output_ata.to_account_info(),
-            &ctx.accounts.searcher_output_ta.to_account_info(),
-            &ctx.accounts.token_program_output.to_account_info(),
-            &ctx.accounts.trader.to_account_info(),
+        transfer_token_if_needed(
+            &ctx.accounts.trader_output_ata,
+            &ctx.accounts.searcher_output_ta,
+            &ctx.accounts.token_program_output,
+            &ctx.accounts.trader,
             &ctx.accounts.mint_output,
             output_after_fees,
         )?;

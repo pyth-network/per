@@ -18,14 +18,6 @@ use {
         },
         Discriminator,
     },
-    anchor_spl::{
-        associated_token::spl_associated_token_account::get_associated_token_address,
-        token_interface::{
-            self,
-            Mint,
-            TransferChecked as SplTransfer,
-        },
-    },
 };
 
 pub fn validate_fee_split(split: u64) -> Result<()> {
@@ -54,29 +46,6 @@ pub fn transfer_lamports_cpi<'info>(
 
     transfer(CpiContext::new(system_program, cpi_accounts), amount)?;
 
-    Ok(())
-}
-
-pub fn transfer_spl<'info>(
-    from_ta: &AccountInfo<'info>,
-    to_ta: &AccountInfo<'info>,
-    token_program: &AccountInfo<'info>,
-    authority: &AccountInfo<'info>,
-    mint: &InterfaceAccount<'info, Mint>,
-    amount: u64,
-) -> Result<()> {
-    let cpi_accounts = SplTransfer {
-        from:      from_ta.clone(),
-        to:        to_ta.clone(),
-        mint:      mint.to_account_info(),
-        authority: authority.clone(),
-    };
-
-    token_interface::transfer_checked(
-        CpiContext::new(token_program.clone(), cpi_accounts),
-        amount,
-        mint.decimals,
-    )?;
     Ok(())
 }
 
@@ -289,13 +258,6 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
         ctx.accounts.system_program.to_account_info(),
     )?;
 
-    Ok(())
-}
-
-pub fn validate_ata(ata: &Pubkey, owner: &Pubkey, mint: &Pubkey) -> Result<()> {
-    if *ata != get_associated_token_address(owner, mint) {
-        return err!(ErrorCode::InvalidAta);
-    }
     Ok(())
 }
 
