@@ -22,4 +22,6 @@ pub enum ErrorCode {
     InvalidAta,
     #[msg("A token account has the wrong mint")]
     InvalidMint,
+    #[msg("A token account belongs to the wrong program")]
+    InvalidTokenProgram,
 }

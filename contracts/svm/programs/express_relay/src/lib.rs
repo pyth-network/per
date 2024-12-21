@@ -35,8 +35,8 @@ pub mod express_relay {
     use {
         super::*,
         token::{
-            check_ata,
-            check_mint,
+            check_receiver_associated_token_account,
+            check_receiver_token_account,
             transfer_token_if_needed,
         },
     };
@@ -194,17 +194,23 @@ pub mod express_relay {
 
 
         // Check ATAs
-        check_ata(
+        check_receiver_associated_token_account(
             &ctx.accounts.express_relay_fee_receiver_ata,
             &ctx.accounts.express_relay_metadata.key(),
             &send_fee_args.mint,
+            &send_fee_args.token_program,
         )?;
-        check_ata(
+        check_receiver_associated_token_account(
             &ctx.accounts.relayer_fee_receiver_ata,
             &ctx.accounts.express_relay_metadata.relayer_signer,
             &send_fee_args.mint,
+            &send_fee_args.token_program,
         )?;
-        check_mint(&ctx.accounts.router_fee_receiver_ata, &send_fee_args.mint)?;
+        check_receiver_token_account(
+            &ctx.accounts.router_fee_receiver_ata,
+            &send_fee_args.mint,
+            &send_fee_args.token_program,
+        )?;
 
         // Send fees
         transfer_token_if_needed(
