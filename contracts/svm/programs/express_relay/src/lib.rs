@@ -497,6 +497,9 @@ pub struct Swap<'info> {
     /// Searcher is the party that sends the input token and receives the output token
     pub searcher: Signer<'info>,
 
+    /// Trader is the party that sends the output token and receives the input token
+    pub trader: Signer<'info>,
+
     #[account(
         mut,
         token::mint = mint_input,
@@ -512,9 +515,6 @@ pub struct Swap<'info> {
         token::token_program = token_program_output
     )]
     pub searcher_output_ta: InterfaceAccount<'info, TokenAccount>,
-
-    /// Trader is the party that sends the output token and receives the input token
-    pub trader: Signer<'info>,
 
     #[account(
         mut,
