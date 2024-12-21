@@ -494,13 +494,13 @@ pub struct SwapArgs {
 #[derive(Accounts)]
 #[instruction(data: Box<SwapArgs>)]
 pub struct Swap<'info> {
-    /// Express relay configuration
-    #[account(seeds = [SEED_METADATA], bump)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
-
     /// Searcher is the party that sends the input token and receives the output token
     pub searcher: Signer<'info>,
 
+    /// Trader is the party that sends the output token and receives the input token
+    pub trader: Signer<'info>,
+
+    // Searcher accounts
     #[account(
         mut,
         token::mint = mint_input,
@@ -517,9 +517,7 @@ pub struct Swap<'info> {
     )]
     pub searcher_output_ta: InterfaceAccount<'info, TokenAccount>,
 
-    /// Trader is the party that sends the output token and receives the input token
-    pub trader: Signer<'info>,
-
+    // Trader accounts
     #[account(
         mut,
         token::mint = mint_input,
@@ -536,9 +534,7 @@ pub struct Swap<'info> {
     )]
     pub trader_output_ata: InterfaceAccount<'info, TokenAccount>,
 
-    // Accounts for the fee split
-    // TODO can we trust the Associated Token Program or should we check mint and token_program
-    /// CHECK: this is just used to check router_fee_receiver_ata is a valid ATA
+    // Fee receivers
     pub router:                  UncheckedAccount<'info>,
     pub router_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
 
@@ -552,12 +548,18 @@ pub struct Swap<'info> {
     )]
     pub express_relay_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
 
+    // Mints
     #[account(mint::token_program = token_program_input)]
     pub mint_input: InterfaceAccount<'info, Mint>,
 
     #[account(mint::token_program = token_program_output)]
     pub mint_output: InterfaceAccount<'info, Mint>,
 
+    // Token programs
     pub token_program_input:  Interface<'info, TokenInterface>,
     pub token_program_output: Interface<'info, TokenInterface>,
+
+    /// Express relay configuration
+    #[account(seeds = [SEED_METADATA], bump)]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 }
