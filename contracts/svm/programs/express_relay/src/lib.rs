@@ -460,5 +460,5 @@ pub struct Swap<'info> {
 
     /// Express relay configuration
     #[account(seeds = [SEED_METADATA], bump)]
-    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+    pub express_relay_metadata: Box<Account<'info, ExpressRelayMetadata>>,
 }
