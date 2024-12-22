@@ -11,133 +11,95 @@ use {
         accounts::interface_account::InterfaceAccount,
         prelude::*,
     },
-    anchor_spl::token_interface::{
-        Mint,
-        TokenAccount,
-        TokenInterface,
-    },
+    anchor_spl::token_interface::TokenAccount,
 };
 
-pub struct PostFeeSwapArgs<'info, 'a> {
+pub struct PostFeeSwapArgs {
     pub input_after_fees:  u64,
     pub output_after_fees: u64,
-    pub send_swap_fees:    SendSwapFees<'info, 'a>,
 }
+
 
 impl<'info> Swap<'info> {
-    pub fn prepare_swap_fees<'a>(&'a self, args: &SwapArgs) -> Result<PostFeeSwapArgs<'info, 'a>> {
-        match args.fee_token {
+    pub fn transfer_swap_fees(&self, args: &SwapArgs) -> Result<PostFeeSwapArgs> {
+        let (post_fee_swap_args, transfer_swap_fees) = match args.fee_token {
             FeeToken::Input => {
-                let SwapFees {
-                    express_relay_fee,
-                    relayer_fee,
-                    router_fee,
-                    remaining_amount,
-                } = self
+                let swap_fees = self
                     .express_relay_metadata
                     .compute_swap_fees(args.referral_fee_bps, args.amount_input)?;
-                Ok(PostFeeSwapArgs {
-                    input_after_fees:  remaining_amount,
-                    output_after_fees: args.amount_output,
-                    send_swap_fees:    SendSwapFees {
-                        router:                 ReceiverAndFee::new(
-                            &self.router_fee_receiver_ta,
-                            router_fee,
-                        ),
-                        relayer:                ReceiverAndFee::new(
-                            &self.relayer_fee_receiver_ata,
-                            relayer_fee,
-                        ),
-                        express_relay:          ReceiverAndFee::new(
-                            &self.express_relay_fee_receiver_ata,
-                            express_relay_fee,
-                        ),
-                        express_relay_metadata: &self.express_relay_metadata,
-                        from:                   &self.searcher_input_ta,
-                        authority:              &self.searcher,
-                        mint:                   &self.mint_input,
-                        token_program:          &self.token_program_input,
+                (
+                    PostFeeSwapArgs {
+                        input_after_fees:  swap_fees.remaining_amount,
+                        output_after_fees: args.amount_output,
                     },
-                })
+                    TransferSwapFeeArgs {
+                        fees:      swap_fees,
+                        from:      &self.searcher_input_ta,
+                        authority: &self.searcher,
+                    },
+                )
             }
             FeeToken::Output => {
-                let SwapFees {
-                    express_relay_fee,
-                    relayer_fee,
-                    router_fee,
-                    remaining_amount,
-                } = self
+                let swap_fees = self
                     .express_relay_metadata
                     .compute_swap_fees(args.referral_fee_bps, args.amount_output)?;
-                Ok(PostFeeSwapArgs {
-                    input_after_fees:  args.amount_input,
-                    output_after_fees: remaining_amount,
-                    send_swap_fees:    SendSwapFees {
-                        router:                 ReceiverAndFee::new(
-                            &self.router_fee_receiver_ta,
-                            router_fee,
-                        ),
-                        relayer:                ReceiverAndFee::new(
-                            &self.relayer_fee_receiver_ata,
-                            relayer_fee,
-                        ),
-                        express_relay:          ReceiverAndFee::new(
-                            &self.express_relay_fee_receiver_ata,
-                            express_relay_fee,
-                        ),
-                        express_relay_metadata: &self.express_relay_metadata,
-                        from:                   &self.trader_output_ata,
-                        authority:              &self.trader,
-                        mint:                   &self.mint_output,
-                        token_program:          &self.token_program_output,
+                (
+                    PostFeeSwapArgs {
+                        input_after_fees:  args.amount_input,
+                        output_after_fees: swap_fees.remaining_amount,
                     },
-                })
+                    TransferSwapFeeArgs {
+                        fees:      swap_fees,
+                        from:      &self.trader_output_ata,
+                        authority: &self.trader,
+                    },
+                )
             }
-        }
+        };
+
+        self.transfer_swap_fees_cpi(&transfer_swap_fees)?;
+
+        Ok(post_fee_swap_args)
     }
-}
 
-pub struct ReceiverAndFee<'info, 'a> {
-    receiver_ta: &'a InterfaceAccount<'info, TokenAccount>,
-    fee:         u64,
-}
-
-impl<'info, 'a> ReceiverAndFee<'info, 'a> {
-    pub fn new(receiver_ta: &'a InterfaceAccount<'info, TokenAccount>, fee: u64) -> Self {
-        Self { receiver_ta, fee }
-    }
-}
-
-pub struct SendSwapFees<'info, 'a> {
-    pub router:                 ReceiverAndFee<'info, 'a>,
-    pub relayer:                ReceiverAndFee<'info, 'a>,
-    pub express_relay:          ReceiverAndFee<'info, 'a>,
-    pub express_relay_metadata: &'a Account<'info, ExpressRelayMetadata>,
-    pub from:                   &'a InterfaceAccount<'info, TokenAccount>,
-    pub authority:              &'a Signer<'info>,
-    pub mint:                   &'a InterfaceAccount<'info, Mint>,
-    pub token_program:          &'a Interface<'info, TokenInterface>,
-}
-
-impl<'info, 'a> SendSwapFees<'info, 'a> {
-    fn transfer_fee(&self, fee_receiver: &ReceiverAndFee<'info, 'a>) -> Result<()> {
-        transfer_token_if_needed(
-            self.from,
-            fee_receiver.receiver_ta,
-            self.token_program,
-            self.authority,
-            self.mint,
-            fee_receiver.fee,
+    fn transfer_swap_fees_cpi<'a>(&self, args: &TransferSwapFeeArgs<'info, 'a>) -> Result<()> {
+        self.transfer_swap_fee_cpi(args.fees.router_fee, &self.router_fee_receiver_ta, args)?;
+        self.transfer_swap_fee_cpi(args.fees.relayer_fee, &self.relayer_fee_receiver_ata, args)?;
+        self.transfer_swap_fee_cpi(
+            args.fees.express_relay_fee,
+            &self.express_relay_fee_receiver_ata,
+            args,
         )?;
         Ok(())
     }
 
-    pub fn transfer_fees(&self) -> Result<()> {
-        self.transfer_fee(&self.router)?;
-        self.transfer_fee(&self.relayer)?;
-        self.transfer_fee(&self.express_relay)?;
+    fn transfer_swap_fee_cpi<'a>(
+        &self,
+        fee: u64,
+        receiver_ta: &InterfaceAccount<'info, TokenAccount>,
+        args: &TransferSwapFeeArgs<'info, 'a>,
+    ) -> Result<()> {
+        transfer_token_if_needed(
+            args.from,
+            receiver_ta,
+            &self.token_program_fee,
+            args.authority,
+            &self.mint_fee,
+            fee,
+        )?;
         Ok(())
     }
+}
+
+pub struct TransferSwapFeeArgs<'info, 'a> {
+    pub fees:      SwapFees,
+    pub from:      &'a InterfaceAccount<'info, TokenAccount>,
+    pub authority: &'a Signer<'info>,
+}
+
+pub struct SwapFeesWithRemainingAmount {
+    pub fees:             SwapFees,
+    pub remaining_amount: u64,
 }
 
 pub struct SwapFees {

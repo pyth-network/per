@@ -161,10 +161,7 @@ pub mod express_relay {
         let PostFeeSwapArgs {
             input_after_fees,
             output_after_fees,
-            send_swap_fees,
-        } = ctx.accounts.prepare_swap_fees(&data)?;
-
-        send_swap_fees.transfer_fees()?;
+        } = ctx.accounts.transfer_swap_fees(&data)?;
 
         // Transfer tokens
         transfer_token_if_needed(
