@@ -85,7 +85,7 @@ pub fn get_matching_submit_bid_instructions(
         if ix.program_id != crate::id() {
             continue;
         }
-        if ix.data[0..8] != *crate::instruction::SubmitBid::DISCRIMINATOR {
+        if ix.data[0..8] != crate::instruction::SubmitBid::DISCRIMINATOR {
             continue;
         }
 
@@ -259,17 +259,4 @@ pub fn handle_bid_payment(ctx: Context<SubmitBid>, bid_amount: u64) -> Result<()
     )?;
 
     Ok(())
-}
-
-pub fn perform_fee_split(amount: u64, split_ratio: u64) -> Result<(u64, u64)> {
-    let fee = amount
-        .checked_mul(split_ratio)
-        .ok_or(ProgramError::ArithmeticOverflow)?
-        / 1_000_000;
-    Ok((
-        amount
-            .checked_sub(fee)
-            .ok_or(ProgramError::ArithmeticOverflow)?,
-        fee,
-    ))
 }
