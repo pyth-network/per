@@ -25,6 +25,7 @@ use {
     },
     express_relay_api_types::bid as api,
     solana_sdk::{
+        clock::Slot,
         pubkey::Pubkey,
         signature::Signature,
         transaction::VersionedTransaction,
@@ -239,6 +240,7 @@ pub struct BidCreate<T: ChainTrait> {
 #[derive(Clone, Debug)]
 pub struct BidChainDataCreateSvm {
     pub transaction: VersionedTransaction,
+    pub slot:        Option<Slot>,
 }
 
 #[derive(Clone, Debug)]

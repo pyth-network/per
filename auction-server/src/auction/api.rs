@@ -429,6 +429,7 @@ impl ApiTrait<Svm> for Svm {
                     initiation_time: OffsetDateTime::now_utc(),
                     chain_data: entities::BidChainDataCreateSvm {
                         transaction: bid_create_svm.transaction.clone(),
+                        slot:        bid_create_svm.slot,
                     },
                 })
             }
