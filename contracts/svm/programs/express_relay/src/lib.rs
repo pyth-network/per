@@ -9,6 +9,7 @@ use {
     crate::{
         error::ErrorCode,
         state::*,
+        swap::PostFeeSwapArgs,
         token::transfer_token_if_needed,
         utils::*,
     },
@@ -34,10 +35,7 @@ declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
 
 #[program]
 pub mod express_relay {
-    use {
-        super::*,
-        swap::PostFeeSwapArgs,
-    };
+    use super::*;
 
     pub fn initialize(ctx: Context<Initialize>, data: InitializeArgs) -> Result<()> {
         validate_fee_split(data.split_router_default)?;
