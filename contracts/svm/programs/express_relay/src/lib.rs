@@ -1,4 +1,5 @@
 pub mod error;
+pub mod fees;
 pub mod sdk;
 pub mod state;
 pub mod token;
@@ -34,11 +35,11 @@ declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
 pub mod express_relay {
     use {
         super::*,
-        token::{
-            check_receiver_associated_token_account,
-            check_receiver_token_account,
-            transfer_token_if_needed,
+        fees::{
+            SendSwapFee,
+            SwapFees,
         },
+        token::transfer_token_if_needed,
     };
 
     pub fn initialize(ctx: Context<Initialize>, data: InitializeArgs) -> Result<()> {
@@ -162,83 +163,74 @@ pub mod express_relay {
     }
 
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
-        let (input_after_fees, output_after_fees, send_fee_args): (u64, u64, SendSwapFeeArgs) =
+        let (input_after_fees, output_after_fees, send_fee_args): (u64, u64, SendSwapFee) =
             match data.fee_token {
-                FeeToken::Input => (
-                    data.amount_input,
-                    data.amount_output,
-                    SendSwapFeeArgs {
-                        fee_express_relay: 0,
-                        fee_relayer:       0,
-                        fee_router:        0,
-                        mint:              ctx.accounts.mint_input.clone(),
-                        token_program:     ctx.accounts.token_program_input.clone(),
-                        from:              ctx.accounts.searcher_input_ta.clone(),
-                        authority:         ctx.accounts.searcher.clone(),
-                    },
-                ),
-                FeeToken::Output => (
-                    data.amount_input,
-                    data.amount_output,
-                    SendSwapFeeArgs {
-                        fee_express_relay: 0,
-                        fee_relayer:       0,
-                        fee_router:        0,
-                        from:              ctx.accounts.trader_output_ata.clone(),
-                        authority:         ctx.accounts.trader.clone(),
-                        mint:              ctx.accounts.mint_output.clone(),
-                        token_program:     ctx.accounts.token_program_output.clone(),
-                    },
-                ),
+                FeeToken::Input => {
+                    let SwapFees {
+                        fee_express_relay,
+                        fee_relayer,
+                        fee_router,
+                        remaining_amount,
+                    } = ctx
+                        .accounts
+                        .express_relay_metadata
+                        .compute_swap_fees(data.referral_fee_bps, data.amount_input)?;
+                    (
+                        remaining_amount,
+                        data.amount_output,
+                        SendSwapFee {
+                            fee_router,
+                            fee_relayer,
+                            fee_express_relay,
+                            router_fee_receiver_ta: ctx.accounts.router_fee_receiver_ta.clone(),
+                            relayer_fee_receiver_ata: ctx.accounts.relayer_fee_receiver_ata.clone(),
+                            express_relay_fee_receiver_ata: ctx
+                                .accounts
+                                .express_relay_fee_receiver_ata
+                                .clone(),
+                            express_relay_metadata: ctx.accounts.express_relay_metadata.clone(),
+                            from: ctx.accounts.searcher_input_ta.clone(),
+                            authority: ctx.accounts.searcher.clone(),
+                            mint: ctx.accounts.mint_input.clone(),
+                            token_program: ctx.accounts.token_program_input.clone(),
+                        },
+                    )
+                }
+                FeeToken::Output => {
+                    let SwapFees {
+                        fee_express_relay,
+                        fee_relayer,
+                        fee_router,
+                        remaining_amount,
+                    } = ctx
+                        .accounts
+                        .express_relay_metadata
+                        .compute_swap_fees(data.referral_fee_bps, data.amount_output)?;
+                    (
+                        data.amount_input,
+                        remaining_amount,
+                        SendSwapFee {
+                            fee_router,
+                            fee_relayer,
+                            fee_express_relay,
+                            router_fee_receiver_ta: ctx.accounts.router_fee_receiver_ta.clone(),
+                            relayer_fee_receiver_ata: ctx.accounts.relayer_fee_receiver_ata.clone(),
+                            express_relay_fee_receiver_ata: ctx
+                                .accounts
+                                .express_relay_fee_receiver_ata
+                                .clone(),
+                            express_relay_metadata: ctx.accounts.express_relay_metadata.clone(),
+                            from: ctx.accounts.trader_output_ata.clone(),
+                            authority: ctx.accounts.trader.clone(),
+                            mint: ctx.accounts.mint_output.clone(),
+                            token_program: ctx.accounts.token_program_output.clone(),
+                        },
+                    )
+                }
             };
 
-
-        // Check ATAs
-        check_receiver_associated_token_account(
-            &ctx.accounts.express_relay_fee_receiver_ata,
-            &ctx.accounts.express_relay_metadata.key(),
-            &send_fee_args.mint,
-            &send_fee_args.token_program,
-        )?;
-        check_receiver_associated_token_account(
-            &ctx.accounts.relayer_fee_receiver_ata,
-            &ctx.accounts.express_relay_metadata.relayer_signer,
-            &send_fee_args.mint,
-            &send_fee_args.token_program,
-        )?;
-        check_receiver_token_account(
-            &ctx.accounts.router_fee_receiver_ta,
-            &send_fee_args.mint,
-            &send_fee_args.token_program,
-        )?;
-
-        // Send fees
-        transfer_token_if_needed(
-            &send_fee_args.from,
-            &ctx.accounts.express_relay_fee_receiver_ata,
-            &send_fee_args.token_program,
-            &send_fee_args.authority,
-            &send_fee_args.mint,
-            send_fee_args.fee_express_relay,
-        )?;
-
-        transfer_token_if_needed(
-            &send_fee_args.from,
-            &ctx.accounts.relayer_fee_receiver_ata,
-            &send_fee_args.token_program,
-            &send_fee_args.authority,
-            &send_fee_args.mint,
-            send_fee_args.fee_relayer,
-        )?;
-
-        transfer_token_if_needed(
-            &send_fee_args.from,
-            &ctx.accounts.router_fee_receiver_ta,
-            &send_fee_args.token_program,
-            &send_fee_args.authority,
-            &send_fee_args.mint,
-            send_fee_args.fee_router,
-        )?;
+        send_fee_args.check_receiver_token_accounts()?;
+        send_fee_args.transfer_fees()?;
 
         // Transfer tokens
         transfer_token_if_needed(
@@ -437,23 +429,12 @@ pub enum FeeToken {
 /// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapArgs {
-    pub amount_input:  u64,
-    pub amount_output: u64,
-    // The referral fee is specified in parts per million (e.g. 100 = 1 bp)
-    pub referral_fee:  u64,
+    pub amount_input:     u64,
+    pub amount_output:    u64,
+    // The referral fee is specified in basis points
+    pub referral_fee_bps: u64,
     // Token in which the fees will be paid
-    pub fee_token:     FeeToken,
-}
-
-pub struct SendSwapFeeArgs<'info> {
-    /// Amount to which the fee will be applied
-    pub fee_express_relay: u64,
-    pub fee_relayer:       u64,
-    pub fee_router:        u64,
-    pub from:              InterfaceAccount<'info, TokenAccount>,
-    pub authority:         Signer<'info>,
-    pub mint:              InterfaceAccount<'info, Mint>,
-    pub token_program:     Interface<'info, TokenInterface>,
+    pub fee_token:        FeeToken,
 }
 
 #[derive(Accounts)]
