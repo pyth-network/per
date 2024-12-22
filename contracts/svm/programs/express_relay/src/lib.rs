@@ -1,5 +1,5 @@
 pub mod error;
-pub mod fees;
+pub mod swap;
 pub mod sdk;
 pub mod state;
 pub mod token;
@@ -35,7 +35,7 @@ declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
 pub mod express_relay {
     use {
         super::*,
-        fees::{
+        swap::{
             SendSwapFee,
             SwapFees,
         },
