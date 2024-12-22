@@ -44,17 +44,23 @@ impl<'info> Swap<'info> {
                     input_after_fees:  remaining_amount,
                     output_after_fees: args.amount_output,
                     send_swap_fees:    SendSwapFees {
-                        router_fee,
-                        relayer_fee,
-                        express_relay_fee,
-                        router_fee_receiver_ta: self.router_fee_receiver_ta.clone(),
-                        relayer_fee_receiver_ata: self.relayer_fee_receiver_ata.clone(),
-                        express_relay_fee_receiver_ata: self.express_relay_fee_receiver_ata.clone(),
+                        router:                 ReceiverAndFee::new(
+                            self.router_fee_receiver_ta.clone(),
+                            router_fee,
+                        ),
+                        relayer:                ReceiverAndFee::new(
+                            self.relayer_fee_receiver_ata.clone(),
+                            relayer_fee,
+                        ),
+                        express_relay:          ReceiverAndFee::new(
+                            self.express_relay_fee_receiver_ata.clone(),
+                            express_relay_fee,
+                        ),
                         express_relay_metadata: self.express_relay_metadata.clone(),
-                        from: self.searcher_input_ta.clone(),
-                        authority: self.searcher.clone(),
-                        mint: self.mint_input.clone(),
-                        token_program: self.token_program_input.clone(),
+                        from:                   self.searcher_input_ta.clone(),
+                        authority:              self.searcher.clone(),
+                        mint:                   self.mint_input.clone(),
+                        token_program:          self.token_program_input.clone(),
                     },
                 })
             }
@@ -71,17 +77,23 @@ impl<'info> Swap<'info> {
                     input_after_fees:  args.amount_input,
                     output_after_fees: remaining_amount,
                     send_swap_fees:    SendSwapFees {
-                        router_fee,
-                        relayer_fee,
-                        express_relay_fee,
-                        router_fee_receiver_ta: self.router_fee_receiver_ta.clone(),
-                        relayer_fee_receiver_ata: self.relayer_fee_receiver_ata.clone(),
-                        express_relay_fee_receiver_ata: self.express_relay_fee_receiver_ata.clone(),
+                        router:                 ReceiverAndFee::new(
+                            self.router_fee_receiver_ta.clone(),
+                            router_fee,
+                        ),
+                        relayer:                ReceiverAndFee::new(
+                            self.relayer_fee_receiver_ata.clone(),
+                            relayer_fee,
+                        ),
+                        express_relay:          ReceiverAndFee::new(
+                            self.express_relay_fee_receiver_ata.clone(),
+                            express_relay_fee,
+                        ),
                         express_relay_metadata: self.express_relay_metadata.clone(),
-                        from: self.trader_output_ata.clone(),
-                        authority: self.trader.clone(),
-                        mint: self.mint_output.clone(),
-                        token_program: self.token_program_output.clone(),
+                        from:                   self.trader_output_ata.clone(),
+                        authority:              self.trader.clone(),
+                        mint:                   self.mint_output.clone(),
+                        token_program:          self.token_program_output.clone(),
                     },
                 })
             }
@@ -89,29 +101,24 @@ impl<'info> Swap<'info> {
     }
 }
 
-pub struct SendSwapFees<'info> {
-    pub router_fee:                     u64,
-    pub relayer_fee:                    u64,
-    pub express_relay_fee:              u64,
-    pub router_fee_receiver_ta:         InterfaceAccount<'info, TokenAccount>,
-    pub relayer_fee_receiver_ata:       InterfaceAccount<'info, TokenAccount>,
-    pub express_relay_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
-    pub express_relay_metadata:         Account<'info, ExpressRelayMetadata>,
-    pub from:                           InterfaceAccount<'info, TokenAccount>,
-    pub authority:                      Signer<'info>,
-    pub mint:                           InterfaceAccount<'info, Mint>,
-    pub token_program:                  Interface<'info, TokenInterface>,
+pub struct ReceiverAndFee<'info> {
+    receiver_ta: InterfaceAccount<'info, TokenAccount>,
+    fee:         u64,
 }
 
-impl<'info> SendSwapFees<'info> {
-    fn check_receiver_token_account(
-        ta: &InterfaceAccount<'info, TokenAccount>,
+impl<'info> ReceiverAndFee<'info> {
+    pub fn new(receiver_ta: InterfaceAccount<'info, TokenAccount>, fee: u64) -> Self {
+        Self { receiver_ta, fee }
+    }
+
+    pub fn check_receiver_token_account(
+        &self,
         mint: &InterfaceAccount<'info, Mint>,
         token_program: &Interface<'info, TokenInterface>,
     ) -> Result<()> {
-        require_eq!(ta.mint, mint.key(), ErrorCode::InvalidMint);
+        require_eq!(self.receiver_ta.mint, mint.key(), ErrorCode::InvalidMint);
         require_eq!(
-            *ta.to_account_info().owner,
+            *self.receiver_ta.to_account_info().owner,
             token_program.key(),
             ErrorCode::InvalidTokenProgram
         );
@@ -119,35 +126,43 @@ impl<'info> SendSwapFees<'info> {
         Ok(())
     }
 
-    fn check_receiver_associated_token_account(
-        ata: &InterfaceAccount<'info, TokenAccount>,
+    pub fn check_receiver_associated_token_account(
+        &self,
         owner: &Pubkey,
         mint: &InterfaceAccount<'info, Mint>,
         token_program: &Interface<'info, TokenInterface>,
     ) -> Result<()> {
         require_eq!(
-            ata.key(),
+            self.receiver_ta.key(),
             get_associated_token_address(owner, &mint.key()),
             ErrorCode::InvalidAta
         );
-        Self::check_receiver_token_account(ata, mint, token_program)?;
+        self.check_receiver_token_account(mint, token_program)?;
         Ok(())
     }
+}
 
+pub struct SendSwapFees<'info> {
+    pub router:                 ReceiverAndFee<'info>,
+    pub relayer:                ReceiverAndFee<'info>,
+    pub express_relay:          ReceiverAndFee<'info>,
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+    pub from:                   InterfaceAccount<'info, TokenAccount>,
+    pub authority:              Signer<'info>,
+    pub mint:                   InterfaceAccount<'info, Mint>,
+    pub token_program:          Interface<'info, TokenInterface>,
+}
+
+impl<'info> SendSwapFees<'info> {
     pub fn check_receiver_token_accounts(&self) -> Result<()> {
-        Self::check_receiver_token_account(
-            &self.router_fee_receiver_ta,
-            &self.mint,
-            &self.token_program,
-        )?;
-        Self::check_receiver_associated_token_account(
-            &self.relayer_fee_receiver_ata,
+        self.router
+            .check_receiver_token_account(&self.mint, &self.token_program)?;
+        self.relayer.check_receiver_associated_token_account(
             &self.express_relay_metadata.relayer_signer,
             &self.mint,
             &self.token_program,
         )?;
-        Self::check_receiver_associated_token_account(
-            &self.express_relay_fee_receiver_ata,
+        self.express_relay.check_receiver_associated_token_account(
             &self.express_relay_metadata.key(),
             &self.mint,
             &self.token_program,
@@ -155,26 +170,22 @@ impl<'info> SendSwapFees<'info> {
         Ok(())
     }
 
-    fn transfer_fee(
-        &self,
-        fee_receiver: &InterfaceAccount<'info, TokenAccount>,
-        fee: u64,
-    ) -> Result<()> {
+    fn transfer_fee(&self, fee_receiver: &ReceiverAndFee<'info>) -> Result<()> {
         transfer_token_if_needed(
             &self.from,
-            fee_receiver,
+            &fee_receiver.receiver_ta,
             &self.token_program,
             &self.authority,
             &self.mint,
-            fee,
+            fee_receiver.fee,
         )?;
         Ok(())
     }
 
     pub fn transfer_fees(&self) -> Result<()> {
-        self.transfer_fee(&self.router_fee_receiver_ta, self.router_fee)?;
-        self.transfer_fee(&self.relayer_fee_receiver_ata, self.relayer_fee)?;
-        self.transfer_fee(&self.express_relay_fee_receiver_ata, self.express_relay_fee)?;
+        self.transfer_fee(&self.router)?;
+        self.transfer_fee(&self.relayer)?;
+        self.transfer_fee(&self.express_relay)?;
         Ok(())
     }
 }
