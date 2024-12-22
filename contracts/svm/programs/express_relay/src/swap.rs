@@ -1,21 +1,21 @@
 use {
     crate::{
+        error::ErrorCode,
         state::ExpressRelayMetadata,
-        token::{
-            check_receiver_associated_token_account,
-            check_receiver_token_account,
-            transfer_token_if_needed,
-        },
+        token::transfer_token_if_needed,
         FEE_SPLIT_PRECISION,
     },
     anchor_lang::{
         accounts::interface_account::InterfaceAccount,
         prelude::*,
     },
-    anchor_spl::token_interface::{
-        Mint,
-        TokenAccount,
-        TokenInterface,
+    anchor_spl::{
+        associated_token::get_associated_token_address,
+        token_interface::{
+            Mint,
+            TokenAccount,
+            TokenInterface,
+        },
     },
 };
 
@@ -34,19 +34,49 @@ pub struct SendSwapFees<'info> {
 }
 
 impl<'info> SendSwapFees<'info> {
+    fn check_receiver_token_account(
+        ta: &InterfaceAccount<'info, TokenAccount>,
+        mint: &InterfaceAccount<'info, Mint>,
+        token_program: &Interface<'info, TokenInterface>,
+    ) -> Result<()> {
+        require_eq!(ta.mint, mint.key(), ErrorCode::InvalidMint);
+        require_eq!(
+            *ta.to_account_info().owner,
+            token_program.key(),
+            ErrorCode::InvalidTokenProgram
+        );
+
+        Ok(())
+    }
+
+    fn check_receiver_associated_token_account(
+        ata: &InterfaceAccount<'info, TokenAccount>,
+        owner: &Pubkey,
+        mint: &InterfaceAccount<'info, Mint>,
+        token_program: &Interface<'info, TokenInterface>,
+    ) -> Result<()> {
+        require_eq!(
+            ata.key(),
+            get_associated_token_address(owner, &mint.key()),
+            ErrorCode::InvalidAta
+        );
+        Self::check_receiver_token_account(ata, mint, token_program)?;
+        Ok(())
+    }
+
     pub fn check_receiver_token_accounts(&self) -> Result<()> {
-        check_receiver_token_account(
+        Self::check_receiver_token_account(
             &self.router_fee_receiver_ta,
             &self.mint,
             &self.token_program,
         )?;
-        check_receiver_associated_token_account(
+        Self::check_receiver_associated_token_account(
             &self.relayer_fee_receiver_ata,
             &self.express_relay_metadata.relayer_signer,
             &self.mint,
             &self.token_program,
         )?;
-        check_receiver_associated_token_account(
+        Self::check_receiver_associated_token_account(
             &self.express_relay_fee_receiver_ata,
             &self.express_relay_metadata.key(),
             &self.mint,
@@ -55,8 +85,7 @@ impl<'info> SendSwapFees<'info> {
         Ok(())
     }
 
-
-    pub fn transfer_fee(
+    fn transfer_fee(
         &self,
         fee_receiver: &InterfaceAccount<'info, TokenAccount>,
         fee: u64,

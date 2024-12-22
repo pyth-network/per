@@ -1,15 +1,11 @@
 use {
-    crate::error::ErrorCode,
     anchor_lang::prelude::*,
-    anchor_spl::{
-        associated_token::get_associated_token_address,
-        token_interface::{
-            self,
-            Mint,
-            TokenAccount,
-            TokenInterface,
-            TransferChecked,
-        },
+    anchor_spl::token_interface::{
+        self,
+        Mint,
+        TokenAccount,
+        TokenInterface,
+        TransferChecked,
     },
 };
 
@@ -35,35 +31,5 @@ pub fn transfer_token_if_needed<'info>(
             mint.decimals,
         )?;
     }
-    Ok(())
-}
-
-pub fn check_receiver_token_account<'info>(
-    ta: &InterfaceAccount<'info, TokenAccount>,
-    mint: &InterfaceAccount<'info, Mint>,
-    token_program: &Interface<'info, TokenInterface>,
-) -> Result<()> {
-    require_eq!(ta.mint, mint.key(), ErrorCode::InvalidMint);
-    require_eq!(
-        *ta.to_account_info().owner,
-        token_program.key(),
-        ErrorCode::InvalidTokenProgram
-    );
-
-    Ok(())
-}
-
-pub fn check_receiver_associated_token_account<'info>(
-    ata: &InterfaceAccount<'info, TokenAccount>,
-    owner: &Pubkey,
-    mint: &InterfaceAccount<'info, Mint>,
-    token_program: &Interface<'info, TokenInterface>,
-) -> Result<()> {
-    require_eq!(
-        ata.key(),
-        get_associated_token_address(owner, &mint.key()),
-        ErrorCode::InvalidAta
-    );
-    check_receiver_token_account(ata, mint, token_program)?;
     Ok(())
 }
