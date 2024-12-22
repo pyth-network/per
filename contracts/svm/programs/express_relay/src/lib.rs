@@ -417,16 +417,26 @@ pub struct Swap<'info> {
 
     // Fee receivers, we can't do any mint checks here because the mint depends on the fee token
     /// Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee
-    #[account(mut)]
+    #[account(
+        mut,
+        token::mint = mint_fee,
+        token::token_program = token_program_fee
+    )]
     pub router_fee_receiver_ta: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(mut,
-        token::authority = express_relay_metadata.fee_receiver_relayer,
+    #[account(
+        mut,
+        associated_token::mint = mint_fee,
+        associated_token::authority = express_relay_metadata.fee_receiver_relayer,
+        associated_token::token_program = token_program_fee
     )]
     pub relayer_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(mut,
-        token::authority = express_relay_metadata.key(),
+    #[account(
+        mut,
+        associated_token::mint = mint_fee,
+        associated_token::authority = express_relay_metadata.key(),
+        associated_token::token_program = token_program_fee
     )]
     pub express_relay_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
 
@@ -437,9 +447,20 @@ pub struct Swap<'info> {
     #[account(mint::token_program = token_program_output)]
     pub mint_output: InterfaceAccount<'info, Mint>,
 
+    #[account(
+        mint::token_program = token_program_fee,
+        constraint = mint_fee.key() == if data.fee_token == FeeToken::Input { mint_input.key() } else { mint_output.key() }
+    )]
+    pub mint_fee: InterfaceAccount<'info, Mint>,
+
     // Token programs
     pub token_program_input:  Interface<'info, TokenInterface>,
     pub token_program_output: Interface<'info, TokenInterface>,
+
+    #[account(
+        constraint = token_program_fee.key() == if data.fee_token == FeeToken::Input { token_program_input.key() } else { token_program_output.key() }
+    )]
+    pub token_program_fee: Interface<'info, TokenInterface>,
 
     /// Express relay configuration
     #[account(seeds = [SEED_METADATA], bump)]
