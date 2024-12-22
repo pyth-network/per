@@ -24,33 +24,39 @@ impl<'info> Swap<'info> {
     pub fn transfer_swap_fees(&self, args: &SwapArgs) -> Result<PostFeeSwapArgs> {
         let (post_fee_swap_args, transfer_swap_fees) = match args.fee_token {
             FeeToken::Input => {
-                let swap_fees = self
+                let SwapFeesWithRemainingAmount {
+                    fees,
+                    remaining_amount,
+                } = self
                     .express_relay_metadata
                     .compute_swap_fees(args.referral_fee_bps, args.amount_input)?;
                 (
                     PostFeeSwapArgs {
-                        input_after_fees:  swap_fees.remaining_amount,
+                        input_after_fees:  remaining_amount,
                         output_after_fees: args.amount_output,
                     },
                     TransferSwapFeeArgs {
-                        fees:      swap_fees,
-                        from:      &self.searcher_input_ta,
+                        fees,
+                        from: &self.searcher_input_ta,
                         authority: &self.searcher,
                     },
                 )
             }
             FeeToken::Output => {
-                let swap_fees = self
+                let SwapFeesWithRemainingAmount {
+                    fees,
+                    remaining_amount,
+                } = self
                     .express_relay_metadata
                     .compute_swap_fees(args.referral_fee_bps, args.amount_output)?;
                 (
                     PostFeeSwapArgs {
                         input_after_fees:  args.amount_input,
-                        output_after_fees: swap_fees.remaining_amount,
+                        output_after_fees: remaining_amount,
                     },
                     TransferSwapFeeArgs {
-                        fees:      swap_fees,
-                        from:      &self.trader_output_ata,
+                        fees,
+                        from: &self.trader_output_ata,
                         authority: &self.trader,
                     },
                 )
@@ -106,10 +112,13 @@ pub struct SwapFees {
     pub router_fee:        u64,
     pub relayer_fee:       u64,
     pub express_relay_fee: u64,
-    pub remaining_amount:  u64,
 }
 impl ExpressRelayMetadata {
-    pub fn compute_swap_fees(&self, referral_fee_bps: u64, amount: u64) -> Result<SwapFees> {
+    pub fn compute_swap_fees(
+        &self,
+        referral_fee_bps: u64,
+        amount: u64,
+    ) -> Result<SwapFeesWithRemainingAmount> {
         let total_fee = amount
             .checked_mul(referral_fee_bps)
             .ok_or(ProgramError::ArithmeticOverflow)?
@@ -133,10 +142,12 @@ impl ExpressRelayMetadata {
             .checked_sub(relayer_fee)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
-        Ok(SwapFees {
-            router_fee,
-            relayer_fee,
-            express_relay_fee,
+        Ok(SwapFeesWithRemainingAmount {
+            fees: SwapFees {
+                router_fee,
+                relayer_fee,
+                express_relay_fee,
+            },
             remaining_amount,
         })
     }
