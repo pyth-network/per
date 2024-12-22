@@ -1,6 +1,5 @@
 use {
     crate::{
-        error::ErrorCode,
         state::ExpressRelayMetadata,
         token::transfer_token_if_needed,
         FeeToken,
@@ -12,13 +11,10 @@ use {
         accounts::interface_account::InterfaceAccount,
         prelude::*,
     },
-    anchor_spl::{
-        associated_token::get_associated_token_address,
-        token_interface::{
-            Mint,
-            TokenAccount,
-            TokenInterface,
-        },
+    anchor_spl::token_interface::{
+        Mint,
+        TokenAccount,
+        TokenInterface,
     },
 };
 
@@ -110,36 +106,6 @@ impl<'info, 'a> ReceiverAndFee<'info, 'a> {
     pub fn new(receiver_ta: &'a InterfaceAccount<'info, TokenAccount>, fee: u64) -> Self {
         Self { receiver_ta, fee }
     }
-
-    pub fn check_receiver_token_account(
-        &self,
-        mint: &InterfaceAccount<'info, Mint>,
-        token_program: &Interface<'info, TokenInterface>,
-    ) -> Result<()> {
-        require_eq!(self.receiver_ta.mint, mint.key(), ErrorCode::InvalidMint);
-        require_eq!(
-            *self.receiver_ta.to_account_info().owner,
-            token_program.key(),
-            ErrorCode::InvalidTokenProgram
-        );
-
-        Ok(())
-    }
-
-    pub fn check_receiver_associated_token_account(
-        &self,
-        owner: &Pubkey,
-        mint: &InterfaceAccount<'info, Mint>,
-        token_program: &Interface<'info, TokenInterface>,
-    ) -> Result<()> {
-        require_eq!(
-            self.receiver_ta.key(),
-            get_associated_token_address(owner, &mint.key()),
-            ErrorCode::InvalidAta
-        );
-        self.check_receiver_token_account(mint, token_program)?;
-        Ok(())
-    }
 }
 
 pub struct SendSwapFees<'info, 'a> {
@@ -154,22 +120,6 @@ pub struct SendSwapFees<'info, 'a> {
 }
 
 impl<'info, 'a> SendSwapFees<'info, 'a> {
-    pub fn check_receiver_token_accounts(&self) -> Result<()> {
-        self.router
-            .check_receiver_token_account(self.mint, self.token_program)?;
-        self.relayer.check_receiver_associated_token_account(
-            &self.express_relay_metadata.fee_receiver_relayer,
-            self.mint,
-            self.token_program,
-        )?;
-        self.express_relay.check_receiver_associated_token_account(
-            &self.express_relay_metadata.key(),
-            self.mint,
-            self.token_program,
-        )?;
-        Ok(())
-    }
-
     fn transfer_fee(&self, fee_receiver: &ReceiverAndFee<'info, 'a>) -> Result<()> {
         transfer_token_if_needed(
             self.from,

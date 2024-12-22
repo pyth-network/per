@@ -164,7 +164,6 @@ pub mod express_relay {
             send_swap_fees,
         } = ctx.accounts.prepare_swap_fees(&data)?;
 
-        send_swap_fees.check_receiver_token_accounts()?;
         send_swap_fees.transfer_fees()?;
 
         // Transfer tokens
