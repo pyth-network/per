@@ -158,7 +158,7 @@ impl<'info> SendSwapFees<'info> {
         self.router
             .check_receiver_token_account(&self.mint, &self.token_program)?;
         self.relayer.check_receiver_associated_token_account(
-            &self.express_relay_metadata.relayer_signer,
+            &self.express_relay_metadata.fee_receiver_relayer,
             &self.mint,
             &self.token_program,
         )?;
