@@ -411,7 +411,7 @@ pub struct Swap<'info> {
     )]
     pub trader_output_ata: InterfaceAccount<'info, TokenAccount>,
 
-    // Fee receivers, we can't do any mint checks here because the mint depends on the fee token
+    // Fee receivers
     /// Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee
     #[account(
         mut,
