@@ -359,8 +359,8 @@ pub enum FeeToken {
 }
 
 /// For all swap instructions and contexts, input and output are defined with respect to the searcher
-/// So mint_input refers to the token that the searcher provides to the trader
-/// mint_output refers to the token that the searcher receives from the trader
+/// So `mint_input` refers to the token that the searcher provides to the trader and
+/// `mint_output` refers to the token that the searcher receives from the trader
 /// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapArgs {
