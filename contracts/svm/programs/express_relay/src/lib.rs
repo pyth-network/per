@@ -36,7 +36,7 @@ pub mod express_relay {
     use {
         super::*,
         swap::{
-            SendSwapFee,
+            SendSwapFees,
             SwapFees,
         },
         token::transfer_token_if_needed,
@@ -163,13 +163,13 @@ pub mod express_relay {
     }
 
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
-        let (input_after_fees, output_after_fees, send_fee_args): (u64, u64, SendSwapFee) =
+        let (input_after_fees, output_after_fees, send_swap_fees): (u64, u64, SendSwapFees) =
             match data.fee_token {
                 FeeToken::Input => {
                     let SwapFees {
-                        fee_express_relay,
-                        fee_relayer,
-                        fee_router,
+                        express_relay_fee,
+                        relayer_fee,
+                        router_fee,
                         remaining_amount,
                     } = ctx
                         .accounts
@@ -178,10 +178,10 @@ pub mod express_relay {
                     (
                         remaining_amount,
                         data.amount_output,
-                        SendSwapFee {
-                            fee_router,
-                            fee_relayer,
-                            fee_express_relay,
+                        SendSwapFees {
+                            router_fee,
+                            relayer_fee,
+                            express_relay_fee,
                             router_fee_receiver_ta: ctx.accounts.router_fee_receiver_ta.clone(),
                             relayer_fee_receiver_ata: ctx.accounts.relayer_fee_receiver_ata.clone(),
                             express_relay_fee_receiver_ata: ctx
@@ -198,9 +198,9 @@ pub mod express_relay {
                 }
                 FeeToken::Output => {
                     let SwapFees {
-                        fee_express_relay,
-                        fee_relayer,
-                        fee_router,
+                        express_relay_fee,
+                        relayer_fee,
+                        router_fee,
                         remaining_amount,
                     } = ctx
                         .accounts
@@ -209,10 +209,10 @@ pub mod express_relay {
                     (
                         data.amount_input,
                         remaining_amount,
-                        SendSwapFee {
-                            fee_router,
-                            fee_relayer,
-                            fee_express_relay,
+                        SendSwapFees {
+                            router_fee,
+                            relayer_fee,
+                            express_relay_fee,
                             router_fee_receiver_ta: ctx.accounts.router_fee_receiver_ta.clone(),
                             relayer_fee_receiver_ata: ctx.accounts.relayer_fee_receiver_ata.clone(),
                             express_relay_fee_receiver_ata: ctx
@@ -229,8 +229,8 @@ pub mod express_relay {
                 }
             };
 
-        send_fee_args.check_receiver_token_accounts()?;
-        send_fee_args.transfer_fees()?;
+        send_swap_fees.check_receiver_token_accounts()?;
+        send_swap_fees.transfer_fees()?;
 
         // Transfer tokens
         transfer_token_if_needed(
