@@ -40,7 +40,6 @@ declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
 pub mod express_relay {
     use super::*;
 
-
     pub fn initialize(ctx: Context<Initialize>, data: InitializeArgs) -> Result<()> {
         validate_fee_split(data.split_router_default)?;
         validate_fee_split(data.split_relayer)?;
