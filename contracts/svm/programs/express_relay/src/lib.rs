@@ -9,10 +9,6 @@ use {
     crate::{
         error::ErrorCode,
         state::*,
-        swap::{
-            SendSwapFees,
-            SwapFees,
-        },
         token::transfer_token_if_needed,
         utils::*,
     },
@@ -38,7 +34,10 @@ declare_id!("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou");
 
 #[program]
 pub mod express_relay {
-    use super::*;
+    use {
+        super::*,
+        swap::PostFeeSwapArgs,
+    };
 
     pub fn initialize(ctx: Context<Initialize>, data: InitializeArgs) -> Result<()> {
         validate_fee_split(data.split_router_default)?;
@@ -161,71 +160,11 @@ pub mod express_relay {
     }
 
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
-        let (input_after_fees, output_after_fees, send_swap_fees): (u64, u64, SendSwapFees) =
-            match data.fee_token {
-                FeeToken::Input => {
-                    let SwapFees {
-                        express_relay_fee,
-                        relayer_fee,
-                        router_fee,
-                        remaining_amount,
-                    } = ctx
-                        .accounts
-                        .express_relay_metadata
-                        .compute_swap_fees(data.referral_fee_bps, data.amount_input)?;
-                    (
-                        remaining_amount,
-                        data.amount_output,
-                        SendSwapFees {
-                            router_fee,
-                            relayer_fee,
-                            express_relay_fee,
-                            router_fee_receiver_ta: ctx.accounts.router_fee_receiver_ta.clone(),
-                            relayer_fee_receiver_ata: ctx.accounts.relayer_fee_receiver_ata.clone(),
-                            express_relay_fee_receiver_ata: ctx
-                                .accounts
-                                .express_relay_fee_receiver_ata
-                                .clone(),
-                            express_relay_metadata: ctx.accounts.express_relay_metadata.clone(),
-                            from: ctx.accounts.searcher_input_ta.clone(),
-                            authority: ctx.accounts.searcher.clone(),
-                            mint: ctx.accounts.mint_input.clone(),
-                            token_program: ctx.accounts.token_program_input.clone(),
-                        },
-                    )
-                }
-                FeeToken::Output => {
-                    let SwapFees {
-                        express_relay_fee,
-                        relayer_fee,
-                        router_fee,
-                        remaining_amount,
-                    } = ctx
-                        .accounts
-                        .express_relay_metadata
-                        .compute_swap_fees(data.referral_fee_bps, data.amount_output)?;
-                    (
-                        data.amount_input,
-                        remaining_amount,
-                        SendSwapFees {
-                            router_fee,
-                            relayer_fee,
-                            express_relay_fee,
-                            router_fee_receiver_ta: ctx.accounts.router_fee_receiver_ta.clone(),
-                            relayer_fee_receiver_ata: ctx.accounts.relayer_fee_receiver_ata.clone(),
-                            express_relay_fee_receiver_ata: ctx
-                                .accounts
-                                .express_relay_fee_receiver_ata
-                                .clone(),
-                            express_relay_metadata: ctx.accounts.express_relay_metadata.clone(),
-                            from: ctx.accounts.trader_output_ata.clone(),
-                            authority: ctx.accounts.trader.clone(),
-                            mint: ctx.accounts.mint_output.clone(),
-                            token_program: ctx.accounts.token_program_output.clone(),
-                        },
-                    )
-                }
-            };
+        let PostFeeSwapArgs {
+            input_after_fees,
+            output_after_fees,
+            send_swap_fees,
+        } = ctx.accounts.prepare_swap_fees(&data)?;
 
         send_swap_fees.check_receiver_token_accounts()?;
         send_swap_fees.transfer_fees()?;

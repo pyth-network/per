@@ -3,6 +3,9 @@ use {
         error::ErrorCode,
         state::ExpressRelayMetadata,
         token::transfer_token_if_needed,
+        FeeToken,
+        Swap,
+        SwapArgs,
         FEE_SPLIT_PRECISION,
     },
     anchor_lang::{
@@ -18,6 +21,73 @@ use {
         },
     },
 };
+
+pub struct PostFeeSwapArgs<'info> {
+    pub input_after_fees:  u64,
+    pub output_after_fees: u64,
+    pub send_swap_fees:    SendSwapFees<'info>,
+}
+
+impl<'info> Swap<'info> {
+    pub fn prepare_swap_fees(&self, args: &SwapArgs) -> Result<PostFeeSwapArgs<'info>> {
+        match args.fee_token {
+            FeeToken::Input => {
+                let SwapFees {
+                    express_relay_fee,
+                    relayer_fee,
+                    router_fee,
+                    remaining_amount,
+                } = self
+                    .express_relay_metadata
+                    .compute_swap_fees(args.referral_fee_bps, args.amount_input)?;
+                Ok(PostFeeSwapArgs {
+                    input_after_fees:  remaining_amount,
+                    output_after_fees: args.amount_output,
+                    send_swap_fees:    SendSwapFees {
+                        router_fee,
+                        relayer_fee,
+                        express_relay_fee,
+                        router_fee_receiver_ta: self.router_fee_receiver_ta.clone(),
+                        relayer_fee_receiver_ata: self.relayer_fee_receiver_ata.clone(),
+                        express_relay_fee_receiver_ata: self.express_relay_fee_receiver_ata.clone(),
+                        express_relay_metadata: self.express_relay_metadata.clone(),
+                        from: self.searcher_input_ta.clone(),
+                        authority: self.searcher.clone(),
+                        mint: self.mint_input.clone(),
+                        token_program: self.token_program_input.clone(),
+                    },
+                })
+            }
+            FeeToken::Output => {
+                let SwapFees {
+                    express_relay_fee,
+                    relayer_fee,
+                    router_fee,
+                    remaining_amount,
+                } = self
+                    .express_relay_metadata
+                    .compute_swap_fees(args.referral_fee_bps, args.amount_output)?;
+                Ok(PostFeeSwapArgs {
+                    input_after_fees:  args.amount_input,
+                    output_after_fees: remaining_amount,
+                    send_swap_fees:    SendSwapFees {
+                        router_fee,
+                        relayer_fee,
+                        express_relay_fee,
+                        router_fee_receiver_ta: self.router_fee_receiver_ta.clone(),
+                        relayer_fee_receiver_ata: self.relayer_fee_receiver_ata.clone(),
+                        express_relay_fee_receiver_ata: self.express_relay_fee_receiver_ata.clone(),
+                        express_relay_metadata: self.express_relay_metadata.clone(),
+                        from: self.trader_output_ata.clone(),
+                        authority: self.trader.clone(),
+                        mint: self.mint_output.clone(),
+                        token_program: self.token_program_output.clone(),
+                    },
+                })
+            }
+        }
+    }
+}
 
 pub struct SendSwapFees<'info> {
     pub router_fee:                     u64,
