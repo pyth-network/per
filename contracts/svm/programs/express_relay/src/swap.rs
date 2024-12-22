@@ -119,12 +119,12 @@ impl ExpressRelayMetadata {
         referral_fee_bps: u64,
         amount: u64,
     ) -> Result<SwapFeesWithRemainingAmount> {
-        let total_fee = amount
+        let router_fee = amount
             .checked_mul(referral_fee_bps)
             .ok_or(ProgramError::ArithmeticOverflow)?
             / FEE_SPLIT_PRECISION;
-        let platform_fee = total_fee
-            .checked_mul(self.swap_platform_fee)
+        let platform_fee = amount
+            .checked_mul(self.swap_platform_fee_bps)
             .ok_or(ProgramError::ArithmeticOverflow)?
             / FEE_SPLIT_PRECISION;
         let relayer_fee = platform_fee
@@ -133,11 +133,11 @@ impl ExpressRelayMetadata {
             / FEE_SPLIT_PRECISION;
 
         let remaining_amount = amount
-            .checked_sub(total_fee)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        let router_fee = total_fee
+            .checked_sub(router_fee)
+            .ok_or(ProgramError::ArithmeticOverflow)?
             .checked_sub(platform_fee)
             .ok_or(ProgramError::ArithmeticOverflow)?;
+
         let express_relay_fee = platform_fee
             .checked_sub(relayer_fee)
             .ok_or(ProgramError::ArithmeticOverflow)?;
