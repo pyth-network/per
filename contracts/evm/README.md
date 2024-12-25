@@ -21,7 +21,7 @@ $ forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1fc
 ## Permit2
 
 Since Permit2 contract compiles with a different solc version not compatible with the rest of the repo,
-we have commited the compiled artifacts in [`permit2/Permit2.json`](`permit2/Permit2.json`).
+we have committed the compiled artifacts in [`permit2/Permit2.json`](`permit2/Permit2.json`).
 To compile the contract yourself, you can run the following command:
 
 ```shell
