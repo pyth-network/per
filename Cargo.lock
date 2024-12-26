@@ -8518,6 +8518,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "testing-searcher"
+version = "0.1.0"
+dependencies = [
+ "express-relay-client",
+ "express-relay-simple-searcher",
+ "tokio",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"

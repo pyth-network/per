@@ -1,0 +1,9 @@
+[package]
+name = "testing-searcher"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+express-relay-simple-searcher = { path = "../simple-searcher" }
+express-relay-client = { path = ".." }
