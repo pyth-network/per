@@ -20,7 +20,7 @@ from solders.system_program import ID as system_pid
 from solders.sysvar import INSTRUCTIONS as sysvar_ixs_pid
 from solders.transaction import VersionedTransaction
 
-from per_sdk.svm.helpers import configure_logger, read_kp_from_json
+from ..svm.helpers import configure_logger, read_kp_from_json
 
 logger = logging.getLogger(__name__)
 

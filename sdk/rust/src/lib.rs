@@ -5,10 +5,9 @@ pub use {
 use {
     ethers::signers::LocalWallet,
     evm::{
-        get_config,
         get_params,
-        make_adapter_calldata,
         BidParamsEvm,
+        Evm,
     },
     express_relay_api_types::{
         bid::{
@@ -73,13 +72,20 @@ use {
 
 pub mod evm;
 
-pub struct Client {
+pub struct ClientInner {
     http_url: Url,
     ws_url:   Url,
     api_key:  Option<String>,
     client:   reqwest::Client,
+    evm:      Evm,
 }
 
+#[derive(Clone)]
+pub struct Client {
+    inner: Arc<ClientInner>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ClientConfig {
     pub http_url: String,
     pub api_key:  Option<String>,
@@ -476,11 +482,12 @@ impl Client {
     ) -> Result<R, ClientError> {
         let properties = route.properties();
         let url = self
+            .inner
             .http_url
             .join(properties.full_path.as_str())
             .map_err(|e| ClientError::InvalidHttpUrl(e.to_string()))?;
-        let mut request = self.client.request(properties.method, url);
-        if let Some(api_key) = self.api_key.clone() {
+        let mut request = self.inner.client.request(properties.method, url);
+        if let Some(api_key) = self.inner.api_key.clone() {
             request = request.bearer_auth(api_key);
         }
         if let Some(query) = query {
@@ -490,20 +497,7 @@ impl Client {
         Client::decode(response).await
     }
 
-    /// Creates a new HTTP client with the provided configuration.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - The client configuration containing an HTTP URL and an optional API key.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<Self, ClientError>` - A result containing the initialized client or an error.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the HTTP URL is invalid or has an unsupported scheme.
-    pub fn try_new(config: ClientConfig) -> Result<Self, ClientError> {
+    fn get_urls(config: ClientConfig) -> Result<(Url, Url), ClientError> {
         let http_url = Url::parse(config.http_url.as_str())
             .map_err(|e| ClientError::InvalidHttpUrl(e.to_string()))?;
 
@@ -521,11 +515,51 @@ impl Client {
         };
         let ws_url = Url::parse(ws_url_string.as_str()).expect("Failed to parse ws url");
 
+        Ok((http_url, ws_url))
+    }
+
+    /// Creates a new HTTP client with the provided configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The client configuration containing an HTTP URL and an optional API key.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Self, ClientError>` - A result containing the initialized client or an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP URL is invalid or has an unsupported scheme.
+    pub fn try_new(config: ClientConfig) -> Result<Self, ClientError> {
+        let (http_url, ws_url) = Self::get_urls(config.clone())?;
         Ok(Self {
-            http_url,
-            ws_url,
-            api_key: config.api_key,
-            client: reqwest::Client::new(),
+            inner: Arc::new(ClientInner {
+                http_url,
+                ws_url,
+                api_key: config.api_key,
+                client: reqwest::Client::new(),
+                evm: Evm::new(None),
+            }),
+        })
+    }
+
+    /// Creates a new HTTP client with the provided configuration and EVM configuration.
+    /// This is for developers who want to use a custom EVM configuration.
+    /// Do not use this method unless you are sure about the configuration.
+    pub fn try_new_with_evm_config(
+        config: ClientConfig,
+        evm_config: HashMap<String, evm::Config>,
+    ) -> Result<Self, ClientError> {
+        let (http_url, ws_url) = Self::get_urls(config.clone())?;
+        Ok(Self {
+            inner: Arc::new(ClientInner {
+                http_url,
+                ws_url,
+                api_key: config.api_key,
+                client: reqwest::Client::new(),
+                evm: Evm::new(Some(evm_config)),
+            }),
         })
     }
 
@@ -544,6 +578,7 @@ impl Client {
     /// The returned `WsClient` is thread-safe and can be cloned to share across multiple tasks.
     pub async fn connect_websocket(&self) -> Result<WsClient, ClientError> {
         let url = self
+            .inner
             .ws_url
             .join(api_types::ws::Route::Ws.properties().full_path.as_str())
             .map_err(|e| ClientError::WsConnectFailed(e.to_string()))?;
@@ -551,7 +586,7 @@ impl Client {
             .as_str()
             .into_client_request()
             .map_err(|e| ClientError::WsConnectFailed(e.to_string()))?;
-        if let Some(api_key) = self.api_key.clone() {
+        if let Some(api_key) = self.inner.api_key.clone() {
             let bearer_token = format!("Bearer {}", api_key);
             request.headers_mut().insert(
                 "Authorization",
@@ -609,11 +644,12 @@ impl Client {
     ///
     /// * `Result<BidCreate, ClientError>` - A bid creation object or an error.
     pub async fn new_bid<T: Biddable>(
+        &self,
         opportunity: T,
         params: T::Params,
         private_key: String,
     ) -> Result<api_types::bid::BidCreate, ClientError> {
-        T::new_bid(opportunity, params, private_key)
+        T::new_bid(self, opportunity, params, private_key)
     }
 }
 
@@ -621,16 +657,18 @@ pub trait Biddable {
     type Params;
 
     fn new_bid(
+        client: &Client,
         opportunity: Self,
         params: Self::Params,
         private_key: String,
-    ) -> Result<api_types::bid::BidCreate, ClientError>;
+    ) -> Result<BidCreate, ClientError>;
 }
 
 impl Biddable for api_types::opportunity::OpportunityEvm {
     type Params = BidParamsEvm;
 
     fn new_bid(
+        client: &Client,
         opportunity: Self,
         bid_params: Self::Params,
         private_key: String,
@@ -639,14 +677,18 @@ impl Biddable for api_types::opportunity::OpportunityEvm {
             ClientError::NewBidError(format!("Failed to parse private key: {:?}", e))
         })?;
         let params = get_params(opportunity.clone());
-        let config = get_config(params.chain_id.as_str())?;
+        let config = client.inner.evm.get_config(params.chain_id.as_str())?;
         let wallet = LocalWallet::from(private_key);
         let bid = BidCreateEvm {
             permission_key:  params.permission_key,
             chain_id:        params.chain_id,
             target_contract: config.adapter_factory_contract,
             amount:          bid_params.amount,
-            target_calldata: make_adapter_calldata(opportunity.clone(), bid_params, wallet)?,
+            target_calldata: client.inner.evm.make_adapter_calldata(
+                opportunity.clone(),
+                bid_params,
+                wallet,
+            )?,
         };
         Ok(BidCreate::Evm(bid))
     }
@@ -656,6 +698,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
     type Params = i64;
 
     fn new_bid(
+        _client: &Client,
         _opportunity: Self,
         _params: Self::Params,
         _private_key: String,
