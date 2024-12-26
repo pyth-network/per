@@ -38,14 +38,7 @@ pub struct RunOptions {
     #[arg(long = "api-key")]
     #[arg(env = "API_KEY")]
     pub api_key: Option<String>,
-
-    /// The EVM config to override the default config.
-    #[arg(long = "evm-config")]
-    #[arg(env = "EVM_CONFIG")]
-    pub evm_config: Option<String>,
 }
-
-// pub mod lib;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -37,12 +37,14 @@ async fn main() {
     let mut config_map: HashMap<String, Config> = HashMap::new();
     config_map.insert(chain_id.clone(), config);
 
-    let mut client = Client::try_new(ClientConfig {
-        http_url: server_url.to_string(),
-        api_key:  None,
-    })
-    .unwrap();
-    client.override_evm_config(config_map).await;
+    let client = Client::try_new_with_evm_config(
+        ClientConfig {
+            http_url: server_url.to_string(),
+            api_key:  None,
+        },
+        config_map.clone(),
+    )
+    .expect("Failed to create client");
 
     let searcher = SimpleSearcher::try_new(client, vec![chain_id.clone()], Some(searcher_sk), None)
         .await
