@@ -414,7 +414,7 @@ contract ExpressRelayIntegrationTest is Test, ExpressRelayTestSetup {
             bidInfos
         );
 
-        // wrong permisison key
+        // wrong permission key
         permission = abi.encode(address(0));
 
         uint256 balanceProtocolPre = address(tokenVault).balance;
