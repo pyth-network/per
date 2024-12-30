@@ -1448,6 +1448,7 @@ name = "dummy"
 version = "0.3.0"
 dependencies = [
  "anchor-lang",
+ "anchor-spl",
  "express-relay",
  "solana-program-test",
  "solana-sdk",

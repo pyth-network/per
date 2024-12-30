@@ -1,12 +1,16 @@
 pub mod error;
 pub mod sdk;
 pub mod state;
+pub mod swap;
+pub mod token;
 pub mod utils;
 
 use {
     crate::{
         error::ErrorCode,
         state::*,
+        swap::PostFeeSwapArgs,
+        token::transfer_token_if_needed,
         utils::*,
     },
     anchor_lang::{
@@ -19,6 +23,11 @@ use {
             sysvar::instructions as sysvar_instructions,
         },
         system_program::System,
+    },
+    anchor_spl::token_interface::{
+        Mint,
+        TokenAccount,
+        TokenInterface,
     },
 };
 
@@ -147,6 +156,35 @@ pub mod express_relay {
             amount,
         )
     }
+
+    pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
+        let PostFeeSwapArgs {
+            input_after_fees,
+            output_after_fees,
+        } = ctx.accounts.transfer_swap_fees(&data)?;
+
+        // Transfer tokens
+        transfer_token_if_needed(
+            &ctx.accounts.searcher_input_ta,
+            &ctx.accounts.trader_input_ata,
+            &ctx.accounts.token_program_input,
+            &ctx.accounts.searcher,
+            &ctx.accounts.mint_input,
+            input_after_fees,
+        )?;
+
+        transfer_token_if_needed(
+            &ctx.accounts.trader_output_ata,
+            &ctx.accounts.searcher_output_ta,
+            &ctx.accounts.token_program_output,
+            &ctx.accounts.trader,
+            &ctx.accounts.mint_output,
+            output_after_fees,
+        )?;
+
+
+        Ok(())
+    }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
@@ -259,7 +297,7 @@ pub struct SubmitBid<'info> {
     #[account(mut)]
     pub router: UncheckedAccount<'info>,
 
-    /// CHECK: this cannot be checked against ConfigRouter bc it may not be initialized bc anchor. we need to check this config even when unused to make sure unique fee splits don't exist.
+    /// CHECK: Some routers might have an initialized ConfigRouter at the enforced PDA address which specifies a custom routing fee split. If the ConfigRouter is unitialized we will default to the routing fee split defined in the global ExpressRelayMetadata. We need to pass this account to check whether it exists and therefore there is a custom fee split.
     #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
     pub config_router: UncheckedAccount<'info>,
 
@@ -308,4 +346,119 @@ pub struct WithdrawFees<'info> {
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
+pub enum FeeToken {
+    Input,
+    Output,
+}
+
+/// For all swap instructions and contexts, input and output are defined with respect to the searcher
+/// So `mint_input` refers to the token that the searcher provides to the trader and
+/// `mint_output` refers to the token that the searcher receives from the trader
+/// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
+pub struct SwapArgs {
+    pub amount_input:     u64,
+    pub amount_output:    u64,
+    // The referral fee is specified in basis points
+    pub referral_fee_bps: u64,
+    // Token in which the fees will be paid
+    pub fee_token:        FeeToken,
+}
+
+#[derive(Accounts)]
+#[instruction(data: Box<SwapArgs>)]
+pub struct Swap<'info> {
+    /// Searcher is the party that sends the input token and receives the output token
+    pub searcher: Signer<'info>,
+
+    /// Trader is the party that sends the output token and receives the input token
+    pub trader: Signer<'info>,
+
+    // Searcher accounts
+    #[account(
+        mut,
+        token::mint = mint_input,
+        token::authority = searcher,
+        token::token_program = token_program_input
+    )]
+    pub searcher_input_ta: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = mint_output,
+        token::authority = searcher,
+        token::token_program = token_program_output
+    )]
+    pub searcher_output_ta: InterfaceAccount<'info, TokenAccount>,
+
+    // Trader accounts
+    #[account(
+        mut,
+        associated_token::mint = mint_input,
+        associated_token::authority = trader,
+        associated_token::token_program = token_program_input
+    )]
+    pub trader_input_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint_output,
+        associated_token::authority = trader,
+        associated_token::token_program = token_program_output
+    )]
+    pub trader_output_ata: InterfaceAccount<'info, TokenAccount>,
+
+    // Fee receivers
+    /// Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee
+    #[account(
+        mut,
+        token::mint = mint_fee,
+        token::token_program = token_program_fee
+    )]
+    pub router_fee_receiver_ta: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint_fee,
+        associated_token::authority = express_relay_metadata.fee_receiver_relayer,
+        associated_token::token_program = token_program_fee
+    )]
+    pub relayer_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint_fee,
+        associated_token::authority = express_relay_metadata.key(),
+        associated_token::token_program = token_program_fee
+    )]
+    pub express_relay_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
+
+    // Mints
+    #[account(mint::token_program = token_program_input)]
+    pub mint_input: InterfaceAccount<'info, Mint>,
+
+    #[account(mint::token_program = token_program_output)]
+    pub mint_output: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        mint::token_program = token_program_fee,
+        constraint = mint_fee.key() == if data.fee_token == FeeToken::Input { mint_input.key() } else { mint_output.key() }
+    )]
+    pub mint_fee: InterfaceAccount<'info, Mint>,
+
+    // Token programs
+    pub token_program_input:  Interface<'info, TokenInterface>,
+    pub token_program_output: Interface<'info, TokenInterface>,
+
+    #[account(
+        constraint = token_program_fee.key() == if data.fee_token == FeeToken::Input { token_program_input.key() } else { token_program_output.key() }
+    )]
+    pub token_program_fee: Interface<'info, TokenInterface>,
+
+    /// Express relay configuration
+    #[account(seeds = [SEED_METADATA], bump)]
+    pub express_relay_metadata: Box<Account<'info, ExpressRelayMetadata>>,
 }

@@ -14,8 +14,14 @@ pub enum ErrorCode {
     MissingPermission,
     #[msg("Multiple permissions")]
     MultiplePermissions,
-    #[msg("Insufficient Searcher Funds")]
+    #[msg("Insufficient searcher funds")]
     InsufficientSearcherFunds,
     #[msg("Insufficient funds for rent")]
     InsufficientRent,
+    #[msg("Invalid ATA provided")]
+    InvalidAta,
+    #[msg("A token account has the wrong mint")]
+    InvalidMint,
+    #[msg("A token account belongs to the wrong token program")]
+    InvalidTokenProgram,
 }
