@@ -434,7 +434,7 @@ export class Client {
     });
     if (response.error) {
       throw ClientError.newHttpError(
-        response.error.error,
+        JSON.stringify(response.error),
         response.response.status
       );
     }
@@ -503,7 +503,7 @@ export class Client {
       });
       if (response.error) {
         throw ClientError.newHttpError(
-          response.error.error,
+          JSON.stringify(response.error),
           response.response.status
         );
       } else if (response.data === undefined) {
@@ -526,7 +526,7 @@ export class Client {
     });
     if (response.error) {
       throw ClientError.newHttpError(
-        response.error.error,
+        JSON.stringify(response.error),
         response.response.status
       );
     } else if (response.data === undefined) {
