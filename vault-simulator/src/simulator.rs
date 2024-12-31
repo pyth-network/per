@@ -160,7 +160,7 @@ pub async fn run_simulator(simulator_options: SimulatorOptions) -> Result<()> {
         .choose_multiple(&mut rand::thread_rng(), 2)
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|_| anyhow!("Unable to sample 2 tokens as colateral and debt"))?;
+        .map_err(|_| anyhow!("Unable to sample 2 tokens as collateral and debt"))?;
 
     let [collateral, debt] = sample;
     let collateral_info = get_token_info(*collateral, client.clone()).await?;
