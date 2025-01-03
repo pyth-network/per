@@ -10,22 +10,20 @@ use {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Quote {
-    pub transaction:          VersionedTransaction,
+    pub transaction:     VersionedTransaction,
     // The expiration time of the quote (in seconds since the Unix epoch)
-    pub expiration_time:      i64,
-    pub input_token:          TokenAmountSvm,
-    pub output_token:         TokenAmountSvm,
-    pub maximum_slippage_bps: u16,
-    pub chain_id:             ChainId,
+    pub expiration_time: i64,
+    pub input_token:     TokenAmountSvm,
+    pub output_token:    TokenAmountSvm,
+    pub chain_id:        ChainId,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuoteCreate {
-    pub user_wallet_address:  Pubkey,
-    pub tokens:               QuoteTokens,
-    pub maximum_slippage_bps: u16,
-    pub router:               Pubkey,
-    pub chain_id:             ChainId,
+    pub user_wallet_address: Pubkey,
+    pub tokens:              QuoteTokens,
+    pub router:              Pubkey,
+    pub chain_id:            ChainId,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -66,7 +64,6 @@ impl From<api::QuoteCreate> for QuoteCreate {
         Self {
             user_wallet_address: params.user_wallet_address,
             tokens,
-            maximum_slippage_bps: params.maximum_slippage_bps,
             router: params.router,
             chain_id: params.chain_id,
         }
@@ -76,12 +73,11 @@ impl From<api::QuoteCreate> for QuoteCreate {
 impl From<Quote> for api::Quote {
     fn from(quote: Quote) -> Self {
         api::Quote::Svm(api::QuoteSvm::V1(api::QuoteV1Svm {
-            transaction:          quote.transaction,
-            expiration_time:      quote.expiration_time,
-            input_token:          quote.input_token.into(),
-            output_token:         quote.output_token.into(),
-            maximum_slippage_bps: quote.maximum_slippage_bps,
-            chain_id:             quote.chain_id,
+            transaction:     quote.transaction,
+            expiration_time: quote.expiration_time,
+            input_token:     quote.input_token.into(),
+            output_token:    quote.output_token.into(),
+            chain_id:        quote.chain_id,
         }))
     }
 }

@@ -59,8 +59,7 @@ pub struct OpportunityMetadataSvmProgramLimo {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OpportunityMetadataSvmProgramWallet {
     #[serde_as(as = "DisplayFromStr")]
-    pub user_wallet_address:  Pubkey,
-    pub maximum_slippage_bps: u16,
+    pub user_wallet_address: Pubkey,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -213,10 +213,6 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
-
-        /// The maximum slippage in basis points that the user is willing to accept.
-        #[schema(example = 50, value_type = u16)]
-        maximum_slippage_bps: u16,
     },
 }
 
@@ -318,10 +314,6 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
-
-        /// The maximum slippage in basis points that the user is willing to accept.
-        #[schema(example = 50, value_type = u16)]
-        maximum_slippage_bps: u16,
 
         /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
@@ -495,9 +487,6 @@ pub struct QuoteCreateV1SvmParams {
     /// The token amount that the user wants to swap out of/into.
     #[schema(inline)]
     pub specified_token_amount: SpecifiedTokenAmount,
-    /// The maximum slippage in basis points that the user is willing to accept.
-    #[schema(example = 50)]
-    pub maximum_slippage_bps:   u16,
     /// The router account to send referral fees to.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
@@ -544,20 +533,17 @@ pub struct QuoteV1Svm {
     /// The signed transaction for the quote to be executed on chain which is valid until the expiration time.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde(with = "crate::serde::transaction_svm")]
-    pub transaction:          VersionedTransaction,
+    pub transaction:     VersionedTransaction,
     /// The expiration time of the quote (in seconds since the Unix epoch).
     #[schema(example = 1_700_000_000_000_000i64, value_type = i64)]
-    pub expiration_time:      i64,
+    pub expiration_time: i64,
     /// The input token amount that the user wants to swap.
-    pub input_token:          TokenAmountSvm,
+    pub input_token:     TokenAmountSvm,
     /// The output token amount that the user will receive.
-    pub output_token:         TokenAmountSvm,
-    /// The maximum slippage in basis points that the user is willing to accept.
-    #[schema(example = 50)]
-    pub maximum_slippage_bps: u16,
+    pub output_token:    TokenAmountSvm,
     /// The chain id for the quote.
     #[schema(example = "solana", value_type = String)]
-    pub chain_id:             ChainId,
+    pub chain_id:        ChainId,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]

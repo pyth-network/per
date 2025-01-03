@@ -33,8 +33,7 @@ pub struct OpportunitySvmProgramLimo {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramWallet {
-    pub user_wallet_address:  Pubkey,
-    pub maximum_slippage_bps: u16,
+    pub user_wallet_address: Pubkey,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -96,8 +95,7 @@ impl Opportunity for OpportunitySvm {
             OpportunitySvmProgram::KaminoSwap(program) => {
                 repository::OpportunityMetadataSvmProgram::KaminoSwap(
                     repository::OpportunityMetadataSvmProgramWallet {
-                        user_wallet_address:  program.user_wallet_address,
-                        maximum_slippage_bps: program.maximum_slippage_bps,
+                        user_wallet_address: program.user_wallet_address,
                     },
                 )
             }
@@ -201,7 +199,6 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 };
                 api::OpportunityParamsV1ProgramSvm::Swap {
                     user_wallet_address: program.user_wallet_address,
-                    maximum_slippage_bps: program.maximum_slippage_bps,
                     permission_account: val.permission_account,
                     router_account: val.router,
                     // TODO can we make it type safe?
@@ -252,8 +249,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             }
             repository::OpportunityMetadataSvmProgram::KaminoSwap(program) => {
                 OpportunitySvmProgram::KaminoSwap(OpportunitySvmProgramWallet {
-                    user_wallet_address:  program.user_wallet_address,
-                    maximum_slippage_bps: program.maximum_slippage_bps,
+                    user_wallet_address: program.user_wallet_address,
                 })
             }
         };
@@ -288,10 +284,8 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             }),
             api::OpportunityCreateProgramParamsV1Svm::KaminoSwap {
                 user_wallet_address,
-                maximum_slippage_bps,
             } => OpportunitySvmProgram::KaminoSwap(OpportunitySvmProgramWallet {
                 user_wallet_address,
-                maximum_slippage_bps,
             }),
         };
 

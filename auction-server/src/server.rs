@@ -347,6 +347,21 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                                 )
                                 .parse::<usize>()
                                 .expect("Failed to parse (swap) router account position"),
+                                user_wallet_account_position_swap:      env!(
+                                    "SWAP_USER_WALLET_ACCOUNT_POSITION"
+                                )
+                                .parse::<usize>()
+                                .expect("Failed to parse user wallet account position"),
+                                mint_input_account_position_swap:       env!(
+                                    "SWAP_MINT_INPUT_ACCOUNT_POSITION"
+                                )
+                                .parse::<usize>()
+                                .expect("Failed to parse user wallet account position"),
+                                mint_output_account_position_swap:      env!(
+                                    "SWAP_MINT_OUTPUT_ACCOUNT_POSITION"
+                                )
+                                .parse::<usize>()
+                                .expect("Failed to parse user wallet account position"),
                             },
                             ws_address:                    chain_store.config.ws_addr.clone(),
                             tx_broadcaster_client:         TracedSenderSvm::new_client(

@@ -17,6 +17,7 @@ use {
                 get_live_bids::GetLiveBidsInput,
                 update_bid_status::UpdateBidStatusInput,
                 update_submitted_auction::UpdateSubmittedAuctionInput,
+                verification::BidPaymentInstruction,
                 Service as AuctionService,
             },
         },
@@ -130,8 +131,7 @@ impl Service<ChainTypeSvm> {
             permission_account,
             program: entities::OpportunitySvmProgram::KaminoSwap(
                 entities::OpportunitySvmProgramWallet {
-                    user_wallet_address:  quote_create.user_wallet_address,
-                    maximum_slippage_bps: quote_create.maximum_slippage_bps,
+                    user_wallet_address: quote_create.user_wallet_address,
                 },
             ),
             // TODO extract latest slot
@@ -213,22 +213,22 @@ impl Service<ChainTypeSvm> {
 
         let winner_bid = bids.first().expect("failed to get first bid");
 
-        // // TODO: uncomment this once Swap instruction is implemented
-        // // Find the swap instruction from bid transaction to extract the deadline
-        // let swap_instruction = auction_service
-        //     .verify_swap_instruction(winner_bid.chain_data.transaction.clone())
-        //     .map_err(|e| {
-        //         tracing::error!("Failed to verify swap instruction: {:?}", e);
-        //         RestError::TemporarilyUnavailable
-        //     })?;
-        // let swap_data = AuctionService::<Svm>::extract_swap_data(
-        //     &swap_instruction,
-        // )
-        // .map_err(|e| {
-        //     tracing::error!("Failed to extract swap data: {:?}", e);
-        //     RestError::TemporarilyUnavailable
-        // })?;
+        let swap_instruction = auction_service
+            .extract_express_relay_bid_instruction(
+                winner_bid.chain_data.transaction.clone(),
+                BidPaymentInstruction::Swap,
+            )
+            .map_err(|e| {
+                tracing::error!("Failed to verify swap instruction: {:?}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+        let swap_data = AuctionService::extract_swap_data(&swap_instruction).map_err(|e| {
+            tracing::error!("Failed to extract swap data: {:?}", e);
+            RestError::TemporarilyUnavailable
+        })?;
         let deadline = i64::MAX;
+        // TODO*: to fix once deadline param added to swap instruction--just set this way to make sure compiles
+        // let deadline = swap_data.deadline;
 
         // Bids is not empty
         let auction = Auction::try_new(bids.clone(), bid_collection_time)
@@ -305,7 +305,6 @@ impl Service<ChainTypeSvm> {
             expiration_time: deadline,
             input_token,
             output_token, // TODO*: incorporate fees
-            maximum_slippage_bps: input.quote_create.maximum_slippage_bps,
             chain_id: input.quote_create.chain_id,
         })
     }
