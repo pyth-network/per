@@ -37,8 +37,11 @@ fn build_evm_contracts() {
 }
 
 const SUBMIT_BID_INSTRUCTION_SVM: &str = "submit_bid";
-const PERMISSION_ACCOUNT_SVM: &str = "permission";
-const ROUTER_ACCOUNT_SVM: &str = "router";
+const SUBMIT_BID_PERMISSION_ACCOUNT_SVM: &str = "permission";
+const SUBMIT_BID_ROUTER_ACCOUNT_SVM: &str = "router";
+
+const SWAP_INSTRUCTION_SVM: &str = "swap";
+const SWAP_ROUTER_ACCOUNT_SVM: &str = "router_fee_receiver_ta";
 const IDL_LOCATION: &str = "../contracts/svm/target/idl/express_relay.json";
 
 fn extract_account_position(idl: Idl, instruction_name: &str, account_name: &str) -> usize {
@@ -71,7 +74,7 @@ fn verify_and_extract_idl_data() {
         extract_account_position(
             express_relay_idl.clone(),
             SUBMIT_BID_INSTRUCTION_SVM,
-            PERMISSION_ACCOUNT_SVM,
+            SUBMIT_BID_PERMISSION_ACCOUNT_SVM,
         )
     );
     println!(
@@ -79,9 +82,17 @@ fn verify_and_extract_idl_data() {
         extract_account_position(
             express_relay_idl.clone(),
             SUBMIT_BID_INSTRUCTION_SVM,
-            ROUTER_ACCOUNT_SVM,
+            SUBMIT_BID_ROUTER_ACCOUNT_SVM,
         )
     );
+    println!(
+        "cargo::rustc-env=SWAP_ROUTER_ACCOUNT_POSITION={}",
+        extract_account_position(
+            express_relay_idl.clone(),
+            SWAP_INSTRUCTION_SVM,
+            SWAP_ROUTER_ACCOUNT_SVM,
+        )
+    )
 }
 
 fn build_svm_contracts() {
