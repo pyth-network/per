@@ -42,6 +42,7 @@ use {
     },
     ::express_relay::{
         self as express_relay_svm,
+        FeeToken,
     },
     anchor_lang::{
         AnchorDeserialize,
