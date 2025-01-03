@@ -10,28 +10,28 @@ anchor-lang-idl = { version = "0.1.1", features = ["convert"] }
 [dependencies]
 tokio = { workspace = true, features = ["macros", "sync", "rt-multi-thread", "signal"] }
 tokio-stream = { workspace = true }
-tower-http = { version = "0.5.2", features = ["cors"] }
+tower-http = { workspace = true, features = ["cors"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-futures = { version = "0.3", default-features = false }
+futures = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
 axum = { version = "0.7.5", features = ["ws", "tracing"] }
 axum-streams = { version = "0.10.0", features = ["json", "text"] }
-clap = { version = "4.4.4", features = ["derive", "env", "cargo"] }
-tracing = { version = "0.1.40", features = ["log"] }
+clap = { workspace = true, features = ["derive", "env", "cargo"] }
+tracing = { workspace = true, features = ["log"] }
 anyhow = { workspace = true }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
-async-stream = "0.3.5"
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+async-stream = {workspace = true}
 utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-redoc = { version = "4", features = ["axum"] }
-serde_yaml = "0.9.25"
+serde_yaml = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 axum-macros = "0.4.0"
 sqlx = { version = "0.7.4", features = [ "runtime-tokio", "tls-native-tls", "postgres", "time", "uuid", "bigdecimal", "json" ] }
 tokio-util = { version = "0.7.10", features = ["rt"] }
 axum-extra = { version = "0.9.3", features = ["typed-header"] }
 email_address = { workspace = true }
-rand = "0.8.5"
+rand = { workspace = true }
 base64 = { workspace = true }
 time = { workspace = true, features = ["serde"] }
 axum-prometheus = "0.6.1"
@@ -46,10 +46,10 @@ solana-sdk = { workspace = true }
 solana-client = { workspace = true }
 bincode = { workspace = true }
 serde_with = { workspace = true, features = ["base64"] }
-anchor-lang = "0.30.1"
+anchor-lang = { workspace = true }
 express-relay = { path = "../contracts/svm/programs/express_relay" }
 solana-rpc-client ={ workspace = true }
 solana-transaction-status = { workspace = true }
 borsh = "1.5.1"
-litesvm = "0.3.0"
+litesvm = { workspace = true }
 express-relay-api-types = { path = "api-types" }
