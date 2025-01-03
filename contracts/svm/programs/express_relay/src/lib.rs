@@ -7,7 +7,10 @@ pub mod utils;
 
 use {
     crate::{
+        cpi::accounts::CheckPermission as CheckPermissionCPI,
         error::ErrorCode,
+        program::ExpressRelay,
+        sdk::cpi::check_permission_cpi,
         state::*,
         swap::PostFeeSwapArgs,
         token::transfer_token_if_needed,

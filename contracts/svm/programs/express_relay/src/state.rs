@@ -28,3 +28,5 @@ pub struct ConfigRouter {
     pub router: Pubkey,
     pub split:  u64,
 }
+
+pub const SEED_SWAP: &[u8] = b"swap";
