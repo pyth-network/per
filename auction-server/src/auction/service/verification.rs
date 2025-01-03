@@ -417,7 +417,7 @@ impl Service<Svm> {
 
                 instruction
                     .data
-                    .starts_with(express_relay_svm::instruction::SubmitBid::DISCRIMINATOR)
+                    .starts_with(&express_relay_svm::instruction::SubmitBid::DISCRIMINATOR)
             })
             .cloned()
             .collect();

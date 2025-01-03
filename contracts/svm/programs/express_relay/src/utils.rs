@@ -85,7 +85,7 @@ pub fn get_matching_submit_bid_instructions(
         if ix.program_id != crate::id() {
             continue;
         }
-        if ix.data[0..8] != *crate::instruction::SubmitBid::DISCRIMINATOR {
+        if ix.data[0..8] != crate::instruction::SubmitBid::DISCRIMINATOR {
             continue;
         }
 
