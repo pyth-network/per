@@ -521,8 +521,7 @@ impl Service<Svm> {
             submit_bid_instruction_result.clone(),
             swap_instruction_result.clone(),
         ) {
-            (Ok(_), Err(_)) => {
-                let submit_bid_instruction = submit_bid_instruction_result?;
+            (Ok(submit_bid_instruction), Err(_)) => {
                 let submit_bid_data = Self::extract_submit_bid_data(&submit_bid_instruction)?;
 
                 let permission_account = self
@@ -565,8 +564,7 @@ impl Service<Svm> {
                     submit_type: SubmitType::ByServer,
                 })
             }
-            (Err(_), Ok(_)) => {
-                let swap_instruction = swap_instruction_result?;
+            (Err(_), Ok(swap_instruction)) => {
                 // TODO*: implement this once Swap instruction is implemented
                 Err(RestError::BadParameters(
                     "Swap instruction not implemented".to_string(),
@@ -596,7 +594,7 @@ impl Service<Svm> {
                 //             ))
                 //         },
                 //     )?,
-                //     submit_type: SubmitType::ByServer,
+                //     submit_type: SubmitType::ByOther,
                 // })
             }
             _ => Err(RestError::BadParameters(

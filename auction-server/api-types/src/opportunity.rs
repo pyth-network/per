@@ -59,7 +59,7 @@ pub struct OpportunityBidResult {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub enum ProgramSvm {
-    Swap,
+    KaminoSwap,
     Limo,
 }
 
@@ -205,10 +205,10 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
     },
-    /// Swap program specific parameters for the opportunity.
+    /// Swap program specific parameters for the opportunity, for Kamino market orders.
     #[serde(rename = "swap")]
     #[schema(title = "swap")]
-    Swap {
+    KaminoSwap {
         /// The user wallet address which requested the quote from the wallet.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
@@ -580,7 +580,7 @@ impl OpportunityCreateSvm {
         match self {
             OpportunityCreateSvm::V1(params) => match &params.program_params {
                 OpportunityCreateProgramParamsV1Svm::Limo { .. } => ProgramSvm::Limo,
-                OpportunityCreateProgramParamsV1Svm::Swap { .. } => ProgramSvm::Swap,
+                OpportunityCreateProgramParamsV1Svm::KaminoSwap { .. } => ProgramSvm::KaminoSwap,
             },
         }
     }

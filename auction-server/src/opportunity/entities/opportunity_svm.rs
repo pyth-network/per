@@ -40,7 +40,7 @@ pub struct OpportunitySvmProgramWallet {
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpportunitySvmProgram {
     Limo(OpportunitySvmProgramLimo),
-    Swap(OpportunitySvmProgramWallet),
+    KaminoSwap(OpportunitySvmProgramWallet),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -93,8 +93,8 @@ impl Opportunity for OpportunitySvm {
                     },
                 )
             }
-            OpportunitySvmProgram::Swap(program) => {
-                repository::OpportunityMetadataSvmProgram::Swap(
+            OpportunitySvmProgram::KaminoSwap(program) => {
+                repository::OpportunityMetadataSvmProgram::KaminoSwap(
                     repository::OpportunityMetadataSvmProgramWallet {
                         user_wallet_address:  program.user_wallet_address,
                         maximum_slippage_bps: program.maximum_slippage_bps,
@@ -170,7 +170,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 order:         program.order,
                 order_address: program.order_address,
             },
-            OpportunitySvmProgram::Swap(program) => {
+            OpportunitySvmProgram::KaminoSwap(program) => {
                 let buy_token = val
                     .buy_tokens
                     .first()
@@ -250,8 +250,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     order_address: program.order_address,
                 })
             }
-            repository::OpportunityMetadataSvmProgram::Swap(program) => {
-                OpportunitySvmProgram::Swap(OpportunitySvmProgramWallet {
+            repository::OpportunityMetadataSvmProgram::KaminoSwap(program) => {
+                OpportunitySvmProgram::KaminoSwap(OpportunitySvmProgramWallet {
                     user_wallet_address:  program.user_wallet_address,
                     maximum_slippage_bps: program.maximum_slippage_bps,
                 })
@@ -286,10 +286,10 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 order,
                 order_address,
             }),
-            api::OpportunityCreateProgramParamsV1Svm::Swap {
+            api::OpportunityCreateProgramParamsV1Svm::KaminoSwap {
                 user_wallet_address,
                 maximum_slippage_bps,
-            } => OpportunitySvmProgram::Swap(OpportunitySvmProgramWallet {
+            } => OpportunitySvmProgram::KaminoSwap(OpportunitySvmProgramWallet {
                 user_wallet_address,
                 maximum_slippage_bps,
             }),
@@ -335,7 +335,7 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
 impl OpportunitySvm {
     pub fn get_missing_signers(&self) -> Vec<Pubkey> {
         match self.program.clone() {
-            OpportunitySvmProgram::Swap(data) => vec![data.user_wallet_address],
+            OpportunitySvmProgram::KaminoSwap(data) => vec![data.user_wallet_address],
             OpportunitySvmProgram::Limo(_) => vec![],
         }
     }
@@ -349,7 +349,7 @@ impl From<OpportunitySvmProgram> for api::ProgramSvm {
     fn from(val: OpportunitySvmProgram) -> Self {
         match val {
             OpportunitySvmProgram::Limo(_) => api::ProgramSvm::Limo,
-            OpportunitySvmProgram::Swap(_) => api::ProgramSvm::Swap,
+            OpportunitySvmProgram::KaminoSwap(_) => api::ProgramSvm::KaminoSwap,
         }
     }
 }

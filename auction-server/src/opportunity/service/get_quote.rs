@@ -128,10 +128,12 @@ impl Service<ChainTypeSvm> {
             core_fields,
             router,
             permission_account,
-            program: entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramWallet {
-                user_wallet_address:  quote_create.user_wallet_address,
-                maximum_slippage_bps: quote_create.maximum_slippage_bps,
-            }),
+            program: entities::OpportunitySvmProgram::KaminoSwap(
+                entities::OpportunitySvmProgramWallet {
+                    user_wallet_address:  quote_create.user_wallet_address,
+                    maximum_slippage_bps: quote_create.maximum_slippage_bps,
+                },
+            ),
             // TODO extract latest slot
             slot: Slot::default(),
         })

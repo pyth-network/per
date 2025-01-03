@@ -67,7 +67,7 @@ pub struct OpportunityMetadataSvmProgramWallet {
 #[serde(tag = "program", rename_all = "lowercase")]
 pub enum OpportunityMetadataSvmProgram {
     Limo(OpportunityMetadataSvmProgramLimo),
-    Swap(OpportunityMetadataSvmProgramWallet),
+    KaminoSwap(OpportunityMetadataSvmProgramWallet),
 }
 
 #[serde_as]
