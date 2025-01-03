@@ -531,7 +531,7 @@ impl Service<Svm> {
                         self.config
                             .chain_config
                             .express_relay
-                            .permission_account_position,
+                            .permission_account_position_submit_bid,
                     )
                     .await?;
                 let router = self
@@ -541,7 +541,7 @@ impl Service<Svm> {
                         self.config
                             .chain_config
                             .express_relay
-                            .router_account_position,
+                            .router_account_position_submit_bid,
                     )
                     .await?;
                 if router == self.config.chain_config.wallet_program_router_account {
@@ -579,7 +579,7 @@ impl Service<Svm> {
                 //         self.config
                 //             .chain_config
                 //             .express_relay
-                //             .router_account_position,
+                //             .router_account_position_swap,
                 //     )
                 //     .await?;
                 // Ok(BidDataSvm {
