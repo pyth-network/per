@@ -41,6 +41,13 @@ url = "2.5.4"
 rand = "0.8.5"
 anchor-lang = { version = "0.30.1" }
 litesvm = { version = "0.3.0" }
+spl-pod = { version = "=0.2.3" }
+spl-tlv-account-resolution = { version = "=0.6.3"}
+spl-token-group-interface = { version = "=0.2.3"}
+spl-token-metadata-interface = { version = "=0.3.3"}
+spl-transfer-hook-interface = { version = "=0.6.3"}
+spl-token-2022 = {version = "=3.0.2"}
+spl-associated-token-account = {version = "=3.0.2"}
 
 # The curve25519-dalek crate is a dependency of solana-sdk.
 # This crate relies on a specific version of zeroize that is incompatible with many other packages.
@@ -49,3 +56,16 @@ litesvm = { version = "0.3.0" }
 [patch.crates-io.curve25519-dalek]
 git = "https://github.com/solana-labs/curve25519-dalek.git"
 rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464"
+
+[patch.crates-io.aes-gcm-siv]
+git = "https://github.com/RustCrypto/AEADs"
+rev = "e1e35e0c4f4943da0a99ceb8477c421dcfae2c33"
+
+[patch.crates-io]
+spl-pod = { path = "/Users/gbescos/Documents/repos/solana-program-library/libraries/pod" }
+spl-tlv-account-resolution = { path = "/Users/gbescos/Documents/repos/solana-program-library/libraries/tlv-account-resolution" }
+spl-token-group-interface = { path = "/Users/gbescos/Documents/repos/solana-program-library/token-group/interface" }
+spl-token-metadata-interface = { path = "/Users/gbescos/Documents/repos/solana-program-library/token-metadata/interface" }
+spl-transfer-hook-interface = { path = "/Users/gbescos/Documents/repos/solana-program-library/token/transfer-hook/interface" }
+spl-token-2022 = { path = "/Users/gbescos/Documents/repos/solana-program-library/token/program-2022" }
+spl-associated-token-account = { path = "/Users/gbescos/Documents/repos/solana-program-library/associated-token-account/program" }
