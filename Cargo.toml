@@ -50,6 +50,10 @@ litesvm = { version = "0.3.0" }
 git = "https://github.com/solana-labs/curve25519-dalek.git"
 rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464"
 
+# Analoguous to the zeroize issue above, the aes-gcm-siv crate has dependencies
+# on the crates zerioze and subtle that are too strict.
+# Both issues were solved as of the commit we are using for this patch.
+
 [patch.crates-io.aes-gcm-siv]
 git = "https://github.com/RustCrypto/AEADs"
 rev = "e1e35e0c4f4943da0a99ceb8477c421dcfae2c33"
