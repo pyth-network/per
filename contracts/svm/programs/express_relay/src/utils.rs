@@ -85,7 +85,7 @@ pub fn get_matching_submit_bid_instructions(
         if ix.program_id != crate::id() {
             continue;
         }
-        if ix.data[0..8] != crate::instruction::SubmitBid::DISCRIMINATOR {
+        if ix.data[0..8] != crate::instruction::SubmitBid::discriminator() {
             continue;
         }
 
@@ -116,7 +116,7 @@ pub fn get_matching_submit_bid_instructions(
 /// Extracts the bid paid from a `SubmitBid` instruction.
 pub fn extract_bid_from_submit_bid_ix(submit_bid_ix: &Instruction) -> Result<u64> {
     let submit_bid_args = SubmitBidArgs::try_from_slice(
-        &submit_bid_ix.data[crate::instruction::SubmitBid::DISCRIMINATOR.len()..],
+        &submit_bid_ix.data[crate::instruction::SubmitBid::discriminator().len()..],
     )
     .map_err(|_| ProgramError::BorshIoError("Failed to deserialize SubmitBidArgs".to_string()))?;
     Ok(submit_bid_args.bid_amount)
