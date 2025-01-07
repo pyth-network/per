@@ -62,7 +62,8 @@ export class OdosAdapter implements Adapter {
     }
 
     const swapAdapterConfig = getSwapAdapterConfig(chainId);
-    for (let threshold = 1; threshold <= 8; threshold *= 2) {
+    // handle up to 10% slippage
+    for (let threshold = 1; threshold <= 20; threshold += 1) {
       let estimatedAmountIn =
         amountIn ??
         (await this.estimateAmountIn(
