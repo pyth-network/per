@@ -97,6 +97,10 @@ impl Service<ChainTypeSvm> {
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
+        let chain_config = self.get_config(&quote_create.chain_id)?;
+        if router != chain_config.wallet_program_router_account {
+            return Err(RestError::Forbidden);
+        }
         let permission_account =
             get_quote_permission_key(&quote_create.tokens, &quote_create.user_wallet_address);
 

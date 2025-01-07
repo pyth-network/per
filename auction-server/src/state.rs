@@ -31,6 +31,7 @@ use {
         Response,
         RpcLogsResponse,
     },
+    solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
         sync::Arc,
@@ -103,10 +104,11 @@ impl ChainStoreEvm {
 }
 
 pub struct ChainStoreSvm {
-    pub log_sender:          Sender<Response<RpcLogsResponse>>,
+    pub log_sender:                    Sender<Response<RpcLogsResponse>>,
     // only to avoid closing the channel
-    pub _dummy_log_receiver: Receiver<Response<RpcLogsResponse>>,
-    pub config:              ConfigSvm,
+    pub _dummy_log_receiver:           Receiver<Response<RpcLogsResponse>>,
+    pub config:                        ConfigSvm,
+    pub wallet_program_router_account: Pubkey,
 }
 
 impl ChainStoreSvm {
@@ -116,6 +118,7 @@ impl ChainStoreSvm {
         Self {
             log_sender: tx,
             _dummy_log_receiver: rx,
+            wallet_program_router_account: config.wallet_program_router_account,
             config,
         }
     }

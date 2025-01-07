@@ -2659,7 +2659,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-api-types"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -2678,7 +2678,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-client"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "ethers",
  "express-relay-api-types",

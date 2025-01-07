@@ -418,9 +418,7 @@ impl Service<Svm> {
         express_relay_svm::SwapArgs::try_from_slice(
             &instruction.data.as_slice()[discriminator.len()..],
         )
-        .map_err(|e| {
-            RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e))
-        })
+        .map_err(|e| RestError::BadParameters(format!("Invalid swap instruction data: {}", e)))
     }
 
     pub fn extract_express_relay_bid_instruction(
@@ -558,7 +556,6 @@ impl Service<Svm> {
                             .router_account_position_swap,
                     )
                     .await?;
-                // TODO*: should work to remove this
                 if router != self.config.chain_config.wallet_program_router_account {
                     return Err(RestError::BadParameters(
                         "Must use approved router for swap instruction".to_string(),
