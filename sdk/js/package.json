@@ -22,7 +22,7 @@
     "generate-api-types": "openapi-typescript http://127.0.0.1:9000/docs/openapi.json --output src/serverTypes.d.ts",
     "generate-anchor-types": "anchor idl type src/idl/idlExpressRelay.json --out src/expressRelayTypes.d.ts && anchor idl type src/examples/idl/idlDummy.json --out src/examples/dummyTypes.d.ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "lint": "eslint src",
+    "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.d.ts'",
     "prepublishOnly": "pnpm build && pnpm test && pnpm lint",
     "preversion": "pnpm lint",
     "version": "pnpm format && git add -A src"
