@@ -31,13 +31,11 @@ use {
         types::Address,
     },
     futures::future::try_join_all,
-    solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
         sync::Arc,
     },
     tokio::sync::RwLock,
-    tokio_util::task::TaskTracker,
 };
 
 pub mod add_opportunity;
@@ -50,7 +48,6 @@ pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
 pub mod verification;
 
-mod estimate_price;
 mod get_spoof_info;
 mod make_adapter_calldata;
 mod make_opportunity_execution_params;
@@ -84,8 +81,7 @@ impl ConfigEvm {
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
-    pub wallet_program_router_account: Pubkey,
-    pub auction_service:               RwLock<Option<auction_service::Service<Svm>>>,
+    pub auction_service: RwLock<Option<auction_service::Service<Svm>>>,
 }
 
 impl ConfigSvm {
@@ -198,12 +194,11 @@ impl ConfigSvm {
     ) -> anyhow::Result<HashMap<ChainId, Self>> {
         Ok(chains
             .iter()
-            .map(|(chain_id, config)| {
+            .map(|(chain_id, _)| {
                 (
                     chain_id.clone(),
                     Self {
-                        wallet_program_router_account: config.wallet_program_router_account,
-                        auction_service:               RwLock::new(None),
+                        auction_service: RwLock::new(None),
                     },
                 )
             })
@@ -241,18 +236,16 @@ impl ChainType for ChainTypeSvm {
 
 // TODO maybe just create a service per chain_id?
 pub struct Service<T: ChainType> {
-    store:        Arc<Store>,
-    db:           DB,
+    store:  Arc<Store>,
+    db:     DB,
     // TODO maybe after adding state for opportunity we can remove the arc
-    repo:         Arc<Repository<T::InMemoryStore>>,
-    config:       HashMap<ChainId, T::Config>,
-    task_tracker: TaskTracker,
+    repo:   Arc<Repository<T::InMemoryStore>>,
+    config: HashMap<ChainId, T::Config>,
 }
 
 impl<T: ChainType> Service<T> {
     pub fn new(store: Arc<Store>, db: DB, config: HashMap<ChainId, T::Config>) -> Self {
         Self {
-            task_tracker: store.task_tracker.clone(),
             store,
             db,
             repo: Arc::new(Repository::<T::InMemoryStore>::new()),

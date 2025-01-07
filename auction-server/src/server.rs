@@ -251,7 +251,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             broadcast_sender,
             broadcast_receiver,
         },
-        task_tracker:     task_tracker.clone(),
         secret_key:       run_options.secret_key.clone(),
         access_tokens:    RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,
@@ -324,25 +323,45 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                                 .config
                                 .wallet_program_router_account,
                             express_relay:                 auction_service::ExpressRelaySvm {
-                                program_id:                  chain_store
+                                program_id:                             chain_store
                                     .config
                                     .express_relay_program_id,
-                                relayer:                     Keypair::from_base58_string(
+                                relayer:                                Keypair::from_base58_string(
                                     &run_options
                                         .private_key_svm
                                         .clone()
                                         .expect("No svm private key provided for chain"),
                                 ),
-                                permission_account_position: env!(
+                                permission_account_position_submit_bid: env!(
                                     "SUBMIT_BID_PERMISSION_ACCOUNT_POSITION"
                                 )
                                 .parse::<usize>()
                                 .expect("Failed to parse permission account position"),
-                                router_account_position:     env!(
+                                router_account_position_submit_bid:     env!(
                                     "SUBMIT_BID_ROUTER_ACCOUNT_POSITION"
                                 )
                                 .parse::<usize>()
-                                .expect("Failed to parse router account position"),
+                                .expect("Failed to parse (submit bid) router account position"),
+                                router_account_position_swap:           env!(
+                                    "SWAP_ROUTER_ACCOUNT_POSITION"
+                                )
+                                .parse::<usize>()
+                                .expect("Failed to parse (swap) router account position"),
+                                user_wallet_account_position_swap:      env!(
+                                    "SWAP_USER_WALLET_ACCOUNT_POSITION"
+                                )
+                                .parse::<usize>()
+                                .expect("Failed to parse user wallet account position"),
+                                mint_input_account_position_swap:       env!(
+                                    "SWAP_MINT_INPUT_ACCOUNT_POSITION"
+                                )
+                                .parse::<usize>()
+                                .expect("Failed to parse user wallet account position"),
+                                mint_output_account_position_swap:      env!(
+                                    "SWAP_MINT_OUTPUT_ACCOUNT_POSITION"
+                                )
+                                .parse::<usize>()
+                                .expect("Failed to parse user wallet account position"),
                             },
                             ws_address:                    chain_store.config.ws_addr.clone(),
                             tx_broadcaster_client:         TracedSenderSvm::new_client(

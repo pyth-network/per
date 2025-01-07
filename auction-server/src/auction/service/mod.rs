@@ -85,10 +85,14 @@ pub mod verification;
 pub mod workers;
 
 pub struct ExpressRelaySvm {
-    pub program_id:                  Pubkey,
-    pub relayer:                     Keypair,
-    pub permission_account_position: usize,
-    pub router_account_position:     usize,
+    pub program_id:                             Pubkey,
+    pub relayer:                                Keypair,
+    pub permission_account_position_submit_bid: usize,
+    pub router_account_position_submit_bid:     usize,
+    pub router_account_position_swap:           usize,
+    pub user_wallet_account_position_swap:      usize,
+    pub mint_input_account_position_swap:       usize,
+    pub mint_output_account_position_swap:      usize,
 }
 
 pub struct ConfigSvm {
