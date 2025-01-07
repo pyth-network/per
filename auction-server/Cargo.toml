@@ -13,6 +13,7 @@ tokio-stream = { workspace = true }
 tower-http = { workspace = true, features = ["cors"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde_plain = { workspace = true }
 futures = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
 axum = { version = "0.7.5", features = ["ws", "tracing"] }

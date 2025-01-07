@@ -211,7 +211,8 @@ pub async fn post_quote(
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
 ) -> Result<Json<Quote>, RestError> {
-    if get_program(&auth)? != ProgramSvm::SwapKamino {
+    let program = get_program(&auth)?;
+    if program != ProgramSvm::SwapKamino {
         return Err(RestError::Forbidden);
     }
 
@@ -219,6 +220,7 @@ pub async fn post_quote(
         .opportunity_service_svm
         .get_quote(GetQuoteInput {
             quote_create: params.into(),
+            program,
         })
         .await?;
 

@@ -28,6 +28,8 @@ use {
         },
     },
     axum_prometheus::metrics,
+    // TODO: is it okay to import api types into the service layer?
+    express_relay_api_types::opportunity::ProgramSvm,
     futures::future::join_all,
     solana_sdk::{
         clock::Slot,
@@ -43,6 +45,7 @@ const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
 
 pub struct GetQuoteInput {
     pub quote_create: entities::QuoteCreate,
+    pub program:      ProgramSvm,
 }
 
 pub fn get_quote_permission_key(
@@ -91,6 +94,7 @@ impl Service<ChainTypeSvm> {
     async fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
+        program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
         let permission_account =
@@ -125,15 +129,22 @@ impl Service<ChainTypeSvm> {
             }],
         };
 
+        let program_opportunity = match program {
+            ProgramSvm::SwapKamino => {
+                entities::OpportunitySvmProgram::SwapKamino(entities::OpportunitySvmProgramSwap {
+                    user_wallet_address: quote_create.user_wallet_address,
+                })
+            }
+            _ => {
+                return Err(RestError::Forbidden);
+            }
+        };
+
         Ok(entities::OpportunityCreateSvm {
             core_fields,
             router,
             permission_account,
-            program: entities::OpportunitySvmProgram::SwapKamino(
-                entities::OpportunitySvmProgramSwap {
-                    user_wallet_address: quote_create.user_wallet_address,
-                },
-            ),
+            program: program_opportunity,
             // TODO* extract latest slot
             slot: Slot::default(),
         })
@@ -147,7 +158,7 @@ impl Service<ChainTypeSvm> {
         tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");
 
         let opportunity_create = self
-            .get_opportunity_create_for_quote(input.quote_create.clone())
+            .get_opportunity_create_for_quote(input.quote_create.clone(), &input.program)
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {
@@ -186,9 +197,13 @@ impl Service<ChainTypeSvm> {
             "+9".to_string()
         };
         // Add metrics
+        let program_name = serde_plain::to_string(&input.program).map_err(|e| {
+            tracing::error!("Failed to serialize program name: {:?}", e);
+            RestError::TemporarilyUnavailable
+        })?;
         let labels = [
             ("chain_id", input.quote_create.chain_id.to_string()),
-            ("router", input.quote_create.router.to_string()),
+            ("program", program_name),
             ("total_bids", total_bids),
         ];
         metrics::counter!("get_quote_total_bids", &labels).increment(1);

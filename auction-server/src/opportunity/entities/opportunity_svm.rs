@@ -282,7 +282,8 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 order,
                 order_address,
             }),
-            api::OpportunityCreateProgramParamsV1Svm::KaminoSwap {
+            // TODO*: this arm doesn't matter bc this conversion is only called in `post_opportunity` in api.rs. but we should handle this better
+            api::OpportunityCreateProgramParamsV1Svm::Swap {
                 user_wallet_address,
             } => OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
                 user_wallet_address,

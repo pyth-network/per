@@ -60,7 +60,9 @@ pub struct OpportunityBidResult {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum ProgramSvm {
+    #[serde(rename = "swap_kamino")]
     SwapKamino,
+    #[serde(rename = "limo")]
     Limo,
 }
 
@@ -206,10 +208,10 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
     },
-    /// Kamino swap program specific parameters for the opportunity.
-    #[serde(rename = "kamino_swap")]
-    #[schema(title = "kamino_swap")]
-    KaminoSwap {
+    /// Swap program specific parameters for the opportunity.
+    #[serde(rename = "swap")]
+    #[schema(title = "swap")]
+    Swap {
         // TODO*: we should make this more generic, a la `Swap`
         /// The user wallet address which requested the quote from the wallet.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
@@ -568,7 +570,8 @@ impl OpportunityCreateSvm {
         match self {
             OpportunityCreateSvm::V1(params) => match &params.program_params {
                 OpportunityCreateProgramParamsV1Svm::Limo { .. } => ProgramSvm::Limo,
-                OpportunityCreateProgramParamsV1Svm::KaminoSwap { .. } => ProgramSvm::SwapKamino,
+                // TODO*: this arm doesn't really matter, bc this function will never be called in get_quote, but we should figure out how to handle this
+                OpportunityCreateProgramParamsV1Svm::Swap { .. } => ProgramSvm::SwapKamino,
             },
         }
     }
