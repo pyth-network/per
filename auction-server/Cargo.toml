@@ -13,7 +13,6 @@ tokio-stream = { workspace = true }
 tower-http = { workspace = true, features = ["cors"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-serde_plain = { workspace = true }
 futures = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
 axum = { version = "0.7.5", features = ["ws", "tracing"] }
@@ -54,3 +53,4 @@ solana-transaction-status = { workspace = true }
 borsh = "1.5.1"
 litesvm = { workspace = true }
 express-relay-api-types = { path = "api-types" }
+strum.workspace = true

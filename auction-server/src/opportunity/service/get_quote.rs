@@ -201,13 +201,9 @@ impl Service<ChainTypeSvm> {
             "+9".to_string()
         };
         // Add metrics
-        let program_name = serde_plain::to_string(&input.program).map_err(|e| {
-            tracing::error!("Failed to serialize program name: {:?}", e);
-            RestError::TemporarilyUnavailable
-        })?;
         let labels = [
             ("chain_id", input.quote_create.chain_id.to_string()),
-            ("program", program_name),
+            ("program", input.program.to_string()),
             ("total_bids", total_bids),
         ];
         metrics::counter!("get_quote_total_bids", &labels).increment(1);

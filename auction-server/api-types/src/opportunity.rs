@@ -27,7 +27,10 @@ use {
         pubkey::Pubkey,
         transaction::VersionedTransaction,
     },
-    strum::AsRefStr,
+    strum::{
+        AsRefStr,
+        Display,
+    },
     time::OffsetDateTime,
     utoipa::{
         IntoParams,
@@ -57,12 +60,11 @@ pub struct OpportunityBidResult {
     pub id:     BidId,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(rename_all = "lowercase")]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, Display)]
 pub enum ProgramSvm {
-    #[serde(rename = "swap_kamino")]
+    #[strum(serialize = "swap_kamino")]
     SwapKamino,
-    #[serde(rename = "limo")]
+    #[strum(serialize = "limo")]
     Limo,
 }
 
