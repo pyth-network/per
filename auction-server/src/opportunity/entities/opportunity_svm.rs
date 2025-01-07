@@ -32,15 +32,14 @@ pub struct OpportunitySvmProgramLimo {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct OpportunitySvmProgramWallet {
-    pub user_wallet_address:         Pubkey,
-    pub maximum_slippage_percentage: f64,
+pub struct OpportunitySvmProgramSwap {
+    pub user_wallet_address: Pubkey,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpportunitySvmProgram {
     Limo(OpportunitySvmProgramLimo),
-    Phantom(OpportunitySvmProgramWallet),
+    SwapKamino(OpportunitySvmProgramSwap),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -93,11 +92,10 @@ impl Opportunity for OpportunitySvm {
                     },
                 )
             }
-            OpportunitySvmProgram::Phantom(program) => {
-                repository::OpportunityMetadataSvmProgram::Phantom(
-                    repository::OpportunityMetadataSvmProgramWallet {
-                        user_wallet_address:         program.user_wallet_address,
-                        maximum_slippage_percentage: program.maximum_slippage_percentage,
+            OpportunitySvmProgram::SwapKamino(program) => {
+                repository::OpportunityMetadataSvmProgram::SwapKamino(
+                    repository::OpportunityMetadataSvmProgramSwap {
+                        user_wallet_address: program.user_wallet_address,
                     },
                 )
             }
@@ -166,33 +164,45 @@ impl From<OpportunitySvm> for api::Opportunity {
 impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
         let program = match val.program.clone() {
-            OpportunitySvmProgram::Limo(prgoram) => api::OpportunityParamsV1ProgramSvm::Limo {
-                order:         prgoram.order,
-                order_address: prgoram.order_address,
+            OpportunitySvmProgram::Limo(program) => api::OpportunityParamsV1ProgramSvm::Limo {
+                order:         program.order,
+                order_address: program.order_address,
             },
-            OpportunitySvmProgram::Phantom(program) => {
-                api::OpportunityParamsV1ProgramSvm::Phantom {
-                    user_wallet_address:         program.user_wallet_address,
-                    maximum_slippage_percentage: program.maximum_slippage_percentage,
-                    permission_account:          val.permission_account,
-                    router_account:              val.router,
+            OpportunitySvmProgram::SwapKamino(program) => {
+                let buy_token = val
+                    .buy_tokens
+                    .first()
+                    .ok_or(anyhow::anyhow!(
+                        "Failed to get buy token from opportunity svm"
+                    ))
+                    .expect("Failed to get buy token from opportunity svm");
+                let sell_token = val
+                    .sell_tokens
+                    .first()
+                    .ok_or(anyhow::anyhow!(
+                        "Failed to get sell token from opportunity svm"
+                    ))
+                    .expect("Failed to get sell token from opportunity svm");
+                let tokens = if buy_token.amount == 0 {
+                    api::QuoteTokens::OutputTokenSpecified {
+                        input_token:  buy_token.token,
+                        output_token: sell_token.clone().into(),
+                    }
+                } else {
+                    if sell_token.amount != 0 {
+                        tracing::error!(opportunity = ?val, "Both token amounts are specified for swap opportunity");
+                    }
+                    api::QuoteTokens::InputTokenSpecified {
+                        input_token:  buy_token.clone().into(),
+                        output_token: sell_token.token,
+                    }
+                };
+                api::OpportunityParamsV1ProgramSvm::Swap {
+                    user_wallet_address: program.user_wallet_address,
+                    permission_account: val.permission_account,
+                    router_account: val.router,
                     // TODO can we make it type safe?
-                    sell_token:                  val
-                        .sell_tokens
-                        .first()
-                        .map(|t| t.clone().into())
-                        .ok_or(anyhow::anyhow!(
-                            "Failed to get sell token from opportunity svm"
-                        ))
-                        .expect("Failed to get sell token from opportunity svm"),
-                    buy_token:                   val
-                        .sell_tokens
-                        .first()
-                        .map(|t| t.clone().into())
-                        .ok_or(anyhow::anyhow!(
-                            "Failed to get sell token from opportunity svm"
-                        ))
-                        .expect("Failed to get sell token from opportunity svm"),
+                    tokens,
                 }
             }
         };
@@ -237,10 +247,9 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     order_address: program.order_address,
                 })
             }
-            repository::OpportunityMetadataSvmProgram::Phantom(program) => {
-                OpportunitySvmProgram::Phantom(OpportunitySvmProgramWallet {
-                    user_wallet_address:         program.user_wallet_address,
-                    maximum_slippage_percentage: program.maximum_slippage_percentage,
+            repository::OpportunityMetadataSvmProgram::SwapKamino(program) => {
+                OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
+                    user_wallet_address: program.user_wallet_address,
                 })
             }
         };
@@ -273,12 +282,11 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 order,
                 order_address,
             }),
-            api::OpportunityCreateProgramParamsV1Svm::Phantom {
+            // TODO*: this arm doesn't matter bc this conversion is only called in `post_opportunity` in api.rs. but we should handle this better
+            api::OpportunityCreateProgramParamsV1Svm::Swap {
                 user_wallet_address,
-                maximum_slippage_percentage,
-            } => OpportunitySvmProgram::Phantom(OpportunitySvmProgramWallet {
+            } => OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
                 user_wallet_address,
-                maximum_slippage_percentage,
             }),
         };
 
@@ -322,7 +330,7 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
 impl OpportunitySvm {
     pub fn get_missing_signers(&self) -> Vec<Pubkey> {
         match self.program.clone() {
-            OpportunitySvmProgram::Phantom(data) => vec![data.user_wallet_address],
+            OpportunitySvmProgram::SwapKamino(data) => vec![data.user_wallet_address],
             OpportunitySvmProgram::Limo(_) => vec![],
         }
     }
@@ -336,7 +344,7 @@ impl From<OpportunitySvmProgram> for api::ProgramSvm {
     fn from(val: OpportunitySvmProgram) -> Self {
         match val {
             OpportunitySvmProgram::Limo(_) => api::ProgramSvm::Limo,
-            OpportunitySvmProgram::Phantom(_) => api::ProgramSvm::Phantom,
+            OpportunitySvmProgram::SwapKamino(_) => api::ProgramSvm::SwapKamino,
         }
     }
 }

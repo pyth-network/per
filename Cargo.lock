@@ -719,7 +719,7 @@ dependencies = [
 
 [[package]]
 name = "auction-server"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "anchor-lang",
  "anchor-lang-idl",
@@ -756,6 +756,7 @@ dependencies = [
  "solana-sdk 2.0.20",
  "solana-transaction-status",
  "sqlx",
+ "strum",
  "time",
  "tokio",
  "tokio-stream",
@@ -2658,7 +2659,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-api-types"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -2670,6 +2671,7 @@ dependencies = [
  "serde_with 3.11.0",
  "solana-sdk 2.0.20",
  "strum",
+ "strum_macros",
  "time",
  "utoipa 4.2.3",
  "uuid 1.11.0",

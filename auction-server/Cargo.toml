@@ -1,6 +1,6 @@
 [package]
 name = "auction-server"
-version = "0.14.2"
+version = "0.15.0"
 edition = "2021"
 license-file = "license.txt"
 
@@ -53,3 +53,4 @@ solana-transaction-status = { workspace = true }
 borsh = "1.5.1"
 litesvm = { workspace = true }
 express-relay-api-types = { path = "api-types" }
+strum.workspace = true

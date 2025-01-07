@@ -10,38 +10,62 @@ use {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Quote {
-    pub transaction:                 VersionedTransaction,
+    pub transaction:     VersionedTransaction,
     // The expiration time of the quote (in seconds since the Unix epoch)
-    pub expiration_time:             i64,
-    pub input_token:                 TokenAmountSvm,
-    pub output_token:                TokenAmountSvm,
-    pub maximum_slippage_percentage: f64,
-    pub chain_id:                    ChainId,
+    pub expiration_time: i64,
+    pub input_token:     TokenAmountSvm,
+    pub output_token:    TokenAmountSvm,
+    pub chain_id:        ChainId,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuoteCreate {
-    pub user_wallet_address:         Pubkey,
-    pub input_token:                 TokenAmountSvm,
-    pub output_mint_token:           Pubkey,
-    pub maximum_slippage_percentage: f64,
-    pub chain_id:                    ChainId,
+    pub user_wallet_address: Pubkey,
+    pub tokens:              QuoteTokens,
+    pub router:              Pubkey,
+    pub chain_id:            ChainId,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum QuoteTokens {
+    InputTokenSpecified {
+        input_token:  TokenAmountSvm,
+        output_token: Pubkey,
+    },
+    OutputTokenSpecified {
+        input_token:  Pubkey,
+        output_token: TokenAmountSvm,
+    },
 }
 
 impl From<api::QuoteCreate> for QuoteCreate {
     fn from(quote_create: api::QuoteCreate) -> Self {
-        let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(api::QuoteCreateV1Svm::Phantom(params))) =
-            quote_create;
+        let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(params)) = quote_create;
+
+        let tokens = match params.specified_token_amount {
+            api::SpecifiedTokenAmount::InputToken { amount } => QuoteTokens::InputTokenSpecified {
+                input_token:  TokenAmountSvm {
+                    token: params.input_token_mint,
+                    amount,
+                },
+                output_token: params.output_token_mint,
+            },
+            api::SpecifiedTokenAmount::OutputToken { amount } => {
+                QuoteTokens::OutputTokenSpecified {
+                    input_token:  params.input_token_mint,
+                    output_token: TokenAmountSvm {
+                        token: params.output_token_mint,
+                        amount,
+                    },
+                }
+            }
+        };
 
         Self {
-            user_wallet_address:         params.user_wallet_address,
-            input_token:                 TokenAmountSvm {
-                token:  params.input_token_mint,
-                amount: params.input_token_amount,
-            },
-            output_mint_token:           params.output_token_mint,
-            maximum_slippage_percentage: params.maximum_slippage_percentage,
-            chain_id:                    params.chain_id,
+            user_wallet_address: params.user_wallet_address,
+            tokens,
+            router: params.router,
+            chain_id: params.chain_id,
         }
     }
 }
@@ -49,12 +73,11 @@ impl From<api::QuoteCreate> for QuoteCreate {
 impl From<Quote> for api::Quote {
     fn from(quote: Quote) -> Self {
         api::Quote::Svm(api::QuoteSvm::V1(api::QuoteV1Svm {
-            transaction:                 quote.transaction,
-            expiration_time:             quote.expiration_time,
-            input_token:                 quote.input_token.into(),
-            output_token:                quote.output_token.into(),
-            maximum_slippage_percentage: quote.maximum_slippage_percentage,
-            chain_id:                    quote.chain_id,
+            transaction:     quote.transaction,
+            expiration_time: quote.expiration_time,
+            input_token:     quote.input_token.into(),
+            output_token:    quote.output_token.into(),
+            chain_id:        quote.chain_id,
         }))
     }
 }
