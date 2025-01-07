@@ -1,5 +1,6 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+import fs from "fs";
 import {
   Client,
   ExpressRelaySvmConfig,
@@ -308,9 +309,8 @@ export function getKeypair(
   } else {
     if (privateKeyJsonFile) {
       return Keypair.fromSecretKey(
-        Buffer.from(
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          JSON.parse(require("fs").readFileSync(privateKeyJsonFile))
+        Uint8Array.from(
+          JSON.parse(fs.readFileSync(privateKeyJsonFile, "utf-8"))
         )
       );
     } else {
