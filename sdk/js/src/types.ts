@@ -322,7 +322,7 @@ export type QuoteRequest = {
 
 export type QuoteResponse = {
   chainId: ChainId;
-  expirationTime: bigint;
+  expirationTime: Date;
   inputToken: TokenAmountSvm;
   outputToken: TokenAmountSvm;
   transaction: Transaction;

@@ -642,7 +642,7 @@ export class Client {
   ): QuoteResponse {
     return {
       chainId: quoteResponse.chain_id,
-      expirationTime: BigInt(quoteResponse.expiration_time),
+      expirationTime: new Date(quoteResponse.expiration_time * 1000),
       inputToken: {
         token: new PublicKey(quoteResponse.input_token.token),
         amount: BigInt(quoteResponse.input_token.amount),
