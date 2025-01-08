@@ -6,8 +6,15 @@ from express_relay.svm.generated.express_relay.instructions.initialize import (
     InitializeAccounts,
     initialize,
 )
+from express_relay.svm.generated.express_relay.instructions.set_swap_platform_fee import (
+    SetSwapPlatformFeeAccounts,
+    set_swap_platform_fee,
+)
 from express_relay.svm.generated.express_relay.types.initialize_args import (
     InitializeArgs,
+)
+from express_relay.svm.generated.express_relay.types.set_swap_platform_fee_args import (
+    SetSwapPlatformFeeArgs,
 )
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
@@ -61,6 +68,13 @@ def parse_args() -> argparse.Namespace:
         help="Percentage of remaining bid (post protocol fee) that should go to relayer, in bps",
     )
     parser.add_argument(
+        "--swap-platform-fee-bps",
+        type=int,
+        required=False,
+        default=10,
+        help="The portion of the swap amount that should go to the platform (relayer + express relay), in bps",
+    )
+    parser.add_argument(
         "--rpc-url",
         type=str,
         required=False,
@@ -97,6 +111,7 @@ async def main():
     balance_express_relay_metadata = await client.get_balance(pk_express_relay_metadata)
 
     tx = Transaction()
+    signers = [kp_admin]
     if balance_express_relay_metadata.value == 0:
         ix_init_express_relay = initialize(
             {
@@ -114,9 +129,23 @@ async def main():
             ),
         )
         tx.add(ix_init_express_relay)
+        signers.append(kp_payer)
+
+    ix_set_swap_platform_fee = set_swap_platform_fee(
+        {
+            "data": SetSwapPlatformFeeArgs(
+                swap_platform_fee_bps=args.split_protocol_default
+            ),
+        },
+        SetSwapPlatformFeeAccounts(
+            admin=pk_admin,
+            express_relay_metadata=pk_express_relay_metadata,
+        ),
+    )
+    tx.add(ix_set_swap_platform_fee)
 
     if len(tx.instructions) > 0:
-        tx_sig = (await client.send_transaction(tx, kp_payer)).value
+        tx_sig = (await client.send_transaction(tx, *signers)).value
         conf = await client.confirm_transaction(tx_sig)
         assert conf.value[0].status is None, "Initialization of programs failed"
         logger.info(f"Initialization of programs successful: {tx_sig}")
