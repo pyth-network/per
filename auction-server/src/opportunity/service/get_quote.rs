@@ -133,6 +133,8 @@ impl Service<ChainTypeSvm> {
             ProgramSvm::SwapKamino => {
                 entities::OpportunitySvmProgram::SwapKamino(entities::OpportunitySvmProgramSwap {
                     user_wallet_address: quote_create.user_wallet_address,
+                    // TODO*: we should eventually determine this more intelligently
+                    fee_token:           entities::FeeToken::InputToken,
                 })
             }
             _ => {

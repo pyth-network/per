@@ -14,6 +14,10 @@ use {
         opportunity::repository,
     },
     express_relay_api_types::opportunity as api,
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     solana_sdk::{
         clock::Slot,
         pubkey::Pubkey,
@@ -31,9 +35,16 @@ pub struct OpportunitySvmProgramLimo {
     pub order_address: Pubkey,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum FeeToken {
+    InputToken,
+    OutputToken,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramSwap {
     pub user_wallet_address: Pubkey,
+    pub fee_token:           FeeToken,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -96,6 +107,7 @@ impl Opportunity for OpportunitySvm {
                 repository::OpportunityMetadataSvmProgram::SwapKamino(
                     repository::OpportunityMetadataSvmProgramSwap {
                         user_wallet_address: program.user_wallet_address,
+                        fee_token:           program.fee_token,
                     },
                 )
             }
@@ -250,6 +262,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             repository::OpportunityMetadataSvmProgram::SwapKamino(program) => {
                 OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
                     user_wallet_address: program.user_wallet_address,
+                    fee_token:           FeeToken::InputToken,
                 })
             }
         };
@@ -287,6 +300,8 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 user_wallet_address,
             } => OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
                 user_wallet_address,
+                // TODO*: see comment above about this arm
+                fee_token: FeeToken::InputToken,
             }),
         };
 
