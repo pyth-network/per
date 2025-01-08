@@ -608,16 +608,14 @@ impl Service<Svm> {
                     amount: bid_amount,
                     permission_account,
                     router,
-                    // TODO*: to fix once deadline param added to swap instruction--just set this way to make sure compiles
-                    deadline: OffsetDateTime::now_utc(),
-                    // deadline: OffsetDateTime::from_unix_timestamp(swap_data.deadline).map_err(
-                    //     |e| {
-                    //         RestError::BadParameters(format!(
-                    //             "Invalid deadline: {:?} {:?}",
-                    //             swap_data.deadline, e
-                    //         ))
-                    //     },
-                    // )?,
+                    deadline: OffsetDateTime::from_unix_timestamp(swap_data.deadline).map_err(
+                        |e| {
+                            RestError::BadParameters(format!(
+                                "Invalid deadline: {:?} {:?}",
+                                swap_data.deadline, e
+                            ))
+                        },
+                    )?,
                     submit_type: SubmitType::ByOther,
                 })
             }

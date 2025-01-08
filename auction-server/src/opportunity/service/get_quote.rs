@@ -232,13 +232,11 @@ impl Service<ChainTypeSvm> {
                 tracing::error!("Failed to verify swap instruction: {:?}", e);
                 RestError::TemporarilyUnavailable
             })?;
-        let _swap_data = AuctionService::extract_swap_data(&swap_instruction).map_err(|e| {
+        let swap_data = AuctionService::extract_swap_data(&swap_instruction).map_err(|e| {
             tracing::error!("Failed to extract swap data: {:?}", e);
             RestError::TemporarilyUnavailable
         })?;
-        let deadline = i64::MAX;
-        // TODO*: to fix once deadline param added to swap instruction--just set this way to make sure compiles
-        // let deadline = swap_data.deadline;
+        let deadline = swap_data.deadline;
 
         // Bids is not empty
         let auction = Auction::try_new(bids.clone(), bid_collection_time)
