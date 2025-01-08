@@ -214,7 +214,6 @@ pub enum OpportunityCreateProgramParamsV1Svm {
     #[serde(rename = "swap")]
     #[schema(title = "swap")]
     Swap {
-        // TODO*: we should make this more generic, a la `Swap`
         /// The user wallet address which requested the quote from the wallet.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
