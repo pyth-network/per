@@ -1,3 +1,4 @@
+pub mod clock;
 pub mod error;
 pub mod sdk;
 pub mod state;
@@ -7,6 +8,7 @@ pub mod utils;
 
 use {
     crate::{
+        clock::check_deadline,
         error::ErrorCode,
         state::*,
         swap::PostFeeSwapArgs,
@@ -92,9 +94,7 @@ pub mod express_relay {
 
     /// Submits a bid for a particular (permission, router) pair and distributes bids according to splits.
     pub fn submit_bid(ctx: Context<SubmitBid>, data: SubmitBidArgs) -> Result<()> {
-        if data.deadline < Clock::get()?.unix_timestamp {
-            return err!(ErrorCode::DeadlinePassed);
-        }
+        check_deadline(data.deadline)?;
 
         // check that not cpi.
         if get_stack_height() > TRANSACTION_LEVEL_STACK_HEIGHT {
@@ -158,6 +158,8 @@ pub mod express_relay {
     }
 
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
+        check_deadline(data.deadline)?;
+
         let PostFeeSwapArgs {
             input_after_fees,
             output_after_fees,
@@ -360,6 +362,7 @@ pub enum FeeToken {
 /// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapArgs {
+    pub deadline:         i64,
     pub amount_input:     u64,
     pub amount_output:    u64,
     // The referral fee is specified in basis points
