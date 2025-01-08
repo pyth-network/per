@@ -33,7 +33,7 @@ pub type MicroLamports = u64;
 pub type ChainId = String;
 pub type PermissionKeyEvm = Bytes;
 #[derive(Clone, Debug)]
-pub struct PermissionKeySvm(pub [u8; 64]);
+pub struct PermissionKeySvm(pub [u8; 65]);
 impl Serialize for PermissionKeySvm {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

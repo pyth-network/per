@@ -175,7 +175,7 @@ pub struct BidSvm {
     #[schema(example = "1000", value_type = u64)]
     pub bid_amount:     BidAmountSvm,
     /// The permission key for bid in base64 format.
-    /// This is the concatenation of the permission account and the router account.
+    /// This is the concatenation of the opportunity type, the router, and the permission account.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     pub permission_key: PermissionKeySvm,
 }

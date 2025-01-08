@@ -4,9 +4,10 @@ use {
         Service,
     },
     crate::{
-        auction::{
-            entities,
-            entities::BidStatusAuction,
+        auction::entities::{
+            self,
+            BidPaymentInstruction,
+            BidStatusAuction,
         },
         kernel::{
             contracts::MulticallIssuedFilter,
@@ -542,30 +543,26 @@ impl AuctionManager<Svm> for Service<Svm> {
         &self,
         permission_key: &entities::PermissionKey<Svm>,
     ) -> entities::SubmitType {
-        if permission_key.0.starts_with(
-            &self
-                .config
-                .chain_config
-                .wallet_program_router_account
-                .to_bytes(),
-        ) {
-            if self
-                .opportunity_service
-                .get_live_opportunities(GetLiveOpportunitiesInput {
-                    key: opportunity::entities::OpportunityKey(
-                        self.config.chain_id.clone(),
-                        Bytes::from(permission_key.0),
-                    ),
-                })
-                .await
-                .is_empty()
-            {
-                entities::SubmitType::Invalid
-            } else {
-                entities::SubmitType::ByOther
+        let bid_payment_type: BidPaymentInstruction = permission_key.0[0].into();
+        match bid_payment_type {
+            BidPaymentInstruction::Swap => {
+                if self
+                    .opportunity_service
+                    .get_live_opportunities(GetLiveOpportunitiesInput {
+                        key: opportunity::entities::OpportunityKey(
+                            self.config.chain_id.clone(),
+                            Bytes::from(permission_key.0),
+                        ),
+                    })
+                    .await
+                    .is_empty()
+                {
+                    entities::SubmitType::Invalid
+                } else {
+                    entities::SubmitType::ByOther
+                }
             }
-        } else {
-            entities::SubmitType::ByServer
+            BidPaymentInstruction::SubmitBid => entities::SubmitType::ByServer,
         }
     }
 

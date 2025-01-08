@@ -164,9 +164,6 @@ pub struct ConfigSvm {
     /// Timeout for RPC requests in seconds.
     #[serde(default = "default_rpc_timeout_svm")]
     pub rpc_timeout:                   u64,
-    /// The router account for swap program. // TODO*: we should work to remove this and fully identify swaps by ix type instead of router account
-    #[serde_as(as = "DisplayFromStr")]
-    pub wallet_program_router_account: Pubkey,
     #[serde(default)]
     /// Percentile of prioritization fees to query from the `rpc_read_url`.
     /// This should be None unless the RPC `getRecentPrioritizationFees`'s supports the percentile parameter, for example Triton RPC.

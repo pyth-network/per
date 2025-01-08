@@ -404,13 +404,14 @@ impl ModelTrait<Svm> for Svm {
     }
 
     fn get_chain_data_entity(bid: &Bid<Svm>) -> anyhow::Result<entities::BidChainDataSvm> {
-        let slice: [u8; 64] =
+        let slice: [u8; 65] =
             bid.permission_key.clone().try_into().map_err(|e| {
                 anyhow::anyhow!("Failed to convert permission key to slice {:?}", e)
             })?;
         let permission_key: PermissionKeySvm = PermissionKeySvm(slice);
         Ok(entities::BidChainDataSvm {
             transaction:        bid.metadata.transaction.clone(),
+            bid_payment_type:   entities::BidChainDataSvm::get_bid_payment_type(&permission_key),
             router:             entities::BidChainDataSvm::get_router(&permission_key),
             permission_account: entities::BidChainDataSvm::get_permission_account(&permission_key),
         })

@@ -8,6 +8,7 @@ use {
         auction::{
             entities::{
                 Auction,
+                BidPaymentInstruction,
                 BidStatus,
                 BidStatusAuction,
             },
@@ -17,7 +18,6 @@ use {
                 get_live_bids::GetLiveBidsInput,
                 update_bid_status::UpdateBidStatusInput,
                 update_submitted_auction::UpdateSubmittedAuctionInput,
-                verification::BidPaymentInstruction,
                 Service as AuctionService,
             },
         },
@@ -97,10 +97,6 @@ impl Service<ChainTypeSvm> {
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
-        let chain_config = self.get_config(&quote_create.chain_id)?;
-        if router != chain_config.wallet_program_router_account {
-            return Err(RestError::Forbidden);
-        }
         let permission_account =
             get_quote_permission_key(&quote_create.tokens, &quote_create.user_wallet_address);
 
@@ -179,7 +175,7 @@ impl Service<ChainTypeSvm> {
         }
 
         // NOTE: This part will be removed after refactoring the permission key type
-        let slice: [u8; 64] = opportunity
+        let slice: [u8; 65] = opportunity
             .permission_key
             .to_vec()
             .try_into()

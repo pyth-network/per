@@ -10,6 +10,7 @@ use {
             entities::{
                 self,
                 BidChainData,
+                BidPaymentInstruction,
                 SubmitType,
             },
             service::get_live_bids::GetLiveBidsInput,
@@ -282,11 +283,6 @@ struct BidDataSvm {
 const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
 const BID_MINIMUM_LIFE_TIME_SVM_OTHER: Duration = Duration::from_secs(10);
 
-pub enum BidPaymentInstruction {
-    SubmitBid,
-    Swap,
-}
-
 impl Service<Svm> {
     //TODO: merge this logic with simulator logic
     async fn query_lookup_table(&self, table: &Pubkey, index: usize) -> Result<Pubkey, RestError> {
@@ -523,12 +519,6 @@ impl Service<Svm> {
                             .router_account_position_submit_bid,
                     )
                     .await?;
-                if router == self.config.chain_config.wallet_program_router_account {
-                    return Err(RestError::BadParameters(
-                        "Using swap router account is not allowed for submit_bid instruction"
-                            .to_string(),
-                    ));
-                }
                 Ok(BidDataSvm {
                     amount: submit_bid_data.bid_amount,
                     permission_account,
@@ -556,11 +546,6 @@ impl Service<Svm> {
                             .router_account_position_swap,
                     )
                     .await?;
-                if router != self.config.chain_config.wallet_program_router_account {
-                    return Err(RestError::BadParameters(
-                        "Must use approved router for swap instruction".to_string(),
-                    ));
-                }
 
                 let user_wallet = self
                     .extract_account(
@@ -841,10 +826,20 @@ impl Verification<Svm> for Service<Svm> {
         let bid_data = self
             .extract_bid_data(bid.chain_data.transaction.clone())
             .await?;
+        let bid_payment_type = match bid_data.submit_type {
+            SubmitType::ByServer => BidPaymentInstruction::SubmitBid,
+            SubmitType::ByOther => BidPaymentInstruction::Swap,
+            SubmitType::Invalid => {
+                return Err(RestError::BadParameters(
+                    "Invalid submit type for bid".to_string(),
+                ));
+            }
+        };
         let bid_chain_data = entities::BidChainDataSvm {
             permission_account: bid_data.permission_account,
-            router:             bid_data.router,
-            transaction:        bid.chain_data.transaction.clone(),
+            router: bid_data.router,
+            bid_payment_type,
+            transaction: bid.chain_data.transaction.clone(),
         };
         let permission_key = bid_chain_data.get_permission_key();
         tracing::Span::current().record("permission_key", bid_data.permission_account.to_string());

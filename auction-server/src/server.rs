@@ -319,9 +319,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                                     RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                                 ),
                             ),
-                            wallet_program_router_account: chain_store
-                                .config
-                                .wallet_program_router_account,
                             express_relay:                 auction_service::ExpressRelaySvm {
                                 program_id:                             chain_store
                                     .config
