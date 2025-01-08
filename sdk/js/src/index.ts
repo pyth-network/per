@@ -492,6 +492,7 @@ export class Client {
       user_wallet_address: quoteRequest.userWallet.toBase58(),
       version: "v1" as const,
     };
+    // TODO: we may want to wrap all the GET/POST calls in a try/catch block to handle errors
     const response = await client.POST("/v1/opportunities/quote", {
       body: body,
     });
