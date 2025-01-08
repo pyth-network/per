@@ -282,7 +282,7 @@ pub struct SetRouterSplit<'info> {
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SubmitBidArgs {
     // deadline as a unix timestamp in seconds
-    pub deadline:   i64, 
+    pub deadline:   i64,
     pub bid_amount: u64,
 }
 
