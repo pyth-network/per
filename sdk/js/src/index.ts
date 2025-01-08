@@ -4,6 +4,7 @@ import createClient, {
 } from "openapi-fetch";
 import { Address, Hex, isAddress, isHex } from "viem";
 import WebSocket from "isomorphic-ws";
+import base58 from "bs58";
 import {
   Bid,
   BidId,
@@ -20,6 +21,8 @@ import {
   SvmChainUpdate,
   OpportunityDelete,
   ChainType,
+  QuoteRequest,
+  QuoteResponse,
 } from "./types";
 import {
   Connection,
@@ -474,6 +477,35 @@ export class Client {
   }
 
   /**
+   * Gets the best quote for a given quote request
+   * @param quoteRequest Quote request to submit
+   * @returns Quote response representing the best quote for the request
+   */
+  async getQuote(quoteRequest: QuoteRequest): Promise<QuoteResponse> {
+    const client = createClient<paths>(this.clientOptions);
+    const body = {
+      chain_id: quoteRequest.chainId,
+      input_token_mint: quoteRequest.inputTokenMint.toBase58(),
+      output_token_mint: quoteRequest.outputTokenMint.toBase58(),
+      router: quoteRequest.router.toBase58(),
+      specified_token_amount: quoteRequest.specifiedTokenAmount,
+      user_wallet_address: quoteRequest.userWallet.toBase58(),
+      version: "v1" as const,
+    };
+    // TODO: we may want to wrap all the GET/POST calls in a try/catch block to handle errors
+    const response = await client.POST("/v1/opportunities/quote", {
+      body: body,
+    });
+    if (response.error) {
+      throw ClientError.newHttpError(
+        JSON.stringify(response.error),
+        response.response.status
+      );
+    }
+    return this.convertQuoteResponse(response.data);
+  }
+
+  /**
    * Submits a raw bid for a permission key
    * @param bid
    * @param subscribeToUpdates If true, the client will subscribe to bid status updates via websocket and will call the bid status callback if set
@@ -599,6 +631,29 @@ export class Client {
       console.warn("Cannot handle wallet opportunities");
       return undefined;
     }
+  }
+
+  /**
+   * Converts a quote response from the server to the client format
+   * @param quoteResponse
+   * @returns Quote response in the converted client format
+   */
+  public convertQuoteResponse(
+    quoteResponse: components["schemas"]["QuoteSvm"]
+  ): QuoteResponse {
+    return {
+      chainId: quoteResponse.chain_id,
+      expirationTime: new Date(quoteResponse.expiration_time * 1000),
+      inputToken: {
+        token: new PublicKey(quoteResponse.input_token.token),
+        amount: BigInt(quoteResponse.input_token.amount),
+      },
+      outputToken: {
+        token: new PublicKey(quoteResponse.output_token.token),
+        amount: BigInt(quoteResponse.output_token.amount),
+      },
+      transaction: Transaction.from(base58.decode(quoteResponse.transaction)),
+    };
   }
 
   // EVM specific functions

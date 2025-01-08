@@ -271,6 +271,9 @@ importers:
       "@solana/web3.js":
         specifier: "catalog:"
         version: 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      bs58:
+        specifier: ^6.0.0
+        version: 6.0.0
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
