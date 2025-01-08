@@ -17,6 +17,7 @@ class ExpressRelayMetadataJSON(typing.TypedDict):
     fee_receiver_relayer: str
     split_router_default: int
     split_relayer: int
+    swap_platform_fee_bps: int
 
 
 @dataclass
@@ -28,12 +29,14 @@ class ExpressRelayMetadata:
         "fee_receiver_relayer" / BorshPubkey,
         "split_router_default" / borsh.U64,
         "split_relayer" / borsh.U64,
+        "swap_platform_fee_bps" / borsh.U64,
     )
     admin: Pubkey
     relayer_signer: Pubkey
     fee_receiver_relayer: Pubkey
     split_router_default: int
     split_relayer: int
+    swap_platform_fee_bps: int
 
     @classmethod
     async def fetch(
@@ -84,6 +87,7 @@ class ExpressRelayMetadata:
             fee_receiver_relayer=dec.fee_receiver_relayer,
             split_router_default=dec.split_router_default,
             split_relayer=dec.split_relayer,
+            swap_platform_fee_bps=dec.swap_platform_fee_bps,
         )
 
     def to_json(self) -> ExpressRelayMetadataJSON:
@@ -93,6 +97,7 @@ class ExpressRelayMetadata:
             "fee_receiver_relayer": str(self.fee_receiver_relayer),
             "split_router_default": self.split_router_default,
             "split_relayer": self.split_relayer,
+            "swap_platform_fee_bps": self.swap_platform_fee_bps,
         }
 
     @classmethod
@@ -103,4 +108,5 @@ class ExpressRelayMetadata:
             fee_receiver_relayer=Pubkey.from_string(obj["fee_receiver_relayer"]),
             split_router_default=obj["split_router_default"],
             split_relayer=obj["split_relayer"],
+            swap_platform_fee_bps=obj["swap_platform_fee_bps"],
         )
