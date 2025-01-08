@@ -135,6 +135,7 @@ impl Service<ChainTypeSvm> {
                     user_wallet_address: quote_create.user_wallet_address,
                     // TODO*: we should eventually determine this more intelligently
                     fee_token:           entities::FeeToken::InputToken,
+                    referral_fee_bps:    quote_create.referral_fee_bps,
                 })
             }
             _ => {
@@ -211,6 +212,8 @@ impl Service<ChainTypeSvm> {
 
             return Err(RestError::QuoteNotFound);
         }
+
+        // TODO*: need to filter out bids using wrong referral fee / fee token
 
         // Find winner bid:
         match input.quote_create.tokens {

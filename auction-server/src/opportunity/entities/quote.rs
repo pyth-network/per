@@ -21,6 +21,7 @@ pub struct Quote {
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuoteCreate {
     pub user_wallet_address: Pubkey,
+    pub referral_fee_bps:    u16,
     pub tokens:              QuoteTokens,
     pub router:              Pubkey,
     pub chain_id:            ChainId,
@@ -63,6 +64,7 @@ impl From<api::QuoteCreate> for QuoteCreate {
 
         Self {
             user_wallet_address: params.user_wallet_address,
+            referral_fee_bps: params.referral_fee_bps,
             tokens,
             router: params.router,
             chain_id: params.chain_id,

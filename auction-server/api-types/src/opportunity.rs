@@ -218,6 +218,9 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
+        /// The referral fee in basis points.
+        #[schema(example = 10, value_type = u16)]
+        referral_fee_bps:    u16,
     },
 }
 
@@ -496,6 +499,9 @@ pub struct QuoteCreateV1SvmParams {
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub router:                 Pubkey,
+    /// The referral fee in basis points.
+    #[schema(example = 10, value_type = u16)]
+    pub referral_fee_bps:       u16,
     /// The chain id for creating the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:               ChainId,
