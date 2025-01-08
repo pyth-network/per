@@ -281,7 +281,8 @@ pub struct SetRouterSplit<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SubmitBidArgs {
-    pub deadline:   i64,
+    // deadline as a unix timestamp in seconds
+    pub deadline:   i64, 
     pub bid_amount: u64,
 }
 
@@ -362,6 +363,7 @@ pub enum FeeToken {
 /// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapArgs {
+    // deadline as a unix timestamp in seconds
     pub deadline:         i64,
     pub amount_input:     u64,
     pub amount_output:    u64,
