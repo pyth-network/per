@@ -58,7 +58,7 @@ pub fn get_params(opportunity: OpportunityEvm) -> OpportunityCreateV1Evm {
 }
 
 #[derive(Debug, Clone)]
-pub struct BidParamsEvm {
+pub struct BidParams {
     pub amount:   ethers::types::U256,
     pub deadline: ethers::types::U256,
     pub nonce:    ethers::types::U256,
@@ -172,7 +172,7 @@ impl Evm {
     pub fn make_permitted_tokens(
         &self,
         opportunity: OpportunityEvm,
-        bid_params: BidParamsEvm,
+        bid_params: BidParams,
     ) -> Result<Vec<TokenPermissions>, ClientError> {
         let config = self.get_config(opportunity.get_chain_id())?;
         let params = get_params(opportunity);
@@ -219,7 +219,7 @@ impl Evm {
     pub fn make_opportunity_execution_params(
         &self,
         opportunity: OpportunityEvm,
-        bid_params: BidParamsEvm,
+        bid_params: BidParams,
         executor: Address,
     ) -> Result<ExecutionParams, ClientError> {
         let params = get_params(opportunity.clone());
@@ -312,7 +312,7 @@ impl Evm {
     fn get_signature(
         &self,
         opportunity: OpportunityEvm,
-        bid_params: BidParamsEvm,
+        bid_params: BidParams,
         wallet: LocalWallet,
     ) -> Result<Signature, ClientError> {
         let config = self.get_config(opportunity.get_chain_id())?;
@@ -367,7 +367,7 @@ impl Evm {
     pub fn make_adapter_calldata(
         &self,
         opportunity: OpportunityEvm,
-        bid_params: BidParamsEvm,
+        bid_params: BidParams,
         wallet: LocalWallet,
     ) -> Result<Bytes, ClientError> {
         let signature =
@@ -384,4 +384,9 @@ impl Evm {
 
         Ok(calldata.into())
     }
+}
+
+pub struct NewBidParams {
+    pub bid_params: BidParams,
+    pub wallet:     LocalWallet,
 }

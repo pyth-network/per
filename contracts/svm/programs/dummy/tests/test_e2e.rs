@@ -8,7 +8,7 @@ use {
     },
     express_relay::{
         error::ErrorCode as ExpressRelayErrorCode,
-        sdk::test_helpers::add_express_relay_submit_bid_instruction,
+        sdk::helpers::add_express_relay_submit_bid_instruction,
     },
     helpers::{
         helpers_express_relay::{
@@ -48,6 +48,7 @@ async fn test_dummy_e2e() {
         permission,
         router,
         bid_amount,
+        i64::MAX,
     )
     .try_into()
     .unwrap();
@@ -105,6 +106,7 @@ async fn test_dummy_e2e_fail_router_underfunded() {
         permission,
         router_real,
         bid_amount,
+        i64::MAX,
     )
     .try_into()
     .unwrap();

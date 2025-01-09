@@ -41,6 +41,7 @@ url = "2.5.4"
 rand = "0.8.5"
 anchor-lang = { version = "0.30.1" }
 litesvm = { version = "0.3.0" }
+borsh = "1.5.1"
 
 # The curve25519-dalek crate is a dependency of solana-sdk.
 # This crate relies on a specific version of zeroize that is incompatible with many other packages.

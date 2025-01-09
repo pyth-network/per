@@ -10,19 +10,33 @@ use {
                 GetOpportunitiesQueryParams,
                 Opportunity,
                 OpportunityMode,
+                OpportunityParamsSvm,
+                OpportunityParamsV1ProgramSvm,
+                QuoteTokens,
             },
             ws::ServerUpdateResponse,
+            SvmChainUpdate,
         },
         ethers::{
             signers::LocalWallet,
             types::U256,
         },
-        evm::BidParamsEvm,
+        evm,
+        solana_sdk::{
+            compute_budget::ComputeBudgetInstruction,
+            signature::Keypair,
+            signer::Signer,
+        },
+        svm,
         Client,
         WsClient,
     },
     rand::Rng,
-    std::collections::HashMap,
+    spl_associated_token_account::instruction::create_associated_token_account_idempotent,
+    std::{
+        collections::HashMap,
+        sync::Arc,
+    },
     time::{
         Duration,
         OffsetDateTime,
@@ -42,7 +56,12 @@ pub struct SimpleSearcher {
     private_key_evm: Option<String>,
     private_key_svm: Option<String>,
     chain_ids:       Vec<String>,
+    svm_update_map:  HashMap<String, SvmChainUpdate>,
+    svm_client:      Option<Arc<svm::Svm>>,
 }
+
+const SVM_BID_AMOUNT: u64 = 100;
+const EVM_BID_AMOUNT: i128 = 5_000_000_000_000_000_000_i128;
 
 impl SimpleSearcher {
     pub async fn try_new(
@@ -50,6 +69,7 @@ impl SimpleSearcher {
         chain_ids: Vec<String>,
         private_key_evm: Option<String>,
         private_key_svm: Option<String>,
+        svm_rpc_url: Option<String>,
     ) -> Result<Self> {
         if let Some(private_key) = private_key_evm.clone() {
             private_key
@@ -57,6 +77,11 @@ impl SimpleSearcher {
                 .map_err(|e| anyhow!("Invalid evm private key: {}", e))?;
         }
 
+        if let Some(private_key) = private_key_svm.clone() {
+            Keypair::from_base58_string(private_key.as_str());
+        }
+
+        let svm_client = svm_rpc_url.map(|url| Arc::new(svm::Svm::new(url.clone())));
         let ws_client = client.connect_websocket().await.map_err(|e| {
             eprintln!("Failed to connect websocket: {:?}", e);
             anyhow!("Failed to connect websocket")
@@ -68,6 +93,8 @@ impl SimpleSearcher {
             private_key_evm,
             private_key_svm,
             chain_ids,
+            svm_update_map: HashMap::new(),
+            svm_client,
         })
     }
 
@@ -126,24 +153,129 @@ impl SimpleSearcher {
         opportunity: Opportunity,
         private_key: String,
     ) -> Result<()> {
+        let deadline = (OffsetDateTime::now_utc() + Duration::days(1)).unix_timestamp();
         let bid = match opportunity {
             opportunity::Opportunity::Evm(opportunity) => {
+                let wallet = private_key.parse::<LocalWallet>().map_err(|e| {
+                    eprintln!("Failed to parse evm private key: {:?}", e);
+                    anyhow!("Failed to parse evm private key")
+                })?;
+                let bid_params = evm::BidParams {
+                    amount:   U256::from(EVM_BID_AMOUNT),
+                    nonce:    random().await,
+                    deadline: U256::from(deadline),
+                };
                 self.client
-                    .new_bid(
-                        opportunity,
-                        BidParamsEvm {
-                            amount:   U256::from(5_000_000_000_000_000_000_i128),
-                            nonce:    random().await,
-                            deadline: U256::from(
-                                (OffsetDateTime::now_utc() + Duration::days(1)).unix_timestamp(),
-                            ),
-                        },
-                        private_key,
-                    )
+                    .new_bid(opportunity, evm::NewBidParams { bid_params, wallet })
                     .await
             }
             opportunity::Opportunity::Svm(opportunity) => {
-                self.client.new_bid(opportunity, 2, private_key).await
+                let svm_update = self
+                    .svm_update_map
+                    .get(opportunity.get_chain_id())
+                    .cloned()
+                    .ok_or(anyhow!("Block hash not found"))?;
+                let payer = Keypair::from_base58_string(private_key.as_str());
+                let fee_ix = ComputeBudgetInstruction::set_compute_unit_price(
+                    svm_update.latest_prioritization_fee,
+                );
+                if self.svm_client.is_none() {
+                    return Err(anyhow!("SVM RPC client not provided"));
+                }
+                let svm_client = self
+                    .svm_client
+                    .as_ref()
+                    .expect("SVM RPC client not provided");
+                let metadata = svm_client
+                    .get_express_relay_metadata()
+                    .await
+                    .map_err(|e| anyhow!("Failed to get express relay metadata: {:?}", e))?;
+                let OpportunityParamsSvm::V1(params) = opportunity.params.clone();
+                match params.program {
+                    OpportunityParamsV1ProgramSvm::Limo {
+                        order: _order,
+                        order_address: _order_address,
+                    } => {
+                        // TODO EXTRACT ROUTER DATA FROM LIMONADE SDK
+                        // self.client
+                        //     .new_bid(
+                        //         opportunity.clone(),
+                        //         svm::NewBidParams {
+                        //             amount: SVM_BID_AMOUNT,
+                        //             deadline,
+                        //             block_hash: svm_update.blockhash,
+                        //             instructions: vec![fee_ix],
+                        //             payer: payer.pubkey(),
+                        //             slot: Some(opportunity.slot),
+                        //             searcher: payer.pubkey(),
+                        //             fee_receiver_relayer: metadata
+                        //                 .fee_receiver_relayer
+                        //                 .to_bytes()
+                        //                 .into(),
+                        //             signers: vec![payer],
+                        //             program_params: svm::ProgramParams::Limo(
+                        //                 svm::ProgramParamsLimo {
+                        //                     router:         Pubkey::from_str(
+                        //                         "FjgAP9DWiSmULyUKwMrMTTfwdGJeMz22Bcibzq4ijzPR",
+                        //                     )
+                        //                     .expect("Failed to parse pubkey"),
+                        //                     relayer_signer: metadata
+                        //                         .relayer_signer
+                        //                         .to_bytes()
+                        //                         .into(),
+                        //                     permission:     order_address,
+                        //                 },
+                        //             ),
+                        //         },
+                        //     )
+                        //     .await
+                        Err(express_relay_client::ClientError::NewBidError(
+                            "Limo not supported yet".to_string(),
+                        ))
+                    }
+                    OpportunityParamsV1ProgramSvm::Swap { tokens, .. } => {
+                        let (input_token, input_token_program) = match tokens {
+                            QuoteTokens::InputTokenSpecified {
+                                input_token,
+                                input_token_program,
+                                ..
+                            } => (input_token.token, input_token_program),
+                            QuoteTokens::OutputTokenSpecified {
+                                input_token,
+                                input_token_program,
+                                ..
+                            } => (input_token, input_token_program),
+                        };
+                        let create_input_account_ix = create_associated_token_account_idempotent(
+                            &payer.pubkey(),
+                            &payer.pubkey(),
+                            &input_token,
+                            &input_token_program,
+                        );
+                        self.client
+                            .new_bid(
+                                opportunity.clone(),
+                                svm::NewBidParams {
+                                    amount: SVM_BID_AMOUNT,
+                                    deadline,
+                                    block_hash: svm_update.blockhash,
+                                    instructions: vec![fee_ix, create_input_account_ix],
+                                    payer: payer.pubkey(),
+                                    slot: Some(opportunity.slot),
+                                    searcher: payer.pubkey(),
+                                    fee_receiver_relayer: metadata
+                                        .fee_receiver_relayer
+                                        .to_bytes()
+                                        .into(),
+                                    signers: vec![payer],
+                                    program_params: svm::ProgramParams::Swap(
+                                        svm::ProgramParamsSwap {},
+                                    ),
+                                },
+                            )
+                            .await
+                    }
+                }
             }
         }
         .map_err(|e| {
@@ -159,7 +291,7 @@ impl SimpleSearcher {
         Ok(())
     }
 
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<()> {
         self.bid_on_existing_opps().await?;
 
         self.ws_client
@@ -171,7 +303,6 @@ impl SimpleSearcher {
             })?;
 
         let mut stream = self.ws_client.get_update_stream();
-        let mut block_hash_map = HashMap::new();
         while let Some(update) = stream.next().await {
             let update = match update {
                 Ok(update) => update,
@@ -189,7 +320,8 @@ impl SimpleSearcher {
                     });
                 }
                 ServerUpdateResponse::SvmChainUpdate { update } => {
-                    block_hash_map.insert(update.chain_id.clone(), update.blockhash);
+                    self.svm_update_map
+                        .insert(update.chain_id.clone(), update.clone());
                     println!("SVM chain update: {:?}", update);
                 }
                 ServerUpdateResponse::RemoveOpportunities { opportunity_delete } => {

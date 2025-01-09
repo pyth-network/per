@@ -101,12 +101,16 @@ local_resource(
         && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher_js.json \
         && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher_py.json \
         && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher_py.json \
+        && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher_rust.json \
+        && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher_rust.json \
         && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/admin.json \
         && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_buy.json 100000000000 --recipient-owner keypairs/searcher_js.json --mint-authority keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/searcher_js.json --mint-authority keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_buy.json 100000000000 --recipient-owner keypairs/searcher_py.json --mint-authority keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/searcher_py.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_buy.json 100000000000 --recipient-owner keypairs/searcher_rust.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/searcher_rust.json --mint-authority keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_buy.json 100000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json""",
     resource_deps=["svm-setup-accounts"]
@@ -158,16 +162,6 @@ monitor_command = (
 local_resource(
     "evm-monitor",
     serve_cmd=monitor_command,
-    resource_deps=["evm-deploy-contracts", "auction-server", "create-server-configs"],
-)
-
-evm_searcher_command = (
-    "source tilt-resources.env;"
-    + "cargo run -p testing-searcher "
-)
-local_resource(
-    "evm-searcher",
-    serve_cmd=evm_searcher_command,
     resource_deps=["evm-deploy-contracts", "auction-server", "create-server-configs"],
 )
 
@@ -223,9 +217,20 @@ local_resource(
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
+rust_searcher_command = (
+    "source tilt-resources.env;"
+    + "export SVM_PRIVATE_KEY_FILE=keypairs/searcher_rust.json;"
+    + "cargo run -p testing-searcher"
+)
+local_resource(
+    "rust-searcher",
+    serve_cmd=rust_searcher_command,
+    resource_deps=["svm-initialize-programs", "evm-deploy-contracts", "auction-server", "create-server-configs"],
+)
+
 local_resource(
     "svm-test-swap-endpoint",
     "poetry -C tilt-scripts run python3 -m tilt-scripts.svm.test_swap --file-private-key-taker keypairs/searcher_py.json --auction-server-url http://localhost:9000 --input-mint {MINT_SELL} --output-mint {MINT_BUY} --rpc-url {RPC_URL}"
     .format(RPC_URL=rpc_url_solana, MINT_SELL=MINT_SELL, MINT_BUY=MINT_BUY),
-    resource_deps=["svm-searcher-js"],
+    resource_deps=["svm-searcher-js", "rust-searcher"],
 )
