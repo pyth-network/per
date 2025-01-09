@@ -562,7 +562,7 @@ impl AuctionManager<Svm> for Service<Svm> {
                 }
             }
             Some(BidPaymentInstructionType::SubmitBid) => entities::SubmitType::ByServer,
-            None => entities::SubmitType::Invalid,
+            None => entities::SubmitType::Invalid, // TODO: may want to distinguish this arm from the prior Invalid SubmitType. Maybe two different enum variants?
         }
     }
 
