@@ -180,10 +180,10 @@ pub trait BidChainData: Send + Sync + Clone + Debug + PartialEq {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BidChainDataSvm {
-    pub transaction:        VersionedTransaction,
-    pub bid_payment_type:   BidPaymentInstruction,
-    pub router:             Pubkey,
-    pub permission_account: Pubkey,
+    pub transaction:                  VersionedTransaction,
+    pub bid_payment_instruction_type: BidPaymentInstructionType,
+    pub router:                       Pubkey,
+    pub permission_account:           Pubkey,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -199,7 +199,7 @@ impl BidChainData for BidChainDataSvm {
 
     fn get_permission_key(&self) -> Self::PermissionKey {
         let mut permission_key = [0; 65];
-        permission_key[0] = self.bid_payment_type.clone().into();
+        permission_key[0] = self.bid_payment_instruction_type.clone().into();
         permission_key[1..33].copy_from_slice(&self.router.to_bytes());
         permission_key[33..].copy_from_slice(&self.permission_account.to_bytes());
         PermissionKeySvm(permission_key)
@@ -215,31 +215,33 @@ impl BidChainData for BidChainDataEvm {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum BidPaymentInstruction {
+pub enum BidPaymentInstructionType {
     SubmitBid,
     Swap,
 }
 
-impl From<BidPaymentInstruction> for u8 {
-    fn from(instruction: BidPaymentInstruction) -> Self {
+impl From<BidPaymentInstructionType> for u8 {
+    fn from(instruction: BidPaymentInstructionType) -> Self {
         match instruction {
-            BidPaymentInstruction::SubmitBid => 0,
-            BidPaymentInstruction::Swap => 1,
+            BidPaymentInstructionType::SubmitBid => 0,
+            BidPaymentInstructionType::Swap => 1,
         }
     }
 }
 
-impl From<u8> for BidPaymentInstruction {
+impl From<u8> for BidPaymentInstructionType {
     fn from(instruction: u8) -> Self {
         match instruction {
-            0 => BidPaymentInstruction::SubmitBid,
-            _ => BidPaymentInstruction::Swap,
+            0 => BidPaymentInstructionType::SubmitBid,
+            _ => BidPaymentInstructionType::Swap,
         }
     }
 }
 
 impl BidChainDataSvm {
-    pub fn get_bid_payment_type(permission_key: &PermissionKeySvm) -> BidPaymentInstruction {
+    pub fn get_bid_payment_instruction_type(
+        permission_key: &PermissionKeySvm,
+    ) -> BidPaymentInstructionType {
         permission_key.0[0].into()
     }
 

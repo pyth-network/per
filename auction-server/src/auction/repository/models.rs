@@ -410,10 +410,13 @@ impl ModelTrait<Svm> for Svm {
             })?;
         let permission_key: PermissionKeySvm = PermissionKeySvm(slice);
         Ok(entities::BidChainDataSvm {
-            transaction:        bid.metadata.transaction.clone(),
-            bid_payment_type:   entities::BidChainDataSvm::get_bid_payment_type(&permission_key),
-            router:             entities::BidChainDataSvm::get_router(&permission_key),
-            permission_account: entities::BidChainDataSvm::get_permission_account(&permission_key),
+            transaction:                  bid.metadata.transaction.clone(),
+            bid_payment_instruction_type:
+                entities::BidChainDataSvm::get_bid_payment_instruction_type(&permission_key),
+            router:                       entities::BidChainDataSvm::get_router(&permission_key),
+            permission_account:           entities::BidChainDataSvm::get_permission_account(
+                &permission_key,
+            ),
         })
     }
 

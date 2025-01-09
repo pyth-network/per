@@ -8,7 +8,7 @@ use {
         auction::{
             entities::{
                 Auction,
-                BidPaymentInstruction,
+                BidPaymentInstructionType,
                 BidStatus,
                 BidStatusAuction,
             },
@@ -229,7 +229,7 @@ impl Service<ChainTypeSvm> {
         let swap_instruction = auction_service
             .extract_express_relay_bid_instruction(
                 winner_bid.chain_data.transaction.clone(),
-                BidPaymentInstruction::Swap,
+                BidPaymentInstructionType::Swap,
             )
             .map_err(|e| {
                 tracing::error!("Failed to verify swap instruction: {:?}", e);

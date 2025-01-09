@@ -6,7 +6,7 @@ use {
     crate::{
         auction::entities::{
             self,
-            BidPaymentInstruction,
+            BidPaymentInstructionType,
             BidStatusAuction,
         },
         kernel::{
@@ -543,9 +543,8 @@ impl AuctionManager<Svm> for Service<Svm> {
         &self,
         permission_key: &entities::PermissionKey<Svm>,
     ) -> entities::SubmitType {
-        let bid_payment_type: BidPaymentInstruction = permission_key.0[0].into();
-        match bid_payment_type {
-            BidPaymentInstruction::Swap => {
+        match permission_key.0[0].into() {
+            BidPaymentInstructionType::Swap => {
                 if self
                     .opportunity_service
                     .get_live_opportunities(GetLiveOpportunitiesInput {
@@ -562,7 +561,7 @@ impl AuctionManager<Svm> for Service<Svm> {
                     entities::SubmitType::ByOther
                 }
             }
-            BidPaymentInstruction::SubmitBid => entities::SubmitType::ByServer,
+            BidPaymentInstructionType::SubmitBid => entities::SubmitType::ByServer,
         }
     }
 

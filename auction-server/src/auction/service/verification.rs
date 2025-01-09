@@ -10,7 +10,7 @@ use {
             entities::{
                 self,
                 BidChainData,
-                BidPaymentInstruction,
+                BidPaymentInstructionType,
                 SubmitType,
             },
             service::get_live_bids::GetLiveBidsInput,
@@ -420,13 +420,13 @@ impl Service<Svm> {
     pub fn extract_express_relay_bid_instruction(
         &self,
         transaction: VersionedTransaction,
-        instruction_type: BidPaymentInstruction,
+        instruction_type: BidPaymentInstructionType,
     ) -> Result<CompiledInstruction, RestError> {
         let discriminator = match instruction_type {
-            BidPaymentInstruction::SubmitBid => {
+            BidPaymentInstructionType::SubmitBid => {
                 express_relay_svm::instruction::SubmitBid::DISCRIMINATOR
             }
-            BidPaymentInstruction::Swap => express_relay_svm::instruction::Swap::DISCRIMINATOR,
+            BidPaymentInstructionType::Swap => express_relay_svm::instruction::Swap::DISCRIMINATOR,
         };
         let instructions = transaction
             .message
@@ -485,11 +485,11 @@ impl Service<Svm> {
     ) -> Result<BidDataSvm, RestError> {
         let submit_bid_instruction_result = self.extract_express_relay_bid_instruction(
             transaction.clone(),
-            BidPaymentInstruction::SubmitBid,
+            BidPaymentInstructionType::SubmitBid,
         );
         let swap_instruction_result = self.extract_express_relay_bid_instruction(
             transaction.clone(),
-            BidPaymentInstruction::Swap,
+            BidPaymentInstructionType::Swap,
         );
 
         match (
@@ -824,10 +824,10 @@ impl Verification<Svm> for Service<Svm> {
         let bid_data = self
             .extract_bid_data(bid.chain_data.transaction.clone())
             .await?;
-        let bid_payment_type = match bid_data.submit_type {
-            SubmitType::ByServer => BidPaymentInstruction::SubmitBid,
+        let bid_payment_instruction_type = match bid_data.submit_type {
+            SubmitType::ByServer => BidPaymentInstructionType::SubmitBid,
             // TODO*: we should verify all components of the swap here (token amounts, fee token side, referral fee, )
-            SubmitType::ByOther => BidPaymentInstruction::Swap,
+            SubmitType::ByOther => BidPaymentInstructionType::Swap,
             SubmitType::Invalid => {
                 return Err(RestError::BadParameters(
                     "Invalid submit type for bid".to_string(),
@@ -837,7 +837,7 @@ impl Verification<Svm> for Service<Svm> {
         let bid_chain_data = entities::BidChainDataSvm {
             permission_account: bid_data.permission_account,
             router: bid_data.router,
-            bid_payment_type,
+            bid_payment_instruction_type,
             transaction: bid.chain_data.transaction.clone(),
         };
         let permission_key = bid_chain_data.get_permission_key();
