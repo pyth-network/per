@@ -602,7 +602,8 @@ impl Service<Svm> {
                     ),
                 };
 
-                let permission_account = get_quote_permission_key(&tokens, &user_wallet);
+                let permission_account =
+                    get_quote_permission_key(&tokens, &user_wallet, swap_data.referral_fee_bps);
 
                 Ok(BidDataSvm {
                     amount: bid_amount,

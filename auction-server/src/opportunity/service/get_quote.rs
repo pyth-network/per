@@ -51,10 +51,12 @@ pub struct GetQuoteInput {
 pub fn get_quote_permission_key(
     tokens: &entities::QuoteTokens,
     user_wallet_address: &Pubkey,
+    referral_fee_bps: u16,
 ) -> Pubkey {
-    // get pda seeded by user_wallet_address, mints, and token amount
+    // get pda seeded by user_wallet_address, referral_fee_bps, mints, and token amount
     let input_token_amount: [u8; 8];
     let output_token_amount: [u8; 8];
+    let referral_fee_bps = referral_fee_bps.to_le_bytes();
     let seeds = match tokens {
         entities::QuoteTokens::InputTokenSpecified {
             input_token,
@@ -68,6 +70,7 @@ pub fn get_quote_permission_key(
                 input_token_mint,
                 input_token_amount.as_ref(),
                 output_token_mint,
+                referral_fee_bps.as_ref(),
             ]
         }
         entities::QuoteTokens::OutputTokenSpecified {
@@ -82,6 +85,7 @@ pub fn get_quote_permission_key(
                 input_token_mint,
                 output_token_mint,
                 output_token_amount.as_ref(),
+                referral_fee_bps.as_ref(),
             ]
         }
     };
@@ -97,8 +101,11 @@ impl Service<ChainTypeSvm> {
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
-        let permission_account =
-            get_quote_permission_key(&quote_create.tokens, &quote_create.user_wallet_address);
+        let permission_account = get_quote_permission_key(
+            &quote_create.tokens,
+            &quote_create.user_wallet_address,
+            quote_create.referral_fee_bps,
+        );
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0

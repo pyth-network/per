@@ -1,5 +1,6 @@
 use {
     crate::{
+        error::ErrorCode,
         state::ExpressRelayMetadata,
         token::transfer_token_if_needed,
         FeeToken,
@@ -116,11 +117,14 @@ pub struct SwapFees {
 impl ExpressRelayMetadata {
     pub fn compute_swap_fees(
         &self,
-        referral_fee_bps: u64,
+        referral_fee_bps: u16,
         amount: u64,
     ) -> Result<SwapFeesWithRemainingAmount> {
+        if u64::from(referral_fee_bps) > FEE_SPLIT_PRECISION {
+            return Err(ErrorCode::InvalidReferralFee.into());
+        }
         let router_fee = amount
-            .checked_mul(referral_fee_bps)
+            .checked_mul(referral_fee_bps.into())
             .ok_or(ProgramError::ArithmeticOverflow)?
             / FEE_SPLIT_PRECISION;
         let platform_fee = amount

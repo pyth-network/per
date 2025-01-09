@@ -543,8 +543,8 @@ impl AuctionManager<Svm> for Service<Svm> {
         &self,
         permission_key: &entities::PermissionKey<Svm>,
     ) -> entities::SubmitType {
-        match permission_key.0[0].into() {
-            BidPaymentInstructionType::Swap => {
+        match entities::BidChainDataSvm::get_bid_payment_instruction_type(permission_key) {
+            Some(BidPaymentInstructionType::Swap) => {
                 if self
                     .opportunity_service
                     .get_live_opportunities(GetLiveOpportunitiesInput {
@@ -561,7 +561,8 @@ impl AuctionManager<Svm> for Service<Svm> {
                     entities::SubmitType::ByOther
                 }
             }
-            BidPaymentInstructionType::SubmitBid => entities::SubmitType::ByServer,
+            Some(BidPaymentInstructionType::SubmitBid) => entities::SubmitType::ByServer,
+            None => entities::SubmitType::Invalid,
         }
     }
 

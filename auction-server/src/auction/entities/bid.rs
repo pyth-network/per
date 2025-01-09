@@ -38,6 +38,7 @@ use {
         },
         hash::Hash,
     },
+    strum::FromRepr,
     time::OffsetDateTime,
     uuid::Uuid,
 };
@@ -214,7 +215,7 @@ impl BidChainData for BidChainDataEvm {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, FromRepr)]
 pub enum BidPaymentInstructionType {
     SubmitBid,
     Swap,
@@ -229,20 +230,11 @@ impl From<BidPaymentInstructionType> for u8 {
     }
 }
 
-impl From<u8> for BidPaymentInstructionType {
-    fn from(instruction: u8) -> Self {
-        match instruction {
-            0 => BidPaymentInstructionType::SubmitBid,
-            _ => BidPaymentInstructionType::Swap,
-        }
-    }
-}
-
 impl BidChainDataSvm {
     pub fn get_bid_payment_instruction_type(
         permission_key: &PermissionKeySvm,
-    ) -> BidPaymentInstructionType {
-        permission_key.0[0].into()
+    ) -> Option<BidPaymentInstructionType> {
+        BidPaymentInstructionType::from_repr(permission_key.0[0].into())
     }
 
     pub fn get_router(permission_key: &PermissionKeySvm) -> Pubkey {

@@ -412,7 +412,14 @@ impl ModelTrait<Svm> for Svm {
         Ok(entities::BidChainDataSvm {
             transaction:                  bid.metadata.transaction.clone(),
             bid_payment_instruction_type:
-                entities::BidChainDataSvm::get_bid_payment_instruction_type(&permission_key),
+                match entities::BidChainDataSvm::get_bid_payment_instruction_type(&permission_key) {
+                    Some(bid_payment_instruction_type) => bid_payment_instruction_type,
+                    None => {
+                        return Err(anyhow::anyhow!(
+                            "Failed to get bid payment instruction type from permission key, due to invalid data"
+                        ))
+                    }
+                },
             router:                       entities::BidChainDataSvm::get_router(&permission_key),
             permission_account:           entities::BidChainDataSvm::get_permission_account(
                 &permission_key,

@@ -264,7 +264,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             repository::OpportunityMetadataSvmProgram::SwapKamino(program) => {
                 OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
                     user_wallet_address: program.user_wallet_address,
-                    fee_token:           FeeToken::InputToken,
+                    fee_token:           program.fee_token,
                     referral_fee_bps:    program.referral_fee_bps,
                 })
             }
