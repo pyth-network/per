@@ -83,6 +83,17 @@ pub mod express_relay {
         Ok(())
     }
 
+    pub fn set_swap_platform_fee(
+        ctx: Context<SetSplits>,
+        data: SetSwapPlatformFeeArgs,
+    ) -> Result<()> {
+        validate_fee_split(data.swap_platform_fee_bps)?;
+
+        ctx.accounts.express_relay_metadata.swap_platform_fee_bps = data.swap_platform_fee_bps;
+
+        Ok(())
+    }
+
     pub fn set_router_split(ctx: Context<SetRouterSplit>, data: SetRouterSplitArgs) -> Result<()> {
         validate_fee_split(data.split_router)?;
 
@@ -217,7 +228,6 @@ pub struct Initialize<'info> {
 
 #[derive(Accounts)]
 pub struct SetAdmin<'info> {
-    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
@@ -229,7 +239,6 @@ pub struct SetAdmin<'info> {
 
 #[derive(Accounts)]
 pub struct SetRelayer<'info> {
-    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
@@ -248,9 +257,13 @@ pub struct SetSplitsArgs {
     pub split_relayer:        u64,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
+pub struct SetSwapPlatformFeeArgs {
+    pub swap_platform_fee_bps: u64,
+}
+
 #[derive(Accounts)]
 pub struct SetSplits<'info> {
-    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
@@ -282,7 +295,7 @@ pub struct SetRouterSplit<'info> {
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SubmitBidArgs {
     // deadline as a unix timestamp in seconds
-    pub deadline:   i64, 
+    pub deadline:   i64,
     pub bid_amount: u64,
 }
 
@@ -340,7 +353,6 @@ pub struct CheckPermission<'info> {
 
 #[derive(Accounts)]
 pub struct WithdrawFees<'info> {
-    #[account(mut)]
     pub admin: Signer<'info>,
 
     /// CHECK: this is just the PK where the fees should be sent.

@@ -15,7 +15,7 @@ pub struct ExpressRelayMetadata {
     pub split_router_default:  u64,
     // the portion of the remaining bid (after router fees) that goes to the relayer, in bps
     pub split_relayer:         u64,
-    // the portion of the swap amount that goes to the platform (relayer + express relay), in bps
+    // the portion of the swap amount that should go to the platform (relayer + express relay), in bps
     pub swap_platform_fee_bps: u64,
 }
 
