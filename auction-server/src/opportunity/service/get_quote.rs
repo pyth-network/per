@@ -213,8 +213,6 @@ impl Service<ChainTypeSvm> {
             return Err(RestError::QuoteNotFound);
         }
 
-        // TODO*: need to filter out bids using wrong referral fee / fee token
-
         // Find winner bid:
         match input.quote_create.tokens {
             entities::QuoteTokens::InputTokenSpecified { .. } => {

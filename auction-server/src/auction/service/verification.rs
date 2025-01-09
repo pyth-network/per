@@ -826,6 +826,7 @@ impl Verification<Svm> for Service<Svm> {
             .await?;
         let bid_payment_type = match bid_data.submit_type {
             SubmitType::ByServer => BidPaymentInstruction::SubmitBid,
+            // TODO*: we should verify all components of the swap here (token amounts, fee token side, referral fee, )
             SubmitType::ByOther => BidPaymentInstruction::Swap,
             SubmitType::Invalid => {
                 return Err(RestError::BadParameters(
