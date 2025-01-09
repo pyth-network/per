@@ -228,7 +228,6 @@ pub struct Initialize<'info> {
 
 #[derive(Accounts)]
 pub struct SetAdmin<'info> {
-    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
@@ -240,7 +239,6 @@ pub struct SetAdmin<'info> {
 
 #[derive(Accounts)]
 pub struct SetRelayer<'info> {
-    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
@@ -355,7 +353,6 @@ pub struct CheckPermission<'info> {
 
 #[derive(Accounts)]
 pub struct WithdrawFees<'info> {
-    #[account(mut)]
     pub admin: Signer<'info>,
 
     /// CHECK: this is just the PK where the fees should be sent.
