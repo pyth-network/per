@@ -25,12 +25,14 @@ repos:
         language: "rust"
         entry: cargo +nightly-2024-12-03 fmt --manifest-path ./Cargo.toml --all -- --config-path rustfmt.toml
         pass_filenames: false
+        types_or: ["rust", "cargo", "cargo-lock"]
         files: .
       - id: cargo-clippy-workspace
         name: Cargo clippy for workspace
         language: "rust"
         entry: cargo +stable clippy --manifest-path ./Cargo.toml --tests -- -D warnings
         pass_filenames: false
+        types_or: ["rust", "cargo", "cargo-lock"]
         files: .
       # Hooks for contracts-svm
       - id: cargo-fmt-contracts-svm

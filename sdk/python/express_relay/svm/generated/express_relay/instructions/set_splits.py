@@ -26,7 +26,7 @@ def set_splits(
     remaining_accounts: typing.Optional[typing.List[AccountMeta]] = None,
 ) -> Instruction:
     keys: list[AccountMeta] = [
-        AccountMeta(pubkey=accounts["admin"], is_signer=True, is_writable=True),
+        AccountMeta(pubkey=accounts["admin"], is_signer=True, is_writable=False),
         AccountMeta(
             pubkey=accounts["express_relay_metadata"], is_signer=False, is_writable=True
         ),

@@ -58,11 +58,11 @@ class MultiplePermissions(ProgramError):
 
 class InsufficientSearcherFunds(ProgramError):
     def __init__(self) -> None:
-        super().__init__(6006, "Insufficient Searcher Funds")
+        super().__init__(6006, "Insufficient searcher funds")
 
     code = 6006
     name = "InsufficientSearcherFunds"
-    msg = "Insufficient Searcher Funds"
+    msg = "Insufficient searcher funds"
 
 
 class InsufficientRent(ProgramError):
@@ -74,6 +74,33 @@ class InsufficientRent(ProgramError):
     msg = "Insufficient funds for rent"
 
 
+class InvalidAta(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6008, "Invalid ATA provided")
+
+    code = 6008
+    name = "InvalidAta"
+    msg = "Invalid ATA provided"
+
+
+class InvalidMint(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6009, "A token account has the wrong mint")
+
+    code = 6009
+    name = "InvalidMint"
+    msg = "A token account has the wrong mint"
+
+
+class InvalidTokenProgram(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6010, "A token account belongs to the wrong token program")
+
+    code = 6010
+    name = "InvalidTokenProgram"
+    msg = "A token account belongs to the wrong token program"
+
+
 CustomError = typing.Union[
     FeeSplitLargerThanPrecision,
     FeesHigherThanBid,
@@ -83,6 +110,9 @@ CustomError = typing.Union[
     MultiplePermissions,
     InsufficientSearcherFunds,
     InsufficientRent,
+    InvalidAta,
+    InvalidMint,
+    InvalidTokenProgram,
 ]
 CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6000: FeeSplitLargerThanPrecision(),
@@ -93,6 +123,9 @@ CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6005: MultiplePermissions(),
     6006: InsufficientSearcherFunds(),
     6007: InsufficientRent(),
+    6008: InvalidAta(),
+    6009: InvalidMint(),
+    6010: InvalidTokenProgram(),
 }
 
 
