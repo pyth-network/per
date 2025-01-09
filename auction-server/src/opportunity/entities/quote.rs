@@ -64,7 +64,7 @@ impl From<api::QuoteCreate> for QuoteCreate {
 
         Self {
             user_wallet_address: params.user_wallet_address,
-            referral_fee_bps: params.referral_fee_bps.unwrap_or(0),
+            referral_fee_bps: params.referral_fee_bps,
             tokens,
             router: params.router,
             chain_id: params.chain_id,

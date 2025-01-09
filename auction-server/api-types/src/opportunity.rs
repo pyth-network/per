@@ -503,11 +503,16 @@ pub struct QuoteCreateV1SvmParams {
     #[serde_as(as = "DisplayFromStr")]
     pub router:                 Pubkey,
     /// The referral fee in basis points. If not provided, the referral fee will default to 0.
+    #[serde(default = "default_referral_fee_bps")]
     #[schema(example = 10, value_type = u16)]
-    pub referral_fee_bps:       Option<u16>,
+    pub referral_fee_bps:       u16,
     /// The chain id for creating the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:               ChainId,
+}
+
+fn default_referral_fee_bps() -> u16 {
+    0
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]

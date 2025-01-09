@@ -488,6 +488,7 @@ export class Client {
       input_token_mint: quoteRequest.inputTokenMint.toBase58(),
       output_token_mint: quoteRequest.outputTokenMint.toBase58(),
       router: quoteRequest.router.toBase58(),
+      referral_fee_bps: quoteRequest.referralFeeBps,
       specified_token_amount: quoteRequest.specifiedTokenAmount,
       user_wallet_address: quoteRequest.userWallet.toBase58(),
       version: "v1" as const,
