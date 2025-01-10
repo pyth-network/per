@@ -6,8 +6,7 @@ use {
     },
     anchor_spl::{
         associated_token::{
-            get_associated_token_address,
-            spl_associated_token_account::instruction::create_associated_token_account_idempotent,
+            get_associated_token_address, get_associated_token_address_with_program_id, spl_associated_token_account::instruction::create_associated_token_account_idempotent
         },
         token::spl_token,
     },
@@ -45,30 +44,35 @@ pub fn create_swap_instruction(
         FeeToken::Input => mint_input,
         FeeToken::Output => mint_output,
     };
+
+    let token_program_input = token_program_input.unwrap_or(spl_token::ID);
+    let token_program_output = token_program_output.unwrap_or(spl_token::ID);
+
     let token_program_fee = match swap_args.fee_token {
-        FeeToken::Input => token_program_input.unwrap_or(spl_token::ID),
-        FeeToken::Output => token_program_output.unwrap_or(spl_token::ID),
+        FeeToken::Input => token_program_input,
+        FeeToken::Output => token_program_output,
     };
     let accounts_submit_bid = accounts::Swap {
         searcher,
         trader,
         searcher_input_ta: searcher_input_ta
-            .unwrap_or(get_associated_token_address(&searcher, &mint_input)),
+            .unwrap_or(get_associated_token_address_with_program_id(&searcher, &mint_input, &token_program_input)),
         searcher_output_ta: searcher_output_ta
-            .unwrap_or(get_associated_token_address(&searcher, &mint_output)),
-        trader_input_ata: get_associated_token_address(&trader, &mint_input),
-        trader_output_ata: get_associated_token_address(&trader, &mint_output),
+            .unwrap_or(get_associated_token_address_with_program_id(&searcher, &mint_output, &token_program_output)),
+        trader_input_ata: get_associated_token_address_with_program_id(&trader, &mint_input, &token_program_input),
+        trader_output_ata: get_associated_token_address_with_program_id(&trader, &mint_output, &token_program_output),
         router_fee_receiver_ta,
-        relayer_fee_receiver_ata: get_associated_token_address(&fee_receiver_relayer, &mint_fee),
-        express_relay_fee_receiver_ata: get_associated_token_address(
+        relayer_fee_receiver_ata: get_associated_token_address_with_program_id(&fee_receiver_relayer, &mint_fee, &token_program_fee),
+        express_relay_fee_receiver_ata: get_associated_token_address_with_program_id(
             &express_relay_metadata,
             &mint_fee,
+            &token_program_fee,
         ),
         mint_input,
         mint_output,
         mint_fee,
-        token_program_input: token_program_input.unwrap_or(spl_token::ID),
-        token_program_output: token_program_output.unwrap_or(spl_token::ID),
+        token_program_input,
+        token_program_output,
         token_program_fee,
         express_relay_metadata,
     }
