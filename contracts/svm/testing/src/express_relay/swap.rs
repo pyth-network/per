@@ -6,7 +6,6 @@ use {
     },
     anchor_spl::{
         associated_token::{
-            get_associated_token_address,
             get_associated_token_address_with_program_id,
             spl_associated_token_account::instruction::create_associated_token_account_idempotent,
         },

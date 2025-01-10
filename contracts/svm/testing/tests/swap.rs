@@ -2,19 +2,16 @@ use {
     anchor_lang::AccountDeserialize,
     anchor_spl::{
         associated_token::{
-            get_associated_token_address,
             get_associated_token_address_with_program_id,
             spl_associated_token_account::instruction::create_associated_token_account_idempotent,
         },
         token::{
-            self,
             spl_token,
         },
         token_2022::spl_token_2022::{
             self,
             instruction::{
                 initialize_account2,
-                mint_to,
                 mint_to_checked,
             },
         },
@@ -106,7 +103,7 @@ impl Token {
             return amount == 0;
         }
 
-        return token_account_option.unwrap().amount == amount;
+        token_account_option.unwrap().amount == amount
     }
 
     pub fn create_token_account(&self, svm: &mut LiteSVM, owner: &Pubkey) -> Pubkey {
