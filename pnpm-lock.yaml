@@ -15,6 +15,9 @@ catalogs:
     "@kamino-finance/limo-sdk":
       specifier: 0.7.1
       version: 0.7.1
+    "@solana/spl-token":
+      specifier: 0.4.9
+      version: 0.4.9
     "@solana/web3.js":
       specifier: 1.95.3
       version: 1.95.3
@@ -268,6 +271,9 @@ importers:
       "@kamino-finance/limo-sdk":
         specifier: "catalog:"
         version: 0.7.1(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(bufferutil@4.0.8)(chai@5.1.2)(decimal.js@10.4.3)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)(utf-8-validate@5.0.10)
+      "@solana/spl-token":
+        specifier: "catalog:"
+        version: 0.4.9(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(bufferutil@4.0.8)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)(utf-8-validate@5.0.10)
       "@solana/web3.js":
         specifier: "catalog:"
         version: 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)

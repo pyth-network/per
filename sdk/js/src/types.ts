@@ -99,9 +99,7 @@ export type OpportunityEvm = {
   opportunityId: string;
 };
 
-export type OpportunitySvm = {
-  order: OrderStateAndAddress;
-  program: "limo";
+export type OpportunitySvmMetadata = {
   /**
    * The chain id where the opportunity will be executed.
    */
@@ -116,9 +114,39 @@ export type OpportunitySvm = {
   opportunityId: string;
 };
 
+export type OpportunitySvmLimo = {
+  order: OrderStateAndAddress;
+  program: "limo";
+} & OpportunitySvmMetadata;
+
+export type TokenAmountSvm = {
+  amount: number;
+  token: PublicKey;
+};
+export type OpportunitySvmSwap = {
+  permissionAccount: PublicKey;
+  routerAccount: PublicKey;
+  userWalletAddress: PublicKey;
+  // TODO: maybe type should be camelCase too?
+  tokens:
+    | {
+        inputToken: PublicKey;
+        outputToken: TokenAmountSvm;
+        type: "output_specified";
+      }
+    | {
+        inputToken: TokenAmountSvm;
+        outputToken: PublicKey;
+        type: "input_specified";
+      };
+  program: "swap";
+} & OpportunitySvmMetadata;
+
+export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;
+
 export type OpportunityCreate =
   | Omit<OpportunityEvm, "opportunityId">
-  | Omit<OpportunitySvm, "opportunityId">;
+  | Omit<OpportunitySvmLimo, "opportunityId">;
 
 export type Opportunity = OpportunityEvm | OpportunitySvm;
 /**
@@ -246,6 +274,7 @@ export type BidsResponse = {
 
 export type SvmConstantsConfig = {
   expressRelayProgram: PublicKey;
+  walletRouter: PublicKey;
 };
 
 export type SvmChainUpdate = {

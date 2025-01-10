@@ -41,6 +41,7 @@
     "@coral-xyz/anchor": "catalog:",
     "@kamino-finance/limo-sdk": "catalog:",
     "@solana/web3.js": "catalog:",
+    "@solana/spl-token": "catalog:",
     "decimal.js": "^10.4.3",
     "isomorphic-ws": "^5.0.0",
     "openapi-client-axios": "^7.5.5",

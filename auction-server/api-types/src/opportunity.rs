@@ -61,10 +61,9 @@ pub struct OpportunityBidResult {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, Display)]
+#[serde(rename_all = "snake_case")]
 pub enum ProgramSvm {
-    #[strum(serialize = "swap_kamino")]
     SwapKamino,
-    #[strum(serialize = "limo")]
     Limo,
 }
 
@@ -295,12 +294,11 @@ pub struct OpportunityEvm {
 /// Program specific parameters for the opportunity.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-#[serde(tag = "program")]
+#[serde(tag = "program", rename_all = "snake_case")]
 pub enum OpportunityParamsV1ProgramSvm {
     /// Limo program specific parameters for the opportunity.
     /// It contains the Limo order to be executed, encoded in base64.
     /// SDKs will decode this order and create transaction for bidding on the opportunity.
-    #[serde(rename = "limo")]
     #[schema(title = "limo")]
     Limo {
         /// The Limo order to be executed, encoded in base64.
@@ -313,7 +311,6 @@ pub enum OpportunityParamsV1ProgramSvm {
         order_address: Pubkey,
     },
     /// Swap program specific parameters for the opportunity.
-    #[serde(rename = "swap")]
     #[schema(title = "swap")]
     Swap {
         /// The user wallet address which requested the quote from the wallet.
@@ -338,6 +335,7 @@ pub enum OpportunityParamsV1ProgramSvm {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum QuoteTokens {
     InputTokenSpecified {
         input_token:  TokenAmountSvm,

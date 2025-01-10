@@ -5,10 +5,10 @@
  * IDL can be found at `target/idl/express_relay.json`.
  */
 export type ExpressRelay = {
-  address: "GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM";
+  address: "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou";
   metadata: {
     name: "expressRelay";
-    version: "0.2.0";
+    version: "0.3.1";
     spec: "0.1.0";
     description: "Pyth Express Relay program for handling permissioning and bid distribution";
     repository: "https://github.com/pyth-network/per";
@@ -17,9 +17,9 @@ export type ExpressRelay = {
     {
       name: "checkPermission";
       docs: [
-        "Checks if permissioning exists for a particular (permission, router) pair within the same transaction",
-        "Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts",
-        "Returns the fees paid to the router in the matching instructions"
+        "Checks if permissioning exists for a particular (permission, router) pair within the same transaction.",
+        "Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts.",
+        "Returns the fees paid to the router in the matching instructions."
       ];
       discriminator: [154, 199, 232, 242, 96, 72, 197, 236];
       accounts: [
@@ -289,7 +289,7 @@ export type ExpressRelay = {
     {
       name: "submitBid";
       docs: [
-        "Submits a bid for a particular (permission, router) pair and distributes bids according to splits"
+        "Submits a bid for a particular (permission, router) pair and distributes bids according to splits."
       ];
       discriminator: [19, 164, 237, 254, 64, 139, 237, 93];
       accounts: [
@@ -377,6 +377,310 @@ export type ExpressRelay = {
       ];
     },
     {
+      name: "swap";
+      discriminator: [248, 198, 158, 145, 225, 117, 135, 200];
+      accounts: [
+        {
+          name: "searcher";
+          docs: [
+            "Searcher is the party that sends the input token and receives the output token"
+          ];
+          signer: true;
+        },
+        {
+          name: "trader";
+          docs: [
+            "Trader is the party that sends the output token and receives the input token"
+          ];
+          signer: true;
+        },
+        {
+          name: "searcherInputTa";
+          writable: true;
+        },
+        {
+          name: "searcherOutputTa";
+          writable: true;
+        },
+        {
+          name: "traderInputAta";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "account";
+                path: "trader";
+              },
+              {
+                kind: "account";
+                path: "tokenProgramInput";
+              },
+              {
+                kind: "account";
+                path: "mintInput";
+              }
+            ];
+            program: {
+              kind: "const";
+              value: [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ];
+            };
+          };
+        },
+        {
+          name: "traderOutputAta";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "account";
+                path: "trader";
+              },
+              {
+                kind: "account";
+                path: "tokenProgramOutput";
+              },
+              {
+                kind: "account";
+                path: "mintOutput";
+              }
+            ];
+            program: {
+              kind: "const";
+              value: [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ];
+            };
+          };
+        },
+        {
+          name: "routerFeeReceiverTa";
+          docs: [
+            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee"
+          ];
+          writable: true;
+        },
+        {
+          name: "relayerFeeReceiverAta";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "account";
+                path: "express_relay_metadata.fee_receiver_relayer";
+                account: "expressRelayMetadata";
+              },
+              {
+                kind: "account";
+                path: "tokenProgramFee";
+              },
+              {
+                kind: "account";
+                path: "mintFee";
+              }
+            ];
+            program: {
+              kind: "const";
+              value: [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ];
+            };
+          };
+        },
+        {
+          name: "expressRelayFeeReceiverAta";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "account";
+                path: "expressRelayMetadata";
+              },
+              {
+                kind: "account";
+                path: "tokenProgramFee";
+              },
+              {
+                kind: "account";
+                path: "mintFee";
+              }
+            ];
+            program: {
+              kind: "const";
+              value: [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ];
+            };
+          };
+        },
+        {
+          name: "mintInput";
+        },
+        {
+          name: "mintOutput";
+        },
+        {
+          name: "mintFee";
+        },
+        {
+          name: "tokenProgramInput";
+        },
+        {
+          name: "tokenProgramOutput";
+        },
+        {
+          name: "tokenProgramFee";
+        },
+        {
+          name: "expressRelayMetadata";
+          docs: ["Express relay configuration"];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [109, 101, 116, 97, 100, 97, 116, 97];
+              }
+            ];
+          };
+        }
+      ];
+      args: [
+        {
+          name: "data";
+          type: {
+            defined: {
+              name: "swapArgs";
+            };
+          };
+        }
+      ];
+    },
+    {
       name: "withdrawFees";
       discriminator: [198, 212, 171, 109, 144, 215, 174, 89];
       accounts: [
@@ -450,12 +754,27 @@ export type ExpressRelay = {
     {
       code: 6006;
       name: "insufficientSearcherFunds";
-      msg: "Insufficient Searcher Funds";
+      msg: "Insufficient searcher funds";
     },
     {
       code: 6007;
       name: "insufficientRent";
       msg: "Insufficient funds for rent";
+    },
+    {
+      code: 6008;
+      name: "invalidAta";
+      msg: "Invalid ATA provided";
+    },
+    {
+      code: 6009;
+      name: "invalidMint";
+      msg: "A token account has the wrong mint";
+    },
+    {
+      code: 6010;
+      name: "invalidTokenProgram";
+      msg: "A token account belongs to the wrong token program";
     }
   ];
   types: [
@@ -499,6 +818,24 @@ export type ExpressRelay = {
           {
             name: "splitRelayer";
             type: "u64";
+          },
+          {
+            name: "swapPlatformFeeBps";
+            type: "u64";
+          }
+        ];
+      };
+    },
+    {
+      name: "feeToken";
+      type: {
+        kind: "enum";
+        variants: [
+          {
+            name: "input";
+          },
+          {
+            name: "output";
           }
         ];
       };
@@ -559,6 +896,40 @@ export type ExpressRelay = {
           {
             name: "bidAmount";
             type: "u64";
+          }
+        ];
+      };
+    },
+    {
+      name: "swapArgs";
+      docs: [
+        "For all swap instructions and contexts, input and output are defined with respect to the searcher",
+        "So `mint_input` refers to the token that the searcher provides to the trader and",
+        "`mint_output` refers to the token that the searcher receives from the trader",
+        "This choice is made to minimize confusion for the searchers, who are more likely to parse the program"
+      ];
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "amountInput";
+            type: "u64";
+          },
+          {
+            name: "amountOutput";
+            type: "u64";
+          },
+          {
+            name: "referralFeeBps";
+            type: "u64";
+          },
+          {
+            name: "feeToken";
+            type: {
+              defined: {
+                name: "feeToken";
+              };
+            };
           }
         ];
       };

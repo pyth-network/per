@@ -99,7 +99,9 @@ impl Service<ChainTypeSvm> {
         let router = quote_create.router;
         let chain_config = self.get_config(&quote_create.chain_id)?;
         if router != chain_config.wallet_program_router_account {
-            return Err(RestError::Forbidden);
+            return Err(RestError::BadParameters(
+                "Router account mismatch".to_string(),
+            ));
         }
         let permission_account =
             get_quote_permission_key(&quote_create.tokens, &quote_create.user_wallet_address);
@@ -124,12 +126,12 @@ impl Service<ChainTypeSvm> {
             ),
             chain_id:       quote_create.chain_id,
             sell_tokens:    vec![entities::TokenAmountSvm {
-                token:  input_mint,
-                amount: input_amount,
-            }],
-            buy_tokens:     vec![entities::TokenAmountSvm {
                 token:  output_mint,
                 amount: output_amount,
+            }],
+            buy_tokens:     vec![entities::TokenAmountSvm {
+                token:  input_mint,
+                amount: input_amount,
             }],
         };
 
@@ -252,9 +254,7 @@ impl Service<ChainTypeSvm> {
             .add_auction(AddAuctionInput { auction })
             .await?;
 
-        let mut bid = winner_bid.clone();
-        auction_service.add_relayer_signature(&mut bid);
-
+        let bid = winner_bid.clone();
         let signature = bid.chain_data.transaction.signatures[0];
         auction = auction_service
             .update_submitted_auction(UpdateSubmittedAuctionInput {

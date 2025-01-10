@@ -77,6 +77,7 @@ use {
         transaction::VersionedTransaction,
     },
     std::{
+        str::FromStr,
         sync::Arc,
         time::Duration,
     },
@@ -546,22 +547,6 @@ impl Service<Svm> {
             (Err(_), Ok(swap_instruction)) => {
                 let swap_data = Self::extract_swap_data(&swap_instruction)?;
 
-                let router = self
-                    .extract_account(
-                        &transaction,
-                        &swap_instruction,
-                        self.config
-                            .chain_config
-                            .express_relay
-                            .router_account_position_swap,
-                    )
-                    .await?;
-                if router != self.config.chain_config.wallet_program_router_account {
-                    return Err(RestError::BadParameters(
-                        "Must use approved router for swap instruction".to_string(),
-                    ));
-                }
-
                 let user_wallet = self
                     .extract_account(
                         &transaction,
@@ -616,15 +601,66 @@ impl Service<Svm> {
                         },
                     ),
                 };
+                let mint_fee = match swap_data.fee_token {
+                    FeeToken::Input => mint_input,
+                    FeeToken::Output => mint_output,
+                };
+
+                let router_fee_receiver_ta = self
+                    .extract_account(
+                        &transaction,
+                        &swap_instruction,
+                        self.config
+                            .chain_config
+                            .express_relay
+                            .router_account_position_swap,
+                    )
+                    .await?;
+
+                //TODO* : do not hardcode the token program and refactor into separate function
+                let fee_token_program = Pubkey::from_str(
+                    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                )
+                .map_err(|e| {
+                    RestError::BadParameters(format!("Invalid token program address: {:?}", e))
+                })?;
+                let associated_token_program = Pubkey::from_str(
+                    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+                )
+                .map_err(|e| {
+                    RestError::BadParameters(format!(
+                        "Invalid associated token program address: {:?}",
+                        e
+                    ))
+                })?;
+                let expected_router_fee_receiver_ta = Pubkey::find_program_address(
+                    &[
+                        &self
+                            .config
+                            .chain_config
+                            .wallet_program_router_account
+                            .to_bytes(),
+                        &fee_token_program.to_bytes(),
+                        &mint_fee.to_bytes(),
+                    ],
+                    &associated_token_program,
+                )
+                .0;
+
+                if router_fee_receiver_ta != expected_router_fee_receiver_ta {
+                    return Err(RestError::BadParameters(
+                        "Must use approved router token account for swap instruction".to_string(),
+                    ));
+                }
 
                 let permission_account = get_quote_permission_key(&tokens, &user_wallet);
 
                 Ok(BidDataSvm {
                     amount: bid_amount,
                     permission_account,
-                    router,
+                    router: self.config.chain_config.wallet_program_router_account,
                     // TODO*: to fix once deadline param added to swap instruction--just set this way to make sure compiles
-                    deadline: OffsetDateTime::now_utc(),
+                    deadline: OffsetDateTime::now_utc() + Duration::from_secs(20),
                     // deadline: OffsetDateTime::from_unix_timestamp(swap_data.deadline).map_err(
                     //     |e| {
                     //         RestError::BadParameters(format!(
@@ -642,12 +678,10 @@ impl Service<Svm> {
         }
     }
 
-    fn all_signatures_exists(
+    fn relayer_signer_exists(
         &self,
-        message_bytes: &[u8],
         accounts: &[Pubkey],
         signatures: &[Signature],
-        missing_signers: &[Pubkey],
     ) -> Result<(), RestError> {
         let relayer_pubkey = self.config.chain_config.express_relay.relayer.pubkey();
         let relayer_exists = accounts[..signatures.len()]
@@ -660,9 +694,17 @@ impl Service<Svm> {
                 relayer_pubkey
             )));
         }
-
+        Ok(())
+    }
+    fn all_signatures_exists(
+        &self,
+        message_bytes: &[u8],
+        accounts: &[Pubkey],
+        signatures: &[Signature],
+        missing_signers: &[Pubkey],
+    ) -> Result<(), RestError> {
         for (signature, pubkey) in signatures.iter().zip(accounts.iter()) {
-            if missing_signers.contains(pubkey) || pubkey.eq(&relayer_pubkey) {
+            if missing_signers.contains(pubkey) {
                 continue;
             }
             if !signature.verify(pubkey.as_ref(), message_bytes) {
@@ -714,7 +756,13 @@ impl Service<Svm> {
                 )
             }
             SubmitType::ByServer => {
-                self.all_signatures_exists(&message_bytes, accounts, &signatures, &[])
+                self.relayer_signer_exists(accounts, &signatures)?;
+                self.all_signatures_exists(
+                    &message_bytes,
+                    accounts,
+                    &signatures,
+                    &[self.config.chain_config.express_relay.relayer.pubkey()],
+                )
             }
         }
     }

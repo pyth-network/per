@@ -115,8 +115,8 @@ local_resource(
 # setup limo global config and vaults for buy and sell tokens
 RUN_CLI= "ADMIN=../../keypairs/admin.json RPC_ENV=localnet npm exec limo-cli --"
 SET_GLOBAL_CONFIG = "LIMO_GLOBAL_CONFIG=$(solana-keygen pubkey ../../keypairs/limo_global_config.json)"
-MINT_SELL= "$(solana-keygen pubkey ../../keypairs/mint_sell.json)"
-MINT_BUY= "$(solana-keygen pubkey ../../keypairs/mint_buy.json)"
+MINT_SELL= "$(solana-keygen pubkey %s/keypairs/mint_sell.json)" % config.main_dir
+MINT_BUY= "$(solana-keygen pubkey %s/keypairs/mint_buy.json)" % config.main_dir
 local_resource(
     "svm-limo-setup",
         """solana-keygen new -o ../../keypairs/limo_global_config.json -f --no-bip39-passphrase \
@@ -211,14 +211,21 @@ local_resource(
 
 local_resource(
     "svm-searcher-py",
-    serve_cmd="poetry run python3 -m express_relay.searcher.examples.testing_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
+    serve_cmd="poetry run python3 -m express_relay.searcher.examples.testing_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
     serve_dir="sdk/python",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
 local_resource(
     "svm-searcher-js",
-    serve_cmd="pnpm run testing-searcher-limo --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
+    serve_cmd="pnpm run testing-searcher-limo --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 1000 --fill-rate 4 --bid-margin 100",
     serve_dir="sdk/js",
     resource_deps=["svm-initialize-programs", "auction-server"],
+)
+
+local_resource(
+    "svm-test-swap-endpoint",
+    "poetry -C tilt-scripts run python3 -m tilt-scripts.svm.test_swap --file-private-key-taker keypairs/searcher_py.json --auction-server-url http://localhost:9000 --input-mint {MINT_SELL} --output-mint {MINT_BUY} --rpc-url {RPC_URL}"
+    .format(RPC_URL=rpc_url_solana, MINT_SELL=MINT_SELL, MINT_BUY=MINT_BUY),
+    resource_deps=["svm-searcher-js"],
 )

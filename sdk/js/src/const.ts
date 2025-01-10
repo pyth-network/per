@@ -28,10 +28,12 @@ export const SVM_CONSTANTS: Record<string, SvmConstantsConfig> = {
     expressRelayProgram: new PublicKey(
       "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
     ),
+    walletRouter: new PublicKey("3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn"),
   },
   solana: {
     expressRelayProgram: new PublicKey(
       "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
     ),
+    walletRouter: new PublicKey("3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn"),
   },
 };

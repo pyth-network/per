@@ -583,7 +583,7 @@ export class Client {
         buyTokens: opportunity.buy_tokens.map(checkTokenQty),
       };
     }
-    if ("order" in opportunity) {
+    if (opportunity.program === "limo") {
       const order = Order.decode(Buffer.from(opportunity.order, "base64"));
       return {
         chainId: opportunity.chain_id,
@@ -595,9 +595,39 @@ export class Client {
         },
         program: "limo",
       };
+    } else if (opportunity.program === "swap") {
+      let tokens;
+      if (opportunity.tokens.type === "input_token_specified") {
+        tokens = {
+          type: "input_specified",
+          inputToken: {
+            amount: opportunity.tokens.input_token.amount,
+            token: new PublicKey(opportunity.tokens.input_token.token),
+          },
+          outputToken: new PublicKey(opportunity.tokens.output_token),
+        } as const;
+      } else {
+        tokens = {
+          type: "output_specified",
+          inputToken: new PublicKey(opportunity.tokens.input_token),
+          outputToken: {
+            amount: opportunity.tokens.output_token.amount,
+            token: new PublicKey(opportunity.tokens.output_token.token),
+          },
+        } as const;
+      }
+      return {
+        chainId: opportunity.chain_id,
+        slot: opportunity.slot,
+        opportunityId: opportunity.opportunity_id,
+        program: "swap",
+        permissionAccount: new PublicKey(opportunity.permission_account),
+        routerAccount: new PublicKey(opportunity.router_account),
+        userWalletAddress: new PublicKey(opportunity.user_wallet_address),
+        tokens,
+      };
     } else {
-      console.warn("Cannot handle wallet opportunities");
-      return undefined;
+      console.warn("Unsupported opportunity", opportunity);
     }
   }
 

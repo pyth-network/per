@@ -207,20 +207,14 @@ pub async fn get_opportunities(
     (status = 404, description = "No quote available right now", body = ErrorBodyResponse),
 ),)]
 pub async fn post_quote(
-    auth: Auth,
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
 ) -> Result<Json<Quote>, RestError> {
-    let program = get_program(&auth)?;
-    if program != ProgramSvm::SwapKamino {
-        return Err(RestError::Forbidden);
-    }
-
     let quote = store
         .opportunity_service_svm
         .get_quote(GetQuoteInput {
             quote_create: params.into(),
-            program,
+            program:      ProgramSvm::SwapKamino,
         })
         .await?;
 
