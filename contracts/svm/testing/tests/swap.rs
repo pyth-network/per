@@ -27,6 +27,7 @@ use {
     testing::{
         express_relay::{
             helpers::get_express_relay_metadata,
+            set_swap_platform_fee::set_swap_platform_fee_instruction,
             swap::build_swap_instructions,
         },
         helpers::{
@@ -150,9 +151,12 @@ pub struct SwapSetupParams {
     pub router_output_ta: Pubkey,
 }
 
-pub fn setup_swap() -> SwapSetupParams {
+pub fn setup_swap(platform_fee_bps: u64) -> SwapSetupParams {
     let SetupResult {
-        mut svm, searcher, ..
+        mut svm,
+        admin,
+        searcher,
+        ..
     } = setup(SetupParams {
         split_router_default: 4000,
         split_relayer:        2000,
@@ -162,6 +166,9 @@ pub fn setup_swap() -> SwapSetupParams {
     let trader = Keypair::new();
     let input_token = Token::new(&mut svm, 6);
     let output_token = Token::new(&mut svm, 6);
+
+    let set_swap_platform_fee_ix = set_swap_platform_fee_instruction(&admin, platform_fee_bps);
+    submit_transaction(&mut svm, &[set_swap_platform_fee_ix], &admin, &[&admin]).unwrap();
 
     input_token.airdrop(&mut svm, &searcher.pubkey());
     output_token.airdrop(&mut svm, &trader.pubkey());
@@ -191,7 +198,7 @@ fn test_swap() {
         output_token,
         router_input_ta,
         router_output_ta,
-    } = setup_swap();
+    } = setup_swap(1000);
 
     // input token fee
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
@@ -199,7 +206,7 @@ fn test_swap() {
         deadline:         i64::MAX,
         amount_input:     input_token.get_amount_with_decimals(1),
         amount_output:    output_token.get_amount_with_decimals(1),
-        referral_fee_bps: 0,
+        referral_fee_bps: 3000,
         fee_token:        FeeToken::Input,
     };
     let instructions = build_swap_instructions(
@@ -222,7 +229,7 @@ fn test_swap() {
         deadline:         i64::MAX,
         amount_input:     input_token.get_amount_with_decimals(1),
         amount_output:    output_token.get_amount_with_decimals(1),
-        referral_fee_bps: 0,
+        referral_fee_bps: 1500,
         fee_token:        FeeToken::Output,
     };
 
