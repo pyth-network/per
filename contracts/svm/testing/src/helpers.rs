@@ -5,6 +5,7 @@ use {
             Instruction,
             InstructionError::Custom,
         },
+        native_token::LAMPORTS_PER_SOL,
         pubkey::Pubkey,
         signature::Keypair,
         signer::Signer,
@@ -19,7 +20,6 @@ use {
     },
 };
 
-pub const LAMPORTS_PER_SOL: u64 = 1_000_000_000;
 pub const TX_FEE: u64 = 10_000; // TODO: make this programmatic? FeeStructure is currently private field within LiteSVM
 
 #[allow(clippy::result_large_err)]
