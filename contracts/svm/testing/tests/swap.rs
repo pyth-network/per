@@ -12,11 +12,13 @@ use {
         token_2022::spl_token_2022::instruction::initialize_account2,
     },
     express_relay::{
+        error::ErrorCode,
         FeeToken,
         SwapArgs,
     },
     litesvm::LiteSVM,
     solana_sdk::{
+        clock::Clock,
         program_pack::Pack,
         pubkey::Pubkey,
         signature::{
@@ -35,6 +37,7 @@ use {
             swap::build_swap_instructions,
         },
         helpers::{
+            assert_custom_error,
             generate_and_fund_key,
             submit_transaction,
         },
@@ -443,4 +446,68 @@ fn test_swap() {
         &router_output_ta,
         output_token.get_amount_with_decimals(0.15f64),
     );
+}
+
+#[test]
+fn test_swap_expired_deadline() {
+    let SwapSetupParams {
+        mut svm,
+        trader,
+        searcher,
+        input_token,
+        output_token,
+        router_output_ta,
+        ..
+    } = setup_swap(1000);
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    // output token fee
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp - 1,
+        amount_input:     input_token.get_amount_with_decimals(1f64),
+        amount_output:    output_token.get_amount_with_decimals(1f64),
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::Output,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        None,
+        None,
+        router_output_ta,
+        express_relay_metadata.fee_receiver_relayer,
+        input_token.mint,
+        output_token.mint,
+        None,
+        None,
+        swap_args,
+    );
+    let result =
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+    assert_custom_error(result.err, 4, ErrorCode::DeadlinePassed.into());
+
+    // now deadine is now
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_input:     input_token.get_amount_with_decimals(1f64),
+        amount_output:    output_token.get_amount_with_decimals(1f64),
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::Output,
+    };
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        None,
+        None,
+        router_output_ta,
+        express_relay_metadata.fee_receiver_relayer,
+        input_token.mint,
+        output_token.mint,
+        None,
+        None,
+        swap_args,
+    );
+    submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 }
