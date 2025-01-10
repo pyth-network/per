@@ -77,15 +77,16 @@ impl Token {
         .unwrap();
     }
 
-    pub fn assert_token_balance(svm: &mut LiteSVM, account: &Pubkey, amount: u64) {
+    pub fn token_balance_matches(svm: &mut LiteSVM, account: &Pubkey, amount: u64) -> bool{
         let token_account_option = &mut svm.get_account(account).map(|account| {
             anchor_spl::token_interface::TokenAccount::try_deserialize(&mut account.data.as_slice()).unwrap()
         });
 
-        assert!(
-            token_account_option.is_none() && amount == 0
-                || token_account_option.unwrap().amount == amount
-        );
+        if token_account_option.is_none() {
+            return amount == 0;
+        }
+
+        return token_account_option.unwrap().amount == amount;
     }
 
     pub fn create_token_account(&self, svm: &mut LiteSVM, owner: &Pubkey) -> Pubkey {
@@ -243,54 +244,54 @@ fn test_swap(args : SwapSetupParams) {
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     // input token balances
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&searcher.pubkey()),
         input_token.get_amount_with_decimals(10f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(0f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
         input_token.get_amount_with_decimals(0f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         input_token.get_amount_with_decimals(0f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &router_input_ta,
         input_token.get_amount_with_decimals(0f64),
     );
 
     // output token balances
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&searcher.pubkey()),
         output_token.get_amount_with_decimals(0f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(10f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
         output_token.get_amount_with_decimals(0f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         output_token.get_amount_with_decimals(0f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &router_output_ta,
         output_token.get_amount_with_decimals(0f64),
@@ -320,54 +321,54 @@ fn test_swap(args : SwapSetupParams) {
     submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 
     // input token balances
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&searcher.pubkey()),
         input_token.get_amount_with_decimals(9f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(0.6f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
         input_token.get_amount_with_decimals(0.08f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         input_token.get_amount_with_decimals(0.02f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &router_input_ta,
         input_token.get_amount_with_decimals(0.3f64),
     );
 
     // output token balances
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&searcher.pubkey()),
         output_token.get_amount_with_decimals(1f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(9f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
         output_token.get_amount_with_decimals(0f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         output_token.get_amount_with_decimals(0f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &router_output_ta,
         output_token.get_amount_with_decimals(0f64),
@@ -398,54 +399,54 @@ fn test_swap(args : SwapSetupParams) {
     submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 
     // input token balances
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&searcher.pubkey()),
         input_token.get_amount_with_decimals(8f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(1.6f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
         input_token.get_amount_with_decimals(0.08f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         input_token.get_amount_with_decimals(0.02f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &router_input_ta,
         input_token.get_amount_with_decimals(0.3f64),
     );
 
     // output token balances
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&searcher.pubkey()),
         output_token.get_amount_with_decimals(1.75f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(8f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
         output_token.get_amount_with_decimals(0.08f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         output_token.get_amount_with_decimals(0.02f64),
     );
-    Token::assert_token_balance(
+    Token::token_balance_matches(
         &mut svm,
         &router_output_ta,
         output_token.get_amount_with_decimals(0.15f64),
