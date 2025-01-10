@@ -2,8 +2,22 @@ use {
     anchor_lang::AccountDeserialize,
     anchor_spl::{
         associated_token::{
-            get_associated_token_address, get_associated_token_address_with_program_id, spl_associated_token_account::instruction::create_associated_token_account_idempotent
-        }, token::{self, spl_token}, token_2022::spl_token_2022::{self, instruction::{initialize_account2, mint_to, mint_to_checked}}
+            get_associated_token_address,
+            get_associated_token_address_with_program_id,
+            spl_associated_token_account::instruction::create_associated_token_account_idempotent,
+        },
+        token::{
+            self,
+            spl_token,
+        },
+        token_2022::spl_token_2022::{
+            self,
+            instruction::{
+                initialize_account2,
+                mint_to,
+                mint_to_checked,
+            },
+        },
     },
     express_relay::{
         error::ErrorCode,
@@ -43,10 +57,10 @@ use {
 };
 
 pub struct Token {
-    pub mint:       Pubkey,
-    pub decimals:   u8,
-    mint_authority: Keypair,
-    pub token_program: Pubkey 
+    pub mint:          Pubkey,
+    pub decimals:      u8,
+    mint_authority:    Keypair,
+    pub token_program: Pubkey,
 }
 
 impl Token {
@@ -61,12 +75,17 @@ impl Token {
             mint_to_checked(
                 &self.token_program,
                 &self.mint,
-                &get_associated_token_address_with_program_id(destination, &self.mint, &self.token_program),
+                &get_associated_token_address_with_program_id(
+                    destination,
+                    &self.mint,
+                    &self.token_program,
+                ),
                 &self.mint_authority.pubkey(),
                 &[&self.mint_authority.pubkey()],
                 self.get_amount_with_decimals(10f64),
-                self.decimals
-            ).unwrap()
+                self.decimals,
+            )
+            .unwrap(),
         ];
         submit_transaction(
             svm,
@@ -77,9 +96,10 @@ impl Token {
         .unwrap();
     }
 
-    pub fn token_balance_matches(svm: &mut LiteSVM, account: &Pubkey, amount: u64) -> bool{
+    pub fn token_balance_matches(svm: &mut LiteSVM, account: &Pubkey, amount: u64) -> bool {
         let token_account_option = &mut svm.get_account(account).map(|account| {
-            anchor_spl::token_interface::TokenAccount::try_deserialize(&mut account.data.as_slice()).unwrap()
+            anchor_spl::token_interface::TokenAccount::try_deserialize(&mut account.data.as_slice())
+                .unwrap()
         });
 
         if token_account_option.is_none() {
@@ -101,8 +121,13 @@ impl Token {
                 spl_token_2022::state::Account::LEN.try_into().unwrap(),
                 &self.token_program,
             ),
-            initialize_account2(&self.token_program, &token_account.pubkey(), &self.mint, owner)
-                .unwrap(),
+            initialize_account2(
+                &self.token_program,
+                &token_account.pubkey(),
+                &self.mint,
+                owner,
+            )
+            .unwrap(),
         ];
         submit_transaction(
             svm,
@@ -159,11 +184,11 @@ impl Token {
     }
 }
 
-pub struct SwapSetupParams{
-    pub platform_fee_bps: u64,
-    pub input_token_program: Pubkey,
-    pub input_token_decimals: u8,
-    pub output_token_program: Pubkey,
+pub struct SwapSetupParams {
+    pub platform_fee_bps:      u64,
+    pub input_token_program:   Pubkey,
+    pub input_token_decimals:  u8,
+    pub output_token_program:  Pubkey,
     pub output_token_decimals: u8,
 }
 
@@ -186,8 +211,16 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
     } = setup(None).expect("setup failed");
 
     let trader = Keypair::new();
-    let input_token = Token::new(&mut svm, args.input_token_program, args.input_token_decimals);
-    let output_token = Token::new(&mut svm, args.output_token_program, args.output_token_decimals);
+    let input_token = Token::new(
+        &mut svm,
+        args.input_token_program,
+        args.input_token_decimals,
+    );
+    let output_token = Token::new(
+        &mut svm,
+        args.output_token_program,
+        args.output_token_decimals,
+    );
 
     let set_swap_platform_fee_ix = set_swap_platform_fee_instruction(&admin, args.platform_fee_bps);
     submit_transaction(&mut svm, &[set_swap_platform_fee_ix], &admin, &[&admin]).unwrap();
@@ -213,24 +246,40 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
 #[test]
 fn test_swaps() {
     test_swap(SwapSetupParams {
-        platform_fee_bps: 1000,
-        input_token_program: spl_token_2022::ID,
-        input_token_decimals: 6,
-        output_token_program: spl_token_2022::ID,
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token_2022::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token_2022::ID,
         output_token_decimals: 6,
     });
 
     test_swap(SwapSetupParams {
-        platform_fee_bps: 1000,
-        input_token_program: spl_token::ID,
-        input_token_decimals: 6,
-        output_token_program: spl_token::ID,
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
         output_token_decimals: 8,
+    });
+
+    test_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token_2022::ID,
+        input_token_decimals:  5,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 7,
+    });
+
+    test_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  3,
+        output_token_program:  spl_token_2022::ID,
+        output_token_decimals: 4,
     });
 }
 
 
-fn test_swap(args : SwapSetupParams) {
+fn test_swap(args: SwapSetupParams) {
     let SwapSetupResult {
         mut svm,
         trader,
@@ -244,58 +293,53 @@ fn test_swap(args : SwapSetupParams) {
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     // input token balances
-    Token::token_balance_matches(
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&searcher.pubkey()),
         input_token.get_amount_with_decimals(10f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(0f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
         input_token.get_amount_with_decimals(0f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         input_token.get_amount_with_decimals(0f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &router_input_ta,
         input_token.get_amount_with_decimals(0f64),
-    );
+    ));
 
     // output token balances
-    Token::token_balance_matches(
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&searcher.pubkey()),
         output_token.get_amount_with_decimals(0f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(10f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
         output_token.get_amount_with_decimals(0f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         output_token.get_amount_with_decimals(0f64),
-    );
-    Token::token_balance_matches(
-        &mut svm,
-        &router_output_ta,
-        output_token.get_amount_with_decimals(0f64),
-    );
+    ));
 
     // input token fee
     let swap_args = SwapArgs {
@@ -321,58 +365,58 @@ fn test_swap(args : SwapSetupParams) {
     submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 
     // input token balances
-    Token::token_balance_matches(
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&searcher.pubkey()),
         input_token.get_amount_with_decimals(9f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&trader.pubkey()),
-        output_token.get_amount_with_decimals(0.6f64),
-    );
-    Token::token_balance_matches(
+        input_token.get_amount_with_decimals(0.6f64),
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
         input_token.get_amount_with_decimals(0.08f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         input_token.get_amount_with_decimals(0.02f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &router_input_ta,
         input_token.get_amount_with_decimals(0.3f64),
-    );
+    ));
 
     // output token balances
-    Token::token_balance_matches(
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&searcher.pubkey()),
         output_token.get_amount_with_decimals(1f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(9f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
         output_token.get_amount_with_decimals(0f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         output_token.get_amount_with_decimals(0f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &router_output_ta,
         output_token.get_amount_with_decimals(0f64),
-    );
+    ));
 
     // output token fee
     let swap_args = SwapArgs {
@@ -399,58 +443,58 @@ fn test_swap(args : SwapSetupParams) {
     submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 
     // input token balances
-    Token::token_balance_matches(
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&searcher.pubkey()),
         input_token.get_amount_with_decimals(8f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&trader.pubkey()),
-        output_token.get_amount_with_decimals(1.6f64),
-    );
-    Token::token_balance_matches(
+        input_token.get_amount_with_decimals(1.6f64),
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
         input_token.get_amount_with_decimals(0.08f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         input_token.get_amount_with_decimals(0.02f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &router_input_ta,
         input_token.get_amount_with_decimals(0.3f64),
-    );
+    ));
 
     // output token balances
-    Token::token_balance_matches(
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&searcher.pubkey()),
         output_token.get_amount_with_decimals(1.75f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&trader.pubkey()),
         output_token.get_amount_with_decimals(8f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
         output_token.get_amount_with_decimals(0.08f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
         output_token.get_amount_with_decimals(0.02f64),
-    );
-    Token::token_balance_matches(
+    ));
+    assert!(Token::token_balance_matches(
         &mut svm,
         &router_output_ta,
         output_token.get_amount_with_decimals(0.15f64),
-    );
+    ));
 }
 
 #[test]
@@ -463,7 +507,13 @@ fn test_swap_expired_deadline() {
         output_token,
         router_output_ta,
         ..
-    } = setup_swap(SwapSetupParams { platform_fee_bps: 1000, input_token_program: spl_token::ID, input_token_decimals: 6, output_token_program: spl_token::ID, output_token_decimals: 6 });
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 6,
+    });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
