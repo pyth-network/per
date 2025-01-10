@@ -30,10 +30,7 @@ use {
             warp_to_unix,
             TX_FEE,
         },
-        setup::{
-            setup,
-            SetupParams,
-        },
+        setup::setup,
     },
 };
 

@@ -14,10 +14,7 @@ use {
             generate_and_fund_key,
             submit_transaction,
         },
-        setup::{
-            setup,
-            SetupParams,
-        },
+        setup::setup,
     },
 };
 

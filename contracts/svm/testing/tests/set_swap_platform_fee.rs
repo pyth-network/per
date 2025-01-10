@@ -17,7 +17,6 @@ use {
         },
         setup::{
             setup,
-            SetupParams,
             SetupResult,
         },
     },

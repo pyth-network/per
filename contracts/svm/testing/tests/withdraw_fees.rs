@@ -17,10 +17,7 @@ use {
             get_balance,
             submit_transaction,
         },
-        setup::{
-            setup,
-            SetupParams,
-        },
+        setup::setup,
     },
 };
 
