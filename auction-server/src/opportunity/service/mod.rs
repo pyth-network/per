@@ -31,7 +31,6 @@ use {
         types::Address,
     },
     futures::future::try_join_all,
-    solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
         sync::Arc,
@@ -82,8 +81,7 @@ impl ConfigEvm {
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
-    pub auction_service:               RwLock<Option<auction_service::Service<Svm>>>,
-    pub wallet_program_router_account: Pubkey,
+    pub auction_service: RwLock<Option<auction_service::Service<Svm>>>,
 }
 
 impl ConfigSvm {
@@ -196,12 +194,11 @@ impl ConfigSvm {
     ) -> anyhow::Result<HashMap<ChainId, Self>> {
         Ok(chains
             .iter()
-            .map(|(chain_id, config)| {
+            .map(|(chain_id, _)| {
                 (
                     chain_id.clone(),
                     Self {
-                        auction_service:               RwLock::new(None),
-                        wallet_program_router_account: config.wallet_program_router_account,
+                        auction_service: RwLock::new(None),
                     },
                 )
             })

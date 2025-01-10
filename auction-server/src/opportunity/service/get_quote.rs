@@ -8,6 +8,7 @@ use {
         auction::{
             entities::{
                 Auction,
+                BidPaymentInstructionType,
                 BidStatus,
                 BidStatusAuction,
             },
@@ -17,7 +18,6 @@ use {
                 get_live_bids::GetLiveBidsInput,
                 update_bid_status::UpdateBidStatusInput,
                 update_submitted_auction::UpdateSubmittedAuctionInput,
-                verification::BidPaymentInstruction,
                 Service as AuctionService,
             },
         },
@@ -51,10 +51,12 @@ pub struct GetQuoteInput {
 pub fn get_quote_permission_key(
     tokens: &entities::QuoteTokens,
     user_wallet_address: &Pubkey,
+    referral_fee_bps: u16,
 ) -> Pubkey {
-    // get pda seeded by user_wallet_address, mints, and token amount
+    // get pda seeded by user_wallet_address, referral_fee_bps, mints, and token amount
     let input_token_amount: [u8; 8];
     let output_token_amount: [u8; 8];
+    let referral_fee_bps = referral_fee_bps.to_le_bytes();
     let seeds = match tokens {
         entities::QuoteTokens::InputTokenSpecified {
             input_token,
@@ -68,6 +70,7 @@ pub fn get_quote_permission_key(
                 input_token_mint,
                 input_token_amount.as_ref(),
                 output_token_mint,
+                referral_fee_bps.as_ref(),
             ]
         }
         entities::QuoteTokens::OutputTokenSpecified {
@@ -82,6 +85,7 @@ pub fn get_quote_permission_key(
                 input_token_mint,
                 output_token_mint,
                 output_token_amount.as_ref(),
+                referral_fee_bps.as_ref(),
             ]
         }
     };
@@ -97,12 +101,11 @@ impl Service<ChainTypeSvm> {
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
-        let chain_config = self.get_config(&quote_create.chain_id)?;
-        if router != chain_config.wallet_program_router_account {
-            return Err(RestError::Forbidden);
-        }
-        let permission_account =
-            get_quote_permission_key(&quote_create.tokens, &quote_create.user_wallet_address);
+        let permission_account = get_quote_permission_key(
+            &quote_create.tokens,
+            &quote_create.user_wallet_address,
+            quote_create.referral_fee_bps,
+        );
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
@@ -137,6 +140,9 @@ impl Service<ChainTypeSvm> {
             ProgramSvm::SwapKamino => {
                 entities::OpportunitySvmProgram::SwapKamino(entities::OpportunitySvmProgramSwap {
                     user_wallet_address: quote_create.user_wallet_address,
+                    // TODO*: we should eventually determine this more intelligently
+                    fee_token:           entities::FeeToken::InputToken,
+                    referral_fee_bps:    quote_create.referral_fee_bps,
                 })
             }
             _ => {
@@ -179,7 +185,7 @@ impl Service<ChainTypeSvm> {
         }
 
         // NOTE: This part will be removed after refactoring the permission key type
-        let slice: [u8; 64] = opportunity
+        let slice: [u8; 65] = opportunity
             .permission_key
             .to_vec()
             .try_into()
@@ -230,19 +236,17 @@ impl Service<ChainTypeSvm> {
         let swap_instruction = auction_service
             .extract_express_relay_bid_instruction(
                 winner_bid.chain_data.transaction.clone(),
-                BidPaymentInstruction::Swap,
+                BidPaymentInstructionType::Swap,
             )
             .map_err(|e| {
                 tracing::error!("Failed to verify swap instruction: {:?}", e);
                 RestError::TemporarilyUnavailable
             })?;
-        let _swap_data = AuctionService::extract_swap_data(&swap_instruction).map_err(|e| {
+        let swap_data = AuctionService::extract_swap_data(&swap_instruction).map_err(|e| {
             tracing::error!("Failed to extract swap data: {:?}", e);
             RestError::TemporarilyUnavailable
         })?;
-        let deadline = i64::MAX;
-        // TODO*: to fix once deadline param added to swap instruction--just set this way to make sure compiles
-        // let deadline = swap_data.deadline;
+        let deadline = swap_data.deadline;
 
         // Bids is not empty
         let auction = Auction::try_new(bids.clone(), bid_collection_time)

@@ -380,7 +380,7 @@ pub struct SwapArgs {
     pub amount_input:     u64,
     pub amount_output:    u64,
     // The referral fee is specified in basis points
-    pub referral_fee_bps: u64,
+    pub referral_fee_bps: u16,
     // Token in which the fees will be paid
     pub fee_token:        FeeToken,
 }

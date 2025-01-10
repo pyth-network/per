@@ -97,7 +97,6 @@ pub struct ExpressRelaySvm {
 
 pub struct ConfigSvm {
     pub client:                        RpcClient,
-    pub wallet_program_router_account: Pubkey,
     pub express_relay:                 ExpressRelaySvm,
     pub simulator:                     Simulator,
     pub ws_address:                    String,

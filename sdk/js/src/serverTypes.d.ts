@@ -313,7 +313,7 @@ export interface components {
       bid_amount: number;
       /**
        * @description The permission key for bid in base64 format.
-       * This is the concatenation of the permission account and the router account.
+       * This is the concatenation of the opportunity type, the router, and the permission account.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       permission_key: string;
@@ -432,6 +432,12 @@ export interface components {
           /** @enum {string} */
           program: "swap";
           /**
+           * Format: int32
+           * @description The referral fee in basis points.
+           * @example 10
+           */
+          referral_fee_bps: number;
+          /**
            * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
@@ -498,6 +504,12 @@ export interface components {
       | {
           /** @enum {string} */
           program: "swap";
+          /**
+           * Format: int32
+           * @description The referral fee in basis points.
+           * @example 10
+           */
+          referral_fee_bps: number;
           /**
            * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -712,6 +724,12 @@ export interface components {
        * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
        */
       output_token_mint: string;
+      /**
+       * Format: int32
+       * @description The referral fee in basis points. If not provided, the referral fee will default to 0.
+       * @example 10
+       */
+      referral_fee_bps?: number;
       /**
        * @description The router account to send referral fees to.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5

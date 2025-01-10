@@ -4,9 +4,10 @@ use {
         Service,
     },
     crate::{
-        auction::{
-            entities,
-            entities::BidStatusAuction,
+        auction::entities::{
+            self,
+            BidPaymentInstructionType,
+            BidStatusAuction,
         },
         kernel::{
             contracts::MulticallIssuedFilter,
@@ -542,30 +543,26 @@ impl AuctionManager<Svm> for Service<Svm> {
         &self,
         permission_key: &entities::PermissionKey<Svm>,
     ) -> entities::SubmitType {
-        if permission_key.0.starts_with(
-            &self
-                .config
-                .chain_config
-                .wallet_program_router_account
-                .to_bytes(),
-        ) {
-            if self
-                .opportunity_service
-                .get_live_opportunities(GetLiveOpportunitiesInput {
-                    key: opportunity::entities::OpportunityKey(
-                        self.config.chain_id.clone(),
-                        Bytes::from(permission_key.0),
-                    ),
-                })
-                .await
-                .is_empty()
-            {
-                entities::SubmitType::Invalid
-            } else {
-                entities::SubmitType::ByOther
+        match entities::BidChainDataSvm::get_bid_payment_instruction_type(permission_key) {
+            Some(BidPaymentInstructionType::Swap) => {
+                if self
+                    .opportunity_service
+                    .get_live_opportunities(GetLiveOpportunitiesInput {
+                        key: opportunity::entities::OpportunityKey(
+                            self.config.chain_id.clone(),
+                            Bytes::from(permission_key.0),
+                        ),
+                    })
+                    .await
+                    .is_empty()
+                {
+                    entities::SubmitType::Invalid
+                } else {
+                    entities::SubmitType::ByOther
+                }
             }
-        } else {
-            entities::SubmitType::ByServer
+            Some(BidPaymentInstructionType::SubmitBid) => entities::SubmitType::ByServer,
+            None => entities::SubmitType::Invalid, // TODO: may want to distinguish this arm from the prior Invalid SubmitType. Maybe two different enum variants?
         }
     }
 

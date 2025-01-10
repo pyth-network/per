@@ -719,7 +719,7 @@ dependencies = [
 
 [[package]]
 name = "auction-server"
-version = "0.15.0"
+version = "0.15.1"
 dependencies = [
  "anchor-lang",
  "anchor-lang-idl",
@@ -2659,7 +2659,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-api-types"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.22.1",
  "bincode",
