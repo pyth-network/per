@@ -11,6 +11,14 @@ export type TokenAmount = {
   amount: bigint;
 };
 /**
+ * SVM token with contract address and amount
+ */
+export type TokenAmountSvm = {
+  token: PublicKey;
+  amount: bigint;
+};
+
+/**
  * TokenPermissions struct for permit2
  */
 export type TokenPermissions = {
@@ -119,10 +127,6 @@ export type OpportunitySvmLimo = {
   program: "limo";
 } & OpportunitySvmMetadata;
 
-export type TokenAmountSvm = {
-  amount: number;
-  token: PublicKey;
-};
 export type OpportunitySvmSwap = {
   permissionAccount: PublicKey;
   routerAccount: PublicKey;
@@ -307,3 +311,44 @@ export type OpportunityDelete =
   | (OpportunityDeleteEvm & {
       chainType: ChainType.EVM;
     });
+
+export type SpecifiedTokenAmount = {
+  side: "input" | "output";
+  amount: number;
+};
+
+export type QuoteRequest = {
+  chainId: ChainId;
+  /**
+   * @description The mint of the token that the user wants to swap from
+   * @example So11111111111111111111111111111111111111112
+   */
+  inputTokenMint: PublicKey;
+  /**
+   * @description The mint of the token that the user wants to swap into
+   * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+   */
+  outputTokenMint: PublicKey;
+  /**
+   * @description The router account that referral fees will be sent to
+   * @example 11111111111111111111111111111111
+   */
+  router: PublicKey;
+  /**
+   * @description The specified token amount for the swap
+   */
+  specifiedTokenAmount: SpecifiedTokenAmount;
+  /**
+   * @description The user wallet account
+   * @example 11111111111111111111111111111111
+   */
+  userWallet: PublicKey;
+};
+
+export type QuoteResponse = {
+  chainId: ChainId;
+  expirationTime: Date;
+  inputToken: TokenAmountSvm;
+  outputToken: TokenAmountSvm;
+  transaction: Transaction;
+};

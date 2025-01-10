@@ -1,6 +1,6 @@
 {
   "name": "@pythnetwork/express-relay-js",
-  "version": "0.17.1",
+  "version": "0.17.2",
   "description": "Utilities for interacting with the express relay protocol",
   "homepage": "https://github.com/pyth-network/per/tree/main/sdk/js",
   "author": "Douro Labs",
@@ -22,7 +22,7 @@
     "generate-api-types": "openapi-typescript http://127.0.0.1:9000/docs/openapi.json --output src/serverTypes.d.ts",
     "generate-anchor-types": "anchor idl type src/idl/idlExpressRelay.json --out src/expressRelayTypes.d.ts && anchor idl type src/examples/idl/idlDummy.json --out src/examples/dummyTypes.d.ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "lint": "eslint src",
+    "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.d.ts'",
     "prepublishOnly": "pnpm build && pnpm test && pnpm lint",
     "preversion": "pnpm lint",
     "version": "pnpm format && git add -A src"
@@ -42,6 +42,7 @@
     "@kamino-finance/limo-sdk": "catalog:",
     "@solana/web3.js": "catalog:",
     "@solana/spl-token": "catalog:",
+    "bs58": "^6.0.0",
     "decimal.js": "^10.4.3",
     "isomorphic-ws": "^5.0.0",
     "openapi-client-axios": "^7.5.5",

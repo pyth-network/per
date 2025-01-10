@@ -2,7 +2,13 @@ import { HexString } from "@pythnetwork/hermes-client";
 import { Connection, PublicKey } from "@solana/web3.js";
 import yaml from "yaml";
 import fs from "fs";
-import { getMint } from "@solana/spl-token";
+import {
+  getMint,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
+
+const TOKEN_PROGRAMS = [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID];
 
 export type PriceConfig = {
   alias: string;
@@ -43,6 +49,13 @@ async function getMintDecimals(
   connection: Connection,
   mint: PublicKey
 ): Promise<number> {
-  const info = await getMint(connection, mint);
-  return info.decimals;
+  for (const programId of TOKEN_PROGRAMS) {
+    try {
+      const info = await getMint(connection, mint, undefined, programId);
+      return info.decimals;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error(`Mint decimals not found for ${mint.toBase58()}`);
 }

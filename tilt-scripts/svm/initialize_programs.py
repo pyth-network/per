@@ -1,15 +1,25 @@
 import argparse
 import asyncio
-import hashlib
 import logging
-import struct
 
+from express_relay.svm.generated.express_relay.instructions.initialize import (
+    InitializeAccounts,
+    initialize,
+)
+from express_relay.svm.generated.express_relay.instructions.set_swap_platform_fee import (
+    SetSwapPlatformFeeAccounts,
+    set_swap_platform_fee,
+)
+from express_relay.svm.generated.express_relay.types.initialize_args import (
+    InitializeArgs,
+)
+from express_relay.svm.generated.express_relay.types.set_swap_platform_fee_args import (
+    SetSwapPlatformFeeArgs,
+)
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
 from solana.transaction import Transaction
-from solders.instruction import AccountMeta, Instruction
 from solders.pubkey import Pubkey
-from solders.system_program import ID as system_pid
 
 from ..svm.helpers import configure_logger, read_kp_from_json
 
@@ -58,6 +68,13 @@ def parse_args() -> argparse.Namespace:
         help="Percentage of remaining bid (post protocol fee) that should go to relayer, in bps",
     )
     parser.add_argument(
+        "--swap-platform-fee-bps",
+        type=int,
+        required=False,
+        default=10,
+        help="The portion of the swap amount that should go to the platform (relayer + express relay), in bps",
+    )
+    parser.add_argument(
         "--rpc-url",
         type=str,
         required=False,
@@ -65,52 +82,6 @@ def parse_args() -> argparse.Namespace:
         help="URL of the Solana RPC endpoint to use for submitting transactions",
     )
     return parser.parse_args()
-
-
-def create_ix_init_express_relay(
-    pk_payer: Pubkey,
-    pk_admin: Pubkey,
-    pk_relayer_signer: Pubkey,
-    pk_fee_receiver_relayer: Pubkey,
-    express_relay_pid: Pubkey,
-    split_router_default: int,
-    split_relayer: int,
-) -> Instruction:
-    """
-    Creates an instruction to initialize the express relay program.
-    Args:
-        pk_payer: Pubkey of the payer for the transaction
-        pk_admin: Pubkey of the admin for the express relay program
-        pk_relayer_signer: Pubkey of the relayer signer for the express relay program
-        pk_fee_receiver_relayer: Pubkey of the fee receiver address for the relayer
-        express_relay_pid: Pubkey of the express relay program
-        split_router_default: Portion of bid that should go to router by default, in bps
-        split_relayer: Portion of remaining bid (post protocol fee) that should go to relayer, in bps
-    Returns:
-        Instruction to initialize the express relay program
-    """
-    pk_express_relay_metadata = Pubkey.find_program_address(
-        [b"metadata"], express_relay_pid
-    )[0]
-    discriminator_init_express_relay = hashlib.sha256(b"global:initialize").digest()[:8]
-    data_init_express_relay = struct.pack(
-        "<8sQQ",
-        discriminator_init_express_relay,
-        split_router_default,
-        split_relayer,
-    )
-    return Instruction(
-        express_relay_pid,
-        data_init_express_relay,
-        [
-            AccountMeta(pk_payer, True, True),
-            AccountMeta(pk_express_relay_metadata, False, True),
-            AccountMeta(pk_admin, False, False),
-            AccountMeta(pk_relayer_signer, False, False),
-            AccountMeta(pk_fee_receiver_relayer, False, False),
-            AccountMeta(system_pid, False, False),
-        ],
-    )
 
 
 async def main():
@@ -140,20 +111,41 @@ async def main():
     balance_express_relay_metadata = await client.get_balance(pk_express_relay_metadata)
 
     tx = Transaction()
+    signers = [kp_admin]
     if balance_express_relay_metadata.value == 0:
-        ix_init_express_relay = create_ix_init_express_relay(
-            pk_payer,
-            pk_admin,
-            pk_relayer_signer,
-            pk_relayer_signer,
-            express_relay_pid,
-            args.split_protocol_default,
-            args.split_relayer,
+        ix_init_express_relay = initialize(
+            {
+                "data": InitializeArgs(
+                    split_router_default=args.split_protocol_default,
+                    split_relayer=args.split_relayer,
+                ),
+            },
+            InitializeAccounts(
+                payer=pk_payer,
+                express_relay_metadata=pk_express_relay_metadata,
+                admin=pk_admin,
+                relayer_signer=pk_relayer_signer,
+                fee_receiver_relayer=pk_relayer_signer,
+            ),
         )
         tx.add(ix_init_express_relay)
+        signers.append(kp_payer)
+
+    ix_set_swap_platform_fee = set_swap_platform_fee(
+        {
+            "data": SetSwapPlatformFeeArgs(
+                swap_platform_fee_bps=args.split_protocol_default
+            ),
+        },
+        SetSwapPlatformFeeAccounts(
+            admin=pk_admin,
+            express_relay_metadata=pk_express_relay_metadata,
+        ),
+    )
+    tx.add(ix_set_swap_platform_fee)
 
     if len(tx.instructions) > 0:
-        tx_sig = (await client.send_transaction(tx, kp_payer)).value
+        tx_sig = (await client.send_transaction(tx, *signers)).value
         conf = await client.confirm_transaction(tx_sig)
         assert conf.value[0].status is None, "Initialization of programs failed"
         logger.info(f"Initialization of programs successful: {tx_sig}")
