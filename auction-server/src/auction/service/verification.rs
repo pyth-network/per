@@ -654,21 +654,18 @@ impl Service<Svm> {
                 }
 
                 let permission_account = get_quote_permission_key(&tokens, &user_wallet);
-
                 Ok(BidDataSvm {
                     amount: bid_amount,
                     permission_account,
                     router: self.config.chain_config.wallet_program_router_account,
-                    // TODO*: to fix once deadline param added to swap instruction--just set this way to make sure compiles
-                    deadline: OffsetDateTime::now_utc() + Duration::from_secs(20),
-                    // deadline: OffsetDateTime::from_unix_timestamp(swap_data.deadline).map_err(
-                    //     |e| {
-                    //         RestError::BadParameters(format!(
-                    //             "Invalid deadline: {:?} {:?}",
-                    //             swap_data.deadline, e
-                    //         ))
-                    //     },
-                    // )?,
+                    deadline: OffsetDateTime::from_unix_timestamp(swap_data.deadline).map_err(
+                        |e| {
+                            RestError::BadParameters(format!(
+                                "Invalid deadline: {:?} {:?}",
+                                swap_data.deadline, e
+                            ))
+                        },
+                    )?,
                     submit_type: SubmitType::ByOther,
                 })
             }

@@ -165,7 +165,6 @@ export class SimpleSearcherLimo {
       this.latestChainUpdate[this.chainId].blockhash;
     bid.transaction.feePayer = this.searcher.publicKey;
     bid.transaction.partialSign(this.searcher);
-    console.log(bid.transaction);
     return bid;
   }
 

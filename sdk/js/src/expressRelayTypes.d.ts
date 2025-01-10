@@ -129,7 +129,6 @@ export type ExpressRelay = {
       accounts: [
         {
           name: "admin";
-          writable: true;
           signer: true;
           relations: ["expressRelayMetadata"];
         },
@@ -157,7 +156,6 @@ export type ExpressRelay = {
       accounts: [
         {
           name: "admin";
-          writable: true;
           signer: true;
           relations: ["expressRelayMetadata"];
         },
@@ -258,7 +256,6 @@ export type ExpressRelay = {
       accounts: [
         {
           name: "admin";
-          writable: true;
           signer: true;
           relations: ["expressRelayMetadata"];
         },
@@ -281,6 +278,39 @@ export type ExpressRelay = {
           type: {
             defined: {
               name: "setSplitsArgs";
+            };
+          };
+        }
+      ];
+    },
+    {
+      name: "setSwapPlatformFee";
+      discriminator: [2, 135, 75, 15, 8, 105, 142, 47];
+      accounts: [
+        {
+          name: "admin";
+          signer: true;
+          relations: ["expressRelayMetadata"];
+        },
+        {
+          name: "expressRelayMetadata";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [109, 101, 116, 97, 100, 97, 116, 97];
+              }
+            ];
+          };
+        }
+      ];
+      args: [
+        {
+          name: "data";
+          type: {
+            defined: {
+              name: "setSwapPlatformFeeArgs";
             };
           };
         }
@@ -686,7 +716,6 @@ export type ExpressRelay = {
       accounts: [
         {
           name: "admin";
-          writable: true;
           signer: true;
           relations: ["expressRelayMetadata"];
         },
@@ -885,6 +914,18 @@ export type ExpressRelay = {
       };
     },
     {
+      name: "setSwapPlatformFeeArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "swapPlatformFeeBps";
+            type: "u64";
+          }
+        ];
+      };
+    },
+    {
       name: "submitBidArgs";
       type: {
         kind: "struct";
@@ -911,6 +952,10 @@ export type ExpressRelay = {
       type: {
         kind: "struct";
         fields: [
+          {
+            name: "deadline";
+            type: "i64";
+          },
           {
             name: "amountInput";
             type: "u64";

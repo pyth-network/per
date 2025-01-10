@@ -163,6 +163,7 @@ export async function constructSwapBid(
         ? new anchor.BN(swapOpportunity.tokens.outputToken.amount)
         : bidAmount,
     referralFeeBps: new anchor.BN(0),
+    deadline,
     feeToken: { input: {} },
   };
   const ixSwap = await expressRelay.methods
@@ -214,7 +215,6 @@ export async function constructSwapBid(
       ),
     })
     .instruction();
-  console.log(ixSwap);
   ixSwap.programId = svmConstants.expressRelayProgram;
   tx.instructions.push(
     createAssociatedTokenAccountIdempotentInstruction(

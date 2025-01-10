@@ -111,7 +111,6 @@
       "accounts": [
         {
           "name": "admin",
-          "writable": true,
           "signer": true,
           "relations": ["express_relay_metadata"]
         },
@@ -139,7 +138,6 @@
       "accounts": [
         {
           "name": "admin",
-          "writable": true,
           "signer": true,
           "relations": ["express_relay_metadata"]
         },
@@ -228,7 +226,6 @@
       "accounts": [
         {
           "name": "admin",
-          "writable": true,
           "signer": true,
           "relations": ["express_relay_metadata"]
         },
@@ -251,6 +248,39 @@
           "type": {
             "defined": {
               "name": "SetSplitsArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "set_swap_platform_fee",
+      "discriminator": [2, 135, 75, 15, 8, 105, 142, 47],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["express_relay_metadata"]
+        },
+        {
+          "name": "express_relay_metadata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": {
+              "name": "SetSwapPlatformFeeArgs"
             }
           }
         }
@@ -528,7 +558,6 @@
       "accounts": [
         {
           "name": "admin",
-          "writable": true,
           "signer": true,
           "relations": ["express_relay_metadata"]
         },
@@ -727,6 +756,18 @@
       }
     },
     {
+      "name": "SetSwapPlatformFeeArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "swap_platform_fee_bps",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "SubmitBidArgs",
       "type": {
         "kind": "struct",
@@ -753,6 +794,10 @@
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "deadline",
+            "type": "i64"
+          },
           {
             "name": "amount_input",
             "type": "u64"
