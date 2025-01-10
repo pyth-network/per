@@ -175,10 +175,7 @@ pub fn setup_swap(platform_fee_bps: u64) -> SwapSetupParams {
         admin,
         searcher,
         ..
-    } = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
+    } = setup(None)
     .expect("setup failed");
 
     let trader = Keypair::new();

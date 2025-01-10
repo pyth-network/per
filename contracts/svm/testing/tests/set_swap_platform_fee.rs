@@ -30,10 +30,7 @@ fn assert_swap_platform_fee(svm: &mut LiteSVM, expected_fee: u64) {
 
 #[test]
 fn test_set_swap_platform_fee() {
-    let SetupResult { mut svm, admin, .. } = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
+    let SetupResult { mut svm, admin, .. } = setup(None)
     .expect("setup failed");
 
     assert_swap_platform_fee(&mut svm, 0);
@@ -54,10 +51,7 @@ fn test_set_swap_platform_fee() {
 
 #[test]
 fn test_set_swap_platform_fee_wrong_admin() {
-    let SetupResult { mut svm, .. } = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
+    let SetupResult { mut svm, .. } = setup(None)
     .expect("setup failed");
 
     let wrong_admin = generate_and_fund_key(&mut svm);
@@ -77,10 +71,7 @@ fn test_set_swap_platform_fee_wrong_admin() {
 
 #[test]
 fn test_set_swap_platform_fee_fail_high_split_router() {
-    let SetupResult { mut svm, admin, .. } = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
+    let SetupResult { mut svm, admin, .. } = setup(None)
     .expect("setup failed");
 
     let set_swap_platform_fee_ix =

@@ -23,10 +23,7 @@ use {
 
 #[test]
 fn test_set_relayer() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
+                let setup_result = setup(None)
     .expect("setup failed");
 
     let mut svm = setup_result.svm;
@@ -50,10 +47,7 @@ fn test_set_relayer() {
 
 #[test]
 fn test_set_relayer_fail_wrong_admin() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
+    let setup_result = setup(None)
     .expect("setup failed");
 
     let mut svm = setup_result.svm;

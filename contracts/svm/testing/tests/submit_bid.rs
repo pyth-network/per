@@ -49,14 +49,8 @@ pub struct BidInfo {
     pub ixs:                  Vec<Instruction>,
 }
 
-pub const SPLIT_ROUTER_DEFAULT: u64 = 4000;
-pub const SPLIT_RELAYER: u64 = 2000;
-
 fn setup_bid() -> BidInfo {
-    let setup_result = setup(SetupParams {
-        split_router_default: SPLIT_ROUTER_DEFAULT,
-        split_relayer:        SPLIT_RELAYER,
-    })
+    let setup_result = setup(None)
     .expect("setup failed");
 
     let svm = setup_result.svm;

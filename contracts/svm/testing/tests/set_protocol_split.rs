@@ -20,17 +20,13 @@ use {
         },
         setup::{
             setup,
-            SetupParams,
         },
     },
 };
 
 #[test]
 fn test_set_router_split() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
+    let setup_result = setup(None)
     .expect("setup failed");
 
     let mut svm = setup_result.svm;
@@ -50,10 +46,7 @@ fn test_set_router_split() {
 
 #[test]
 fn test_set_router_split_fail_wrong_admin() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
+    let setup_result = setup(None)
     .expect("setup failed");
 
     let mut svm = setup_result.svm;
@@ -75,10 +68,7 @@ fn test_set_router_split_fail_wrong_admin() {
 
 #[test]
 fn test_set_router_split_fail_high_split() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
+    let setup_result = setup(None)
     .expect("setup failed");
 
     let mut svm = setup_result.svm;
