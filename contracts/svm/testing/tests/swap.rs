@@ -62,7 +62,7 @@ impl Token {
                 &get_associated_token_address(destination, &self.mint),
                 &self.mint_authority.pubkey(),
                 &[&self.mint_authority.pubkey()],
-                10 * 10_u64.pow(self.decimals as u32),
+                self.get_amount_with_decimals(10),
             )
             .unwrap(),
         ];
@@ -134,6 +134,10 @@ impl Token {
             mint_authority,
         }
     }
+
+    pub fn get_amount_with_decimals(&self, amount: u64) -> u64 {
+        amount * 10_u64.pow(self.decimals as u32)
+    }
 }
 
 pub struct SwapSetupParams {
@@ -189,11 +193,12 @@ fn test_swap() {
         router_output_ta,
     } = setup_swap();
 
+    // input token fee
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
     let swap_args = SwapArgs {
         deadline:         i64::MAX,
-        amount_input:     10_u64.pow(input_token.decimals as u32),
-        amount_output:    10_u64.pow(output_token.decimals as u32),
+        amount_input:     input_token.get_amount_with_decimals(1),
+        amount_output:    output_token.get_amount_with_decimals(1),
         referral_fee_bps: 0,
         fee_token:        FeeToken::Input,
     };
@@ -212,10 +217,11 @@ fn test_swap() {
     );
     submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 
+    // output token fee
     let swap_args = SwapArgs {
         deadline:         i64::MAX,
-        amount_input:     10_u64.pow(input_token.decimals as u32),
-        amount_output:    10_u64.pow(output_token.decimals as u32),
+        amount_input:     input_token.get_amount_with_decimals(1),
+        amount_output:    output_token.get_amount_with_decimals(1),
         referral_fee_bps: 0,
         fee_token:        FeeToken::Output,
     };
