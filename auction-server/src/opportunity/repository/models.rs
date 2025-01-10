@@ -1,5 +1,8 @@
 use {
-    crate::models::ChainType,
+    crate::{
+        models::ChainType,
+        opportunity::entities::FeeToken,
+    },
     ethers::types::{
         Address,
         Bytes,
@@ -60,6 +63,8 @@ pub struct OpportunityMetadataSvmProgramLimo {
 pub struct OpportunityMetadataSvmProgramSwap {
     #[serde_as(as = "DisplayFromStr")]
     pub user_wallet_address: Pubkey,
+    pub fee_token:           FeeToken,
+    pub referral_fee_bps:    u16,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -47,7 +47,6 @@ chains:
     rpc_read_url: http://localhost:8899
     rpc_tx_submission_url: http://localhost:8899
     ws_addr: ws://localhost:8900
-    wallet_program_router_account: 3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)

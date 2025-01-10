@@ -14,7 +14,7 @@ pub type ChainId = String;
 pub type PermissionKey = Bytes;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct PermissionKeySvm(pub [u8; 64]);
+pub struct PermissionKeySvm(pub [u8; 65]);
 impl Display for PermissionKeySvm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

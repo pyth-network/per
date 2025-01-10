@@ -38,6 +38,7 @@ use {
         },
         hash::Hash,
     },
+    strum::FromRepr,
     time::OffsetDateTime,
     uuid::Uuid,
 };
@@ -180,9 +181,10 @@ pub trait BidChainData: Send + Sync + Clone + Debug + PartialEq {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BidChainDataSvm {
-    pub transaction:        VersionedTransaction,
-    pub router:             Pubkey,
-    pub permission_account: Pubkey,
+    pub transaction:                  VersionedTransaction,
+    pub bid_payment_instruction_type: BidPaymentInstructionType,
+    pub router:                       Pubkey,
+    pub permission_account:           Pubkey,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -197,9 +199,10 @@ impl BidChainData for BidChainDataSvm {
     type PermissionKey = PermissionKeySvm;
 
     fn get_permission_key(&self) -> Self::PermissionKey {
-        let mut permission_key = [0; 64];
-        permission_key[..32].copy_from_slice(&self.router.to_bytes());
-        permission_key[32..].copy_from_slice(&self.permission_account.to_bytes());
+        let mut permission_key = [0; 65];
+        permission_key[0] = self.bid_payment_instruction_type.clone().into();
+        permission_key[1..33].copy_from_slice(&self.router.to_bytes());
+        permission_key[33..].copy_from_slice(&self.permission_account.to_bytes());
         PermissionKeySvm(permission_key)
     }
 }
@@ -212,16 +215,37 @@ impl BidChainData for BidChainDataEvm {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, FromRepr)]
+pub enum BidPaymentInstructionType {
+    SubmitBid,
+    Swap,
+}
+
+impl From<BidPaymentInstructionType> for u8 {
+    fn from(instruction: BidPaymentInstructionType) -> Self {
+        match instruction {
+            BidPaymentInstructionType::SubmitBid => 0,
+            BidPaymentInstructionType::Swap => 1,
+        }
+    }
+}
+
 impl BidChainDataSvm {
+    pub fn get_bid_payment_instruction_type(
+        permission_key: &PermissionKeySvm,
+    ) -> Option<BidPaymentInstructionType> {
+        BidPaymentInstructionType::from_repr(permission_key.0[0].into())
+    }
+
     pub fn get_router(permission_key: &PermissionKeySvm) -> Pubkey {
-        let slice: [u8; 32] = permission_key.0[..32]
+        let slice: [u8; 32] = permission_key.0[1..33]
             .try_into()
-            .expect("Failed to extract first 32 bytes from permission key");
+            .expect("Failed to extract bytes 1 through 33 from permission key");
         Pubkey::new_from_array(slice)
     }
 
     pub fn get_permission_account(permission_key: &PermissionKeySvm) -> Pubkey {
-        let slice: [u8; 32] = permission_key.0[32..]
+        let slice: [u8; 32] = permission_key.0[33..]
             .try_into()
             .expect("Failed to extract last 32 bytes from permission key");
         Pubkey::new_from_array(slice)

@@ -10,6 +10,7 @@ use {
             entities::{
                 self,
                 BidChainData,
+                BidPaymentInstructionType,
                 SubmitType,
             },
             service::get_live_bids::GetLiveBidsInput,
@@ -77,7 +78,6 @@ use {
         transaction::VersionedTransaction,
     },
     std::{
-        str::FromStr,
         sync::Arc,
         time::Duration,
     },
@@ -283,11 +283,6 @@ struct BidDataSvm {
 const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
 const BID_MINIMUM_LIFE_TIME_SVM_OTHER: Duration = Duration::from_secs(10);
 
-pub enum BidPaymentInstruction {
-    SubmitBid,
-    Swap,
-}
-
 impl Service<Svm> {
     //TODO: merge this logic with simulator logic
     async fn query_lookup_table(&self, table: &Pubkey, index: usize) -> Result<Pubkey, RestError> {
@@ -425,13 +420,13 @@ impl Service<Svm> {
     pub fn extract_express_relay_bid_instruction(
         &self,
         transaction: VersionedTransaction,
-        instruction_type: BidPaymentInstruction,
+        instruction_type: BidPaymentInstructionType,
     ) -> Result<CompiledInstruction, RestError> {
         let discriminator = match instruction_type {
-            BidPaymentInstruction::SubmitBid => {
+            BidPaymentInstructionType::SubmitBid => {
                 express_relay_svm::instruction::SubmitBid::DISCRIMINATOR
             }
-            BidPaymentInstruction::Swap => express_relay_svm::instruction::Swap::DISCRIMINATOR,
+            BidPaymentInstructionType::Swap => express_relay_svm::instruction::Swap::DISCRIMINATOR,
         };
         let instructions = transaction
             .message
@@ -490,11 +485,11 @@ impl Service<Svm> {
     ) -> Result<BidDataSvm, RestError> {
         let submit_bid_instruction_result = self.extract_express_relay_bid_instruction(
             transaction.clone(),
-            BidPaymentInstruction::SubmitBid,
+            BidPaymentInstructionType::SubmitBid,
         );
         let swap_instruction_result = self.extract_express_relay_bid_instruction(
             transaction.clone(),
-            BidPaymentInstruction::Swap,
+            BidPaymentInstructionType::Swap,
         );
 
         match (
@@ -524,12 +519,6 @@ impl Service<Svm> {
                             .router_account_position_submit_bid,
                     )
                     .await?;
-                if router == self.config.chain_config.wallet_program_router_account {
-                    return Err(RestError::BadParameters(
-                        "Using swap router account is not allowed for submit_bid instruction"
-                            .to_string(),
-                    ));
-                }
                 Ok(BidDataSvm {
                     amount: submit_bid_data.bid_amount,
                     permission_account,
@@ -547,6 +536,16 @@ impl Service<Svm> {
             (Err(_), Ok(swap_instruction)) => {
                 let swap_data = Self::extract_swap_data(&swap_instruction)?;
 
+                let router = self
+                    .extract_account(
+                        &transaction,
+                        &swap_instruction,
+                        self.config
+                            .chain_config
+                            .express_relay
+                            .router_account_position_swap,
+                    )
+                    .await?;
                 let user_wallet = self
                     .extract_account(
                         &transaction,
@@ -601,63 +600,14 @@ impl Service<Svm> {
                         },
                     ),
                 };
-                let mint_fee = match swap_data.fee_token {
-                    FeeToken::Input => mint_input,
-                    FeeToken::Output => mint_output,
-                };
 
-                let router_fee_receiver_ta = self
-                    .extract_account(
-                        &transaction,
-                        &swap_instruction,
-                        self.config
-                            .chain_config
-                            .express_relay
-                            .router_account_position_swap,
-                    )
-                    .await?;
+                let permission_account =
+                    get_quote_permission_key(&tokens, &user_wallet, swap_data.referral_fee_bps);
 
-                //TODO* : do not hardcode the token program and refactor into separate function
-                let fee_token_program = Pubkey::from_str(
-                    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-                )
-                .map_err(|e| {
-                    RestError::BadParameters(format!("Invalid token program address: {:?}", e))
-                })?;
-                let associated_token_program = Pubkey::from_str(
-                    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-                )
-                .map_err(|e| {
-                    RestError::BadParameters(format!(
-                        "Invalid associated token program address: {:?}",
-                        e
-                    ))
-                })?;
-                let expected_router_fee_receiver_ta = Pubkey::find_program_address(
-                    &[
-                        &self
-                            .config
-                            .chain_config
-                            .wallet_program_router_account
-                            .to_bytes(),
-                        &fee_token_program.to_bytes(),
-                        &mint_fee.to_bytes(),
-                    ],
-                    &associated_token_program,
-                )
-                .0;
-
-                if router_fee_receiver_ta != expected_router_fee_receiver_ta {
-                    return Err(RestError::BadParameters(
-                        "Must use approved router token account for swap instruction".to_string(),
-                    ));
-                }
-
-                let permission_account = get_quote_permission_key(&tokens, &user_wallet);
                 Ok(BidDataSvm {
                     amount: bid_amount,
                     permission_account,
-                    router: self.config.chain_config.wallet_program_router_account,
+                    router,
                     deadline: OffsetDateTime::from_unix_timestamp(swap_data.deadline).map_err(
                         |e| {
                             RestError::BadParameters(format!(
@@ -886,10 +836,21 @@ impl Verification<Svm> for Service<Svm> {
         let bid_data = self
             .extract_bid_data(bid.chain_data.transaction.clone())
             .await?;
+        let bid_payment_instruction_type = match bid_data.submit_type {
+            SubmitType::ByServer => BidPaymentInstructionType::SubmitBid,
+            // TODO*: we should verify all components of the swap here (token amounts, fee token side, referral fee)
+            SubmitType::ByOther => BidPaymentInstructionType::Swap,
+            SubmitType::Invalid => {
+                return Err(RestError::BadParameters(
+                    "Invalid submit type for bid".to_string(),
+                ));
+            }
+        };
         let bid_chain_data = entities::BidChainDataSvm {
             permission_account: bid_data.permission_account,
-            router:             bid_data.router,
-            transaction:        bid.chain_data.transaction.clone(),
+            router: bid_data.router,
+            bid_payment_instruction_type,
+            transaction: bid.chain_data.transaction.clone(),
         };
         let permission_key = bid_chain_data.get_permission_key();
         tracing::Span::current().record("permission_key", bid_data.permission_account.to_string());

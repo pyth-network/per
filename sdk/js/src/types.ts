@@ -335,6 +335,11 @@ export type QuoteRequest = {
    */
   router: PublicKey;
   /**
+   * @description The referral fee for the swap in bps. If not provided, the referral fee will be set to the default value.
+   * @example 10
+   */
+  referralFeeBps?: number;
+  /**
    * @description The specified token amount for the swap
    */
   specifiedTokenAmount: SpecifiedTokenAmount;

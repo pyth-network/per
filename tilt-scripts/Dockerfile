@@ -55,7 +55,7 @@ ENV PATH="$POETRY_HOME/bin:$PATH"
 
 # Copy only requirements to cache them in docker layer
 WORKDIR /src
-COPY tilt-scripts/poetry.lock tilt-scripts/pyproject.toml /src/tilt-scripts/
+COPY tilt-scripts/poetry.lock tilt-scripts/pyproject.toml sdk/python/poetry.lock sdk/python/pyproject.toml /src/tilt-scripts/
 COPY --from=contract_build /src/contracts/evm/out/ /src/contracts/evm/out/
 
 # Project initialization:
@@ -63,3 +63,4 @@ RUN poetry -C tilt-scripts install  --no-interaction --no-ansi
 
 # Creating folders, and files for a project:
 COPY tilt-scripts/ /src/tilt-scripts
+COPY sdk/python/ /src/sdk/python

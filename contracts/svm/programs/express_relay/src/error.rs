@@ -24,4 +24,6 @@ pub enum ErrorCode {
     InvalidMint,
     #[msg("A token account belongs to the wrong token program")]
     InvalidTokenProgram,
+    #[msg("Invalid referral fee")]
+    InvalidReferralFee,
 }
