@@ -26,8 +26,7 @@ use {
 
 #[test]
 fn test_withdraw_fees() {
-        let setup_result = setup(None)
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;
@@ -64,8 +63,7 @@ fn test_withdraw_fees() {
 
 #[test]
 fn test_withdraw_fees_fail_wrong_admin() {
-        let setup_result = setup(None)
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let wrong_admin = generate_and_fund_key(&mut svm);

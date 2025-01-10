@@ -50,8 +50,7 @@ pub struct BidInfo {
 }
 
 fn setup_bid() -> BidInfo {
-    let setup_result = setup(None)
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let svm = setup_result.svm;
     let relayer_signer = setup_result.relayer_signer;

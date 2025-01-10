@@ -8,7 +8,10 @@ use {
         express_relay::helpers::get_express_relay_metadata,
         helpers::assert_custom_error,
         setup::{
-            setup, SetupParams, SPLIT_RELAYER, SPLIT_ROUTER_DEFAULT
+            setup,
+            SetupParams,
+            SPLIT_RELAYER,
+            SPLIT_ROUTER_DEFAULT,
         },
     },
 };

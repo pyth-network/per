@@ -175,8 +175,7 @@ pub fn setup_swap(platform_fee_bps: u64) -> SwapSetupParams {
         admin,
         searcher,
         ..
-    } = setup(None)
-    .expect("setup failed");
+    } = setup(None).expect("setup failed");
 
     let trader = Keypair::new();
     let input_token = Token::new(&mut svm, 6);
