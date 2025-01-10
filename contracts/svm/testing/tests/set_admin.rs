@@ -37,7 +37,7 @@ fn test_set_admin() {
     submit_transaction(&mut svm, &[set_admin_ix], &admin, &[&admin])
         .expect("Transaction failed unexpectedly");
 
-    let express_relay_metadata = get_express_relay_metadata(svm);
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     assert_eq!(express_relay_metadata.admin, admin_new.pubkey());
 }

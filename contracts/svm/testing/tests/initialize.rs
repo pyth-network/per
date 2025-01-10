@@ -23,9 +23,9 @@ fn test_initialize() {
         split_router_default,
         split_relayer,
     };
-    let setup_result = setup(setup_params).expect("setup failed");
+    let mut setup_result = setup(setup_params).expect("setup failed");
 
-    let express_relay_metadata = get_express_relay_metadata(setup_result.svm);
+    let express_relay_metadata = get_express_relay_metadata(&mut setup_result.svm);
 
     assert_eq!(express_relay_metadata.admin, setup_result.admin.pubkey());
     assert_eq!(

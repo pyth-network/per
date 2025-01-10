@@ -122,7 +122,7 @@ fn test_bid() {
     let balance_express_relay_metadata_post = get_balance(&svm, &express_relay_metadata_key);
     let balance_searcher_post = get_balance(&svm, &searcher.pubkey());
 
-    let express_relay_metadata_acc = get_express_relay_metadata(svm);
+    let express_relay_metadata_acc = get_express_relay_metadata(&mut svm);
     let expected_fee_router =
         bid_amount * express_relay_metadata_acc.split_router_default / FEE_SPLIT_PRECISION;
     let expected_fee_relayer = bid_amount.saturating_sub(expected_fee_router)

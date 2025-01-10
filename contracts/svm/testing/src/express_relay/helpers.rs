@@ -13,7 +13,7 @@ pub fn get_express_relay_metadata_key() -> Pubkey {
     Pubkey::find_program_address(&[SEED_METADATA], &express_relay::id()).0
 }
 
-pub fn get_express_relay_metadata(svm: litesvm::LiteSVM) -> ExpressRelayMetadata {
+pub fn get_express_relay_metadata(svm: &mut litesvm::LiteSVM) -> ExpressRelayMetadata {
     let express_relay_metadata_key = get_express_relay_metadata_key();
     let express_relay_metadata_acc = svm
         .get_account(&express_relay_metadata_key)

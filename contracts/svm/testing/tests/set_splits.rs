@@ -38,7 +38,7 @@ fn test_set_splits() {
     submit_transaction(&mut svm, &[set_splits_ix], &admin, &[&admin])
         .expect("Transaction failed unexpectedly");
 
-    let express_relay_metadata = get_express_relay_metadata(svm);
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     assert_eq!(
         express_relay_metadata.split_router_default,
