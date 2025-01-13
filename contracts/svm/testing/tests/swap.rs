@@ -9,7 +9,7 @@ use {
         token_2022::spl_token_2022::{
             self,
             instruction::{
-                initialize_account2,
+                initialize_account,
                 mint_to_checked,
             },
         },
@@ -116,7 +116,7 @@ impl Token {
                 spl_token_2022::state::Account::LEN.try_into().unwrap(),
                 &self.token_program,
             ),
-            initialize_account2(
+            initialize_account(
                 &self.token_program,
                 &token_account.pubkey(),
                 &self.mint,
