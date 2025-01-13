@@ -356,6 +356,7 @@ impl OpportunitySvm {
         }
     }
 
+    // TODO It's not good to use another module type here
     pub fn get_permission_key(
         bid_type: BidPaymentInstructionType,
         router: Pubkey,
