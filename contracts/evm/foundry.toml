@@ -4,6 +4,9 @@ out = "out"
 libs = ["lib"]
 fs_permissions = [{ access = "read-write", path = "./"}]
 solc = "0.8.20"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
 
 [profile.permit2]
 src = "permit2"
