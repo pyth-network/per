@@ -10,6 +10,7 @@ use {
         OpportunityCreate,
     },
     crate::{
+        auction::entities::BidPaymentInstructionType,
         kernel::entities::PermissionKey,
         opportunity::repository,
     },
@@ -355,8 +356,17 @@ impl OpportunitySvm {
         }
     }
 
-    pub fn get_permission_key(router: Pubkey, permission_account: Pubkey) -> PermissionKey {
-        PermissionKey::from([router.to_bytes(), permission_account.to_bytes()].concat())
+    // TODO It's not good to use another module type here
+    pub fn get_permission_key(
+        bid_type: BidPaymentInstructionType,
+        router: Pubkey,
+        permission_account: Pubkey,
+    ) -> PermissionKey {
+        let mut permission_key: [u8; 65] = [0; 65];
+        permission_key[0] = bid_type.into();
+        permission_key[1..33].copy_from_slice(&router.to_bytes());
+        permission_key[33..65].copy_from_slice(&permission_account.to_bytes());
+        permission_key.into()
     }
 }
 
