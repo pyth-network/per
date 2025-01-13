@@ -327,6 +327,11 @@ fn test_swap(args: SwapSetupParams) {
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
+        &router_output_ta,
+        output_token.get_amount_with_decimals(0f64),
+    ));
+    assert!(Token::token_balance_matches(
+        &mut svm,
         &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
         output_token.get_amount_with_decimals(0f64),
     ));
