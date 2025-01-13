@@ -134,7 +134,7 @@ impl Token {
         token_account.pubkey()
     }
 
-    pub fn new(svm: &mut LiteSVM, token_program: Pubkey, decimals: u8) -> Self {
+    pub fn create_mint(svm: &mut LiteSVM, token_program: Pubkey, decimals: u8) -> Self {
         let mint = Keypair::new();
         let mint_authority = generate_and_fund_key(svm);
         let mint_rent = svm.minimum_balance_for_rent_exemption(spl_token_2022::state::Mint::LEN);
@@ -206,12 +206,12 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
     } = setup(None).expect("setup failed");
 
     let trader = Keypair::new();
-    let input_token = Token::new(
+    let input_token = Token::create_mint(
         &mut svm,
         args.input_token_program,
         args.input_token_decimals,
     );
-    let output_token = Token::new(
+    let output_token = Token::create_mint(
         &mut svm,
         args.output_token_program,
         args.output_token_decimals,
