@@ -25,7 +25,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1.1.1
         with:
-          version: nightly
+          version: nightly-3ba3d5f9e6008779c68b94ef9a0015ca2fe60b6a
 
       - name: Generate ABIs
         run: pnpm generate-abi
