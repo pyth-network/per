@@ -122,6 +122,7 @@ impl Service<ChainTypeSvm> {
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
             permission_key: entities::OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
                 router,
                 permission_account,
             ),
@@ -158,6 +159,24 @@ impl Service<ChainTypeSvm> {
             // TODO* extract latest slot
             slot: Slot::default(),
         })
+    }
+
+    async fn remove_quote_opportunity(&self, opportunity: entities::OpportunitySvm) {
+        // TODO
+        // Maybe we should add state for opportunity.
+        // Right now logic for removing halted/expired bids, checks if opportunity exists.
+        // We should remove opportunity only after the auction bid result is broadcasted.
+        // This is to make sure we are not gonna remove the bids that are currently in the auction in the handle_auction loop.
+        let removal_reason = entities::OpportunityRemovalReason::Invalid(
+            RestError::InvalidOpportunity("Auction finished for the opportunity".to_string()),
+        );
+        if let Err(e) = self
+            .repo
+            .remove_opportunity(&self.db, &opportunity, removal_reason)
+            .await
+        {
+            tracing::error!("Failed to remove opportunity: {:?}", e);
+        }
     }
 
     #[tracing::instrument(skip_all)]
@@ -217,6 +236,9 @@ impl Service<ChainTypeSvm> {
         if bids.is_empty() {
             tracing::warn!(opportunity = ?opportunity, "No bids found for quote opportunity");
 
+            // Remove opportunity to prevent further bids
+            // The handle auction loop will take care of the bids that were submitted late
+            self.remove_quote_opportunity(opportunity.clone()).await;
             return Err(RestError::QuoteNotFound);
         }
 
@@ -281,24 +303,10 @@ impl Service<ChainTypeSvm> {
             })
         }))
         .await;
+
         // Remove opportunity to prevent further bids
         // The handle auction loop will take care of the bids that were submitted late
-
-        // TODO
-        // Maybe we should add state for opportunity.
-        // Right now logic for removing halted/expired bids, checks if opportunity exists.
-        // We should remove opportunity only after the auction bid result is broadcasted.
-        // This is to make sure we are not gonna remove the bids that are currently in the auction in the handle_auction loop.
-        let removal_reason = entities::OpportunityRemovalReason::Invalid(
-            RestError::InvalidOpportunity("Auction finished for the opportunity".to_string()),
-        );
-        if let Err(e) = self
-            .repo
-            .remove_opportunity(&self.db, &opportunity, removal_reason)
-            .await
-        {
-            tracing::error!("Failed to remove opportunity: {:?}", e);
-        }
+        self.remove_quote_opportunity(opportunity.clone()).await;
 
         // we check the winner bid status here to make sure the winner bid was successfully entered into the db as submitted
         // this is because: if the winner bid was not successfully entered as submitted, that could indicate the presence of
