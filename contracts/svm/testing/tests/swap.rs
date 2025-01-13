@@ -59,7 +59,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn airdrop(&self, svm: &mut LiteSVM, destination: &Pubkey) {
+    pub fn airdrop(&self, svm: &mut LiteSVM, destination: &Pubkey, amount: f64) {
         let instructions = vec![
             create_associated_token_account_idempotent(
                 &self.mint_authority.pubkey(),
@@ -77,7 +77,7 @@ impl Token {
                 ),
                 &self.mint_authority.pubkey(),
                 &[&self.mint_authority.pubkey()],
-                self.get_amount_with_decimals(10f64),
+                self.get_amount_with_decimals(amount),
                 self.decimals,
             )
             .unwrap(),
@@ -220,8 +220,8 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
     let set_swap_platform_fee_ix = set_swap_platform_fee_instruction(&admin, args.platform_fee_bps);
     submit_transaction(&mut svm, &[set_swap_platform_fee_ix], &admin, &[&admin]).unwrap();
 
-    input_token.airdrop(&mut svm, &searcher.pubkey());
-    output_token.airdrop(&mut svm, &trader.pubkey());
+    input_token.airdrop(&mut svm, &searcher.pubkey(), 10f64);
+    output_token.airdrop(&mut svm, &trader.pubkey(), 10f64);
 
     let router = Keypair::new().pubkey();
     let router_input_ta = input_token.create_token_account(&mut svm, &router);
