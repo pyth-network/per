@@ -18,7 +18,11 @@ use {
 
 #[test]
 fn test_initialize() {
-    let mut setup_result = setup(None).expect("setup failed");
+    let mut setup_result = setup(Some(SetupParams {
+        split_router_default: SPLIT_ROUTER_DEFAULT,
+        split_relayer:        SPLIT_RELAYER,
+    }))
+    .expect("setup failed");
 
     let express_relay_metadata = get_express_relay_metadata(&mut setup_result.svm);
 
