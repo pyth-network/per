@@ -171,7 +171,7 @@ impl Token {
     }
 
     pub fn get_amount_with_decimals(&self, amount: f64) -> u64 {
-        (amount * 10_f64.powi(self.decimals as i32)).floor() as u64
+        (amount * 10f64.powi(self.decimals as i32)).floor() as u64
     }
 
     pub fn get_associated_token_address(&self, owner: &Pubkey) -> Pubkey {
