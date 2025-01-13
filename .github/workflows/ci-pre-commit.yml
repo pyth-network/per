@@ -35,7 +35,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1.1.1
         with:
-          version: nightly
+          version: nightly-2024-12-29
       - name: Install evm contracts npm dependencies
         working-directory: contracts/evm
         run: npm ci
