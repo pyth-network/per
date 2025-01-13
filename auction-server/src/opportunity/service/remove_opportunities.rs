@@ -8,6 +8,7 @@ use {
             ws::UpdateEvent,
             RestError,
         },
+        auction::entities::BidPaymentInstructionType,
         kernel::entities::ChainId,
         opportunity::{
             entities::{
@@ -34,8 +35,11 @@ impl Service<ChainTypeSvm> {
         input: RemoveOpportunitiesInput,
     ) -> Result<(), RestError> {
         self.get_config(&input.chain_id)?;
-        let permission_key =
-            entities::OpportunitySvm::get_permission_key(input.router, input.permission_account);
+        let permission_key = entities::OpportunitySvm::get_permission_key(
+            BidPaymentInstructionType::SubmitBid,
+            input.router,
+            input.permission_account,
+        );
         let opportunities = self
             .repo
             .remove_opportunities(
