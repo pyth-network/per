@@ -343,7 +343,7 @@ fn test_swap(args: SwapSetupParams) {
 
     // input token fee
     let swap_args = SwapArgs {
-        deadline:         i64::MAX,
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
         amount_input:     input_token.get_amount_with_decimals(1f64),
         amount_output:    output_token.get_amount_with_decimals(1f64),
         referral_fee_bps: 3000,
@@ -420,7 +420,7 @@ fn test_swap(args: SwapSetupParams) {
 
     // output token fee
     let swap_args = SwapArgs {
-        deadline:         i64::MAX,
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
         amount_input:     input_token.get_amount_with_decimals(1f64),
         amount_output:    output_token.get_amount_with_decimals(1f64),
         referral_fee_bps: 1500,
@@ -542,27 +542,4 @@ fn test_swap_expired_deadline() {
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
     assert_custom_error(result.err, 4, ErrorCode::DeadlinePassed.into());
-
-    // now deadine is now
-    let swap_args = SwapArgs {
-        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1f64),
-        amount_output:    output_token.get_amount_with_decimals(1f64),
-        referral_fee_bps: 1500,
-        fee_token:        FeeToken::Output,
-    };
-    let instructions = build_swap_instructions(
-        searcher.pubkey(),
-        trader.pubkey(),
-        None,
-        None,
-        router_output_ta,
-        express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
-        swap_args,
-    );
-    submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 }
