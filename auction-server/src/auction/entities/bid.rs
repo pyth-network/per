@@ -262,9 +262,31 @@ pub struct BidCreate<T: ChainTrait> {
 }
 
 #[derive(Clone, Debug)]
-pub struct BidChainDataCreateSvm {
+pub struct BidChainDataOnChainCreateSvm {
     pub transaction: VersionedTransaction,
     pub slot:        Option<Slot>,
+}
+
+#[derive(Clone, Debug)]
+pub struct BidChainDataSwapCreateSvm {
+    pub transaction: VersionedTransaction,
+    pub opportunity_id : Uuid,
+}
+
+
+#[derive(Clone, Debug)]
+pub enum BidChainDataCreateSvm{
+    OnChain(BidChainDataOnChainCreateSvm),
+    Swap(BidChainDataSwapCreateSvm),
+}
+
+impl BidChainDataCreateSvm{
+    pub fn get_transaction(&self) -> &VersionedTransaction {
+        match self {
+            BidChainDataCreateSvm::OnChain(data) => &data.transaction,
+            BidChainDataCreateSvm::Swap(data) => &data.transaction,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -280,7 +302,7 @@ pub type BidAmountEvm = U256;
 
 impl PartialEq<Bid<Svm>> for BidCreate<Svm> {
     fn eq(&self, other: &Bid<Svm>) -> bool {
-        self.chain_data.transaction == other.chain_data.transaction
+        *self.chain_data.get_transaction() == other.chain_data.transaction
             && self.chain_id == other.chain_id
     }
 }

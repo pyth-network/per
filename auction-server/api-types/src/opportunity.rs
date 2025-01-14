@@ -62,6 +62,7 @@ pub struct OpportunityBidResult {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, Display)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum ProgramSvm {
     SwapKamino,
     Limo,

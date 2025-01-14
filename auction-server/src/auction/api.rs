@@ -422,15 +422,26 @@ impl ApiTrait<Svm> for Svm {
         profile: Option<models::Profile>,
     ) -> Result<entities::BidCreate<Svm>, RestError> {
         match bid {
-            BidCreate::Svm(bid_create_svm) => {
+            BidCreate::Svm(BidCreateSvm::OnChain(bid_create_svm)) => {
                 Ok(entities::BidCreate::<Svm> {
                     chain_id: bid_create_svm.chain_id.clone(),
                     profile,
                     initiation_time: OffsetDateTime::now_utc(),
-                    chain_data: entities::BidChainDataCreateSvm {
+                    chain_data: entities::BidChainDataCreateSvm::OnChain(entities::BidChainDataOnChainCreateSvm {
                         transaction: bid_create_svm.transaction.clone(),
-                        slot:        bid_create_svm.slot,
-                    },
+                        slot: bid_create_svm.slot,
+                    }),
+                })
+            },
+            BidCreate::Svm(BidCreateSvm::Swap(bid_create_svm)) => {
+                Ok(entities::BidCreate::<Svm> {
+                    chain_id: bid_create_svm.chain_id.clone(),
+                    profile,
+                    initiation_time: OffsetDateTime::now_utc(),
+                    chain_data: entities::BidChainDataCreateSvm::Swap(entities::BidChainDataSwapCreateSvm {
+                        transaction: bid_create_svm.transaction.clone(),
+                        opportunity_id: bid_create_svm.opportunity_id,
+                    }),
                 })
             }
             _ => Err(RestError::BadParameters(

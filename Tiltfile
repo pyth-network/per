@@ -95,20 +95,20 @@ local_resource(
     "svm-create-mints",
         """solana-keygen new -o keypairs/mint_buy.json -f --no-bip39-passphrase \
         && solana-keygen new -o keypairs/mint_sell.json -f --no-bip39-passphrase \
-        && spl-token create-token -u localhost --fee-payer keypairs/admin.json --mint-authority keypairs/admin.json keypairs/mint_sell.json \
-        && spl-token create-token -u localhost --fee-payer keypairs/admin.json --mint-authority keypairs/admin.json keypairs/mint_buy.json \
+        && spl-token create-token -u localhost --fee-payer keypairs/admin.json --decimals 6 --mint-authority keypairs/admin.json keypairs/mint_sell.json \
+        && spl-token create-token -u localhost --fee-payer keypairs/admin.json --decimals 6 --mint-authority keypairs/admin.json keypairs/mint_buy.json \
         && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher_js.json \
         && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher_js.json \
         && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher_py.json \
         && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher_py.json \
         && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/admin.json \
         && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/admin.json \
-        && spl-token mint -u localhost keypairs/mint_buy.json 1000000000 --recipient-owner keypairs/searcher_js.json --mint-authority keypairs/admin.json \
-        && spl-token mint -u localhost keypairs/mint_sell.json 1000000000 --recipient-owner keypairs/searcher_js.json --mint-authority keypairs/admin.json \
-        && spl-token mint -u localhost keypairs/mint_buy.json 1000000000 --recipient-owner keypairs/searcher_py.json --mint-authority keypairs/admin.json \
-        && spl-token mint -u localhost keypairs/mint_sell.json 1000000000 --recipient-owner keypairs/searcher_py.json --mint-authority keypairs/admin.json \
-        && spl-token mint -u localhost keypairs/mint_buy.json 1000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json \
-        && spl-token mint -u localhost keypairs/mint_sell.json 1000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json""",
+        && spl-token mint -u localhost keypairs/mint_buy.json 100000000000 --recipient-owner keypairs/searcher_js.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/searcher_js.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_buy.json 100000000000 --recipient-owner keypairs/searcher_py.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/searcher_py.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_buy.json 100000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json \
+        && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json""",
     resource_deps=["svm-setup-accounts"]
 )
 
@@ -218,7 +218,7 @@ local_resource(
 
 local_resource(
     "svm-searcher-js",
-    serve_cmd="pnpm run testing-searcher-limo --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 1000 --fill-rate 4 --bid-margin 100",
+    serve_cmd="pnpm run testing-searcher-limo --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100",
     serve_dir="sdk/js",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )

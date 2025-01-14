@@ -84,6 +84,8 @@ use {
     time::OffsetDateTime,
     uuid::Uuid,
 };
+use crate::auction::entities::BidChainDataCreateSvm;
+use crate::opportunity::service::get_opportunities::GetOpportunityByIdInput;
 
 pub struct VerifyBidInput<T: ChainTrait> {
     pub bid_create: entities::BidCreate<T>,
@@ -692,6 +694,15 @@ impl Service<Svm> {
                         ),
                     })
                     .await;
+
+
+                // if bid.chain_data.opportunity_id.is_some() {
+                //     let opp = self.opportunity_service.get_opportunity_by_id(GetOpportunityByIdInput { opportunity_id: bid.chain_data.opportunity_id.unwrap() }).await;
+                //     tracing::info!("opp {:?}", opp);
+                //     tracing::info!("chain_data {:?}", chain_data);
+                // }
+
+
                 let opportunity = opportunities
                     .first()
                     .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
@@ -718,7 +729,12 @@ impl Service<Svm> {
         const RETRY_LIMIT: usize = 5;
         const RETRY_DELAY: Duration = Duration::from_millis(100);
         let mut retry_count = 0;
-        let bid_slot = bid.chain_data.slot.unwrap_or_default();
+        let bid_slot = match &bid.chain_data {
+            BidChainDataCreateSvm::OnChain(onchain_data) => {
+                onchain_data.slot
+            }
+            BidChainDataCreateSvm::Swap(_) => None
+        }.unwrap_or_default();
 
         let should_retry = |result_slot: Slot,
                             retry_count: usize,
@@ -743,7 +759,7 @@ impl Service<Svm> {
                 .config
                 .chain_config
                 .simulator
-                .simulate_transaction(&bid.chain_data.transaction)
+                .simulate_transaction(&bid.chain_data.get_transaction())
                 .await;
             let result = response.map_err(|e| {
                 tracing::error!("Error while simulating bid: {:?}", e);
@@ -830,11 +846,11 @@ impl Verification<Svm> for Service<Svm> {
         input: VerifyBidInput<Svm>,
     ) -> Result<VerificationResult<Svm>, RestError> {
         let bid = input.bid_create;
-        Svm::check_tx_size(&bid.chain_data.transaction)?;
-        self.check_compute_budget(&bid.chain_data.transaction)
+        Svm::check_tx_size(&bid.chain_data.get_transaction())?;
+        self.check_compute_budget(&bid.chain_data.get_transaction())
             .await?;
         let bid_data = self
-            .extract_bid_data(bid.chain_data.transaction.clone())
+            .extract_bid_data(bid.chain_data.get_transaction().clone())
             .await?;
         let bid_payment_instruction_type = match bid_data.submit_type {
             SubmitType::ByServer => BidPaymentInstructionType::SubmitBid,
@@ -850,7 +866,7 @@ impl Verification<Svm> for Service<Svm> {
             permission_account: bid_data.permission_account,
             router: bid_data.router,
             bid_payment_instruction_type,
-            transaction: bid.chain_data.transaction.clone(),
+            transaction: bid.chain_data.get_transaction().clone(),
         };
         let permission_key = bid_chain_data.get_permission_key();
         tracing::Span::current().record("permission_key", bid_data.permission_account.to_string());
