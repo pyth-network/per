@@ -1,5 +1,5 @@
 use {
-    anchor_lang::AccountDeserialize,
+    anchor_lang::{error::ErrorCode as AnchorErrorCode, AccountDeserialize},
     anchor_spl::{
         associated_token::{
             get_associated_token_address_with_program_id,
@@ -15,9 +15,7 @@ use {
         },
     },
     express_relay::{
-        error::ErrorCode,
-        FeeToken,
-        SwapArgs,
+        error::ErrorCode, state::FEE_SPLIT_PRECISION, FeeToken, SwapArgs
     },
     litesvm::LiteSVM,
     solana_sdk::{
@@ -610,3 +608,279 @@ fn test_swap_expired_deadline() {
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
     assert_custom_error(result.err, 4, ErrorCode::DeadlinePassed.into());
 }
+
+#[test]
+fn test_swap_invalid_referral_fee_bps() {
+    let SwapSetupResult {
+        mut svm,
+        trader,
+        searcher,
+        input_token,
+        output_token,
+        router_output_ta,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_input:     input_token.get_amount_with_decimals(1.),
+        amount_output:    output_token.get_amount_with_decimals(1.),
+        referral_fee_bps: (FEE_SPLIT_PRECISION + 1) as u16,
+        fee_token:        FeeToken::Output,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        None,
+        None,
+        router_output_ta,
+        express_relay_metadata.fee_receiver_relayer,
+        input_token.mint,
+        output_token.mint,
+        Some(input_token.token_program),
+        Some(output_token.token_program),
+        swap_args,
+    );
+    let result =
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+    assert_custom_error(result.err, 4, ErrorCode::InvalidReferralFee.into());
+}
+
+#[test]
+fn test_swap_right() {
+    let SwapSetupResult {
+        mut svm,
+        trader,
+        searcher,
+        input_token,
+        output_token,
+        router_output_ta,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_input:     input_token.get_amount_with_decimals(1.),
+        amount_output:    output_token.get_amount_with_decimals(1.),
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::Output,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        None,
+        None,
+        router_output_ta,
+        express_relay_metadata.fee_receiver_relayer,
+        input_token.mint,
+        output_token.mint,
+        Some(input_token.token_program),
+        Some(output_token.token_program),
+        swap_args,
+    );
+    let result = submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
+}
+
+#[test]
+fn test_swap_router_ta_has_wrong_mint() {
+    let SwapSetupResult {
+        mut svm,
+        trader,
+        searcher,
+        input_token,
+        output_token,
+        router_output_ta,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_input:     input_token.get_amount_with_decimals(1.),
+        amount_output:    output_token.get_amount_with_decimals(1.),
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::Input,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        None,
+        None,
+        router_output_ta,
+        express_relay_metadata.fee_receiver_relayer,
+        input_token.mint,
+        output_token.mint,
+        Some(input_token.token_program),
+        Some(output_token.token_program),
+        swap_args,
+    );
+    let result =
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenMint.into());
+}
+
+#[test]
+fn test_swap_searcher_ta_wrong_mint() {
+    let SwapSetupResult {
+        mut svm,
+        trader,
+        searcher,
+        input_token,
+        output_token,
+        router_output_ta,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+    
+    let third_token = Token::create_mint(&mut svm, spl_token::ID, 6);
+    third_token.airdrop(&mut svm, &searcher.pubkey(), 10.);
+
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_input:     input_token.get_amount_with_decimals(1.),
+        amount_output:    output_token.get_amount_with_decimals(1.),
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::Output,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        Some(third_token.get_associated_token_address(&searcher.pubkey())),
+        None,
+        router_output_ta,
+        express_relay_metadata.fee_receiver_relayer,
+        input_token.mint,
+        output_token.mint,
+        Some(input_token.token_program),
+        Some(output_token.token_program),
+        swap_args,
+    );
+    let result =
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenMint.into());
+}
+
+#[test]
+fn test_swap_searcher_ta_wrong_owner() {
+    let SwapSetupResult {
+        mut svm,
+        trader,
+        searcher,
+        input_token,
+        output_token,
+        router_output_ta,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+    
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_input:     input_token.get_amount_with_decimals(1.),
+        amount_output:    output_token.get_amount_with_decimals(1.),
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::Output,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        Some(input_token.get_associated_token_address(&trader.pubkey())),
+        None,
+        router_output_ta,
+        express_relay_metadata.fee_receiver_relayer,
+        input_token.mint,
+        output_token.mint,
+        Some(input_token.token_program),
+        Some(output_token.token_program),
+        swap_args,
+    );
+    let result =
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenOwner.into());
+}
+
+#[test]
+fn test_swap_wrong_express_relay_fee_receiver() {
+    let SwapSetupResult {
+        mut svm,
+        trader,
+        searcher,
+        input_token,
+        output_token,
+        router_output_ta,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 6,
+    });
+    
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_input:     input_token.get_amount_with_decimals(1.),
+        amount_output:    output_token.get_amount_with_decimals(1.),
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::Output,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        None,
+        None,
+        router_output_ta,
+        Keypair::new().pubkey(),
+        input_token.mint,
+        output_token.mint,
+        Some(input_token.token_program),
+        Some(output_token.token_program),
+        swap_args,
+    );
+    let result =
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenOwner.into());
+}
+
