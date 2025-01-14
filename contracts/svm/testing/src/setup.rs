@@ -13,6 +13,9 @@ use {
     },
 };
 
+pub const SPLIT_ROUTER_DEFAULT: u64 = 4000;
+pub const SPLIT_RELAYER: u64 = 2000;
+
 pub struct SetupParams {
     pub split_router_default: u64,
     pub split_relayer:        u64,
@@ -29,11 +32,20 @@ pub struct SetupResult {
     pub searcher:             Keypair,
 }
 
-pub fn setup(params: SetupParams) -> Result<SetupResult, TransactionError> {
+impl Default for SetupParams {
+    fn default() -> Self {
+        Self {
+            split_router_default: SPLIT_ROUTER_DEFAULT,
+            split_relayer:        SPLIT_RELAYER,
+        }
+    }
+}
+
+pub fn setup(params: Option<SetupParams>) -> Result<SetupResult, TransactionError> {
     let SetupParams {
         split_router_default,
         split_relayer,
-    } = params;
+    } = params.unwrap_or_default();
 
     let mut svm = litesvm::LiteSVM::new();
     svm.add_program_from_file(express_relay::ID, "../target/deploy/express_relay.so")

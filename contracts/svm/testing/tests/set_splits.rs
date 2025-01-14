@@ -14,20 +14,13 @@ use {
             generate_and_fund_key,
             submit_transaction,
         },
-        setup::{
-            setup,
-            SetupParams,
-        },
+        setup::setup,
     },
 };
 
 #[test]
 fn test_set_splits() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;
@@ -38,7 +31,7 @@ fn test_set_splits() {
     submit_transaction(&mut svm, &[set_splits_ix], &admin, &[&admin])
         .expect("Transaction failed unexpectedly");
 
-    let express_relay_metadata = get_express_relay_metadata(svm);
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     assert_eq!(
         express_relay_metadata.split_router_default,
@@ -49,11 +42,7 @@ fn test_set_splits() {
 
 #[test]
 fn test_set_splits_fail_wrong_admin() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let wrong_admin = generate_and_fund_key(&mut svm);
@@ -70,11 +59,7 @@ fn test_set_splits_fail_wrong_admin() {
 
 #[test]
 fn test_set_splits_fail_high_split_router() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;
@@ -94,11 +79,7 @@ fn test_set_splits_fail_high_split_router() {
 
 #[test]
 fn test_set_splits_fail_high_split_relayer() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;

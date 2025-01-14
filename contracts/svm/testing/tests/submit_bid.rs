@@ -30,10 +30,7 @@ use {
             warp_to_unix,
             TX_FEE,
         },
-        setup::{
-            setup,
-            SetupParams,
-        },
+        setup::setup,
     },
 };
 
@@ -49,15 +46,8 @@ pub struct BidInfo {
     pub ixs:                  Vec<Instruction>,
 }
 
-pub const SPLIT_ROUTER_DEFAULT: u64 = 4000;
-pub const SPLIT_RELAYER: u64 = 2000;
-
 fn setup_bid() -> BidInfo {
-    let setup_result = setup(SetupParams {
-        split_router_default: SPLIT_ROUTER_DEFAULT,
-        split_relayer:        SPLIT_RELAYER,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let svm = setup_result.svm;
     let relayer_signer = setup_result.relayer_signer;
@@ -122,7 +112,7 @@ fn test_bid() {
     let balance_express_relay_metadata_post = get_balance(&svm, &express_relay_metadata_key);
     let balance_searcher_post = get_balance(&svm, &searcher.pubkey());
 
-    let express_relay_metadata_acc = get_express_relay_metadata(svm);
+    let express_relay_metadata_acc = get_express_relay_metadata(&mut svm);
     let expected_fee_router =
         bid_amount * express_relay_metadata_acc.split_router_default / FEE_SPLIT_PRECISION;
     let expected_fee_relayer = bid_amount.saturating_sub(expected_fee_router)

@@ -18,12 +18,6 @@ pub enum ErrorCode {
     InsufficientSearcherFunds,
     #[msg("Insufficient funds for rent")]
     InsufficientRent,
-    #[msg("Invalid ATA provided")]
-    InvalidAta,
-    #[msg("A token account has the wrong mint")]
-    InvalidMint,
-    #[msg("A token account belongs to the wrong token program")]
-    InvalidTokenProgram,
     #[msg("Invalid referral fee")]
     InvalidReferralFee,
 }
