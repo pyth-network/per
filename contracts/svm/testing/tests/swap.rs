@@ -1,5 +1,8 @@
 use {
-    anchor_lang::{error::ErrorCode as AnchorErrorCode, AccountDeserialize},
+    anchor_lang::{
+        error::ErrorCode as AnchorErrorCode,
+        AccountDeserialize,
+    },
     anchor_spl::{
         associated_token::{
             get_associated_token_address_with_program_id,
@@ -15,7 +18,10 @@ use {
         },
     },
     express_relay::{
-        error::ErrorCode, state::FEE_SPLIT_PRECISION, FeeToken, SwapArgs
+        error::ErrorCode,
+        state::FEE_SPLIT_PRECISION,
+        FeeToken,
+        SwapArgs,
     },
     litesvm::LiteSVM,
     solana_sdk::{
@@ -696,7 +702,8 @@ fn test_swap_right() {
         Some(output_token.token_program),
         swap_args,
     );
-    let result = submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
+    let result =
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 }
 
 #[test]
@@ -764,7 +771,7 @@ fn test_swap_searcher_ta_wrong_mint() {
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
-    
+
     let third_token = Token::create_mint(&mut svm, spl_token::ID, 6);
     third_token.airdrop(&mut svm, &searcher.pubkey(), 10.);
 
@@ -813,7 +820,7 @@ fn test_swap_searcher_ta_wrong_owner() {
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
-    
+
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
         amount_input:     input_token.get_amount_with_decimals(1.),
@@ -857,7 +864,7 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         output_token_program:  spl_token::ID,
         output_token_decimals: 6,
     });
-    
+
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
         amount_input:     input_token.get_amount_with_decimals(1.),
@@ -883,4 +890,3 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
     assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenOwner.into());
 }
-
