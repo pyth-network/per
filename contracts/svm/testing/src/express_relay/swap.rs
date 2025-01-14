@@ -36,16 +36,17 @@ pub fn create_swap_instruction(
     fee_receiver_relayer: Pubkey,
     mint_input: Pubkey,
     mint_output: Pubkey,
+    mint_fee_override: Option<Pubkey>,
     token_program_input: Option<Pubkey>,
     token_program_output: Option<Pubkey>,
     swap_args: SwapArgs,
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
 
-    let mint_fee = match swap_args.fee_token {
+    let mint_fee = mint_fee_override.unwrap_or(match swap_args.fee_token {
         FeeToken::Input => mint_input,
         FeeToken::Output => mint_output,
-    };
+    });
 
     let token_program_input = token_program_input.unwrap_or(spl_token::ID);
     let token_program_output = token_program_output.unwrap_or(spl_token::ID);
@@ -122,6 +123,7 @@ pub fn build_swap_instructions(
     fee_receiver_relayer: Pubkey,
     mint_input: Pubkey,
     mint_output: Pubkey,
+    mint_fee_override: Option<Pubkey>,
     token_program_input: Option<Pubkey>,
     token_program_output: Option<Pubkey>,
     swap_args: SwapArgs,
@@ -130,10 +132,10 @@ pub fn build_swap_instructions(
 
     let token_program_input = token_program_input.unwrap_or(spl_token::ID);
     let token_program_output = token_program_output.unwrap_or(spl_token::ID);
-    let mint_fee = match swap_args.fee_token {
+    let mint_fee = mint_fee_override.unwrap_or(match swap_args.fee_token {
         FeeToken::Input => mint_input,
         FeeToken::Output => mint_output,
-    };
+    });
     let token_program_fee = match swap_args.fee_token {
         FeeToken::Input => token_program_input,
         FeeToken::Output => token_program_output,
@@ -177,6 +179,7 @@ pub fn build_swap_instructions(
         fee_receiver_relayer,
         mint_input,
         mint_output,
+        mint_fee_override,
         Some(token_program_input),
         Some(token_program_output),
         swap_args,
