@@ -594,7 +594,7 @@ fn test_swap_expired_deadline() {
 
     // output token fee
     let swap_args = SwapArgs {
-        deadline:         svm.get_sysvar::<Clock>().unix_timestamp - 1,
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp - 1, // <--- deadline is in the past
         amount_input:     input_token.get_amount_with_decimals(1.),
         amount_output:    output_token.get_amount_with_decimals(1.),
         referral_fee_bps: 1500,
@@ -645,7 +645,7 @@ fn test_swap_invalid_referral_fee_bps() {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
         amount_input:     input_token.get_amount_with_decimals(1.),
         amount_output:    output_token.get_amount_with_decimals(1.),
-        referral_fee_bps: (FEE_SPLIT_PRECISION + 1) as u16,
+        referral_fee_bps: (FEE_SPLIT_PRECISION + 1) as u16, // <--- referral fee bps is too high
         fee_token:        FeeToken::Output,
     };
 
@@ -702,7 +702,7 @@ fn test_swap_router_ta_has_wrong_mint() {
         trader.pubkey(),
         None,
         None,
-        router_output_ta,
+        router_output_ta, // <--- router should receive the input token
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
@@ -751,7 +751,7 @@ fn test_swap_searcher_ta_wrong_mint() {
     let instructions = build_swap_instructions(
         searcher.pubkey(),
         trader.pubkey(),
-        Some(third_token.get_associated_token_address(&searcher.pubkey())),
+        Some(third_token.get_associated_token_address(&searcher.pubkey())), // <--- searcher input ta has the wrong mint
         None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
@@ -799,7 +799,7 @@ fn test_swap_searcher_ta_wrong_owner() {
     let instructions = build_swap_instructions(
         searcher.pubkey(),
         trader.pubkey(),
-        Some(input_token.get_associated_token_address(&trader.pubkey())),
+        Some(input_token.get_associated_token_address(&trader.pubkey())), // <--- searcher input ta has the wrong owner
         None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
@@ -848,7 +848,7 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         None,
         None,
         router_output_ta,
-        Keypair::new().pubkey(),
+        Keypair::new().pubkey(), // <--- wrong express relay fee receiver
         input_token.mint,
         output_token.mint,
         Some(input_token.token_program),
@@ -903,7 +903,7 @@ fn test_swap_trader_output_ata_is_not_ata() {
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
-        Some(trader_output_ata),
+        Some(trader_output_ata), // <--- trader output ata is not an ata
         None,
     );
     let result =
@@ -952,7 +952,7 @@ fn test_swap_wrong_mint_fee() {
         Some(output_token.token_program),
         swap_args,
         None,
-        Some(input_token.mint),
+        Some(input_token.mint), // <--- wrong mint fee
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
