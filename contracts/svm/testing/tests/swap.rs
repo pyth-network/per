@@ -358,15 +358,15 @@ fn test_swap_fee_input_token(args: SwapSetupParams) {
         trader.pubkey(),
         None,
         None,
-        None,
         router_input_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
-        None,
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        None,
+        None,
     );
     submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 
@@ -505,15 +505,15 @@ fn test_swap_fee_output_token(args: SwapSetupParams) {
         trader.pubkey(),
         None,
         None,
-        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
-        None,
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        None,
+        None,
     );
     submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
 
@@ -606,15 +606,15 @@ fn test_swap_expired_deadline() {
         trader.pubkey(),
         None,
         None,
-        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
-        None,
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        None,
+        None,
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
@@ -654,15 +654,15 @@ fn test_swap_invalid_referral_fee_bps() {
         trader.pubkey(),
         None,
         None,
-        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
-        None,
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        None,
+        None,
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
@@ -702,15 +702,15 @@ fn test_swap_router_ta_has_wrong_mint() {
         trader.pubkey(),
         None,
         None,
-        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
-        None,
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        None,
+        None,
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
@@ -753,15 +753,15 @@ fn test_swap_searcher_ta_wrong_mint() {
         trader.pubkey(),
         Some(third_token.get_associated_token_address(&searcher.pubkey())),
         None,
-        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
-        None,
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        None,
+        None,
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
@@ -801,15 +801,15 @@ fn test_swap_searcher_ta_wrong_owner() {
         trader.pubkey(),
         Some(input_token.get_associated_token_address(&trader.pubkey())),
         None,
-        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
-        None,
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        None,
+        None,
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
@@ -847,15 +847,15 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         trader.pubkey(),
         None,
         None,
-        None,
         router_output_ta,
         Keypair::new().pubkey(),
         input_token.mint,
         output_token.mint,
-        None,
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        None,
+        None,
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
@@ -896,15 +896,15 @@ fn test_swap_trader_output_ata_is_not_ata() {
         trader.pubkey(),
         None,
         None,
-        Some(trader_output_ata),
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
-        None,
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        Some(trader_output_ata),
+        None,
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
@@ -944,15 +944,15 @@ fn test_swap_wrong_mint_fee() {
         trader.pubkey(),
         None,
         None,
-        None,
         router_input_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
         output_token.mint,
-        Some(input_token.mint),
         Some(input_token.token_program),
         Some(output_token.token_program),
         swap_args,
+        None,
+        Some(input_token.mint),
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();

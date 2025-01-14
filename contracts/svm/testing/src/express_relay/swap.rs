@@ -31,15 +31,15 @@ pub fn create_swap_instruction(
     trader: Pubkey,
     searcher_input_ta: Option<Pubkey>,
     searcher_output_ta: Option<Pubkey>,
-    trader_output_ata_override: Option<Pubkey>,
     router_fee_receiver_ta: Pubkey,
     fee_receiver_relayer: Pubkey,
     mint_input: Pubkey,
     mint_output: Pubkey,
-    mint_fee_override: Option<Pubkey>,
     token_program_input: Option<Pubkey>,
     token_program_output: Option<Pubkey>,
     swap_args: SwapArgs,
+    trader_output_ata_override: Option<Pubkey>,
+    mint_fee_override: Option<Pubkey>,
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
 
@@ -118,15 +118,15 @@ pub fn build_swap_instructions(
     trader: Pubkey,
     searcher_input_ta: Option<Pubkey>,
     searcher_output_ta: Option<Pubkey>,
-    trader_output_ata_override: Option<Pubkey>,
     router_fee_receiver_ta: Pubkey,
     fee_receiver_relayer: Pubkey,
     mint_input: Pubkey,
     mint_output: Pubkey,
-    mint_fee_override: Option<Pubkey>,
     token_program_input: Option<Pubkey>,
     token_program_output: Option<Pubkey>,
     swap_args: SwapArgs,
+    trader_output_ata_override: Option<Pubkey>,
+    mint_fee_override: Option<Pubkey>,
 ) -> Vec<Instruction> {
     let mut instructions: Vec<Instruction> = vec![];
 
@@ -174,15 +174,15 @@ pub fn build_swap_instructions(
         trader,
         searcher_input_ta,
         searcher_output_ta,
-        trader_output_ata_override,
         router_fee_receiver_ta,
         fee_receiver_relayer,
         mint_input,
         mint_output,
-        mint_fee_override,
         Some(token_program_input),
         Some(token_program_output),
         swap_args,
+        trader_output_ata_override,
+        mint_fee_override,
     ));
 
     instructions
