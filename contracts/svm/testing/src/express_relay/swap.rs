@@ -31,6 +31,7 @@ pub fn create_swap_instruction(
     trader: Pubkey,
     searcher_input_ta: Option<Pubkey>,
     searcher_output_ta: Option<Pubkey>,
+    trader_output_ata_override: Option<Pubkey>,
     router_fee_receiver_ta: Pubkey,
     fee_receiver_relayer: Pubkey,
     mint_input: Pubkey,
@@ -75,10 +76,12 @@ pub fn create_swap_instruction(
             &mint_input,
             &token_program_input,
         ),
-        trader_output_ata: get_associated_token_address_with_program_id(
-            &trader,
-            &mint_output,
-            &token_program_output,
+        trader_output_ata: trader_output_ata_override.unwrap_or(
+            get_associated_token_address_with_program_id(
+                &trader,
+                &mint_output,
+                &token_program_output,
+            ),
         ),
         router_fee_receiver_ta,
         relayer_fee_receiver_ata: get_associated_token_address_with_program_id(
@@ -114,6 +117,7 @@ pub fn build_swap_instructions(
     trader: Pubkey,
     searcher_input_ta: Option<Pubkey>,
     searcher_output_ta: Option<Pubkey>,
+    trader_output_ata_override: Option<Pubkey>,
     router_fee_receiver_ta: Pubkey,
     fee_receiver_relayer: Pubkey,
     mint_input: Pubkey,
@@ -168,6 +172,7 @@ pub fn build_swap_instructions(
         trader,
         searcher_input_ta,
         searcher_output_ta,
+        trader_output_ata_override,
         router_fee_receiver_ta,
         fee_receiver_relayer,
         mint_input,

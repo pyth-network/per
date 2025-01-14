@@ -358,6 +358,7 @@ fn test_swap_fee_input_token(args: SwapSetupParams) {
         trader.pubkey(),
         None,
         None,
+        None,
         router_input_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
@@ -503,6 +504,7 @@ fn test_swap_fee_output_token(args: SwapSetupParams) {
         trader.pubkey(),
         None,
         None,
+        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
@@ -602,6 +604,7 @@ fn test_swap_expired_deadline() {
         trader.pubkey(),
         None,
         None,
+        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
@@ -646,6 +649,7 @@ fn test_swap_invalid_referral_fee_bps() {
     let instructions = build_swap_instructions(
         searcher.pubkey(),
         trader.pubkey(),
+        None,
         None,
         None,
         router_output_ta,
@@ -694,6 +698,7 @@ fn test_swap_right() {
         trader.pubkey(),
         None,
         None,
+        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
@@ -737,6 +742,7 @@ fn test_swap_router_ta_has_wrong_mint() {
     let instructions = build_swap_instructions(
         searcher.pubkey(),
         trader.pubkey(),
+        None,
         None,
         None,
         router_output_ta,
@@ -788,6 +794,7 @@ fn test_swap_searcher_ta_wrong_mint() {
         trader.pubkey(),
         Some(third_token.get_associated_token_address(&searcher.pubkey())),
         None,
+        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
@@ -834,6 +841,7 @@ fn test_swap_searcher_ta_wrong_owner() {
         trader.pubkey(),
         Some(input_token.get_associated_token_address(&trader.pubkey())),
         None,
+        None,
         router_output_ta,
         express_relay_metadata.fee_receiver_relayer,
         input_token.mint,
@@ -878,6 +886,7 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         trader.pubkey(),
         None,
         None,
+        None,
         router_output_ta,
         Keypair::new().pubkey(),
         input_token.mint,
@@ -889,4 +898,52 @@ fn test_swap_wrong_express_relay_fee_receiver() {
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
     assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenOwner.into());
+}
+
+#[test]
+fn test_swap_trader_output_ata_is_not_ata() {
+    let SwapSetupResult {
+        mut svm,
+        trader,
+        searcher,
+        input_token,
+        output_token,
+        router_output_ta,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:      1000,
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+    let trader_output_ata = output_token.create_token_account(&mut svm, &trader.pubkey());
+
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_input:     input_token.get_amount_with_decimals(1.),
+        amount_output:    output_token.get_amount_with_decimals(1.),
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::Output,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        None,
+        None,
+        Some(trader_output_ata),
+        router_output_ta,
+        express_relay_metadata.fee_receiver_relayer,
+        input_token.mint,
+        output_token.mint,
+        Some(input_token.token_program),
+        Some(output_token.token_program),
+        swap_args,
+    );
+    let result =
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintAssociated.into());
 }
