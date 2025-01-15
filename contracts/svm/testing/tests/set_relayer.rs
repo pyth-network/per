@@ -1,6 +1,7 @@
 use {
     anchor_lang::error::ErrorCode as AnchorErrorCode,
     solana_sdk::{
+        instruction::InstructionError,
         signature::Keypair,
         signer::Signer,
     },
@@ -55,5 +56,9 @@ fn test_set_relayer_fail_wrong_admin() {
     let tx_result = submit_transaction(&mut svm, &[set_relayer_ix], &wrong_admin, &[&wrong_admin])
         .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }

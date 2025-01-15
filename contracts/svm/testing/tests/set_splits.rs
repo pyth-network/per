@@ -4,6 +4,7 @@ use {
         error::ErrorCode,
         state::FEE_SPLIT_PRECISION,
     },
+    solana_sdk::instruction::InstructionError,
     testing::{
         express_relay::{
             helpers::get_express_relay_metadata,
@@ -54,7 +55,11 @@ fn test_set_splits_fail_wrong_admin() {
     let tx_result = submit_transaction(&mut svm, &[set_splits_ix], &wrong_admin, &[&wrong_admin])
         .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }
 
 #[test]
@@ -73,7 +78,7 @@ fn test_set_splits_fail_high_split_router() {
     assert_custom_error(
         tx_result.err,
         0,
-        ErrorCode::FeeSplitLargerThanPrecision.into(),
+        InstructionError::Custom(ErrorCode::FeeSplitLargerThanPrecision.into()),
     );
 }
 
@@ -93,6 +98,6 @@ fn test_set_splits_fail_high_split_relayer() {
     assert_custom_error(
         tx_result.err,
         0,
-        ErrorCode::FeeSplitLargerThanPrecision.into(),
+        InstructionError::Custom(ErrorCode::FeeSplitLargerThanPrecision.into()),
     );
 }

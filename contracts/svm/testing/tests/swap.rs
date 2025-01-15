@@ -26,6 +26,7 @@ use {
     litesvm::LiteSVM,
     solana_sdk::{
         clock::Clock,
+        instruction::InstructionError,
         program_pack::Pack,
         pubkey::Pubkey,
         signature::{
@@ -618,7 +619,11 @@ fn test_swap_expired_deadline() {
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
-    assert_custom_error(result.err, 4, ErrorCode::DeadlinePassed.into());
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(ErrorCode::DeadlinePassed.into()),
+    );
 }
 
 #[test]
@@ -666,7 +671,59 @@ fn test_swap_invalid_referral_fee_bps() {
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
-    assert_custom_error(result.err, 4, ErrorCode::InvalidReferralFee.into());
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(ErrorCode::InvalidReferralFee.into()),
+    );
+}
+
+#[test]
+fn test_swap_fee_calculation_overflow() {
+    let SwapSetupResult {
+        mut svm,
+        trader,
+        searcher,
+        input_token,
+        output_token,
+        router_output_ta,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:      5000, // <--- high platform fee bps
+        input_token_program:   spl_token::ID,
+        input_token_decimals:  6,
+        output_token_program:  spl_token::ID,
+        output_token_decimals: 6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_input:     input_token.get_amount_with_decimals(1.),
+        amount_output:    output_token.get_amount_with_decimals(1.),
+        referral_fee_bps: 5001, // <--- referral fee bps + platform fee bps is more than 100%
+        fee_token:        FeeToken::Output,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        trader.pubkey(),
+        None,
+        None,
+        router_output_ta,
+        express_relay_metadata.fee_receiver_relayer,
+        input_token.mint,
+        output_token.mint,
+        Some(input_token.token_program),
+        Some(output_token.token_program),
+        swap_args,
+        None,
+        None,
+    );
+    let result =
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+    assert_custom_error(result.err, 4, InstructionError::ArithmeticOverflow);
 }
 
 #[test]
@@ -714,7 +771,11 @@ fn test_swap_router_ta_has_wrong_mint() {
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
-    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenMint.into());
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(AnchorErrorCode::ConstraintTokenMint.into()),
+    );
 }
 
 #[test]
@@ -765,7 +826,11 @@ fn test_swap_searcher_ta_wrong_mint() {
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
-    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenMint.into());
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(AnchorErrorCode::ConstraintTokenMint.into()),
+    );
 }
 
 #[test]
@@ -813,7 +878,11 @@ fn test_swap_searcher_ta_wrong_owner() {
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
-    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenOwner.into());
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(AnchorErrorCode::ConstraintTokenOwner.into()),
+    );
 }
 
 #[test]
@@ -859,7 +928,11 @@ fn test_swap_wrong_express_relay_fee_receiver() {
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
-    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintTokenOwner.into());
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(AnchorErrorCode::ConstraintTokenOwner.into()),
+    );
 }
 
 #[test]
@@ -908,7 +981,11 @@ fn test_swap_trader_output_ata_is_not_ata() {
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
-    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintAssociated.into());
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(AnchorErrorCode::ConstraintAssociated.into()),
+    );
 }
 
 #[test]
@@ -956,5 +1033,9 @@ fn test_swap_wrong_mint_fee() {
     );
     let result =
         submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
-    assert_custom_error(result.err, 4, AnchorErrorCode::ConstraintRaw.into());
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(AnchorErrorCode::ConstraintRaw.into()),
+    );
 }
