@@ -1,7 +1,6 @@
 use {
     anchor_lang::{
         error::ErrorCode as AnchorErrorCode,
-        prelude::ProgramError,
         AccountDeserialize,
     },
     anchor_spl::{
