@@ -5,6 +5,7 @@ use {
         state::FEE_SPLIT_PRECISION,
     },
     solana_sdk::{
+        instruction::InstructionError,
         signature::Keypair,
         signer::Signer,
     },
@@ -59,7 +60,11 @@ fn test_set_router_split_fail_wrong_admin() {
     )
     .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }
 
 #[test]
@@ -78,6 +83,6 @@ fn test_set_router_split_fail_high_split() {
     assert_custom_error(
         tx_result.err,
         0,
-        ErrorCode::FeeSplitLargerThanPrecision.into(),
+        InstructionError::Custom(ErrorCode::FeeSplitLargerThanPrecision.into()),
     );
 }

@@ -2,6 +2,7 @@ use {
     anchor_lang::error::ErrorCode as AnchorErrorCode,
     express_relay::state::RESERVE_EXPRESS_RELAY_METADATA,
     solana_sdk::{
+        instruction::InstructionError,
         native_token::LAMPORTS_PER_SOL,
         signature::Keypair,
         signer::Signer,
@@ -71,5 +72,9 @@ fn test_withdraw_fees_fail_wrong_admin() {
         submit_transaction(&mut svm, &[withdraw_fees_ix], &wrong_admin, &[&wrong_admin])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }

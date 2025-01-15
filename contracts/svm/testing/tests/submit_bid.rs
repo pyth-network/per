@@ -6,7 +6,10 @@ use {
         state::FEE_SPLIT_PRECISION,
     },
     solana_sdk::{
-        instruction::Instruction,
+        instruction::{
+            Instruction,
+            InstructionError,
+        },
         native_token::LAMPORTS_PER_SOL,
         pubkey::Pubkey,
         rent::Rent,
@@ -175,7 +178,11 @@ fn test_bid_fail_wrong_relayer_signer() {
     )
     .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }
 
 #[test]
@@ -209,7 +216,11 @@ fn test_bid_fail_wrong_relayer_fee_receiver() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }
 
 #[test]
@@ -247,7 +258,7 @@ fn test_bid_fail_insufficient_searcher_rent() {
     assert_custom_error(
         tx_result.err,
         0,
-        ErrorCode::InsufficientSearcherFunds.into(),
+        InstructionError::Custom(ErrorCode::InsufficientSearcherFunds.into()),
     );
 }
 
@@ -282,7 +293,11 @@ fn test_bid_fail_insufficient_router_rent() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::InsufficientRent.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::InsufficientRent.into()),
+    );
 }
 
 #[test]
@@ -329,7 +344,11 @@ fn test_bid_fail_insufficient_relayer_fee_receiver_rent() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::InsufficientRent.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::InsufficientRent.into()),
+    );
 }
 
 #[test]
@@ -363,7 +382,11 @@ fn test_bid_fail_passed_deadline() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::DeadlinePassed.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::DeadlinePassed.into()),
+    );
 }
 
 #[test]
@@ -397,7 +420,11 @@ fn test_bid_fail_wrong_permission_key() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 1, ErrorCode::MissingPermission.into());
+    assert_custom_error(
+        tx_result.err,
+        1,
+        InstructionError::Custom(ErrorCode::MissingPermission.into()),
+    );
 }
 
 #[test]
@@ -431,7 +458,11 @@ fn test_bid_fail_wrong_router_key() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 1, ErrorCode::MissingPermission.into());
+    assert_custom_error(
+        tx_result.err,
+        1,
+        InstructionError::Custom(ErrorCode::MissingPermission.into()),
+    );
 }
 
 #[test]
@@ -451,7 +482,11 @@ fn test_bid_fail_no_permission() {
     let tx_result = submit_transaction(&mut svm, &ixs, &searcher, &[&searcher])
         .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::MissingPermission.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::MissingPermission.into()),
+    );
 }
 
 #[test]
@@ -494,5 +529,9 @@ fn test_bid_fail_duplicate_permission() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::MultiplePermissions.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::MultiplePermissions.into()),
+    );
 }

@@ -5,6 +5,7 @@ use {
         state::FEE_SPLIT_PRECISION,
     },
     litesvm::LiteSVM,
+    solana_sdk::instruction::InstructionError,
     testing::{
         express_relay::{
             helpers::get_express_relay_metadata,
@@ -63,7 +64,11 @@ fn test_set_swap_platform_fee_wrong_admin() {
     )
     .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }
 
 #[test]
@@ -78,6 +83,6 @@ fn test_set_swap_platform_fee_fail_high_split_router() {
     assert_custom_error(
         tx_result.err,
         0,
-        ErrorCode::FeeSplitLargerThanPrecision.into(),
+        InstructionError::Custom(ErrorCode::FeeSplitLargerThanPrecision.into()),
     );
 }
