@@ -6,7 +6,12 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
-import {BidSvm, BidSvmOnChain, BidSvmSwap, ExpressRelaySvmConfig, OpportunitySvmSwap} from "./types";
+import {
+  BidSvmOnChain,
+  BidSvmSwap,
+  ExpressRelaySvmConfig,
+  OpportunitySvmSwap,
+} from "./types";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
@@ -96,7 +101,7 @@ export function getAssociatedTokenAddress(
   return getAssociatedTokenAddressSync(
     tokenMintAddress,
     owner,
-      true, //allow owner to be off-curve
+    true, //allow owner to be off-curve
     tokenProgram,
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
@@ -109,14 +114,15 @@ export function createAtaIdempotentInstruction(
   tokenProgram: PublicKey
 ): [PublicKey, TransactionInstruction] {
   const ataAddress = getAssociatedTokenAddress(owner, mint, tokenProgram);
-  const createUserTokenAccountIx = createAssociatedTokenAccountIdempotentInstruction(
-    payer,
-    ataAddress,
-    owner,
-    mint,
-    tokenProgram,
-    ASSOCIATED_TOKEN_PROGRAM_ID
-  );
+  const createUserTokenAccountIx =
+    createAssociatedTokenAccountIdempotentInstruction(
+      payer,
+      ataAddress,
+      owner,
+      mint,
+      tokenProgram,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
   return [ataAddress, createUserTokenAccountIx];
 }
 
@@ -162,7 +168,10 @@ export async function constructSwapBid(
         : bidAmount,
     referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
     deadline,
-    feeToken: swapOpportunity.feeToken === 'input_token' ? {input: {}} : {output: {}},
+    feeToken:
+      swapOpportunity.feeToken === "input_token"
+        ? { input: {} }
+        : { output: {} },
   };
   const ixSwap = await expressRelay.methods
     .swap(swapArgs)
@@ -215,7 +224,7 @@ export async function constructSwapBid(
     .instruction();
   ixSwap.programId = svmConstants.expressRelayProgram;
   tx.instructions.push(
-      createAtaIdempotentInstruction(
+    createAtaIdempotentInstruction(
       router,
       mintFee,
       searcher,
@@ -223,7 +232,7 @@ export async function constructSwapBid(
     )[1]
   );
   tx.instructions.push(
-      createAtaIdempotentInstruction(
+    createAtaIdempotentInstruction(
       relayerSigner,
       mintFee,
       searcher,
@@ -231,7 +240,7 @@ export async function constructSwapBid(
     )[1]
   );
   tx.instructions.push(
-      createAtaIdempotentInstruction(
+    createAtaIdempotentInstruction(
       expressRelayMetadata,
       mintFee,
       searcher,
@@ -239,7 +248,7 @@ export async function constructSwapBid(
     )[1]
   );
   tx.instructions.push(
-      createAtaIdempotentInstruction(
+    createAtaIdempotentInstruction(
       trader,
       mintOutput,
       searcher,
@@ -251,7 +260,7 @@ export async function constructSwapBid(
   return {
     transaction: tx,
     opportunityId: swapOpportunity.opportunityId,
-    type:"swap",
+    type: "swap",
     chainId: chainId,
     env: "svm",
   };
@@ -284,7 +293,7 @@ export async function constructSvmBid(
   return {
     transaction: tx,
     chainId: chainId,
-    type:"onchain",
+    type: "onchain",
     env: "svm",
   };
 }

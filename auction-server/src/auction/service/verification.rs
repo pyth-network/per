@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use {
     super::{
         auction_manager::TOTAL_BIDS_PER_AUCTION_EVM,
@@ -11,6 +10,7 @@ use {
             entities::{
                 self,
                 BidChainData,
+                BidChainDataCreateSvm,
                 BidPaymentInstructionType,
                 SubmitType,
             },
@@ -38,6 +38,7 @@ use {
             },
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
+                get_opportunities::GetOpportunityByIdInput,
                 get_quote::get_quote_permission_key,
             },
         },
@@ -79,14 +80,13 @@ use {
         transaction::VersionedTransaction,
     },
     std::{
+        str::FromStr,
         sync::Arc,
         time::Duration,
     },
     time::OffsetDateTime,
     uuid::Uuid,
 };
-use crate::auction::entities::BidChainDataCreateSvm;
-use crate::opportunity::service::get_opportunities::GetOpportunityByIdInput;
 
 pub struct VerifyBidInput<T: ChainTrait> {
     pub bid_create: entities::BidCreate<T>,
@@ -486,9 +486,7 @@ impl Service<Svm> {
         &self,
         bid_chain_data_create_svm: &BidChainDataCreateSvm,
     ) -> Result<BidDataSvm, RestError> {
-        let svm_config = &self.config
-            .chain_config
-            .express_relay;
+        let svm_config = &self.config.chain_config.express_relay;
         match bid_chain_data_create_svm {
             BidChainDataCreateSvm::OnChain(bid_data) => {
                 let submit_bid_instruction = self.extract_express_relay_bid_instruction(
@@ -524,7 +522,7 @@ impl Service<Svm> {
                         })?,
                     submit_type: SubmitType::ByServer,
                 })
-            },
+            }
             BidChainDataCreateSvm::Swap(bid_data) => {
                 let swap_instruction = self.extract_express_relay_bid_instruction(
                     bid_data.transaction.clone(),
@@ -582,9 +580,15 @@ impl Service<Svm> {
                     FeeToken::Output => mint_output,
                 };
 
-                let opp = self.opportunity_service.get_opportunity_by_id(GetOpportunityByIdInput { opportunity_id: bid_data.opportunity_id }).await.ok_or(
-                    RestError::BadParameters("No swap opportunity with the given id found".to_string())
-                )?;
+                let opp = self
+                    .opportunity_service
+                    .get_opportunity_by_id(GetOpportunityByIdInput {
+                        opportunity_id: bid_data.opportunity_id,
+                    })
+                    .await
+                    .ok_or(RestError::BadParameters(
+                        "No swap opportunity with the given id found".to_string(),
+                    ))?;
 
                 let router_fee_receiver_ta = self
                     .extract_account(
@@ -601,18 +605,18 @@ impl Service<Svm> {
                 let fee_token_program = Pubkey::from_str(
                     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
                 )
-                    .map_err(|e| {
-                        RestError::BadParameters(format!("Invalid token program address: {:?}", e))
-                    })?;
+                .map_err(|e| {
+                    RestError::BadParameters(format!("Invalid token program address: {:?}", e))
+                })?;
                 let associated_token_program = Pubkey::from_str(
                     "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
                 )
-                    .map_err(|e| {
-                        RestError::BadParameters(format!(
-                            "Invalid associated token program address: {:?}",
-                            e
-                        ))
-                    })?;
+                .map_err(|e| {
+                    RestError::BadParameters(format!(
+                        "Invalid associated token program address: {:?}",
+                        e
+                    ))
+                })?;
 
                 let expected_router_fee_receiver_ta = Pubkey::find_program_address(
                     &[
@@ -622,7 +626,7 @@ impl Service<Svm> {
                     ],
                     &associated_token_program,
                 )
-                    .0;
+                .0;
 
                 if router_fee_receiver_ta != expected_router_fee_receiver_ta {
                     return Err(RestError::BadParameters(
@@ -647,7 +651,6 @@ impl Service<Svm> {
                     )?,
                     submit_type: SubmitType::ByOther,
                 })
-
             }
         }
     }
@@ -747,11 +750,10 @@ impl Service<Svm> {
         const RETRY_DELAY: Duration = Duration::from_millis(100);
         let mut retry_count = 0;
         let bid_slot = match &bid.chain_data {
-            BidChainDataCreateSvm::OnChain(onchain_data) => {
-                onchain_data.slot
-            }
-            BidChainDataCreateSvm::Swap(_) => None
-        }.unwrap_or_default();
+            BidChainDataCreateSvm::OnChain(onchain_data) => onchain_data.slot,
+            BidChainDataCreateSvm::Swap(_) => None,
+        }
+        .unwrap_or_default();
 
         let should_retry = |result_slot: Slot,
                             retry_count: usize,
@@ -776,7 +778,7 @@ impl Service<Svm> {
                 .config
                 .chain_config
                 .simulator
-                .simulate_transaction(&bid.chain_data.get_transaction())
+                .simulate_transaction(bid.chain_data.get_transaction())
                 .await;
             let result = response.map_err(|e| {
                 tracing::error!("Error while simulating bid: {:?}", e);
@@ -866,9 +868,7 @@ impl Verification<Svm> for Service<Svm> {
         let transaction = bid.chain_data.get_transaction().clone();
         Svm::check_tx_size(&transaction)?;
         self.check_compute_budget(&transaction).await?;
-        let bid_data = self
-            .extract_bid_data(&bid.chain_data)
-            .await?;
+        let bid_data = self.extract_bid_data(&bid.chain_data).await?;
         let bid_payment_instruction_type = match bid_data.submit_type {
             SubmitType::ByServer => BidPaymentInstructionType::SubmitBid,
             // TODO*: we should verify all components of the swap here (token amounts, fee token side, referral fee)

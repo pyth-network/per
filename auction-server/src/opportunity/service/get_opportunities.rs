@@ -9,8 +9,8 @@ use {
     },
     express_relay_api_types::opportunity::{
         GetOpportunitiesQueryParams,
+        OpportunityId,
         OpportunityMode,
-        OpportunityId
     },
 };
 
@@ -26,8 +26,10 @@ impl<T: ChainType> Service<T> {
     pub async fn get_opportunity_by_id(
         &self,
         input: GetOpportunityByIdInput,
-    )-> Option<<T::InMemoryStore as InMemoryStore>::Opportunity> {
-        self.repo.get_in_memory_opportunity_by_id(input.opportunity_id).await
+    ) -> Option<<T::InMemoryStore as InMemoryStore>::Opportunity> {
+        self.repo
+            .get_in_memory_opportunity_by_id(input.opportunity_id)
+            .await
     }
     pub async fn get_opportunities(
         &self,

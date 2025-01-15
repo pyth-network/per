@@ -269,18 +269,18 @@ pub struct BidChainDataOnChainCreateSvm {
 
 #[derive(Clone, Debug)]
 pub struct BidChainDataSwapCreateSvm {
-    pub transaction: VersionedTransaction,
-    pub opportunity_id : Uuid,
+    pub transaction:    VersionedTransaction,
+    pub opportunity_id: Uuid,
 }
 
 
 #[derive(Clone, Debug)]
-pub enum BidChainDataCreateSvm{
+pub enum BidChainDataCreateSvm {
     OnChain(BidChainDataOnChainCreateSvm),
     Swap(BidChainDataSwapCreateSvm),
 }
 
-impl BidChainDataCreateSvm{
+impl BidChainDataCreateSvm {
     pub fn get_transaction(&self) -> &VersionedTransaction {
         match self {
             BidChainDataCreateSvm::OnChain(data) => &data.transaction,

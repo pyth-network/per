@@ -1,5 +1,6 @@
 use {
     crate::{
+        opportunity::OpportunityId,
         profile::ProfileId,
         AccessLevel,
         ChainId,
@@ -35,7 +36,6 @@ use {
     },
     uuid::Uuid,
 };
-use crate::opportunity::OpportunityId;
 
 pub type BidId = Uuid;
 pub type BidAmountSvm = u64;
@@ -269,24 +269,24 @@ pub struct BidCreateOnChainSvm {
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum BidCreateSwapSvmTag {
-    Swap
+    Swap,
 }
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct BidCreateSwapSvm {
     /// The chain id to bid on.
     #[schema(example = "solana", value_type = String)]
-    pub chain_id:    ChainId,
+    pub chain_id:       ChainId,
     /// The transaction for bid.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde(with = "crate::serde::transaction_svm")]
-    pub transaction: VersionedTransaction,
+    pub transaction:    VersionedTransaction,
     /// The id of the swap opportunity to bid on.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub opportunity_id: OpportunityId,
     /// The bid type. Should be "swap"
     #[schema(example = "swap")]
     #[serde(rename = "type")]
-    pub _type: BidCreateSwapSvmTag, // this is mainly to distinguish next types of bids in the future
+    pub _type:          BidCreateSwapSvmTag, // this is mainly to distinguish next types of bids in the future
 }
 
 
@@ -338,7 +338,9 @@ impl BidCreate {
         match self {
             BidCreate::Evm(bid_create_evm) => bid_create_evm.chain_id.clone(),
             BidCreate::Svm(BidCreateSvm::Swap(bid_create_svm)) => bid_create_svm.chain_id.clone(),
-            BidCreate::Svm(BidCreateSvm::OnChain(bid_create_svm)) => bid_create_svm.chain_id.clone(),
+            BidCreate::Svm(BidCreateSvm::OnChain(bid_create_svm)) => {
+                bid_create_svm.chain_id.clone()
+            }
         }
     }
 }

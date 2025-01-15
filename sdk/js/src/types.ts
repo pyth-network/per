@@ -253,7 +253,7 @@ export type BidSvmOnChain = {
    * @example 293106477
    */
   slot?: number | null;
-  type:"onchain";
+  type: "onchain";
   /**
    * @description The execution environment for the bid.
    */
@@ -279,7 +279,7 @@ export type BidSvmSwap = {
    * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
    */
   opportunityId: string;
-  type:"swap";
+  type: "swap";
   /**
    * @description The execution environment for the bid.
    */

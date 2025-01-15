@@ -11,7 +11,6 @@ import {
   BidParams,
   BidsResponse,
   BidStatusUpdate,
-  BidSvm,
   ExpressRelaySvmConfig,
   Opportunity,
   OpportunityBid,
@@ -22,7 +21,8 @@ import {
   OpportunityDelete,
   ChainType,
   QuoteRequest,
-  QuoteResponse, BidSvmOnChain,
+  QuoteResponse,
+  BidSvmOnChain,
 } from "./types";
 import {
   Connection,
@@ -656,22 +656,22 @@ export class Client {
         permission_key: bid.permissionKey,
       };
     }
-    if (bid.type==='swap') {
+    if (bid.type === "swap") {
       return {
         chain_id: bid.chainId,
         opportunity_id: bid.opportunityId,
-        type:"swap",
+        type: "swap",
         transaction: bid.transaction
-            .serialize({requireAllSignatures: false})
-            .toString("base64"),
+          .serialize({ requireAllSignatures: false })
+          .toString("base64"),
       };
     } else {
       return {
         chain_id: bid.chainId,
         slot: bid.slot,
         transaction: bid.transaction
-            .serialize({requireAllSignatures: false})
-            .toString("base64"),
+          .serialize({ requireAllSignatures: false })
+          .toString("base64"),
       };
     }
   }

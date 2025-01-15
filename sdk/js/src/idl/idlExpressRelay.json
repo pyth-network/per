@@ -15,16 +15,7 @@
         "Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts.",
         "Returns the fees paid to the router in the matching instructions."
       ],
-      "discriminator": [
-        154,
-        199,
-        232,
-        242,
-        96,
-        72,
-        197,
-        236
-      ],
+      "discriminator": [154, 199, 232, 242, 96, 72, 197, 236],
       "accounts": [
         {
           "name": "sysvar_instructions",
@@ -43,19 +34,7 @@
               {
                 "kind": "const",
                 "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103,
-                  95,
-                  114,
-                  111,
-                  117,
-                  116,
-                  101,
-                  114
+                  99, 111, 110, 102, 105, 103, 95, 114, 111, 117, 116, 101, 114
                 ]
               },
               {
@@ -71,16 +50,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -91,16 +61,7 @@
     },
     {
       "name": "initialize",
-      "discriminator": [
-        175,
-        175,
-        109,
-        31,
-        13,
-        152,
-        155,
-        237
-      ],
+      "discriminator": [175, 175, 109, 31, 13, 152, 155, 237],
       "accounts": [
         {
           "name": "payer",
@@ -114,16 +75,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -155,23 +107,12 @@
     },
     {
       "name": "set_admin",
-      "discriminator": [
-        251,
-        163,
-        0,
-        52,
-        91,
-        194,
-        187,
-        92
-      ],
+      "discriminator": [251, 163, 0, 52, 91, 194, 187, 92],
       "accounts": [
         {
           "name": "admin",
           "signer": true,
-          "relations": [
-            "express_relay_metadata"
-          ]
+          "relations": ["express_relay_metadata"]
         },
         {
           "name": "express_relay_metadata",
@@ -180,16 +121,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -202,23 +134,12 @@
     },
     {
       "name": "set_relayer",
-      "discriminator": [
-        23,
-        243,
-        33,
-        88,
-        110,
-        84,
-        196,
-        37
-      ],
+      "discriminator": [23, 243, 33, 88, 110, 84, 196, 37],
       "accounts": [
         {
           "name": "admin",
           "signer": true,
-          "relations": [
-            "express_relay_metadata"
-          ]
+          "relations": ["express_relay_metadata"]
         },
         {
           "name": "express_relay_metadata",
@@ -227,16 +148,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -252,24 +164,13 @@
     },
     {
       "name": "set_router_split",
-      "discriminator": [
-        16,
-        150,
-        106,
-        13,
-        27,
-        191,
-        104,
-        8
-      ],
+      "discriminator": [16, 150, 106, 13, 27, 191, 104, 8],
       "accounts": [
         {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "relations": [
-            "express_relay_metadata"
-          ]
+          "relations": ["express_relay_metadata"]
         },
         {
           "name": "config_router",
@@ -279,19 +180,7 @@
               {
                 "kind": "const",
                 "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103,
-                  95,
-                  114,
-                  111,
-                  117,
-                  116,
-                  101,
-                  114
+                  99, 111, 110, 102, 105, 103, 95, 114, 111, 117, 116, 101, 114
                 ]
               },
               {
@@ -307,16 +196,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -342,23 +222,12 @@
     },
     {
       "name": "set_splits",
-      "discriminator": [
-        175,
-        2,
-        86,
-        49,
-        225,
-        202,
-        232,
-        189
-      ],
+      "discriminator": [175, 2, 86, 49, 225, 202, 232, 189],
       "accounts": [
         {
           "name": "admin",
           "signer": true,
-          "relations": [
-            "express_relay_metadata"
-          ]
+          "relations": ["express_relay_metadata"]
         },
         {
           "name": "express_relay_metadata",
@@ -367,16 +236,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -395,23 +255,12 @@
     },
     {
       "name": "set_swap_platform_fee",
-      "discriminator": [
-        2,
-        135,
-        75,
-        15,
-        8,
-        105,
-        142,
-        47
-      ],
+      "discriminator": [2, 135, 75, 15, 8, 105, 142, 47],
       "accounts": [
         {
           "name": "admin",
           "signer": true,
-          "relations": [
-            "express_relay_metadata"
-          ]
+          "relations": ["express_relay_metadata"]
         },
         {
           "name": "express_relay_metadata",
@@ -420,16 +269,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -451,16 +291,7 @@
       "docs": [
         "Submits a bid for a particular (permission, router) pair and distributes bids according to splits."
       ],
-      "discriminator": [
-        19,
-        164,
-        237,
-        254,
-        64,
-        139,
-        237,
-        93
-      ],
+      "discriminator": [19, 164, 237, 254, 64, 139, 237, 93],
       "accounts": [
         {
           "name": "searcher",
@@ -470,9 +301,7 @@
         {
           "name": "relayer_signer",
           "signer": true,
-          "relations": [
-            "express_relay_metadata"
-          ]
+          "relations": ["express_relay_metadata"]
         },
         {
           "name": "permission"
@@ -488,19 +317,7 @@
               {
                 "kind": "const",
                 "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103,
-                  95,
-                  114,
-                  111,
-                  117,
-                  116,
-                  101,
-                  114
+                  99, 111, 110, 102, 105, 103, 95, 114, 111, 117, 116, 101, 114
                 ]
               },
               {
@@ -517,16 +334,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -534,9 +342,7 @@
         {
           "name": "fee_receiver_relayer",
           "writable": true,
-          "relations": [
-            "express_relay_metadata"
-          ]
+          "relations": ["express_relay_metadata"]
         },
         {
           "name": "system_program",
@@ -560,16 +366,7 @@
     },
     {
       "name": "swap",
-      "discriminator": [
-        248,
-        198,
-        158,
-        145,
-        225,
-        117,
-        135,
-        200
-      ],
+      "discriminator": [248, 198, 158, 145, 225, 117, 135, 200],
       "accounts": [
         {
           "name": "searcher",
@@ -614,38 +411,9 @@
             "program": {
               "kind": "const",
               "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
+                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
+                219, 233, 248, 89
               ]
             }
           }
@@ -671,38 +439,9 @@
             "program": {
               "kind": "const",
               "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
+                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
+                219, 233, 248, 89
               ]
             }
           }
@@ -736,38 +475,9 @@
             "program": {
               "kind": "const",
               "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
+                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
+                219, 233, 248, 89
               ]
             }
           }
@@ -793,38 +503,9 @@
             "program": {
               "kind": "const",
               "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
+                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
+                219, 233, 248, 89
               ]
             }
           }
@@ -849,23 +530,12 @@
         },
         {
           "name": "express_relay_metadata",
-          "docs": [
-            "Express relay configuration"
-          ],
+          "docs": ["Express relay configuration"],
           "pda": {
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -884,23 +554,12 @@
     },
     {
       "name": "withdraw_fees",
-      "discriminator": [
-        198,
-        212,
-        171,
-        109,
-        144,
-        215,
-        174,
-        89
-      ],
+      "discriminator": [198, 212, 171, 109, 144, 215, 174, 89],
       "accounts": [
         {
           "name": "admin",
           "signer": true,
-          "relations": [
-            "express_relay_metadata"
-          ]
+          "relations": ["express_relay_metadata"]
         },
         {
           "name": "fee_receiver_admin",
@@ -913,16 +572,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  101,
-                  116,
-                  97,
-                  100,
-                  97,
-                  116,
-                  97
-                ]
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
               }
             ]
           }
@@ -934,29 +584,11 @@
   "accounts": [
     {
       "name": "ConfigRouter",
-      "discriminator": [
-        135,
-        66,
-        240,
-        166,
-        94,
-        198,
-        187,
-        36
-      ]
+      "discriminator": [135, 66, 240, 166, 94, 198, 187, 36]
     },
     {
       "name": "ExpressRelayMetadata",
-      "discriminator": [
-        204,
-        75,
-        133,
-        7,
-        175,
-        241,
-        130,
-        11
-      ]
+      "discriminator": [204, 75, 133, 7, 175, 241, 130, 11]
     }
   ],
   "errors": [
