@@ -169,4 +169,7 @@ pub struct ConfigSvm {
     /// This should be None unless the RPC `getRecentPrioritizationFees`'s supports the percentile parameter, for example Triton RPC.
     /// It is an integer between 0 and 10000 with 10000 representing 100%.
     pub prioritization_fee_percentile: Option<u64>,
+    /// List of accepted token programs for the swap instruction.
+    #[serde_as(as = "Vec<DisplayFromStr>")]
+    pub accepted_token_programs:       Vec<Pubkey>,
 }

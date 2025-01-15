@@ -132,10 +132,18 @@ impl ChainStoreSvm {
         rpc_client: &RpcClient,
     ) -> anyhow::Result<Pubkey> {
         if let Some(program) = self.token_program_cache.read().await.get(&mint) {
-            return Ok(*program);
+            let token_program = *program;
+            if !self.config.accepted_token_programs.contains(&token_program) {
+                return Err(anyhow!(
+                    "Token program {program} for mint account {mint} is not an approved token program",
+                    program = token_program,
+                    mint = mint
+                ));
+            }
+            return Ok(token_program);
         }
 
-        let program = rpc_client
+        let token_program = rpc_client
             .get_account(&mint)
             .await
             .map_err(|err| {
@@ -151,9 +159,18 @@ impl ChainStoreSvm {
                 )
             })?
             .owner;
-
-        self.token_program_cache.write().await.insert(mint, program);
-        Ok(program)
+        self.token_program_cache
+            .write()
+            .await
+            .insert(mint, token_program);
+        if !self.config.accepted_token_programs.contains(&token_program) {
+            return Err(anyhow!(
+                "Token program {program} for mint account {mint} is not an approved token program",
+                program = token_program,
+                mint = mint
+            ));
+        }
+        Ok(token_program)
     }
 }
 
