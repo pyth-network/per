@@ -25,6 +25,8 @@ use {
     },
 };
 
+/// Builds a swap instruction.
+/// If provides two overrides, `trader_output_ata_override` and `mint_fee_override`, that may result in an invalid instruction and are meant to be used for testing.
 #[allow(clippy::too_many_arguments)]
 pub fn create_swap_instruction(
     searcher: Pubkey,
@@ -38,13 +40,15 @@ pub fn create_swap_instruction(
     token_program_input: Option<Pubkey>,
     token_program_output: Option<Pubkey>,
     swap_args: SwapArgs,
+    trader_output_ata_override: Option<Pubkey>,
+    mint_fee_override: Option<Pubkey>,
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
 
-    let mint_fee = match swap_args.fee_token {
+    let mint_fee = mint_fee_override.unwrap_or(match swap_args.fee_token {
         FeeToken::Input => mint_input,
         FeeToken::Output => mint_output,
-    };
+    });
 
     let token_program_input = token_program_input.unwrap_or(spl_token::ID);
     let token_program_output = token_program_output.unwrap_or(spl_token::ID);
@@ -75,10 +79,12 @@ pub fn create_swap_instruction(
             &mint_input,
             &token_program_input,
         ),
-        trader_output_ata: get_associated_token_address_with_program_id(
-            &trader,
-            &mint_output,
-            &token_program_output,
+        trader_output_ata: trader_output_ata_override.unwrap_or(
+            get_associated_token_address_with_program_id(
+                &trader,
+                &mint_output,
+                &token_program_output,
+            ),
         ),
         router_fee_receiver_ta,
         relayer_fee_receiver_ata: get_associated_token_address_with_program_id(
@@ -108,6 +114,8 @@ pub fn create_swap_instruction(
     }
 }
 
+/// Builds a set of instructions to perform a swap, including creating the associated token accounts.
+/// If provides two overrides, `trader_output_ata_override` and `mint_fee_override`, that may result in invalid instructions and are meant to be used for testing.
 #[allow(clippy::too_many_arguments)]
 pub fn build_swap_instructions(
     searcher: Pubkey,
@@ -121,15 +129,17 @@ pub fn build_swap_instructions(
     token_program_input: Option<Pubkey>,
     token_program_output: Option<Pubkey>,
     swap_args: SwapArgs,
+    trader_output_ata_override: Option<Pubkey>,
+    mint_fee_override: Option<Pubkey>,
 ) -> Vec<Instruction> {
     let mut instructions: Vec<Instruction> = vec![];
 
     let token_program_input = token_program_input.unwrap_or(spl_token::ID);
     let token_program_output = token_program_output.unwrap_or(spl_token::ID);
-    let mint_fee = match swap_args.fee_token {
+    let mint_fee = mint_fee_override.unwrap_or(match swap_args.fee_token {
         FeeToken::Input => mint_input,
         FeeToken::Output => mint_output,
-    };
+    });
     let token_program_fee = match swap_args.fee_token {
         FeeToken::Input => token_program_input,
         FeeToken::Output => token_program_output,
@@ -175,6 +185,8 @@ pub fn build_swap_instructions(
         Some(token_program_input),
         Some(token_program_output),
         swap_args,
+        trader_output_ata_override,
+        mint_fee_override,
     ));
 
     instructions
