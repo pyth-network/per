@@ -57,12 +57,12 @@ pub fn warp_to_unix(svm: &mut litesvm::LiteSVM, unix_timestamp: i64) {
 pub fn assert_custom_error(
     error: TransactionError,
     instruction_index: u8,
-    custom_error: InstructionError,
+    instruction_error: InstructionError,
 ) {
     match error {
         TransactionError::InstructionError(index, error_variant) => {
             assert_eq!(index, instruction_index);
-            assert_eq!(error_variant, custom_error);
+            assert_eq!(error_variant, instruction_error);
         }
         _ => panic!("Unexpected error variant"),
     }
