@@ -37,7 +37,7 @@ import { constructSwapBid } from "../svm";
 
 const DAY_IN_SECONDS = 60 * 60 * 24;
 
-export class SimpleSearcherLimo {
+export class SimpleSearcherSvm {
   protected client: Client;
   protected readonly connectionSvm: Connection;
   protected mintDecimals: Record<string, number> = {};
@@ -373,7 +373,7 @@ export function getKeypair(
 async function run() {
   const argv = makeParser().parseSync();
   const searcherKeyPair = getKeypair(argv.privateKey, argv.privateKeyJsonFile);
-  const simpleSearcher = new SimpleSearcherLimo(
+  const simpleSearcher = new SimpleSearcherSvm(
     argv.endpointExpressRelay,
     argv.chainId,
     searcherKeyPair,

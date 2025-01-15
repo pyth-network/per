@@ -3,13 +3,9 @@ import { Opportunity } from "../index";
 import * as anchor from "@coral-xyz/anchor";
 import { Keypair } from "@solana/web3.js";
 import { OrderStateAndAddress } from "@kamino-finance/limo-sdk/dist/utils";
-import {
-  getKeypair,
-  makeParser,
-  SimpleSearcherLimo,
-} from "./simpleSearcherLimo";
+import { getKeypair, makeParser, SimpleSearcherSvm } from "./simpleSearcherSvm";
 
-class SearcherLimo extends SimpleSearcherLimo {
+class SearcherLimo extends SimpleSearcherSvm {
   private readonly fillRate: anchor.BN;
 
   constructor(
