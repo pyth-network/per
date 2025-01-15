@@ -192,12 +192,11 @@ pub struct TokenAmountSvm {
 /// Program specific parameters for the opportunity.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(tag = "program")]
+#[serde(tag = "program", rename_all = "snake_case")]
 pub enum OpportunityCreateProgramParamsV1Svm {
     /// Limo program specific parameters for the opportunity.
     /// It contains the Limo order to be executed, encoded in base64.
     /// SDKs will decode this order and create transaction for bidding on the opportunity.
-    #[serde(rename = "limo")]
     #[schema(title = "limo")]
     Limo {
         /// The Limo order to be executed, encoded in base64.
@@ -211,7 +210,6 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         order_address: Pubkey,
     },
     /// Swap program specific parameters for the opportunity.
-    #[serde(rename = "swap")]
     #[schema(title = "swap")]
     Swap {
         /// The user wallet address which requested the quote from the wallet.
@@ -331,10 +329,25 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         router_account: Pubkey,
 
+        /// The referral fee in basis points.
+        #[schema(example = 10, value_type = u16)]
+        referral_fee_bps: u16,
+
+        /// Specifies whether the fees are to be paid in input or output token.
+        #[schema(example = "input_token")]
+        fee_token: FeeToken,
+
         /// Details about the tokens to be swapped. Either the input token amount or the output token amount must be specified.
         #[schema(inline)]
         tokens: QuoteTokens,
     },
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+#[serde(rename_all = "snake_case")]
+pub enum FeeToken {
+    InputToken,
+    OutputToken,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]

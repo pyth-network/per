@@ -212,10 +212,16 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         output_token: sell_token.token,
                     }
                 };
+                let fee_token = match program.fee_token {
+                    FeeToken::InputToken => api::FeeToken::InputToken,
+                    FeeToken::OutputToken => api::FeeToken::OutputToken,
+                };
                 api::OpportunityParamsV1ProgramSvm::Swap {
                     user_wallet_address: program.user_wallet_address,
                     permission_account: val.permission_account,
                     router_account: val.router,
+                    fee_token,
+                    referral_fee_bps: program.referral_fee_bps,
                     // TODO can we make it type safe?
                     tokens,
                 }

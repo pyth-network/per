@@ -267,7 +267,11 @@ pub struct BidCreateOnChainSvm {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum BidCreateSwapSvmTag {
+    Swap
+}
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct BidCreateSwapSvm {
     /// The chain id to bid on.
     #[schema(example = "solana", value_type = String)]
@@ -277,16 +281,20 @@ pub struct BidCreateSwapSvm {
     #[serde(with = "crate::serde::transaction_svm")]
     pub transaction: VersionedTransaction,
     /// The id of the swap opportunity to bid on.
-    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = Option<String>)]
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub opportunity_id: OpportunityId,
+    /// The bid type. Should be "swap"
+    #[schema(example = "swap")]
+    #[serde(rename = "type")]
+    pub _type: BidCreateSwapSvmTag, // this is mainly to distinguish next types of bids in the future
 }
 
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
 #[serde(untagged)]
 pub enum BidCreateSvm {
-    OnChain(BidCreateOnChainSvm),
     Swap(BidCreateSwapSvm),
+    OnChain(BidCreateOnChainSvm),
 }
 
 

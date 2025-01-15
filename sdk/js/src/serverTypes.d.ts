@@ -3,6 +3,7 @@
  * Do not make direct changes to the file.
  */
 
+
 export interface paths {
   "/v1/bids": {
     /**
@@ -82,9 +83,7 @@ export interface components {
   schemas: {
     APIResponse: components["schemas"]["BidResult"];
     Bid: components["schemas"]["BidEvm"] | components["schemas"]["BidSvm"];
-    BidCreate:
-      | components["schemas"]["BidCreateEvm"]
-      | components["schemas"]["BidCreateSvm"];
+    BidCreate: components["schemas"]["BidCreateEvm"] | components["schemas"]["BidCreateSvm"];
     BidCreateEvm: {
       /**
        * @description Amount of bid in wei.
@@ -112,7 +111,7 @@ export interface components {
        */
       target_contract: string;
     };
-    BidCreateSvm: {
+    BidCreateOnChainSvm: {
       /**
        * @description The chain id to bid on.
        * @example solana
@@ -131,6 +130,27 @@ export interface components {
        */
       transaction: string;
     };
+    BidCreateSvm: components["schemas"]["BidCreateSwapSvm"] | components["schemas"]["BidCreateOnChainSvm"];
+    BidCreateSwapSvm: {
+      /**
+       * @description The chain id to bid on.
+       * @example solana
+       */
+      chain_id: string;
+      /**
+       * @description The id of the swap opportunity to bid on.
+       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
+       */
+      opportunity_id: string;
+      /**
+       * @description The transaction for bid.
+       * @example SGVsbG8sIFdvcmxkIQ==
+       */
+      transaction: string;
+      type: components["schemas"]["BidCreateSwapSvmTag"];
+    };
+    /** @enum {string} */
+    BidCreateSwapSvmTag: "swap";
     BidEvm: {
       /**
        * @description The chain id for bid.
@@ -192,82 +212,70 @@ export interface components {
        */
       status: string;
     };
-    BidStatus:
-      | components["schemas"]["BidStatusEvm"]
-      | components["schemas"]["BidStatusSvm"];
-    BidStatusEvm:
-      | {
-          /** @enum {string} */
-          type: "pending";
-        }
-      | {
-          /**
-           * Format: int32
-           * @example 1
-           */
-          index: number;
-          /** @example 0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3 */
-          result: string;
-          /** @enum {string} */
-          type: "submitted";
-        }
-      | {
-          /**
-           * Format: int32
-           * @example 1
-           */
-          index?: number | null;
-          /** @example 0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3 */
-          result?: string | null;
-          /** @enum {string} */
-          type: "lost";
-        }
-      | {
-          /**
-           * Format: int32
-           * @example 1
-           */
-          index: number;
-          /** @example 0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3 */
-          result: string;
-          /** @enum {string} */
-          type: "won";
-        };
-    BidStatusSvm:
-      | {
-          /** @enum {string} */
-          type: "pending";
-        }
-      | {
-          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
-          result?: string | null;
-          /** @enum {string} */
-          type: "lost";
-        }
-      | {
-          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
-          result: string;
-          /** @enum {string} */
-          type: "submitted";
-        }
-      | {
-          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
-          result: string;
-          /** @enum {string} */
-          type: "won";
-        }
-      | {
-          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
-          result: string;
-          /** @enum {string} */
-          type: "failed";
-        }
-      | {
-          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
-          result: string;
-          /** @enum {string} */
-          type: "expired";
-        };
+    BidStatus: components["schemas"]["BidStatusEvm"] | components["schemas"]["BidStatusSvm"];
+    BidStatusEvm: {
+      /** @enum {string} */
+      type: "pending";
+    } | {
+      /**
+       * Format: int32
+       * @example 1
+       */
+      index: number;
+      /** @example 0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3 */
+      result: string;
+      /** @enum {string} */
+      type: "submitted";
+    } | ({
+      /**
+       * Format: int32
+       * @example 1
+       */
+      index?: number | null;
+      /** @example 0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3 */
+      result?: string | null;
+      /** @enum {string} */
+      type: "lost";
+    }) | {
+      /**
+       * Format: int32
+       * @example 1
+       */
+      index: number;
+      /** @example 0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3 */
+      result: string;
+      /** @enum {string} */
+      type: "won";
+    };
+    BidStatusSvm: {
+      /** @enum {string} */
+      type: "pending";
+    } | ({
+      /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+      result?: string | null;
+      /** @enum {string} */
+      type: "lost";
+    }) | {
+      /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+      result: string;
+      /** @enum {string} */
+      type: "submitted";
+    } | {
+      /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+      result: string;
+      /** @enum {string} */
+      type: "won";
+    } | {
+      /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+      result: string;
+      /** @enum {string} */
+      type: "failed";
+    } | {
+      /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+      result: string;
+      /** @enum {string} */
+      type: "expired";
+    };
     BidStatusWithId: {
       bid_status: components["schemas"]["BidStatus"];
       id: string;
@@ -316,45 +324,41 @@ export interface components {
     Bids: {
       items: components["schemas"]["Bid"][];
     };
-    ClientMessage:
-      | {
-          /** @enum {string} */
-          method: "subscribe";
-          params: {
-            chain_ids: string[];
-          };
-        }
-      | {
-          /** @enum {string} */
-          method: "unsubscribe";
-          params: {
-            chain_ids: string[];
-          };
-        }
-      | {
-          /** @enum {string} */
-          method: "post_bid";
-          params: {
-            bid: components["schemas"]["BidCreate"];
-          };
-        }
-      | {
-          /** @enum {string} */
-          method: "post_opportunity_bid";
-          params: {
-            opportunity_bid: components["schemas"]["OpportunityBidEvm"];
-            opportunity_id: string;
-          };
-        };
+    ClientMessage: {
+      /** @enum {string} */
+      method: "subscribe";
+      params: {
+        chain_ids: string[];
+      };
+    } | {
+      /** @enum {string} */
+      method: "unsubscribe";
+      params: {
+        chain_ids: string[];
+      };
+    } | {
+      /** @enum {string} */
+      method: "post_bid";
+      params: {
+        bid: components["schemas"]["BidCreate"];
+      };
+    } | {
+      /** @enum {string} */
+      method: "post_opportunity_bid";
+      params: {
+        opportunity_bid: components["schemas"]["OpportunityBidEvm"];
+        opportunity_id: string;
+      };
+    };
     ClientRequest: components["schemas"]["ClientMessage"] & {
       id: string;
     };
     ErrorBodyResponse: {
       error: string;
     };
-    Opportunity:
-      | components["schemas"]["OpportunityEvm"]
-      | components["schemas"]["OpportunitySvm"];
+    /** @enum {string} */
+    FeeToken: "input_token" | "output_token";
+    Opportunity: components["schemas"]["OpportunityEvm"] | components["schemas"]["OpportunitySvm"];
     OpportunityBidEvm: {
       /**
        * @description The bid amount in wei.
@@ -394,44 +398,40 @@ export interface components {
       status: string;
     };
     /** @description The input type for creating a new opportunity. */
-    OpportunityCreate:
-      | components["schemas"]["OpportunityCreateEvm"]
-      | components["schemas"]["OpportunityCreateSvm"];
+    OpportunityCreate: components["schemas"]["OpportunityCreateEvm"] | components["schemas"]["OpportunityCreateSvm"];
     OpportunityCreateEvm: components["schemas"]["OpportunityCreateV1Evm"] & {
       /** @enum {string} */
       version: "v1";
     };
     /** @description Program specific parameters for the opportunity. */
-    OpportunityCreateProgramParamsV1Svm:
-      | {
-          /**
-           * @description The Limo order to be executed, encoded in base64.
-           * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
-           */
-          order: string;
-          /**
-           * @description Address of the order account.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          order_address: string;
-          /** @enum {string} */
-          program: "limo";
-        }
-      | {
-          /** @enum {string} */
-          program: "swap";
-          /**
-           * Format: int32
-           * @description The referral fee in basis points.
-           * @example 10
-           */
-          referral_fee_bps: number;
-          /**
-           * @description The user wallet address which requested the quote from the wallet.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          user_wallet_address: string;
-        };
+    OpportunityCreateProgramParamsV1Svm: {
+      /**
+       * @description The Limo order to be executed, encoded in base64.
+       * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
+       */
+      order: string;
+      /**
+       * @description Address of the order account.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      order_address: string;
+      /** @enum {string} */
+      program: "limo";
+    } | {
+      /** @enum {string} */
+      program: "swap";
+      /**
+       * Format: int32
+       * @description The referral fee in basis points.
+       * @example 10
+       */
+      referral_fee_bps: number;
+      /**
+       * @description The user wallet address which requested the quote from the wallet.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      user_wallet_address: string;
+    };
     OpportunityCreateSvm: components["schemas"]["OpportunityCreateV1Svm"] & {
       /** @enum {string} */
       version: "v1";
@@ -475,37 +475,34 @@ export interface components {
      * @description Opportunity parameters needed for on-chain execution.
      * Parameters may differ for each program.
      */
-    OpportunityCreateV1Svm: (
-      | {
-          /**
-           * @description The Limo order to be executed, encoded in base64.
-           * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
-           */
-          order: string;
-          /**
-           * @description Address of the order account.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          order_address: string;
-          /** @enum {string} */
-          program: "limo";
-        }
-      | {
-          /** @enum {string} */
-          program: "swap";
-          /**
-           * Format: int32
-           * @description The referral fee in basis points.
-           * @example 10
-           */
-          referral_fee_bps: number;
-          /**
-           * @description The user wallet address which requested the quote from the wallet.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          user_wallet_address: string;
-        }
-    ) & {
+    OpportunityCreateV1Svm: ({
+      /**
+       * @description The Limo order to be executed, encoded in base64.
+       * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
+       */
+      order: string;
+      /**
+       * @description Address of the order account.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      order_address: string;
+      /** @enum {string} */
+      program: "limo";
+    } | {
+      /** @enum {string} */
+      program: "swap";
+      /**
+       * Format: int32
+       * @description The referral fee in basis points.
+       * @example 10
+       */
+      referral_fee_bps: number;
+      /**
+       * @description The user wallet address which requested the quote from the wallet.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      user_wallet_address: string;
+    }) & {
       buy_tokens: components["schemas"]["TokenAmountSvm"][];
       /**
        * @description The chain id where the opportunity will be executed.
@@ -531,15 +528,13 @@ export interface components {
       slot: number;
     };
     /** @description The input type for deleting opportunities. */
-    OpportunityDelete:
-      | (components["schemas"]["OpportunityDeleteSvm"] & {
-          /** @enum {string} */
-          chain_type: "svm";
-        })
-      | (components["schemas"]["OpportunityDeleteEvm"] & {
-          /** @enum {string} */
-          chain_type: "evm";
-        });
+    OpportunityDelete: (components["schemas"]["OpportunityDeleteSvm"] & {
+      /** @enum {string} */
+      chain_type: "svm";
+    }) | (components["schemas"]["OpportunityDeleteEvm"] & {
+      /** @enum {string} */
+      chain_type: "evm";
+    });
     OpportunityDeleteEvm: components["schemas"]["OpportunityDeleteV1Evm"] & {
       /** @enum {string} */
       version: "v1";
@@ -610,54 +605,56 @@ export interface components {
      * @description Opportunity parameters needed for on-chain execution.
      * Parameters may differ for each program.
      */
-    OpportunityParamsV1Svm: (
-      | {
-          /**
-           * @description The Limo order to be executed, encoded in base64.
-           * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
-           */
-          order: string;
-          /**
-           * @description Address of the order account.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          order_address: string;
-          /** @enum {string} */
-          program: "limo";
-        }
-      | {
-          /**
-           * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          permission_account: string;
-          /** @enum {string} */
-          program: "swap";
-          /**
-           * @description The router account to be used for the opportunity execution of the protocol.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          router_account: string;
-          tokens:
-            | {
-                input_token: components["schemas"]["TokenAmountSvm"];
-                output_token: components["schemas"]["Pubkey"];
-                /** @enum {string} */
-                type: "input_token_specified";
-              }
-            | {
-                input_token: components["schemas"]["Pubkey"];
-                output_token: components["schemas"]["TokenAmountSvm"];
-                /** @enum {string} */
-                type: "output_token_specified";
-              };
-          /**
-           * @description The user wallet address which requested the quote from the wallet.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          user_wallet_address: string;
-        }
-    ) & {
+    OpportunityParamsV1Svm: ({
+      /**
+       * @description The Limo order to be executed, encoded in base64.
+       * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
+       */
+      order: string;
+      /**
+       * @description Address of the order account.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      order_address: string;
+      /** @enum {string} */
+      program: "limo";
+    } | ({
+      fee_token: components["schemas"]["FeeToken"];
+      /**
+       * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      permission_account: string;
+      /** @enum {string} */
+      program: "swap";
+      /**
+       * Format: int32
+       * @description The referral fee in basis points.
+       * @example 10
+       */
+      referral_fee_bps: number;
+      /**
+       * @description The router account to be used for the opportunity execution of the protocol.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      router_account: string;
+      tokens: {
+        input_token: components["schemas"]["TokenAmountSvm"];
+        output_token: components["schemas"]["Pubkey"];
+        /** @enum {string} */
+        type: "input_token_specified";
+      } | {
+        input_token: components["schemas"]["Pubkey"];
+        output_token: components["schemas"]["TokenAmountSvm"];
+        /** @enum {string} */
+        type: "output_token_specified";
+      };
+      /**
+       * @description The user wallet address which requested the quote from the wallet.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      user_wallet_address: string;
+    })) & {
       /** @example solana */
       chain_id: string;
     };
@@ -721,25 +718,23 @@ export interface components {
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       router: string;
-      specified_token_amount:
-        | {
-            /**
-             * Format: int64
-             * @example 100
-             */
-            amount: number;
-            /** @enum {string} */
-            side: "input";
-          }
-        | {
-            /**
-             * Format: int64
-             * @example 50
-             */
-            amount: number;
-            /** @enum {string} */
-            side: "output";
-          };
+      specified_token_amount: {
+        /**
+         * Format: int64
+         * @example 100
+         */
+        amount: number;
+        /** @enum {string} */
+        side: "input";
+      } | {
+        /**
+         * Format: int64
+         * @example 50
+         */
+        amount: number;
+        /** @enum {string} */
+        side: "output";
+      };
       /**
        * @description The user wallet address which requested the quote from the wallet.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -750,19 +745,17 @@ export interface components {
       /** @enum {string} */
       version: "v1";
     };
-    QuoteTokens:
-      | {
-          input_token: components["schemas"]["TokenAmountSvm"];
-          output_token: components["schemas"]["Pubkey"];
-          /** @enum {string} */
-          type: "input_token_specified";
-        }
-      | {
-          input_token: components["schemas"]["Pubkey"];
-          output_token: components["schemas"]["TokenAmountSvm"];
-          /** @enum {string} */
-          type: "output_token_specified";
-        };
+    QuoteTokens: {
+      input_token: components["schemas"]["TokenAmountSvm"];
+      output_token: components["schemas"]["Pubkey"];
+      /** @enum {string} */
+      type: "input_token_specified";
+    } | {
+      input_token: components["schemas"]["Pubkey"];
+      output_token: components["schemas"]["TokenAmountSvm"];
+      /** @enum {string} */
+      type: "output_token_specified";
+    };
     QuoteV1Svm: {
       /**
        * @description The chain id for the quote.
@@ -783,65 +776,57 @@ export interface components {
        */
       transaction: string;
     };
-    ServerResultMessage:
-      | {
-          result: components["schemas"]["APIResponse"] | null;
-          /** @enum {string} */
-          status: "success";
-        }
-      | {
-          result: string;
-          /** @enum {string} */
-          status: "error";
-        };
+    ServerResultMessage: ({
+      result: components["schemas"]["APIResponse"] | null;
+      /** @enum {string} */
+      status: "success";
+    }) | {
+      result: string;
+      /** @enum {string} */
+      status: "error";
+    };
     /**
      * @description This enum is used to send the result for a specific client request with the same id.
      * Id is only None when the client message is invalid.
      */
-    ServerResultResponse: components["schemas"]["ServerResultMessage"] & {
+    ServerResultResponse: components["schemas"]["ServerResultMessage"] & ({
       id?: string | null;
-    };
+    });
     /** @description This enum is used to send an update to the client for any subscriptions made. */
-    ServerUpdateResponse:
-      | {
-          opportunity: components["schemas"]["Opportunity"];
-          /** @enum {string} */
-          type: "new_opportunity";
-        }
-      | {
-          status: components["schemas"]["BidStatusWithId"];
-          /** @enum {string} */
-          type: "bid_status_update";
-        }
-      | {
-          /** @enum {string} */
-          type: "svm_chain_update";
-          update: components["schemas"]["SvmChainUpdate"];
-        }
-      | {
-          opportunity_delete: components["schemas"]["OpportunityDelete"];
-          /** @enum {string} */
-          type: "remove_opportunities";
-        };
-    SpecifiedTokenAmount:
-      | {
-          /**
-           * Format: int64
-           * @example 100
-           */
-          amount: number;
-          /** @enum {string} */
-          side: "input";
-        }
-      | {
-          /**
-           * Format: int64
-           * @example 50
-           */
-          amount: number;
-          /** @enum {string} */
-          side: "output";
-        };
+    ServerUpdateResponse: {
+      opportunity: components["schemas"]["Opportunity"];
+      /** @enum {string} */
+      type: "new_opportunity";
+    } | {
+      status: components["schemas"]["BidStatusWithId"];
+      /** @enum {string} */
+      type: "bid_status_update";
+    } | {
+      /** @enum {string} */
+      type: "svm_chain_update";
+      update: components["schemas"]["SvmChainUpdate"];
+    } | {
+      opportunity_delete: components["schemas"]["OpportunityDelete"];
+      /** @enum {string} */
+      type: "remove_opportunities";
+    };
+    SpecifiedTokenAmount: {
+      /**
+       * Format: int64
+       * @example 100
+       */
+      amount: number;
+      /** @enum {string} */
+      side: "input";
+    } | {
+      /**
+       * Format: int64
+       * @example 50
+       */
+      amount: number;
+      /** @enum {string} */
+      side: "output";
+    };
     SvmChainUpdate: {
       /** @example SLxp9LxX1eE9Z5v99Y92DaYEwyukFgMUF6zRerCF12j */
       blockhash: string;
@@ -916,9 +901,7 @@ export interface components {
     };
     Opportunity: {
       content: {
-        "application/json":
-          | components["schemas"]["OpportunityEvm"]
-          | components["schemas"]["OpportunitySvm"];
+        "application/json": components["schemas"]["OpportunityEvm"] | components["schemas"]["OpportunitySvm"];
       };
     };
   };
@@ -933,6 +916,7 @@ export type $defs = Record<string, never>;
 export type external = Record<string, never>;
 
 export interface operations {
+
   /**
    * Returns at most 20 bids which were submitted after a specific time.
    * @deprecated

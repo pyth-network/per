@@ -131,6 +131,8 @@ export type OpportunitySvmSwap = {
   permissionAccount: PublicKey;
   routerAccount: PublicKey;
   userWalletAddress: PublicKey;
+  feeToken: "input_token" | "output_token";
+  referralFeeBps: number;
   // TODO: maybe type should be camelCase too?
   tokens:
     | {
@@ -234,7 +236,7 @@ export type ExpressRelaySvmConfig = {
 /**
  * Represents a raw SVM bid on acquiring a permission key
  */
-export type BidSvm = {
+export type BidSvmOnChain = {
   /**
    * @description Transaction object.
    * @example SGVsbG8sIFdvcmxkIQ
@@ -251,11 +253,41 @@ export type BidSvm = {
    * @example 293106477
    */
   slot?: number | null;
+  type:"onchain";
   /**
    * @description The execution environment for the bid.
    */
   env: "svm";
 };
+
+/**
+ * Represents a raw SVM bid to fulfill a swap opportunity
+ */
+export type BidSvmSwap = {
+  /**
+   * @description Transaction object.
+   * @example SGVsbG8sIFdvcmxkIQ
+   */
+  transaction: Transaction;
+  /**
+   * @description The chain id to bid on.
+   * @example solana
+   */
+  chainId: ChainId;
+  /**
+   * @description The id of the swap opportunity to bid on.
+   * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
+   */
+  opportunityId: string;
+  type:"swap";
+  /**
+   * @description The execution environment for the bid.
+   */
+  env: "svm";
+};
+
+export type BidSvm = BidSvmOnChain | BidSvmSwap;
+
 export type BidStatusUpdate = {
   id: BidId;
 } & components["schemas"]["BidStatus"];
@@ -278,7 +310,6 @@ export type BidsResponse = {
 
 export type SvmConstantsConfig = {
   expressRelayProgram: PublicKey;
-  walletRouter: PublicKey;
 };
 
 export type SvmChainUpdate = {

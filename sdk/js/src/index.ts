@@ -22,7 +22,7 @@ import {
   OpportunityDelete,
   ChainType,
   QuoteRequest,
-  QuoteResponse,
+  QuoteResponse, BidSvmOnChain,
 } from "./types";
 import {
   Connection,
@@ -569,26 +569,6 @@ export class Client {
     }
   }
 
-  private toServerBid(bid: Bid): components["schemas"]["BidCreate"] {
-    if (bid.env === "evm") {
-      return {
-        amount: bid.amount.toString(),
-        target_calldata: bid.targetCalldata,
-        chain_id: bid.chainId,
-        target_contract: bid.targetContract,
-        permission_key: bid.permissionKey,
-      };
-    }
-
-    return {
-      chain_id: bid.chainId,
-      slot: bid.slot,
-      transaction: bid.transaction
-        .serialize({ requireAllSignatures: false })
-        .toString("base64"),
-    };
-  }
-
   /**
    * Converts an opportunity from the server to the client format
    * Returns undefined if the opportunity version is not supported
@@ -654,6 +634,8 @@ export class Client {
         slot: opportunity.slot,
         opportunityId: opportunity.opportunity_id,
         program: "swap",
+        referralFeeBps: opportunity.referral_fee_bps,
+        feeToken: opportunity.fee_token,
         permissionAccount: new PublicKey(opportunity.permission_account),
         routerAccount: new PublicKey(opportunity.router_account),
         userWalletAddress: new PublicKey(opportunity.user_wallet_address),
@@ -661,6 +643,36 @@ export class Client {
       };
     } else {
       console.warn("Unsupported opportunity", opportunity);
+    }
+  }
+
+  private toServerBid(bid: Bid): components["schemas"]["BidCreate"] {
+    if (bid.env === "evm") {
+      return {
+        amount: bid.amount.toString(),
+        target_calldata: bid.targetCalldata,
+        chain_id: bid.chainId,
+        target_contract: bid.targetContract,
+        permission_key: bid.permissionKey,
+      };
+    }
+    if (bid.type==='swap') {
+      return {
+        chain_id: bid.chainId,
+        opportunity_id: bid.opportunityId,
+        type:"swap",
+        transaction: bid.transaction
+            .serialize({requireAllSignatures: false})
+            .toString("base64"),
+      };
+    } else {
+      return {
+        chain_id: bid.chainId,
+        slot: bid.slot,
+        transaction: bid.transaction
+            .serialize({requireAllSignatures: false})
+            .toString("base64"),
+      };
     }
   }
 
@@ -805,7 +817,7 @@ export class Client {
     chainId: string,
     relayerSigner: PublicKey,
     feeReceiverRelayer: PublicKey
-  ): Promise<BidSvm> {
+  ): Promise<BidSvmOnChain> {
     return svm.constructSvmBid(
       tx,
       searcher,

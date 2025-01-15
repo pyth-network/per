@@ -6,10 +6,10 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
-import { BidSvm, ExpressRelaySvmConfig, OpportunitySvmSwap } from "./types";
+import {BidSvm, BidSvmOnChain, BidSvmSwap, ExpressRelaySvmConfig, OpportunitySvmSwap} from "./types";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  createAssociatedTokenAccountInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
@@ -96,20 +96,20 @@ export function getAssociatedTokenAddress(
   return getAssociatedTokenAddressSync(
     tokenMintAddress,
     owner,
-    true,
+      true, //allow owner to be off-curve
     tokenProgram,
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
 }
 
-export function createAssociatedTokenAccountIdempotentInstruction(
+export function createAtaIdempotentInstruction(
   owner: PublicKey,
   mint: PublicKey,
   payer: PublicKey = owner,
   tokenProgram: PublicKey
 ): [PublicKey, TransactionInstruction] {
   const ataAddress = getAssociatedTokenAddress(owner, mint, tokenProgram);
-  const createUserTokenAccountIx = createAssociatedTokenAccountInstruction(
+  const createUserTokenAccountIx = createAssociatedTokenAccountIdempotentInstruction(
     payer,
     ataAddress,
     owner,
@@ -117,8 +117,6 @@ export function createAssociatedTokenAccountIdempotentInstruction(
     tokenProgram,
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
-  // idempotent ix discriminator is 1
-  createUserTokenAccountIx.data = Buffer.from([1]);
   return [ataAddress, createUserTokenAccountIx];
 }
 
@@ -130,7 +128,7 @@ export async function constructSwapBid(
   deadline: anchor.BN,
   chainId: string,
   relayerSigner: PublicKey
-): Promise<BidSvm> {
+): Promise<BidSvmSwap> {
   const expressRelay = new Program<ExpressRelay>(
     expressRelayIdl as ExpressRelay,
     {} as AnchorProvider
@@ -162,9 +160,9 @@ export async function constructSwapBid(
       swapOpportunity.tokens.type === "output_specified"
         ? new anchor.BN(swapOpportunity.tokens.outputToken.amount)
         : bidAmount,
-    referralFeeBps: new anchor.BN(0),
+    referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
     deadline,
-    feeToken: { input: {} },
+    feeToken: swapOpportunity.feeToken === 'input_token' ? {input: {}} : {output: {}},
   };
   const ixSwap = await expressRelay.methods
     .swap(swapArgs)
@@ -217,7 +215,7 @@ export async function constructSwapBid(
     .instruction();
   ixSwap.programId = svmConstants.expressRelayProgram;
   tx.instructions.push(
-    createAssociatedTokenAccountIdempotentInstruction(
+      createAtaIdempotentInstruction(
       router,
       mintFee,
       searcher,
@@ -225,7 +223,7 @@ export async function constructSwapBid(
     )[1]
   );
   tx.instructions.push(
-    createAssociatedTokenAccountIdempotentInstruction(
+      createAtaIdempotentInstruction(
       relayerSigner,
       mintFee,
       searcher,
@@ -233,7 +231,7 @@ export async function constructSwapBid(
     )[1]
   );
   tx.instructions.push(
-    createAssociatedTokenAccountIdempotentInstruction(
+      createAtaIdempotentInstruction(
       expressRelayMetadata,
       mintFee,
       searcher,
@@ -241,7 +239,7 @@ export async function constructSwapBid(
     )[1]
   );
   tx.instructions.push(
-    createAssociatedTokenAccountIdempotentInstruction(
+      createAtaIdempotentInstruction(
       trader,
       mintOutput,
       searcher,
@@ -252,6 +250,8 @@ export async function constructSwapBid(
 
   return {
     transaction: tx,
+    opportunityId: swapOpportunity.opportunityId,
+    type:"swap",
     chainId: chainId,
     env: "svm",
   };
@@ -267,7 +267,7 @@ export async function constructSvmBid(
   chainId: string,
   relayerSigner: PublicKey,
   feeReceiverRelayer: PublicKey
-): Promise<BidSvm> {
+): Promise<BidSvmOnChain> {
   const ixSubmitBid = await constructSubmitBidInstruction(
     searcher,
     router,
@@ -284,6 +284,7 @@ export async function constructSvmBid(
   return {
     transaction: tx,
     chainId: chainId,
+    type:"onchain",
     env: "svm",
   };
 }

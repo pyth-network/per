@@ -137,8 +137,8 @@ export class SimpleSearcherLimo {
   }
 
   /**
-   * Generates a bid for a given limo opportunity.
-   * The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
+   * Generates a bid for a given swap opportunity.
+   * The transaction in this bid transfers assets from the searcher's wallet to the specified wallets to fulfill the opportunity.
    * @param opportunity The SVM opportunity to bid on.
    * @returns The generated bid object.
    */
@@ -159,7 +159,6 @@ export class SimpleSearcherLimo {
       this.chainId,
       config.relayerSigner
     );
-    bid.slot = opportunity.slot;
 
     bid.transaction.recentBlockhash =
       this.latestChainUpdate[this.chainId].blockhash;

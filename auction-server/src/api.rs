@@ -328,6 +328,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::ws::APIResponse,
     api_types::bid::BidCreate,
     api_types::bid::BidCreateEvm,
+    api_types::bid::BidCreateOnChainSvm,
+    api_types::bid::BidCreateSwapSvm,
+    api_types::bid::BidCreateSwapSvmTag,
     api_types::bid::BidCreateSvm,
     api_types::bid::BidStatus,
     api_types::bid::BidStatusEvm,
@@ -372,6 +375,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::opportunity::OpportunityDeleteV1Svm,
     api_types::opportunity::OpportunityDeleteV1Evm,
     api_types::opportunity::ProgramSvm,
+    api_types::opportunity::FeeToken,
 
     ErrorBodyResponse,
     api_types::ws::ClientRequest,
