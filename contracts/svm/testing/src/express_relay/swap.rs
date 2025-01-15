@@ -25,6 +25,8 @@ use {
     },
 };
 
+/// Builds a swap instruction.
+/// If provides two overrides, `trader_output_ata_override` and `mint_fee_override`, that may result in an invalid instruction and are meant to be used for testing.
 #[allow(clippy::too_many_arguments)]
 pub fn create_swap_instruction(
     searcher: Pubkey,
@@ -112,6 +114,8 @@ pub fn create_swap_instruction(
     }
 }
 
+/// Builds a set of instructions to perform a swap, including creating the associated token accounts.
+/// If provides two overrides, `trader_output_ata_override` and `mint_fee_override`, that may result in invalid instructions and are meant to be used for testing.
 #[allow(clippy::too_many_arguments)]
 pub fn build_swap_instructions(
     searcher: Pubkey,
