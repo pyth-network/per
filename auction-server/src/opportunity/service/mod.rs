@@ -27,6 +27,7 @@ use {
             Store,
         },
     },
+    anyhow::anyhow,
     ethers::{
         providers::Provider,
         types::Address,
@@ -36,7 +37,10 @@ use {
         nonblocking::rpc_client::RpcClient,
         rpc_client::RpcClientConfig,
     },
-    solana_sdk::commitment_config::CommitmentConfig,
+    solana_sdk::{
+        commitment_config::CommitmentConfig,
+        pubkey::Pubkey,
+    },
     std::{
         collections::HashMap,
         sync::Arc,
@@ -73,8 +77,8 @@ pub struct ConfigEvm {
 impl ConfigEvm {
     // TODO Move these to config trait?
     pub async fn inject_auction_service(&self, service: auction_service::Service<Evm>) {
-        let mut write_gaurd = self.auction_service.write().await;
-        *write_gaurd = Some(service);
+        let mut write_guard = self.auction_service.write().await;
+        *write_guard = Some(service);
     }
     pub async fn get_auction_service(&self) -> auction_service::Service<Evm> {
         self.auction_service
@@ -87,8 +91,10 @@ impl ConfigEvm {
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
-    pub rpc_client:      RpcClient,
-    pub auction_service: RwLock<Option<auction_service::Service<Svm>>>,
+    pub auction_service:         RwLock<Option<auction_service::Service<Svm>>>,
+    pub rpc_client:              RpcClient,
+    pub token_program_cache:     RwLock<HashMap<Pubkey, Pubkey>>,
+    pub accepted_token_programs: Vec<Pubkey>,
 }
 
 impl ConfigSvm {
@@ -205,17 +211,63 @@ impl ConfigSvm {
                 (
                     chain_id.clone(),
                     Self {
-                        rpc_client:      TracedSenderSvm::new_client(
+                        auction_service:         RwLock::new(None),
+                        rpc_client:              TracedSenderSvm::new_client(
                             chain_id.clone(),
                             chain_store.config.rpc_read_url.as_str(),
                             chain_store.config.rpc_timeout,
                             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                         ),
-                        auction_service: RwLock::new(None),
+                        token_program_cache:     RwLock::new(HashMap::new()),
+                        accepted_token_programs: chain_store.config.accepted_token_programs.clone(),
                     },
                 )
             })
             .collect())
+    }
+
+    pub async fn get_token_program(&self, mint: Pubkey) -> anyhow::Result<Pubkey> {
+        if let Some(program) = self.token_program_cache.read().await.get(&mint) {
+            let token_program = *program;
+            if !self.accepted_token_programs.contains(&token_program) {
+                return Err(anyhow!(
+                    "Token program {program} for mint account {mint} is not an approved token program",
+                    program = token_program,
+                    mint = mint
+                ));
+            }
+            return Ok(token_program);
+        }
+
+        let token_program = self
+            .rpc_client
+            .get_account(&mint)
+            .await
+            .map_err(|err| {
+                tracing::error!(
+                    "Failed to retrieve owner program for mint account {mint}: {:?}",
+                    err,
+                    mint = mint
+                );
+                anyhow!(
+                    "Failed to retrieve owner program for mint account {mint}: {:?}",
+                    err,
+                    mint = mint
+                )
+            })?
+            .owner;
+        self.token_program_cache
+            .write()
+            .await
+            .insert(mint, token_program);
+        if !self.accepted_token_programs.contains(&token_program) {
+            return Err(anyhow!(
+                "Token program {program} for mint account {mint} is not an approved token program",
+                program = token_program,
+                mint = mint
+            ));
+        }
+        Ok(token_program)
     }
 }
 

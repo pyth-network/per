@@ -139,26 +139,14 @@ impl Service<ChainTypeSvm> {
             }],
         };
 
-        let chain_store = self
-            .store
-            .chains_svm
-            .get(&quote_create.chain_id)
-            .ok_or(RestError::BadParameters("Chain not found".to_string()))?;
-        // get input token program from cache or else fetch from chain
-        let input_token_program = chain_store
-            .get_token_program(input_mint, &config.rpc_client)
-            .await
-            .map_err(|err| {
-                tracing::error!("Failed to get input token program: {:?}", err);
-                RestError::BadParameters("Input token program not found".to_string())
-            })?;
-        let output_token_program = chain_store
-            .get_token_program(output_mint, &config.rpc_client)
-            .await
-            .map_err(|err| {
-                tracing::error!("Failed to get output token program: {:?}", err);
-                RestError::BadParameters("Output token program not found".to_string())
-            })?;
+        let input_token_program = config.get_token_program(input_mint).await.map_err(|err| {
+            tracing::error!("Failed to get input token program: {:?}", err);
+            RestError::BadParameters("Input token program not found".to_string())
+        })?;
+        let output_token_program = config.get_token_program(output_mint).await.map_err(|err| {
+            tracing::error!("Failed to get output token program: {:?}", err);
+            RestError::BadParameters("Output token program not found".to_string())
+        })?;
 
         let program_opportunity = match program {
             ProgramSvm::SwapKamino => {

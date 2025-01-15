@@ -224,9 +224,11 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         /// The referral fee in basis points.
         #[schema(example = 10, value_type = u16)]
         referral_fee_bps:     u16,
+        /// The token program of the input mint.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         input_token_program:  Pubkey,
+        /// The token program of the output mint.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         output_token_program: Pubkey,
