@@ -7,6 +7,8 @@ use {
         auction::service::{
             self as auction_service,
             simulator::Simulator,
+            SubmitBidInstructionAccountPositions,
+            SwapInstructionAccountPositions,
         },
         config::{
             ChainId,
@@ -198,6 +200,35 @@ pub async fn run_migrations(migrate_options: MigrateOptions) -> Result<()> {
     Ok(())
 }
 
+macro_rules! read_svm_position_env {
+    ($name:expr) => {{
+        // Access the environment variable at compile-time
+        let value = env!($name); // We expect $name to be a string literal
+
+        // Parse the value to usize
+        value.parse::<usize>().expect(&format!(
+            "Failed to parse the environment variable {:?} as usize",
+            $name
+        ))
+    }};
+}
+
+fn get_swap_instruction_account_positions() -> SwapInstructionAccountPositions {
+    SwapInstructionAccountPositions {
+        router_token_account: read_svm_position_env!("SWAP_ROUTER_TOKEN_ACCOUNT_POSITION"),
+        user_wallet_account:  read_svm_position_env!("SWAP_USER_WALLET_ACCOUNT_POSITION"),
+        mint_input_account:   read_svm_position_env!("SWAP_MINT_INPUT_ACCOUNT_POSITION"),
+        mint_output_account:  read_svm_position_env!("SWAP_MINT_OUTPUT_ACCOUNT_POSITION"),
+    }
+}
+
+fn get_submit_bid_instruction_account_positions() -> SubmitBidInstructionAccountPositions {
+    SubmitBidInstructionAccountPositions {
+        permission_account: read_svm_position_env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION"),
+        router_account:     read_svm_position_env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION"),
+    }
+}
+
 pub async fn start_server(run_options: RunOptions) -> Result<()> {
     tokio::spawn(async move {
         tracing::info!("Registered shutdown signal handler...");
@@ -320,45 +351,20 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                                 ),
                             ),
                             express_relay:                 auction_service::ExpressRelaySvm {
-                                program_id:                             chain_store
+                                program_id:                               chain_store
                                     .config
                                     .express_relay_program_id,
-                                relayer:                                Keypair::from_base58_string(
-                                    &run_options
-                                        .private_key_svm
-                                        .clone()
-                                        .expect("No svm private key provided for chain"),
-                                ),
-                                permission_account_position_submit_bid: env!(
-                                    "SUBMIT_BID_PERMISSION_ACCOUNT_POSITION"
-                                )
-                                .parse::<usize>()
-                                .expect("Failed to parse permission account position"),
-                                router_account_position_submit_bid:     env!(
-                                    "SUBMIT_BID_ROUTER_ACCOUNT_POSITION"
-                                )
-                                .parse::<usize>()
-                                .expect("Failed to parse (submit bid) router account position"),
-                                router_account_position_swap:           env!(
-                                    "SWAP_ROUTER_ACCOUNT_POSITION"
-                                )
-                                .parse::<usize>()
-                                .expect("Failed to parse (swap) router account position"),
-                                user_wallet_account_position_swap:      env!(
-                                    "SWAP_USER_WALLET_ACCOUNT_POSITION"
-                                )
-                                .parse::<usize>()
-                                .expect("Failed to parse user wallet account position"),
-                                mint_input_account_position_swap:       env!(
-                                    "SWAP_MINT_INPUT_ACCOUNT_POSITION"
-                                )
-                                .parse::<usize>()
-                                .expect("Failed to parse user wallet account position"),
-                                mint_output_account_position_swap:      env!(
-                                    "SWAP_MINT_OUTPUT_ACCOUNT_POSITION"
-                                )
-                                .parse::<usize>()
-                                .expect("Failed to parse user wallet account position"),
+                                relayer:
+                                    Keypair::from_base58_string(
+                                        &run_options
+                                            .private_key_svm
+                                            .clone()
+                                            .expect("No svm private key provided for chain"),
+                                    ),
+                                submit_bid_instruction_account_positions:
+                                    get_submit_bid_instruction_account_positions(),
+                                swap_instruction_account_positions:
+                                    get_swap_instruction_account_positions(),
                             },
                             ws_address:                    chain_store.config.ws_addr.clone(),
                             tx_broadcaster_client:         TracedSenderSvm::new_client(

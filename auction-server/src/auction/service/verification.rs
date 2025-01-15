@@ -501,14 +501,18 @@ impl Service<Svm> {
                     .extract_account(
                         &bid_data.transaction,
                         &submit_bid_instruction,
-                        svm_config.permission_account_position_submit_bid,
+                        svm_config
+                            .submit_bid_instruction_account_positions
+                            .permission_account,
                     )
                     .await?;
                 let router = self
                     .extract_account(
                         &bid_data.transaction,
                         &submit_bid_instruction,
-                        svm_config.router_account_position_submit_bid,
+                        svm_config
+                            .submit_bid_instruction_account_positions
+                            .router_account,
                     )
                     .await?;
                 Ok(BidDataSvm {
@@ -536,7 +540,9 @@ impl Service<Svm> {
                     .extract_account(
                         &bid_data.transaction,
                         &swap_instruction,
-                        svm_config.user_wallet_account_position_swap,
+                        svm_config
+                            .swap_instruction_account_positions
+                            .user_wallet_account,
                     )
                     .await?;
 
@@ -544,14 +550,18 @@ impl Service<Svm> {
                     .extract_account(
                         &bid_data.transaction,
                         &swap_instruction,
-                        svm_config.mint_input_account_position_swap,
+                        svm_config
+                            .swap_instruction_account_positions
+                            .mint_input_account,
                     )
                     .await?;
                 let mint_output = self
                     .extract_account(
                         &bid_data.transaction,
                         &swap_instruction,
-                        svm_config.mint_output_account_position_swap,
+                        svm_config
+                            .swap_instruction_account_positions
+                            .mint_output_account,
                     )
                     .await?;
 
@@ -599,7 +609,8 @@ impl Service<Svm> {
                         self.config
                             .chain_config
                             .express_relay
-                            .router_account_position_swap,
+                            .swap_instruction_account_positions
+                            .router_token_account,
                     )
                     .await?;
 
