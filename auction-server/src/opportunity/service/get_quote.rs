@@ -1,6 +1,7 @@
 use {
     super::{
         ChainTypeSvm,
+        ConfigSvm,
         Service,
     },
     crate::{
@@ -99,6 +100,7 @@ impl Service<ChainTypeSvm> {
         &self,
         quote_create: entities::QuoteCreate,
         program: &ProgramSvm,
+        config: &ConfigSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
         let permission_account = get_quote_permission_key(
@@ -126,7 +128,7 @@ impl Service<ChainTypeSvm> {
                 router,
                 permission_account,
             ),
-            chain_id:       quote_create.chain_id,
+            chain_id:       quote_create.chain_id.clone(),
             sell_tokens:    vec![entities::TokenAmountSvm {
                 token:  input_mint,
                 amount: input_amount,
@@ -137,13 +139,36 @@ impl Service<ChainTypeSvm> {
             }],
         };
 
+        let chain_store = self
+            .store
+            .chains_svm
+            .get(&quote_create.chain_id)
+            .ok_or(RestError::BadParameters("Chain not found".to_string()))?;
+        // get input token program from cache or else fetch from chain
+        let input_token_program = chain_store
+            .get_token_program(input_mint, &config.rpc_client)
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get input token program: {:?}", err);
+                RestError::BadParameters("Input token program not found".to_string())
+            })?;
+        let output_token_program = chain_store
+            .get_token_program(output_mint, &config.rpc_client)
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get output token program: {:?}", err);
+                RestError::BadParameters("Output token program not found".to_string())
+            })?;
+
         let program_opportunity = match program {
             ProgramSvm::SwapKamino => {
                 entities::OpportunitySvmProgram::SwapKamino(entities::OpportunitySvmProgramSwap {
                     user_wallet_address: quote_create.user_wallet_address,
                     // TODO*: we should determine this more intelligently
-                    fee_token:           entities::FeeToken::InputToken,
-                    referral_fee_bps:    quote_create.referral_fee_bps,
+                    fee_token: entities::FeeToken::InputToken,
+                    referral_fee_bps: quote_create.referral_fee_bps,
+                    input_token_program,
+                    output_token_program,
                 })
             }
             _ => {
@@ -187,7 +212,7 @@ impl Service<ChainTypeSvm> {
         tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");
 
         let opportunity_create = self
-            .get_opportunity_create_for_quote(input.quote_create.clone(), &input.program)
+            .get_opportunity_create_for_quote(input.quote_create.clone(), &input.program, config)
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {

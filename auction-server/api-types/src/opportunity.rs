@@ -220,10 +220,16 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         /// The user wallet address which requested the quote from the wallet.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        user_wallet_address: Pubkey,
+        user_wallet_address:  Pubkey,
         /// The referral fee in basis points.
         #[schema(example = 10, value_type = u16)]
-        referral_fee_bps:    u16,
+        referral_fee_bps:     u16,
+        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        input_token_program:  Pubkey,
+        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        output_token_program: Pubkey,
     },
 }
 
@@ -266,6 +272,7 @@ pub enum OpportunityCreateSvm {
 /// The input type for creating a new opportunity.
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum OpportunityCreate {
     #[schema(title = "evm")]
     Evm(OpportunityCreateEvm),
@@ -345,12 +352,16 @@ pub enum OpportunityParamsV1ProgramSvm {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub enum QuoteTokens {
     InputTokenSpecified {
-        input_token:  TokenAmountSvm,
-        output_token: Pubkey,
+        input_token:          TokenAmountSvm,
+        output_token:         Pubkey,
+        input_token_program:  Pubkey,
+        output_token_program: Pubkey,
     },
     OutputTokenSpecified {
-        input_token:  Pubkey,
-        output_token: TokenAmountSvm,
+        input_token:          Pubkey,
+        output_token:         TokenAmountSvm,
+        input_token_program:  Pubkey,
+        output_token_program: Pubkey,
     },
 }
 

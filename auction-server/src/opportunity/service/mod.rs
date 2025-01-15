@@ -19,6 +19,7 @@ use {
                 Svm,
             },
             traced_client::TracedClient,
+            traced_sender_svm::TracedSenderSvm,
         },
         state::{
             ChainStoreEvm,
@@ -31,6 +32,11 @@ use {
         types::Address,
     },
     futures::future::try_join_all,
+    solana_client::{
+        nonblocking::rpc_client::RpcClient,
+        rpc_client::RpcClientConfig,
+    },
+    solana_sdk::commitment_config::CommitmentConfig,
     std::{
         collections::HashMap,
         sync::Arc,
@@ -81,6 +87,7 @@ impl ConfigEvm {
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
+    pub rpc_client:      RpcClient,
     pub auction_service: RwLock<Option<auction_service::Service<Svm>>>,
 }
 
@@ -194,10 +201,16 @@ impl ConfigSvm {
     ) -> anyhow::Result<HashMap<ChainId, Self>> {
         Ok(chains
             .iter()
-            .map(|(chain_id, _)| {
+            .map(|(chain_id, chain_store)| {
                 (
                     chain_id.clone(),
                     Self {
+                        rpc_client:      TracedSenderSvm::new_client(
+                            chain_id.clone(),
+                            chain_store.config.rpc_read_url.as_str(),
+                            chain_store.config.rpc_timeout,
+                            RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                        ),
                         auction_service: RwLock::new(None),
                     },
                 )

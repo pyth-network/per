@@ -27,10 +27,14 @@ use {
         types::U256,
     },
     rand::Rng,
-    solana_client::rpc_response::{
-        Response,
-        RpcLogsResponse,
+    solana_client::{
+        nonblocking::rpc_client::RpcClient,
+        rpc_response::{
+            Response,
+            RpcLogsResponse,
+        },
     },
+    solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
         sync::Arc,
@@ -107,6 +111,7 @@ pub struct ChainStoreSvm {
     // only to avoid closing the channel
     pub _dummy_log_receiver: Receiver<Response<RpcLogsResponse>>,
     pub config:              ConfigSvm,
+    pub token_program_cache: RwLock<HashMap<Pubkey, Pubkey>>,
 }
 
 impl ChainStoreSvm {
@@ -117,7 +122,38 @@ impl ChainStoreSvm {
             log_sender: tx,
             _dummy_log_receiver: rx,
             config,
+            token_program_cache: RwLock::new(HashMap::new()),
         }
+    }
+
+    pub async fn get_token_program(
+        &self,
+        mint: Pubkey,
+        rpc_client: &RpcClient,
+    ) -> anyhow::Result<Pubkey> {
+        if let Some(program) = self.token_program_cache.read().await.get(&mint) {
+            return Ok(*program);
+        }
+
+        let program = rpc_client
+            .get_account(&mint)
+            .await
+            .map_err(|err| {
+                tracing::error!(
+                    "Failed to retrieve owner program for mint account {mint}: {:?}",
+                    err,
+                    mint = mint
+                );
+                anyhow!(
+                    "Failed to retrieve owner program for mint account {mint}: {:?}",
+                    err,
+                    mint = mint
+                )
+            })?
+            .owner;
+
+        self.token_program_cache.write().await.insert(mint, program);
+        Ok(program)
     }
 }
 
