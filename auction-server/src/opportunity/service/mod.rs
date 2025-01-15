@@ -100,8 +100,8 @@ pub struct ConfigSvm {
 impl ConfigSvm {
     // TODO Move these to config trait?
     pub async fn inject_auction_service(&self, service: auction_service::Service<Svm>) {
-        let mut write_gaurd = self.auction_service.write().await;
-        *write_gaurd = Some(service);
+        let mut write_guard = self.auction_service.write().await;
+        *write_guard = Some(service);
     }
     pub async fn get_auction_service(&self) -> auction_service::Service<Svm> {
         self.auction_service
