@@ -154,7 +154,8 @@ export async function constructSwapBid(
       ? swapOpportunity.tokens.outputToken.token
       : swapOpportunity.tokens.outputToken;
   const trader = swapOpportunity.userWalletAddress;
-  const mintFee = mintInput;
+  const mintFee =
+    swapOpportunity.feeToken === "input_token" ? mintInput : mintOutput;
   const router = swapOpportunity.routerAccount;
 
   const swapArgs = {

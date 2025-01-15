@@ -420,7 +420,7 @@ impl Service<Svm> {
         .map_err(|e| RestError::BadParameters(format!("Invalid swap instruction data: {}", e)))
     }
 
-    pub fn extract_express_relay_bid_instruction(
+    pub fn extract_express_relay_instruction(
         &self,
         transaction: VersionedTransaction,
         instruction_type: BidPaymentInstructionType,
@@ -437,19 +437,21 @@ impl Service<Svm> {
             .iter()
             .filter(|instruction| {
                 let program_id = instruction.program_id(transaction.message.static_account_keys());
-                if *program_id != self.config.chain_config.express_relay.program_id {
-                    return false;
-                }
-
-                instruction.data.starts_with(&discriminator)
+                *program_id == self.config.chain_config.express_relay.program_id
             })
             .cloned()
             .collect::<Vec<CompiledInstruction>>();
 
-        match instructions.len() {
+        let instruction = match instructions.len() {
             1 => Ok(instructions[0].clone()),
-            _ => Err(RestError::BadParameters(format!("Bid must include exactly one instruction to Express Relay program that pays the bid but found {} instructions", instructions.len()))),
+            _ => Err(RestError::BadParameters(format!("Bid must include exactly one instruction to Express Relay program but found {} instructions", instructions.len()))),
+        }?;
+        if !instruction.data.starts_with(&discriminator) {
+            return Err(RestError::BadParameters(
+                "Wrong instruction type for Express Relay Program".to_string(),
+            ));
         }
+        Ok(instruction)
     }
 
     async fn check_deadline(
@@ -489,7 +491,7 @@ impl Service<Svm> {
         let svm_config = &self.config.chain_config.express_relay;
         match bid_chain_data_create_svm {
             BidChainDataCreateSvm::OnChain(bid_data) => {
-                let submit_bid_instruction = self.extract_express_relay_bid_instruction(
+                let submit_bid_instruction = self.extract_express_relay_instruction(
                     bid_data.transaction.clone(),
                     BidPaymentInstructionType::SubmitBid,
                 )?;
@@ -524,7 +526,7 @@ impl Service<Svm> {
                 })
             }
             BidChainDataCreateSvm::Swap(bid_data) => {
-                let swap_instruction = self.extract_express_relay_bid_instruction(
+                let swap_instruction = self.extract_express_relay_instruction(
                     bid_data.transaction.clone(),
                     BidPaymentInstructionType::Swap,
                 )?;

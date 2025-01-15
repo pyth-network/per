@@ -256,7 +256,7 @@ impl Service<ChainTypeSvm> {
         let winner_bid = bids.first().expect("failed to get first bid");
 
         let swap_instruction = auction_service
-            .extract_express_relay_bid_instruction(
+            .extract_express_relay_instruction(
                 winner_bid.chain_data.transaction.clone(),
                 BidPaymentInstructionType::Swap,
             )
