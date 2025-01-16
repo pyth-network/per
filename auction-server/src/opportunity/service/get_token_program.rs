@@ -23,16 +23,13 @@ impl Service<ChainTypeSvm> {
         input: GetTokenProgramInput,
     ) -> Result<Pubkey, RestError> {
         let config = self.get_config(&input.chain_id)?;
-        let token_program = match self
-            .repo
-            .in_memory_store
-            .token_program_cache
-            .read()
-            .await
-            .get(&input.mint)
-        {
+        let cache_read = self.repo.in_memory_store.token_program_cache.read().await;
+        let token_program_query = cache_read.get(&input.mint);
+        let token_program = match token_program_query {
             Some(program) => *program,
             None => {
+                // need to drop the cache in order to be able to get write access
+                drop(cache_read);
                 let token_program_address = config
                     .rpc_client
                     .get_account(&input.mint)
