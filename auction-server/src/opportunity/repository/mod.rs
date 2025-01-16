@@ -16,6 +16,7 @@ mod get_in_memory_opportunities_by_key;
 mod get_in_memory_opportunity_by_id;
 mod get_opportunities;
 mod get_spoof_info;
+mod get_token_program;
 mod models;
 mod refresh_in_memory_opportunity;
 mod remove_opportunities;
