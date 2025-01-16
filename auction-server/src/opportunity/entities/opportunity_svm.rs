@@ -14,6 +14,7 @@ use {
         kernel::entities::PermissionKey,
         opportunity::repository,
     },
+    ::express_relay::FeeToken as ProgramFeeToken,
     express_relay_api_types::opportunity as api,
     serde::{
         Deserialize,
@@ -40,6 +41,15 @@ pub struct OpportunitySvmProgramLimo {
 pub enum FeeToken {
     InputToken,
     OutputToken,
+}
+
+impl PartialEq<ProgramFeeToken> for FeeToken {
+    fn eq(&self, other: &ProgramFeeToken) -> bool {
+        match self {
+            FeeToken::InputToken => matches!(other, ProgramFeeToken::Input),
+            FeeToken::OutputToken => matches!(other, ProgramFeeToken::Output),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

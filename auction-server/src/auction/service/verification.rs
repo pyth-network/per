@@ -33,6 +33,7 @@ use {
         opportunity::{
             self as opportunity,
             entities::{
+                OpportunitySvmProgram::SwapKamino,
                 QuoteTokens,
                 TokenAmountSvm,
             },
@@ -602,6 +603,39 @@ impl Service<Svm> {
                         "No swap opportunity with the given id found".to_string(),
                     ))?;
 
+                if let SwapKamino(opp_swap_data) = opp.program {
+                    if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
+                        return Err(RestError::BadParameters(
+                            format!(
+                                "Referral fee bps in swap opportunity {} does not match the referral fee bps in the swap instruction {}",
+                                opp_swap_data.referral_fee_bps, swap_data.referral_fee_bps
+                            ),
+                        ));
+                    }
+                    if user_wallet != opp_swap_data.user_wallet_address {
+                        return Err(RestError::BadParameters(
+                            format!(
+                                "User wallet address in swap opportunity {} does not match the user wallet address in the swap instruction {}",
+                                opp_swap_data.user_wallet_address, user_wallet
+                            ),
+                        ));
+                    }
+                    if opp_swap_data.fee_token != swap_data.fee_token {
+                        return Err(RestError::BadParameters(
+                            format!(
+                                "Fee token in swap opportunity {:?} does not match the fee token in the swap instruction {:?}",
+                                opp_swap_data.fee_token, swap_data.fee_token
+                            ),
+                        ));
+                    }
+                } else {
+                    return Err(RestError::BadParameters(format!(
+                        "Opportunity with id {} is not a swap opportunity",
+                        bid_data.opportunity_id
+                    )));
+                }
+
+
                 let router_fee_receiver_ta = self
                     .extract_account(
                         &bid_data.transaction,
@@ -643,7 +677,7 @@ impl Service<Svm> {
 
                 if router_fee_receiver_ta != expected_router_fee_receiver_ta {
                     return Err(RestError::BadParameters(
-                        "Must use approved router token account for swap instruction".to_string(),
+                        format!("Associated token account for router does not match. Expected: {:?} found: {:?}", expected_router_fee_receiver_ta, router_fee_receiver_ta),
                     ));
                 }
 
