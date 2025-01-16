@@ -27,7 +27,6 @@ use {
             Store,
         },
     },
-    anyhow::anyhow,
     ethers::{
         providers::Provider,
         types::Address,
@@ -59,6 +58,7 @@ pub mod remove_opportunities;
 pub mod verification;
 
 mod get_spoof_info;
+mod get_token_program;
 mod make_adapter_calldata;
 mod make_opportunity_execution_params;
 mod make_permitted_tokens;
@@ -93,7 +93,6 @@ impl ConfigEvm {
 pub struct ConfigSvm {
     pub auction_service:         RwLock<Option<auction_service::Service<Svm>>>,
     pub rpc_client:              RpcClient,
-    pub token_program_cache:     RwLock<HashMap<Pubkey, Pubkey>>,
     pub accepted_token_programs: Vec<Pubkey>,
 }
 
@@ -218,56 +217,11 @@ impl ConfigSvm {
                             chain_store.config.rpc_timeout,
                             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                         ),
-                        token_program_cache:     RwLock::new(HashMap::new()),
                         accepted_token_programs: chain_store.config.accepted_token_programs.clone(),
                     },
                 )
             })
             .collect())
-    }
-
-    pub async fn get_token_program(&self, mint: Pubkey) -> anyhow::Result<Pubkey> {
-        if let Some(program) = self.token_program_cache.read().await.get(&mint) {
-            let token_program = *program;
-            if !self.accepted_token_programs.contains(&token_program) {
-                return Err(anyhow!(
-                    "Token program {program} for mint account {mint} is not an approved token program",
-                    program = token_program,
-                    mint = mint
-                ));
-            }
-            return Ok(token_program);
-        }
-
-        let token_program = self
-            .rpc_client
-            .get_account(&mint)
-            .await
-            .map_err(|err| {
-                tracing::error!(
-                    "Failed to retrieve owner program for mint account {mint}: {:?}",
-                    err,
-                    mint = mint
-                );
-                anyhow!(
-                    "Failed to retrieve owner program for mint account {mint}: {:?}",
-                    err,
-                    mint = mint
-                )
-            })?
-            .owner;
-        self.token_program_cache
-            .write()
-            .await
-            .insert(mint, token_program);
-        if !self.accepted_token_programs.contains(&token_program) {
-            return Err(anyhow!(
-                "Token program {program} for mint account {mint} is not an approved token program",
-                program = token_program,
-                mint = mint
-            ));
-        }
-        Ok(token_program)
     }
 }
 

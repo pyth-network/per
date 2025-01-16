@@ -1,7 +1,7 @@
 use {
     super::{
+        get_token_program::GetTokenProgramInput,
         ChainTypeSvm,
-        ConfigSvm,
         Service,
     },
     crate::{
@@ -100,7 +100,6 @@ impl Service<ChainTypeSvm> {
         &self,
         quote_create: entities::QuoteCreate,
         program: &ProgramSvm,
-        config: &ConfigSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
         let permission_account = get_quote_permission_key(
@@ -139,14 +138,26 @@ impl Service<ChainTypeSvm> {
             }],
         };
 
-        let input_token_program = config.get_token_program(input_mint).await.map_err(|err| {
-            tracing::error!("Failed to get input token program: {:?}", err);
-            RestError::BadParameters("Input token program not found".to_string())
-        })?;
-        let output_token_program = config.get_token_program(output_mint).await.map_err(|err| {
-            tracing::error!("Failed to get output token program: {:?}", err);
-            RestError::BadParameters("Output token program not found".to_string())
-        })?;
+        let input_token_program = self
+            .get_token_program(GetTokenProgramInput {
+                chain_id: quote_create.chain_id.clone(),
+                mint:     input_mint,
+            })
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get input token program: {:?}", err);
+                RestError::BadParameters("Input token program not found".to_string())
+            })?;
+        let output_token_program = self
+            .get_token_program(GetTokenProgramInput {
+                chain_id: quote_create.chain_id.clone(),
+                mint:     output_mint,
+            })
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get output token program: {:?}", err);
+                RestError::BadParameters("Output token program not found".to_string())
+            })?;
 
         let program_opportunity = match program {
             ProgramSvm::SwapKamino => {
@@ -200,7 +211,7 @@ impl Service<ChainTypeSvm> {
         tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");
 
         let opportunity_create = self
-            .get_opportunity_create_for_quote(input.quote_create.clone(), &input.program, config)
+            .get_opportunity_create_for_quote(input.quote_create.clone(), &input.program)
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {
