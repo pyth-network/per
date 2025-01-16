@@ -160,8 +160,8 @@ impl Service<ChainTypeSvm> {
             })?;
 
         let program_opportunity = match program {
-            ProgramSvm::SwapKamino => {
-                entities::OpportunitySvmProgram::SwapKamino(entities::OpportunitySvmProgramSwap {
+            ProgramSvm::Swap => {
+                entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                     user_wallet_address: quote_create.user_wallet_address,
                     // TODO*: we should determine this more intelligently
                     fee_token: entities::FeeToken::InputToken,

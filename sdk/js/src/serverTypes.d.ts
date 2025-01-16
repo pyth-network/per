@@ -739,7 +739,7 @@ export interface components {
       slot: number;
     };
     /** @enum {string} */
-    ProgramSvm: "swap_kamino" | "limo";
+    ProgramSvm: "swap" | "limo";
     Quote: components["schemas"]["QuoteSvm"];
     QuoteCreate: components["schemas"]["QuoteCreateSvm"];
     QuoteCreateSvm: components["schemas"]["QuoteCreateV1SvmParams"] & {

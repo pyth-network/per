@@ -33,7 +33,7 @@ use {
         opportunity::{
             self as opportunity,
             entities::{
-                OpportunitySvmProgram::SwapKamino,
+                OpportunitySvmProgram::Swap,
                 QuoteTokens,
                 TokenAmountSvm,
             },
@@ -600,7 +600,7 @@ impl Service<Svm> {
                     ))?;
 
                 let opp_swap_data = match opp.program {
-                    SwapKamino(opp_swap_data) => opp_swap_data,
+                    Swap(opp_swap_data) => opp_swap_data,
                     _ => {
                         return Err(RestError::BadParameters(format!(
                             "Opportunity with id {} is not a swap opportunity",

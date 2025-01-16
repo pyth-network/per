@@ -64,7 +64,7 @@ pub struct OpportunityBidResult {
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum ProgramSvm {
-    SwapKamino,
+    Swap,
     Limo,
 }
 
@@ -608,7 +608,7 @@ impl OpportunityCreateSvm {
             OpportunityCreateSvm::V1(params) => match &params.program_params {
                 OpportunityCreateProgramParamsV1Svm::Limo { .. } => ProgramSvm::Limo,
                 // TODO*: this arm doesn't really matter, bc this function will never be called in get_quote, but we should figure out how to handle this
-                OpportunityCreateProgramParamsV1Svm::Swap { .. } => ProgramSvm::SwapKamino,
+                OpportunityCreateProgramParamsV1Svm::Swap { .. } => ProgramSvm::Swap,
             },
         }
     }

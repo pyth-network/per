@@ -58,7 +58,6 @@ fn get_program(auth: &Auth) -> Result<ProgramSvm, RestError> {
 
             match profile.name.as_str() {
                 "limo" => Ok(ProgramSvm::Limo),
-                "kamino market" => Ok(ProgramSvm::SwapKamino),
                 _ => Err(RestError::Forbidden),
             }
         }
@@ -214,7 +213,7 @@ pub async fn post_quote(
         .opportunity_service_svm
         .get_quote(GetQuoteInput {
             quote_create: params.into(),
-            program:      ProgramSvm::SwapKamino,
+            program:      ProgramSvm::Swap,
         })
         .await?;
 

@@ -38,6 +38,7 @@ pub struct OpportunitySvmProgramLimo {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum FeeToken {
     InputToken,
     OutputToken,
@@ -65,7 +66,7 @@ pub struct OpportunitySvmProgramSwap {
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpportunitySvmProgram {
     Limo(OpportunitySvmProgramLimo),
-    SwapKamino(OpportunitySvmProgramSwap),
+    Swap(OpportunitySvmProgramSwap),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -118,8 +119,8 @@ impl Opportunity for OpportunitySvm {
                     },
                 )
             }
-            OpportunitySvmProgram::SwapKamino(program) => {
-                repository::OpportunityMetadataSvmProgram::SwapKamino(
+            OpportunitySvmProgram::Swap(program) => {
+                repository::OpportunityMetadataSvmProgram::Swap(
                     repository::OpportunityMetadataSvmProgramSwap {
                         user_wallet_address:  program.user_wallet_address,
                         fee_token:            program.fee_token,
@@ -198,7 +199,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 order:         program.order,
                 order_address: program.order_address,
             },
-            OpportunitySvmProgram::SwapKamino(program) => {
+            OpportunitySvmProgram::Swap(program) => {
                 let buy_token = val
                     .buy_tokens
                     .first()
@@ -287,8 +288,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     order_address: program.order_address,
                 })
             }
-            repository::OpportunityMetadataSvmProgram::SwapKamino(program) => {
-                OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
+            repository::OpportunityMetadataSvmProgram::Swap(program) => {
+                OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
                     user_wallet_address:  program.user_wallet_address,
                     fee_token:            program.fee_token,
                     referral_fee_bps:     program.referral_fee_bps,
@@ -332,7 +333,7 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 referral_fee_bps,
                 input_token_program,
                 output_token_program,
-            } => OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
+            } => OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
                 user_wallet_address,
                 // TODO*: see comment above about this arm
                 fee_token: FeeToken::InputToken,
@@ -382,7 +383,7 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
 impl OpportunitySvm {
     pub fn get_missing_signers(&self) -> Vec<Pubkey> {
         match self.program.clone() {
-            OpportunitySvmProgram::SwapKamino(data) => vec![data.user_wallet_address],
+            OpportunitySvmProgram::Swap(data) => vec![data.user_wallet_address],
             OpportunitySvmProgram::Limo(_) => vec![],
         }
     }
@@ -405,7 +406,7 @@ impl From<OpportunitySvmProgram> for api::ProgramSvm {
     fn from(val: OpportunitySvmProgram) -> Self {
         match val {
             OpportunitySvmProgram::Limo(_) => api::ProgramSvm::Limo,
-            OpportunitySvmProgram::SwapKamino(_) => api::ProgramSvm::SwapKamino,
+            OpportunitySvmProgram::Swap(_) => api::ProgramSvm::Swap,
         }
     }
 }
