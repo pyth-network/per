@@ -23,7 +23,7 @@ pub struct GetOpportunityByIdInput {
 }
 
 impl<T: ChainType> Service<T> {
-    pub async fn get_opportunity_by_id(
+    pub async fn get_live_opportunity_by_id(
         &self,
         input: GetOpportunityByIdInput,
     ) -> Option<<T::InMemoryStore as InMemoryStore>::Opportunity> {

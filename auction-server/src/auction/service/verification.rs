@@ -588,14 +588,10 @@ impl Service<Svm> {
                         },
                     ),
                 };
-                let mint_fee = match swap_data.fee_token {
-                    FeeToken::Input => mint_input,
-                    FeeToken::Output => mint_output,
-                };
 
                 let opp = self
                     .opportunity_service
-                    .get_opportunity_by_id(GetOpportunityByIdInput {
+                    .get_live_opportunity_by_id(GetOpportunityByIdInput {
                         opportunity_id: bid_data.opportunity_id,
                     })
                     .await
@@ -603,58 +599,46 @@ impl Service<Svm> {
                         "No swap opportunity with the given id found".to_string(),
                     ))?;
 
-                if let SwapKamino(opp_swap_data) = opp.program {
-                    if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
-                        return Err(RestError::BadParameters(
-                            format!(
-                                "Referral fee bps in swap opportunity {} does not match the referral fee bps in the swap instruction {}",
-                                opp_swap_data.referral_fee_bps, swap_data.referral_fee_bps
-                            ),
-                        ));
+                let opp_swap_data = match opp.program {
+                    SwapKamino(opp_swap_data) => opp_swap_data,
+                    _ => {
+                        return Err(RestError::BadParameters(format!(
+                            "Opportunity with id {} is not a swap opportunity",
+                            bid_data.opportunity_id
+                        )));
                     }
-                    if user_wallet != opp_swap_data.user_wallet_address {
-                        return Err(RestError::BadParameters(
-                            format!(
-                                "User wallet address in swap opportunity {} does not match the user wallet address in the swap instruction {}",
-                                opp_swap_data.user_wallet_address, user_wallet
-                            ),
-                        ));
-                    }
-                    if opp_swap_data.fee_token != swap_data.fee_token {
-                        return Err(RestError::BadParameters(
-                            format!(
-                                "Fee token in swap opportunity {:?} does not match the fee token in the swap instruction {:?}",
-                                opp_swap_data.fee_token, swap_data.fee_token
-                            ),
-                        ));
-                    }
-                } else {
-                    return Err(RestError::BadParameters(format!(
-                        "Opportunity with id {} is not a swap opportunity",
-                        bid_data.opportunity_id
-                    )));
+                };
+
+
+                if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
+                    return Err(RestError::BadParameters(
+                        format!(
+                            "Referral fee bps in swap opportunity {} does not match the referral fee bps in the swap instruction {}",
+                            opp_swap_data.referral_fee_bps, swap_data.referral_fee_bps
+                        ),
+                    ));
+                }
+                if user_wallet != opp_swap_data.user_wallet_address {
+                    return Err(RestError::BadParameters(
+                        format!(
+                            "User wallet address in swap opportunity {} does not match the user wallet address in the swap instruction {}",
+                            opp_swap_data.user_wallet_address, user_wallet
+                        ),
+                    ));
+                }
+                let (fee_token, fee_token_program) = match swap_data.fee_token {
+                    FeeToken::Input => (mint_input, opp_swap_data.input_token_program),
+                    FeeToken::Output => (mint_output, opp_swap_data.output_token_program),
+                };
+                if opp_swap_data.fee_token != swap_data.fee_token {
+                    return Err(RestError::BadParameters(
+                        format!(
+                            "Fee token in swap opportunity {:?} does not match the fee token in the swap instruction {:?}",
+                            opp_swap_data.fee_token, swap_data.fee_token
+                        ),
+                    ));
                 }
 
-
-                let router_fee_receiver_ta = self
-                    .extract_account(
-                        &bid_data.transaction,
-                        &swap_instruction,
-                        self.config
-                            .chain_config
-                            .express_relay
-                            .swap_instruction_account_positions
-                            .router_token_account,
-                    )
-                    .await?;
-
-                //TODO* : do not hardcode the token program and refactor into separate function
-                let fee_token_program = Pubkey::from_str(
-                    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-                )
-                .map_err(|e| {
-                    RestError::BadParameters(format!("Invalid token program address: {:?}", e))
-                })?;
                 let associated_token_program = Pubkey::from_str(
                     "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
                 )
@@ -669,11 +653,22 @@ impl Service<Svm> {
                     &[
                         &opp.router.to_bytes(),
                         &fee_token_program.to_bytes(),
-                        &mint_fee.to_bytes(),
+                        &fee_token.to_bytes(),
                     ],
                     &associated_token_program,
                 )
                 .0;
+                let router_fee_receiver_ta = self
+                    .extract_account(
+                        &bid_data.transaction,
+                        &swap_instruction,
+                        self.config
+                            .chain_config
+                            .express_relay
+                            .swap_instruction_account_positions
+                            .router_token_account,
+                    )
+                    .await?;
 
                 if router_fee_receiver_ta != expected_router_fee_receiver_ta {
                     return Err(RestError::BadParameters(
