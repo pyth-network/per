@@ -2,6 +2,7 @@ use {
     anchor_lang::error::ErrorCode as AnchorErrorCode,
     express_relay::state::RESERVE_EXPRESS_RELAY_METADATA,
     solana_sdk::{
+        instruction::InstructionError,
         native_token::LAMPORTS_PER_SOL,
         signature::Keypair,
         signer::Signer,
@@ -17,20 +18,13 @@ use {
             get_balance,
             submit_transaction,
         },
-        setup::{
-            setup,
-            SetupParams,
-        },
+        setup::setup,
     },
 };
 
 #[test]
 fn test_withdraw_fees() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;
@@ -67,11 +61,7 @@ fn test_withdraw_fees() {
 
 #[test]
 fn test_withdraw_fees_fail_wrong_admin() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let wrong_admin = generate_and_fund_key(&mut svm);
@@ -82,5 +72,9 @@ fn test_withdraw_fees_fail_wrong_admin() {
         submit_transaction(&mut svm, &[withdraw_fees_ix], &wrong_admin, &[&wrong_admin])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }

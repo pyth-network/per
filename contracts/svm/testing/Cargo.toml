@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 anchor-lang = { workspace = true }
+anchor-spl = { workspace = true }
 solana-sdk = { workspace = true }
 express-relay = { path = "../programs/express_relay", features = ["no-entrypoint"] }
 dummy = { path = "../programs/dummy", features = ["no-entrypoint"] }

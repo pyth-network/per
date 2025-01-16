@@ -3,8 +3,9 @@ use {
     solana_sdk::{
         instruction::{
             Instruction,
-            InstructionError::Custom,
+            InstructionError,
         },
+        native_token::LAMPORTS_PER_SOL,
         pubkey::Pubkey,
         signature::Keypair,
         signer::Signer,
@@ -13,13 +14,10 @@ use {
             Transaction,
             TransactionError::{
                 self,
-                InstructionError,
             },
         },
     },
 };
-
-pub const LAMPORTS_PER_SOL: u64 = 1_000_000_000;
 pub const TX_FEE: u64 = 10_000; // TODO: make this programmatic? FeeStructure is currently private field within LiteSVM
 
 #[allow(clippy::result_large_err)]
@@ -56,16 +54,15 @@ pub fn warp_to_unix(svm: &mut litesvm::LiteSVM, unix_timestamp: i64) {
     svm.set_sysvar(&clock);
 }
 
-pub fn assert_custom_error(error: TransactionError, instruction_index: u8, custom_error: u32) {
+pub fn assert_custom_error(
+    error: TransactionError,
+    instruction_index: u8,
+    instruction_error: InstructionError,
+) {
     match error {
-        InstructionError(index, error_variant) => {
+        TransactionError::InstructionError(index, error_variant) => {
             assert_eq!(index, instruction_index);
-            match error_variant {
-                Custom(code) => {
-                    assert_eq!(code, custom_error);
-                }
-                _ => panic!("Unexpected error code"),
-            }
+            assert_eq!(error_variant, instruction_error);
         }
         _ => panic!("Unexpected error variant"),
     }

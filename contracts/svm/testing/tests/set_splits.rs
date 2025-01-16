@@ -4,6 +4,7 @@ use {
         error::ErrorCode,
         state::FEE_SPLIT_PRECISION,
     },
+    solana_sdk::instruction::InstructionError,
     testing::{
         express_relay::{
             helpers::get_express_relay_metadata,
@@ -14,20 +15,13 @@ use {
             generate_and_fund_key,
             submit_transaction,
         },
-        setup::{
-            setup,
-            SetupParams,
-        },
+        setup::setup,
     },
 };
 
 #[test]
 fn test_set_splits() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;
@@ -38,7 +32,7 @@ fn test_set_splits() {
     submit_transaction(&mut svm, &[set_splits_ix], &admin, &[&admin])
         .expect("Transaction failed unexpectedly");
 
-    let express_relay_metadata = get_express_relay_metadata(svm);
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     assert_eq!(
         express_relay_metadata.split_router_default,
@@ -49,11 +43,7 @@ fn test_set_splits() {
 
 #[test]
 fn test_set_splits_fail_wrong_admin() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let wrong_admin = generate_and_fund_key(&mut svm);
@@ -65,16 +55,16 @@ fn test_set_splits_fail_wrong_admin() {
     let tx_result = submit_transaction(&mut svm, &[set_splits_ix], &wrong_admin, &[&wrong_admin])
         .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }
 
 #[test]
 fn test_set_splits_fail_high_split_router() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;
@@ -88,17 +78,13 @@ fn test_set_splits_fail_high_split_router() {
     assert_custom_error(
         tx_result.err,
         0,
-        ErrorCode::FeeSplitLargerThanPrecision.into(),
+        InstructionError::Custom(ErrorCode::FeeSplitLargerThanPrecision.into()),
     );
 }
 
 #[test]
 fn test_set_splits_fail_high_split_relayer() {
-    let setup_result = setup(SetupParams {
-        split_router_default: 4000,
-        split_relayer:        2000,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let mut svm = setup_result.svm;
     let admin = setup_result.admin;
@@ -112,6 +98,6 @@ fn test_set_splits_fail_high_split_relayer() {
     assert_custom_error(
         tx_result.err,
         0,
-        ErrorCode::FeeSplitLargerThanPrecision.into(),
+        InstructionError::Custom(ErrorCode::FeeSplitLargerThanPrecision.into()),
     );
 }

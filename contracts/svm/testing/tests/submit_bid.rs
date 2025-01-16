@@ -6,7 +6,10 @@ use {
         state::FEE_SPLIT_PRECISION,
     },
     solana_sdk::{
-        instruction::Instruction,
+        instruction::{
+            Instruction,
+            InstructionError,
+        },
         native_token::LAMPORTS_PER_SOL,
         pubkey::Pubkey,
         rent::Rent,
@@ -30,10 +33,7 @@ use {
             warp_to_unix,
             TX_FEE,
         },
-        setup::{
-            setup,
-            SetupParams,
-        },
+        setup::setup,
     },
 };
 
@@ -49,15 +49,8 @@ pub struct BidInfo {
     pub ixs:                  Vec<Instruction>,
 }
 
-pub const SPLIT_ROUTER_DEFAULT: u64 = 4000;
-pub const SPLIT_RELAYER: u64 = 2000;
-
 fn setup_bid() -> BidInfo {
-    let setup_result = setup(SetupParams {
-        split_router_default: SPLIT_ROUTER_DEFAULT,
-        split_relayer:        SPLIT_RELAYER,
-    })
-    .expect("setup failed");
+    let setup_result = setup(None).expect("setup failed");
 
     let svm = setup_result.svm;
     let relayer_signer = setup_result.relayer_signer;
@@ -122,7 +115,7 @@ fn test_bid() {
     let balance_express_relay_metadata_post = get_balance(&svm, &express_relay_metadata_key);
     let balance_searcher_post = get_balance(&svm, &searcher.pubkey());
 
-    let express_relay_metadata_acc = get_express_relay_metadata(svm);
+    let express_relay_metadata_acc = get_express_relay_metadata(&mut svm);
     let expected_fee_router =
         bid_amount * express_relay_metadata_acc.split_router_default / FEE_SPLIT_PRECISION;
     let expected_fee_relayer = bid_amount.saturating_sub(expected_fee_router)
@@ -185,7 +178,11 @@ fn test_bid_fail_wrong_relayer_signer() {
     )
     .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }
 
 #[test]
@@ -219,7 +216,11 @@ fn test_bid_fail_wrong_relayer_fee_receiver() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, AnchorErrorCode::ConstraintHasOne.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
 }
 
 #[test]
@@ -257,7 +258,7 @@ fn test_bid_fail_insufficient_searcher_rent() {
     assert_custom_error(
         tx_result.err,
         0,
-        ErrorCode::InsufficientSearcherFunds.into(),
+        InstructionError::Custom(ErrorCode::InsufficientSearcherFunds.into()),
     );
 }
 
@@ -292,7 +293,11 @@ fn test_bid_fail_insufficient_router_rent() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::InsufficientRent.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::InsufficientRent.into()),
+    );
 }
 
 #[test]
@@ -339,7 +344,11 @@ fn test_bid_fail_insufficient_relayer_fee_receiver_rent() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::InsufficientRent.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::InsufficientRent.into()),
+    );
 }
 
 #[test]
@@ -373,7 +382,11 @@ fn test_bid_fail_passed_deadline() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::DeadlinePassed.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::DeadlinePassed.into()),
+    );
 }
 
 #[test]
@@ -407,7 +420,11 @@ fn test_bid_fail_wrong_permission_key() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 1, ErrorCode::MissingPermission.into());
+    assert_custom_error(
+        tx_result.err,
+        1,
+        InstructionError::Custom(ErrorCode::MissingPermission.into()),
+    );
 }
 
 #[test]
@@ -441,7 +458,11 @@ fn test_bid_fail_wrong_router_key() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 1, ErrorCode::MissingPermission.into());
+    assert_custom_error(
+        tx_result.err,
+        1,
+        InstructionError::Custom(ErrorCode::MissingPermission.into()),
+    );
 }
 
 #[test]
@@ -461,7 +482,11 @@ fn test_bid_fail_no_permission() {
     let tx_result = submit_transaction(&mut svm, &ixs, &searcher, &[&searcher])
         .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::MissingPermission.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::MissingPermission.into()),
+    );
 }
 
 #[test]
@@ -504,5 +529,9 @@ fn test_bid_fail_duplicate_permission() {
         submit_transaction(&mut svm, &bid_ixs, &searcher, &[&searcher, &relayer_signer])
             .expect_err("Transaction should have failed");
 
-    assert_custom_error(tx_result.err, 0, ErrorCode::MultiplePermissions.into());
+    assert_custom_error(
+        tx_result.err,
+        0,
+        InstructionError::Custom(ErrorCode::MultiplePermissions.into()),
+    );
 }

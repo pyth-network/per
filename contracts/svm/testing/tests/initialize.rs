@@ -3,29 +3,31 @@ use {
         error::ErrorCode,
         state::FEE_SPLIT_PRECISION,
     },
-    solana_sdk::signer::Signer,
+    solana_sdk::{
+        instruction::InstructionError,
+        signer::Signer,
+    },
     testing::{
         express_relay::helpers::get_express_relay_metadata,
         helpers::assert_custom_error,
         setup::{
             setup,
             SetupParams,
+            SPLIT_RELAYER,
+            SPLIT_ROUTER_DEFAULT,
         },
     },
 };
 
 #[test]
 fn test_initialize() {
-    let split_router_default: u64 = 4000;
-    let split_relayer: u64 = 2000;
+    let mut setup_result = setup(Some(SetupParams {
+        split_router_default: SPLIT_ROUTER_DEFAULT,
+        split_relayer:        SPLIT_RELAYER,
+    }))
+    .expect("setup failed");
 
-    let setup_params = SetupParams {
-        split_router_default,
-        split_relayer,
-    };
-    let setup_result = setup(setup_params).expect("setup failed");
-
-    let express_relay_metadata = get_express_relay_metadata(setup_result.svm);
+    let express_relay_metadata = get_express_relay_metadata(&mut setup_result.svm);
 
     assert_eq!(express_relay_metadata.admin, setup_result.admin.pubkey());
     assert_eq!(
@@ -38,9 +40,9 @@ fn test_initialize() {
     );
     assert_eq!(
         express_relay_metadata.split_router_default,
-        split_router_default
+        SPLIT_ROUTER_DEFAULT
     );
-    assert_eq!(express_relay_metadata.split_relayer, split_relayer);
+    assert_eq!(express_relay_metadata.split_relayer, SPLIT_RELAYER);
 }
 
 #[test]
@@ -52,11 +54,15 @@ fn test_initialize_fail_high_split_router() {
         split_router_default,
         split_relayer,
     };
-    let setup_result = setup(setup_params);
+    let setup_result = setup(Some(setup_params));
 
     match setup_result {
         Ok(_) => panic!("expected setup to fail"),
-        Err(err) => assert_custom_error(err, 0, ErrorCode::FeeSplitLargerThanPrecision.into()),
+        Err(err) => assert_custom_error(
+            err,
+            0,
+            InstructionError::Custom(ErrorCode::FeeSplitLargerThanPrecision.into()),
+        ),
     }
 }
 
@@ -69,10 +75,14 @@ fn test_initialize_fail_high_split_relayer() {
         split_router_default,
         split_relayer,
     };
-    let setup_result = setup(setup_params);
+    let setup_result = setup(Some(setup_params));
 
     match setup_result {
         Ok(_) => panic!("expected setup to fail"),
-        Err(err) => assert_custom_error(err, 0, ErrorCode::FeeSplitLargerThanPrecision.into()),
+        Err(err) => assert_custom_error(
+            err,
+            0,
+            InstructionError::Custom(ErrorCode::FeeSplitLargerThanPrecision.into()),
+        ),
     }
 }

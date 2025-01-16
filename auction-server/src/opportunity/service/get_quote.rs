@@ -1,5 +1,6 @@
 use {
     super::{
+        get_token_program::GetTokenProgramInput,
         ChainTypeSvm,
         Service,
     },
@@ -126,7 +127,7 @@ impl Service<ChainTypeSvm> {
                 router,
                 permission_account,
             ),
-            chain_id:       quote_create.chain_id,
+            chain_id:       quote_create.chain_id.clone(),
             sell_tokens:    vec![entities::TokenAmountSvm {
                 token:  output_mint,
                 amount: output_amount,
@@ -137,13 +138,36 @@ impl Service<ChainTypeSvm> {
             }],
         };
 
+        let input_token_program = self
+            .get_token_program(GetTokenProgramInput {
+                chain_id: quote_create.chain_id.clone(),
+                mint:     input_mint,
+            })
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get input token program: {:?}", err);
+                RestError::BadParameters("Input token program not found".to_string())
+            })?;
+        let output_token_program = self
+            .get_token_program(GetTokenProgramInput {
+                chain_id: quote_create.chain_id.clone(),
+                mint:     output_mint,
+            })
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get output token program: {:?}", err);
+                RestError::BadParameters("Output token program not found".to_string())
+            })?;
+
         let program_opportunity = match program {
             ProgramSvm::SwapKamino => {
                 entities::OpportunitySvmProgram::SwapKamino(entities::OpportunitySvmProgramSwap {
                     user_wallet_address: quote_create.user_wallet_address,
                     // TODO*: we should determine this more intelligently
-                    fee_token:           entities::FeeToken::InputToken,
-                    referral_fee_bps:    quote_create.referral_fee_bps,
+                    fee_token: entities::FeeToken::InputToken,
+                    referral_fee_bps: quote_create.referral_fee_bps,
+                    input_token_program,
+                    output_token_program,
                 })
             }
             _ => {
