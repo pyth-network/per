@@ -1,6 +1,7 @@
 use {
     super::entities,
     ethers::types::Address,
+    solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
         ops::Deref,
@@ -15,6 +16,7 @@ mod get_in_memory_opportunities_by_key;
 mod get_in_memory_opportunity_by_id;
 mod get_opportunities;
 mod get_spoof_info;
+mod get_token_program;
 mod models;
 mod refresh_in_memory_opportunity;
 mod remove_opportunities;
@@ -53,7 +55,8 @@ pub struct InMemoryStoreEvm {
     pub spoof_info:  RwLock<HashMap<Address, entities::SpoofState>>,
 }
 pub struct InMemoryStoreSvm {
-    pub core_fields: InMemoryStoreCoreFields<entities::OpportunitySvm>,
+    pub core_fields:         InMemoryStoreCoreFields<entities::OpportunitySvm>,
+    pub token_program_cache: RwLock<HashMap<Pubkey, Pubkey>>,
 }
 
 impl InMemoryStore for InMemoryStoreEvm {
@@ -72,7 +75,8 @@ impl InMemoryStore for InMemoryStoreSvm {
 
     fn new() -> Self {
         Self {
-            core_fields: InMemoryStoreCoreFields::new(),
+            core_fields:         InMemoryStoreCoreFields::new(),
+            token_program_cache: RwLock::new(HashMap::new()),
         }
     }
 }

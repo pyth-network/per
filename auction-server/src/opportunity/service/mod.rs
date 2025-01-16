@@ -19,6 +19,7 @@ use {
                 Svm,
             },
             traced_client::TracedClient,
+            traced_sender_svm::TracedSenderSvm,
         },
         state::{
             ChainStoreEvm,
@@ -31,6 +32,14 @@ use {
         types::Address,
     },
     futures::future::try_join_all,
+    solana_client::{
+        nonblocking::rpc_client::RpcClient,
+        rpc_client::RpcClientConfig,
+    },
+    solana_sdk::{
+        commitment_config::CommitmentConfig,
+        pubkey::Pubkey,
+    },
     std::{
         collections::HashMap,
         sync::Arc,
@@ -49,6 +58,7 @@ pub mod remove_opportunities;
 pub mod verification;
 
 mod get_spoof_info;
+mod get_token_program;
 mod make_adapter_calldata;
 mod make_opportunity_execution_params;
 mod make_permitted_tokens;
@@ -67,8 +77,8 @@ pub struct ConfigEvm {
 impl ConfigEvm {
     // TODO Move these to config trait?
     pub async fn inject_auction_service(&self, service: auction_service::Service<Evm>) {
-        let mut write_gaurd = self.auction_service.write().await;
-        *write_gaurd = Some(service);
+        let mut write_guard = self.auction_service.write().await;
+        *write_guard = Some(service);
     }
     pub async fn get_auction_service(&self) -> auction_service::Service<Evm> {
         self.auction_service
@@ -81,14 +91,16 @@ impl ConfigEvm {
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
-    pub auction_service: RwLock<Option<auction_service::Service<Svm>>>,
+    pub auction_service:         RwLock<Option<auction_service::Service<Svm>>>,
+    pub rpc_client:              RpcClient,
+    pub accepted_token_programs: Vec<Pubkey>,
 }
 
 impl ConfigSvm {
     // TODO Move these to config trait?
     pub async fn inject_auction_service(&self, service: auction_service::Service<Svm>) {
-        let mut write_gaurd = self.auction_service.write().await;
-        *write_gaurd = Some(service);
+        let mut write_guard = self.auction_service.write().await;
+        *write_guard = Some(service);
     }
     pub async fn get_auction_service(&self) -> auction_service::Service<Svm> {
         self.auction_service
@@ -194,11 +206,18 @@ impl ConfigSvm {
     ) -> anyhow::Result<HashMap<ChainId, Self>> {
         Ok(chains
             .iter()
-            .map(|(chain_id, _)| {
+            .map(|(chain_id, chain_store)| {
                 (
                     chain_id.clone(),
                     Self {
-                        auction_service: RwLock::new(None),
+                        auction_service:         RwLock::new(None),
+                        rpc_client:              TracedSenderSvm::new_client(
+                            chain_id.clone(),
+                            chain_store.config.rpc_read_url.as_str(),
+                            chain_store.config.rpc_timeout,
+                            RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                        ),
+                        accepted_token_programs: chain_store.config.accepted_token_programs.clone(),
                     },
                 )
             })
