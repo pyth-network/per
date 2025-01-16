@@ -23,6 +23,8 @@ import {
   QuoteRequest,
   QuoteResponse,
   BidSvmOnChain,
+  BidSvmSwap,
+  OpportunitySvmSwap,
 } from "./types";
 import {
   Connection,
@@ -807,7 +809,7 @@ export class Client {
   }
 
   /**
-   * Constructs an SVM bid, by adding a SubmitBid instruction to a transaction
+   * Constructs an SVM On-chain bid, by adding a SubmitBid instruction to a transaction
    * @param tx The transaction to add a SubmitBid instruction to. This transaction should already check for the appropriate permissions.
    * @param searcher The address of the searcher that is submitting the bid
    * @param router The identifying address of the router that the permission key is for
@@ -840,6 +842,36 @@ export class Client {
       chainId,
       relayerSigner,
       feeReceiverRelayer
+    );
+  }
+
+  /**
+   * Constructs a Swap Bid, by adding swap instruction + idempotent token account creation instructions to a transaction
+   * @param tx The transaction to add the instructions to
+   * @param searcher The address of the searcher filling the swap order
+   * @param swapOpportunity The swap opportunity to bid on
+   * @param bidAmount The amount of the bid in either input or output tokens depending on the swap opportunity
+   * @param deadline The deadline for the bid in seconds since Unix epoch
+   * @param chainId The chain ID as a string, e.g. "solana"
+   * @param relayerSigner The address of the relayer that is handling the bid
+   */
+  async constructSwapBid(
+    tx: Transaction,
+    searcher: PublicKey,
+    swapOpportunity: OpportunitySvmSwap,
+    bidAmount: anchor.BN,
+    deadline: anchor.BN,
+    chainId: string,
+    relayerSigner: PublicKey
+  ): Promise<BidSvmSwap> {
+    return svm.constructSwapBid(
+      tx,
+      searcher,
+      swapOpportunity,
+      bidAmount,
+      deadline,
+      chainId,
+      relayerSigner
     );
   }
 }

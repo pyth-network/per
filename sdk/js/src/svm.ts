@@ -125,15 +125,14 @@ export function createAtaIdempotentInstruction(
   return [ataAddress, createUserTokenAccountIx];
 }
 
-export async function constructSwapBid(
-  tx: Transaction,
+export async function constructSwapInstruction(
   searcher: PublicKey,
   swapOpportunity: OpportunitySvmSwap,
   bidAmount: anchor.BN,
   deadline: anchor.BN,
   chainId: string,
   relayerSigner: PublicKey
-): Promise<BidSvmSwap> {
+): Promise<TransactionInstruction> {
   const expressRelay = new Program<ExpressRelay>(
     expressRelayIdl as ExpressRelay,
     {} as AnchorProvider
@@ -141,22 +140,16 @@ export async function constructSwapBid(
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
   const svmConstants = SVM_CONSTANTS[chainId];
 
-  const inputTokenProgram = swapOpportunity.tokens.inputTokenProgram;
-  const outputTokenProgram = swapOpportunity.tokens.outputTokenProgram;
-  const inputToken =
-    swapOpportunity.tokens.type === "input_specified"
-      ? swapOpportunity.tokens.inputToken.token
-      : swapOpportunity.tokens.inputToken;
-  const outputToken =
-    swapOpportunity.tokens.type === "output_specified"
-      ? swapOpportunity.tokens.outputToken.token
-      : swapOpportunity.tokens.outputToken;
-  const trader = swapOpportunity.userWalletAddress;
-  const [mintFee, feeTokenProgram] =
-    swapOpportunity.feeToken === "input_token"
-      ? [inputToken, inputTokenProgram]
-      : [outputToken, outputTokenProgram];
-  const router = swapOpportunity.routerAccount;
+  const {
+    inputToken,
+    inputTokenProgram,
+    outputTokenProgram,
+    outputToken,
+    trader,
+    mintFee,
+    feeTokenProgram,
+    router,
+  } = extractSwapInfo(swapOpportunity);
 
   const swapArgs = {
     amountInput:
@@ -224,39 +217,90 @@ export async function constructSwapBid(
     })
     .instruction();
   ixSwap.programId = svmConstants.expressRelayProgram;
-  tx.instructions.push(
-    createAtaIdempotentInstruction(
-      router,
-      mintFee,
-      searcher,
-      feeTokenProgram
-    )[1]
+  return ixSwap;
+}
+
+function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
+  outputTokenProgram: PublicKey;
+  outputToken: PublicKey;
+  trader: PublicKey;
+  mintFee: PublicKey;
+  feeTokenProgram: PublicKey;
+  router: PublicKey;
+  inputToken: PublicKey;
+  inputTokenProgram: PublicKey;
+} {
+  const inputTokenProgram = swapOpportunity.tokens.inputTokenProgram;
+  const outputTokenProgram = swapOpportunity.tokens.outputTokenProgram;
+  const inputToken =
+    swapOpportunity.tokens.type === "input_specified"
+      ? swapOpportunity.tokens.inputToken.token
+      : swapOpportunity.tokens.inputToken;
+  const outputToken =
+    swapOpportunity.tokens.type === "output_specified"
+      ? swapOpportunity.tokens.outputToken.token
+      : swapOpportunity.tokens.outputToken;
+  const trader = swapOpportunity.userWalletAddress;
+  const [mintFee, feeTokenProgram] =
+    swapOpportunity.feeToken === "input_token"
+      ? [inputToken, inputTokenProgram]
+      : [outputToken, outputTokenProgram];
+  const router = swapOpportunity.routerAccount;
+  return {
+    inputToken,
+    inputTokenProgram,
+    outputTokenProgram,
+    outputToken,
+    trader,
+    mintFee,
+    feeTokenProgram,
+    router,
+  };
+}
+
+export async function constructSwapBid(
+  tx: Transaction,
+  searcher: PublicKey,
+  swapOpportunity: OpportunitySvmSwap,
+  bidAmount: anchor.BN,
+  deadline: anchor.BN,
+  chainId: string,
+  relayerSigner: PublicKey
+): Promise<BidSvmSwap> {
+  const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
+  const {
+    outputTokenProgram,
+    outputToken,
+    trader,
+    mintFee,
+    feeTokenProgram,
+    router,
+  } = extractSwapInfo(swapOpportunity);
+  const tokenAccountsToCreate = [
+    { owner: router, mint: mintFee, program: feeTokenProgram },
+    { owner: relayerSigner, mint: mintFee, program: feeTokenProgram },
+    { owner: expressRelayMetadata, mint: mintFee, program: feeTokenProgram },
+    { owner: trader, mint: outputToken, program: outputTokenProgram },
+  ];
+  for (const account of tokenAccountsToCreate) {
+    tx.instructions.push(
+      createAtaIdempotentInstruction(
+        account.owner,
+        account.mint,
+        searcher,
+        account.program
+      )[1]
+    );
+  }
+  const swapInstruction = await constructSwapInstruction(
+    searcher,
+    swapOpportunity,
+    bidAmount,
+    deadline,
+    chainId,
+    relayerSigner
   );
-  tx.instructions.push(
-    createAtaIdempotentInstruction(
-      relayerSigner,
-      mintFee,
-      searcher,
-      feeTokenProgram
-    )[1]
-  );
-  tx.instructions.push(
-    createAtaIdempotentInstruction(
-      expressRelayMetadata,
-      mintFee,
-      searcher,
-      feeTokenProgram
-    )[1]
-  );
-  tx.instructions.push(
-    createAtaIdempotentInstruction(
-      trader,
-      outputToken,
-      searcher,
-      outputTokenProgram
-    )[1]
-  );
-  tx.instructions.push(ixSwap);
+  tx.instructions.push(swapInstruction);
 
   return {
     transaction: tx,
