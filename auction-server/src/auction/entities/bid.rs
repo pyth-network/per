@@ -16,6 +16,7 @@ use {
             self,
             ProfileId,
         },
+        opportunity::entities::OpportunityId,
     },
     ethers::types::{
         Address,
@@ -270,7 +271,7 @@ pub struct BidChainDataOnChainCreateSvm {
 #[derive(Clone, Debug)]
 pub struct BidChainDataSwapCreateSvm {
     pub transaction:    VersionedTransaction,
-    pub opportunity_id: Uuid,
+    pub opportunity_id: OpportunityId,
 }
 
 
