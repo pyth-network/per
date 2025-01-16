@@ -35,12 +35,11 @@ use {
             entities::{
                 OpportunitySvmProgram::Swap,
                 QuoteTokens,
-                TokenAmountSvm,
             },
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
                 get_opportunities::GetOpportunityByIdInput,
-                get_quote::get_quote_permission_key,
+                get_quote::get_quote_permission_account,
             },
         },
     },
@@ -566,28 +565,6 @@ impl Service<Svm> {
                     )
                     .await?;
 
-                let (bid_amount, tokens) = match swap_data.fee_token {
-                    FeeToken::Input => (
-                        swap_data.amount_input,
-                        QuoteTokens::InputTokenSpecified {
-                            input_token:  TokenAmountSvm {
-                                token:  mint_input,
-                                amount: swap_data.amount_input,
-                            },
-                            output_token: mint_output,
-                        },
-                    ),
-                    FeeToken::Output => (
-                        swap_data.amount_output,
-                        QuoteTokens::OutputTokenSpecified {
-                            input_token:  mint_input,
-                            output_token: TokenAmountSvm {
-                                token:  mint_output,
-                                amount: swap_data.amount_output,
-                            },
-                        },
-                    ),
-                };
 
                 let opp = self
                     .opportunity_service
@@ -608,6 +585,72 @@ impl Service<Svm> {
                         )));
                     }
                 };
+                let (
+                    bid_amount,
+                    expected_input_token,
+                    expected_input_amount,
+                    expected_output_token,
+                    expected_output_amount,
+                ) = match opp_swap_data.quote_tokens.clone() {
+                    QuoteTokens::InputTokenSpecified {
+                        input_token,
+                        output_token,
+                        ..
+                    } => (
+                        swap_data.amount_output,
+                        input_token.token,
+                        Some(input_token.amount),
+                        output_token,
+                        None,
+                    ),
+                    QuoteTokens::OutputTokenSpecified {
+                        input_token,
+                        output_token,
+                        ..
+                    } => (
+                        swap_data.amount_input,
+                        input_token,
+                        None,
+                        output_token.token,
+                        Some(output_token.amount),
+                    ),
+                };
+                if let Some(expected_input_amount) = expected_input_amount {
+                    if expected_input_amount != swap_data.amount_input {
+                        return Err(RestError::BadParameters(
+                            format!(
+                                "Input amount in swap opportunity {} does not match the input amount in the swap instruction {}",
+                                expected_input_amount, swap_data.amount_input
+                            ),
+                        ));
+                    }
+                }
+                if let Some(expected_output_amount) = expected_output_amount {
+                    if expected_output_amount != swap_data.amount_output {
+                        return Err(RestError::BadParameters(
+                            format!(
+                                "Output amount in swap opportunity {} does not match the output amount in the swap instruction {}",
+                                expected_output_amount, swap_data.amount_output
+                            ),
+                        ));
+                    }
+                }
+                if expected_input_token != mint_input {
+                    return Err(RestError::BadParameters(
+                        format!(
+                            "Input token in swap opportunity {} does not match the input token in the swap instruction {}",
+                            expected_input_token, mint_input
+                        ),
+                    ));
+                }
+                if expected_output_token != mint_output {
+                    return Err(RestError::BadParameters(
+                        format!(
+                            "Output token in swap opportunity {} does not match the output token in the swap instruction {}",
+                            expected_output_token, mint_output
+                        ),
+                    ));
+                }
 
 
                 if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
@@ -676,8 +719,11 @@ impl Service<Svm> {
                     ));
                 }
 
-                let permission_account =
-                    get_quote_permission_key(&tokens, &user_wallet, swap_data.referral_fee_bps);
+                let permission_account = get_quote_permission_account(
+                    &opp_swap_data.quote_tokens,
+                    &user_wallet,
+                    swap_data.referral_fee_bps,
+                );
 
                 Ok(BidDataSvm {
                     amount: bid_amount,

@@ -67,7 +67,7 @@ async def main():
         "output_token_mint": args.output_mint,
         "router": "3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn",
         "referral_fee_bps": 10,
-        "specified_token_amount": {"amount": random.randint(1, 1000), "side": "input"},
+        "specified_token_amount": {"amount": random.randint(1, 1000), "side": "output"},
         "user_wallet_address": str(pk_taker),
         "version": "v1",
     }

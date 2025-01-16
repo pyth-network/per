@@ -227,6 +227,7 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         output_token_program: Pubkey,
+        quote_tokens:         QuoteTokens,
     },
 }
 

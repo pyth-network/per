@@ -1,3 +1,4 @@
+use crate::opportunity::entities::TokenAmountSvm;
 use {
     super::{
         get_token_program::GetTokenProgramInput,
@@ -28,6 +29,11 @@ use {
             service::add_opportunity::AddOpportunityInput,
         },
     },
+    ::express_relay::{
+        self as express_relay_svm,
+        state::FEE_SPLIT_PRECISION,
+        FeeToken,
+    },
     axum_prometheus::metrics,
     // TODO: is it okay to import api types into the service layer?
     express_relay_api_types::opportunity::ProgramSvm,
@@ -49,7 +55,7 @@ pub struct GetQuoteInput {
     pub program:      ProgramSvm,
 }
 
-pub fn get_quote_permission_key(
+pub fn get_quote_permission_account(
     tokens: &entities::QuoteTokens,
     user_wallet_address: &Pubkey,
     referral_fee_bps: u16,
@@ -102,7 +108,7 @@ impl Service<ChainTypeSvm> {
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
-        let permission_account = get_quote_permission_key(
+        let permission_account = get_quote_permission_account(
             &quote_create.tokens,
             &quote_create.user_wallet_address,
             quote_create.referral_fee_bps,
@@ -110,16 +116,17 @@ impl Service<ChainTypeSvm> {
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
-        let (input_mint, input_amount, output_mint, output_amount) = match quote_create.tokens {
-            entities::QuoteTokens::InputTokenSpecified {
-                input_token,
-                output_token,
-            } => (input_token.token, input_token.amount, output_token, 0),
-            entities::QuoteTokens::OutputTokenSpecified {
-                input_token,
-                output_token,
-            } => (input_token, 0, output_token.token, output_token.amount),
-        };
+        let (input_mint, input_amount, output_mint, output_amount) =
+            match quote_create.tokens.clone() {
+                entities::QuoteTokens::InputTokenSpecified {
+                    input_token,
+                    output_token,
+                } => (input_token.token, input_token.amount, output_token, 0),
+                entities::QuoteTokens::OutputTokenSpecified {
+                    input_token,
+                    output_token,
+                } => (input_token, 0, output_token.token, output_token.amount),
+            };
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
             permission_key: entities::OpportunitySvm::get_permission_key(
@@ -166,6 +173,7 @@ impl Service<ChainTypeSvm> {
                     // TODO*: we should determine this more intelligently
                     fee_token: entities::FeeToken::InputToken,
                     referral_fee_bps: quote_create.referral_fee_bps,
+                    quote_tokens: quote_create.tokens,
                     input_token_program,
                     output_token_program,
                 })
@@ -205,6 +213,13 @@ impl Service<ChainTypeSvm> {
 
     #[tracing::instrument(skip_all)]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
+        if FEE_SPLIT_PRECISION < input.quote_create.referral_fee_bps.into() {
+            return Err(RestError::BadParameters(format!(
+                "Referral fee bps higher than {}",
+                FEE_SPLIT_PRECISION
+            )));
+        }
+
         let config = self.get_config(&input.quote_create.chain_id)?;
         let auction_service = config.get_auction_service().await;
 
@@ -347,13 +362,35 @@ impl Service<ChainTypeSvm> {
             tracing::error!(winner_bid = ?winner_bid, opportunity = ?opportunity, "Failed to update winner bid status");
             return Err(RestError::TemporarilyUnavailable);
         }
+        // TODO*: fetch this on-chain to incorporate the actual fees based on swap_platform_fee_bps and relayer_split
+        let metadata = express_relay_svm::state::ExpressRelayMetadata::default();
+        let (input_amount, output_amount) = match swap_data.fee_token {
+            FeeToken::Input => (swap_data.amount_input, swap_data.amount_output),
+            FeeToken::Output => (
+                swap_data.amount_input,
+                metadata
+                    .compute_swap_fees(swap_data.referral_fee_bps, swap_data.amount_input)
+                    .map_err(|e| {
+                        tracing::error!("Failed to compute swap fees: {:?}", e);
+                        RestError::TemporarilyUnavailable
+                    })?
+                    .remaining_amount,
+            ),
+        };
 
         Ok(entities::Quote {
-            transaction: bid.chain_data.transaction.clone(),
+            transaction:     bid.chain_data.transaction.clone(),
             expiration_time: deadline,
-            input_token,
-            output_token, // TODO*: incorporate fees (when fees are in the output token)
-            chain_id: input.quote_create.chain_id,
+
+            input_token:  TokenAmountSvm {
+                token:  input_token.token,
+                amount: input_amount,
+            },
+            output_token: TokenAmountSvm {
+                token:  output_token.token,
+                amount: output_amount,
+            },
+            chain_id:     input.quote_create.chain_id,
         })
     }
 }
