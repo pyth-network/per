@@ -134,7 +134,7 @@ export type OpportunitySvmSwap = {
   feeToken: "input_token" | "output_token";
   referralFeeBps: number;
   // TODO: maybe type should be camelCase too?
-  tokens:
+  tokens: (
     | {
         inputToken: PublicKey;
         outputToken: TokenAmountSvm;
@@ -144,7 +144,11 @@ export type OpportunitySvmSwap = {
         inputToken: TokenAmountSvm;
         outputToken: PublicKey;
         type: "input_specified";
-      };
+      }
+  ) & {
+    inputTokenProgram: PublicKey;
+    outputTokenProgram: PublicKey;
+  };
   program: "swap";
 } & OpportunitySvmMetadata;
 

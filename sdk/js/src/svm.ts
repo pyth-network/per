@@ -16,7 +16,6 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
-  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { ExpressRelay } from "./expressRelayTypes";
@@ -142,20 +141,21 @@ export async function constructSwapBid(
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
   const svmConstants = SVM_CONSTANTS[chainId];
 
-  const tokenProgramInput = TOKEN_PROGRAM_ID;
-  const tokenProgramOutput = TOKEN_PROGRAM_ID;
-  const tokenProgramFee = TOKEN_PROGRAM_ID;
-  const mintInput =
+  const inputTokenProgram = swapOpportunity.tokens.inputTokenProgram;
+  const outputTokenProgram = swapOpportunity.tokens.outputTokenProgram;
+  const inputToken =
     swapOpportunity.tokens.type === "input_specified"
       ? swapOpportunity.tokens.inputToken.token
       : swapOpportunity.tokens.inputToken;
-  const mintOutput =
+  const outputToken =
     swapOpportunity.tokens.type === "output_specified"
       ? swapOpportunity.tokens.outputToken.token
       : swapOpportunity.tokens.outputToken;
   const trader = swapOpportunity.userWalletAddress;
-  const mintFee =
-    swapOpportunity.feeToken === "input_token" ? mintInput : mintOutput;
+  const [mintFee, feeTokenProgram] =
+    swapOpportunity.feeToken === "input_token"
+      ? [inputToken, inputTokenProgram]
+      : [outputToken, outputTokenProgram];
   const router = swapOpportunity.routerAccount;
 
   const swapArgs = {
@@ -182,44 +182,44 @@ export async function constructSwapBid(
       trader: swapOpportunity.userWalletAddress,
       searcherInputTa: getAssociatedTokenAddress(
         searcher,
-        mintInput,
-        tokenProgramInput
+        inputToken,
+        inputTokenProgram
       ),
       searcherOutputTa: getAssociatedTokenAddress(
         searcher,
-        mintOutput,
-        tokenProgramOutput
+        outputToken,
+        outputTokenProgram
       ),
       traderInputAta: getAssociatedTokenAddress(
         trader,
-        mintInput,
-        tokenProgramInput
+        inputToken,
+        inputTokenProgram
       ),
-      tokenProgramInput,
-      mintInput,
+      tokenProgramInput: inputTokenProgram,
+      mintInput: inputToken,
       traderOutputAta: getAssociatedTokenAddress(
         trader,
-        mintOutput,
-        tokenProgramOutput
+        outputToken,
+        outputTokenProgram
       ),
-      tokenProgramOutput,
-      mintOutput,
+      tokenProgramOutput: outputTokenProgram,
+      mintOutput: outputToken,
       routerFeeReceiverTa: getAssociatedTokenAddress(
         router,
         mintFee,
-        tokenProgramFee
+        feeTokenProgram
       ),
       relayerFeeReceiverAta: getAssociatedTokenAddress(
         relayerSigner,
         mintFee,
-        tokenProgramFee
+        feeTokenProgram
       ),
-      tokenProgramFee,
+      tokenProgramFee: feeTokenProgram,
       mintFee,
       expressRelayFeeReceiverAta: getAssociatedTokenAddress(
         expressRelayMetadata,
         mintFee,
-        tokenProgramFee
+        feeTokenProgram
       ),
     })
     .instruction();
@@ -229,7 +229,7 @@ export async function constructSwapBid(
       router,
       mintFee,
       searcher,
-      tokenProgramFee
+      feeTokenProgram
     )[1]
   );
   tx.instructions.push(
@@ -237,7 +237,7 @@ export async function constructSwapBid(
       relayerSigner,
       mintFee,
       searcher,
-      tokenProgramFee
+      feeTokenProgram
     )[1]
   );
   tx.instructions.push(
@@ -245,15 +245,15 @@ export async function constructSwapBid(
       expressRelayMetadata,
       mintFee,
       searcher,
-      tokenProgramFee
+      feeTokenProgram
     )[1]
   );
   tx.instructions.push(
     createAtaIdempotentInstruction(
       trader,
-      mintOutput,
+      outputToken,
       searcher,
-      tokenProgramOutput
+      outputTokenProgram
     )[1]
   );
   tx.instructions.push(ixSwap);

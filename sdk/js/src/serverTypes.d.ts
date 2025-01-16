@@ -443,6 +443,16 @@ export interface components {
           program: "limo";
         }
       | {
+          /**
+           * @description The token program of the input mint.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          input_token_program: string;
+          /**
+           * @description The token program of the output mint.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          output_token_program: string;
           /** @enum {string} */
           program: "swap";
           /**
@@ -516,6 +526,16 @@ export interface components {
           program: "limo";
         }
       | {
+          /**
+           * @description The token program of the input mint.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          input_token_program: string;
+          /**
+           * @description The token program of the output mint.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          output_token_program: string;
           /** @enum {string} */
           program: "swap";
           /**
@@ -673,13 +693,17 @@ export interface components {
           tokens:
             | {
                 input_token: components["schemas"]["TokenAmountSvm"];
+                input_token_program: components["schemas"]["Pubkey"];
                 output_token: components["schemas"]["Pubkey"];
+                output_token_program: components["schemas"]["Pubkey"];
                 /** @enum {string} */
                 type: "input_token_specified";
               }
             | {
                 input_token: components["schemas"]["Pubkey"];
+                input_token_program: components["schemas"]["Pubkey"];
                 output_token: components["schemas"]["TokenAmountSvm"];
+                output_token_program: components["schemas"]["Pubkey"];
                 /** @enum {string} */
                 type: "output_token_specified";
               };
@@ -785,13 +809,17 @@ export interface components {
     QuoteTokens:
       | {
           input_token: components["schemas"]["TokenAmountSvm"];
+          input_token_program: components["schemas"]["Pubkey"];
           output_token: components["schemas"]["Pubkey"];
+          output_token_program: components["schemas"]["Pubkey"];
           /** @enum {string} */
           type: "input_token_specified";
         }
       | {
           input_token: components["schemas"]["Pubkey"];
+          input_token_program: components["schemas"]["Pubkey"];
           output_token: components["schemas"]["TokenAmountSvm"];
+          output_token_program: components["schemas"]["Pubkey"];
           /** @enum {string} */
           type: "output_token_specified";
         };

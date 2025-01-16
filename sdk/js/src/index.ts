@@ -618,6 +618,12 @@ export class Client {
             token: new PublicKey(opportunity.tokens.input_token.token),
           },
           outputToken: new PublicKey(opportunity.tokens.output_token),
+          inputTokenProgram: new PublicKey(
+            opportunity.tokens.input_token_program
+          ),
+          outputTokenProgram: new PublicKey(
+            opportunity.tokens.output_token_program
+          ),
         } as const;
       } else {
         tokens = {
@@ -627,6 +633,12 @@ export class Client {
             amount: BigInt(opportunity.tokens.output_token.amount),
             token: new PublicKey(opportunity.tokens.output_token.token),
           },
+          inputTokenProgram: new PublicKey(
+            opportunity.tokens.input_token_program
+          ),
+          outputTokenProgram: new PublicKey(
+            opportunity.tokens.output_token_program
+          ),
         } as const;
       }
       return {
