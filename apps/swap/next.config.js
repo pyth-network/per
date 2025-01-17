@@ -14,7 +14,7 @@ const config = {
       test: /\.svg$/i,
       use: ["@svgr/webpack"],
     });
-
+    config.resolve.fallback = { fs: false }
     config.resolve.extensionAlias = {
       ".js": [".js", ".ts", ".tsx"],
     };
