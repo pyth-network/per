@@ -6,10 +6,6 @@ use {
         Deserialize,
         Serialize,
     },
-    serde_with::{
-        serde_as,
-        DisplayFromStr,
-    },
     solana_sdk::{
         pubkey::Pubkey,
         transaction::VersionedTransaction,
@@ -36,17 +32,13 @@ pub struct QuoteCreate {
 }
 
 
-#[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
 pub enum QuoteTokens {
     InputTokenSpecified {
         input_token:  TokenAmountSvm,
-        #[serde_as(as = "DisplayFromStr")]
         output_token: Pubkey,
     },
     OutputTokenSpecified {
-        #[serde_as(as = "DisplayFromStr")]
         input_token:  Pubkey,
         output_token: TokenAmountSvm,
     },

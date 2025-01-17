@@ -1,10 +1,7 @@
 use {
     crate::{
         models::ChainType,
-        opportunity::entities::{
-            FeeToken,
-            QuoteTokens,
-        },
+        opportunity::entities::FeeToken,
     },
     ethers::types::{
         Address,
@@ -67,7 +64,6 @@ pub struct OpportunityMetadataSvmProgramSwap {
     #[serde_as(as = "DisplayFromStr")]
     pub user_wallet_address:  Pubkey,
     pub fee_token:            FeeToken,
-    pub quote_tokens:         QuoteTokens,
     pub referral_fee_bps:     u16,
     #[serde_as(as = "DisplayFromStr")]
     pub input_token_program:  Pubkey,

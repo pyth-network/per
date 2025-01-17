@@ -173,7 +173,6 @@ impl Service<ChainTypeSvm> {
                     // TODO*: we should determine this more intelligently
                     fee_token: entities::FeeToken::InputToken,
                     referral_fee_bps: quote_create.referral_fee_bps,
-                    quote_tokens: quote_create.tokens,
                     input_token_program,
                     output_token_program,
                 })

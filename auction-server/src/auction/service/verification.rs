@@ -583,13 +583,36 @@ impl Service<Svm> {
                         )));
                     }
                 };
+                let opp_sell_token = opp
+                    .core_fields
+                    .sell_tokens
+                    .first()
+                    .expect("Swap opportunity sell tokens must not be empty");
+                let opp_buy_token = opp
+                    .core_fields
+                    .buy_tokens
+                    .first()
+                    .expect("Swap opportunity buy tokens must not be empty");
+                let quote_tokens = match (opp_sell_token.amount, opp_buy_token.amount) {
+                    (0, _) => QuoteTokens::OutputTokenSpecified {
+                        input_token:  opp_sell_token.token,
+                        output_token: opp_buy_token.clone(),
+                    },
+                    (_, 0) => QuoteTokens::InputTokenSpecified {
+                        input_token:  opp_sell_token.clone(),
+                        output_token: opp_buy_token.token,
+                    },
+                    _ => {
+                        panic!("Non zero amount for both sell and buy tokens in swap opportunity");
+                    }
+                };
                 let (
                     bid_amount,
                     expected_input_token,
                     expected_input_amount,
                     expected_output_token,
                     expected_output_amount,
-                ) = match opp_swap_data.quote_tokens.clone() {
+                ) = match quote_tokens.clone() {
                     QuoteTokens::InputTokenSpecified {
                         input_token,
                         output_token,
@@ -713,7 +736,7 @@ impl Service<Svm> {
                 }
 
                 let permission_account = get_quote_virtual_permission_account(
-                    &opp_swap_data.quote_tokens,
+                    &quote_tokens,
                     &user_wallet,
                     swap_data.referral_fee_bps,
                 );

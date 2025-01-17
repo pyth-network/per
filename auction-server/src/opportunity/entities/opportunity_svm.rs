@@ -12,10 +12,7 @@ use {
     crate::{
         auction::entities::BidPaymentInstructionType,
         kernel::entities::PermissionKey,
-        opportunity::{
-            entities::QuoteTokens,
-            repository,
-        },
+        opportunity::repository,
     },
     ::express_relay::FeeToken as ProgramFeeToken,
     express_relay_api_types::opportunity as api,
@@ -60,7 +57,6 @@ impl PartialEq<ProgramFeeToken> for FeeToken {
 pub struct OpportunitySvmProgramSwap {
     pub user_wallet_address:  Pubkey,
     pub fee_token:            FeeToken,
-    pub quote_tokens:         QuoteTokens,
     pub referral_fee_bps:     u16,
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
     pub input_token_program:  Pubkey,
@@ -128,7 +124,6 @@ impl Opportunity for OpportunitySvm {
                     repository::OpportunityMetadataSvmProgramSwap {
                         user_wallet_address:  program.user_wallet_address,
                         fee_token:            program.fee_token,
-                        quote_tokens:         program.quote_tokens,
                         referral_fee_bps:     program.referral_fee_bps,
                         input_token_program:  program.input_token_program,
                         output_token_program: program.output_token_program,
@@ -296,7 +291,6 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             repository::OpportunityMetadataSvmProgram::Swap(program) => {
                 OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
                     user_wallet_address:  program.user_wallet_address,
-                    quote_tokens:         program.quote_tokens,
                     fee_token:            program.fee_token,
                     referral_fee_bps:     program.referral_fee_bps,
                     input_token_program:  program.input_token_program,
@@ -339,7 +333,6 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 referral_fee_bps,
                 input_token_program,
                 output_token_program,
-                quote_tokens,
             } => OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
                 user_wallet_address,
                 // TODO*: see comment above about this arm
@@ -347,7 +340,6 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 referral_fee_bps,
                 input_token_program,
                 output_token_program,
-                quote_tokens: quote_tokens.into(),
             }),
         };
 
