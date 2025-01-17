@@ -11,6 +11,7 @@ use {
                 self,
                 BidChainData,
                 BidChainDataCreateSvm,
+                BidChainDataSwapCreateSvm,
                 BidPaymentInstructionType,
                 SubmitType,
             },
@@ -33,6 +34,7 @@ use {
         opportunity::{
             self as opportunity,
             entities::{
+                OpportunitySvm,
                 OpportunitySvmProgram::Swap,
                 QuoteTokens,
             },
@@ -103,6 +105,15 @@ pub trait Verification<T: ChainTrait> {
         &self,
         input: VerifyBidInput<T>,
     ) -> Result<VerificationResult<T>, RestError>;
+}
+
+struct SwapAccounts {
+    user_wallet:          Pubkey,
+    mint_input:           Pubkey,
+    mint_output:          Pubkey,
+    router_token_account: Pubkey,
+    token_program_input:  Pubkey,
+    token_program_output: Pubkey,
 }
 
 impl Service<Evm> {
@@ -483,6 +494,188 @@ impl Service<Svm> {
         }
     }
 
+    async fn check_svm_swap_bid_fields(
+        &self,
+        bid_data: &BidChainDataSwapCreateSvm,
+        opp: &OpportunitySvm,
+    ) -> Result<(), RestError> {
+        let swap_instruction = self.extract_express_relay_instruction(
+            bid_data.transaction.clone(),
+            BidPaymentInstructionType::Swap,
+        )?;
+        let swap_data = Self::extract_swap_data(&swap_instruction)?;
+        let SwapAccounts {
+            user_wallet,
+            mint_input,
+            mint_output,
+            token_program_input,
+            token_program_output,
+            ..
+        } = self
+            .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
+            .await?;
+        let quote_tokens = Self::get_swap_quote_tokens(opp);
+        let opp_swap_data = match &opp.program {
+            Swap(opp_swap_data) => opp_swap_data,
+            _ => {
+                return Err(RestError::BadParameters(format!(
+                    "Opportunity with id {} is not a swap opportunity",
+                    bid_data.opportunity_id
+                )));
+            }
+        };
+        let (
+            expected_input_token,
+            expected_input_amount,
+            expected_output_token,
+            expected_output_amount,
+        ) = match quote_tokens.clone() {
+            QuoteTokens::InputTokenSpecified {
+                input_token,
+                output_token,
+                ..
+            } => (
+                input_token.token,
+                Some(input_token.amount),
+                output_token,
+                None,
+            ),
+            QuoteTokens::OutputTokenSpecified {
+                input_token,
+                output_token,
+                ..
+            } => (
+                input_token,
+                None,
+                output_token.token,
+                Some(output_token.amount),
+            ),
+        };
+        if user_wallet != opp_swap_data.user_wallet_address {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid wallet address {} in swap instruction. Value does not match the wallet address in swap opportunity {}",
+                    user_wallet, opp_swap_data.user_wallet_address
+                ),
+            ));
+        }
+        if expected_input_token != mint_input {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid input token {} in swap instruction. Value does not match the input token in swap opportunity {}",
+                    mint_input, expected_input_token
+                ),
+            ));
+        }
+        if expected_output_token != mint_output {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid output token {} in swap instruction. Value does not match the output token in swap opportunity {}",
+                    mint_output, expected_output_token
+                ),
+            ));
+        }
+
+        if token_program_input != opp_swap_data.input_token_program {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid input token program {} in swap instruction. Value does not match the input token program in swap opportunity {}",
+                    token_program_input, opp_swap_data.input_token_program
+                ),
+            ));
+        }
+
+        if token_program_output != opp_swap_data.output_token_program {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid output token program {} in swap instruction. Value does not match the output token program in swap opportunity {}",
+                    token_program_output, opp_swap_data.output_token_program
+                ),
+            ));
+        }
+
+
+        if let Some(expected_input_amount) = expected_input_amount {
+            if expected_input_amount != swap_data.amount_input {
+                return Err(RestError::BadParameters(
+                    format!(
+                        "Invalid input amount {} in swap instruction. Value does not match the input amount in swap opportunity {}",
+                        swap_data.amount_input, expected_input_amount
+                    ),
+                ));
+            }
+        }
+        if let Some(expected_output_amount) = expected_output_amount {
+            if expected_output_amount != swap_data.amount_output {
+                return Err(RestError::BadParameters(
+                    format!(
+                        "Invalid output amount {} in swap instruction. Value does not match the output amount in swap opportunity {}",
+                        swap_data.amount_output, expected_output_amount
+                    ),
+                ));
+            }
+        }
+        if opp_swap_data.fee_token != swap_data.fee_token {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid fee token {:?} in swap instruction. Value does not match the fee token in swap opportunity {:?}",
+                    swap_data.fee_token, opp_swap_data.fee_token
+                ),
+            ));
+        }
+
+        if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid referral fee bps {} in swap instruction. Value does not match the referral fee bps in swap opportunity {}",
+                    swap_data.referral_fee_bps, opp_swap_data.referral_fee_bps
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn extract_swap_accounts(
+        &self,
+        tx: &VersionedTransaction,
+        swap_instruction: &CompiledInstruction,
+    ) -> Result<SwapAccounts, RestError> {
+        let positions = &self
+            .config
+            .chain_config
+            .express_relay
+            .swap_instruction_account_positions;
+
+
+        let user_wallet = self
+            .extract_account(tx, swap_instruction, positions.user_wallet_account)
+            .await?;
+        let mint_input = self
+            .extract_account(tx, swap_instruction, positions.mint_input_account)
+            .await?;
+        let mint_output = self
+            .extract_account(tx, swap_instruction, positions.mint_output_account)
+            .await?;
+        let router_token_account = self
+            .extract_account(tx, swap_instruction, positions.router_token_account)
+            .await?;
+        let token_program_input = self
+            .extract_account(tx, swap_instruction, positions.token_program_input)
+            .await?;
+        let token_program_output = self
+            .extract_account(tx, swap_instruction, positions.token_program_output)
+            .await?;
+
+        Ok(SwapAccounts {
+            user_wallet,
+            mint_input,
+            mint_output,
+            router_token_account,
+            token_program_input,
+            token_program_output,
+        })
+    }
+
     async fn extract_bid_data(
         &self,
         bid_chain_data_create_svm: &BidChainDataCreateSvm,
@@ -529,41 +722,6 @@ impl Service<Svm> {
                 })
             }
             BidChainDataCreateSvm::Swap(bid_data) => {
-                let swap_instruction = self.extract_express_relay_instruction(
-                    bid_data.transaction.clone(),
-                    BidPaymentInstructionType::Swap,
-                )?;
-                let swap_data = Self::extract_swap_data(&swap_instruction)?;
-
-                let user_wallet = self
-                    .extract_account(
-                        &bid_data.transaction,
-                        &swap_instruction,
-                        svm_config
-                            .swap_instruction_account_positions
-                            .user_wallet_account,
-                    )
-                    .await?;
-
-                let mint_input = self
-                    .extract_account(
-                        &bid_data.transaction,
-                        &swap_instruction,
-                        svm_config
-                            .swap_instruction_account_positions
-                            .mint_input_account,
-                    )
-                    .await?;
-                let mint_output = self
-                    .extract_account(
-                        &bid_data.transaction,
-                        &swap_instruction,
-                        svm_config
-                            .swap_instruction_account_positions
-                            .mint_output_account,
-                    )
-                    .await?;
-
                 let opp = self
                     .opportunity_service
                     .get_live_opportunity_by_id(GetLiveOpportunityByIdInput {
@@ -573,133 +731,31 @@ impl Service<Svm> {
                     .ok_or(RestError::BadParameters(
                         "No swap opportunity with the given id found".to_string(),
                     ))?;
+                self.check_svm_swap_bid_fields(bid_data, &opp).await?;
 
-                let opp_swap_data = match opp.program {
-                    Swap(opp_swap_data) => opp_swap_data,
-                    _ => {
-                        return Err(RestError::BadParameters(format!(
-                            "Opportunity with id {} is not a swap opportunity",
-                            bid_data.opportunity_id
-                        )));
-                    }
+                let swap_instruction = self.extract_express_relay_instruction(
+                    bid_data.transaction.clone(),
+                    BidPaymentInstructionType::Swap,
+                )?;
+                let swap_data = Self::extract_swap_data(&swap_instruction)?;
+                let SwapAccounts {
+                    user_wallet,
+                    mint_input,
+                    mint_output,
+                    router_token_account,
+                    token_program_input,
+                    token_program_output,
+                } = self
+                    .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
+                    .await?;
+                let quote_tokens = Self::get_swap_quote_tokens(&opp);
+                let bid_amount = match quote_tokens.clone() {
+                    QuoteTokens::InputTokenSpecified { .. } => swap_data.amount_output,
+                    QuoteTokens::OutputTokenSpecified { .. } => swap_data.amount_input,
                 };
-                let opp_sell_token = opp
-                    .core_fields
-                    .sell_tokens
-                    .first()
-                    .expect("Swap opportunity sell tokens must not be empty");
-                let opp_buy_token = opp
-                    .core_fields
-                    .buy_tokens
-                    .first()
-                    .expect("Swap opportunity buy tokens must not be empty");
-                let quote_tokens = match (opp_sell_token.amount, opp_buy_token.amount) {
-                    (0, _) => QuoteTokens::InputTokenSpecified {
-                        output_token: opp_sell_token.token,
-                        input_token:  opp_buy_token.clone(),
-                    },
-                    (_, 0) => QuoteTokens::OutputTokenSpecified {
-                        output_token: opp_sell_token.clone(),
-                        input_token:  opp_buy_token.token,
-                    },
-                    _ => {
-                        panic!("Non zero amount for both sell and buy tokens in swap opportunity");
-                    }
-                };
-                let (
-                    bid_amount,
-                    expected_input_token,
-                    expected_input_amount,
-                    expected_output_token,
-                    expected_output_amount,
-                ) = match quote_tokens.clone() {
-                    QuoteTokens::InputTokenSpecified {
-                        input_token,
-                        output_token,
-                        ..
-                    } => (
-                        swap_data.amount_output,
-                        input_token.token,
-                        Some(input_token.amount),
-                        output_token,
-                        None,
-                    ),
-                    QuoteTokens::OutputTokenSpecified {
-                        input_token,
-                        output_token,
-                        ..
-                    } => (
-                        swap_data.amount_input,
-                        input_token,
-                        None,
-                        output_token.token,
-                        Some(output_token.amount),
-                    ),
-                };
-                if user_wallet != opp_swap_data.user_wallet_address {
-                    return Err(RestError::BadParameters(
-                        format!(
-                            "User wallet address in swap opportunity {} does not match the user wallet address in the swap instruction {}",
-                            opp_swap_data.user_wallet_address, user_wallet
-                        ),
-                    ));
-                }
-                if expected_input_token != mint_input {
-                    return Err(RestError::BadParameters(
-                        format!(
-                            "Input token in swap opportunity {} does not match the input token in the swap instruction {}",
-                            expected_input_token, mint_input
-                        ),
-                    ));
-                }
-                if expected_output_token != mint_output {
-                    return Err(RestError::BadParameters(
-                        format!(
-                            "Output token in swap opportunity {} does not match the output token in the swap instruction {}",
-                            expected_output_token, mint_output
-                        ),
-                    ));
-                }
-                if let Some(expected_input_amount) = expected_input_amount {
-                    if expected_input_amount != swap_data.amount_input {
-                        return Err(RestError::BadParameters(
-                            format!(
-                                "Input amount in swap opportunity {} does not match the input amount in the swap instruction {}",
-                                expected_input_amount, swap_data.amount_input
-                            ),
-                        ));
-                    }
-                }
-                if let Some(expected_output_amount) = expected_output_amount {
-                    if expected_output_amount != swap_data.amount_output {
-                        return Err(RestError::BadParameters(
-                            format!(
-                                "Output amount in swap opportunity {} does not match the output amount in the swap instruction {}",
-                                expected_output_amount, swap_data.amount_output
-                            ),
-                        ));
-                    }
-                }
-                if opp_swap_data.fee_token != swap_data.fee_token {
-                    return Err(RestError::BadParameters(
-                        format!(
-                            "Fee token in swap opportunity {:?} does not match the fee token in the swap instruction {:?}",
-                            opp_swap_data.fee_token, swap_data.fee_token
-                        ),
-                    ));
-                }
-
-                if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
-                    return Err(RestError::BadParameters(
-                        format!(
-                            "Referral fee bps in swap opportunity {} does not match the referral fee bps in the swap instruction {}",
-                            opp_swap_data.referral_fee_bps, swap_data.referral_fee_bps
-                        ),
-                    ));
-                }
                 let (fee_token, fee_token_program) = match swap_data.fee_token {
-                    FeeToken::Input => (mint_input, opp_swap_data.input_token_program),
-                    FeeToken::Output => (mint_output, opp_swap_data.output_token_program),
+                    FeeToken::Input => (mint_input, token_program_input),
+                    FeeToken::Output => (mint_output, token_program_output),
                 };
 
                 // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
@@ -708,7 +764,7 @@ impl Service<Svm> {
                     19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
                 ]);
 
-                let expected_router_fee_receiver_ta = Pubkey::find_program_address(
+                let expected_router_token_account = Pubkey::find_program_address(
                     &[
                         &opp.router.to_bytes(),
                         &fee_token_program.to_bytes(),
@@ -717,21 +773,10 @@ impl Service<Svm> {
                     &ASSOCIATED_TOKEN_PROGRAM,
                 )
                 .0;
-                let router_fee_receiver_ta = self
-                    .extract_account(
-                        &bid_data.transaction,
-                        &swap_instruction,
-                        self.config
-                            .chain_config
-                            .express_relay
-                            .swap_instruction_account_positions
-                            .router_token_account,
-                    )
-                    .await?;
 
-                if router_fee_receiver_ta != expected_router_fee_receiver_ta {
+                if router_token_account != expected_router_token_account {
                     return Err(RestError::BadParameters(
-                        format!("Associated token account for router does not match. Expected: {:?} found: {:?}", expected_router_fee_receiver_ta, router_fee_receiver_ta),
+                        format!("Associated token account for router does not match. Expected: {:?} found: {:?}", expected_router_token_account, router_token_account),
                     ));
                 }
 
@@ -755,6 +800,32 @@ impl Service<Svm> {
                     )?,
                     submit_type: SubmitType::ByOther,
                 })
+            }
+        }
+    }
+
+    fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
+        let opp_sell_token = opp
+            .core_fields
+            .sell_tokens
+            .first()
+            .expect("Swap opportunity sell tokens must not be empty");
+        let opp_buy_token = opp
+            .core_fields
+            .buy_tokens
+            .first()
+            .expect("Swap opportunity buy tokens must not be empty");
+        match (opp_sell_token.amount, opp_buy_token.amount) {
+            (0, _) => QuoteTokens::InputTokenSpecified {
+                output_token: opp_sell_token.token,
+                input_token:  opp_buy_token.clone(),
+            },
+            (_, 0) => QuoteTokens::OutputTokenSpecified {
+                output_token: opp_sell_token.clone(),
+                input_token:  opp_buy_token.token,
+            },
+            _ => {
+                panic!("Non zero amount for both sell and buy tokens in swap opportunity");
             }
         }
     }

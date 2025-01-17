@@ -89,6 +89,8 @@ pub struct SwapInstructionAccountPositions {
     pub user_wallet_account:  usize,
     pub mint_input_account:   usize,
     pub mint_output_account:  usize,
+    pub token_program_input:  usize,
+    pub token_program_output: usize,
 }
 
 pub struct SubmitBidInstructionAccountPositions {
