@@ -41,7 +41,10 @@ use {
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
                 get_opportunities::GetLiveOpportunityByIdInput,
-                get_quote::get_quote_virtual_permission_account,
+                get_quote::{
+                    get_associated_token_account,
+                    get_quote_virtual_permission_account,
+                },
             },
         },
     },
@@ -757,22 +760,8 @@ impl Service<Svm> {
                     FeeToken::Input => (mint_input, token_program_input),
                     FeeToken::Output => (mint_output, token_program_output),
                 };
-
-                // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
-                const ASSOCIATED_TOKEN_PROGRAM: Pubkey = Pubkey::new_from_array([
-                    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90,
-                    19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
-                ]);
-
-                let expected_router_token_account = Pubkey::find_program_address(
-                    &[
-                        &opp.router.to_bytes(),
-                        &fee_token_program.to_bytes(),
-                        &fee_token.to_bytes(),
-                    ],
-                    &ASSOCIATED_TOKEN_PROGRAM,
-                )
-                .0;
+                let expected_router_token_account =
+                    get_associated_token_account(&opp.router, &fee_token_program, &fee_token);
 
                 if router_token_account != expected_router_token_account {
                     return Err(RestError::BadParameters(
@@ -783,6 +772,7 @@ impl Service<Svm> {
                 let permission_account = get_quote_virtual_permission_account(
                     &quote_tokens,
                     &user_wallet,
+                    &router_token_account,
                     swap_data.referral_fee_bps,
                 );
 

@@ -55,12 +55,37 @@ pub struct GetQuoteInput {
     pub program:      ProgramSvm,
 }
 
+pub fn get_associated_token_account(
+    owner: &Pubkey,
+    token_program: &Pubkey,
+    token: &Pubkey,
+) -> Pubkey {
+    // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
+    const ASSOCIATED_TOKEN_PROGRAM: Pubkey = Pubkey::new_from_array([
+        140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153,
+        218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
+    ]);
+
+    Pubkey::find_program_address(
+        &[
+            &owner.to_bytes(),
+            &token_program.to_bytes(),
+            &token.to_bytes(),
+        ],
+        &ASSOCIATED_TOKEN_PROGRAM,
+    )
+    .0
+}
+
+/// Get a pubkey based on router_token_account, user_wallet_address, referral_fee_bps, mints, and token amounts
+/// This pubkey is never mentioned on-chain and is only used internally
+/// to distinguish between different swap bids
 pub fn get_quote_virtual_permission_account(
     tokens: &entities::QuoteTokens,
     user_wallet_address: &Pubkey,
+    router_token_account: &Pubkey,
     referral_fee_bps: u16,
 ) -> Pubkey {
-    // get pda seeded by user_wallet_address, referral_fee_bps, mints, and token amount
     let input_token_amount: [u8; 8];
     let output_token_amount: [u8; 8];
     let referral_fee_bps = referral_fee_bps.to_le_bytes();
@@ -73,6 +98,7 @@ pub fn get_quote_virtual_permission_account(
             let output_token_mint = output_token.as_ref();
             input_token_amount = input_token.amount.to_le_bytes();
             [
+                router_token_account.as_ref(),
                 user_wallet_address.as_ref(),
                 input_token_mint,
                 input_token_amount.as_ref(),
@@ -88,6 +114,7 @@ pub fn get_quote_virtual_permission_account(
             let output_token_mint = output_token.token.as_ref();
             output_token_amount = output_token.amount.to_le_bytes();
             [
+                router_token_account.as_ref(),
                 user_wallet_address.as_ref(),
                 input_token_mint,
                 output_token_mint,
@@ -108,11 +135,8 @@ impl Service<ChainTypeSvm> {
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
-        let permission_account = get_quote_virtual_permission_account(
-            &quote_create.tokens,
-            &quote_create.user_wallet_address,
-            quote_create.referral_fee_bps,
-        );
+        // TODO*: we should determine this more intelligently
+        let fee_token = entities::FeeToken::InputToken;
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
@@ -127,24 +151,6 @@ impl Service<ChainTypeSvm> {
                     output_token,
                 } => (input_token, 0, output_token.token, output_token.amount),
             };
-
-        let core_fields = entities::OpportunityCoreFieldsCreate {
-            permission_key: entities::OpportunitySvm::get_permission_key(
-                BidPaymentInstructionType::Swap,
-                router,
-                permission_account,
-            ),
-            chain_id:       quote_create.chain_id.clone(),
-            sell_tokens:    vec![entities::TokenAmountSvm {
-                token:  output_mint,
-                amount: output_amount,
-            }],
-            buy_tokens:     vec![entities::TokenAmountSvm {
-                token:  input_mint,
-                amount: input_amount,
-            }],
-        };
-
         let input_token_program = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
@@ -166,12 +172,44 @@ impl Service<ChainTypeSvm> {
                 RestError::BadParameters("Output token program not found".to_string())
             })?;
 
+
+        let router_token_account = match fee_token {
+            entities::FeeToken::InputToken => {
+                get_associated_token_account(&router, &input_token_program, &input_mint)
+            }
+            entities::FeeToken::OutputToken => {
+                get_associated_token_account(&router, &output_token_program, &output_mint)
+            }
+        };
+        let permission_account = get_quote_virtual_permission_account(
+            &quote_create.tokens,
+            &quote_create.user_wallet_address,
+            &router_token_account,
+            quote_create.referral_fee_bps,
+        );
+
+        let core_fields = entities::OpportunityCoreFieldsCreate {
+            permission_key: entities::OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account,
+            ),
+            chain_id:       quote_create.chain_id.clone(),
+            sell_tokens:    vec![entities::TokenAmountSvm {
+                token:  output_mint,
+                amount: output_amount,
+            }],
+            buy_tokens:     vec![entities::TokenAmountSvm {
+                token:  input_mint,
+                amount: input_amount,
+            }],
+        };
+
         let program_opportunity = match program {
             ProgramSvm::Swap => {
                 entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                     user_wallet_address: quote_create.user_wallet_address,
-                    // TODO*: we should determine this more intelligently
-                    fee_token: entities::FeeToken::InputToken,
+                    fee_token,
                     referral_fee_bps: quote_create.referral_fee_bps,
                     input_token_program,
                     output_token_program,
