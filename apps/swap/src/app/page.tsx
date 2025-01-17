@@ -39,5 +39,5 @@ async function handleClick(expressRelayClient: Client, publicKey: PublicKey, sig
     },
   });
   const signedTransaction = await signTransaction(quote.transaction);
-  connection.sendRawTransaction(signedTransaction.compileMessage().serialize());
+  connection.sendTransaction(signedTransaction);
 }
