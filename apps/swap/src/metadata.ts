@@ -7,8 +7,7 @@ export const metadata = {
     template: "%s | Pyth Network Swap",
   },
   applicationName: "Pyth Network Swap",
-  description:
-    "Swap tokens.",
+  description: "Swap tokens.",
   referrer: "strict-origin-when-cross-origin",
   openGraph: {
     type: "website",
