@@ -361,14 +361,16 @@ pub enum FeeToken {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "side_specified")]
 pub enum QuoteTokens {
+    #[serde(rename = "input")]
     InputTokenSpecified {
         input_token:          TokenAmountSvm,
         output_token:         Pubkey,
         input_token_program:  Pubkey,
         output_token_program: Pubkey,
     },
+    #[serde(rename = "output")]
     OutputTokenSpecified {
         input_token:          Pubkey,
         output_token:         TokenAmountSvm,

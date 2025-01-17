@@ -38,8 +38,8 @@ use {
             },
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
-                get_opportunities::GetOpportunityByIdInput,
-                get_quote::get_quote_permission_account,
+                get_opportunities::GetLiveOpportunityByIdInput,
+                get_quote::get_quote_virtual_permission_account,
             },
         },
     },
@@ -565,10 +565,9 @@ impl Service<Svm> {
                     )
                     .await?;
 
-
                 let opp = self
                     .opportunity_service
-                    .get_live_opportunity_by_id(GetOpportunityByIdInput {
+                    .get_live_opportunity_by_id(GetLiveOpportunityByIdInput {
                         opportunity_id: bid_data.opportunity_id,
                     })
                     .await
@@ -719,7 +718,7 @@ impl Service<Svm> {
                     ));
                 }
 
-                let permission_account = get_quote_permission_account(
+                let permission_account = get_quote_virtual_permission_account(
                     &opp_swap_data.quote_tokens,
                     &user_wallet,
                     swap_data.referral_fee_bps,

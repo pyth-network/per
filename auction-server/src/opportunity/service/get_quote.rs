@@ -55,7 +55,7 @@ pub struct GetQuoteInput {
     pub program:      ProgramSvm,
 }
 
-pub fn get_quote_permission_account(
+pub fn get_quote_virtual_permission_account(
     tokens: &entities::QuoteTokens,
     user_wallet_address: &Pubkey,
     referral_fee_bps: u16,
@@ -108,7 +108,7 @@ impl Service<ChainTypeSvm> {
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
-        let permission_account = get_quote_permission_account(
+        let permission_account = get_quote_virtual_permission_account(
             &quote_create.tokens,
             &quote_create.user_wallet_address,
             quote_create.referral_fee_bps,
@@ -213,6 +213,7 @@ impl Service<ChainTypeSvm> {
 
     #[tracing::instrument(skip_all)]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
+        // TODO use compute_swap_fees to make sure instead when the metadata is fetched from on-chain
         if FEE_SPLIT_PRECISION < input.quote_create.referral_fee_bps.into() {
             return Err(RestError::BadParameters(format!(
                 "Referral fee bps higher than {}",

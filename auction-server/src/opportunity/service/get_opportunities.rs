@@ -18,14 +18,14 @@ pub struct GetOpportunitiesInput {
     pub query_params: GetOpportunitiesQueryParams,
 }
 
-pub struct GetOpportunityByIdInput {
+pub struct GetLiveOpportunityByIdInput {
     pub opportunity_id: OpportunityId,
 }
 
 impl<T: ChainType> Service<T> {
     pub async fn get_live_opportunity_by_id(
         &self,
-        input: GetOpportunityByIdInput,
+        input: GetLiveOpportunityByIdInput,
     ) -> Option<<T::InMemoryStore as InMemoryStore>::Opportunity> {
         self.repo
             .get_in_memory_opportunity_by_id(input.opportunity_id)
