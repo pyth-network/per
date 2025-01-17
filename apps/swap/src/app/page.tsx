@@ -4,4 +4,4 @@ export default function Home() {
       <h2>Welcome to Swap</h2>
     </main>
   );
-} 
+}
