@@ -127,6 +127,7 @@ async def main():
                 relayer_signer=pk_relayer_signer,
                 fee_receiver_relayer=pk_relayer_signer,
             ),
+            program_id=express_relay_pid,
         )
         tx.add(ix_init_express_relay)
         signers.append(kp_payer)
@@ -141,6 +142,7 @@ async def main():
             admin=pk_admin,
             express_relay_metadata=pk_express_relay_metadata,
         ),
+        program_id=express_relay_pid,
     )
     tx.add(ix_set_swap_platform_fee)
 
