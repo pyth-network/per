@@ -7,6 +7,7 @@ packages:
   - "scripts/opportunity-provider"
   - "scripts/opportunity-provider-limo"
   - "scripts/swap-beacon"
+  - "apps/swap"
 
 catalog:
   "typescript": 5.5.4
