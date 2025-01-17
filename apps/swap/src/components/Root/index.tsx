@@ -11,7 +11,7 @@ export const Root = ({ children }: Props) => {
       <html>
         <body>
           <div>
-          <h1>Hello World!</h1>
+          <h1>Express Relay Swap!</h1>
           {children}
           </div>
         </body>
