@@ -364,14 +364,19 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             }),
         };
 
+        let bid_instruction_type = match program {
+            OpportunitySvmProgram::Limo(_) => BidPaymentInstructionType::SubmitBid,
+            OpportunitySvmProgram::Swap(_) => BidPaymentInstructionType::Swap,
+        };
+
+        let mut permission_key: [u8; 65] = [0; 65];
+        permission_key[0] = bid_instruction_type.into();
+        permission_key[1..33].copy_from_slice(&params.router.to_bytes());
+        permission_key[33..65].copy_from_slice(&params.permission_account.to_bytes());
+
         OpportunityCreateSvm {
             core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
-                permission_key: [
-                    params.router.to_bytes(),
-                    params.permission_account.to_bytes(),
-                ]
-                .concat()
-                .into(),
+                permission_key: permission_key.into(),
                 chain_id:       params.chain_id,
                 sell_tokens:    params.sell_tokens.into_iter().map(|t| t.into()).collect(),
                 buy_tokens:     params.buy_tokens.into_iter().map(|t| t.into()).collect(),
