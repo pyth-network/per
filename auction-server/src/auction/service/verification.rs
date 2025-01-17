@@ -80,7 +80,6 @@ use {
         transaction::VersionedTransaction,
     },
     std::{
-        str::FromStr,
         sync::Arc,
         time::Duration,
     },
@@ -614,6 +613,30 @@ impl Service<Svm> {
                         Some(output_token.amount),
                     ),
                 };
+                if user_wallet != opp_swap_data.user_wallet_address {
+                    return Err(RestError::BadParameters(
+                        format!(
+                            "User wallet address in swap opportunity {} does not match the user wallet address in the swap instruction {}",
+                            opp_swap_data.user_wallet_address, user_wallet
+                        ),
+                    ));
+                }
+                if expected_input_token != mint_input {
+                    return Err(RestError::BadParameters(
+                        format!(
+                            "Input token in swap opportunity {} does not match the input token in the swap instruction {}",
+                            expected_input_token, mint_input
+                        ),
+                    ));
+                }
+                if expected_output_token != mint_output {
+                    return Err(RestError::BadParameters(
+                        format!(
+                            "Output token in swap opportunity {} does not match the output token in the swap instruction {}",
+                            expected_output_token, mint_output
+                        ),
+                    ));
+                }
                 if let Some(expected_input_amount) = expected_input_amount {
                     if expected_input_amount != swap_data.amount_input {
                         return Err(RestError::BadParameters(
@@ -634,44 +657,6 @@ impl Service<Svm> {
                         ));
                     }
                 }
-                if expected_input_token != mint_input {
-                    return Err(RestError::BadParameters(
-                        format!(
-                            "Input token in swap opportunity {} does not match the input token in the swap instruction {}",
-                            expected_input_token, mint_input
-                        ),
-                    ));
-                }
-                if expected_output_token != mint_output {
-                    return Err(RestError::BadParameters(
-                        format!(
-                            "Output token in swap opportunity {} does not match the output token in the swap instruction {}",
-                            expected_output_token, mint_output
-                        ),
-                    ));
-                }
-
-
-                if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
-                    return Err(RestError::BadParameters(
-                        format!(
-                            "Referral fee bps in swap opportunity {} does not match the referral fee bps in the swap instruction {}",
-                            opp_swap_data.referral_fee_bps, swap_data.referral_fee_bps
-                        ),
-                    ));
-                }
-                if user_wallet != opp_swap_data.user_wallet_address {
-                    return Err(RestError::BadParameters(
-                        format!(
-                            "User wallet address in swap opportunity {} does not match the user wallet address in the swap instruction {}",
-                            opp_swap_data.user_wallet_address, user_wallet
-                        ),
-                    ));
-                }
-                let (fee_token, fee_token_program) = match swap_data.fee_token {
-                    FeeToken::Input => (mint_input, opp_swap_data.input_token_program),
-                    FeeToken::Output => (mint_output, opp_swap_data.output_token_program),
-                };
                 if opp_swap_data.fee_token != swap_data.fee_token {
                     return Err(RestError::BadParameters(
                         format!(
@@ -681,15 +666,24 @@ impl Service<Svm> {
                     ));
                 }
 
-                let associated_token_program = Pubkey::from_str(
-                    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-                )
-                .map_err(|e| {
-                    RestError::BadParameters(format!(
-                        "Invalid associated token program address: {:?}",
-                        e
-                    ))
-                })?;
+                if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
+                    return Err(RestError::BadParameters(
+                        format!(
+                            "Referral fee bps in swap opportunity {} does not match the referral fee bps in the swap instruction {}",
+                            opp_swap_data.referral_fee_bps, swap_data.referral_fee_bps
+                        ),
+                    ));
+                }
+                let (fee_token, fee_token_program) = match swap_data.fee_token {
+                    FeeToken::Input => (mint_input, opp_swap_data.input_token_program),
+                    FeeToken::Output => (mint_output, opp_swap_data.output_token_program),
+                };
+
+                // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
+                const ASSOCIATED_TOKEN_PROGRAM: Pubkey = Pubkey::new_from_array([
+                    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90,
+                    19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
+                ]);
 
                 let expected_router_fee_receiver_ta = Pubkey::find_program_address(
                     &[
@@ -697,7 +691,7 @@ impl Service<Svm> {
                         &fee_token_program.to_bytes(),
                         &fee_token.to_bytes(),
                     ],
-                    &associated_token_program,
+                    &ASSOCIATED_TOKEN_PROGRAM,
                 )
                 .0;
                 let router_fee_receiver_ta = self
