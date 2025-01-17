@@ -34,6 +34,7 @@ use {
         opportunity::{
             self as opportunity,
             entities::{
+                get_swap_quote_tokens,
                 OpportunitySvm,
                 OpportunitySvmProgram::Swap,
                 QuoteTokens,
@@ -517,7 +518,7 @@ impl Service<Svm> {
         } = self
             .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
             .await?;
-        let quote_tokens = Self::get_swap_quote_tokens(opp);
+        let quote_tokens = get_swap_quote_tokens(opp);
         let opp_swap_data = match &opp.program {
             Swap(opp_swap_data) => opp_swap_data,
             _ => {
@@ -751,7 +752,7 @@ impl Service<Svm> {
                 } = self
                     .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
                     .await?;
-                let quote_tokens = Self::get_swap_quote_tokens(&opp);
+                let quote_tokens = get_swap_quote_tokens(&opp);
                 let bid_amount = match quote_tokens.clone() {
                     QuoteTokens::InputTokenSpecified { .. } => swap_data.amount_output,
                     QuoteTokens::OutputTokenSpecified { .. } => swap_data.amount_input,
@@ -794,31 +795,6 @@ impl Service<Svm> {
         }
     }
 
-    fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
-        let opp_sell_token = opp
-            .core_fields
-            .sell_tokens
-            .first()
-            .expect("Swap opportunity sell tokens must not be empty");
-        let opp_buy_token = opp
-            .core_fields
-            .buy_tokens
-            .first()
-            .expect("Swap opportunity buy tokens must not be empty");
-        match (opp_sell_token.amount, opp_buy_token.amount) {
-            (0, _) => QuoteTokens::InputTokenSpecified {
-                output_token: opp_sell_token.token,
-                input_token:  opp_buy_token.clone(),
-            },
-            (_, 0) => QuoteTokens::OutputTokenSpecified {
-                output_token: opp_sell_token.clone(),
-                input_token:  opp_buy_token.token,
-            },
-            _ => {
-                panic!("Non zero amount for both sell and buy tokens in swap opportunity");
-            }
-        }
-    }
 
     fn relayer_signer_exists(
         &self,

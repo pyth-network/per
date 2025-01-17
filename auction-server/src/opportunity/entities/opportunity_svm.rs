@@ -12,7 +12,10 @@ use {
     crate::{
         auction::entities::BidPaymentInstructionType,
         kernel::entities::PermissionKey,
-        opportunity::repository,
+        opportunity::{
+            entities::QuoteTokens,
+            repository,
+        },
     },
     ::express_relay::FeeToken as ProgramFeeToken,
     express_relay_api_types::opportunity as api,
@@ -191,7 +194,34 @@ impl From<OpportunitySvm> for api::Opportunity {
         api::Opportunity::Svm(val.into())
     }
 }
-
+pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
+    if !matches!(opp.program, OpportunitySvmProgram::Swap(_)) {
+        panic!("Opportunity must be a swap opportunity to get quote tokens");
+    }
+    let opp_sell_token = opp
+        .core_fields
+        .sell_tokens
+        .first()
+        .expect("Swap opportunity sell tokens must not be empty");
+    let opp_buy_token = opp
+        .core_fields
+        .buy_tokens
+        .first()
+        .expect("Swap opportunity buy tokens must not be empty");
+    match (opp_sell_token.amount, opp_buy_token.amount) {
+        (0, _) => QuoteTokens::OutputTokenSpecified {
+            input_token:  opp_sell_token.token,
+            output_token: opp_buy_token.clone(),
+        },
+        (_, 0) => QuoteTokens::InputTokenSpecified {
+            input_token:  opp_sell_token.clone(),
+            output_token: opp_buy_token.token,
+        },
+        _ => {
+            panic!("Non zero amount for both sell and buy tokens in swap opportunity");
+        }
+    }
+}
 impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
         let program = match val.program.clone() {
@@ -200,38 +230,29 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 order_address: program.order_address,
             },
             OpportunitySvmProgram::Swap(program) => {
-                let buy_token = val
-                    .buy_tokens
-                    .first()
-                    .ok_or(anyhow::anyhow!(
-                        "Failed to get buy token from opportunity svm"
-                    ))
-                    .expect("Failed to get buy token from opportunity svm");
-                let sell_token = val
-                    .sell_tokens
-                    .first()
-                    .ok_or(anyhow::anyhow!(
-                        "Failed to get sell token from opportunity svm"
-                    ))
-                    .expect("Failed to get sell token from opportunity svm");
-                let tokens = if buy_token.amount == 0 {
-                    api::QuoteTokens::OutputTokenSpecified {
-                        input_token:          buy_token.token,
-                        output_token:         sell_token.clone().into(),
-                        input_token_program:  program.input_token_program,
+                let quote_tokens = get_swap_quote_tokens(&val);
+
+                let tokens = match quote_tokens {
+                    QuoteTokens::InputTokenSpecified {
+                        input_token,
+                        output_token,
+                    } => api::QuoteTokens::InputTokenSpecified {
+                        input_token: input_token.into(),
+                        output_token,
+                        input_token_program: program.input_token_program,
                         output_token_program: program.output_token_program,
-                    }
-                } else {
-                    if sell_token.amount != 0 {
-                        tracing::error!(opportunity = ?val, "Both token amounts are specified for swap opportunity");
-                    }
-                    api::QuoteTokens::InputTokenSpecified {
-                        input_token:          buy_token.clone().into(),
-                        output_token:         sell_token.token,
-                        input_token_program:  program.input_token_program,
+                    },
+                    QuoteTokens::OutputTokenSpecified {
+                        input_token,
+                        output_token,
+                    } => api::QuoteTokens::OutputTokenSpecified {
+                        input_token,
+                        output_token: output_token.into(),
+                        input_token_program: program.input_token_program,
                         output_token_program: program.output_token_program,
-                    }
+                    },
                 };
+
                 let fee_token = match program.fee_token {
                     FeeToken::InputToken => api::FeeToken::InputToken,
                     FeeToken::OutputToken => api::FeeToken::OutputToken,

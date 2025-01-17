@@ -196,12 +196,12 @@ impl Service<ChainTypeSvm> {
             ),
             chain_id:       quote_create.chain_id.clone(),
             sell_tokens:    vec![entities::TokenAmountSvm {
-                token:  output_mint,
-                amount: output_amount,
-            }],
-            buy_tokens:     vec![entities::TokenAmountSvm {
                 token:  input_mint,
                 amount: input_amount,
+            }],
+            buy_tokens:     vec![entities::TokenAmountSvm {
+                token:  output_mint,
+                amount: output_amount,
             }],
         };
 
@@ -271,14 +271,16 @@ impl Service<ChainTypeSvm> {
                 opportunity: opportunity_create,
             })
             .await?;
-        let input_token = opportunity.buy_tokens[0].clone();
-        let output_token = opportunity.sell_tokens[0].clone();
+        let input_token = opportunity.sell_tokens[0].clone();
+        let output_token = opportunity.buy_tokens[0].clone();
         if input_token.amount == 0 && output_token.amount == 0 {
-            tracing::error!(opportunity = ?opportunity, "Both token amounts are zero for swap opportunity");
             return Err(RestError::BadParameters(
-                "Both token amounts are zero for swap opportunity".to_string(),
+                "Token amount can not be zero".to_string(),
             ));
         }
+
+        // Wait to make sure searchers had enough time to submit bids
+        sleep(BID_COLLECTION_TIME).await;
 
         // NOTE: This part will be removed after refactoring the permission key type
         let slice: [u8; 65] = opportunity
@@ -287,8 +289,6 @@ impl Service<ChainTypeSvm> {
             .try_into()
             .expect("Failed to convert permission key to slice");
         let permission_key_svm = PermissionKeySvm(slice);
-        // Wait to make sure searchers had enough time to submit bids
-        sleep(BID_COLLECTION_TIME).await;
 
         let bid_collection_time = OffsetDateTime::now_utc();
         let mut bids = auction_service
