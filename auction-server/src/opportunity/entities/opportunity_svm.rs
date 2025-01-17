@@ -371,7 +371,7 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
 
         OpportunityCreateSvm {
             core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
-                permission_key: get_perission_key(
+                permission_key: get_permission_key(
                     bid_instruction_type,
                     params.router,
                     params.permission_account,
@@ -405,7 +405,7 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
     }
 }
 
-fn get_perission_key(
+fn get_permission_key(
     bid_type: BidPaymentInstructionType,
     router: Pubkey,
     permission_account: Pubkey,
@@ -431,7 +431,7 @@ impl OpportunitySvm {
         router: Pubkey,
         permission_account: Pubkey,
     ) -> PermissionKey {
-        get_perission_key(bid_type, router, permission_account)
+        get_permission_key(bid_type, router, permission_account)
     }
 }
 
