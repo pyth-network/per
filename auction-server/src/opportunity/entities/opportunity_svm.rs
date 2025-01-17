@@ -364,14 +364,18 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             }),
         };
 
+        let bid_instruction_type = match program {
+            OpportunitySvmProgram::Limo(_) => BidPaymentInstructionType::SubmitBid,
+            OpportunitySvmProgram::Swap(_) => BidPaymentInstructionType::Swap,
+        };
+
         OpportunityCreateSvm {
             core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
-                permission_key: [
-                    params.router.to_bytes(),
-                    params.permission_account.to_bytes(),
-                ]
-                .concat()
-                .into(),
+                permission_key: get_permission_key(
+                    bid_instruction_type,
+                    params.router,
+                    params.permission_account,
+                ),
                 chain_id:       params.chain_id,
                 sell_tokens:    params.sell_tokens.into_iter().map(|t| t.into()).collect(),
                 buy_tokens:     params.buy_tokens.into_iter().map(|t| t.into()).collect(),
@@ -401,6 +405,18 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
     }
 }
 
+fn get_permission_key(
+    bid_type: BidPaymentInstructionType,
+    router: Pubkey,
+    permission_account: Pubkey,
+) -> PermissionKey {
+    let mut permission_key: [u8; 65] = [0; 65];
+    permission_key[0] = bid_type.into();
+    permission_key[1..33].copy_from_slice(&router.to_bytes());
+    permission_key[33..65].copy_from_slice(&permission_account.to_bytes());
+    permission_key.into()
+}
+
 impl OpportunitySvm {
     pub fn get_missing_signers(&self) -> Vec<Pubkey> {
         match self.program.clone() {
@@ -415,11 +431,7 @@ impl OpportunitySvm {
         router: Pubkey,
         permission_account: Pubkey,
     ) -> PermissionKey {
-        let mut permission_key: [u8; 65] = [0; 65];
-        permission_key[0] = bid_type.into();
-        permission_key[1..33].copy_from_slice(&router.to_bytes());
-        permission_key[33..65].copy_from_slice(&permission_account.to_bytes());
-        permission_key.into()
+        get_permission_key(bid_type, router, permission_account)
     }
 }
 
