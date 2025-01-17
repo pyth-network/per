@@ -612,7 +612,7 @@ export class Client {
       };
     } else if (opportunity.program === "swap") {
       let tokens;
-      if (opportunity.tokens.type === "input_token_specified") {
+      if (opportunity.tokens.side_specified === "input") {
         tokens = {
           type: "input_specified",
           inputToken: {

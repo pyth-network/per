@@ -127,28 +127,28 @@ export type OpportunitySvmLimo = {
   program: "limo";
 } & OpportunitySvmMetadata;
 
+export type SvmSwapTokens = (
+  | {
+      inputToken: PublicKey;
+      outputToken: TokenAmountSvm;
+      type: "output_specified";
+    }
+  | {
+      inputToken: TokenAmountSvm;
+      outputToken: PublicKey;
+      type: "input_specified";
+    }
+) & {
+  inputTokenProgram: PublicKey;
+  outputTokenProgram: PublicKey;
+};
 export type OpportunitySvmSwap = {
   permissionAccount: PublicKey;
   routerAccount: PublicKey;
   userWalletAddress: PublicKey;
   feeToken: "input_token" | "output_token";
   referralFeeBps: number;
-  // TODO: maybe type should be camelCase too?
-  tokens: (
-    | {
-        inputToken: PublicKey;
-        outputToken: TokenAmountSvm;
-        type: "output_specified";
-      }
-    | {
-        inputToken: TokenAmountSvm;
-        outputToken: PublicKey;
-        type: "input_specified";
-      }
-  ) & {
-    inputTokenProgram: PublicKey;
-    outputTokenProgram: PublicKey;
-  };
+  tokens: SvmSwapTokens;
   program: "swap";
 } & OpportunitySvmMetadata;
 

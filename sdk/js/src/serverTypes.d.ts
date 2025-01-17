@@ -697,7 +697,7 @@ export interface components {
                 output_token: components["schemas"]["Pubkey"];
                 output_token_program: components["schemas"]["Pubkey"];
                 /** @enum {string} */
-                type: "input_token_specified";
+                side_specified: "input";
               }
             | {
                 input_token: components["schemas"]["Pubkey"];
@@ -705,7 +705,7 @@ export interface components {
                 output_token: components["schemas"]["TokenAmountSvm"];
                 output_token_program: components["schemas"]["Pubkey"];
                 /** @enum {string} */
-                type: "output_token_specified";
+                side_specified: "output";
               };
           /**
            * @description The user wallet address which requested the quote from the wallet.
@@ -813,7 +813,7 @@ export interface components {
           output_token: components["schemas"]["Pubkey"];
           output_token_program: components["schemas"]["Pubkey"];
           /** @enum {string} */
-          type: "input_token_specified";
+          side_specified: "input";
         }
       | {
           input_token: components["schemas"]["Pubkey"];
@@ -821,7 +821,7 @@ export interface components {
           output_token: components["schemas"]["TokenAmountSvm"];
           output_token_program: components["schemas"]["Pubkey"];
           /** @enum {string} */
-          type: "output_token_specified";
+          side_specified: "output";
         };
     QuoteV1Svm: {
       /**

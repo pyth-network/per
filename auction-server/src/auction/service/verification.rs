@@ -594,13 +594,13 @@ impl Service<Svm> {
                     .first()
                     .expect("Swap opportunity buy tokens must not be empty");
                 let quote_tokens = match (opp_sell_token.amount, opp_buy_token.amount) {
-                    (0, _) => QuoteTokens::OutputTokenSpecified {
-                        input_token:  opp_sell_token.token,
-                        output_token: opp_buy_token.clone(),
+                    (0, _) => QuoteTokens::InputTokenSpecified {
+                        output_token: opp_sell_token.token,
+                        input_token:  opp_buy_token.clone(),
                     },
-                    (_, 0) => QuoteTokens::InputTokenSpecified {
-                        input_token:  opp_sell_token.clone(),
-                        output_token: opp_buy_token.token,
+                    (_, 0) => QuoteTokens::OutputTokenSpecified {
+                        output_token: opp_sell_token.clone(),
+                        input_token:  opp_buy_token.token,
                     },
                     _ => {
                         panic!("Non zero amount for both sell and buy tokens in swap opportunity");
