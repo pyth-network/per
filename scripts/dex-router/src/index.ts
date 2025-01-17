@@ -5,6 +5,7 @@ import {
   ExpressRelaySvmConfig,
   Opportunity,
   OpportunitySvm,
+  OpportunitySvmLimo,
   SVM_CONSTANTS,
   SvmChainUpdate,
 } from "@pythnetwork/express-relay-js";
@@ -96,7 +97,11 @@ export class DexRouter {
   async opportunityHandler(opportunity: Opportunity) {
     console.log("Received opportunity:", opportunity.opportunityId);
     try {
-      const bid = await this.generateRouterBid(opportunity as OpportunitySvm);
+      const svmOpportunity = opportunity as OpportunitySvm;
+      if (svmOpportunity.program !== "limo") {
+        return;
+      }
+      const bid = await this.generateRouterBid(svmOpportunity);
       const result = await this.client.requestViaWebsocket({
         method: "post_bid",
         params: {
@@ -125,7 +130,7 @@ export class DexRouter {
    * @param opportunity The SVM opportunity to generate a bid for
    * @returns The transaction and chain id for the bid
    */
-  async generateRouterBid(opportunity: OpportunitySvm): Promise<{
+  async generateRouterBid(opportunity: OpportunitySvmLimo): Promise<{
     transaction: string;
     chain_id: string;
   }> {
