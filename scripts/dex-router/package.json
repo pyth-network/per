@@ -1,6 +1,6 @@
 {
   "name": "dex-router",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Client to route Express Relay SVM orders to on-chain liquidity sources",
   "main": "dist/index.js",
   "scripts": {
