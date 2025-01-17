@@ -1,14 +1,14 @@
 import type { Metadata, Viewport } from "next";
 
 export const metadata = {
-  metadataBase: new URL("https://insights.pyth.network"),
+  metadataBase: new URL("https://swap.pyth.network"),
   title: {
-    default: "Pyth Network Insights",
-    template: "%s | Pyth Network Insights",
+    default: "Pyth Network Swap",
+    template: "%s | Pyth Network Swap",
   },
-  applicationName: "Pyth Network Insights",
+  applicationName: "Pyth Network Swap",
   description:
-    "Learn more about the Pyth network and explore data about the network's publishers and price feeds.",
+    "Swap tokens.",
   referrer: "strict-origin-when-cross-origin",
   openGraph: {
     type: "website",
