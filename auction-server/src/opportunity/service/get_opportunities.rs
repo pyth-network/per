@@ -9,6 +9,7 @@ use {
     },
     express_relay_api_types::opportunity::{
         GetOpportunitiesQueryParams,
+        OpportunityId,
         OpportunityMode,
     },
 };
@@ -17,7 +18,19 @@ pub struct GetOpportunitiesInput {
     pub query_params: GetOpportunitiesQueryParams,
 }
 
+pub struct GetLiveOpportunityByIdInput {
+    pub opportunity_id: OpportunityId,
+}
+
 impl<T: ChainType> Service<T> {
+    pub async fn get_live_opportunity_by_id(
+        &self,
+        input: GetLiveOpportunityByIdInput,
+    ) -> Option<<T::InMemoryStore as InMemoryStore>::Opportunity> {
+        self.repo
+            .get_in_memory_opportunity_by_id(input.opportunity_id)
+            .await
+    }
     pub async fn get_opportunities(
         &self,
         input: GetOpportunitiesInput,

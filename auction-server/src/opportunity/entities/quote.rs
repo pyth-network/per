@@ -2,6 +2,10 @@ use {
     super::token_amount_svm::TokenAmountSvm,
     crate::kernel::entities::ChainId,
     express_relay_api_types::opportunity as api,
+    serde::{
+        Deserialize,
+        Serialize,
+    },
     solana_sdk::{
         pubkey::Pubkey,
         transaction::VersionedTransaction,
@@ -27,7 +31,8 @@ pub struct QuoteCreate {
     pub chain_id:            ChainId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum QuoteTokens {
     InputTokenSpecified {
         input_token:  TokenAmountSvm,
@@ -37,6 +42,29 @@ pub enum QuoteTokens {
         input_token:  Pubkey,
         output_token: TokenAmountSvm,
     },
+}
+
+impl From<api::QuoteTokens> for QuoteTokens {
+    fn from(quote_tokens: api::QuoteTokens) -> Self {
+        match quote_tokens {
+            api::QuoteTokens::InputTokenSpecified {
+                input_token,
+                output_token,
+                ..
+            } => QuoteTokens::InputTokenSpecified {
+                input_token: input_token.into(),
+                output_token,
+            },
+            api::QuoteTokens::OutputTokenSpecified {
+                input_token,
+                output_token,
+                ..
+            } => QuoteTokens::OutputTokenSpecified {
+                input_token,
+                output_token: output_token.into(),
+            },
+        }
+    }
 }
 
 impl From<api::QuoteCreate> for QuoteCreate {

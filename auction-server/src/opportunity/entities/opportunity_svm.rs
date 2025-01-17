@@ -12,8 +12,12 @@ use {
     crate::{
         auction::entities::BidPaymentInstructionType,
         kernel::entities::PermissionKey,
-        opportunity::repository,
+        opportunity::{
+            entities::QuoteTokens,
+            repository,
+        },
     },
+    ::express_relay::FeeToken as ProgramFeeToken,
     express_relay_api_types::opportunity as api,
     serde::{
         Deserialize,
@@ -37,9 +41,19 @@ pub struct OpportunitySvmProgramLimo {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum FeeToken {
     InputToken,
     OutputToken,
+}
+
+impl PartialEq<ProgramFeeToken> for FeeToken {
+    fn eq(&self, other: &ProgramFeeToken) -> bool {
+        match self {
+            FeeToken::InputToken => matches!(other, ProgramFeeToken::Input),
+            FeeToken::OutputToken => matches!(other, ProgramFeeToken::Output),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -55,7 +69,7 @@ pub struct OpportunitySvmProgramSwap {
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpportunitySvmProgram {
     Limo(OpportunitySvmProgramLimo),
-    SwapKamino(OpportunitySvmProgramSwap),
+    Swap(OpportunitySvmProgramSwap),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -78,7 +92,7 @@ pub struct OpportunityCreateSvm {
     pub slot:               Slot,
 }
 
-// Opportunity can be refreshed after 10 seconds
+// Opportunity can be refreshed after 30 seconds
 const MIN_REFRESH_TIME: Duration = Duration::seconds(30);
 
 impl Opportunity for OpportunitySvm {
@@ -108,8 +122,8 @@ impl Opportunity for OpportunitySvm {
                     },
                 )
             }
-            OpportunitySvmProgram::SwapKamino(program) => {
-                repository::OpportunityMetadataSvmProgram::SwapKamino(
+            OpportunitySvmProgram::Swap(program) => {
+                repository::OpportunityMetadataSvmProgram::Swap(
                     repository::OpportunityMetadataSvmProgramSwap {
                         user_wallet_address:  program.user_wallet_address,
                         fee_token:            program.fee_token,
@@ -180,7 +194,34 @@ impl From<OpportunitySvm> for api::Opportunity {
         api::Opportunity::Svm(val.into())
     }
 }
-
+pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
+    if !matches!(opp.program, OpportunitySvmProgram::Swap(_)) {
+        panic!("Opportunity must be a swap opportunity to get quote tokens");
+    }
+    let opp_sell_token = opp
+        .core_fields
+        .sell_tokens
+        .first()
+        .expect("Swap opportunity sell tokens must not be empty");
+    let opp_buy_token = opp
+        .core_fields
+        .buy_tokens
+        .first()
+        .expect("Swap opportunity buy tokens must not be empty");
+    match (opp_sell_token.amount, opp_buy_token.amount) {
+        (_, 0) => QuoteTokens::InputTokenSpecified {
+            input_token:  opp_sell_token.clone(),
+            output_token: opp_buy_token.token,
+        },
+        (0, _) => QuoteTokens::OutputTokenSpecified {
+            input_token:  opp_sell_token.token,
+            output_token: opp_buy_token.clone(),
+        },
+        _ => {
+            panic!("Non zero amount for both sell and buy tokens in swap opportunity");
+        }
+    }
+}
 impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
         let program = match val.program.clone() {
@@ -188,43 +229,40 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 order:         program.order,
                 order_address: program.order_address,
             },
-            OpportunitySvmProgram::SwapKamino(program) => {
-                let buy_token = val
-                    .buy_tokens
-                    .first()
-                    .ok_or(anyhow::anyhow!(
-                        "Failed to get buy token from opportunity svm"
-                    ))
-                    .expect("Failed to get buy token from opportunity svm");
-                let sell_token = val
-                    .sell_tokens
-                    .first()
-                    .ok_or(anyhow::anyhow!(
-                        "Failed to get sell token from opportunity svm"
-                    ))
-                    .expect("Failed to get sell token from opportunity svm");
-                let tokens = if buy_token.amount == 0 {
-                    api::QuoteTokens::OutputTokenSpecified {
-                        input_token:          buy_token.token,
-                        output_token:         sell_token.clone().into(),
-                        input_token_program:  program.input_token_program,
+            OpportunitySvmProgram::Swap(program) => {
+                let quote_tokens = get_swap_quote_tokens(&val);
+
+                let tokens = match quote_tokens {
+                    QuoteTokens::InputTokenSpecified {
+                        input_token,
+                        output_token,
+                    } => api::QuoteTokens::InputTokenSpecified {
+                        input_token: input_token.into(),
+                        output_token,
+                        input_token_program: program.input_token_program,
                         output_token_program: program.output_token_program,
-                    }
-                } else {
-                    if sell_token.amount != 0 {
-                        tracing::error!(opportunity = ?val, "Both token amounts are specified for swap opportunity");
-                    }
-                    api::QuoteTokens::InputTokenSpecified {
-                        input_token:          buy_token.clone().into(),
-                        output_token:         sell_token.token,
-                        input_token_program:  program.input_token_program,
+                    },
+                    QuoteTokens::OutputTokenSpecified {
+                        input_token,
+                        output_token,
+                    } => api::QuoteTokens::OutputTokenSpecified {
+                        input_token,
+                        output_token: output_token.into(),
+                        input_token_program: program.input_token_program,
                         output_token_program: program.output_token_program,
-                    }
+                    },
+                };
+
+                let fee_token = match program.fee_token {
+                    FeeToken::InputToken => api::FeeToken::InputToken,
+                    FeeToken::OutputToken => api::FeeToken::OutputToken,
                 };
                 api::OpportunityParamsV1ProgramSvm::Swap {
                     user_wallet_address: program.user_wallet_address,
                     permission_account: val.permission_account,
                     router_account: val.router,
+                    fee_token,
+                    referral_fee_bps: program.referral_fee_bps,
                     // TODO can we make it type safe?
                     tokens,
                 }
@@ -271,8 +309,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     order_address: program.order_address,
                 })
             }
-            repository::OpportunityMetadataSvmProgram::SwapKamino(program) => {
-                OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
+            repository::OpportunityMetadataSvmProgram::Swap(program) => {
+                OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
                     user_wallet_address:  program.user_wallet_address,
                     fee_token:            program.fee_token,
                     referral_fee_bps:     program.referral_fee_bps,
@@ -316,7 +354,7 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
                 referral_fee_bps,
                 input_token_program,
                 output_token_program,
-            } => OpportunitySvmProgram::SwapKamino(OpportunitySvmProgramSwap {
+            } => OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
                 user_wallet_address,
                 // TODO*: see comment above about this arm
                 fee_token: FeeToken::InputToken,
@@ -366,7 +404,7 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
 impl OpportunitySvm {
     pub fn get_missing_signers(&self) -> Vec<Pubkey> {
         match self.program.clone() {
-            OpportunitySvmProgram::SwapKamino(data) => vec![data.user_wallet_address],
+            OpportunitySvmProgram::Swap(data) => vec![data.user_wallet_address],
             OpportunitySvmProgram::Limo(_) => vec![],
         }
     }
@@ -389,7 +427,7 @@ impl From<OpportunitySvmProgram> for api::ProgramSvm {
     fn from(val: OpportunitySvmProgram) -> Self {
         match val {
             OpportunitySvmProgram::Limo(_) => api::ProgramSvm::Limo,
-            OpportunitySvmProgram::SwapKamino(_) => api::ProgramSvm::SwapKamino,
+            OpportunitySvmProgram::Swap(_) => api::ProgramSvm::Swap,
         }
     }
 }

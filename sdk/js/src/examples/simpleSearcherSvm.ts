@@ -6,6 +6,8 @@ import {
   ExpressRelaySvmConfig,
   Opportunity,
   OpportunitySvm,
+  OpportunitySvmLimo,
+  OpportunitySvmSwap,
 } from "../index";
 import {
   BidStatusUpdate,
@@ -31,10 +33,11 @@ import {
   getPdaAuthority,
   OrderStateAndAddress,
 } from "@kamino-finance/limo-sdk/dist/utils";
+import { constructSwapBid } from "../svm";
 
 const DAY_IN_SECONDS = 60 * 60 * 24;
 
-export class SimpleSearcherLimo {
+export class SimpleSearcherSvm {
   protected client: Client;
   protected readonly connectionSvm: Connection;
   protected mintDecimals: Record<string, number> = {};
@@ -89,12 +92,12 @@ export class SimpleSearcherLimo {
   }
 
   /**
-   * Generates a bid for a given opportunity.
+   * Generates a bid for a given limo opportunity.
    * The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
    * @param opportunity The SVM opportunity to bid on.
    * @returns The generated bid object.
    */
-  async generateBid(opportunity: OpportunitySvm): Promise<BidSvm> {
+  async generateBidLimo(opportunity: OpportunitySvmLimo): Promise<BidSvm> {
     const order = opportunity.order;
     const limoClient = new limo.LimoClient(
       this.connectionSvm,
@@ -111,7 +114,7 @@ export class SimpleSearcherLimo {
       ...ixsTakeOrder
     );
 
-    const bidAmount = await this.getBidAmount(order);
+    const bidAmount = await this.getBidAmount(opportunity);
 
     const config = await this.getExpressRelayConfig();
     const bid = await this.client.constructSvmBid(
@@ -133,6 +136,52 @@ export class SimpleSearcherLimo {
     return bid;
   }
 
+  /**
+   * Generates a bid for a given swap opportunity.
+   * The transaction in this bid transfers assets from the searcher's wallet to the specified wallets to fulfill the opportunity.
+   * @param opportunity The SVM opportunity to bid on.
+   * @returns The generated bid object.
+   */
+  async generateBidSwap(opportunity: OpportunitySvmSwap): Promise<BidSvm> {
+    const feeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports:
+        this.latestChainUpdate[this.chainId].latestPrioritizationFee,
+    });
+    const bidAmount = await this.getBidAmount(opportunity);
+    const txRaw = new anchor.web3.Transaction().add(feeInstruction);
+    const config = await this.getExpressRelayConfig();
+    const bid = await constructSwapBid(
+      txRaw,
+      this.searcher.publicKey,
+      opportunity,
+      bidAmount,
+      new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
+      this.chainId,
+      config.relayerSigner
+    );
+
+    bid.transaction.recentBlockhash =
+      this.latestChainUpdate[this.chainId].blockhash;
+    bid.transaction.feePayer = this.searcher.publicKey;
+    bid.transaction.partialSign(this.searcher);
+    return bid;
+  }
+
+  /**
+   * Generates a bid for a given opportunity.
+   * The transaction in this bid transfers assets from the searcher's wallet to fulfill the opportunity.
+   * @param opportunity The SVM opportunity to bid on.
+   * @returns The generated bid object.
+   */
+  async generateBid(opportunity: OpportunitySvm): Promise<BidSvm> {
+    if (opportunity.program === "limo") {
+      return this.generateBidLimo(opportunity);
+    } else {
+      // swap opportunity
+      return this.generateBidSwap(opportunity);
+    }
+  }
+
   async getExpressRelayConfig(): Promise<ExpressRelaySvmConfig> {
     if (!this.expressRelayConfig) {
       this.expressRelayConfig = await this.client.getExpressRelaySvmConfig(
@@ -145,11 +194,11 @@ export class SimpleSearcherLimo {
 
   /**
    * Calculates the bid amount for a given order.
-   * @param order The limit order to be fulfilled
-   * @returns The bid amount in lamports
+   * @param opportunity The opportunity to be fulfilled
+   * @returns The bid amount in the necessary token
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getBidAmount(order: OrderStateAndAddress): Promise<anchor.BN> {
+  async getBidAmount(opportunity: OpportunitySvm): Promise<anchor.BN> {
     // this should be replaced by a more sophisticated logic to determine the bid amount
     return this.bid;
   }
@@ -324,7 +373,7 @@ export function getKeypair(
 async function run() {
   const argv = makeParser().parseSync();
   const searcherKeyPair = getKeypair(argv.privateKey, argv.privateKeyJsonFile);
-  const simpleSearcher = new SimpleSearcherLimo(
+  const simpleSearcher = new SimpleSearcherSvm(
     argv.endpointExpressRelay,
     argv.chainId,
     searcherKeyPair,

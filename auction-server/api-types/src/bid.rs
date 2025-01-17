@@ -1,5 +1,6 @@
 use {
     crate::{
+        opportunity::OpportunityId,
         profile::ProfileId,
         AccessLevel,
         ChainId,
@@ -251,7 +252,7 @@ pub struct BidCreateEvm {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct BidCreateSvm {
+pub struct BidCreateOnChainSvm {
     /// The chain id to bid on.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:    ChainId,
@@ -264,6 +265,38 @@ pub struct BidCreateSvm {
     #[schema(example = 293106477, value_type = Option<u64>)]
     pub slot:        Option<Slot>,
 }
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum BidCreateSwapSvmTag {
+    Swap,
+}
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct BidCreateSwapSvm {
+    /// The chain id to bid on.
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id:       ChainId,
+    /// The transaction for bid.
+    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
+    #[serde(with = "crate::serde::transaction_svm")]
+    pub transaction:    VersionedTransaction,
+    /// The id of the swap opportunity to bid on.
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
+    pub opportunity_id: OpportunityId,
+    /// The bid type. Should be "swap"
+    #[schema(example = "swap")]
+    #[serde(rename = "type")]
+    pub _type:          BidCreateSwapSvmTag, // this is mainly to distinguish next types of bids in the future
+}
+
+
+#[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
+#[serde(untagged)]
+pub enum BidCreateSvm {
+    Swap(BidCreateSwapSvm),
+    OnChain(BidCreateOnChainSvm),
+}
+
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
 #[serde(untagged)] // Remove tags to avoid key-value wrapping
@@ -304,7 +337,10 @@ impl BidCreate {
     pub fn get_chain_id(&self) -> ChainId {
         match self {
             BidCreate::Evm(bid_create_evm) => bid_create_evm.chain_id.clone(),
-            BidCreate::Svm(bid_create_svm) => bid_create_svm.chain_id.clone(),
+            BidCreate::Svm(BidCreateSvm::Swap(bid_create_svm)) => bid_create_svm.chain_id.clone(),
+            BidCreate::Svm(BidCreateSvm::OnChain(bid_create_svm)) => {
+                bid_create_svm.chain_id.clone()
+            }
         }
     }
 }

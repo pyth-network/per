@@ -84,15 +84,25 @@ pub mod update_submitted_auction;
 pub mod verification;
 pub mod workers;
 
+pub struct SwapInstructionAccountPositions {
+    pub router_token_account: usize,
+    pub user_wallet_account:  usize,
+    pub mint_input_account:   usize,
+    pub mint_output_account:  usize,
+    pub token_program_input:  usize,
+    pub token_program_output: usize,
+}
+
+pub struct SubmitBidInstructionAccountPositions {
+    pub permission_account: usize,
+    pub router_account:     usize,
+}
+
 pub struct ExpressRelaySvm {
-    pub program_id:                             Pubkey,
-    pub relayer:                                Keypair,
-    pub permission_account_position_submit_bid: usize,
-    pub router_account_position_submit_bid:     usize,
-    pub router_account_position_swap:           usize,
-    pub user_wallet_account_position_swap:      usize,
-    pub mint_input_account_position_swap:       usize,
-    pub mint_output_account_position_swap:      usize,
+    pub program_id:                               Pubkey,
+    pub relayer:                                  Keypair,
+    pub submit_bid_instruction_account_positions: SubmitBidInstructionAccountPositions,
+    pub swap_instruction_account_positions:       SwapInstructionAccountPositions,
 }
 
 pub struct ConfigSvm {

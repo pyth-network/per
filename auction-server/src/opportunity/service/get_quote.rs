@@ -1,3 +1,4 @@
+use crate::opportunity::entities::TokenAmountSvm;
 use {
     super::{
         get_token_program::GetTokenProgramInput,
@@ -28,6 +29,11 @@ use {
             service::add_opportunity::AddOpportunityInput,
         },
     },
+    ::express_relay::{
+        self as express_relay_svm,
+        state::FEE_SPLIT_PRECISION,
+        FeeToken,
+    },
     axum_prometheus::metrics,
     // TODO: is it okay to import api types into the service layer?
     express_relay_api_types::opportunity::ProgramSvm,
@@ -49,12 +55,37 @@ pub struct GetQuoteInput {
     pub program:      ProgramSvm,
 }
 
-pub fn get_quote_permission_key(
+pub fn get_associated_token_account(
+    owner: &Pubkey,
+    token_program: &Pubkey,
+    token: &Pubkey,
+) -> Pubkey {
+    // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
+    const ASSOCIATED_TOKEN_PROGRAM: Pubkey = Pubkey::new_from_array([
+        140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153,
+        218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
+    ]);
+
+    Pubkey::find_program_address(
+        &[
+            &owner.to_bytes(),
+            &token_program.to_bytes(),
+            &token.to_bytes(),
+        ],
+        &ASSOCIATED_TOKEN_PROGRAM,
+    )
+    .0
+}
+
+/// Get a pubkey based on router_token_account, user_wallet_address, referral_fee_bps, mints, and token amounts
+/// This pubkey is never mentioned on-chain and is only used internally
+/// to distinguish between different swap bids
+pub fn get_quote_virtual_permission_account(
     tokens: &entities::QuoteTokens,
     user_wallet_address: &Pubkey,
+    router_token_account: &Pubkey,
     referral_fee_bps: u16,
 ) -> Pubkey {
-    // get pda seeded by user_wallet_address, referral_fee_bps, mints, and token amount
     let input_token_amount: [u8; 8];
     let output_token_amount: [u8; 8];
     let referral_fee_bps = referral_fee_bps.to_le_bytes();
@@ -67,6 +98,7 @@ pub fn get_quote_permission_key(
             let output_token_mint = output_token.as_ref();
             input_token_amount = input_token.amount.to_le_bytes();
             [
+                router_token_account.as_ref(),
                 user_wallet_address.as_ref(),
                 input_token_mint,
                 input_token_amount.as_ref(),
@@ -82,6 +114,7 @@ pub fn get_quote_permission_key(
             let output_token_mint = output_token.token.as_ref();
             output_token_amount = output_token.amount.to_le_bytes();
             [
+                router_token_account.as_ref(),
                 user_wallet_address.as_ref(),
                 input_token_mint,
                 output_token_mint,
@@ -102,42 +135,22 @@ impl Service<ChainTypeSvm> {
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
-        let permission_account = get_quote_permission_key(
-            &quote_create.tokens,
-            &quote_create.user_wallet_address,
-            quote_create.referral_fee_bps,
-        );
+        // TODO*: we should determine this more intelligently
+        let fee_token = entities::FeeToken::InputToken;
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
-        let (input_mint, input_amount, output_mint, output_amount) = match quote_create.tokens {
-            entities::QuoteTokens::InputTokenSpecified {
-                input_token,
-                output_token,
-            } => (input_token.token, input_token.amount, output_token, 0),
-            entities::QuoteTokens::OutputTokenSpecified {
-                input_token,
-                output_token,
-            } => (input_token, 0, output_token.token, output_token.amount),
-        };
-
-        let core_fields = entities::OpportunityCoreFieldsCreate {
-            permission_key: entities::OpportunitySvm::get_permission_key(
-                BidPaymentInstructionType::Swap,
-                router,
-                permission_account,
-            ),
-            chain_id:       quote_create.chain_id.clone(),
-            sell_tokens:    vec![entities::TokenAmountSvm {
-                token:  input_mint,
-                amount: input_amount,
-            }],
-            buy_tokens:     vec![entities::TokenAmountSvm {
-                token:  output_mint,
-                amount: output_amount,
-            }],
-        };
-
+        let (input_mint, input_amount, output_mint, output_amount) =
+            match quote_create.tokens.clone() {
+                entities::QuoteTokens::InputTokenSpecified {
+                    input_token,
+                    output_token,
+                } => (input_token.token, input_token.amount, output_token, 0),
+                entities::QuoteTokens::OutputTokenSpecified {
+                    input_token,
+                    output_token,
+                } => (input_token, 0, output_token.token, output_token.amount),
+            };
         let input_token_program = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
@@ -159,12 +172,44 @@ impl Service<ChainTypeSvm> {
                 RestError::BadParameters("Output token program not found".to_string())
             })?;
 
+
+        let router_token_account = match fee_token {
+            entities::FeeToken::InputToken => {
+                get_associated_token_account(&router, &input_token_program, &input_mint)
+            }
+            entities::FeeToken::OutputToken => {
+                get_associated_token_account(&router, &output_token_program, &output_mint)
+            }
+        };
+        let permission_account = get_quote_virtual_permission_account(
+            &quote_create.tokens,
+            &quote_create.user_wallet_address,
+            &router_token_account,
+            quote_create.referral_fee_bps,
+        );
+
+        let core_fields = entities::OpportunityCoreFieldsCreate {
+            permission_key: entities::OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account,
+            ),
+            chain_id:       quote_create.chain_id.clone(),
+            sell_tokens:    vec![entities::TokenAmountSvm {
+                token:  input_mint,
+                amount: input_amount,
+            }],
+            buy_tokens:     vec![entities::TokenAmountSvm {
+                token:  output_mint,
+                amount: output_amount,
+            }],
+        };
+
         let program_opportunity = match program {
-            ProgramSvm::SwapKamino => {
-                entities::OpportunitySvmProgram::SwapKamino(entities::OpportunitySvmProgramSwap {
+            ProgramSvm::Swap => {
+                entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                     user_wallet_address: quote_create.user_wallet_address,
-                    // TODO*: we should determine this more intelligently
-                    fee_token: entities::FeeToken::InputToken,
+                    fee_token,
                     referral_fee_bps: quote_create.referral_fee_bps,
                     input_token_program,
                     output_token_program,
@@ -205,6 +250,14 @@ impl Service<ChainTypeSvm> {
 
     #[tracing::instrument(skip_all)]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
+        // TODO use compute_swap_fees to make sure instead when the metadata is fetched from on-chain
+        if FEE_SPLIT_PRECISION < input.quote_create.referral_fee_bps.into() {
+            return Err(RestError::BadParameters(format!(
+                "Referral fee bps higher than {}",
+                FEE_SPLIT_PRECISION
+            )));
+        }
+
         let config = self.get_config(&input.quote_create.chain_id)?;
         let auction_service = config.get_auction_service().await;
 
@@ -218,14 +271,16 @@ impl Service<ChainTypeSvm> {
                 opportunity: opportunity_create,
             })
             .await?;
-        let input_token = opportunity.buy_tokens[0].clone();
-        let output_token = opportunity.sell_tokens[0].clone();
+        let input_token = opportunity.sell_tokens[0].clone();
+        let output_token = opportunity.buy_tokens[0].clone();
         if input_token.amount == 0 && output_token.amount == 0 {
-            tracing::error!(opportunity = ?opportunity, "Both token amounts are zero for swap opportunity");
             return Err(RestError::BadParameters(
-                "Both token amounts are zero for swap opportunity".to_string(),
+                "Token amount can not be zero".to_string(),
             ));
         }
+
+        // Wait to make sure searchers had enough time to submit bids
+        sleep(BID_COLLECTION_TIME).await;
 
         // NOTE: This part will be removed after refactoring the permission key type
         let slice: [u8; 65] = opportunity
@@ -234,8 +289,6 @@ impl Service<ChainTypeSvm> {
             .try_into()
             .expect("Failed to convert permission key to slice");
         let permission_key_svm = PermissionKeySvm(slice);
-        // Wait to make sure searchers had enough time to submit bids
-        sleep(BID_COLLECTION_TIME).await;
 
         let bid_collection_time = OffsetDateTime::now_utc();
         let mut bids = auction_service
@@ -280,7 +333,7 @@ impl Service<ChainTypeSvm> {
         let winner_bid = bids.first().expect("failed to get first bid");
 
         let swap_instruction = auction_service
-            .extract_express_relay_bid_instruction(
+            .extract_express_relay_instruction(
                 winner_bid.chain_data.transaction.clone(),
                 BidPaymentInstructionType::Swap,
             )
@@ -302,9 +355,7 @@ impl Service<ChainTypeSvm> {
             .add_auction(AddAuctionInput { auction })
             .await?;
 
-        let mut bid = winner_bid.clone();
-        auction_service.add_relayer_signature(&mut bid);
-
+        let bid = winner_bid.clone();
         let signature = bid.chain_data.transaction.signatures[0];
         auction = auction_service
             .update_submitted_auction(UpdateSubmittedAuctionInput {
@@ -349,13 +400,35 @@ impl Service<ChainTypeSvm> {
             tracing::error!(winner_bid = ?winner_bid, opportunity = ?opportunity, "Failed to update winner bid status");
             return Err(RestError::TemporarilyUnavailable);
         }
+        // TODO*: fetch this on-chain to incorporate the actual fees based on swap_platform_fee_bps and relayer_split
+        let metadata = express_relay_svm::state::ExpressRelayMetadata::default();
+        let (input_amount, output_amount) = match swap_data.fee_token {
+            FeeToken::Input => (swap_data.amount_input, swap_data.amount_output),
+            FeeToken::Output => (
+                swap_data.amount_input,
+                metadata
+                    .compute_swap_fees(swap_data.referral_fee_bps, swap_data.amount_input)
+                    .map_err(|e| {
+                        tracing::error!("Failed to compute swap fees: {:?}", e);
+                        RestError::TemporarilyUnavailable
+                    })?
+                    .remaining_amount,
+            ),
+        };
 
         Ok(entities::Quote {
-            transaction: bid.chain_data.transaction.clone(),
+            transaction:     bid.chain_data.transaction.clone(),
             expiration_time: deadline,
-            input_token,
-            output_token, // TODO*: incorporate fees (when fees are in the output token)
-            chain_id: input.quote_create.chain_id,
+
+            input_token:  TokenAmountSvm {
+                token:  input_token.token,
+                amount: input_amount,
+            },
+            output_token: TokenAmountSvm {
+                token:  output_token.token,
+                amount: output_amount,
+            },
+            chain_id:     input.quote_create.chain_id,
         })
     }
 }

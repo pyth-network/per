@@ -61,13 +61,10 @@ pub struct OpportunityBidResult {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, Display)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum ProgramSvm {
-    #[serde(rename = "swap_kamino")]
-    #[strum(serialize = "swap_kamino")]
-    SwapKamino,
-    #[serde(rename = "limo")]
-    #[strum(serialize = "limo")]
+    Swap,
     Limo,
 }
 
@@ -195,12 +192,11 @@ pub struct TokenAmountSvm {
 /// Program specific parameters for the opportunity.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(tag = "program")]
+#[serde(tag = "program", rename_all = "snake_case")]
 pub enum OpportunityCreateProgramParamsV1Svm {
     /// Limo program specific parameters for the opportunity.
     /// It contains the Limo order to be executed, encoded in base64.
     /// SDKs will decode this order and create transaction for bidding on the opportunity.
-    #[serde(rename = "limo")]
     #[schema(title = "limo")]
     Limo {
         /// The Limo order to be executed, encoded in base64.
@@ -214,7 +210,6 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         order_address: Pubkey,
     },
     /// Swap program specific parameters for the opportunity.
-    #[serde(rename = "swap")]
     #[schema(title = "swap")]
     Swap {
         /// The user wallet address which requested the quote from the wallet.
@@ -309,12 +304,11 @@ pub struct OpportunityEvm {
 /// Program specific parameters for the opportunity.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-#[serde(tag = "program")]
+#[serde(tag = "program", rename_all = "snake_case")]
 pub enum OpportunityParamsV1ProgramSvm {
     /// Limo program specific parameters for the opportunity.
     /// It contains the Limo order to be executed, encoded in base64.
     /// SDKs will decode this order and create transaction for bidding on the opportunity.
-    #[serde(rename = "limo")]
     #[schema(title = "limo")]
     Limo {
         /// The Limo order to be executed, encoded in base64.
@@ -327,7 +321,6 @@ pub enum OpportunityParamsV1ProgramSvm {
         order_address: Pubkey,
     },
     /// Swap program specific parameters for the opportunity.
-    #[serde(rename = "swap")]
     #[schema(title = "swap")]
     Swap {
         /// The user wallet address which requested the quote from the wallet.
@@ -345,6 +338,14 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         router_account: Pubkey,
 
+        /// The referral fee in basis points.
+        #[schema(example = 10, value_type = u16)]
+        referral_fee_bps: u16,
+
+        /// Specifies whether the fees are to be paid in input or output token.
+        #[schema(example = "input_token")]
+        fee_token: FeeToken,
+
         /// Details about the tokens to be swapped. Either the input token amount or the output token amount must be specified.
         #[schema(inline)]
         tokens: QuoteTokens,
@@ -352,13 +353,23 @@ pub enum OpportunityParamsV1ProgramSvm {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+#[serde(rename_all = "snake_case")]
+pub enum FeeToken {
+    InputToken,
+    OutputToken,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+#[serde(tag = "side_specified")]
 pub enum QuoteTokens {
+    #[serde(rename = "input")]
     InputTokenSpecified {
         input_token:          TokenAmountSvm,
         output_token:         Pubkey,
         input_token_program:  Pubkey,
         output_token_program: Pubkey,
     },
+    #[serde(rename = "output")]
     OutputTokenSpecified {
         input_token:          Pubkey,
         output_token:         TokenAmountSvm,
@@ -599,7 +610,7 @@ impl OpportunityCreateSvm {
             OpportunityCreateSvm::V1(params) => match &params.program_params {
                 OpportunityCreateProgramParamsV1Svm::Limo { .. } => ProgramSvm::Limo,
                 // TODO*: this arm doesn't really matter, bc this function will never be called in get_quote, but we should figure out how to handle this
-                OpportunityCreateProgramParamsV1Svm::Swap { .. } => ProgramSvm::SwapKamino,
+                OpportunityCreateProgramParamsV1Svm::Swap { .. } => ProgramSvm::Swap,
             },
         }
     }

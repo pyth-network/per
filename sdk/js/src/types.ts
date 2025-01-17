@@ -107,9 +107,7 @@ export type OpportunityEvm = {
   opportunityId: string;
 };
 
-export type OpportunitySvm = {
-  order: OrderStateAndAddress;
-  program: "limo";
+export type OpportunitySvmMetadata = {
   /**
    * The chain id where the opportunity will be executed.
    */
@@ -124,9 +122,41 @@ export type OpportunitySvm = {
   opportunityId: string;
 };
 
+export type OpportunitySvmLimo = {
+  order: OrderStateAndAddress;
+  program: "limo";
+} & OpportunitySvmMetadata;
+
+export type SvmSwapTokens = (
+  | {
+      inputToken: PublicKey;
+      outputToken: TokenAmountSvm;
+      type: "output_specified";
+    }
+  | {
+      inputToken: TokenAmountSvm;
+      outputToken: PublicKey;
+      type: "input_specified";
+    }
+) & {
+  inputTokenProgram: PublicKey;
+  outputTokenProgram: PublicKey;
+};
+export type OpportunitySvmSwap = {
+  permissionAccount: PublicKey;
+  routerAccount: PublicKey;
+  userWalletAddress: PublicKey;
+  feeToken: "input_token" | "output_token";
+  referralFeeBps: number;
+  tokens: SvmSwapTokens;
+  program: "swap";
+} & OpportunitySvmMetadata;
+
+export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;
+
 export type OpportunityCreate =
   | Omit<OpportunityEvm, "opportunityId">
-  | Omit<OpportunitySvm, "opportunityId">;
+  | Omit<OpportunitySvmLimo, "opportunityId">;
 
 export type Opportunity = OpportunityEvm | OpportunitySvm;
 /**
@@ -210,7 +240,7 @@ export type ExpressRelaySvmConfig = {
 /**
  * Represents a raw SVM bid on acquiring a permission key
  */
-export type BidSvm = {
+export type BidSvmOnChain = {
   /**
    * @description Transaction object.
    * @example SGVsbG8sIFdvcmxkIQ
@@ -227,11 +257,41 @@ export type BidSvm = {
    * @example 293106477
    */
   slot?: number | null;
+  type: "onchain";
   /**
    * @description The execution environment for the bid.
    */
   env: "svm";
 };
+
+/**
+ * Represents a raw SVM bid to fulfill a swap opportunity
+ */
+export type BidSvmSwap = {
+  /**
+   * @description Transaction object.
+   * @example SGVsbG8sIFdvcmxkIQ
+   */
+  transaction: Transaction;
+  /**
+   * @description The chain id to bid on.
+   * @example solana
+   */
+  chainId: ChainId;
+  /**
+   * @description The id of the swap opportunity to bid on.
+   * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
+   */
+  opportunityId: string;
+  type: "swap";
+  /**
+   * @description The execution environment for the bid.
+   */
+  env: "svm";
+};
+
+export type BidSvm = BidSvmOnChain | BidSvmSwap;
+
 export type BidStatusUpdate = {
   id: BidId;
 } & components["schemas"]["BidStatus"];

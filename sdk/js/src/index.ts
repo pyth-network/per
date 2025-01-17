@@ -11,7 +11,6 @@ import {
   BidParams,
   BidsResponse,
   BidStatusUpdate,
-  BidSvm,
   ExpressRelaySvmConfig,
   Opportunity,
   OpportunityBid,
@@ -23,6 +22,9 @@ import {
   ChainType,
   QuoteRequest,
   QuoteResponse,
+  BidSvmOnChain,
+  BidSvmSwap,
+  OpportunitySvmSwap,
 } from "./types";
 import {
   Connection,
@@ -569,26 +571,6 @@ export class Client {
     }
   }
 
-  private toServerBid(bid: Bid): components["schemas"]["BidCreate"] {
-    if (bid.env === "evm") {
-      return {
-        amount: bid.amount.toString(),
-        target_calldata: bid.targetCalldata,
-        chain_id: bid.chainId,
-        target_contract: bid.targetContract,
-        permission_key: bid.permissionKey,
-      };
-    }
-
-    return {
-      chain_id: bid.chainId,
-      slot: bid.slot,
-      transaction: bid.transaction
-        .serialize({ requireAllSignatures: false })
-        .toString("base64"),
-    };
-  }
-
   /**
    * Converts an opportunity from the server to the client format
    * Returns undefined if the opportunity version is not supported
@@ -616,7 +598,7 @@ export class Client {
         buyTokens: opportunity.buy_tokens.map(checkTokenQty),
       };
     }
-    if ("order" in opportunity) {
+    if (opportunity.program === "limo") {
       const order = Order.decode(Buffer.from(opportunity.order, "base64"));
       return {
         chainId: opportunity.chain_id,
@@ -628,9 +610,83 @@ export class Client {
         },
         program: "limo",
       };
+    } else if (opportunity.program === "swap") {
+      let tokens;
+      if (opportunity.tokens.side_specified === "input") {
+        tokens = {
+          type: "input_specified",
+          inputToken: {
+            amount: BigInt(opportunity.tokens.input_token.amount),
+            token: new PublicKey(opportunity.tokens.input_token.token),
+          },
+          outputToken: new PublicKey(opportunity.tokens.output_token),
+          inputTokenProgram: new PublicKey(
+            opportunity.tokens.input_token_program
+          ),
+          outputTokenProgram: new PublicKey(
+            opportunity.tokens.output_token_program
+          ),
+        } as const;
+      } else {
+        tokens = {
+          type: "output_specified",
+          inputToken: new PublicKey(opportunity.tokens.input_token),
+          outputToken: {
+            amount: BigInt(opportunity.tokens.output_token.amount),
+            token: new PublicKey(opportunity.tokens.output_token.token),
+          },
+          inputTokenProgram: new PublicKey(
+            opportunity.tokens.input_token_program
+          ),
+          outputTokenProgram: new PublicKey(
+            opportunity.tokens.output_token_program
+          ),
+        } as const;
+      }
+      return {
+        chainId: opportunity.chain_id,
+        slot: opportunity.slot,
+        opportunityId: opportunity.opportunity_id,
+        program: "swap",
+        referralFeeBps: opportunity.referral_fee_bps,
+        feeToken: opportunity.fee_token,
+        permissionAccount: new PublicKey(opportunity.permission_account),
+        routerAccount: new PublicKey(opportunity.router_account),
+        userWalletAddress: new PublicKey(opportunity.user_wallet_address),
+        tokens,
+      };
     } else {
-      console.warn("Cannot handle wallet opportunities");
-      return undefined;
+      console.warn("Unsupported opportunity", opportunity);
+    }
+  }
+
+  private toServerBid(bid: Bid): components["schemas"]["BidCreate"] {
+    if (bid.env === "evm") {
+      return {
+        amount: bid.amount.toString(),
+        target_calldata: bid.targetCalldata,
+        chain_id: bid.chainId,
+        target_contract: bid.targetContract,
+        permission_key: bid.permissionKey,
+      };
+    }
+    if (bid.type === "swap") {
+      return {
+        chain_id: bid.chainId,
+        opportunity_id: bid.opportunityId,
+        type: "swap",
+        transaction: bid.transaction
+          .serialize({ requireAllSignatures: false })
+          .toString("base64"),
+      };
+    } else {
+      return {
+        chain_id: bid.chainId,
+        slot: bid.slot,
+        transaction: bid.transaction
+          .serialize({ requireAllSignatures: false })
+          .toString("base64"),
+      };
     }
   }
 
@@ -753,7 +809,7 @@ export class Client {
   }
 
   /**
-   * Constructs an SVM bid, by adding a SubmitBid instruction to a transaction
+   * Constructs an SVM On-chain bid, by adding a SubmitBid instruction to a transaction
    * @param tx The transaction to add a SubmitBid instruction to. This transaction should already check for the appropriate permissions.
    * @param searcher The address of the searcher that is submitting the bid
    * @param router The identifying address of the router that the permission key is for
@@ -775,7 +831,7 @@ export class Client {
     chainId: string,
     relayerSigner: PublicKey,
     feeReceiverRelayer: PublicKey
-  ): Promise<BidSvm> {
+  ): Promise<BidSvmOnChain> {
     return svm.constructSvmBid(
       tx,
       searcher,
@@ -786,6 +842,36 @@ export class Client {
       chainId,
       relayerSigner,
       feeReceiverRelayer
+    );
+  }
+
+  /**
+   * Constructs a Swap Bid, by adding swap instruction + idempotent token account creation instructions to a transaction
+   * @param tx The transaction to add the instructions to
+   * @param searcher The address of the searcher filling the swap order
+   * @param swapOpportunity The swap opportunity to bid on
+   * @param bidAmount The amount of the bid in either input or output tokens depending on the swap opportunity
+   * @param deadline The deadline for the bid in seconds since Unix epoch
+   * @param chainId The chain ID as a string, e.g. "solana"
+   * @param relayerSigner The address of the relayer that is handling the bid
+   */
+  async constructSwapBid(
+    tx: Transaction,
+    searcher: PublicKey,
+    swapOpportunity: OpportunitySvmSwap,
+    bidAmount: anchor.BN,
+    deadline: anchor.BN,
+    chainId: string,
+    relayerSigner: PublicKey
+  ): Promise<BidSvmSwap> {
+    return svm.constructSwapBid(
+      tx,
+      searcher,
+      swapOpportunity,
+      bidAmount,
+      deadline,
+      chainId,
+      relayerSigner
     );
   }
 }

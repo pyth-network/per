@@ -1,12 +1,8 @@
 import * as anchor from "@coral-xyz/anchor";
 import { ComputeBudgetProgram, Keypair } from "@solana/web3.js";
-import {
-  getKeypair,
-  makeParser,
-  SimpleSearcherLimo,
-} from "./simpleSearcherLimo";
+import { getKeypair, makeParser, SimpleSearcherSvm } from "./simpleSearcherSvm";
 
-class SearcherPinger extends SimpleSearcherLimo {
+class SearcherPinger extends SimpleSearcherSvm {
   constructor(
     endpointExpressRelay: string,
     chainId: string,

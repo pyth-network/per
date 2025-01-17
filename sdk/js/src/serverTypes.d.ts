@@ -3,17 +3,6 @@
  * Do not make direct changes to the file.
  */
 
-/** OneOf type helpers */
-type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never };
-type XOR<T, U> = T | U extends object
-  ? (Without<T, U> & U) | (Without<U, T> & T)
-  : T | U;
-type OneOf<T extends any[]> = T extends [infer Only]
-  ? Only
-  : T extends [infer A, infer B, ...infer Rest]
-  ? OneOf<[XOR<A, B>, ...Rest]>
-  : never;
-
 export interface paths {
   "/v1/bids": {
     /**
@@ -123,7 +112,7 @@ export interface components {
        */
       target_contract: string;
     };
-    BidCreateSvm: {
+    BidCreateOnChainSvm: {
       /**
        * @description The chain id to bid on.
        * @example solana
@@ -142,6 +131,29 @@ export interface components {
        */
       transaction: string;
     };
+    BidCreateSvm:
+      | components["schemas"]["BidCreateSwapSvm"]
+      | components["schemas"]["BidCreateOnChainSvm"];
+    BidCreateSwapSvm: {
+      /**
+       * @description The chain id to bid on.
+       * @example solana
+       */
+      chain_id: string;
+      /**
+       * @description The id of the swap opportunity to bid on.
+       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
+       */
+      opportunity_id: string;
+      /**
+       * @description The transaction for bid.
+       * @example SGVsbG8sIFdvcmxkIQ==
+       */
+      transaction: string;
+      type: components["schemas"]["BidCreateSwapSvmTag"];
+    };
+    /** @enum {string} */
+    BidCreateSwapSvmTag: "swap";
     BidEvm: {
       /**
        * @description The chain id for bid.
@@ -363,6 +375,8 @@ export interface components {
     ErrorBodyResponse: {
       error: string;
     };
+    /** @enum {string} */
+    FeeToken: "input_token" | "output_token";
     Opportunity:
       | components["schemas"]["OpportunityEvm"]
       | components["schemas"]["OpportunitySvm"];
@@ -429,6 +443,16 @@ export interface components {
           program: "limo";
         }
       | {
+          /**
+           * @description The token program of the input mint.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          input_token_program: string;
+          /**
+           * @description The token program of the output mint.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          output_token_program: string;
           /** @enum {string} */
           program: "swap";
           /**
@@ -502,6 +526,16 @@ export interface components {
           program: "limo";
         }
       | {
+          /**
+           * @description The token program of the input mint.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          input_token_program: string;
+          /**
+           * @description The token program of the output mint.
+           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+           */
+          output_token_program: string;
           /** @enum {string} */
           program: "swap";
           /**
@@ -637,6 +671,7 @@ export interface components {
           program: "limo";
         }
       | {
+          fee_token: components["schemas"]["FeeToken"];
           /**
            * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -645,26 +680,33 @@ export interface components {
           /** @enum {string} */
           program: "swap";
           /**
+           * Format: int32
+           * @description The referral fee in basis points.
+           * @example 10
+           */
+          referral_fee_bps: number;
+          /**
            * @description The router account to be used for the opportunity execution of the protocol.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           router_account: string;
-          tokens: OneOf<
-            [
-              {
-                InputTokenSpecified: {
-                  input_token: components["schemas"]["TokenAmountSvm"];
-                  output_token: components["schemas"]["Pubkey"];
-                };
-              },
-              {
-                OutputTokenSpecified: {
-                  input_token: components["schemas"]["Pubkey"];
-                  output_token: components["schemas"]["TokenAmountSvm"];
-                };
+          tokens:
+            | {
+                input_token: components["schemas"]["TokenAmountSvm"];
+                input_token_program: components["schemas"]["Pubkey"];
+                output_token: components["schemas"]["Pubkey"];
+                output_token_program: components["schemas"]["Pubkey"];
+                /** @enum {string} */
+                side_specified: "input";
               }
-            ]
-          >;
+            | {
+                input_token: components["schemas"]["Pubkey"];
+                input_token_program: components["schemas"]["Pubkey"];
+                output_token: components["schemas"]["TokenAmountSvm"];
+                output_token_program: components["schemas"]["Pubkey"];
+                /** @enum {string} */
+                side_specified: "output";
+              };
           /**
            * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -697,7 +739,7 @@ export interface components {
       slot: number;
     };
     /** @enum {string} */
-    ProgramSvm: "swap_kamino" | "limo";
+    ProgramSvm: "swap" | "limo";
     Quote: components["schemas"]["QuoteSvm"];
     QuoteCreate: components["schemas"]["QuoteCreateSvm"];
     QuoteCreateSvm: components["schemas"]["QuoteCreateV1SvmParams"] & {
@@ -764,22 +806,23 @@ export interface components {
       /** @enum {string} */
       version: "v1";
     };
-    QuoteTokens: OneOf<
-      [
-        {
-          InputTokenSpecified: {
-            input_token: components["schemas"]["TokenAmountSvm"];
-            output_token: components["schemas"]["Pubkey"];
-          };
-        },
-        {
-          OutputTokenSpecified: {
-            input_token: components["schemas"]["Pubkey"];
-            output_token: components["schemas"]["TokenAmountSvm"];
-          };
+    QuoteTokens:
+      | {
+          input_token: components["schemas"]["TokenAmountSvm"];
+          input_token_program: components["schemas"]["Pubkey"];
+          output_token: components["schemas"]["Pubkey"];
+          output_token_program: components["schemas"]["Pubkey"];
+          /** @enum {string} */
+          side_specified: "input";
         }
-      ]
-    >;
+      | {
+          input_token: components["schemas"]["Pubkey"];
+          input_token_program: components["schemas"]["Pubkey"];
+          output_token: components["schemas"]["TokenAmountSvm"];
+          output_token_program: components["schemas"]["Pubkey"];
+          /** @enum {string} */
+          side_specified: "output";
+        };
     QuoteV1Svm: {
       /**
        * @description The chain id for the quote.

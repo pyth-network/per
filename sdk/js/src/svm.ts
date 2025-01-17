@@ -6,7 +6,17 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
-import { BidSvm, ExpressRelaySvmConfig } from "./types";
+import {
+  BidSvmOnChain,
+  BidSvmSwap,
+  ExpressRelaySvmConfig,
+  OpportunitySvmSwap,
+} from "./types";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { ExpressRelay } from "./expressRelayTypes";
 import expressRelayIdl from "./idl/idlExpressRelay.json";
@@ -82,6 +92,225 @@ export async function constructSubmitBidInstruction(
   return ixSubmitBid;
 }
 
+export function getAssociatedTokenAddress(
+  owner: PublicKey,
+  tokenMintAddress: PublicKey,
+  tokenProgram: PublicKey
+): PublicKey {
+  return getAssociatedTokenAddressSync(
+    tokenMintAddress,
+    owner,
+    true, //allow owner to be off-curve
+    tokenProgram,
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+}
+
+export function createAtaIdempotentInstruction(
+  owner: PublicKey,
+  mint: PublicKey,
+  payer: PublicKey = owner,
+  tokenProgram: PublicKey
+): [PublicKey, TransactionInstruction] {
+  const ataAddress = getAssociatedTokenAddress(owner, mint, tokenProgram);
+  const createUserTokenAccountIx =
+    createAssociatedTokenAccountIdempotentInstruction(
+      payer,
+      ataAddress,
+      owner,
+      mint,
+      tokenProgram,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+  return [ataAddress, createUserTokenAccountIx];
+}
+
+export async function constructSwapInstruction(
+  searcher: PublicKey,
+  swapOpportunity: OpportunitySvmSwap,
+  bidAmount: anchor.BN,
+  deadline: anchor.BN,
+  chainId: string,
+  relayerSigner: PublicKey
+): Promise<TransactionInstruction> {
+  const expressRelay = new Program<ExpressRelay>(
+    expressRelayIdl as ExpressRelay,
+    {} as AnchorProvider
+  );
+  const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
+  const svmConstants = SVM_CONSTANTS[chainId];
+
+  const {
+    inputToken,
+    inputTokenProgram,
+    outputTokenProgram,
+    outputToken,
+    trader,
+    mintFee,
+    feeTokenProgram,
+    router,
+  } = extractSwapInfo(swapOpportunity);
+
+  const swapArgs = {
+    amountInput:
+      swapOpportunity.tokens.type === "input_specified"
+        ? new anchor.BN(swapOpportunity.tokens.inputToken.amount)
+        : bidAmount,
+    amountOutput:
+      swapOpportunity.tokens.type === "output_specified"
+        ? new anchor.BN(swapOpportunity.tokens.outputToken.amount)
+        : bidAmount,
+    referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
+    deadline,
+    feeToken:
+      swapOpportunity.feeToken === "input_token"
+        ? { input: {} }
+        : { output: {} },
+  };
+  const ixSwap = await expressRelay.methods
+    .swap(swapArgs)
+    .accountsStrict({
+      expressRelayMetadata,
+      searcher,
+      trader: swapOpportunity.userWalletAddress,
+      searcherInputTa: getAssociatedTokenAddress(
+        searcher,
+        inputToken,
+        inputTokenProgram
+      ),
+      searcherOutputTa: getAssociatedTokenAddress(
+        searcher,
+        outputToken,
+        outputTokenProgram
+      ),
+      traderInputAta: getAssociatedTokenAddress(
+        trader,
+        inputToken,
+        inputTokenProgram
+      ),
+      tokenProgramInput: inputTokenProgram,
+      mintInput: inputToken,
+      traderOutputAta: getAssociatedTokenAddress(
+        trader,
+        outputToken,
+        outputTokenProgram
+      ),
+      tokenProgramOutput: outputTokenProgram,
+      mintOutput: outputToken,
+      routerFeeReceiverTa: getAssociatedTokenAddress(
+        router,
+        mintFee,
+        feeTokenProgram
+      ),
+      relayerFeeReceiverAta: getAssociatedTokenAddress(
+        relayerSigner,
+        mintFee,
+        feeTokenProgram
+      ),
+      tokenProgramFee: feeTokenProgram,
+      mintFee,
+      expressRelayFeeReceiverAta: getAssociatedTokenAddress(
+        expressRelayMetadata,
+        mintFee,
+        feeTokenProgram
+      ),
+    })
+    .instruction();
+  ixSwap.programId = svmConstants.expressRelayProgram;
+  return ixSwap;
+}
+
+function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
+  outputTokenProgram: PublicKey;
+  outputToken: PublicKey;
+  trader: PublicKey;
+  mintFee: PublicKey;
+  feeTokenProgram: PublicKey;
+  router: PublicKey;
+  inputToken: PublicKey;
+  inputTokenProgram: PublicKey;
+} {
+  const inputTokenProgram = swapOpportunity.tokens.inputTokenProgram;
+  const outputTokenProgram = swapOpportunity.tokens.outputTokenProgram;
+  const inputToken =
+    swapOpportunity.tokens.type === "input_specified"
+      ? swapOpportunity.tokens.inputToken.token
+      : swapOpportunity.tokens.inputToken;
+  const outputToken =
+    swapOpportunity.tokens.type === "output_specified"
+      ? swapOpportunity.tokens.outputToken.token
+      : swapOpportunity.tokens.outputToken;
+  const trader = swapOpportunity.userWalletAddress;
+  const [mintFee, feeTokenProgram] =
+    swapOpportunity.feeToken === "input_token"
+      ? [inputToken, inputTokenProgram]
+      : [outputToken, outputTokenProgram];
+  const router = swapOpportunity.routerAccount;
+  return {
+    inputToken,
+    inputTokenProgram,
+    outputTokenProgram,
+    outputToken,
+    trader,
+    mintFee,
+    feeTokenProgram,
+    router,
+  };
+}
+
+export async function constructSwapBid(
+  tx: Transaction,
+  searcher: PublicKey,
+  swapOpportunity: OpportunitySvmSwap,
+  bidAmount: anchor.BN,
+  deadline: anchor.BN,
+  chainId: string,
+  relayerSigner: PublicKey
+): Promise<BidSvmSwap> {
+  const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
+  const {
+    outputTokenProgram,
+    outputToken,
+    trader,
+    mintFee,
+    feeTokenProgram,
+    router,
+  } = extractSwapInfo(swapOpportunity);
+  const tokenAccountsToCreate = [
+    { owner: router, mint: mintFee, program: feeTokenProgram },
+    { owner: relayerSigner, mint: mintFee, program: feeTokenProgram },
+    { owner: expressRelayMetadata, mint: mintFee, program: feeTokenProgram },
+    { owner: trader, mint: outputToken, program: outputTokenProgram },
+  ];
+  for (const account of tokenAccountsToCreate) {
+    tx.instructions.push(
+      createAtaIdempotentInstruction(
+        account.owner,
+        account.mint,
+        searcher,
+        account.program
+      )[1]
+    );
+  }
+  const swapInstruction = await constructSwapInstruction(
+    searcher,
+    swapOpportunity,
+    bidAmount,
+    deadline,
+    chainId,
+    relayerSigner
+  );
+  tx.instructions.push(swapInstruction);
+
+  return {
+    transaction: tx,
+    opportunityId: swapOpportunity.opportunityId,
+    type: "swap",
+    chainId: chainId,
+    env: "svm",
+  };
+}
+
 export async function constructSvmBid(
   tx: Transaction,
   searcher: PublicKey,
@@ -92,7 +321,7 @@ export async function constructSvmBid(
   chainId: string,
   relayerSigner: PublicKey,
   feeReceiverRelayer: PublicKey
-): Promise<BidSvm> {
+): Promise<BidSvmOnChain> {
   const ixSubmitBid = await constructSubmitBidInstruction(
     searcher,
     router,
@@ -109,6 +338,7 @@ export async function constructSvmBid(
   return {
     transaction: tx,
     chainId: chainId,
+    type: "onchain",
     env: "svm",
   };
 }
