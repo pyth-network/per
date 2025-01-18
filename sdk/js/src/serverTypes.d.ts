@@ -693,17 +693,41 @@ export interface components {
           tokens:
             | {
                 input_token: components["schemas"]["TokenAmountSvm"];
-                input_token_program: components["schemas"]["Pubkey"];
-                output_token: components["schemas"]["Pubkey"];
-                output_token_program: components["schemas"]["Pubkey"];
+                /**
+                 * @description The token program of the input mint.
+                 * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+                 */
+                input_token_program: string;
+                /**
+                 * @description The token that the user wants to send in exchange
+                 * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+                 */
+                output_token: string;
+                /**
+                 * @description The token program of the output mint.
+                 * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+                 */
+                output_token_program: string;
                 /** @enum {string} */
                 side_specified: "input";
               }
             | {
-                input_token: components["schemas"]["Pubkey"];
-                input_token_program: components["schemas"]["Pubkey"];
+                /**
+                 * @description The token that the user wants to receive
+                 * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+                 */
+                input_token: string;
+                /**
+                 * @description The token program of the input mint.
+                 * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+                 */
+                input_token_program: string;
                 output_token: components["schemas"]["TokenAmountSvm"];
-                output_token_program: components["schemas"]["Pubkey"];
+                /**
+                 * @description The token program of the output mint.
+                 * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+                 */
+                output_token_program: string;
                 /** @enum {string} */
                 side_specified: "output";
               };
@@ -809,17 +833,41 @@ export interface components {
     QuoteTokens:
       | {
           input_token: components["schemas"]["TokenAmountSvm"];
-          input_token_program: components["schemas"]["Pubkey"];
-          output_token: components["schemas"]["Pubkey"];
-          output_token_program: components["schemas"]["Pubkey"];
+          /**
+           * @description The token program of the input mint.
+           * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+           */
+          input_token_program: string;
+          /**
+           * @description The token that the user wants to send in exchange
+           * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+           */
+          output_token: string;
+          /**
+           * @description The token program of the output mint.
+           * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+           */
+          output_token_program: string;
           /** @enum {string} */
           side_specified: "input";
         }
       | {
-          input_token: components["schemas"]["Pubkey"];
-          input_token_program: components["schemas"]["Pubkey"];
+          /**
+           * @description The token that the user wants to receive
+           * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+           */
+          input_token: string;
+          /**
+           * @description The token program of the input mint.
+           * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+           */
+          input_token_program: string;
           output_token: components["schemas"]["TokenAmountSvm"];
-          output_token_program: components["schemas"]["Pubkey"];
+          /**
+           * @description The token program of the output mint.
+           * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+           */
+          output_token_program: string;
           /** @enum {string} */
           side_specified: "output";
         };
@@ -929,15 +977,13 @@ export interface components {
     TokenAmountSvm: {
       /**
        * Format: int64
-       * @description The token amount, represented in the smallest unit of the respective token:
-       * - For Solana, it is measured in lamports.
-       * - For other tokens, it follows the smallest denomination of that token.
+       * @description The token amount, represented in the smallest unit of the respective token.
        * @example 1000
        */
       amount: number;
       /**
-       * @description The token contract address.
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       * @description The token mint address.
+       * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
        */
       token: string;
     };
