@@ -182,7 +182,8 @@ pub struct TokenAmountSvm {
     #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub token:  Pubkey,
-    /// The token amount, represented in the smallest unit of the respective token.
+    /// The token amount, represented in the smallest denomination of that token
+    /// (e.g. lamports for SOL).
     #[schema(example = 1000)]
     pub amount: u64,
 }
