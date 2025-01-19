@@ -178,13 +178,12 @@ pub enum OpportunityCreateEvm {
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct TokenAmountSvm {
-    /// The token contract address.
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    /// The token mint address.
+    #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub token:  Pubkey,
-    /// The token amount, represented in the smallest unit of the respective token:
-    /// - For Solana, it is measured in lamports.
-    /// - For other tokens, it follows the smallest denomination of that token.
+    /// The token amount, represented in the smallest denomination of that token
+    /// (e.g. lamports for SOL).
     #[schema(example = 1000)]
     pub amount: u64,
 }
@@ -359,21 +358,42 @@ pub enum FeeToken {
     OutputToken,
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(tag = "side_specified")]
 pub enum QuoteTokens {
     #[serde(rename = "input")]
     InputTokenSpecified {
+        /// The token and the exact amount that the user wants to receive
         input_token:          TokenAmountSvm,
+        /// The token that the user wants to send in exchange
+        #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
         output_token:         Pubkey,
+        /// The token program of the input mint.
+        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
         input_token_program:  Pubkey,
+        /// The token program of the output mint.
+        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
         output_token_program: Pubkey,
     },
     #[serde(rename = "output")]
     OutputTokenSpecified {
+        /// The token that the user wants to receive
+        #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
         input_token:          Pubkey,
+        /// The token and the exact amount that the user wants to send in exchange
         output_token:         TokenAmountSvm,
+        /// The token program of the input mint.
+        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
         input_token_program:  Pubkey,
+        /// The token program of the output mint.
+        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
         output_token_program: Pubkey,
     },
 }
