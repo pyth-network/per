@@ -22,7 +22,7 @@ class SwapArgs:
         "deadline" / borsh.I64,
         "amount_input" / borsh.U64,
         "amount_output" / borsh.U64,
-        "referral_fee_bps" / borsh.U64,
+        "referral_fee_bps" / borsh.U16,
         "fee_token" / fee_token.layout,
     )
     deadline: int

@@ -19,7 +19,8 @@ from express_relay.client import (
 from express_relay.constants import SVM_CONFIGS
 from express_relay.models import BidStatusUpdate, Opportunity, OpportunityDelete
 from express_relay.models.base import BidStatusVariantsSvm
-from express_relay.models.svm import BidSvm, OpportunitySvm, SvmChainUpdate, SvmHash
+from express_relay.models.svm import BidSvm, LimoOpportunitySvm, OpportunitySvm, SvmChainUpdate, \
+    SwapOpportunitySvm, OnChainBidSvm, SwapBidSvm
 from express_relay.svm.generated.express_relay.accounts.express_relay_metadata import (
     ExpressRelayMetadata,
 )
@@ -128,6 +129,12 @@ class SimpleSearcherSvm:
         return self.mint_decimals_cache[str(mint)]
 
     async def generate_bid(self, opp: OpportunitySvm) -> BidSvm:
+        if opp.program == "limo":
+            return await self.generate_bid_limo(opp)
+        if opp.program == "swap":
+            return await self.generate_bid_swap(opp)
+
+    async def generate_bid_limo(self, opp: LimoOpportunitySvm) -> OnChainBidSvm:
         """
         Generates a bid for a given opportunity.
         The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
@@ -140,7 +147,7 @@ class SimpleSearcherSvm:
         order: OrderStateAndAddress = {"address": opp.order_address, "state": opp.order}
 
         ixs_take_order = await self.generate_take_order_ixs(order)
-        bid_amount = await self.get_bid_amount(order)
+        bid_amount = await self.get_bid_amount(opp)
         router = self.limo_client.get_pda_authority(
             self.limo_client.get_program_id(), order["state"].global_config
         )
@@ -163,7 +170,29 @@ class SimpleSearcherSvm:
         transaction.partial_sign(
             [self.private_key], recent_blockhash=latest_chain_update.blockhash
         )
-        bid = BidSvm(transaction=transaction, chain_id=self.chain_id, slot=opp.slot)
+        bid = OnChainBidSvm(transaction=transaction, chain_id=self.chain_id, slot=opp.slot)
+        return bid
+
+    async def generate_bid_swap(self, opp: SwapOpportunitySvm) -> SwapBidSvm:
+        bid_amount = await self.get_bid_amount(opp)
+
+        swap_ixs = self.client.get_svm_swap_instructions(
+            searcher=self.private_key.pubkey(),
+            bid_amount=bid_amount,
+            deadline=DEADLINE,
+            chain_id=self.chain_id,
+            swap_opportunity=opp,
+            relayer_signer=(await self.get_metadata()).relayer_signer,
+        )
+        latest_chain_update = self.latest_chain_update[self.chain_id]
+        fee_instruction = set_compute_unit_price(latest_chain_update.latest_prioritization_fee)
+        transaction = Transaction.new_with_payer(
+            [fee_instruction] + swap_ixs, self.private_key.pubkey()
+        )
+        transaction.partial_sign(
+            [self.private_key], recent_blockhash=latest_chain_update.blockhash
+        )
+        bid = SwapBidSvm(transaction=transaction, chain_id=self.chain_id, opportunity_id=opp.opportunity_id)
         return bid
 
     async def generate_take_order_ixs(
@@ -217,12 +246,12 @@ class SimpleSearcherSvm:
                 raise ValueError("Express relay metadata account not found")
         return self.express_relay_metadata
 
-    async def get_bid_amount(self, order: OrderStateAndAddress) -> int:
+    async def get_bid_amount(self, opp: OpportunitySvm) -> int:
         """
         Args:
-            order: An object representing the order to be fulfilled.
+            opp: The SVM opportunity to bid on.
         Returns:
-            The amount of bid to submit for the opportunity in lamports.
+            The bid amount in the necessary token
         """
 
         return self.bid_amount

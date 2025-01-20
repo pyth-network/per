@@ -25,6 +25,8 @@ from express_relay.svm.generated.limo.program_id import PROGRAM_ID
 
 import spl.token.instructions as spl_token
 
+from express_relay.svm.token_utils import create_associated_token_account_idempotent, get_ata
+
 ESCROW_VAULT_SEED = b"escrow_vault"
 GLOBAL_AUTH_SEED = b"authority"
 EXPRESS_RELAY_MEATADATA_SEED = b"metadata"
@@ -78,35 +80,6 @@ class LimoClient:
         decimals = decoded_data.decimals
         return decimals
 
-    def create_associated_token_account_idempotent(
-        self, payer: Pubkey, owner: Pubkey, mint: Pubkey, token_program_id: Pubkey
-    ) -> Instruction:
-        """Creates a transaction instruction to create an associated token account.
-
-        Returns:
-            The instruction to create the associated token account.
-        """
-        associated_token_address = self.get_ata(owner, mint, token_program_id)
-        return Instruction(
-            accounts=[
-                AccountMeta(pubkey=payer, is_signer=True, is_writable=True),
-                AccountMeta(
-                    pubkey=associated_token_address, is_signer=False, is_writable=True
-                ),
-                AccountMeta(pubkey=owner, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=mint, is_signer=False, is_writable=False),
-                AccountMeta(
-                    pubkey=SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False
-                ),
-                AccountMeta(
-                    pubkey=token_program_id, is_signer=False, is_writable=False
-                ),
-                AccountMeta(pubkey=RENT, is_signer=False, is_writable=False),
-            ],
-            program_id=ASSOCIATED_TOKEN_PROGRAM_ID,
-            data=bytes([1]),  # idempotent version of the instruction
-        )
-
     def get_ata_and_create_ixn_if_required(
         self,
         owner: Pubkey,
@@ -114,8 +87,8 @@ class LimoClient:
         token_program_id: Pubkey,
         payer: Pubkey,
     ) -> Tuple[Pubkey, Sequence[Instruction]]:
-        ata = self.get_ata(owner, token_mint_address, token_program_id)
-        ix = self.create_associated_token_account_idempotent(
+        ata = get_ata(owner, token_mint_address, token_program_id)
+        ix = create_associated_token_account_idempotent(
             payer, owner, token_mint_address, token_program_id
         )
         return ata, [ix]
@@ -133,10 +106,10 @@ class LimoClient:
             payer: Who pays for the instructions
             amount_to_deposit_lamports: Amount of lamports to deposit into the WSOL account
         """
-        ata = self.get_ata(owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
+        ata = get_ata(owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
 
         create_ixs = [
-            self.create_associated_token_account_idempotent(
+            create_associated_token_account_idempotent(
                 payer, owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
             )
         ]
@@ -331,15 +304,6 @@ class LimoClient:
             seeds=[GLOBAL_AUTH_SEED, bytes(global_config)], program_id=program_id
         )[0]
 
-    @staticmethod
-    def get_ata(
-        owner: Pubkey, token_mint_address: Pubkey, token_program_id: Pubkey
-    ) -> Pubkey:
-        ata, _ = Pubkey.find_program_address(
-            seeds=[bytes(owner), bytes(token_program_id), bytes(token_mint_address)],
-            program_id=ASSOCIATED_TOKEN_PROGRAM_ID,
-        )
-        return ata
 
     @staticmethod
     def get_event_authority(program_id: Pubkey) -> Pubkey:
