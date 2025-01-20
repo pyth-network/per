@@ -16,10 +16,10 @@ export default function Home() {
   const {connection} = useConnection();
   const expressRelayClient = useExpressRelayClient()
 
-  const handleClick = useCallback(async () => {
+  const handleClick = useCallback(() => {
     if (!publicKey || !signTransaction) return;
     console.log("Getting quote...");
-    const quote = await expressRelayClient.getQuote({
+    expressRelayClient.getQuote({
       chainId: "development-solana",
       inputTokenMint: USDC,
       outputTokenMint: USDT,
@@ -29,9 +29,13 @@ export default function Home() {
         amount: 1000000,
         side: "input",
       },
+    }).then(quote => {
+      signTransaction(quote.transaction).then(signedTransaction => {
+        connection.sendTransaction(signedTransaction);
+      });
+    }).catch(error => {
+      console.error(error);
     });
-    const signedTransaction = await signTransaction(quote.transaction);
-    connection.sendTransaction(signedTransaction);
   }, [expressRelayClient, publicKey, signTransaction, connection]);
 
 
