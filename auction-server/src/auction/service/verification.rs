@@ -85,6 +85,7 @@ use {
         signer::Signer as _,
         transaction::VersionedTransaction,
     },
+    spl_associated_token_account::instruction::AssociatedTokenAccountInstruction,
     std::{
         sync::Arc,
         time::Duration,
@@ -498,6 +499,63 @@ impl Service<Svm> {
         }
     }
 
+    fn validate_swap_transaction_instructions(
+        &self,
+        tx: &VersionedTransaction,
+    ) -> Result<(), RestError> {
+        let accounts = tx.message.static_account_keys().to_vec();
+        tx.message
+            .instructions()
+            .iter()
+            .enumerate()
+            .try_for_each(|(index, ix)| {
+                self.validate_swap_transaction_instruction(&accounts, ix)
+                    .map_err(|e| {
+                        RestError::BadParameters(format!(
+                            "Invalid instruction at index {}: {:?}",
+                            index, e
+                        ))
+                    })
+            })?;
+
+        Ok(())
+    }
+
+    fn validate_swap_transaction_instruction(
+        &self,
+        accounts: &[Pubkey],
+        ix: &CompiledInstruction,
+    ) -> Result<(), RestError> {
+        let program_id = accounts[ix.program_id_index as usize];
+
+        if program_id == compute_budget::id() {
+            Ok(())
+        } else if program_id == self.config.chain_config.associated_token_program_id {
+            let ix_parsed =
+                AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
+                    RestError::BadParameters(format!(
+                        "Invalid associated token account instruction: {}",
+                        e
+                    ))
+                })?;
+            match ix_parsed {
+                AssociatedTokenAccountInstruction::Create => Ok(()),
+                AssociatedTokenAccountInstruction::CreateIdempotent => Ok(()),
+                _ => Err(RestError::BadParameters(format!(
+                    "Invalid associated token account instruction: {:?}",
+                    ix_parsed
+                ))),
+            }
+        } else if program_id == self.config.chain_config.express_relay.program_id {
+            Ok(())
+        } else {
+            Err(RestError::BadParameters(format!(
+                "Invalid program id: {}",
+                program_id
+            )))
+        }
+    }
+
     async fn check_svm_swap_bid_fields(
         &self,
         bid_data: &BidChainDataSwapCreateSvm,
@@ -735,6 +793,9 @@ impl Service<Svm> {
                     .ok_or(RestError::BadParameters(
                         "No swap opportunity with the given id found".to_string(),
                     ))?;
+                self.validate_swap_transaction_instructions(
+                    bid_chain_data_create_svm.get_transaction(),
+                )?;
                 self.check_svm_swap_bid_fields(bid_data, &opp).await?;
 
                 let swap_instruction = self.extract_express_relay_instruction(
@@ -761,8 +822,12 @@ impl Service<Svm> {
                     FeeToken::Input => (mint_input, token_program_input),
                     FeeToken::Output => (mint_output, token_program_output),
                 };
-                let expected_router_token_account =
-                    get_associated_token_account(&opp.router, &fee_token_program, &fee_token);
+                let expected_router_token_account = get_associated_token_account(
+                    &self.config.chain_config.associated_token_program_id,
+                    &opp.router,
+                    &fee_token_program,
+                    &fee_token,
+                );
 
                 if router_token_account != expected_router_token_account {
                     return Err(RestError::BadParameters(

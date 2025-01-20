@@ -91,9 +91,10 @@ impl ConfigEvm {
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
-    pub auction_service:         RwLock<Option<auction_service::Service<Svm>>>,
-    pub rpc_client:              RpcClient,
-    pub accepted_token_programs: Vec<Pubkey>,
+    pub auction_service:             RwLock<Option<auction_service::Service<Svm>>>,
+    pub rpc_client:                  RpcClient,
+    pub accepted_token_programs:     Vec<Pubkey>,
+    pub associated_token_program_id: Pubkey,
 }
 
 impl ConfigSvm {
@@ -210,14 +211,18 @@ impl ConfigSvm {
                 (
                     chain_id.clone(),
                     Self {
-                        auction_service:         RwLock::new(None),
-                        rpc_client:              TracedSenderSvm::new_client(
+                        auction_service:             RwLock::new(None),
+                        rpc_client:                  TracedSenderSvm::new_client(
                             chain_id.clone(),
                             chain_store.config.rpc_read_url.as_str(),
                             chain_store.config.rpc_timeout,
                             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                         ),
-                        accepted_token_programs: chain_store.config.accepted_token_programs.clone(),
+                        accepted_token_programs:     chain_store
+                            .config
+                            .accepted_token_programs
+                            .clone(),
+                        associated_token_program_id: chain_store.config.associated_token_program_id,
                     },
                 )
             })

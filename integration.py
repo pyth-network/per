@@ -50,6 +50,7 @@ chains:
     accepted_token_programs:
       - TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
       - TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
+    associated_token_program_id: ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)
