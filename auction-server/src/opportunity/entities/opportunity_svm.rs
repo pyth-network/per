@@ -402,6 +402,21 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
 }
 
 impl OpportunitySvm {
+    pub fn check_fee_payer(&self, accounts: &[Pubkey]) -> Result<(), anyhow::Error> {
+        let fee_payer = accounts
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("Accounts should not be empty"))?;
+        match self.program.clone() {
+            OpportunitySvmProgram::Swap(data) => {
+                if data.user_wallet_address == *fee_payer {
+                    return Err(anyhow::anyhow!("Fee payer should not be user"));
+                }
+                Ok(())
+            }
+            OpportunitySvmProgram::Limo(_) => Ok(()),
+        }
+    }
+
     pub fn get_missing_signers(&self) -> Vec<Pubkey> {
         match self.program.clone() {
             OpportunitySvmProgram::Swap(data) => vec![data.user_wallet_address],

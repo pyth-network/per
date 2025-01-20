@@ -525,11 +525,13 @@ impl Service<Svm> {
         accounts: &[Pubkey],
         ix: &CompiledInstruction,
     ) -> Result<(), RestError> {
-        let program_id = accounts[ix.program_id_index as usize];
+        let program_id = accounts
+            .get(ix.program_id_index as usize)
+            .ok_or_else(|| RestError::BadParameters("Invalid program id index".to_string()))?;
 
-        if program_id == compute_budget::id() {
+        if *program_id == compute_budget::id() {
             Ok(())
-        } else if program_id == self.config.chain_config.associated_token_program_id {
+        } else if *program_id == self.config.chain_config.associated_token_program_id {
             let ix_parsed =
                 AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
                     RestError::BadParameters(format!(
@@ -545,7 +547,7 @@ impl Service<Svm> {
                     ix_parsed
                 ))),
             }
-        } else if program_id == self.config.chain_config.express_relay.program_id {
+        } else if *program_id == self.config.chain_config.express_relay.program_id {
             Ok(())
         } else {
             Err(RestError::BadParameters(format!(
@@ -931,6 +933,9 @@ impl Service<Svm> {
                 let opportunity = opportunities
                     .first()
                     .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
+                opportunity.check_fee_payer(accounts).map_err(|e| {
+                    RestError::BadParameters(format!("Invalid first signer: {:?}", e))
+                })?;
                 self.all_signatures_exists(
                     &message_bytes,
                     accounts,
