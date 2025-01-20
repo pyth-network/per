@@ -17,18 +17,12 @@ import {
 } from "@solana/wallet-adapter-wallets";
 import { type ReactNode, useMemo } from "react";
 
-
 type Props = {
   children?: ReactNode | ReactNode[] | undefined;
   endpoint: string;
 };
 
-export const WalletProvider = ({
-  endpoint,
-  children,
-}: Props) => {
-
-
+export const WalletProvider = ({ endpoint, children }: Props) => {
   const wallets = useMemo(
     () => [
       new BraveWalletAdapter(),
@@ -40,7 +34,7 @@ export const WalletProvider = ({
       new SolflareWalletAdapter(),
       new TorusWalletAdapter(),
     ],
-    [],
+    []
   );
 
   return (

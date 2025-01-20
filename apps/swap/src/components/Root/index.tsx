@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { WalletProvider } from "../WalletProvider";
 import { ExpressRelayProvider } from "../ExpressRelayProvider";
-import{ SOLANA_RPC, ENDPOINT_EXPRESS_RELAY } from "@/config/server";
+import { SOLANA_RPC, ENDPOINT_EXPRESS_RELAY } from "@/config/server";
 
 type Props = {
   children: ReactNode;
@@ -14,12 +14,12 @@ export const Root = ({ children }: Props) => {
         <html>
           <body>
             <div>
-            <h1>Express Relay Swap!</h1>
-            {children}
+              <h1>Express Relay Swap!</h1>
+              {children}
             </div>
-        </body>
-      </html>
-    </ExpressRelayProvider>
+          </body>
+        </html>
+      </ExpressRelayProvider>
     </WalletProvider>
   );
 };
