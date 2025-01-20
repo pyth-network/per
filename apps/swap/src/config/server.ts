@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 /* eslint-disable n/no-process-env */
 

@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import '@solana/wallet-adapter-react-ui/styles.css';
 import { WalletDisconnectButton, WalletMultiButton } from "@/components/WalletButton";
-import { Client } from "@pythnetwork/express-relay-js";
 import { PublicKey } from "@solana/web3.js";
 import { useCallback } from "react";
+import { useExpressRelayClient } from "@/components/ExpressRelayProvider";
 
 const USDC = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 const USDT = new PublicKey("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
@@ -14,7 +14,7 @@ const USDT = new PublicKey("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
 export default function Home() {
   const { publicKey, signTransaction } = useWallet();
   const {connection} = useConnection();
-  const expressRelayClient = new Client({baseUrl: "https://per-staging.dourolabs.app/"})
+  const expressRelayClient = useExpressRelayClient()
 
   const handleClick = useCallback(async () => {
     if (!publicKey || !signTransaction) return;
