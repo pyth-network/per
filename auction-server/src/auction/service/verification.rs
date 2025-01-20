@@ -503,13 +503,12 @@ impl Service<Svm> {
         &self,
         tx: &VersionedTransaction,
     ) -> Result<(), RestError> {
-        let accounts = tx.message.static_account_keys().to_vec();
         tx.message
             .instructions()
             .iter()
             .enumerate()
             .try_for_each(|(index, ix)| {
-                self.validate_swap_transaction_instruction(&accounts, ix)
+                self.validate_swap_transaction_instruction(tx.message.static_account_keys(), ix)
                     .map_err(|e| {
                         RestError::BadParameters(format!(
                             "Invalid instruction at index {}: {:?}",
