@@ -5,9 +5,10 @@ import warnings
 from asyncio import Task
 from collections.abc import Coroutine
 from datetime import datetime
-from typing import Callable, Any, Union, cast, TypedDict, List
+from typing import Any, Callable, List, TypedDict, Union, cast
 from uuid import UUID
 
+import express_relay.svm.generated.express_relay.types.fee_token as swap_fee_token
 import httpx
 import web3
 import websockets
@@ -15,41 +16,34 @@ from eth_abi.abi import encode
 from eth_account.account import Account
 from eth_account.datastructures import SignedMessage
 from eth_utils import to_checksum_address
-from hexbytes import HexBytes
-from solders.instruction import Instruction
-from solders.pubkey import Pubkey
-from solders.sysvar import INSTRUCTIONS
-from websockets.client import WebSocketClientProtocol
-
 from express_relay.constants import (
-    OPPORTUNITY_ADAPTER_CONFIGS,
     EXECUTION_PARAMS_TYPESTRING,
+    OPPORTUNITY_ADAPTER_CONFIGS,
     SVM_CONFIGS,
 )
-from express_relay.models.evm import (
-    Address,
-    Bytes32,
-    TokenAmount,
-    BidEvm,
-)
-from express_relay.models.svm import SvmChainUpdate
 from express_relay.models import (
     Bid,
-    BidStatusUpdate,
     BidResponse,
-    OpportunityBidParams,
-    OpportunityBid,
-    OpportunityParams,
-    Opportunity,
-    OpportunityRoot,
-    ClientMessage,
     BidResponseRoot,
+    BidStatusUpdate,
+    ClientMessage,
+    Opportunity,
+    OpportunityBid,
+    OpportunityBidParams,
     OpportunityDelete,
     OpportunityDeleteRoot,
+    OpportunityParams,
+    OpportunityRoot,
 )
 from express_relay.models.base import UnsupportedOpportunityVersionException
-from express_relay.models.evm import OpportunityEvm
-from express_relay.models.svm import SwapOpportunitySvm
+from express_relay.models.evm import (
+    Address,
+    BidEvm,
+    Bytes32,
+    OpportunityEvm,
+    TokenAmount,
+)
+from express_relay.models.svm import SvmChainUpdate, SwapOpportunitySvm
 from express_relay.svm.generated.express_relay.instructions.submit_bid import submit_bid
 from express_relay.svm.generated.express_relay.instructions.swap import swap
 from express_relay.svm.generated.express_relay.program_id import (
@@ -58,12 +52,17 @@ from express_relay.svm.generated.express_relay.program_id import (
 from express_relay.svm.generated.express_relay.types.submit_bid_args import (
     SubmitBidArgs,
 )
-from express_relay.svm.generated.express_relay.types.swap_args import (
-    SwapArgs,
-)
-import express_relay.svm.generated.express_relay.types.fee_token as swap_fee_token
+from express_relay.svm.generated.express_relay.types.swap_args import SwapArgs
 from express_relay.svm.limo_client import LimoClient
-from express_relay.svm.token_utils import get_ata, create_associated_token_account_idempotent
+from express_relay.svm.token_utils import (
+    create_associated_token_account_idempotent,
+    get_ata,
+)
+from hexbytes import HexBytes
+from solders.instruction import Instruction
+from solders.pubkey import Pubkey
+from solders.sysvar import INSTRUCTIONS
+from websockets.client import WebSocketClientProtocol
 
 
 def _get_permitted_tokens(
@@ -121,6 +120,7 @@ class SwapAccounts(TypedDict):
     mint_fee: Pubkey
     fee_token_program: Pubkey
     router: Pubkey
+
 
 class ExpressRelayClient:
     def __init__(
@@ -200,8 +200,10 @@ class ExpressRelayClient:
 
             if not hasattr(self, "ws_loop"):
                 ws_call = self.ws_handler(
-                    self.opportunity_callback, self.bid_status_callback,
-                    self.svm_chain_update_callback, self.remove_opportunities_callback,
+                    self.opportunity_callback,
+                    self.bid_status_callback,
+                    self.svm_chain_update_callback,
+                    self.remove_opportunities_callback,
                 )
                 self.ws_loop = asyncio.create_task(ws_call)
 
@@ -398,13 +400,20 @@ class ExpressRelayClient:
                             msg_json["opportunity_delete"]
                         )
                         if remove_opportunities:
-                            asyncio.create_task(remove_opportunities_callback(remove_opportunities))
+                            asyncio.create_task(
+                                remove_opportunities_callback(remove_opportunities.root)
+                            )
 
             elif msg_json.get("id"):
                 future = self.ws_msg_futures.pop(msg_json["id"])
                 future.set_result(msg_json)
 
-    async def get_opportunities(self, chain_id: str | None = None, from_time: datetime | None = None, limit: int | None = None) -> list[Opportunity]:
+    async def get_opportunities(
+        self,
+        chain_id: str | None = None,
+        from_time: datetime | None = None,
+        limit: int | None = None,
+    ) -> list[Opportunity]:
         """
         Connects to the server and fetches opportunities.
 
@@ -419,7 +428,9 @@ class ExpressRelayClient:
         if chain_id:
             params["chain_id"] = chain_id
         if from_time:
-            params["from_time"] = from_time.astimezone().isoformat(timespec="microseconds")
+            params["from_time"] = from_time.astimezone().isoformat(
+                timespec="microseconds"
+            )
         if limit:
             params["limit"] = str(limit)
 
@@ -493,14 +504,14 @@ class ExpressRelayClient:
 
     @staticmethod
     def get_svm_submit_bid_instruction(
-            searcher: Pubkey,
-            router: Pubkey,
-            permission_key: Pubkey,
-            bid_amount: int,
-            deadline: int,
-            chain_id: str,
-            fee_receiver_relayer: Pubkey,
-            relayer_signer: Pubkey,
+        searcher: Pubkey,
+        router: Pubkey,
+        permission_key: Pubkey,
+        bid_amount: int,
+        deadline: int,
+        chain_id: str,
+        fee_receiver_relayer: Pubkey,
+        relayer_signer: Pubkey,
     ) -> Instruction:
         if chain_id not in SVM_CONFIGS:
             raise ValueError(f"Chain ID {chain_id} not supported")
@@ -562,65 +573,113 @@ class ExpressRelayClient:
 
     @staticmethod
     def get_svm_swap_instructions(
-            searcher: Pubkey,
-            bid_amount: int,
-            deadline: int,
-            chain_id: str,
-            swap_opportunity: SwapOpportunitySvm,
-            relayer_signer: Pubkey,
+        searcher: Pubkey,
+        bid_amount: int,
+        deadline: int,
+        chain_id: str,
+        swap_opportunity: SwapOpportunitySvm,
+        relayer_signer: Pubkey,
     ) -> List[Instruction]:
         if chain_id not in SVM_CONFIGS:
             raise ValueError(f"Chain ID {chain_id} not supported")
         svm_config = SVM_CONFIGS[chain_id]
-        program_id = svm_config['express_relay_program']
-        express_relay_metadata = LimoClient.get_express_relay_metadata_pda(
-            program_id
+        program_id = svm_config["express_relay_program"]
+        express_relay_metadata = LimoClient.get_express_relay_metadata_pda(program_id)
+        fee_token = (
+            swap_fee_token.Input()
+            if swap_opportunity.fee_token == "input_token"
+            else swap_fee_token.Output()
         )
-        fee_token = swap_fee_token.Input() if swap_opportunity.fee_token == "input_token" else swap_fee_token.Output()
-        amount_input = swap_opportunity.tokens.input_token.amount if swap_opportunity.tokens.side_specified == 'input' else bid_amount
-        amount_output = swap_opportunity.tokens.output_token.amount if swap_opportunity.tokens.side_specified == 'output' else bid_amount
+        amount_input = (
+            swap_opportunity.tokens.input_token.amount
+            if swap_opportunity.tokens.side_specified == "input"
+            else bid_amount
+        )
+        amount_output = (
+            swap_opportunity.tokens.output_token.amount
+            if swap_opportunity.tokens.side_specified == "output"
+            else bid_amount
+        )
         accs = ExpressRelayClient.extract_swap_info(swap_opportunity)
 
         instructions: List[Instruction] = []
 
         token_accounts_to_create = [
-            {'owner': accs['router'], 'mint': accs['mint_fee'], 'program': accs['fee_token_program']},
-            {'owner': relayer_signer, 'mint': accs['mint_fee'], 'program': accs['fee_token_program']},
-            {'owner': express_relay_metadata, 'mint': accs['mint_fee'], 'program': accs['fee_token_program']},
-            {'owner': accs['trader'], 'mint': accs['output_token'], 'program': accs['output_token_program']},
+            {
+                "owner": accs["router"],
+                "mint": accs["mint_fee"],
+                "program": accs["fee_token_program"],
+            },
+            {
+                "owner": relayer_signer,
+                "mint": accs["mint_fee"],
+                "program": accs["fee_token_program"],
+            },
+            {
+                "owner": express_relay_metadata,
+                "mint": accs["mint_fee"],
+                "program": accs["fee_token_program"],
+            },
+            {
+                "owner": accs["trader"],
+                "mint": accs["output_token"],
+                "program": accs["output_token_program"],
+            },
         ]
         for token_account in token_accounts_to_create:
-            instructions.append(create_associated_token_account_idempotent(
-                payer=searcher,
-                owner=token_account['owner'],
-                mint=token_account['mint'],
-                token_program_id=token_account['program']))
+            instructions.append(
+                create_associated_token_account_idempotent(
+                    payer=searcher,
+                    owner=token_account["owner"],
+                    mint=token_account["mint"],
+                    token_program_id=token_account["program"],
+                )
+            )
 
         swap_ix = swap(
-            {"data": SwapArgs(deadline=deadline,
-                              amount_input=amount_input,
-                              amount_output=amount_output,
-                              fee_token=fee_token,
-                              referral_fee_bps=swap_opportunity.referral_fee_bps)},
+            {
+                "data": SwapArgs(
+                    deadline=deadline,
+                    amount_input=amount_input,
+                    amount_output=amount_output,
+                    fee_token=fee_token,
+                    referral_fee_bps=swap_opportunity.referral_fee_bps,
+                )
+            },
             {
                 "searcher": searcher,
                 "trader": swap_opportunity.user_wallet_address,
-                "searcher_input_ta": get_ata(searcher, accs['input_token'], accs['input_token_program']),
-                "searcher_output_ta": get_ata(searcher, accs['output_token'], accs['output_token_program']),
-                "trader_input_ata": get_ata(swap_opportunity.user_wallet_address, accs['input_token'],
-                                            accs['input_token_program']),
-                "trader_output_ata": get_ata(swap_opportunity.user_wallet_address, accs['output_token'],
-                                             accs['output_token_program']),
-                "router_fee_receiver_ta": get_ata(accs['router'], accs['mint_fee'], accs['fee_token_program']),
-                "relayer_fee_receiver_ata": get_ata(relayer_signer, accs['mint_fee'], accs['fee_token_program']),
-                "express_relay_fee_receiver_ata": get_ata(express_relay_metadata, accs['mint_fee'],
-                                                          accs['fee_token_program']),
-                "mint_input": accs['input_token'],
-                "mint_output": accs['output_token'],
-                "mint_fee": accs['mint_fee'],
-                "token_program_input": accs['input_token_program'],
-                "token_program_output": accs['output_token_program'],
-                "token_program_fee": accs['fee_token_program'],
+                "searcher_input_ta": get_ata(
+                    searcher, accs["input_token"], accs["input_token_program"]
+                ),
+                "searcher_output_ta": get_ata(
+                    searcher, accs["output_token"], accs["output_token_program"]
+                ),
+                "trader_input_ata": get_ata(
+                    swap_opportunity.user_wallet_address,
+                    accs["input_token"],
+                    accs["input_token_program"],
+                ),
+                "trader_output_ata": get_ata(
+                    swap_opportunity.user_wallet_address,
+                    accs["output_token"],
+                    accs["output_token_program"],
+                ),
+                "router_fee_receiver_ta": get_ata(
+                    accs["router"], accs["mint_fee"], accs["fee_token_program"]
+                ),
+                "relayer_fee_receiver_ata": get_ata(
+                    relayer_signer, accs["mint_fee"], accs["fee_token_program"]
+                ),
+                "express_relay_fee_receiver_ata": get_ata(
+                    express_relay_metadata, accs["mint_fee"], accs["fee_token_program"]
+                ),
+                "mint_input": accs["input_token"],
+                "mint_output": accs["output_token"],
+                "mint_fee": accs["mint_fee"],
+                "token_program_input": accs["input_token_program"],
+                "token_program_output": accs["output_token_program"],
+                "token_program_fee": accs["fee_token_program"],
                 "express_relay_metadata": express_relay_metadata,
             },
             svm_config["express_relay_program"],

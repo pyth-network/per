@@ -1,30 +1,28 @@
-from typing import Union, Any
-from typing_extensions import Literal, Annotated
+from typing import Any, Union
 
-from pydantic import BaseModel, Field, RootModel, Tag, Discriminator
-
-from express_relay.models.base import UUIDString, IntString
-
+from express_relay.models.base import IntString, UUIDString
 from express_relay.models.evm import (
+    Address,
     BidEvm,
+    BidResponseEvm,
+    BidStatusEvm,
     Bytes32,
     HexString,
-    Address,
     OpportunityDeleteEvm,
-    SignedMessageString,
     OpportunityEvm,
+    SignedMessageString,
     TokenAmount,
-    BidStatusEvm,
-    BidResponseEvm,
 )
 from express_relay.models.svm import (
+    BidResponseSvm,
+    BidStatusSvm,
     BidSvm,
     OpportunityDeleteSvm,
     OpportunitySvm,
     SvmTransaction,
-    BidStatusSvm,
-    BidResponseSvm,
 )
+from pydantic import BaseModel, Discriminator, Field, RootModel, Tag
+from typing_extensions import Annotated, Literal
 
 Bid = Union[BidEvm, BidSvm]
 
@@ -206,7 +204,10 @@ def get_discriminator_value(v: Any) -> str:
 PostBidMessageParams = Annotated[
     Union[
         Annotated[PostBidMessageParamsEvm, Tag("evm")],
-        Annotated[Union[PostOnChainBidMessageParamsSvm, PostSwapBidMessageParamsSvm], Tag("svm")],
+        Annotated[
+            Union[PostOnChainBidMessageParamsSvm, PostSwapBidMessageParamsSvm],
+            Tag("svm"),
+        ],
     ],
     Discriminator(get_discriminator_value),
 ]

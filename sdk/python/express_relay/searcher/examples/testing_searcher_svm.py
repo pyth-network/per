@@ -1,21 +1,29 @@
 import asyncio
 import random
-from decimal import Decimal
 
+from express_relay.models import Opportunity
+from express_relay.svm.limo_client import OrderStateAndAddress
 from solders.keypair import Keypair
 
-from express_relay.models import (
-    Opportunity
-)
-from express_relay.svm.limo_client import OrderStateAndAddress
-from .simple_searcher_svm import get_parser, SimpleSearcherSvm
+from .simple_searcher_svm import SimpleSearcherSvm, get_parser
 
 
 class TestingSearcherSvm(SimpleSearcherSvm):
-
-    def __init__(self, server_url: str, private_key: Keypair, bid_amount: int, chain_id: str, svm_rpc_endpoint: str,
-                 fill_rate: int, with_latency: bool, bid_margin: int, api_key: str | None = None):
-        super().__init__(server_url, private_key, bid_amount, chain_id, svm_rpc_endpoint, api_key)
+    def __init__(
+        self,
+        server_url: str,
+        private_key: Keypair,
+        bid_amount: int,
+        chain_id: str,
+        svm_rpc_endpoint: str,
+        fill_rate: int,
+        with_latency: bool,
+        bid_margin: int,
+        api_key: str | None = None,
+    ):
+        super().__init__(
+            server_url, private_key, bid_amount, chain_id, svm_rpc_endpoint, api_key
+        )
         self.fill_rate = fill_rate
         self.with_latency = with_latency
         self.bid_margin = bid_margin
@@ -31,7 +39,10 @@ class TestingSearcherSvm(SimpleSearcherSvm):
         return self.bid_amount + random.randint(-self.bid_margin, self.bid_margin)
 
     def get_input_amount(self, order: OrderStateAndAddress) -> int:
-        return min(super().get_input_amount(order), order["state"].initial_input_amount * self.fill_rate // 100)
+        return min(
+            super().get_input_amount(order),
+            order["state"].initial_input_amount * self.fill_rate // 100,
+        )
 
 
 async def main():

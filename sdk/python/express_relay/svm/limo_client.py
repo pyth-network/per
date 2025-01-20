@@ -1,31 +1,22 @@
-from decimal import Decimal
-from typing import Sequence, List, TypedDict, Tuple
+from typing import List, Sequence, Tuple, TypedDict
 
-from solana.constants import SYSTEM_PROGRAM_ID
+import spl.token.instructions as spl_token
+from express_relay.svm.generated.limo.accounts import Order
+from express_relay.svm.generated.limo.instructions import TakeOrderArgs, take_order
+from express_relay.svm.generated.limo.program_id import PROGRAM_ID
+from express_relay.svm.token_utils import (
+    create_associated_token_account_idempotent,
+    get_ata,
+)
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.types import MemcmpOpts
 from solders import system_program
-from solders.instruction import Instruction, AccountMeta
+from solders.instruction import Instruction
 from solders.pubkey import Pubkey
 from solders.system_program import TransferParams
-from solders.sysvar import RENT, INSTRUCTIONS
-from spl.token._layouts import MINT_LAYOUT, ACCOUNT_LAYOUT as TOKEN_ACCOUNT_LAYOUT
-from spl.token.constants import (
-    WRAPPED_SOL_MINT,
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
-)
-
-from express_relay.svm.generated.limo.accounts import Order
-from express_relay.svm.generated.limo.instructions import (
-    take_order,
-    TakeOrderArgs,
-)
-from express_relay.svm.generated.limo.program_id import PROGRAM_ID
-
-import spl.token.instructions as spl_token
-
-from express_relay.svm.token_utils import create_associated_token_account_idempotent, get_ata
+from solders.sysvar import INSTRUCTIONS
+from spl.token._layouts import MINT_LAYOUT
+from spl.token.constants import TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT
 
 ESCROW_VAULT_SEED = b"escrow_vault"
 GLOBAL_AUTH_SEED = b"authority"
@@ -201,7 +192,9 @@ class LimoClient:
             close_wsol_ixns.extend(instructions["close_ixs"])
             taker_output_ata = instructions["ata"]
 
-            intermediary_output_token_account = self.get_intermediary_token_account_pda(PROGRAM_ID, order["address"])
+            intermediary_output_token_account = self.get_intermediary_token_account_pda(
+                PROGRAM_ID, order["address"]
+            )
         else:
             (
                 taker_output_ata,
@@ -304,7 +297,6 @@ class LimoClient:
             seeds=[GLOBAL_AUTH_SEED, bytes(global_config)], program_id=program_id
         )[0]
 
-
     @staticmethod
     def get_event_authority(program_id: Pubkey) -> Pubkey:
         return Pubkey.find_program_address(
@@ -312,7 +304,10 @@ class LimoClient:
         )[0]
 
     @staticmethod
-    def get_intermediary_token_account_pda(program_id: Pubkey, order_address: Pubkey) -> Pubkey:
+    def get_intermediary_token_account_pda(
+        program_id: Pubkey, order_address: Pubkey
+    ) -> Pubkey:
         return Pubkey.find_program_address(
-            seeds=[INTERMEDIARY_OUTPUT_TOKEN_ACCOUNT_SEED, bytes(order_address)], program_id=program_id
+            seeds=[INTERMEDIARY_OUTPUT_TOKEN_ACCOUNT_SEED, bytes(order_address)],
+            program_id=program_id,
         )[0]

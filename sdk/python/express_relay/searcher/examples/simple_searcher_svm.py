@@ -5,22 +5,19 @@ import typing
 from decimal import Decimal
 from typing import List
 
-from solana.rpc.async_api import AsyncClient
-from solana.rpc.commitment import Finalized
-from solders.compute_budget import set_compute_unit_price
-from solders.instruction import Instruction
-from solders.keypair import Keypair
-from solders.pubkey import Pubkey
-from solders.transaction import Transaction
-
-from express_relay.client import (
-    ExpressRelayClient,
-)
+from express_relay.client import ExpressRelayClient
 from express_relay.constants import SVM_CONFIGS
 from express_relay.models import BidStatusUpdate, Opportunity, OpportunityDelete
 from express_relay.models.base import BidStatusVariantsSvm
-from express_relay.models.svm import BidSvm, LimoOpportunitySvm, OpportunitySvm, SvmChainUpdate, \
-    SwapOpportunitySvm, OnChainBidSvm, SwapBidSvm
+from express_relay.models.svm import (
+    BidSvm,
+    LimoOpportunitySvm,
+    OnChainBidSvm,
+    OpportunitySvm,
+    SvmChainUpdate,
+    SwapBidSvm,
+    SwapOpportunitySvm,
+)
 from express_relay.svm.generated.express_relay.accounts.express_relay_metadata import (
     ExpressRelayMetadata,
 )
@@ -28,6 +25,13 @@ from express_relay.svm.generated.express_relay.program_id import (
     PROGRAM_ID as SVM_EXPRESS_RELAY_PROGRAM_ID,
 )
 from express_relay.svm.limo_client import LimoClient, OrderStateAndAddress
+from solana.rpc.async_api import AsyncClient
+from solana.rpc.commitment import Finalized
+from solders.compute_budget import set_compute_unit_price
+from solders.instruction import Instruction
+from solders.keypair import Keypair
+from solders.pubkey import Pubkey
+from solders.transaction import Transaction
 
 DEADLINE = 2 * 10**10
 
@@ -66,7 +70,7 @@ class SimpleSearcherSvm:
         self.mint_decimals_cache = {}
         self.latest_chain_update = {}
 
-        self.logger = logging.getLogger('searcher')
+        self.logger = logging.getLogger("searcher")
         self.setup_logger()
         self.logger.info("Using searcher pubkey: %s", self.private_key.pubkey())
 
@@ -88,7 +92,9 @@ class SimpleSearcherSvm:
             opp: An object representing a single opportunity.
         """
         if opp.chain_id not in self.latest_chain_update:
-            self.logger.info(f"No recent blockhash for chain, {opp.chain_id} skipping bid")
+            self.logger.info(
+                f"No recent blockhash for chain, {opp.chain_id} skipping bid"
+            )
             return None
 
         bid = await self.generate_bid(typing.cast(OpportunitySvm, opp))
@@ -96,7 +102,9 @@ class SimpleSearcherSvm:
         if bid:
             try:
                 bid_id = await self.client.submit_bid(bid)
-                self.logger.info(f"Submitted bid {str(bid_id)} for opportunity {str(opp.opportunity_id)}")
+                self.logger.info(
+                    f"Submitted bid {str(bid_id)} for opportunity {str(opp.opportunity_id)}"
+                )
             except Exception as e:
                 self.logger.error(
                     f"Error submitting bid for opportunity {str(opp.opportunity_id)}: {e}"
@@ -114,7 +122,10 @@ class SimpleSearcherSvm:
         result = bid_status_update.bid_status.result
 
         result_details = ""
-        if status == BidStatusVariantsSvm.SUBMITTED or status == BidStatusVariantsSvm.WON:
+        if (
+            status == BidStatusVariantsSvm.SUBMITTED
+            or status == BidStatusVariantsSvm.WON
+        ):
             result_details = f", transaction {result}"
         elif status == BidStatusVariantsSvm.LOST:
             if result:
@@ -163,14 +174,18 @@ class SimpleSearcherSvm:
             relayer_signer=(await self.get_metadata()).relayer_signer,
         )
         latest_chain_update = self.latest_chain_update[self.chain_id]
-        fee_instruction = set_compute_unit_price(latest_chain_update.latest_prioritization_fee)
+        fee_instruction = set_compute_unit_price(
+            latest_chain_update.latest_prioritization_fee
+        )
         transaction = Transaction.new_with_payer(
             [fee_instruction, submit_bid_ix] + ixs_take_order, self.private_key.pubkey()
         )
         transaction.partial_sign(
             [self.private_key], recent_blockhash=latest_chain_update.blockhash
         )
-        bid = OnChainBidSvm(transaction=transaction, chain_id=self.chain_id, slot=opp.slot)
+        bid = OnChainBidSvm(
+            transaction=transaction, chain_id=self.chain_id, slot=opp.slot
+        )
         return bid
 
     async def generate_bid_swap(self, opp: SwapOpportunitySvm) -> SwapBidSvm:
@@ -185,14 +200,20 @@ class SimpleSearcherSvm:
             relayer_signer=(await self.get_metadata()).relayer_signer,
         )
         latest_chain_update = self.latest_chain_update[self.chain_id]
-        fee_instruction = set_compute_unit_price(latest_chain_update.latest_prioritization_fee)
+        fee_instruction = set_compute_unit_price(
+            latest_chain_update.latest_prioritization_fee
+        )
         transaction = Transaction.new_with_payer(
             [fee_instruction] + swap_ixs, self.private_key.pubkey()
         )
         transaction.partial_sign(
             [self.private_key], recent_blockhash=latest_chain_update.blockhash
         )
-        bid = SwapBidSvm(transaction=transaction, chain_id=self.chain_id, opportunity_id=opp.opportunity_id)
+        bid = SwapBidSvm(
+            transaction=transaction,
+            chain_id=self.chain_id,
+            opportunity_id=opp.opportunity_id,
+        )
         return bid
 
     async def generate_take_order_ixs(

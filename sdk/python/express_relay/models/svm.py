@@ -1,16 +1,23 @@
 import base64
 from datetime import datetime
 from enum import Enum
-from typing import Any, Annotated, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
+from express_relay.models.base import (
+    BidStatusVariantsSvm,
+    IntString,
+    UnsupportedOpportunityDeleteVersionException,
+    UnsupportedOpportunityVersionException,
+    UUIDString,
+)
+from express_relay.svm.generated.limo.accounts.order import Order
 from pydantic import (
+    Base64Bytes,
+    BaseModel,
+    Field,
     GetCoreSchemaHandler,
     GetJsonSchemaHandler,
-    BaseModel,
     model_validator,
-    Field,
-    Base64Bytes,
-    RootModel
 )
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
@@ -18,15 +25,6 @@ from solders.hash import Hash as _SvmHash
 from solders.pubkey import Pubkey as _SvmAddress
 from solders.signature import Signature as _SvmSignature
 from solders.transaction import Transaction as _SvmTransaction
-
-from express_relay.svm.generated.limo.accounts.order import Order
-from express_relay.models.base import (
-    IntString,
-    UUIDString,
-    UnsupportedOpportunityDeleteVersionException,
-    UnsupportedOpportunityVersionException,
-    BidStatusVariantsSvm,
-)
 
 
 class _TransactionPydanticAnnotation:
@@ -253,7 +251,7 @@ class _OrderPydanticAnnotation:
 
     @classmethod
     def __get_pydantic_json_schema__(
-            cls, _core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+        cls, _core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         # Use the same schema that would be used for `str`
         return handler(core_schema.str_schema())
@@ -317,6 +315,7 @@ class SwapTokensBase(BaseModel):
         input_token_program: The token program address for the input token.
         output_token_program: The token program address for the output token.
     """
+
     input_token_program: SvmAddress
     output_token_program: SvmAddress
 
@@ -365,7 +364,10 @@ class BidStatusSvm(BaseModel):
 
     @model_validator(mode="after")
     def check_result(self):
-        if self.type == BidStatusVariantsSvm.WON or self.type == BidStatusVariantsSvm.SUBMITTED:
+        if (
+            self.type == BidStatusVariantsSvm.WON
+            or self.type == BidStatusVariantsSvm.SUBMITTED
+        ):
             assert (
                 self.result is not None
             ), "bid result should not be empty when status is won or submitted"
@@ -393,12 +395,14 @@ class BidResponseSvm(BaseModel):
     transaction: SvmTransaction
     profile_id: str | None = Field(default=None)
 
+
 class SvmChainUpdate(BaseModel):
     """
     Attributes:
         chain_id: The chain ID corresponding to the update.
         blockhash: A recent blockhash from the chain.
     """
+
     chain_id: str
     blockhash: SvmHash
     latest_prioritization_fee: int
@@ -417,6 +421,7 @@ class OpportunityDeleteSvm(BaseModel):
         permission_account: The permission account for the opportunities to be removed.
         router: The router for opportunties to be removed.
     """
+
     chain_id: str
     program: ProgramSvm
     permission_account: SvmAddress
