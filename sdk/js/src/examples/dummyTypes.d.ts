@@ -33,7 +33,7 @@ export type Dummy = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
             program: {
               kind: "account";
@@ -70,13 +70,13 @@ export type Dummy = {
                   117,
                   116,
                   101,
-                  114
+                  114,
                 ];
               },
               {
                 kind: "account";
                 path: "router";
-              }
+              },
             ];
             program: {
               kind: "account";
@@ -92,17 +92,17 @@ export type Dummy = {
               {
                 kind: "const";
                 value: [97, 99, 99, 111, 117, 110, 116, 105, 110, 103];
-              }
+              },
             ];
           };
         },
         {
           name: "systemProgram";
           address: "11111111111111111111111111111111";
-        }
+        },
       ];
       args: [];
-    }
+    },
   ];
   accounts: [
     {
@@ -112,7 +112,7 @@ export type Dummy = {
     {
       name: "expressRelayMetadata";
       discriminator: [204, 75, 133, 7, 175, 241, 130, 11];
-    }
+    },
   ];
   types: [
     {
@@ -123,7 +123,7 @@ export type Dummy = {
           {
             name: "totalFees";
             type: "u64";
-          }
+          },
         ];
       };
     },
@@ -151,9 +151,9 @@ export type Dummy = {
           {
             name: "splitRelayer";
             type: "u64";
-          }
+          },
         ];
       };
-    }
+    },
   ];
 };

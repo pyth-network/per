@@ -25,7 +25,7 @@ export class OdosAdapter implements Adapter {
   private async getPrice(chainId: string, token: Address): Promise<number> {
     const swapAdapterConfig = getSwapAdapterConfig(chainId);
     const response = await axios.get(
-      `${this.baseUrl}/pricing/token/${swapAdapterConfig.chainIdNum}/${token}`
+      `${this.baseUrl}/pricing/token/${swapAdapterConfig.chainIdNum}/${token}`,
     );
     return response.data.price as number;
   }
@@ -35,7 +35,7 @@ export class OdosAdapter implements Adapter {
     tokenIn: Address,
     tokenOut: Address,
     amountOut: bigint,
-    threshold: number
+    threshold: number,
   ) {
     const decimalsIn = this.getToken(chainId, tokenIn).decimals;
     const decimalsOut = this.getToken(chainId, tokenOut).decimals;
@@ -55,7 +55,7 @@ export class OdosAdapter implements Adapter {
     tokenIn: Address,
     tokenOut: Address,
     amountIn?: bigint,
-    amountOut?: bigint
+    amountOut?: bigint,
   ): Promise<string> {
     if (!amountIn && !amountOut) {
       throw new OdosAdapterError("amountIn or amountOut must be defined");
@@ -71,7 +71,7 @@ export class OdosAdapter implements Adapter {
           tokenIn,
           tokenOut,
           amountOut!,
-          1 + threshold * 0.005
+          1 + threshold * 0.005,
         ));
       const responseQuote = await axios.post(`${this.baseUrl}/sor/quote/v2`, {
         chainId: swapAdapterConfig.chainIdNum,
@@ -108,7 +108,7 @@ export class OdosAdapter implements Adapter {
     tokenIn: Address,
     tokenOut: Address,
     amountIn?: bigint,
-    amountOut?: bigint
+    amountOut?: bigint,
   ): Promise<ExtendedTargetCall[]> {
     const swapAdapterConfig = getSwapAdapterConfig(chainId);
     const pathId = await this.getPathId(
@@ -116,7 +116,7 @@ export class OdosAdapter implements Adapter {
       tokenIn,
       tokenOut,
       amountIn,
-      amountOut
+      amountOut,
     );
 
     const responseTx = await axios.post(`${this.baseUrl}/sor/assemble`, {
@@ -141,7 +141,7 @@ export class OdosAdapter implements Adapter {
           amount: BigInt(inputToken.amount),
         },
         destination: responseTx.data.transaction.to,
-      })
+      }),
     );
     const tokensToReceive: TokenAmount[] = outputTokens.map(
       (outputToken: { tokenAddress: Address; amount: string }) => ({
@@ -149,9 +149,9 @@ export class OdosAdapter implements Adapter {
         amount: BigInt(
           amountOut
             ? outputToken.amount
-            : Math.floor(Number(outputToken.amount) * 0.995).toString()
+            : Math.floor(Number(outputToken.amount) * 0.995).toString(),
         ),
-      })
+      }),
     );
 
     return [

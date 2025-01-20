@@ -17,7 +17,7 @@ class SearcherLimo extends SimpleSearcherSvm {
     fillRate: number,
     public withLatency: boolean,
     public bidMargin: number,
-    public apiKey?: string
+    public apiKey?: string,
   ) {
     super(endpointExpressRelay, chainId, searcher, endpointSvm, bid, apiKey);
     this.fillRate = new anchor.BN(fillRate);
@@ -25,7 +25,7 @@ class SearcherLimo extends SimpleSearcherSvm {
 
   async getBidAmount(): Promise<anchor.BN> {
     const margin = new anchor.BN(
-      Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin
+      Math.floor(Math.random() * (this.bidMargin * 2 + 1)) - this.bidMargin,
     );
     return this.bid.add(margin);
   }
@@ -42,7 +42,7 @@ class SearcherLimo extends SimpleSearcherSvm {
   protected getInputAmount(order: OrderStateAndAddress): anchor.BN {
     return anchor.BN.min(
       super.getInputAmount(order),
-      order.state.initialInputAmount.mul(this.fillRate).div(new anchor.BN(100))
+      order.state.initialInputAmount.mul(this.fillRate).div(new anchor.BN(100)),
     );
   }
 }
@@ -78,7 +78,7 @@ async function run() {
     argv.fillRate,
     argv.withLatency,
     argv.bidMargin,
-    argv.apiKey
+    argv.apiKey,
   );
   await simpleSearcher.start();
 }

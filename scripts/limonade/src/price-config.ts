@@ -19,14 +19,14 @@ export type PriceConfig = {
 
 export async function loadPriceConfig(
   path: string,
-  connection: Connection
+  connection: Connection,
 ): Promise<PriceConfig[]> {
   const priceConfigs = yaml.parse(fs.readFileSync(path, "utf8"));
 
   for (const priceConfig of priceConfigs) {
     priceConfig.decimals = await getMintDecimals(
       connection,
-      new PublicKey(priceConfig.mint)
+      new PublicKey(priceConfig.mint),
     );
   }
 
@@ -41,13 +41,13 @@ export async function loadPriceConfig(
       mint: new PublicKey(priceConfig.mint),
       pythFeedId: priceConfig.id,
       decimals: priceConfig.decimals,
-    })
+    }),
   );
 }
 
 async function getMintDecimals(
   connection: Connection,
-  mint: PublicKey
+  mint: PublicKey,
 ): Promise<number> {
   for (const programId of TOKEN_PROGRAMS) {
     try {

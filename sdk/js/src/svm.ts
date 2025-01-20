@@ -32,13 +32,13 @@ function getExpressRelayProgram(chain: string): PublicKey {
 
 export function getConfigRouterPda(
   chain: string,
-  router: PublicKey
+  router: PublicKey,
 ): PublicKey {
   const expressRelayProgram = getExpressRelayProgram(chain);
 
   return PublicKey.findProgramAddressSync(
     [Buffer.from("config_router"), router.toBuffer()],
-    expressRelayProgram
+    expressRelayProgram,
   )[0];
 }
 
@@ -47,7 +47,7 @@ export function getExpressRelayMetadataPda(chain: string): PublicKey {
 
   return PublicKey.findProgramAddressSync(
     [Buffer.from("metadata")],
-    expressRelayProgram
+    expressRelayProgram,
   )[0];
 }
 
@@ -59,11 +59,11 @@ export async function constructSubmitBidInstruction(
   deadline: anchor.BN,
   chainId: string,
   relayerSigner: PublicKey,
-  feeReceiverRelayer: PublicKey
+  feeReceiverRelayer: PublicKey,
 ): Promise<TransactionInstruction> {
   const expressRelay = new Program<ExpressRelay>(
     expressRelayIdl as ExpressRelay,
-    {} as AnchorProvider
+    {} as AnchorProvider,
   );
 
   const configRouter = getConfigRouterPda(chainId, router);
@@ -95,14 +95,14 @@ export async function constructSubmitBidInstruction(
 export function getAssociatedTokenAddress(
   owner: PublicKey,
   tokenMintAddress: PublicKey,
-  tokenProgram: PublicKey
+  tokenProgram: PublicKey,
 ): PublicKey {
   return getAssociatedTokenAddressSync(
     tokenMintAddress,
     owner,
     true, //allow owner to be off-curve
     tokenProgram,
-    ASSOCIATED_TOKEN_PROGRAM_ID
+    ASSOCIATED_TOKEN_PROGRAM_ID,
   );
 }
 
@@ -110,7 +110,7 @@ export function createAtaIdempotentInstruction(
   owner: PublicKey,
   mint: PublicKey,
   payer: PublicKey = owner,
-  tokenProgram: PublicKey
+  tokenProgram: PublicKey,
 ): [PublicKey, TransactionInstruction] {
   const ataAddress = getAssociatedTokenAddress(owner, mint, tokenProgram);
   const createUserTokenAccountIx =
@@ -120,7 +120,7 @@ export function createAtaIdempotentInstruction(
       owner,
       mint,
       tokenProgram,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
   return [ataAddress, createUserTokenAccountIx];
 }
@@ -131,11 +131,11 @@ export async function constructSwapInstruction(
   bidAmount: anchor.BN,
   deadline: anchor.BN,
   chainId: string,
-  relayerSigner: PublicKey
+  relayerSigner: PublicKey,
 ): Promise<TransactionInstruction> {
   const expressRelay = new Program<ExpressRelay>(
     expressRelayIdl as ExpressRelay,
-    {} as AnchorProvider
+    {} as AnchorProvider,
   );
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
   const svmConstants = SVM_CONSTANTS[chainId];
@@ -176,43 +176,43 @@ export async function constructSwapInstruction(
       searcherInputTa: getAssociatedTokenAddress(
         searcher,
         inputToken,
-        inputTokenProgram
+        inputTokenProgram,
       ),
       searcherOutputTa: getAssociatedTokenAddress(
         searcher,
         outputToken,
-        outputTokenProgram
+        outputTokenProgram,
       ),
       traderInputAta: getAssociatedTokenAddress(
         trader,
         inputToken,
-        inputTokenProgram
+        inputTokenProgram,
       ),
       tokenProgramInput: inputTokenProgram,
       mintInput: inputToken,
       traderOutputAta: getAssociatedTokenAddress(
         trader,
         outputToken,
-        outputTokenProgram
+        outputTokenProgram,
       ),
       tokenProgramOutput: outputTokenProgram,
       mintOutput: outputToken,
       routerFeeReceiverTa: getAssociatedTokenAddress(
         router,
         mintFee,
-        feeTokenProgram
+        feeTokenProgram,
       ),
       relayerFeeReceiverAta: getAssociatedTokenAddress(
         relayerSigner,
         mintFee,
-        feeTokenProgram
+        feeTokenProgram,
       ),
       tokenProgramFee: feeTokenProgram,
       mintFee,
       expressRelayFeeReceiverAta: getAssociatedTokenAddress(
         expressRelayMetadata,
         mintFee,
-        feeTokenProgram
+        feeTokenProgram,
       ),
     })
     .instruction();
@@ -265,7 +265,7 @@ export async function constructSwapBid(
   bidAmount: anchor.BN,
   deadline: anchor.BN,
   chainId: string,
-  relayerSigner: PublicKey
+  relayerSigner: PublicKey,
 ): Promise<BidSvmSwap> {
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
   const {
@@ -288,8 +288,8 @@ export async function constructSwapBid(
         account.owner,
         account.mint,
         searcher,
-        account.program
-      )[1]
+        account.program,
+      )[1],
     );
   }
   const swapInstruction = await constructSwapInstruction(
@@ -298,7 +298,7 @@ export async function constructSwapBid(
     bidAmount,
     deadline,
     chainId,
-    relayerSigner
+    relayerSigner,
   );
   tx.instructions.push(swapInstruction);
 
@@ -320,7 +320,7 @@ export async function constructSvmBid(
   deadline: anchor.BN,
   chainId: string,
   relayerSigner: PublicKey,
-  feeReceiverRelayer: PublicKey
+  feeReceiverRelayer: PublicKey,
 ): Promise<BidSvmOnChain> {
   const ixSubmitBid = await constructSubmitBidInstruction(
     searcher,
@@ -330,7 +330,7 @@ export async function constructSvmBid(
     deadline,
     chainId,
     relayerSigner,
-    feeReceiverRelayer
+    feeReceiverRelayer,
   );
 
   tx.instructions.unshift(ixSubmitBid);
@@ -345,18 +345,18 @@ export async function constructSvmBid(
 
 export async function getExpressRelaySvmConfig(
   chainId: string,
-  connection: Connection
+  connection: Connection,
 ): Promise<ExpressRelaySvmConfig> {
   const provider = new AnchorProvider(
     connection,
-    new NodeWallet(new Keypair())
+    new NodeWallet(new Keypair()),
   );
   const expressRelay = new Program<ExpressRelay>(
     expressRelayIdl as ExpressRelay,
-    provider
+    provider,
   );
   const metadata = await expressRelay.account.expressRelayMetadata.fetch(
-    getExpressRelayMetadataPda(chainId)
+    getExpressRelayMetadataPda(chainId),
   );
   return {
     feeReceiverRelayer: metadata.feeReceiverRelayer,

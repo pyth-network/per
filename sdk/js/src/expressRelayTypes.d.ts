@@ -19,7 +19,7 @@ export type ExpressRelay = {
       docs: [
         "Checks if permissioning exists for a particular (permission, router) pair within the same transaction.",
         "Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts.",
-        "Returns the fees paid to the router in the matching instructions."
+        "Returns the fees paid to the router in the matching instructions.",
       ];
       discriminator: [154, 199, 232, 242, 96, 72, 197, 236];
       accounts: [
@@ -52,13 +52,13 @@ export type ExpressRelay = {
                   117,
                   116,
                   101,
-                  114
+                  114,
                 ];
               },
               {
                 kind: "account";
                 path: "router";
-              }
+              },
             ];
           };
         },
@@ -69,10 +69,10 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
-        }
+        },
       ];
       args: [];
       returns: "u64";
@@ -94,7 +94,7 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
         },
@@ -110,7 +110,7 @@ export type ExpressRelay = {
         {
           name: "systemProgram";
           address: "11111111111111111111111111111111";
-        }
+        },
       ];
       args: [
         {
@@ -120,7 +120,7 @@ export type ExpressRelay = {
               name: "initializeArgs";
             };
           };
-        }
+        },
       ];
     },
     {
@@ -140,13 +140,13 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
         },
         {
           name: "adminNew";
-        }
+        },
       ];
       args: [];
     },
@@ -167,7 +167,7 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
         },
@@ -176,7 +176,7 @@ export type ExpressRelay = {
         },
         {
           name: "feeReceiverRelayer";
-        }
+        },
       ];
       args: [];
     },
@@ -210,13 +210,13 @@ export type ExpressRelay = {
                   117,
                   116,
                   101,
-                  114
+                  114,
                 ];
               },
               {
                 kind: "account";
                 path: "router";
-              }
+              },
             ];
           };
         },
@@ -227,7 +227,7 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
         },
@@ -237,7 +237,7 @@ export type ExpressRelay = {
         {
           name: "systemProgram";
           address: "11111111111111111111111111111111";
-        }
+        },
       ];
       args: [
         {
@@ -247,7 +247,7 @@ export type ExpressRelay = {
               name: "setRouterSplitArgs";
             };
           };
-        }
+        },
       ];
     },
     {
@@ -267,10 +267,10 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
-        }
+        },
       ];
       args: [
         {
@@ -280,7 +280,7 @@ export type ExpressRelay = {
               name: "setSplitsArgs";
             };
           };
-        }
+        },
       ];
     },
     {
@@ -300,10 +300,10 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
-        }
+        },
       ];
       args: [
         {
@@ -313,13 +313,13 @@ export type ExpressRelay = {
               name: "setSwapPlatformFeeArgs";
             };
           };
-        }
+        },
       ];
     },
     {
       name: "submitBid";
       docs: [
-        "Submits a bid for a particular (permission, router) pair and distributes bids according to splits."
+        "Submits a bid for a particular (permission, router) pair and distributes bids according to splits.",
       ];
       discriminator: [19, 164, 237, 254, 64, 139, 237, 93];
       accounts: [
@@ -359,13 +359,13 @@ export type ExpressRelay = {
                   117,
                   116,
                   101,
-                  114
+                  114,
                 ];
               },
               {
                 kind: "account";
                 path: "router";
-              }
+              },
             ];
           };
         },
@@ -377,7 +377,7 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
         },
@@ -393,7 +393,7 @@ export type ExpressRelay = {
         {
           name: "sysvarInstructions";
           address: "Sysvar1nstructions1111111111111111111111111";
-        }
+        },
       ];
       args: [
         {
@@ -403,7 +403,7 @@ export type ExpressRelay = {
               name: "submitBidArgs";
             };
           };
-        }
+        },
       ];
     },
     {
@@ -413,14 +413,14 @@ export type ExpressRelay = {
         {
           name: "searcher";
           docs: [
-            "Searcher is the party that sends the input token and receives the output token"
+            "Searcher is the party that sends the input token and receives the output token",
           ];
           signer: true;
         },
         {
           name: "trader";
           docs: [
-            "Trader is the party that sends the output token and receives the input token"
+            "Trader is the party that sends the output token and receives the input token",
           ];
           signer: true;
         },
@@ -448,7 +448,7 @@ export type ExpressRelay = {
               {
                 kind: "account";
                 path: "mintInput";
-              }
+              },
             ];
             program: {
               kind: "const";
@@ -484,7 +484,7 @@ export type ExpressRelay = {
                 219,
                 233,
                 248,
-                89
+                89,
               ];
             };
           };
@@ -505,7 +505,7 @@ export type ExpressRelay = {
               {
                 kind: "account";
                 path: "mintOutput";
-              }
+              },
             ];
             program: {
               kind: "const";
@@ -541,7 +541,7 @@ export type ExpressRelay = {
                 219,
                 233,
                 248,
-                89
+                89,
               ];
             };
           };
@@ -549,7 +549,7 @@ export type ExpressRelay = {
         {
           name: "routerFeeReceiverTa";
           docs: [
-            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee"
+            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee",
           ];
           writable: true;
         },
@@ -570,7 +570,7 @@ export type ExpressRelay = {
               {
                 kind: "account";
                 path: "mintFee";
-              }
+              },
             ];
             program: {
               kind: "const";
@@ -606,7 +606,7 @@ export type ExpressRelay = {
                 219,
                 233,
                 248,
-                89
+                89,
               ];
             };
           };
@@ -627,7 +627,7 @@ export type ExpressRelay = {
               {
                 kind: "account";
                 path: "mintFee";
-              }
+              },
             ];
             program: {
               kind: "const";
@@ -663,7 +663,7 @@ export type ExpressRelay = {
                 219,
                 233,
                 248,
-                89
+                89,
               ];
             };
           };
@@ -694,10 +694,10 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
-        }
+        },
       ];
       args: [
         {
@@ -707,7 +707,7 @@ export type ExpressRelay = {
               name: "swapArgs";
             };
           };
-        }
+        },
       ];
     },
     {
@@ -731,13 +731,13 @@ export type ExpressRelay = {
               {
                 kind: "const";
                 value: [109, 101, 116, 97, 100, 97, 116, 97];
-              }
+              },
             ];
           };
-        }
+        },
       ];
       args: [];
-    }
+    },
   ];
   accounts: [
     {
@@ -747,7 +747,7 @@ export type ExpressRelay = {
     {
       name: "expressRelayMetadata";
       discriminator: [204, 75, 133, 7, 175, 241, 130, 11];
-    }
+    },
   ];
   errors: [
     {
@@ -809,7 +809,7 @@ export type ExpressRelay = {
       code: 6011;
       name: "invalidReferralFee";
       msg: "Invalid referral fee";
-    }
+    },
   ];
   types: [
     {
@@ -824,7 +824,7 @@ export type ExpressRelay = {
           {
             name: "split";
             type: "u64";
-          }
+          },
         ];
       };
     },
@@ -856,7 +856,7 @@ export type ExpressRelay = {
           {
             name: "swapPlatformFeeBps";
             type: "u64";
-          }
+          },
         ];
       };
     },
@@ -870,7 +870,7 @@ export type ExpressRelay = {
           },
           {
             name: "output";
-          }
+          },
         ];
       };
     },
@@ -886,7 +886,7 @@ export type ExpressRelay = {
           {
             name: "splitRelayer";
             type: "u64";
-          }
+          },
         ];
       };
     },
@@ -898,7 +898,7 @@ export type ExpressRelay = {
           {
             name: "splitRouter";
             type: "u64";
-          }
+          },
         ];
       };
     },
@@ -914,7 +914,7 @@ export type ExpressRelay = {
           {
             name: "splitRelayer";
             type: "u64";
-          }
+          },
         ];
       };
     },
@@ -926,7 +926,7 @@ export type ExpressRelay = {
           {
             name: "swapPlatformFeeBps";
             type: "u64";
-          }
+          },
         ];
       };
     },
@@ -942,7 +942,7 @@ export type ExpressRelay = {
           {
             name: "bidAmount";
             type: "u64";
-          }
+          },
         ];
       };
     },
@@ -952,7 +952,7 @@ export type ExpressRelay = {
         "For all swap instructions and contexts, input and output are defined with respect to the searcher",
         "So `mint_input` refers to the token that the searcher provides to the trader and",
         "`mint_output` refers to the token that the searcher receives from the trader",
-        "This choice is made to minimize confusion for the searchers, who are more likely to parse the program"
+        "This choice is made to minimize confusion for the searchers, who are more likely to parse the program",
       ];
       type: {
         kind: "struct";
@@ -980,9 +980,9 @@ export type ExpressRelay = {
                 name: "feeToken";
               };
             };
-          }
+          },
         ];
       };
-    }
+    },
   ];
 };

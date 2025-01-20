@@ -43,7 +43,7 @@ export interface Adapter {
     tokenIn: Address,
     tokenOut: Address,
     amountIn?: bigint,
-    amountOut?: bigint
+    amountOut?: bigint,
   ) => Promise<ExtendedTargetCall[]>;
 }
 

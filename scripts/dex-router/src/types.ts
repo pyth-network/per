@@ -20,6 +20,6 @@ export interface Router {
   route: (
     tokenIn: PublicKey,
     tokenOut: PublicKey,
-    amountIn: bigint
+    amountIn: bigint,
   ) => Promise<RouterOutput>;
 }
