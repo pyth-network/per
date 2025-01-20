@@ -17,27 +17,27 @@ export default function Home() {
   const expressRelayClient = useExpressRelayClient()
 
   const handleClick = useCallback(() => {
-    if (!publicKey || !signTransaction) return;
-    console.log("Getting quote...");
-    expressRelayClient.getQuote({
-      chainId: "development-solana",
-      inputTokenMint: USDC,
-      outputTokenMint: USDT,
-      router: publicKey,
-      userWallet: publicKey,
-      specifiedTokenAmount: {
-        amount: 1000000,
-        side: "input",
-      },
-    }).then(quote => {
-      signTransaction(quote.transaction).then(signedTransaction => {
-        connection.sendTransaction(signedTransaction);
+    const inner = async () => {
+      if (!publicKey || !signTransaction) return;
+      console.log("Getting quote...");
+      const quote = await expressRelayClient.getQuote({
+        chainId: "development-solana",
+        inputTokenMint: USDC,
+        outputTokenMint: USDT,
+        router: publicKey,
+        userWallet: publicKey,
+        specifiedTokenAmount: {
+          amount: 1000000,
+          side: "input",
+        },
       });
-    }).catch(error => {
+      const signedTransaction = await signTransaction(quote.transaction);
+      connection.sendTransaction(signedTransaction);
+    }
+    inner().catch(error => {
       console.error(error);
     });
   }, [expressRelayClient, publicKey, signTransaction, connection]);
-
 
   return (
     <main>
