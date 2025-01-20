@@ -379,9 +379,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                             prioritization_fee_percentile: chain_store
                                 .config
                                 .prioritization_fee_percentile,
-                            associated_token_program_id:   chain_store
-                                .config
-                                .associated_token_program_id,
                             // _dummy_log_receiver: chain_store._dummy_log_receiver.clone(),
                         },
                     },

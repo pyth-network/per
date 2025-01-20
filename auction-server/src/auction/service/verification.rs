@@ -531,7 +531,7 @@ impl Service<Svm> {
 
         if *program_id == compute_budget::id() {
             Ok(())
-        } else if *program_id == self.config.chain_config.associated_token_program_id {
+        } else if *program_id == spl_associated_token_account::id() {
             let ix_parsed =
                 AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
                     RestError::BadParameters(format!(
@@ -823,12 +823,8 @@ impl Service<Svm> {
                     FeeToken::Input => (mint_input, token_program_input),
                     FeeToken::Output => (mint_output, token_program_output),
                 };
-                let expected_router_token_account = get_associated_token_account(
-                    &self.config.chain_config.associated_token_program_id,
-                    &opp.router,
-                    &fee_token_program,
-                    &fee_token,
-                );
+                let expected_router_token_account =
+                    get_associated_token_account(&opp.router, &fee_token_program, &fee_token);
 
                 if router_token_account != expected_router_token_account {
                     return Err(RestError::BadParameters(

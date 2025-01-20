@@ -113,7 +113,6 @@ pub struct ConfigSvm {
     pub tx_broadcaster_client:         RpcClient,
     pub log_sender:                    Sender<Response<RpcLogsResponse>>,
     pub prioritization_fee_percentile: Option<u64>,
-    pub associated_token_program_id:   Pubkey,
 }
 
 pub struct ExpressRelayEvm {

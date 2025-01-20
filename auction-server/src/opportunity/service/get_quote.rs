@@ -56,7 +56,6 @@ pub struct GetQuoteInput {
 }
 
 pub fn get_associated_token_account(
-    associated_token_program: &Pubkey,
     owner: &Pubkey,
     token_program: &Pubkey,
     token: &Pubkey,
@@ -67,7 +66,7 @@ pub fn get_associated_token_account(
             &token_program.to_bytes(),
             &token.to_bytes(),
         ],
-        associated_token_program,
+        &spl_associated_token_account::id(),
     )
     .0
 }
@@ -167,21 +166,13 @@ impl Service<ChainTypeSvm> {
                 RestError::BadParameters("Output token program not found".to_string())
             })?;
 
-        let config = self.get_config(&quote_create.chain_id)?;
-
         let router_token_account = match fee_token {
-            entities::FeeToken::InputToken => get_associated_token_account(
-                &config.associated_token_program_id,
-                &router,
-                &input_token_program,
-                &input_mint,
-            ),
-            entities::FeeToken::OutputToken => get_associated_token_account(
-                &config.associated_token_program_id,
-                &router,
-                &output_token_program,
-                &output_mint,
-            ),
+            entities::FeeToken::InputToken => {
+                get_associated_token_account(&router, &input_token_program, &input_mint)
+            }
+            entities::FeeToken::OutputToken => {
+                get_associated_token_account(&router, &output_token_program, &output_mint)
+            }
         };
         let permission_account = get_quote_virtual_permission_account(
             &quote_create.tokens,

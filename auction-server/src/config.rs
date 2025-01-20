@@ -172,7 +172,4 @@ pub struct ConfigSvm {
     /// List of accepted token programs for the swap instruction.
     #[serde_as(as = "Vec<DisplayFromStr>")]
     pub accepted_token_programs:       Vec<Pubkey>,
-    /// Id of the associated token program.
-    #[serde_as(as = "DisplayFromStr")]
-    pub associated_token_program_id:   Pubkey,
 }
