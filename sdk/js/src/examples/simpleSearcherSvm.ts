@@ -50,7 +50,7 @@ export class SimpleSearcherSvm {
     protected searcher: Keypair,
     public endpointSvm: string,
     bid: number,
-    public apiKey?: string
+    public apiKey?: string,
   ) {
     this.client = new Client(
       {
@@ -62,7 +62,7 @@ export class SimpleSearcherSvm {
       this.bidStatusHandler.bind(this),
       this.svmChainUpdateHandler.bind(this),
       this.removeOpportunitiesHandler.bind(this),
-      this.websocketCloseHandler.bind(this)
+      this.websocketCloseHandler.bind(this),
     );
     this.bid = new anchor.BN(bid);
     this.connectionSvm = new Connection(endpointSvm, "confirmed");
@@ -83,7 +83,7 @@ export class SimpleSearcherSvm {
       }
     }
     console.log(
-      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`
+      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`,
     );
   }
 
@@ -107,7 +107,7 @@ export class SimpleSearcherSvm {
     const order = opportunity.order;
     const limoClient = new limo.LimoClient(
       this.connectionSvm,
-      order.state.globalConfig
+      order.state.globalConfig,
     );
 
     const ixsTakeOrder = await this.generateTakeOrderIxs(limoClient, order);
@@ -117,7 +117,7 @@ export class SimpleSearcherSvm {
     });
     const txRaw = new anchor.web3.Transaction().add(
       feeInstruction,
-      ...ixsTakeOrder
+      ...ixsTakeOrder,
     );
 
     const bidAmount = await this.getBidAmount(opportunity);
@@ -132,7 +132,7 @@ export class SimpleSearcherSvm {
       new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
       this.chainId,
       config.relayerSigner,
-      config.feeReceiverRelayer
+      config.feeReceiverRelayer,
     );
     bid.slot = opportunity.slot;
 
@@ -163,7 +163,7 @@ export class SimpleSearcherSvm {
       bidAmount,
       new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
       this.chainId,
-      config.relayerSigner
+      config.relayerSigner,
     );
 
     bid.transaction.recentBlockhash =
@@ -192,7 +192,7 @@ export class SimpleSearcherSvm {
     if (!this.expressRelayConfig) {
       this.expressRelayConfig = await this.client.getExpressRelaySvmConfig(
         this.chainId,
-        this.connectionSvm
+        this.connectionSvm,
       );
     }
     return this.expressRelayConfig;
@@ -217,13 +217,13 @@ export class SimpleSearcherSvm {
    */
   async generateTakeOrderIxs(
     limoClient: limo.LimoClient,
-    order: OrderStateAndAddress
+    order: OrderStateAndAddress,
   ): Promise<TransactionInstruction[]> {
     const inputMintDecimals = await this.getMintDecimalsCached(
-      order.state.inputMint
+      order.state.inputMint,
     );
     const outputMintDecimals = await this.getMintDecimalsCached(
-      order.state.outputMint
+      order.state.outputMint,
     );
     const inputAmount = this.getInputAmount(order);
     // take the ceiling of the division by adding order.state.initialInputAmount - 1
@@ -236,19 +236,19 @@ export class SimpleSearcherSvm {
     console.log("Order address", order.address.toBase58());
     console.log(
       "Fill rate",
-      inputAmount.toNumber() / order.state.initialInputAmount.toNumber()
+      inputAmount.toNumber() / order.state.initialInputAmount.toNumber(),
     );
     console.log(
       "Sell token",
       order.state.inputMint.toBase58(),
       "amount:",
-      inputAmount.toNumber() / 10 ** inputMintDecimals
+      inputAmount.toNumber() / 10 ** inputMintDecimals,
     );
     console.log(
       "Buy token",
       order.state.outputMint.toBase58(),
       "amount:",
-      outputAmount.toNumber() / 10 ** outputMintDecimals
+      outputAmount.toNumber() / 10 ** outputMintDecimals,
     );
 
     return limoClient.takeOrderIx(
@@ -256,7 +256,7 @@ export class SimpleSearcherSvm {
       order,
       inputAmount,
       outputAmount,
-      SVM_CONSTANTS[this.chainId].expressRelayProgram
+      SVM_CONSTANTS[this.chainId].expressRelayProgram,
     );
   }
 
@@ -267,7 +267,7 @@ export class SimpleSearcherSvm {
   async opportunityHandler(opportunity: Opportunity) {
     if (!this.latestChainUpdate[this.chainId]) {
       console.log(
-        `No recent blockhash for chain ${this.chainId}, skipping bid`
+        `No recent blockhash for chain ${this.chainId}, skipping bid`,
       );
       return;
     }
@@ -275,11 +275,11 @@ export class SimpleSearcherSvm {
     try {
       const bidId = await this.client.submitBid(bid);
       console.log(
-        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`
+        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`,
       );
     } catch (error) {
       console.error(
-        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
+        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`,
       );
     }
   }
@@ -291,7 +291,7 @@ export class SimpleSearcherSvm {
   // NOTE: Developers are responsible for implementing custom removal logic specific to their use case.
   async removeOpportunitiesHandler(opportunityDelete: OpportunityDelete) {
     console.log(
-      `Opportunities ${JSON.stringify(opportunityDelete)} don't exist anymore`
+      `Opportunities ${JSON.stringify(opportunityDelete)} don't exist anymore`,
     );
   }
 
@@ -300,7 +300,7 @@ export class SimpleSearcherSvm {
     try {
       await this.client.subscribeChains([this.chainId]);
       console.log(
-        `Subscribed to chain ${this.chainId}. Waiting for opportunities...`
+        `Subscribed to chain ${this.chainId}. Waiting for opportunities...`,
       );
     } catch (error) {
       console.error(error);
@@ -356,7 +356,7 @@ export function makeParser() {
 
 export function getKeypair(
   privateKey: string | undefined,
-  privateKeyJsonFile: string | undefined
+  privateKeyJsonFile: string | undefined,
 ): Keypair {
   if (privateKey) {
     const secretKey = anchor.utils.bytes.bs58.decode(privateKey);
@@ -365,12 +365,12 @@ export function getKeypair(
     if (privateKeyJsonFile) {
       return Keypair.fromSecretKey(
         Uint8Array.from(
-          JSON.parse(fs.readFileSync(privateKeyJsonFile, "utf-8"))
-        )
+          JSON.parse(fs.readFileSync(privateKeyJsonFile, "utf-8")),
+        ),
       );
     } else {
       throw new Error(
-        "Either private-key or private-key-json-file must be provided"
+        "Either private-key or private-key-json-file must be provided",
       );
     }
   }
@@ -385,7 +385,7 @@ async function run() {
     searcherKeyPair,
     argv.endpointSvm,
     argv.bid,
-    argv.apiKey
+    argv.apiKey,
   );
   await simpleSearcher.start();
 }

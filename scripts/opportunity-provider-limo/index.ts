@@ -49,7 +49,7 @@ const prices: Record<string, number> = {};
 
 async function getDecimals(
   connection: Connection,
-  token: Token
+  token: Token,
 ): Promise<number> {
   const index = token.mint.toBase58();
   if (decimals[index] === undefined) {
@@ -82,7 +82,7 @@ async function createOpportunities(
   globalConfig: PublicKey,
   opportunitiesPath: string,
   count: number,
-  markup: number
+  markup: number,
 ) {
   const opportunities = loadOpportunities(opportunitiesPath);
   for (const opportunity of opportunities) {
@@ -101,7 +101,7 @@ async function createOpportunities(
 
       if (opportunity.maxAmountNotional < opportunity.minAmountNotional) {
         throw new Error(
-          `maxAmountNotional ${opportunity.maxAmountNotional} is less than minAmountNotional ${opportunity.minAmountNotional}`
+          `maxAmountNotional ${opportunity.maxAmountNotional} is less than minAmountNotional ${opportunity.minAmountNotional}`,
         );
       }
 
@@ -119,17 +119,17 @@ async function createOpportunities(
       console.log(
         `Input: ${inputToken.symbol}, ${
           amountInput / Math.pow(10, decimalsInput)
-        }`
+        }`,
       );
       console.log(
         `Output: ${outputToken.symbol}, ${
           amountOutput / Math.pow(10, decimalsOutput)
-        }`
+        }`,
       );
 
       const limoClient = new limo.LimoClient(
         new Connection(argv.endpointSvm),
-        globalConfig
+        globalConfig,
       );
 
       const signature = (
@@ -138,7 +138,7 @@ async function createOpportunities(
           inputToken.mint,
           outputToken.mint,
           new Decimal(amountInput.toFixed()),
-          new Decimal(amountOutput.toFixed())
+          new Decimal(amountOutput.toFixed()),
         )
       )[0];
       console.log(`Created opportunity: ${signature}`);
@@ -196,7 +196,7 @@ const argv = yargs(hideBin(process.argv))
 
 async function run() {
   const skExecutor = Keypair.fromSecretKey(
-    anchor.utils.bytes.bs58.decode(argv["sk-payer"])
+    anchor.utils.bytes.bs58.decode(argv["sk-payer"]),
   );
   console.log(`Using payer/creator: ${skExecutor.publicKey.toBase58()}`);
 
@@ -214,7 +214,7 @@ async function run() {
       globalConfig,
       argv.opportunities,
       argv.count,
-      argv.markup
+      argv.markup,
     );
     if (interval === undefined) {
       break;

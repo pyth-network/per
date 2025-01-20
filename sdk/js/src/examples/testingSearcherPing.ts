@@ -9,7 +9,7 @@ class SearcherPinger extends SimpleSearcherSvm {
     searcher: Keypair,
     endpointSvm: string,
     bid: number,
-    public apiKey?: string
+    public apiKey?: string,
   ) {
     super(endpointExpressRelay, chainId, searcher, endpointSvm, bid, apiKey);
   }
@@ -21,7 +21,7 @@ class SearcherPinger extends SimpleSearcherSvm {
   async ping() {
     if (!this.latestChainUpdate[this.chainId]) {
       console.log(
-        `No recent blockhash for chain ${this.chainId}, skipping ping`
+        `No recent blockhash for chain ${this.chainId}, skipping ping`,
       );
       return;
     }
@@ -40,7 +40,7 @@ class SearcherPinger extends SimpleSearcherSvm {
       new anchor.BN(Math.round(Date.now() / 1000 + 60)),
       this.chainId,
       config.relayerSigner,
-      config.feeReceiverRelayer
+      config.feeReceiverRelayer,
     );
     bid.transaction.recentBlockhash =
       this.latestChainUpdate[this.chainId].blockhash;
@@ -72,7 +72,7 @@ async function run() {
     searcherKeyPair,
     argv.endpointSvm,
     argv.bid,
-    argv.apiKey
+    argv.apiKey,
   );
   await simpleSearcher.start();
 }

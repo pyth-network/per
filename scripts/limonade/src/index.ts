@@ -160,7 +160,7 @@ async function run() {
       .filter(
         (account) =>
           lastChange[account.pubkey.toBase58()] === undefined ||
-          lastChange[account.pubkey.toBase58()] < Date.now() - 60 * 1000
+          lastChange[account.pubkey.toBase58()] < Date.now() - 60 * 1000,
       )
       .map((account) => ({
         program: "limo" as const,
@@ -173,10 +173,10 @@ async function run() {
       }))
       .filter(
         (opportunityCreate) =>
-          opportunityCreate.order.state.remainingInputAmount.toNumber() !== 0
+          opportunityCreate.order.state.remainingInputAmount.toNumber() !== 0,
       )
       .filter((opportunityCreate) =>
-        isWithinMarketPriceBand(opportunityCreate.order)
+        isWithinMarketPriceBand(opportunityCreate.order),
       );
 
     console.log("Resubmitting opportunities", payloads.length);
@@ -189,7 +189,7 @@ async function run() {
           } catch (e) {
             handleSubmitError(e);
           }
-        })
+        }),
       );
     }
   };
@@ -213,7 +213,7 @@ async function run() {
     } else {
       const inputAmount = order.state.remainingInputAmount;
       const outputAmount = order.state.expectedOutputAmount.sub(
-        order.state.filledOutputAmount
+        order.state.filledOutputAmount,
       );
 
       const ratio =
@@ -258,7 +258,7 @@ async function run() {
           "Fetched order with address:",
           info.accountId.toBase58(),
           "slot:",
-          context.slot
+          context.slot,
         );
 
         const payload: OpportunityCreate = {
@@ -280,7 +280,7 @@ async function run() {
     {
       commitment: "processed",
       filters,
-    }
+    },
   );
 
   connection.onSlotChange(() => {
@@ -303,7 +303,7 @@ async function run() {
         parsed: true,
         ignoreInvalidPriceIds: true,
         allowUnordered: true,
-      }
+      },
     );
 
     eventSource.onerror = (event: Event) => {
@@ -321,7 +321,7 @@ async function run() {
         if (data.parsed) {
           for (const parsedUpdate of data.parsed) {
             const priceConfig = priceConfigs.find(
-              (priceConfig) => priceConfig.pythFeedId === parsedUpdate.id
+              (priceConfig) => priceConfig.pythFeedId === parsedUpdate.id,
             );
             if (priceConfig) {
               const currentPrice = priceStore[priceConfig.mint.toString()];
@@ -353,7 +353,7 @@ async function run() {
       // Server expires opportunities after 2 minutes
       // We should resubmit them before server expire them to avoid creating a new row in the database
       await new Promise((resolve) =>
-        setTimeout(resolve, argv.resubmissionInterval)
+        setTimeout(resolve, argv.resubmissionInterval),
       );
     }
   };

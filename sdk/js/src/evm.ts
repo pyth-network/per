@@ -24,7 +24,7 @@ function getPermittedTokens(
   tokens: TokenAmount[],
   bidAmount: bigint,
   callValue: bigint,
-  weth: Address
+  weth: Address,
 ): TokenPermissions[] {
   const permitted: TokenPermissions[] = tokens.map(({ token, amount }) => ({
     token,
@@ -46,7 +46,7 @@ function getOpportunityConfig(chainId: string) {
   const opportunityAdapterConfig = OPPORTUNITY_ADAPTER_CONFIGS[chainId];
   if (!opportunityAdapterConfig) {
     throw new ClientError(
-      `Opportunity adapter config not found for chain id: ${chainId}`
+      `Opportunity adapter config not found for chain id: ${chainId}`,
     );
   }
   return opportunityAdapterConfig;
@@ -55,7 +55,7 @@ function getOpportunityConfig(chainId: string) {
 export async function signBid(
   opportunity: OpportunityEvm,
   bidParams: BidParams,
-  privateKey: Hex
+  privateKey: Hex,
 ): Promise<Bid> {
   const opportunityAdapterConfig = getOpportunityConfig(opportunity.chainId);
   const executor = privateKeyToAccount(privateKey).address;
@@ -63,7 +63,7 @@ export async function signBid(
     opportunity.sellTokens,
     bidParams.amount,
     opportunity.targetCallValue,
-    checkAddress(opportunityAdapterConfig.weth)
+    checkAddress(opportunityAdapterConfig.weth),
   );
   const signature = await getSignature(opportunity, bidParams, privateKey);
 
@@ -72,7 +72,7 @@ export async function signBid(
     permitted,
     executor,
     bidParams,
-    signature
+    signature,
   );
 
   return {
@@ -99,7 +99,7 @@ function makeAdapterCalldata(
   permitted: TokenPermissions[],
   executor: Address,
   bidParams: BidParams,
-  signature: Hex
+  signature: Hex,
 ): Hex {
   return encodeFunctionData({
     abi: [executeOpportunityAbi],
@@ -123,7 +123,7 @@ function makeAdapterCalldata(
 export async function getSignature(
   opportunity: OpportunityEvm,
   bidParams: BidParams,
-  privateKey: Hex
+  privateKey: Hex,
 ): Promise<`0x${string}`> {
   const types = {
     PermitBatchWitnessTransferFrom: [
@@ -158,7 +158,7 @@ export async function getSignature(
     opportunity.sellTokens,
     bidParams.amount,
     opportunity.targetCallValue,
-    checkAddress(opportunityAdapterConfig.weth)
+    checkAddress(opportunityAdapterConfig.weth),
   );
   const create2Address = getContractAddress({
     bytecodeHash:
@@ -197,7 +197,7 @@ export async function getSignature(
 export async function signOpportunityBid(
   opportunity: OpportunityEvm,
   bidParams: BidParams,
-  privateKey: Hex
+  privateKey: Hex,
 ): Promise<OpportunityBid> {
   const account = privateKeyToAccount(privateKey);
   const signature = await getSignature(opportunity, bidParams, privateKey);

@@ -39,7 +39,7 @@ class ProtocolMonitor {
     private chainId: string,
     private wethContract: Address,
     private vaultContract: Address,
-    private onlyRecent: number | undefined
+    private onlyRecent: number | undefined,
   ) {
     this.client = new Client({ baseUrl: expressRelayEndpoint });
     this.priceConnection = new PriceServiceConnection(pythEndpoint, {
@@ -55,7 +55,7 @@ class ProtocolMonitor {
     if (!this.subscribedIds.has(tokenId)) {
       await this.priceConnection.subscribePriceFeedUpdates(
         [tokenId],
-        this.updatePrice.bind(this)
+        this.updatePrice.bind(this),
       );
       this.subscribedIds.add(tokenId);
     }
@@ -110,7 +110,7 @@ class ProtocolMonitor {
       this.prices[vault.tokenIdDebt].getVAA()!,
     ];
     const vaas: Hex[] = priceUpdates.map(
-      (vaa): Hex => `0x${Buffer.from(vaa, "base64").toString("hex")}`
+      (vaa): Hex => `0x${Buffer.from(vaa, "base64").toString("hex")}`,
     );
     const calldata = encodeFunctionData({
       abi,
@@ -155,10 +155,10 @@ class ProtocolMonitor {
       return false;
     }
     const priceCollateral = BigInt(
-      this.prices[vault.tokenIdCollateral].getPriceUnchecked().price
+      this.prices[vault.tokenIdCollateral].getPriceUnchecked().price,
     );
     const priceDebt = BigInt(
-      this.prices[vault.tokenIdDebt].getPriceUnchecked().price
+      this.prices[vault.tokenIdDebt].getPriceUnchecked().price,
     );
     const valueCollateral = priceCollateral * vault.amountCollateral;
     const valueDebt = priceDebt * vault.amountDebt;
@@ -173,14 +173,14 @@ class ProtocolMonitor {
   private createPermission(vaultId: bigint) {
     const permissionPayload = encodeAbiParameters(
       [{ type: "uint256", name: "vaultId" }],
-      [vaultId]
+      [vaultId],
     );
     const permission = encodeAbiParameters(
       [
         { type: "address", name: "contract" },
         { type: "bytes", name: "vaultId" },
       ],
-      [this.vaultContract, permissionPayload]
+      [this.vaultContract, permissionPayload],
     );
     return permission;
   }
@@ -229,7 +229,7 @@ async function run() {
     argv.chainId,
     checkAddress(argv.wethContract),
     checkAddress(argv.vaultContract),
-    argv.onlyRecent
+    argv.onlyRecent,
   );
   await monitor.start();
 }
