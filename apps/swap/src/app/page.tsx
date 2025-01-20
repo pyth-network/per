@@ -8,7 +8,7 @@ import {
   WalletMultiButton,
 } from "@/components/WalletButton";
 import { PublicKey } from "@solana/web3.js";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useExpressRelayClient } from "@/components/ExpressRelayProvider";
 
 const USDC = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
@@ -19,23 +19,34 @@ export default function Home() {
   const { connection } = useConnection();
   const expressRelayClient = useExpressRelayClient();
 
+  const [log, setLog] = useState<string[]>([]);
+
   const handleClick = useCallback(() => {
     const inner = async () => {
       if (!publicKey || !signTransaction) return;
-      console.log("Getting quote...");
-      const quote = await expressRelayClient.getQuote({
-        chainId: "development-solana",
-        inputTokenMint: USDC,
-        outputTokenMint: USDT,
-        router: publicKey,
-        userWallet: publicKey,
-        specifiedTokenAmount: {
-          amount: Math.floor(Math.random() * 100000), // random to avoid same opportunity submitted recently error
-          side: "input",
-        },
-      });
-      const signedTransaction = await signTransaction(quote.transaction);
-      connection.sendTransaction(signedTransaction);
+      setLog(["Getting quote..."]);
+      try {
+        // random to avoid same opportunity submitted recently error
+        const amount = 1000000 + Math.floor(Math.random() * 1000);
+        setLog((log) => [...log, `Selling ${amount / 1e6} USDT for USDC`]);
+        const quote = await expressRelayClient.getQuote({
+          chainId: "development-solana",
+          inputTokenMint: USDC,
+          outputTokenMint: USDT,
+          router: publicKey,
+          userWallet: publicKey,
+          specifiedTokenAmount: {
+            amount: amount,
+            side: "input",
+          },
+        });
+        setLog((log) => [...log, JSON.stringify(quote, null, 2)]);
+        const signedTransaction = await signTransaction(quote.transaction);
+        connection.sendTransaction(signedTransaction);
+      } catch (error) {
+        setLog((log) => [...log, error.message]);
+        return;
+      }
     };
     inner().catch((error) => {
       console.error(error);
@@ -45,12 +56,25 @@ export default function Home() {
   const canSwap = publicKey && signTransaction;
   return (
     <main>
-      <WalletMultiButton />
-      <WalletDisconnectButton />
-      <p>Public Key: {publicKey?.toBase58()}</p>
-      {canSwap && (
-        <Button onClick={handleClick}>Click me to sell 1 USDT for USDC</Button>
-      )}
+      <div className="m-auto w-2/4">
+        <h1>Express Relay Swap testing UI</h1>
+        <div className="my-3">
+          <WalletMultiButton />
+        </div>
+        <WalletDisconnectButton />
+        <p>Public Key: </p>
+        <pre>{publicKey?.toBase58()}</pre>
+        {canSwap && (
+          <Button onClick={handleClick}>
+            Click me to sell 1 USDT for USDC
+          </Button>
+        )}
+        <pre>
+          {log.map((line: string, i: number) => (
+            <div key={i}>{line}</div>
+          ))}
+        </pre>
+      </div>
     </main>
   );
 }
