@@ -4,7 +4,6 @@ import createClient, {
 } from "openapi-fetch";
 import { Address, Hex, isAddress, isHex } from "viem";
 import WebSocket from "isomorphic-ws";
-import base58 from "bs58";
 import {
   Bid,
   BidId,
@@ -37,6 +36,8 @@ import { limoId, Order } from "@kamino-finance/limo-sdk";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 import * as evm from "./evm";
 import * as svm from "./svm";
+import { VersionedTransaction } from "@solana/web3.js";
+import { base64 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 
 export * from "./types";
 export * from "./const";
@@ -709,7 +710,9 @@ export class Client {
         token: new PublicKey(quoteResponse.output_token.token),
         amount: BigInt(quoteResponse.output_token.amount),
       },
-      transaction: Transaction.from(base58.decode(quoteResponse.transaction)),
+      transaction: VersionedTransaction.deserialize(
+        base64.decode(quoteResponse.transaction)
+      ),
     };
   }
 
