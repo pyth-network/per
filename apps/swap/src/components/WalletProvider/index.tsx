@@ -34,7 +34,7 @@ export const WalletProvider = ({ endpoint, children }: Props) => {
       new SolflareWalletAdapter(),
       new TorusWalletAdapter(),
     ],
-    []
+    [],
   );
 
   return (

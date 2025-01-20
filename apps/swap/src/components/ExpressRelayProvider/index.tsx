@@ -13,7 +13,7 @@ const ExpressRelayClientContext = createContext<Client | undefined>(undefined);
 export const useExpressRelayClientContext = (endpoint: string) => {
   const expressRelayClient = useMemo(
     () => new Client({ baseUrl: endpoint }),
-    [endpoint]
+    [endpoint],
   );
   return expressRelayClient;
 };
@@ -22,7 +22,7 @@ export const useExpressRelayClient = () => {
   const expressRelayClient = useContext(ExpressRelayClientContext);
   if (expressRelayClient === undefined) {
     throw new Error(
-      "This component must be wrapped in an ExpressRelayProvider"
+      "This component must be wrapped in an ExpressRelayProvider",
     );
   }
   return expressRelayClient;
