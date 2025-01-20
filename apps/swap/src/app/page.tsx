@@ -30,7 +30,7 @@ export default function Home() {
         router: publicKey,
         userWallet: publicKey,
         specifiedTokenAmount: {
-          amount: 1000000,
+          amount: Math.floor(Math.random() * 100000), // random to avoid same opportunity submitted recently error
           side: "input",
         },
       });
@@ -42,12 +42,13 @@ export default function Home() {
     });
   }, [expressRelayClient, publicKey, signTransaction, connection]);
 
+  const canSwap = publicKey && signTransaction;
   return (
     <main>
       <WalletMultiButton />
       <WalletDisconnectButton />
       <p>Public Key: {publicKey?.toBase58()}</p>
-      {publicKey && (
+      {canSwap && (
         <Button onClick={handleClick}>Click me to sell 1 USDT for USDC</Button>
       )}
     </main>
