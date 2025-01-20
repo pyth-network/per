@@ -53,7 +53,7 @@ export class DexRouter {
     jupiterApiEndpoint: string,
     jupiterApiKey?: string,
     baseLookupTableAddresses?: PublicKey[],
-    expressRelayServerApiKey?: string
+    expressRelayServerApiKey?: string,
   ) {
     this.client = new Client(
       {
@@ -63,7 +63,7 @@ export class DexRouter {
       undefined,
       this.opportunityHandler.bind(this),
       this.bidStatusHandler.bind(this),
-      this.svmChainUpdateHandler.bind(this)
+      this.svmChainUpdateHandler.bind(this),
     );
     this.executor = executor;
     this.chainId = chainId;
@@ -74,8 +74,8 @@ export class DexRouter {
           this.executor.publicKey,
           maxAccounts,
           jupiterApiEndpoint,
-          jupiterApiKey
-        )
+          jupiterApiKey,
+        ),
     );
     this.baseLookupTableAddresses = baseLookupTableAddresses ?? [];
   }
@@ -90,7 +90,7 @@ export class DexRouter {
       }
     }
     console.log(
-      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`
+      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`,
     );
   }
 
@@ -112,11 +112,11 @@ export class DexRouter {
         throw new Error("Empty response in websocket for bid submission");
       }
       console.log(
-        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${result.id}`
+        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${result.id}`,
       );
     } catch (error) {
       console.error(
-        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
+        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`,
       );
     }
   }
@@ -138,13 +138,13 @@ export class DexRouter {
     const routeBest = await this.getBestRoute(order);
 
     const remainingOutput = order.state.expectedOutputAmount.sub(
-      order.state.filledOutputAmount
+      order.state.filledOutputAmount,
     );
     if (routeBest.output.amountOut < remainingOutput) {
       throw new Error(
         `Route output amount is less than remaining output amount: ${routeBest.output.amountOut.toString(
-          10
-        )} < ${remainingOutput.toString(10)}`
+          10,
+        )} < ${remainingOutput.toString(10)}`,
       );
     }
     return {
@@ -161,26 +161,26 @@ export class DexRouter {
    */
   private async createRouterTransaction(
     route: RouterOutput,
-    order: OrderStateAndAddress
+    order: OrderStateAndAddress,
   ): Promise<VersionedTransaction> {
     const ixsRouter = route.ixsRouter;
 
     const clientLimo = new limo.LimoClient(
       this.connectionSvm,
-      order.state.globalConfig
+      order.state.globalConfig,
     );
     const ixsFlashTakeOrder = clientLimo.flashTakeOrderIxs(
       this.executor.publicKey,
       order,
       order.state.remainingInputAmount,
       route.amountOut,
-      SVM_CONSTANTS[this.chainId].expressRelayProgram
+      SVM_CONSTANTS[this.chainId].expressRelayProgram,
     );
 
     const ixSubmitBid = await this.formSubmitBidInstruction(
       order.address,
       order.state.globalConfig,
-      clientLimo.getProgramID()
+      clientLimo.getProgramID(),
     );
 
     const tx = await this.formTransaction(
@@ -192,7 +192,7 @@ export class DexRouter {
         ixsFlashTakeOrder.endFlashIx,
         ...ixsFlashTakeOrder.closeWsolAtaIxs,
       ],
-      route.lookupTableAddresses ?? []
+      route.lookupTableAddresses ?? [],
     );
     tx.sign([this.executor]);
     if (tx.serialize().length > MAX_TX_SIZE) {
@@ -207,7 +207,7 @@ export class DexRouter {
    * @returns The best route and the transaction that fulfills the order
    */
   private async getBestRoute(
-    order: OrderStateAndAddress
+    order: OrderStateAndAddress,
   ): Promise<RouterOutputAndTx> {
     const routerInfos = (
       await Promise.all(
@@ -216,17 +216,17 @@ export class DexRouter {
             const routerOutput = await router.route(
               order.state.inputMint,
               order.state.outputMint,
-              order.state.remainingInputAmount
+              order.state.remainingInputAmount,
             );
             const routerTx = await this.createRouterTransaction(
               routerOutput,
-              order
+              order,
             );
             return { output: routerOutput, tx: routerTx };
           } catch (error) {
             console.error(`Failed to route order: ${error}`);
           }
-        })
+        }),
       )
     ).filter((routerInfo) => routerInfo !== undefined);
     if (routerInfos.length === 0) {
@@ -249,14 +249,14 @@ export class DexRouter {
   private async formSubmitBidInstruction(
     permission: PublicKey,
     globalConfig: PublicKey,
-    limoProgamId: PublicKey
+    limoProgamId: PublicKey,
   ): Promise<TransactionInstruction> {
     const router = getPdaAuthority(limoProgamId, globalConfig);
     const bidAmount = new anchor.BN(0);
     if (!this.expressRelayConfig) {
       this.expressRelayConfig = await this.client.getExpressRelaySvmConfig(
         this.chainId,
-        this.connectionSvm
+        this.connectionSvm,
       );
     }
 
@@ -268,7 +268,7 @@ export class DexRouter {
       new anchor.BN(Math.round(Date.now() / 1000 + MINUTE_IN_SECS)),
       this.chainId,
       this.expressRelayConfig.relayerSigner,
-      this.expressRelayConfig.feeReceiverRelayer
+      this.expressRelayConfig.feeReceiverRelayer,
     );
   }
 
@@ -280,13 +280,13 @@ export class DexRouter {
    */
   private async formTransaction(
     txInstructions: TransactionInstruction[],
-    routerLookupTableAddresses: PublicKey[]
+    routerLookupTableAddresses: PublicKey[],
   ): Promise<VersionedTransaction> {
     let recentBlockhash;
     let feeInstructions: TransactionInstruction[];
     if (!this.latestChainUpdate[this.chainId]) {
       console.log(
-        `No recent update for chain ${this.chainId}, getting blockhash manually`
+        `No recent update for chain ${this.chainId}, getting blockhash manually`,
       );
       recentBlockhash = (
         await this.connectionSvm.getLatestBlockhash("confirmed")
@@ -312,11 +312,10 @@ export class DexRouter {
       ...this.baseLookupTableAddresses,
       ...routerLookupTableAddresses,
     ];
-    const lookupTableAccounts = await this.getLookupTableAccountsCached(
-      lookupTableAddresses
-    );
+    const lookupTableAccounts =
+      await this.getLookupTableAccountsCached(lookupTableAddresses);
     return new VersionedTransaction(
-      txMsg.compileToV0Message(lookupTableAccounts)
+      txMsg.compileToV0Message(lookupTableAccounts),
     );
   }
 
@@ -326,19 +325,18 @@ export class DexRouter {
    * @returns The lookup table accounts used in constructing the versioned transaction
    */
   private async getLookupTableAccountsCached(
-    keys: PublicKey[]
+    keys: PublicKey[],
   ): Promise<AddressLookupTableAccount[]> {
     const missingKeys = keys.filter(
-      (key) => this.lookupTableAccounts[key.toBase58()] === undefined
+      (key) => this.lookupTableAccounts[key.toBase58()] === undefined,
     );
 
     const accountsToReturn = keys
       .filter((key) => !missingKeys.includes(key))
       .map((key) => this.lookupTableAccounts[key.toBase58()]);
     if (missingKeys.length > 0) {
-      const missingAccounts = await this.connectionSvm.getMultipleAccountsInfo(
-        missingKeys
-      );
+      const missingAccounts =
+        await this.connectionSvm.getMultipleAccountsInfo(missingKeys);
       missingKeys.forEach((key, index) => {
         if (
           missingAccounts[index] !== null &&
@@ -348,13 +346,13 @@ export class DexRouter {
             new AddressLookupTableAccount({
               key: key,
               state: AddressLookupTableAccount.deserialize(
-                missingAccounts[index].data
+                missingAccounts[index].data,
               ),
             });
           accountsToReturn.push(this.lookupTableAccounts[key.toBase58()]);
         } else {
           console.warn(
-            `Missing lookup table account for key ${key.toBase58()}`
+            `Missing lookup table account for key ${key.toBase58()}`,
           );
         }
       });
@@ -367,7 +365,7 @@ export class DexRouter {
     try {
       await this.client.subscribeChains([this.chainId]);
       console.log(
-        `Subscribed to chains ${this.chainId}. Waiting for opportunities...`
+        `Subscribed to chains ${this.chainId}. Waiting for opportunities...`,
       );
     } catch (error) {
       console.error(error);
@@ -439,12 +437,12 @@ async function run() {
     argv["chain-id"],
     connection,
     argv["options-max-accounts-jupiter"].map((maxAccounts) =>
-      Number(maxAccounts)
+      Number(maxAccounts),
     ),
     argv["jupiter-api-endpoint"],
     argv["jupiter-api-key"],
     argv["lookup-table-addresses"]?.map((address) => new PublicKey(address)),
-    argv["express-relay-server-api-key"]
+    argv["express-relay-server-api-key"],
   );
   await dexRouter.start();
 }

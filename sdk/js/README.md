@@ -54,7 +54,7 @@ async function opportunityCallback(opportunity: Opportunity) {
   const opportunityBid = await client.signOpportunityBid(
     opportunity,
     bidParams,
-    privateKey // searcher private key with appropriate permissions and assets
+    privateKey, // searcher private key with appropriate permissions and assets
   );
   await client.submitOpportunityBid(opportunityBid);
 }
@@ -62,7 +62,7 @@ async function opportunityCallback(opportunity: Opportunity) {
 const client = new Client(
   { baseUrl: "https://per-staging.dourolabs.app/" },
   bidStatusCallback,
-  opportunityCallback
+  opportunityCallback,
 );
 
 await client.subscribeChains([chain_id]); // chain id you want to subscribe to

@@ -26,12 +26,12 @@ export const OPPORTUNITY_ADAPTER_CONFIGS: Record<
 export const SVM_CONSTANTS: Record<string, SvmConstantsConfig> = {
   "development-solana": {
     expressRelayProgram: new PublicKey(
-      "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
+      "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou",
     ),
   },
   solana: {
     expressRelayProgram: new PublicKey(
-      "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
+      "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou",
     ),
   },
 };

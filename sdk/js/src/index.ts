@@ -109,19 +109,19 @@ export class Client {
   > = {};
   private pingTimeout: NodeJS.Timeout | undefined;
   private websocketOpportunityCallback?: (
-    opportunity: Opportunity
+    opportunity: Opportunity,
   ) => Promise<void>;
 
   private websocketBidStatusCallback?: (
-    statusUpdate: BidStatusUpdate
+    statusUpdate: BidStatusUpdate,
   ) => Promise<void>;
 
   private websocketSvmChainUpdateCallback?: (
-    update: SvmChainUpdate
+    update: SvmChainUpdate,
   ) => Promise<void>;
 
   private websocketRemoveOpportunitiesCallback?: (
-    opportunityDelete: OpportunityDelete
+    opportunityDelete: OpportunityDelete,
   ) => Promise<void>;
 
   private websocketCloseCallback: () => Promise<void>;
@@ -141,9 +141,9 @@ export class Client {
     bidStatusCallback?: (statusUpdate: BidStatusUpdate) => Promise<void>,
     svmChainUpdateCallback?: (update: SvmChainUpdate) => Promise<void>,
     removeOpportunitiesCallback?: (
-      opportunityDelete: OpportunityDelete
+      opportunityDelete: OpportunityDelete,
     ) => Promise<void>,
-    websocketCloseCallback?: () => Promise<void>
+    websocketCloseCallback?: () => Promise<void>,
   ) {
     this.clientOptions = clientOptions;
     this.clientOptions.headers = {
@@ -176,12 +176,12 @@ export class Client {
       const message:
         | components["schemas"]["ServerResultResponse"]
         | components["schemas"]["ServerUpdateResponse"] = JSON.parse(
-        data.toString()
+        data.toString(),
       );
       if ("type" in message && message.type === "new_opportunity") {
         if (typeof this.websocketOpportunityCallback === "function") {
           const convertedOpportunity = this.convertOpportunity(
-            message.opportunity
+            message.opportunity,
           );
           if (convertedOpportunity !== undefined) {
             await this.websocketOpportunityCallback(convertedOpportunity);
@@ -200,7 +200,7 @@ export class Client {
             chainId: message.update.chain_id,
             blockhash: message.update.blockhash,
             latestPrioritizationFee: BigInt(
-              message.update.latest_prioritization_fee
+              message.update.latest_prioritization_fee,
             ),
           });
         }
@@ -212,7 +212,7 @@ export class Client {
                   chainType: ChainType.EVM,
                   chainId: message.opportunity_delete.chain_id,
                   permissionKey: checkHex(
-                    message.opportunity_delete.permission_key
+                    message.opportunity_delete.permission_key,
                   ),
                 }
               : {
@@ -220,7 +220,7 @@ export class Client {
                   chainId: message.opportunity_delete.chain_id,
                   program: message.opportunity_delete.program,
                   permissionAccount: new PublicKey(
-                    message.opportunity_delete.permission_account
+                    message.opportunity_delete.permission_account,
                   ),
                   router: new PublicKey(message.opportunity_delete.router),
                 };
@@ -250,8 +250,8 @@ export class Client {
       this.pingTimeout = setTimeout(() => {
         console.error(
           ClientError.newWebsocketError(
-            "Received no ping. Terminating connection."
-          )
+            "Received no ping. Terminating connection.",
+          ),
         );
         this.websocket?.terminate();
       }, this.wsOptions.ping_interval);
@@ -298,7 +298,7 @@ export class Client {
   }
 
   async requestViaWebsocket(
-    msg: components["schemas"]["ClientMessage"]
+    msg: components["schemas"]["ClientMessage"],
   ): Promise<components["schemas"]["APIResponse"] | null> {
     const msg_with_id: components["schemas"]["ClientRequest"] = {
       ...msg,
@@ -325,8 +325,8 @@ export class Client {
         } else {
           reject(
             ClientError.newWebsocketError(
-              "Websocket connection closing or already closed"
-            )
+              "Websocket connection closing or already closed",
+            ),
           );
         }
       }
@@ -347,7 +347,7 @@ export class Client {
   async getOpportunities(
     chainId?: string,
     fromTime?: Date,
-    limit?: number
+    limit?: number,
   ): Promise<Opportunity[]> {
     const client = createClient<paths>(this.clientOptions);
     const opportunities = await client.GET("/v1/opportunities", {
@@ -376,19 +376,19 @@ export class Client {
     let body;
     if ("order" in opportunity) {
       const encoded_order = Buffer.alloc(
-        Order.discriminator.length + Order.layout.span
+        Order.discriminator.length + Order.layout.span,
       );
       Order.discriminator.copy(encoded_order);
       Order.layout.encode(
         opportunity.order.state,
         encoded_order,
-        Order.discriminator.length
+        Order.discriminator.length,
       );
       const remainingOutputAmount = anchor.BN.max(
         opportunity.order.state.expectedOutputAmount.sub(
-          opportunity.order.state.filledOutputAmount
+          opportunity.order.state.filledOutputAmount,
         ),
-        new anchor.BN(0)
+        new anchor.BN(0),
       );
       body = {
         chain_id: opportunity.chainId,
@@ -413,7 +413,7 @@ export class Client {
         permission_account: opportunity.order.address.toBase58(),
         router: getPdaAuthority(
           limoId,
-          opportunity.order.state.globalConfig
+          opportunity.order.state.globalConfig,
         ).toBase58(),
       };
     } else {
@@ -440,7 +440,7 @@ export class Client {
     if (response.error) {
       throw ClientError.newHttpError(
         JSON.stringify(response.error),
-        response.response.status
+        response.response.status,
       );
     }
   }
@@ -473,7 +473,7 @@ export class Client {
     if (response.error) {
       throw ClientError.newHttpError(
         JSON.stringify(response.error),
-        response.response.status
+        response.response.status,
       );
     }
   }
@@ -502,7 +502,7 @@ export class Client {
     if (response.error) {
       throw ClientError.newHttpError(
         JSON.stringify(response.error),
-        response.response.status
+        response.response.status,
       );
     }
     return this.convertQuoteResponse(response.data);
@@ -526,7 +526,7 @@ export class Client {
 
       if (result === null) {
         throw ClientError.newWebsocketError(
-          "Empty response in websocket for bid submission"
+          "Empty response in websocket for bid submission",
         );
       }
 
@@ -539,7 +539,7 @@ export class Client {
       if (response.error) {
         throw ClientError.newHttpError(
           JSON.stringify(response.error),
-          response.response.status
+          response.response.status,
         );
       } else if (response.data === undefined) {
         throw ClientError.newHttpError("No data returned");
@@ -562,7 +562,7 @@ export class Client {
     if (response.error) {
       throw ClientError.newHttpError(
         JSON.stringify(response.error),
-        response.response.status
+        response.response.status,
       );
     } else if (response.data === undefined) {
       throw ClientError.newHttpError("No data returned");
@@ -578,11 +578,11 @@ export class Client {
    * @returns Opportunity in the converted client format
    */
   public convertOpportunity(
-    opportunity: components["schemas"]["Opportunity"]
+    opportunity: components["schemas"]["Opportunity"],
   ): Opportunity | undefined {
     if (opportunity.version !== "v1") {
       console.warn(
-        `Can not handle opportunity version: ${opportunity.version}. Please upgrade your client.`
+        `Can not handle opportunity version: ${opportunity.version}. Please upgrade your client.`,
       );
       return undefined;
     }
@@ -621,10 +621,10 @@ export class Client {
           },
           outputToken: new PublicKey(opportunity.tokens.output_token),
           inputTokenProgram: new PublicKey(
-            opportunity.tokens.input_token_program
+            opportunity.tokens.input_token_program,
           ),
           outputTokenProgram: new PublicKey(
-            opportunity.tokens.output_token_program
+            opportunity.tokens.output_token_program,
           ),
         } as const;
       } else {
@@ -636,10 +636,10 @@ export class Client {
             token: new PublicKey(opportunity.tokens.output_token.token),
           },
           inputTokenProgram: new PublicKey(
-            opportunity.tokens.input_token_program
+            opportunity.tokens.input_token_program,
           ),
           outputTokenProgram: new PublicKey(
-            opportunity.tokens.output_token_program
+            opportunity.tokens.output_token_program,
           ),
         } as const;
       }
@@ -696,7 +696,7 @@ export class Client {
    * @returns Quote response in the converted client format
    */
   public convertQuoteResponse(
-    quoteResponse: components["schemas"]["QuoteSvm"]
+    quoteResponse: components["schemas"]["QuoteSvm"],
   ): QuoteResponse {
     return {
       chainId: quoteResponse.chain_id,
@@ -725,7 +725,7 @@ export class Client {
   async signOpportunityBid(
     opportunity: OpportunityEvm,
     bidParams: BidParams,
-    privateKey: Hex
+    privateKey: Hex,
   ): Promise<OpportunityBid> {
     return evm.signOpportunityBid(opportunity, bidParams, privateKey);
   }
@@ -740,7 +740,7 @@ export class Client {
   async signBid(
     opportunity: OpportunityEvm,
     bidParams: BidParams,
-    privateKey: Hex
+    privateKey: Hex,
   ): Promise<Bid> {
     return evm.signBid(opportunity, bidParams, privateKey);
   }
@@ -755,7 +755,7 @@ export class Client {
   async getSignature(
     opportunity: OpportunityEvm,
     bidParams: BidParams,
-    privateKey: Hex
+    privateKey: Hex,
   ): Promise<`0x${string}`> {
     return evm.getSignature(opportunity, bidParams, privateKey);
   }
@@ -769,7 +769,7 @@ export class Client {
    */
   async getExpressRelaySvmConfig(
     chainId: string,
-    connection: Connection
+    connection: Connection,
   ): Promise<ExpressRelaySvmConfig> {
     return svm.getExpressRelaySvmConfig(chainId, connection);
   }
@@ -794,7 +794,7 @@ export class Client {
     deadline: anchor.BN,
     chainId: string,
     relayerSigner: PublicKey,
-    feeReceiverRelayer: PublicKey
+    feeReceiverRelayer: PublicKey,
   ): Promise<TransactionInstruction> {
     return svm.constructSubmitBidInstruction(
       searcher,
@@ -804,7 +804,7 @@ export class Client {
       deadline,
       chainId,
       relayerSigner,
-      feeReceiverRelayer
+      feeReceiverRelayer,
     );
   }
 
@@ -830,7 +830,7 @@ export class Client {
     deadline: anchor.BN,
     chainId: string,
     relayerSigner: PublicKey,
-    feeReceiverRelayer: PublicKey
+    feeReceiverRelayer: PublicKey,
   ): Promise<BidSvmOnChain> {
     return svm.constructSvmBid(
       tx,
@@ -841,7 +841,7 @@ export class Client {
       deadline,
       chainId,
       relayerSigner,
-      feeReceiverRelayer
+      feeReceiverRelayer,
     );
   }
 
@@ -862,7 +862,7 @@ export class Client {
     bidAmount: anchor.BN,
     deadline: anchor.BN,
     chainId: string,
-    relayerSigner: PublicKey
+    relayerSigner: PublicKey,
   ): Promise<BidSvmSwap> {
     return svm.constructSwapBid(
       tx,
@@ -871,7 +871,7 @@ export class Client {
       bidAmount,
       deadline,
       chainId,
-      relayerSigner
+      relayerSigner,
     );
   }
 }

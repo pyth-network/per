@@ -14,7 +14,7 @@ class SimpleSearcherEvm {
     public endpoint: string,
     public chainId: string,
     public privateKey: string,
-    public apiKey?: string
+    public apiKey?: string,
   ) {
     this.client = new Client(
       {
@@ -26,7 +26,7 @@ class SimpleSearcherEvm {
       this.bidStatusHandler.bind(this),
       undefined,
       undefined,
-      this.websocketCloseHandler.bind(this)
+      this.websocketCloseHandler.bind(this),
     );
   }
 
@@ -49,7 +49,7 @@ class SimpleSearcherEvm {
       }
     }
     console.log(
-      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`
+      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`,
     );
   }
 
@@ -69,16 +69,16 @@ class SimpleSearcherEvm {
     const bid = await this.client.signBid(
       opportunity,
       bidParams,
-      checkHex(argv.privateKey)
+      checkHex(argv.privateKey),
     );
     try {
       const bidId = await this.client.submitBid(bid);
       console.log(
-        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`
+        `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`,
       );
     } catch (error) {
       console.error(
-        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`
+        `Failed to bid on opportunity ${opportunity.opportunityId}: ${error}`,
       );
     }
   }
@@ -87,7 +87,7 @@ class SimpleSearcherEvm {
     try {
       await this.client.subscribeChains([argv.chainId]);
       console.log(
-        `Subscribed to chain ${argv.chainId}. Waiting for opportunities...`
+        `Subscribed to chain ${argv.chainId}. Waiting for opportunities...`,
       );
     } catch (error) {
       console.error(error);
@@ -139,11 +139,11 @@ async function run() {
     argv.endpoint,
     argv.chainId,
     argv.privateKey,
-    argv.apiKey
+    argv.apiKey,
   );
   if (OPPORTUNITY_ADAPTER_CONFIGS[argv.chainId] === undefined) {
     throw new Error(
-      `Opportunity adapter config not found for chain ${argv.chainId}`
+      `Opportunity adapter config not found for chain ${argv.chainId}`,
     );
   }
   await searcher.start();

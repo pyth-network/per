@@ -86,7 +86,7 @@ async function getPrice(token: Token): Promise<number> {
 async function getBuyAmount(
   config: Config,
   opportunity: Opportunity,
-  threshold: number = 0.9
+  threshold: number = 0.9,
 ): Promise<number> {
   if (opportunity.buyAmount) {
     return opportunity.buyAmount;
@@ -103,7 +103,7 @@ async function getBuyAmount(
 async function getDecimalParsed(
   config: Config,
   token: Token,
-  amount: number
+  amount: number,
 ): Promise<bigint> {
   const decimals = await getDecimals(config, token);
   return BigInt(Math.floor(amount * 10 ** decimals));
@@ -114,7 +114,7 @@ async function signOpportunity(
   config: Config,
   opportunity: Opportunity,
   nonce: number,
-  deadline: number
+  deadline: number,
 ) {
   const types = {
     PermitBatchWitnessTransferFrom: [
@@ -146,7 +146,7 @@ async function signOpportunity(
         amount: await getDecimalParsed(
           config,
           opportunity.sellToken,
-          opportunity.sellAmount
+          opportunity.sellAmount,
         ),
       },
     ],
@@ -160,7 +160,7 @@ async function signOpportunity(
           amount: await getDecimalParsed(
             config,
             opportunity.buyToken,
-            buyAmount
+            buyAmount,
           ),
         },
       ],
@@ -186,7 +186,7 @@ async function getCallData(
   opportunity: Opportunity,
   nonce: number,
   deadline: number,
-  signature: `0x${string}`
+  signature: `0x${string}`,
 ) {
   const buyAmount = await getBuyAmount(config, opportunity);
   return encodeFunctionData({
@@ -201,7 +201,7 @@ async function getCallData(
               amount: await getDecimalParsed(
                 config,
                 opportunity.sellToken,
-                opportunity.sellAmount
+                opportunity.sellAmount,
               ),
             },
           ],
@@ -215,7 +215,7 @@ async function getCallData(
               amount: await getDecimalParsed(
                 config,
                 opportunity.buyToken,
-                buyAmount
+                buyAmount,
               ),
             },
           ],
@@ -230,7 +230,7 @@ async function getCallData(
 async function submitOpportunity(
   account: PrivateKeyAccount,
   config: Config,
-  opportunity: Opportunity
+  opportunity: Opportunity,
 ) {
   const nonce = Math.floor(Math.random() * 2 ** 50);
   const deadline = Math.floor(Date.now() / 1000) + 60 * 10;
@@ -239,7 +239,7 @@ async function submitOpportunity(
     config,
     opportunity,
     nonce,
-    deadline
+    deadline,
   );
 
   const permissionKey = encodeAbiParameters(
@@ -247,7 +247,7 @@ async function submitOpportunity(
       { type: "address", name: "admin" },
       { type: "bytes", name: "signature" },
     ],
-    [account.address, signature]
+    [account.address, signature],
   );
 
   const buyAmount = await getBuyAmount(config, opportunity);
@@ -262,7 +262,7 @@ async function submitOpportunity(
       opportunity,
       nonce,
       deadline,
-      signature
+      signature,
     ),
     target_call_value: "0",
     sell_tokens: [
@@ -280,7 +280,7 @@ async function submitOpportunity(
           await getDecimalParsed(
             config,
             opportunity.sellToken,
-            opportunity.sellAmount
+            opportunity.sellAmount,
           )
         ).toString(),
       },
@@ -303,7 +303,7 @@ async function submitOpportunity(
 async function submitOpportunities(
   account: PrivateKeyAccount,
   config: Config,
-  opportunities: Opportunity[]
+  opportunities: Opportunity[],
 ) {
   opportunities.forEach((opportunity) => {
     submitOpportunity(account, config, opportunity).catch((error) => {
@@ -315,7 +315,7 @@ async function submitOpportunities(
 async function loadAndSubmitOpportunities(
   account: PrivateKeyAccount,
   configPath: string,
-  opportunityPath: string
+  opportunityPath: string,
 ) {
   const config: Config = readFile(configPath);
   const opportunities: Opportunity[] = readFile(opportunityPath);
@@ -335,7 +335,7 @@ async function createAndSubmitRandomOpportunities(
   account: PrivateKeyAccount,
   configPath: string,
   tokensPath: string,
-  count: number
+  count: number,
 ) {
   const config: Config = readFile(configPath);
   const tokens: Token[] = readFile(tokensPath);
@@ -361,7 +361,7 @@ async function createAndSubmitRandomOpportunities(
         buyToken,
         sellAmount,
       },
-      sampleUniform(60, 80) / 100
+      sampleUniform(60, 80) / 100,
     );
     opportunities.push({
       sellToken,
@@ -423,7 +423,7 @@ async function run() {
       account,
       argv.config,
       argv.tokens,
-      argv.count
+      argv.count,
     );
   } else {
     loadAndSubmitOpportunities(account, argv.config, argv.opportunities);

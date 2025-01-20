@@ -17,7 +17,7 @@ export class JupiterRouter implements Router {
     executor: PublicKey,
     maxAccounts: number,
     basePath: string,
-    apiKey?: string
+    apiKey?: string,
   ) {
     this.executor = executor;
     this.maxAccounts = maxAccounts;
@@ -36,7 +36,7 @@ export class JupiterRouter implements Router {
   async route(
     tokenIn: PublicKey,
     tokenOut: PublicKey,
-    amountIn: bigint
+    amountIn: bigint,
   ): Promise<RouterOutput> {
     const quoteResponse = await this.jupiterClient.quoteGet({
       inputMint: tokenIn.toBase58(),
@@ -58,7 +58,7 @@ export class JupiterRouter implements Router {
       instructions;
 
     const ixsSetupJupiter = setupInstructions.map((ix) =>
-      this.convertInstruction(ix)
+      this.convertInstruction(ix),
     );
     const ixsJupiter = [
       ...ixsSetupJupiter,
@@ -70,13 +70,13 @@ export class JupiterRouter implements Router {
       amountIn,
       amountOut: BigInt(quoteResponse.outAmount),
       lookupTableAddresses: addressLookupTableAddresses.map(
-        (addr) => new PublicKey(addr)
+        (addr) => new PublicKey(addr),
       ),
     };
   }
 
   private convertInstruction(
-    instruction: JupiterInstruction
+    instruction: JupiterInstruction,
   ): TransactionInstruction {
     return new TransactionInstruction({
       programId: new PublicKey(instruction.programId),
