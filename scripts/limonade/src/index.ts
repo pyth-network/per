@@ -277,10 +277,8 @@ async function run() {
       }
       handleUpdate().catch(console.error);
     },
-    {
-      commitment: "processed",
-      filters,
-    },
+    "processed",
+    filters,
   );
 
   connection.onSlotChange(() => {
