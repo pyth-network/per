@@ -62,7 +62,7 @@ async def main():
     pk_taker = kp_taker.pubkey()
     logger.info("Taker pubkey: %s", pk_taker)
     payload = {
-        "chain_id": "development-solana",
+        "chain_id": "development-solana-local",
         "input_token_mint": args.input_mint,
         "output_token_mint": args.output_mint,
         "router": "3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn",

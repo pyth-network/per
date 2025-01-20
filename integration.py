@@ -42,7 +42,7 @@ chains:
     adapter_factory_contract: {latest_env['adapterFactory']}
     legacy_tx: false
     poll_interval: 1
-  development-solana:
+  development-solana-local:
     express_relay_program_id: PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou
     rpc_read_url: http://localhost:8899
     rpc_tx_submission_url: http://localhost:8899

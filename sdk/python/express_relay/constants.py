@@ -35,9 +35,14 @@ class SvmProgramConfig(TypedDict):
 
 
 SVM_CONFIGS: Dict[str, SvmProgramConfig] = {
-    "development-solana": {
+    "development-solana-local": {
         "express_relay_program": Pubkey.from_string(
             "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
+        ),
+    },
+    "development-solana": {
+        "express_relay_program": Pubkey.from_string(
+            "stag1NN9voD7436oFvKmy1kvRZYLLW8drKocSCt2W79"
         ),
     },
     "solana": {

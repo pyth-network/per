@@ -205,20 +205,20 @@ local_resource(
 
 local_resource(
     "svm-limonade",
-    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id development-solana --api-key $(poetry -C tilt-scripts run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
+    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id development-solana-local --api-key $(poetry -C tilt-scripts run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
 local_resource(
     "svm-searcher-py",
-    serve_cmd="poetry run python3 -m express_relay.searcher.examples.testing_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
+    serve_cmd="poetry run python3 -m express_relay.searcher.examples.testing_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana-local --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
     serve_dir="sdk/python",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
 local_resource(
     "svm-searcher-js",
-    serve_cmd="pnpm run testing-searcher-svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100",
+    serve_cmd="pnpm run testing-searcher-svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id development-solana-local --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100",
     serve_dir="sdk/js",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
