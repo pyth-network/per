@@ -2,6 +2,7 @@ import { Address, Hex } from "viem";
 import type { components } from "./serverTypes";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { OrderStateAndAddress } from "@kamino-finance/limo-sdk/dist/utils";
+import { VersionedTransaction } from "@solana/web3.js";
 
 /**
  * ERC20 token with contract address and amount
@@ -390,5 +391,5 @@ export type QuoteResponse = {
   expirationTime: Date;
   inputToken: TokenAmountSvm;
   outputToken: TokenAmountSvm;
-  transaction: Transaction;
+  transaction: VersionedTransaction;
 };

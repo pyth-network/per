@@ -37,6 +37,7 @@ import { limoId, Order } from "@kamino-finance/limo-sdk";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
 import * as evm from "./evm";
 import * as svm from "./svm";
+import { VersionedTransaction } from "@solana/web3.js";
 
 export * from "./types";
 export * from "./const";
@@ -709,7 +710,9 @@ export class Client {
         token: new PublicKey(quoteResponse.output_token.token),
         amount: BigInt(quoteResponse.output_token.amount),
       },
-      transaction: Transaction.from(base58.decode(quoteResponse.transaction)),
+      transaction: VersionedTransaction.deserialize(
+        base58.decode(quoteResponse.transaction)
+      ),
     };
   }
 
