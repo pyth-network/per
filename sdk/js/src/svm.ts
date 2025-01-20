@@ -277,11 +277,17 @@ export async function constructSwapBid(
     router,
   } = extractSwapInfo(swapOpportunity);
   const tokenAccountsToCreate = [
-    { owner: router, mint: mintFee, program: feeTokenProgram },
     { owner: relayerSigner, mint: mintFee, program: feeTokenProgram },
     { owner: expressRelayMetadata, mint: mintFee, program: feeTokenProgram },
     { owner: trader, mint: outputToken, program: outputTokenProgram },
   ];
+  if (swapOpportunity.referralFeeBps > 0) {
+    tokenAccountsToCreate.push({
+      owner: router,
+      mint: mintFee,
+      program: feeTokenProgram,
+    });
+  }
   for (const account of tokenAccountsToCreate) {
     tx.instructions.push(
       createAtaIdempotentInstruction(
