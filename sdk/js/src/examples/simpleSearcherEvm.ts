@@ -23,8 +23,16 @@ class SimpleSearcherEvm {
       },
       undefined,
       this.opportunityHandler.bind(this),
-      this.bidStatusHandler.bind(this)
+      this.bidStatusHandler.bind(this),
+      undefined,
+      undefined,
+      this.websocketCloseHandler.bind(this)
     );
+  }
+
+  async websocketCloseHandler() {
+    console.log("Websocket closed. Exiting...");
+    process.exit(1);
   }
 
   async bidStatusHandler(_bidStatus: BidStatusUpdate) {

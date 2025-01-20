@@ -404,10 +404,21 @@ impl ModelTrait<Svm> for Svm {
     }
 
     fn get_chain_data_entity(bid: &Bid<Svm>) -> anyhow::Result<entities::BidChainDataSvm> {
+        // The permission keys that are 64 bytes are the ones that are for submit_bid type.
+        // These are stored in the database before adding the bid instruction type to the permission key svm.
         let slice: [u8; 65] =
-            bid.permission_key.clone().try_into().map_err(|e| {
-                anyhow::anyhow!("Failed to convert permission key to slice {:?}", e)
-            })?;
+            match bid.permission_key.len() {
+                64 => {
+                    let mut slice = [0; 65];
+                    slice[0] = entities::BidPaymentInstructionType::SubmitBid.into();
+                    slice[1..].copy_from_slice(&bid.permission_key);
+                    Ok(slice)
+                }
+                _ => bid.permission_key.clone().try_into().map_err(|e| {
+                    anyhow::anyhow!("Failed to convert permission key to slice {:?}", e)
+                }),
+            }?;
+
         let permission_key: PermissionKeySvm = PermissionKeySvm(slice);
         Ok(entities::BidChainDataSvm {
             transaction:                  bid.metadata.transaction.clone(),

@@ -85,6 +85,7 @@ use {
         signer::Signer as _,
         transaction::VersionedTransaction,
     },
+    spl_associated_token_account::instruction::AssociatedTokenAccountInstruction,
     std::{
         sync::Arc,
         time::Duration,
@@ -498,6 +499,64 @@ impl Service<Svm> {
         }
     }
 
+    fn validate_swap_transaction_instructions(
+        &self,
+        tx: &VersionedTransaction,
+    ) -> Result<(), RestError> {
+        tx.message
+            .instructions()
+            .iter()
+            .enumerate()
+            .try_for_each(|(index, ix)| {
+                self.validate_swap_transaction_instruction(tx.message.static_account_keys(), ix)
+                    .map_err(|e| {
+                        RestError::BadParameters(format!(
+                            "Invalid instruction at index {}: {:?}",
+                            index, e
+                        ))
+                    })
+            })?;
+
+        Ok(())
+    }
+
+    fn validate_swap_transaction_instruction(
+        &self,
+        accounts: &[Pubkey],
+        ix: &CompiledInstruction,
+    ) -> Result<(), RestError> {
+        let program_id = accounts
+            .get(ix.program_id_index as usize)
+            .ok_or_else(|| RestError::BadParameters("Invalid program id index".to_string()))?;
+
+        if *program_id == compute_budget::id() {
+            Ok(())
+        } else if *program_id == spl_associated_token_account::id() {
+            let ix_parsed =
+                AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
+                    RestError::BadParameters(format!(
+                        "Invalid associated token account instruction: {}",
+                        e
+                    ))
+                })?;
+            match ix_parsed {
+                AssociatedTokenAccountInstruction::Create => Ok(()),
+                AssociatedTokenAccountInstruction::CreateIdempotent => Ok(()),
+                _ => Err(RestError::BadParameters(format!(
+                    "Invalid associated token account instruction: {:?}",
+                    ix_parsed
+                ))),
+            }
+        } else if *program_id == self.config.chain_config.express_relay.program_id {
+            Ok(())
+        } else {
+            Err(RestError::BadParameters(format!(
+                "Invalid program id: {}",
+                program_id
+            )))
+        }
+    }
+
     async fn check_svm_swap_bid_fields(
         &self,
         bid_data: &BidChainDataSwapCreateSvm,
@@ -735,6 +794,9 @@ impl Service<Svm> {
                     .ok_or(RestError::BadParameters(
                         "No swap opportunity with the given id found".to_string(),
                     ))?;
+                self.validate_swap_transaction_instructions(
+                    bid_chain_data_create_svm.get_transaction(),
+                )?;
                 self.check_svm_swap_bid_fields(bid_data, &opp).await?;
 
                 let swap_instruction = self.extract_express_relay_instruction(
@@ -867,6 +929,9 @@ impl Service<Svm> {
                 let opportunity = opportunities
                     .first()
                     .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
+                opportunity.check_fee_payer(accounts).map_err(|e| {
+                    RestError::BadParameters(format!("Invalid first signer: {:?}", e))
+                })?;
                 self.all_signatures_exists(
                     &message_bytes,
                     accounts,
@@ -1012,7 +1077,6 @@ impl Verification<Svm> for Service<Svm> {
         let bid_data = self.extract_bid_data(&bid.chain_data).await?;
         let bid_payment_instruction_type = match bid_data.submit_type {
             SubmitType::ByServer => BidPaymentInstructionType::SubmitBid,
-            // TODO*: we should verify all components of the swap here (token amounts, fee token side, referral fee)
             SubmitType::ByOther => BidPaymentInstructionType::Swap,
             SubmitType::Invalid => {
                 return Err(RestError::BadParameters(

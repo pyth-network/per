@@ -61,10 +61,16 @@ export class SimpleSearcherSvm {
       this.opportunityHandler.bind(this),
       this.bidStatusHandler.bind(this),
       this.svmChainUpdateHandler.bind(this),
-      this.removeOpportunitiesHandler.bind(this)
+      this.removeOpportunitiesHandler.bind(this),
+      this.websocketCloseHandler.bind(this)
     );
     this.bid = new anchor.BN(bid);
     this.connectionSvm = new Connection(endpointSvm, "confirmed");
+  }
+
+  async websocketCloseHandler() {
+    console.log("Websocket closed. Exiting...");
+    process.exit(1);
   }
 
   async bidStatusHandler(bidStatus: BidStatusUpdate) {

@@ -60,19 +60,13 @@ pub fn get_associated_token_account(
     token_program: &Pubkey,
     token: &Pubkey,
 ) -> Pubkey {
-    // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
-    const ASSOCIATED_TOKEN_PROGRAM: Pubkey = Pubkey::new_from_array([
-        140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153,
-        218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
-    ]);
-
     Pubkey::find_program_address(
         &[
             &owner.to_bytes(),
             &token_program.to_bytes(),
             &token.to_bytes(),
         ],
-        &ASSOCIATED_TOKEN_PROGRAM,
+        &spl_associated_token_account::id(),
     )
     .0
 }
@@ -171,7 +165,6 @@ impl Service<ChainTypeSvm> {
                 tracing::error!("Failed to get output token program: {:?}", err);
                 RestError::BadParameters("Output token program not found".to_string())
             })?;
-
 
         let router_token_account = match fee_token {
             entities::FeeToken::InputToken => {
