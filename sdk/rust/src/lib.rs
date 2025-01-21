@@ -4,7 +4,6 @@ pub use {
     solana_sdk,
 };
 use {
-    express_relay::state::SEED_METADATA,
     express_relay_api_types::{
         bid::{
             BidCreate,
@@ -38,11 +37,7 @@ use {
         Deserialize,
         Serialize,
     },
-    solana_sdk::{
-        pubkey::Pubkey,
-        transaction::Transaction,
-    },
-    spl_associated_token_account::instruction::create_associated_token_account_idempotent,
+    solana_sdk::transaction::Transaction,
     std::{
         collections::HashMap,
         marker::PhantomData,
@@ -55,8 +50,8 @@ use {
         time::Duration,
     },
     svm::{
-        NewSubmitBidInstructionParams,
-        NewSwapInstructionParams,
+        GetSubmitBidInstructionParams,
+        GetSwapInstructionParams,
     },
     tokio::{
         net::TcpStream,
@@ -729,7 +724,8 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                 }?;
                 let mut instructions = params.instructions;
                 instructions.push(svm::Svm::get_submit_bid_instruction(
-                    NewSubmitBidInstructionParams {
+                    GetSubmitBidInstructionParams {
+                        chain_id:             opportunity_params.chain_id.clone(),
                         amount:               params.amount,
                         deadline:             params.deadline,
                         searcher:             params.searcher,
@@ -757,6 +753,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                 tokens,
                 fee_token,
                 router_account,
+                referral_fee_bps,
                 ..
             } => {
                 let _ = match params.program_params {
@@ -795,35 +792,20 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     FeeToken::OutputToken => (output_token, output_token_program),
                 };
                 let mut instructions = params.instructions;
-                instructions.push(create_associated_token_account_idempotent(
-                    &params.payer,
-                    &user_wallet_address,
-                    &output_token,
-                    &output_token_program,
+                instructions.extend(svm::Svm::get_swap_create_accounts_idempotent_instructions(
+                    svm::GetSwapCreateAccountsIdempotentInstructionsParams {
+                        payer: params.payer,
+                        trader: user_wallet_address,
+                        output_token,
+                        output_token_program,
+                        fee_token,
+                        fee_token_program,
+                        router_account,
+                        fee_receiver_relayer: params.fee_receiver_relayer,
+                        referral_fee_bps,
+                    },
                 ));
-                instructions.push(create_associated_token_account_idempotent(
-                    &params.payer,
-                    &router_account,
-                    &fee_token,
-                    &fee_token_program,
-                ));
-                instructions.push(create_associated_token_account_idempotent(
-                    &params.payer,
-                    &params.fee_receiver_relayer,
-                    &fee_token,
-                    &fee_token_program,
-                ));
-                instructions.push(create_associated_token_account_idempotent(
-                    &params.payer,
-                    &Pubkey::find_program_address(
-                        &[SEED_METADATA],
-                        &express_relay::ID.to_bytes().into(),
-                    )
-                    .0,
-                    &fee_token,
-                    &fee_token_program,
-                ));
-                instructions.push(svm::Svm::get_swap_instruction(NewSwapInstructionParams {
+                instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
                     opportunity_params:   opportunity.params,
                     bid_amount:           params.amount,
                     deadline:             params.deadline,

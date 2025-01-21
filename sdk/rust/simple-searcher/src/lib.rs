@@ -60,7 +60,7 @@ pub struct SimpleSearcher {
     svm_client:      Option<Arc<svm::Svm>>,
 }
 
-const SVM_BID_AMOUNT: u64 = 100;
+const SVM_BID_AMOUNT: u64 = 10_000_000;
 const EVM_BID_AMOUNT: i128 = 5_000_000_000_000_000_000_i128;
 
 impl SimpleSearcher {

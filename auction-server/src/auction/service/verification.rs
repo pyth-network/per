@@ -374,7 +374,7 @@ impl Service<Svm> {
         let tx_lookup_tables = tx.message.address_table_lookups();
 
         let account_position = instruction.accounts.get(position).ok_or_else(|| {
-            RestError::BadParameters("Account not found in submit_bid instruction".to_string())
+            RestError::BadParameters("Account not found in instruction".to_string())
         })?;
 
         let account_position: usize = (*account_position).into();

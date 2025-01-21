@@ -2,7 +2,10 @@ use {
     express_relay_client::{
         ethers::utils::hex,
         evm::Config,
-        solana_sdk::bs58,
+        solana_sdk::signature::{
+            EncodableKey,
+            Keypair,
+        },
         Client,
         ClientConfig,
     },
@@ -27,12 +30,8 @@ async fn main() {
     let svm_rpc_url = "http://127.0.0.1:8899";
     let server_url = "http://127.0.0.1:9000";
 
-
-    let svm_private_key_file_content = std::fs::read_to_string(svm_private_key_file.clone())
+    let svm_private_key = Keypair::read_from_file(svm_private_key_file.clone())
         .expect("Failed to read SVM private key");
-    let svm_private_key_array: Vec<u8> = serde_json::from_str(&svm_private_key_file_content)
-        .expect("Failed to parse SVM private key");
-    let svm_private_key = bs58::encode(svm_private_key_array).into_string();
 
     let config = Config {
         weth:                     weth.parse().unwrap(),
@@ -61,7 +60,7 @@ async fn main() {
         client,
         vec![chain_id.clone(), "development-solana".to_string()],
         Some(searcher_sk),
-        Some(svm_private_key),
+        Some(svm_private_key.to_base58_string()),
         Some(svm_rpc_url.to_string()),
     )
     .await

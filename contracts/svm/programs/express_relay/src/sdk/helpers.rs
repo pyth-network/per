@@ -6,7 +6,6 @@ use {
         FeeToken,
         SubmitBidArgs,
         SwapArgs,
-        ID as EXPRESS_RELAY_PID,
         SEED_CONFIG_ROUTER,
         SEED_METADATA,
     },
@@ -19,13 +18,14 @@ use {
         system_program,
         InstructionData,
     },
-    anchor_spl::token::spl_token,
+    anchor_spl::associated_token::get_associated_token_address_with_program_id,
 };
 
 /// Creates and adds to the provided instructions a `SubmitBid` instruction.
 #[allow(clippy::too_many_arguments)]
-pub fn add_express_relay_submit_bid_instruction(
+pub fn add_submit_bid_instruction(
     ixs: &mut Vec<Instruction>,
+    express_relay_pid: Pubkey,
     searcher: Pubkey,
     relayer_signer: Pubkey,
     fee_receiver_relayer: Pubkey,
@@ -35,6 +35,7 @@ pub fn add_express_relay_submit_bid_instruction(
     deadline: i64,
 ) -> Vec<Instruction> {
     let ix_submit_bid = create_submit_bid_instruction(
+        express_relay_pid,
         searcher,
         relayer_signer,
         fee_receiver_relayer,
@@ -48,7 +49,9 @@ pub fn add_express_relay_submit_bid_instruction(
     ixs.to_vec()
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_submit_bid_instruction(
+    express_relay_pid: Pubkey,
     searcher: Pubkey,
     relayer_signer: Pubkey,
     fee_receiver_relayer: Pubkey,
@@ -58,9 +61,9 @@ pub fn create_submit_bid_instruction(
     bid_amount: u64,
 ) -> Instruction {
     let config_router =
-        Pubkey::find_program_address(&[SEED_CONFIG_ROUTER, router.as_ref()], &EXPRESS_RELAY_PID).0;
+        Pubkey::find_program_address(&[SEED_CONFIG_ROUTER, router.as_ref()], &express_relay_pid).0;
     let express_relay_metadata =
-        Pubkey::find_program_address(&[SEED_METADATA], &EXPRESS_RELAY_PID).0;
+        Pubkey::find_program_address(&[SEED_METADATA], &express_relay_pid).0;
 
     let accounts_submit_bid = accounts::SubmitBid {
         searcher,
@@ -83,7 +86,7 @@ pub fn create_submit_bid_instruction(
     .data();
 
     Instruction {
-        program_id: EXPRESS_RELAY_PID,
+        program_id: express_relay_pid,
         accounts:   accounts_submit_bid,
         data:       data_submit_bid,
     }
@@ -91,6 +94,7 @@ pub fn create_submit_bid_instruction(
 
 #[allow(clippy::too_many_arguments)]
 pub fn create_swap_instruction(
+    express_relay_pid: Pubkey,
     searcher: Pubkey,
     trader: Pubkey,
     searcher_input_ta: Option<Pubkey>,
@@ -99,12 +103,12 @@ pub fn create_swap_instruction(
     fee_receiver_relayer: Pubkey,
     mint_input: Pubkey,
     mint_output: Pubkey,
-    token_program_input: Option<Pubkey>,
-    token_program_output: Option<Pubkey>,
+    token_program_input: Pubkey,
+    token_program_output: Pubkey,
     swap_args: SwapArgs,
 ) -> Instruction {
     let express_relay_metadata =
-        Pubkey::find_program_address(&[SEED_METADATA], &EXPRESS_RELAY_PID).0;
+        Pubkey::find_program_address(&[SEED_METADATA], &express_relay_pid).0;
 
     let mint_fee = match swap_args.fee_token {
         FeeToken::Input => mint_input,
@@ -112,41 +116,53 @@ pub fn create_swap_instruction(
     };
 
     let token_program_fee = match swap_args.fee_token {
-        FeeToken::Input => token_program_input.unwrap_or(spl_token::ID),
-        FeeToken::Output => token_program_output.unwrap_or(spl_token::ID),
+        FeeToken::Input => token_program_input,
+        FeeToken::Output => token_program_output,
     };
 
     let accounts_submit_bid = accounts::Swap {
         searcher,
         trader,
         searcher_input_ta: searcher_input_ta.unwrap_or(
-            anchor_spl::associated_token::get_associated_token_address(&searcher, &mint_input),
+            get_associated_token_address_with_program_id(
+                &searcher,
+                &mint_input,
+                &token_program_input,
+            ),
         ),
         searcher_output_ta: searcher_output_ta.unwrap_or(
-            anchor_spl::associated_token::get_associated_token_address(&searcher, &mint_output),
+            get_associated_token_address_with_program_id(
+                &searcher,
+                &mint_output,
+                &token_program_output,
+            ),
         ),
-        trader_input_ata: anchor_spl::associated_token::get_associated_token_address(
+        trader_input_ata: get_associated_token_address_with_program_id(
             &trader,
             &mint_input,
+            &token_program_input,
         ),
-        trader_output_ata: anchor_spl::associated_token::get_associated_token_address(
+        trader_output_ata: get_associated_token_address_with_program_id(
             &trader,
             &mint_output,
+            &token_program_output,
         ),
         router_fee_receiver_ta,
-        relayer_fee_receiver_ata: anchor_spl::associated_token::get_associated_token_address(
+        relayer_fee_receiver_ata: get_associated_token_address_with_program_id(
             &fee_receiver_relayer,
             &mint_fee,
+            &token_program_fee,
         ),
-        express_relay_fee_receiver_ata: anchor_spl::associated_token::get_associated_token_address(
+        express_relay_fee_receiver_ata: get_associated_token_address_with_program_id(
             &express_relay_metadata,
             &mint_fee,
+            &token_program_fee,
         ),
         mint_input,
         mint_output,
         mint_fee,
-        token_program_input: token_program_input.unwrap_or(spl_token::ID),
-        token_program_output: token_program_output.unwrap_or(spl_token::ID),
+        token_program_input,
+        token_program_output,
         token_program_fee,
         express_relay_metadata,
     }
@@ -154,7 +170,7 @@ pub fn create_swap_instruction(
     let data_submit_bid = instruction::Swap { data: swap_args }.data();
 
     Instruction {
-        program_id: EXPRESS_RELAY_PID,
+        program_id: express_relay_pid,
         accounts:   accounts_submit_bid,
         data:       data_submit_bid,
     }

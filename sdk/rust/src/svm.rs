@@ -30,7 +30,11 @@ use {
         pubkey::Pubkey,
         signature::Keypair,
     },
-    spl_associated_token_account::get_associated_token_address_with_program_id,
+    spl_associated_token_account::{
+        get_associated_token_address_with_program_id,
+        instruction::create_associated_token_account_idempotent,
+    },
+    std::str::FromStr,
 };
 
 pub struct ProgramParamsLimo {
@@ -59,7 +63,8 @@ pub struct NewBidParams {
     pub program_params:       ProgramParams,
 }
 
-pub struct NewSubmitBidInstructionParams {
+pub struct GetSubmitBidInstructionParams {
+    pub chain_id:             String,
     pub amount:               u64,
     pub deadline:             i64,
     pub searcher:             Pubkey,
@@ -69,7 +74,7 @@ pub struct NewSubmitBidInstructionParams {
     pub fee_receiver_relayer: Pubkey,
 }
 
-pub struct NewSwapInstructionParams {
+pub struct GetSwapInstructionParams {
     pub searcher:             Pubkey,
     pub opportunity_params:   OpportunityParamsSvm,
     pub bid_amount:           u64,
@@ -83,6 +88,18 @@ struct OpportunitySwapData {
     fee_token:        ApiFeeToken,
     router_account:   Pubkey,
     referral_fee_bps: u16,
+}
+
+pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
+    pub payer:                Pubkey,
+    pub trader:               Pubkey,
+    pub output_token:         Pubkey,
+    pub output_token_program: Pubkey,
+    pub fee_token:            Pubkey,
+    pub fee_token_program:    Pubkey,
+    pub router_account:       Pubkey,
+    pub fee_receiver_relayer: Pubkey,
+    pub referral_fee_bps:     u16,
 }
 
 pub struct Svm {
@@ -112,8 +129,20 @@ impl Svm {
         })
     }
 
-    pub fn get_submit_bid_instruction(params: NewSubmitBidInstructionParams) -> Instruction {
+    pub fn get_express_relay_pid(chain_id: String) -> Pubkey {
+        if chain_id == "development-solana" {
+            Pubkey::from_str("stag1NN9voD7436oFvKmy1kvRZYLLW8drKocSCt2W79")
+                .expect("Failed to parse express relay pubkey")
+        } else {
+            express_relay::ID.to_bytes().into()
+        }
+    }
+
+    pub fn get_submit_bid_instruction(params: GetSubmitBidInstructionParams) -> Instruction {
         let submid_bid_instruction = create_submit_bid_instruction(
+            Self::get_express_relay_pid(params.chain_id)
+                .to_bytes()
+                .into(),
             params.searcher.to_bytes().into(),
             params.relayer_signer.to_bytes().into(),
             params.fee_receiver_relayer.to_bytes().into(),
@@ -162,10 +191,46 @@ impl Svm {
         }
     }
 
+    pub fn get_swap_create_accounts_idempotent_instructions(
+        params: GetSwapCreateAccountsIdempotentInstructionsParams,
+    ) -> Vec<Instruction> {
+        let mut instructions = vec![];
+        instructions.push(create_associated_token_account_idempotent(
+            &params.payer,
+            &params.trader,
+            &params.output_token,
+            &params.output_token_program,
+        ));
+        instructions.push(create_associated_token_account_idempotent(
+            &params.payer,
+            &params.fee_receiver_relayer,
+            &params.fee_token,
+            &params.fee_token_program,
+        ));
+        instructions.push(create_associated_token_account_idempotent(
+            &params.payer,
+            &Pubkey::find_program_address(&[SEED_METADATA], &express_relay::ID.to_bytes().into()).0,
+            &params.fee_token,
+            &params.fee_token_program,
+        ));
+        if params.referral_fee_bps > 0 {
+            instructions.push(create_associated_token_account_idempotent(
+                &params.payer,
+                &params.router_account,
+                &params.fee_token,
+                &params.fee_token_program,
+            ));
+        }
+        instructions
+    }
+
     pub fn get_swap_instruction(
-        params: NewSwapInstructionParams,
+        params: GetSwapInstructionParams,
     ) -> Result<Instruction, ClientError> {
-        let swap_data = Self::extract_swap_data(params.opportunity_params)?;
+        let swap_data = Self::extract_swap_data(params.opportunity_params.clone())?;
+        let OpportunityParamsSvm::V1(opportunity_params) = params.opportunity_params;
+        let chain_id = opportunity_params.chain_id;
+
         let (
             mint_input,
             mint_output,
@@ -215,6 +280,7 @@ impl Svm {
         );
 
         let swap_instruction = create_swap_instruction(
+            Self::get_express_relay_pid(chain_id).to_bytes().into(),
             params.searcher.to_bytes().into(),
             swap_data.trader.to_bytes().into(),
             None,
@@ -223,8 +289,8 @@ impl Svm {
             params.fee_receiver_relayer.to_bytes().into(),
             mint_input.to_bytes().into(),
             mint_output.to_bytes().into(),
-            Some(input_token_program.to_bytes().into()),
-            Some(output_token_program.to_bytes().into()),
+            input_token_program.to_bytes().into(),
+            output_token_program.to_bytes().into(),
             SwapArgs {
                 deadline: params.deadline,
                 amount_input,
@@ -233,6 +299,7 @@ impl Svm {
                 fee_token,
             },
         );
+
         Ok(Instruction {
             program_id: swap_instruction.program_id.to_bytes().into(),
             accounts:   swap_instruction
