@@ -58,7 +58,7 @@ async fn main() {
 
     let mut searcher = SimpleSearcher::try_new(
         client,
-        vec![chain_id.clone(), "development-solana".to_string()],
+        vec![chain_id.clone(), "local-solana".to_string()],
         Some(searcher_sk),
         Some(svm_private_key.to_base58_string()),
         Some(svm_rpc_url.to_string()),
