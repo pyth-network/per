@@ -325,19 +325,8 @@ impl Service<ChainTypeSvm> {
         }
         let winner_bid = bids.first().expect("failed to get first bid");
 
-        let swap_instruction = auction_service
-            .extract_express_relay_instruction(
-                winner_bid.chain_data.transaction.clone(),
-                BidPaymentInstructionType::Swap,
-            )
-            .map_err(|e| {
-                tracing::error!("Failed to verify swap instruction: {:?}", e);
-                RestError::TemporarilyUnavailable
-            })?;
-        let swap_data = AuctionService::extract_swap_data(&swap_instruction).map_err(|e| {
-            tracing::error!("Failed to extract swap data: {:?}", e);
-            RestError::TemporarilyUnavailable
-        })?;
+        let swap_data = auction_service
+            .extract_swap_data_from_transaction(&winner_bid.chain_data.transaction)?;
         let deadline = swap_data.deadline;
 
         // Bids is not empty
@@ -408,10 +397,16 @@ impl Service<ChainTypeSvm> {
                     .remaining_amount,
             ),
         };
+        let mut tx = bid.chain_data.transaction.clone();
+        self.repo
+            .add_swap_bid(opportunity.id, winner_bid.clone())
+            .await?;
+        tx.signatures[0] = Default::default();
 
         Ok(entities::Quote {
-            transaction:     bid.chain_data.transaction.clone(),
+            transaction:     tx,
             expiration_time: deadline,
+            quote_id:        opportunity.id,
 
             input_token:  TokenAmountSvm {
                 token:  input_token.token,

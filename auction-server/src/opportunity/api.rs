@@ -41,6 +41,10 @@ use {
             ProgramSvm,
             Quote,
             QuoteCreate,
+            QuoteSubmit,
+            QuoteSubmitResponse,
+            QuoteSubmitResponseSvm,
+            QuoteSubmitResponseV1Svm,
             Route,
         },
         ErrorBodyResponse,
@@ -220,6 +224,31 @@ pub async fn post_quote(
     Ok(Json(quote.into()))
 }
 
+/// Submit a quote signature.
+///
+/// Submit user signature for an earlier quote request.
+#[utoipa::path(post, path = "/v1/opportunities/quote/submit", request_body = QuoteSubmit, responses(
+    (status = 200, description = "The created quote", body = Quote),
+    (status = 400, response = ErrorBodyResponse),
+    (status = 404, description = "No quote available right now", body = ErrorBodyResponse),
+),)]
+pub async fn post_quote_signature(
+    State(store): State<Arc<StoreNew>>,
+    Json(params): Json<QuoteSubmit>,
+) -> Result<Json<QuoteSubmitResponse>, RestError> {
+    let transaction = store
+        .opportunity_service_svm
+        .submit_quote_signature(params.into())
+        .await?;
+
+    Ok(
+        QuoteSubmitResponse::Svm(QuoteSubmitResponseSvm::V1(QuoteSubmitResponseV1Svm {
+            transaction,
+        }))
+        .into(),
+    )
+}
+
 /// Delete all opportunities for specified data.
 #[utoipa::path(delete, path = "/v1/opportunities", request_body = OpportunityDelete,
 security(
@@ -261,6 +290,7 @@ pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     WrappedRouter::new(store)
         .route(Route::PostOpportunity, post_opportunity)
         .route(Route::PostQuote, post_quote)
+        .route(Route::PostQuoteSubmitSignature, post_quote_signature)
         .route(Route::OpportunityBid, opportunity_bid)
         .route(Route::GetOpportunities, get_opportunities)
         .route(Route::DeleteOpportunities, delete_opportunities)

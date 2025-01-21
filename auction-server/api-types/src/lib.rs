@@ -21,6 +21,7 @@ use {
         ToResponse,
         ToSchema,
     },
+    uuid::Uuid,
 };
 
 pub mod bid;
@@ -32,6 +33,8 @@ pub mod ws;
 pub type MicroLamports = u64;
 pub type ChainId = String;
 pub type PermissionKeyEvm = Bytes;
+
+pub type QuoteId = Uuid;
 #[derive(Clone, Debug)]
 pub struct PermissionKeySvm(pub [u8; 65]);
 impl Serialize for PermissionKeySvm {

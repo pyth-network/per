@@ -432,9 +432,22 @@ impl Service<Svm> {
         .map_err(|e| RestError::BadParameters(format!("Invalid swap instruction data: {}", e)))
     }
 
+    pub fn extract_swap_data_from_transaction(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> Result<express_relay_svm::SwapArgs, RestError> {
+        let instruction = self
+            .extract_express_relay_instruction(transaction, BidPaymentInstructionType::Swap)
+            .map_err(|e| {
+                tracing::error!("Failed to verify swap instruction: {:?}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+        Self::extract_swap_data(&instruction)
+    }
+
     pub fn extract_express_relay_instruction(
         &self,
-        transaction: VersionedTransaction,
+        transaction: &VersionedTransaction,
         instruction_type: BidPaymentInstructionType,
     ) -> Result<CompiledInstruction, RestError> {
         let discriminator = match instruction_type {
@@ -560,7 +573,7 @@ impl Service<Svm> {
         opp: &OpportunitySvm,
     ) -> Result<(), RestError> {
         let swap_instruction = self.extract_express_relay_instruction(
-            bid_data.transaction.clone(),
+            &bid_data.transaction,
             BidPaymentInstructionType::Swap,
         )?;
         let swap_data = Self::extract_swap_data(&swap_instruction)?;
@@ -744,7 +757,7 @@ impl Service<Svm> {
         match bid_chain_data_create_svm {
             BidChainDataCreateSvm::OnChain(bid_data) => {
                 let submit_bid_instruction = self.extract_express_relay_instruction(
-                    bid_data.transaction.clone(),
+                    &bid_data.transaction,
                     BidPaymentInstructionType::SubmitBid,
                 )?;
                 let submit_bid_data = Self::extract_submit_bid_data(&submit_bid_instruction)?;
@@ -797,7 +810,7 @@ impl Service<Svm> {
                 self.check_svm_swap_bid_fields(bid_data, &opp).await?;
 
                 let swap_instruction = self.extract_express_relay_instruction(
-                    bid_data.transaction.clone(),
+                    &bid_data.transaction,
                     BidPaymentInstructionType::Swap,
                 )?;
                 let swap_data = Self::extract_swap_data(&swap_instruction)?;

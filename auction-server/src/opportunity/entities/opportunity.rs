@@ -19,6 +19,7 @@ use {
 };
 
 pub type OpportunityId = Uuid;
+pub type QuoteId = OpportunityId;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OpportunityKey(pub ChainId, pub PermissionKey);

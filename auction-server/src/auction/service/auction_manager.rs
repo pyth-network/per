@@ -416,7 +416,9 @@ impl AuctionManager<Svm> for Service<Svm> {
         let send_futures: Vec<_> = bids
             .into_iter()
             .map(|mut bid| {
-                self.add_relayer_signature(&mut bid);
+                if bid.chain_data.bid_payment_instruction_type != BidPaymentInstructionType::Swap {
+                    self.add_relayer_signature(&mut bid);
+                }
                 async move { self.send_transaction(&bid).await }
             })
             .collect();
@@ -584,8 +586,14 @@ impl AuctionManager<Svm> for Service<Svm> {
                 },
             }
         } else {
-            entities::BidStatusSvm::Lost {
-                auction: Some(bid_status_auction),
+            match bid.chain_data.bid_payment_instruction_type {
+                BidPaymentInstructionType::Swap => entities::BidStatusSvm::Lost {
+                    // do not share the winner tx hash for swap bids
+                    auction: None,
+                },
+                _ => entities::BidStatusSvm::Lost {
+                    auction: Some(bid_status_auction),
+                },
             }
         }
     }

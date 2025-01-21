@@ -55,6 +55,7 @@ pub mod get_quote;
 pub mod handle_opportunity_bid;
 pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
+pub mod submit_quote_signature;
 pub mod verification;
 
 mod get_spoof_info;

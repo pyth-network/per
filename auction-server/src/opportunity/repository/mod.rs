@@ -11,6 +11,7 @@ use {
 
 mod add_opportunity;
 mod add_spoof_info;
+mod add_swap_transaction;
 mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
 mod get_in_memory_opportunity_by_id;
@@ -22,7 +23,13 @@ mod refresh_in_memory_opportunity;
 mod remove_opportunities;
 mod remove_opportunity;
 
+use crate::{
+    auction::entities::Bid,
+    kernel::entities::Svm,
+    opportunity::entities::OpportunityId,
+};
 pub use models::*;
+
 pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 
 #[derive(Debug)]
@@ -57,6 +64,7 @@ pub struct InMemoryStoreEvm {
 pub struct InMemoryStoreSvm {
     pub core_fields:         InMemoryStoreCoreFields<entities::OpportunitySvm>,
     pub token_program_cache: RwLock<HashMap<Pubkey, Pubkey>>,
+    pub swap_bids:           RwLock<HashMap<OpportunityId, Bid<Svm>>>,
 }
 
 impl InMemoryStore for InMemoryStoreEvm {
@@ -77,6 +85,7 @@ impl InMemoryStore for InMemoryStoreSvm {
         Self {
             core_fields:         InMemoryStoreCoreFields::new(),
             token_program_cache: RwLock::new(HashMap::new()),
+            swap_bids:           RwLock::new(HashMap::new()),
         }
     }
 }

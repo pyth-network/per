@@ -6,8 +6,6 @@ import random
 from pathlib import Path
 
 import httpx
-from solana.rpc.async_api import AsyncClient
-from solana.rpc.commitment import Confirmed
 from solana.transaction import Transaction
 from solders.transaction import Transaction as SoldersTransaction
 
@@ -85,11 +83,18 @@ async def main():
         )
         tx = Transaction.from_solders(tx)
         tx.sign_partial(kp_taker)
-        async with AsyncClient(args.rpc_url) as rpc_client:
-            await rpc_client.send_raw_transaction(tx.serialize())
-            logger.info("Swap transaction sent. Signature: %s", tx.signatures[0])
-            await rpc_client.confirm_transaction(tx.signatures[0], commitment=Confirmed)
-            logger.info("Swap transaction confirmed")
+        submit_sign_payload = {
+            "signature": str(tx.signatures[1]),
+            "quote_id": result.json()["quote_id"],
+            "chain_id": "local-solana",
+            "version": "v1",
+        }
+        await asyncio.sleep(2)
+        result = await http_client.post(
+            args.auction_server_url + "/v1/opportunities/quote/submit",
+            json=submit_sign_payload,
+        )
+        logger.info("Swap transaction sent. Response %s", result.text)
 
 
 if __name__ == "__main__":

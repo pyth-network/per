@@ -319,6 +319,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::opportunity_bid,
     opportunity::get_opportunities,
     opportunity::post_quote,
+    opportunity::post_quote_signature,
     opportunity::delete_opportunities,
 
     profile::delete_profile_access_token,
@@ -366,6 +367,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::opportunity::QuoteCreateSvm,
     api_types::opportunity::QuoteCreateV1SvmParams,
     api_types::opportunity::Quote,
+    api_types::opportunity::QuoteSubmit,
+    api_types::opportunity::QuoteSubmitSvm,
+    api_types::opportunity::QuoteSubmitV1SvmParams,
     api_types::opportunity::QuoteSvm,
     api_types::opportunity::QuoteTokens,
     api_types::opportunity::QuoteV1Svm,

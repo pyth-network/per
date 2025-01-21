@@ -25,6 +25,7 @@ use {
     solana_sdk::{
         clock::Slot,
         pubkey::Pubkey,
+        signature::Signature as SvmSignature,
         transaction::VersionedTransaction,
     },
     strum::{
@@ -43,6 +44,8 @@ use {
 // Base types
 pub type UnixTimestampMicros = i128;
 pub type OpportunityId = Uuid;
+
+pub type QuoteId = OpportunityId;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -555,6 +558,23 @@ pub struct QuoteCreateV1SvmParams {
     pub chain_id:               ChainId,
 }
 
+/// Parameters needed to submit a user signature for quotes
+/// Auction server will verify the signature and submit it on-chain
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct QuoteSubmitV1SvmParams {
+    /// The opportunity id of the quote response
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
+    pub quote_id:  QuoteId,
+    /// The user signature for the quote
+    #[schema(example = "24srhaX8kcXk1R3S3ZaPQNPyyJYB7aVej52XmazxUyNuW88BbcMAe7sR7UkcYTL7RV8b4ByJs69Jcdosh8zPzYTe", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub signature: SvmSignature,
+    /// The chain id of the quote.
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id:  ChainId,
+}
+
 fn default_referral_fee_bps() -> u16 {
     0
 }
@@ -585,10 +605,25 @@ pub enum QuoteCreateSvm {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(tag = "version")]
+pub enum QuoteSubmitSvm {
+    #[serde(rename = "v1")]
+    #[schema(title = "v1")]
+    V1(QuoteSubmitV1SvmParams),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(untagged)]
 pub enum QuoteCreate {
     #[schema(title = "svm")]
     Svm(QuoteCreateSvm),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(untagged)]
+pub enum QuoteSubmit {
+    #[schema(title = "svm")]
+    Svm(QuoteSubmitSvm),
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
@@ -607,6 +642,9 @@ pub struct QuoteV1Svm {
     /// The chain id for the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:        ChainId,
+    /// The quote id that will be used for signature submission.
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
+    pub quote_id:        QuoteId,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
@@ -622,6 +660,29 @@ pub enum QuoteSvm {
 pub enum Quote {
     #[schema(title = "svm")]
     Svm(QuoteSvm),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct QuoteSubmitResponseV1Svm {
+    /// The fully signed transaction that is submitted on-chain
+    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
+    #[serde(with = "crate::serde::transaction_svm")]
+    pub transaction: VersionedTransaction,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(tag = "version")]
+pub enum QuoteSubmitResponseSvm {
+    #[serde(rename = "v1")]
+    #[schema(title = "v1")]
+    V1(QuoteSubmitResponseV1Svm),
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(untagged)]
+pub enum QuoteSubmitResponse {
+    #[schema(title = "svm")]
+    Svm(QuoteSubmitResponseSvm),
 }
 
 impl OpportunityCreateSvm {
@@ -685,6 +746,8 @@ pub enum Route {
     PostOpportunity,
     #[strum(serialize = "quote")]
     PostQuote,
+    #[strum(serialize = "quote/submit")]
+    PostQuoteSubmitSignature,
     #[strum(serialize = "")]
     GetOpportunities,
     #[strum(serialize = ":opportunity_id/bids")]
@@ -710,6 +773,11 @@ impl Routable for Route {
                 full_path,
             },
             Route::PostQuote => crate::RouteProperties {
+                access_level: AccessLevel::Public,
+                method: http::Method::POST,
+                full_path,
+            },
+            Route::PostQuoteSubmitSignature => crate::RouteProperties {
                 access_level: AccessLevel::Public,
                 method: http::Method::POST,
                 full_path,

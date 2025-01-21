@@ -1,6 +1,12 @@
 use {
     super::token_amount_svm::TokenAmountSvm,
-    crate::kernel::entities::ChainId,
+    crate::{
+        kernel::entities::ChainId,
+        opportunity::entities::{
+            OpportunityId,
+            QuoteId,
+        },
+    },
     express_relay_api_types::opportunity as api,
     serde::{
         Deserialize,
@@ -8,6 +14,7 @@ use {
     },
     solana_sdk::{
         pubkey::Pubkey,
+        signature::Signature,
         transaction::VersionedTransaction,
     },
 };
@@ -20,6 +27,7 @@ pub struct Quote {
     pub input_token:     TokenAmountSvm,
     pub output_token:    TokenAmountSvm,
     pub chain_id:        ChainId,
+    pub quote_id:        QuoteId,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +37,11 @@ pub struct QuoteCreate {
     pub tokens:              QuoteTokens,
     pub router:              Pubkey,
     pub chain_id:            ChainId,
+}
+
+pub struct SubmitQuoteSignatureInput {
+    pub opportunity_id: OpportunityId,
+    pub signature:      Signature,
 }
 
 
@@ -63,6 +76,17 @@ impl From<api::QuoteTokens> for QuoteTokens {
                 input_token,
                 output_token: output_token.into(),
             },
+        }
+    }
+}
+
+impl From<api::QuoteSubmit> for SubmitQuoteSignatureInput {
+    fn from(quote_submit: api::QuoteSubmit) -> Self {
+        let api::QuoteSubmit::Svm(api::QuoteSubmitSvm::V1(params)) = quote_submit;
+
+        Self {
+            opportunity_id: params.quote_id,
+            signature:      params.signature,
         }
     }
 }
@@ -103,6 +127,7 @@ impl From<api::QuoteCreate> for QuoteCreate {
 impl From<Quote> for api::Quote {
     fn from(quote: Quote) -> Self {
         api::Quote::Svm(api::QuoteSvm::V1(api::QuoteV1Svm {
+            quote_id:        quote.quote_id,
             transaction:     quote.transaction,
             expiration_time: quote.expiration_time,
             input_token:     quote.input_token.into(),
