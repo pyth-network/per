@@ -35,7 +35,7 @@ export default function Home() {
         router: publicKey,
         userWallet: publicKey,
         specifiedTokenAmount: {
-          amount: amount,
+          amount,
           side: "input",
         },
       });
@@ -64,11 +64,9 @@ export default function Home() {
   const canSwap = publicKey && sendTransaction;
   return (
     <main>
-      <div className="m-auto w-2/4">
+      <div className="m-auto w-2/4 parent space-y-2">
         <h1>Express Relay Swap testing UI</h1>
-        <div className="my-3">
-          <WalletMultiButton />
-        </div>
+        <WalletMultiButton />
         <WalletDisconnectButton />
         <p>Public Key: </p>
         <pre>{publicKey?.toBase58()}</pre>
