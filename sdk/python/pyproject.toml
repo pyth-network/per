@@ -25,6 +25,7 @@ pyflakes = "^3.2.0"
 mypy = "^1.9.0"
 anchorpy = {extras = ["cli"], version = "^0.20.1"}
 isort = "^5.13.2"
+flake8 = "^7.1.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -606,11 +606,6 @@ class ExpressRelayClient:
 
         token_accounts_to_create = [
             {
-                "owner": accs["router"],
-                "mint": accs["mint_fee"],
-                "program": accs["fee_token_program"],
-            },
-            {
                 "owner": relayer_signer,
                 "mint": accs["mint_fee"],
                 "program": accs["fee_token_program"],
@@ -626,6 +621,15 @@ class ExpressRelayClient:
                 "program": accs["output_token_program"],
             },
         ]
+        if swap_opportunity.referral_fee_bps > 0:
+            token_accounts_to_create.append(
+                {
+                    "owner": accs["router"],
+                    "mint": accs["mint_fee"],
+                    "program": accs["fee_token_program"],
+                }
+            )
+
         for token_account in token_accounts_to_create:
             instructions.append(
                 create_associated_token_account_idempotent(

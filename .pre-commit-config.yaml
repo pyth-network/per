@@ -81,8 +81,8 @@ repos:
         entry: poetry -C sdk/python run black sdk/python
         pass_filenames: false
         language: system
-      - id: pyflakes
-        name: pyflakes
-        entry: poetry -C sdk/python run pyflakes sdk/python
+      - id: flake8
+        name: flake8
+        entry: poetry -C sdk/python run flake8 --config sdk/python/.flake8 sdk/python
         pass_filenames: false
         language: system
