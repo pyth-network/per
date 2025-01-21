@@ -28,6 +28,7 @@ use {
         account_utils::StateMut,
         address_lookup_table::state::AddressLookupTable,
         bpf_loader_upgradeable::UpgradeableLoaderState,
+        clock::Clock,
         commitment_config::CommitmentConfig,
         pubkey::Pubkey,
         signature::Signature,
@@ -320,7 +321,11 @@ impl Simulator {
     }
 
     #[tracing::instrument(skip_all)]
-    fn setup_lite_svm(&self, accounts_config_with_context: &Response<AccountsConfig>) -> LiteSVM {
+    fn setup_lite_svm(
+        &self,
+        accounts_config_with_context: &Response<AccountsConfig>,
+        timestamp: Option<i64>,
+    ) -> LiteSVM {
         let mut svm = LiteSVM::new()
             .with_sigverify(false)
             .with_blockhash_check(false)
@@ -328,7 +333,19 @@ impl Simulator {
         // this is necessary for correct lookup table access
         // otherwise 0 = slot < table.last_extended_slot
         svm.warp_to_slot(accounts_config_with_context.context.slot);
+        if let Some(timestamp) = timestamp {
+            svm = self.warp_to_timestamp(svm, timestamp);
+        }
         accounts_config_with_context.value.apply(&mut svm);
+        svm
+    }
+
+    /// Warps the LiteSVM object clock to the given timestamp
+    /// This is necessary because LiteSVM does not natively support warping to a timestamp
+    fn warp_to_timestamp(&self, mut svm: LiteSVM, timestamp: i64) -> LiteSVM {
+        let mut clock = svm.get_sysvar::<Clock>();
+        clock.unix_timestamp = timestamp;
+        svm.set_sysvar(&clock);
         svm
     }
 
@@ -369,6 +386,7 @@ impl Simulator {
     pub async fn simulate_transaction(
         &self,
         transaction: &VersionedTransaction,
+        timestamp: Option<i64>,
     ) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let txs_to_fetch = pending_txs
@@ -377,7 +395,7 @@ impl Simulator {
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
-        let mut svm = self.setup_lite_svm(&accounts_config_with_context);
+        let mut svm = self.setup_lite_svm(&accounts_config_with_context, timestamp);
 
         pending_txs.into_iter().for_each(|tx| {
             let _ = svm.send_transaction(tx);
@@ -403,7 +421,7 @@ impl Simulator {
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
-        let mut svm = self.setup_lite_svm(&accounts_config_with_context);
+        let mut svm = self.setup_lite_svm(&accounts_config_with_context, None);
 
         pending_txs.into_iter().for_each(|tx| {
             let _ = svm.send_transaction(tx);
