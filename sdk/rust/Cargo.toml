@@ -20,4 +20,3 @@ futures-util = "0.3.31"
 ethers = { workspace = true }
 solana-sdk = { workspace = true }
 solana-rpc-client = { workspace = true }
-spl-associated-token-account = { workspace = true }
