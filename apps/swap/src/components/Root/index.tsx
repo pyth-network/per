@@ -12,12 +12,7 @@ export const Root = ({ children }: Props) => {
     <WalletProvider endpoint={SOLANA_RPC}>
       <ExpressRelayProvider endpoint={ENDPOINT_EXPRESS_RELAY}>
         <html>
-          <body>
-            <div>
-              <h1>Express Relay Swap!</h1>
-              {children}
-            </div>
-          </body>
+          <body>{children}</body>
         </html>
       </ExpressRelayProvider>
     </WalletProvider>
