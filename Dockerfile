@@ -47,7 +47,7 @@ RUN forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1
 WORKDIR /src
 
 COPY . .
-RUN --mount=type=cache,target=/root/.cargo/registry cargo build -p auction-server -p vault-simulator --release
+RUN --mount=type=cache,target=/root/.cargo/registry cargo build -p auction-server -p vault-simulator --jobs 1 --release
 
 FROM rust:${RUST_VERSION}
 # Copy artifacts from other images
