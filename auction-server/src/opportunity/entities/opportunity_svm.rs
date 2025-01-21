@@ -263,7 +263,6 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     router_account: val.router,
                     fee_token,
                     referral_fee_bps: program.referral_fee_bps,
-                    // TODO can we make it type safe?
                     tokens,
                 }
             }

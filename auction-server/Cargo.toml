@@ -48,9 +48,9 @@ bincode = { workspace = true }
 serde_with = { workspace = true, features = ["base64"] }
 anchor-lang = { workspace = true }
 express-relay = { path = "../contracts/svm/programs/express_relay" }
-solana-rpc-client ={ workspace = true }
+solana-rpc-client = { workspace = true }
 solana-transaction-status = { workspace = true }
-borsh = "1.5.1"
+borsh = { workspace = true }
 litesvm = { workspace = true }
 express-relay-api-types = { path = "api-types" }
 strum.workspace = true

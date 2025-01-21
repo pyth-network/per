@@ -8,7 +8,8 @@ use {
     },
     express_relay::{
         error::ErrorCode as ExpressRelayErrorCode,
-        sdk::test_helpers::add_express_relay_submit_bid_instruction,
+        sdk::helpers::add_submit_bid_instruction,
+        ID as EXPRESS_RELAY_PID,
     },
     helpers::{
         helpers_express_relay::{
@@ -40,14 +41,16 @@ async fn test_dummy_e2e() {
     let permission = Keypair::new().pubkey();
 
     let ix_do_nothing = create_do_nothing_ix(setup_info.payer.pubkey(), permission, router);
-    let ixs: [Instruction; 2] = add_express_relay_submit_bid_instruction(
+    let ixs: [Instruction; 2] = add_submit_bid_instruction(
         &mut [ix_do_nothing].to_vec(),
+        EXPRESS_RELAY_PID,
         setup_info.payer.pubkey(),
         setup_info.relayer_signer.pubkey(),
         setup_info.fee_receiver_relayer.pubkey(),
         permission,
         router,
         bid_amount,
+        i64::MAX,
     )
     .try_into()
     .unwrap();
@@ -97,14 +100,16 @@ async fn test_dummy_e2e_fail_router_underfunded() {
     let permission = Keypair::new().pubkey();
 
     let ix_do_nothing = create_do_nothing_ix(setup_info.payer.pubkey(), permission, router_real);
-    let ixs: [Instruction; 2] = add_express_relay_submit_bid_instruction(
+    let ixs: [Instruction; 2] = add_submit_bid_instruction(
         &mut [ix_do_nothing].to_vec(),
+        EXPRESS_RELAY_PID,
         setup_info.payer.pubkey(),
         setup_info.relayer_signer.pubkey(),
         setup_info.fee_receiver_relayer.pubkey(),
         permission,
         router_real,
         bid_amount,
+        i64::MAX,
     )
     .try_into()
     .unwrap();

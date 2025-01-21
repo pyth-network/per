@@ -1,22 +1,25 @@
 pub use {
     ethers,
     express_relay_api_types as api_types,
+    solana_sdk,
 };
 use {
-    ethers::signers::LocalWallet,
-    evm::{
-        get_params,
-        BidParamsEvm,
-        Evm,
-    },
     express_relay_api_types::{
         bid::{
             BidCreate,
             BidCreateEvm,
+            BidCreateOnChainSvm,
+            BidCreateSvm,
+            BidCreateSwapSvm,
+            BidCreateSwapSvmTag,
         },
         opportunity::{
+            FeeToken,
             GetOpportunitiesQueryParams,
             Opportunity,
+            OpportunityParamsSvm,
+            OpportunityParamsV1ProgramSvm,
+            QuoteTokens,
             Route,
         },
         ws::ServerResultMessage,
@@ -34,6 +37,7 @@ use {
         Deserialize,
         Serialize,
     },
+    solana_sdk::transaction::Transaction,
     std::{
         collections::HashMap,
         marker::PhantomData,
@@ -44,6 +48,10 @@ use {
             Poll,
         },
         time::Duration,
+    },
+    svm::{
+        GetSubmitBidInstructionParams,
+        GetSwapInstructionParams,
     },
     tokio::{
         net::TcpStream,
@@ -71,13 +79,14 @@ use {
 };
 
 pub mod evm;
+pub mod svm;
 
 pub struct ClientInner {
     http_url: Url,
     ws_url:   Url,
     api_key:  Option<String>,
     client:   reqwest::Client,
-    evm:      Evm,
+    evm:      evm::Evm,
 }
 
 #[derive(Clone)]
@@ -102,6 +111,7 @@ pub enum ClientError {
     InvalidResponse(String),
     ChainNotSupported,
     NewBidError(String),
+    SvmError(String),
 }
 
 enum DecodedResponse<T: DeserializeOwned> {
@@ -539,7 +549,7 @@ impl Client {
                 ws_url,
                 api_key: config.api_key,
                 client: reqwest::Client::new(),
-                evm: Evm::new(None),
+                evm: evm::Evm::new(None),
             }),
         })
     }
@@ -558,7 +568,7 @@ impl Client {
                 ws_url,
                 api_key: config.api_key,
                 client: reqwest::Client::new(),
-                evm: Evm::new(Some(evm_config)),
+                evm: evm::Evm::new(Some(evm_config)),
             }),
         })
     }
@@ -638,7 +648,6 @@ impl Client {
     ///
     /// * `opportunity` - The opportunity to bid on.
     /// * `params` - Bid parameters specific to the opportunity type.
-    /// * `private_key` - The private key for signing the bid.
     ///
     /// # Returns
     ///
@@ -647,9 +656,8 @@ impl Client {
         &self,
         opportunity: T,
         params: T::Params,
-        private_key: String,
     ) -> Result<api_types::bid::BidCreate, ClientError> {
-        T::new_bid(self, opportunity, params, private_key)
+        T::new_bid(self, opportunity, params)
     }
 }
 
@@ -660,34 +668,31 @@ pub trait Biddable {
         client: &Client,
         opportunity: Self,
         params: Self::Params,
-        private_key: String,
     ) -> Result<BidCreate, ClientError>;
 }
 
 impl Biddable for api_types::opportunity::OpportunityEvm {
-    type Params = BidParamsEvm;
+    type Params = evm::NewBidParams;
 
     fn new_bid(
         client: &Client,
         opportunity: Self,
-        bid_params: Self::Params,
-        private_key: String,
+        params: Self::Params,
     ) -> Result<BidCreate, ClientError> {
-        let private_key = private_key.parse::<LocalWallet>().map_err(|e| {
-            ClientError::NewBidError(format!("Failed to parse private key: {:?}", e))
-        })?;
-        let params = get_params(opportunity.clone());
-        let config = client.inner.evm.get_config(params.chain_id.as_str())?;
-        let wallet = LocalWallet::from(private_key);
+        let opportunity_params = evm::get_params(opportunity.clone());
+        let config = client
+            .inner
+            .evm
+            .get_config(opportunity_params.chain_id.as_str())?;
         let bid = BidCreateEvm {
-            permission_key:  params.permission_key,
-            chain_id:        params.chain_id,
+            permission_key:  opportunity_params.permission_key,
+            chain_id:        opportunity_params.chain_id,
             target_contract: config.adapter_factory_contract,
-            amount:          bid_params.amount,
+            amount:          params.bid_params.amount,
             target_calldata: client.inner.evm.make_adapter_calldata(
                 opportunity.clone(),
-                bid_params,
-                wallet,
+                params.bid_params,
+                params.wallet,
             )?,
         };
         Ok(BidCreate::Evm(bid))
@@ -695,14 +700,133 @@ impl Biddable for api_types::opportunity::OpportunityEvm {
 }
 
 impl Biddable for api_types::opportunity::OpportunitySvm {
-    type Params = i64;
+    type Params = svm::NewBidParams;
 
+    /// Creates a new bid for an SVM opportunity.
+    ///
+    /// It receives a list of instructions and add the "submit_bid" or "swap" instruction to it based on the opportunity type.
+    /// Then it creates a transaction with the instructions and partially signs it with the signers.
+    /// Finally, it returns a Bid object with the created transaction.
+    /// If you don't want to use this method, you can use the svm::Svm::get_submit_bid_instruction or svm::Svm::get_swap_instruction methods to create the "submit_bid" or "swap" instruction and manually create the transaction and bid object.
     fn new_bid(
         _client: &Client,
-        _opportunity: Self,
-        _params: Self::Params,
-        _private_key: String,
+        opportunity: Self,
+        params: Self::Params,
     ) -> Result<BidCreate, ClientError> {
-        todo!()
+        let OpportunityParamsSvm::V1(opportunity_params) = opportunity.params.clone();
+        match opportunity_params.program {
+            OpportunityParamsV1ProgramSvm::Limo { .. } => {
+                let program_params = match params.program_params {
+                    svm::ProgramParams::Limo(params) => Ok(params),
+                    _ => Err(ClientError::NewBidError(
+                        "Invalid program params for Limo opportunity".to_string(),
+                    )),
+                }?;
+                let mut instructions = params.instructions;
+                instructions.push(svm::Svm::get_submit_bid_instruction(
+                    GetSubmitBidInstructionParams {
+                        chain_id:             opportunity_params.chain_id.clone(),
+                        amount:               params.amount,
+                        deadline:             params.deadline,
+                        searcher:             params.searcher,
+                        permission:           program_params.permission,
+                        router:               program_params.router,
+                        relayer_signer:       program_params.relayer_signer,
+                        fee_receiver_relayer: params.fee_receiver_relayer,
+                    },
+                ));
+                let mut transaction =
+                    Transaction::new_with_payer(instructions.as_slice(), Some(&params.payer));
+                transaction
+                    .try_partial_sign(&params.signers, params.block_hash)
+                    .map_err(|e| {
+                        ClientError::NewBidError(format!("Failed to sign transaction: {:?}", e))
+                    })?;
+                Ok(BidCreate::Svm(BidCreateSvm::OnChain(BidCreateOnChainSvm {
+                    chain_id:    opportunity_params.chain_id.clone(),
+                    transaction: transaction.into(),
+                    slot:        params.slot,
+                })))
+            }
+            OpportunityParamsV1ProgramSvm::Swap {
+                user_wallet_address,
+                tokens,
+                fee_token,
+                router_account,
+                referral_fee_bps,
+                ..
+            } => {
+                let _ = match params.program_params {
+                    svm::ProgramParams::Swap(params) => Ok(params),
+                    _ => Err(ClientError::NewBidError(
+                        "Invalid program params for swap opportunity".to_string(),
+                    )),
+                }?;
+                let (input_token, output_token, input_token_program, output_token_program) =
+                    match tokens {
+                        QuoteTokens::InputTokenSpecified {
+                            input_token,
+                            output_token,
+                            input_token_program,
+                            output_token_program,
+                        } => (
+                            input_token.token,
+                            output_token,
+                            input_token_program,
+                            output_token_program,
+                        ),
+                        QuoteTokens::OutputTokenSpecified {
+                            input_token,
+                            output_token,
+                            input_token_program,
+                            output_token_program,
+                        } => (
+                            input_token,
+                            output_token.token,
+                            input_token_program,
+                            output_token_program,
+                        ),
+                    };
+                let (fee_token, fee_token_program) = match fee_token {
+                    FeeToken::InputToken => (input_token, input_token_program),
+                    FeeToken::OutputToken => (output_token, output_token_program),
+                };
+                let mut instructions = params.instructions;
+                instructions.extend(svm::Svm::get_swap_create_accounts_idempotent_instructions(
+                    svm::GetSwapCreateAccountsIdempotentInstructionsParams {
+                        payer: params.payer,
+                        trader: user_wallet_address,
+                        output_token,
+                        output_token_program,
+                        fee_token,
+                        fee_token_program,
+                        router_account,
+                        fee_receiver_relayer: params.fee_receiver_relayer,
+                        referral_fee_bps,
+                        chain_id: opportunity_params.chain_id.clone(),
+                    },
+                ));
+                instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+                    opportunity_params:   opportunity.params,
+                    bid_amount:           params.amount,
+                    deadline:             params.deadline,
+                    searcher:             params.searcher,
+                    fee_receiver_relayer: params.fee_receiver_relayer,
+                })?);
+                let mut transaction =
+                    Transaction::new_with_payer(instructions.as_slice(), Some(&params.payer));
+                transaction
+                    .try_partial_sign(&params.signers, params.block_hash)
+                    .map_err(|e| {
+                        ClientError::NewBidError(format!("Failed to sign transaction: {:?}", e))
+                    })?;
+                Ok(BidCreate::Svm(BidCreateSvm::Swap(BidCreateSwapSvm {
+                    chain_id:       opportunity_params.chain_id,
+                    transaction:    transaction.into(),
+                    opportunity_id: opportunity.opportunity_id,
+                    _type:          BidCreateSwapSvmTag::Swap,
+                })))
+            }
+        }
     }
 }

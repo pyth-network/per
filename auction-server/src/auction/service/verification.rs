@@ -367,18 +367,15 @@ impl Service<Svm> {
     async fn extract_account(
         &self,
         tx: &VersionedTransaction,
-        submit_bid_instruction: &CompiledInstruction,
+        instruction: &CompiledInstruction,
         position: usize,
     ) -> Result<Pubkey, RestError> {
         let static_accounts = tx.message.static_account_keys();
         let tx_lookup_tables = tx.message.address_table_lookups();
 
-        let account_position = submit_bid_instruction
-            .accounts
-            .get(position)
-            .ok_or_else(|| {
-                RestError::BadParameters("Account not found in submit_bid instruction".to_string())
-            })?;
+        let account_position = instruction.accounts.get(position).ok_or_else(|| {
+            RestError::BadParameters("Account not found in instruction".to_string())
+        })?;
 
         let account_position: usize = (*account_position).into();
         if let Some(account) = static_accounts.get(account_position) {
@@ -857,7 +854,6 @@ impl Service<Svm> {
         }
     }
 
-
     fn relayer_signer_exists(
         &self,
         accounts: &[Pubkey],
@@ -876,6 +872,7 @@ impl Service<Svm> {
         }
         Ok(())
     }
+
     fn all_signatures_exists(
         &self,
         message_bytes: &[u8],

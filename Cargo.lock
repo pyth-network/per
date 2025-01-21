@@ -2652,7 +2652,7 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
 name = "express-relay"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -2660,7 +2660,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-api-types"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -2680,15 +2680,18 @@ dependencies = [
 
 [[package]]
 name = "express-relay-client"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "ethers",
+ "express-relay",
  "express-relay-api-types",
  "futures-util",
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "solana-rpc-client",
  "solana-sdk 2.0.20",
+ "spl-associated-token-account 5.0.1",
  "tokio",
  "tokio-stream",
  "tokio-tungstenite 0.24.0",
@@ -2703,6 +2706,8 @@ dependencies = [
  "clap 4.5.23",
  "express-relay-client",
  "rand 0.8.5",
+ "solana-rpc-client",
+ "spl-associated-token-account 5.0.1",
  "time",
  "tokio",
  "tokio-stream",
@@ -8489,6 +8494,7 @@ version = "0.1.0"
 dependencies = [
  "express-relay-client",
  "express-relay-simple-searcher",
+ "serde_json",
  "tokio",
 ]
 

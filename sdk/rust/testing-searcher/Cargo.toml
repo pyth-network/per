@@ -7,3 +7,4 @@ edition = "2021"
 tokio = { workspace = true }
 express-relay-simple-searcher = { path = "../simple-searcher" }
 express-relay-client = { path = ".." }
+serde_json = { workspace = true }

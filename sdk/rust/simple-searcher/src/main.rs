@@ -38,6 +38,11 @@ pub struct RunOptions {
     #[arg(long = "api-key")]
     #[arg(env = "API_KEY")]
     pub api_key: Option<String>,
+
+    /// The SVM RPC URL.
+    #[arg(long = "svm-rpc-url")]
+    #[arg(env = "SVM_RPC_URL")]
+    pub svm_rpc_url: Option<String>,
 }
 
 #[tokio::main]
@@ -52,11 +57,12 @@ async fn main() -> Result<()> {
         anyhow!("Failed to create client")
     })?;
 
-    let simple_searcher = SimpleSearcher::try_new(
+    let mut simple_searcher = SimpleSearcher::try_new(
         client,
         args.chains,
         args.private_key_evm,
         args.private_key_svm,
+        args.svm_rpc_url,
     )
     .await?;
     simple_searcher.run().await
