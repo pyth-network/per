@@ -19,7 +19,7 @@ USER per
 FROM builder-base AS builder
 ARG package
 ENV CI true
-RUN pnpm -r build
+RUN pnpm -r --filter $package build
 RUN pnpm deploy --filter $package --prod /srv/$package
 
 
