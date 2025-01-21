@@ -188,7 +188,7 @@ SvmSignature = Annotated[_SvmSignature, _SignaturePydanticAnnotation]
 class SwapBidSvm(BaseModel):
     """
     Attributes:
-        transaction: The transaction including the bid
+        transaction: The transaction including the bid for swap opportunity.
         chain_id: The chain ID to bid on.
         opportunity_id: The ID of the swap opportunity.
     """

@@ -22,3 +22,5 @@ runs:
         poetry-version: ${{ inputs.poetry-version }}
     - run: poetry -C tilt-scripts install
       shell: sh
+    - run: poetry -C sdk/python install
+      shell: sh
