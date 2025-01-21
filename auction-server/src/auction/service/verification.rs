@@ -42,10 +42,7 @@ use {
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
                 get_opportunities::GetLiveOpportunityByIdInput,
-                get_quote::{
-                    get_associated_token_account,
-                    get_quote_virtual_permission_account,
-                },
+                get_quote::get_quote_virtual_permission_account,
             },
         },
     },
@@ -73,6 +70,11 @@ use {
             U256,
         },
     },
+    express_relay::sdk::helpers::{
+        get_associated_token_address_with_program_id,
+        AssociatedTokenAccountInstruction,
+        AssociatedTokenAccountPID,
+    },
     litesvm::types::FailedTransactionMetadata,
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
@@ -85,7 +87,6 @@ use {
         signer::Signer as _,
         transaction::VersionedTransaction,
     },
-    spl_associated_token_account::instruction::AssociatedTokenAccountInstruction,
     std::{
         sync::Arc,
         time::Duration,
@@ -528,7 +529,7 @@ impl Service<Svm> {
 
         if *program_id == compute_budget::id() {
             Ok(())
-        } else if *program_id == spl_associated_token_account::id() {
+        } else if *program_id == AssociatedTokenAccountPID.to_bytes().into() {
             let ix_parsed =
                 AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
                     RestError::BadParameters(format!(
@@ -820,8 +821,13 @@ impl Service<Svm> {
                     FeeToken::Input => (mint_input, token_program_input),
                     FeeToken::Output => (mint_output, token_program_output),
                 };
-                let expected_router_token_account =
-                    get_associated_token_account(&opp.router, &fee_token_program, &fee_token);
+                let expected_router_token_account = get_associated_token_address_with_program_id(
+                    &opp.router.to_bytes().into(),
+                    &fee_token.to_bytes().into(),
+                    &fee_token_program.to_bytes().into(),
+                )
+                .to_bytes()
+                .into();
 
                 if router_token_account != expected_router_token_account {
                     return Err(RestError::BadParameters(

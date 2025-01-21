@@ -1,3 +1,8 @@
+pub use anchor_spl::associated_token::{
+    get_associated_token_address_with_program_id,
+    spl_associated_token_account::instruction::AssociatedTokenAccountInstruction,
+    ID as AssociatedTokenAccountPID,
+};
 use {
     crate::{
         accounts,
@@ -18,7 +23,6 @@ use {
         system_program,
         InstructionData,
     },
-    anchor_spl::associated_token::get_associated_token_address_with_program_id,
 };
 
 /// Creates and adds to the provided instructions a `SubmitBid` instruction.
@@ -177,5 +181,49 @@ pub fn deserialize_metadata(data: Vec<u8>) -> Result<ExpressRelayMetadata> {
     match ExpressRelayMetadata::try_deserialize(buf) {
         Ok(metadata) => Ok(metadata),
         Err(_) => Err(ProgramError::InvalidAccountData.into()),
+    }
+}
+
+/// Creates CreateIdempotent instruction
+pub fn create_associated_token_account_idempotent(
+    funding_address: &Pubkey,
+    wallet_address: &Pubkey,
+    token_mint_address: &Pubkey,
+    token_program_id: &Pubkey,
+) -> Instruction {
+    build_associated_token_account_instruction(
+        funding_address,
+        wallet_address,
+        token_mint_address,
+        token_program_id,
+        1, // AssociatedTokenAccountInstruction::CreateIdempotent
+    )
+}
+
+fn build_associated_token_account_instruction(
+    funding_address: &Pubkey,
+    wallet_address: &Pubkey,
+    token_mint_address: &Pubkey,
+    token_program_id: &Pubkey,
+    instruction: u8,
+) -> Instruction {
+    let associated_account_address = get_associated_token_address_with_program_id(
+        wallet_address,
+        token_mint_address,
+        token_program_id,
+    );
+    // safety check, assert if not a creation instruction, which is only 0 or 1
+    assert!(instruction <= 1);
+    Instruction {
+        program_id: AssociatedTokenAccountPID,
+        accounts:   vec![
+            AccountMeta::new(*funding_address, true),
+            AccountMeta::new(associated_account_address, false),
+            AccountMeta::new_readonly(*wallet_address, false),
+            AccountMeta::new_readonly(*token_mint_address, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(*token_program_id, false),
+        ],
+        data:       vec![instruction],
     }
 }

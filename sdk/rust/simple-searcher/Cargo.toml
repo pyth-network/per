@@ -12,4 +12,3 @@ tokio-stream = { workspace = true }
 rand = { workspace = true }
 clap = { workspace = true, features = ["derive", "env"] }
 solana-rpc-client = { workspace = true }
-spl-associated-token-account = "5.0.1"

@@ -2,9 +2,11 @@ use {
     crate::ClientError,
     express_relay::{
         sdk::helpers::{
+            create_associated_token_account_idempotent,
             create_submit_bid_instruction,
             create_swap_instruction,
             deserialize_metadata,
+            get_associated_token_address_with_program_id,
         },
         state::{
             ExpressRelayMetadata,
@@ -29,10 +31,6 @@ use {
         },
         pubkey::Pubkey,
         signature::Keypair,
-    },
-    spl_associated_token_account::{
-        get_associated_token_address_with_program_id,
-        instruction::create_associated_token_account_idempotent,
     },
     std::str::FromStr,
 };
@@ -144,6 +142,33 @@ impl Svm {
         }
     }
 
+    pub fn create_associated_token_account_idempotent(
+        funding_address: &Pubkey,
+        wallet_address: &Pubkey,
+        token_mint_address: &Pubkey,
+        token_program_id: &Pubkey,
+    ) -> Instruction {
+        let instruction = create_associated_token_account_idempotent(
+            &funding_address.to_bytes().into(),
+            &wallet_address.to_bytes().into(),
+            &token_mint_address.to_bytes().into(),
+            &token_program_id.to_bytes().into(),
+        );
+        Instruction {
+            program_id: instruction.program_id.to_bytes().into(),
+            accounts:   instruction
+                .accounts
+                .iter()
+                .map(|account| AccountMeta {
+                    pubkey:      account.pubkey.to_bytes().into(),
+                    is_signer:   account.is_signer,
+                    is_writable: account.is_writable,
+                })
+                .collect(),
+            data:       instruction.data.clone(),
+        }
+    }
+
     pub fn get_submit_bid_instruction(params: GetSubmitBidInstructionParams) -> Instruction {
         let submid_bid_instruction = create_submit_bid_instruction(
             Self::get_express_relay_pid(params.chain_id)
@@ -201,19 +226,19 @@ impl Svm {
         params: GetSwapCreateAccountsIdempotentInstructionsParams,
     ) -> Vec<Instruction> {
         let mut instructions = vec![];
-        instructions.push(create_associated_token_account_idempotent(
+        instructions.push(Self::create_associated_token_account_idempotent(
             &params.payer,
             &params.trader,
             &params.output_token,
             &params.output_token_program,
         ));
-        instructions.push(create_associated_token_account_idempotent(
+        instructions.push(Self::create_associated_token_account_idempotent(
             &params.payer,
             &params.fee_receiver_relayer,
             &params.fee_token,
             &params.fee_token_program,
         ));
-        instructions.push(create_associated_token_account_idempotent(
+        instructions.push(Self::create_associated_token_account_idempotent(
             &params.payer,
             &Pubkey::find_program_address(
                 &[SEED_METADATA],
@@ -224,7 +249,7 @@ impl Svm {
             &params.fee_token_program,
         ));
         if params.referral_fee_bps > 0 {
-            instructions.push(create_associated_token_account_idempotent(
+            instructions.push(Self::create_associated_token_account_idempotent(
                 &params.payer,
                 &params.router_account,
                 &params.fee_token,
@@ -284,9 +309,9 @@ impl Svm {
             }
         };
         let router_fee_receiver_ta = get_associated_token_address_with_program_id(
-            &swap_data.router_account,
-            &fee_token_mint,
-            &fee_token_program,
+            &swap_data.router_account.to_bytes().into(),
+            &fee_token_mint.to_bytes().into(),
+            &fee_token_program.to_bytes().into(),
         );
 
         let swap_instruction = create_swap_instruction(

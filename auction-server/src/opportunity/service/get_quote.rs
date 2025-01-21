@@ -1,4 +1,3 @@
-use crate::opportunity::entities::TokenAmountSvm;
 use {
     super::{
         get_token_program::GetTokenProgramInput,
@@ -46,6 +45,10 @@ use {
     time::OffsetDateTime,
     tokio::time::sleep,
 };
+use {
+    crate::opportunity::entities::TokenAmountSvm,
+    express_relay::sdk::helpers::get_associated_token_address_with_program_id,
+};
 
 /// Time to wait for searchers to submit bids.
 const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
@@ -53,22 +56,6 @@ const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
 pub struct GetQuoteInput {
     pub quote_create: entities::QuoteCreate,
     pub program:      ProgramSvm,
-}
-
-pub fn get_associated_token_account(
-    owner: &Pubkey,
-    token_program: &Pubkey,
-    token: &Pubkey,
-) -> Pubkey {
-    Pubkey::find_program_address(
-        &[
-            &owner.to_bytes(),
-            &token_program.to_bytes(),
-            &token.to_bytes(),
-        ],
-        &spl_associated_token_account::id(),
-    )
-    .0
 }
 
 /// Get a pubkey based on router_token_account, user_wallet_address, referral_fee_bps, mints, and token amounts
@@ -167,13 +154,19 @@ impl Service<ChainTypeSvm> {
             })?;
 
         let router_token_account = match fee_token {
-            entities::FeeToken::InputToken => {
-                get_associated_token_account(&router, &input_token_program, &input_mint)
-            }
-            entities::FeeToken::OutputToken => {
-                get_associated_token_account(&router, &output_token_program, &output_mint)
-            }
-        };
+            entities::FeeToken::InputToken => get_associated_token_address_with_program_id(
+                &router.to_bytes().into(),
+                &input_mint.to_bytes().into(),
+                &input_token_program.to_bytes().into(),
+            ),
+            entities::FeeToken::OutputToken => get_associated_token_address_with_program_id(
+                &router.to_bytes().into(),
+                &output_mint.to_bytes().into(),
+                &output_token_program.to_bytes().into(),
+            ),
+        }
+        .to_bytes()
+        .into();
         let permission_account = get_quote_virtual_permission_account(
             &quote_create.tokens,
             &quote_create.user_wallet_address,
