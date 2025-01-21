@@ -5,7 +5,6 @@ on:
       - v*
     branches:
       - main
-      - fix/ci-build
   workflow_dispatch:
     inputs:
       dispatch_description:
