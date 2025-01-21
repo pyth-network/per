@@ -24,7 +24,7 @@ export const OPPORTUNITY_ADAPTER_CONFIGS: Record<
 };
 
 export const SVM_CONSTANTS: Record<string, SvmConstantsConfig> = {
-  "development-solana-local": {
+  "local-solana": {
     expressRelayProgram: new PublicKey(
       "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou",
     ),
