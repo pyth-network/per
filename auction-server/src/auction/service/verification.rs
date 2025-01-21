@@ -617,7 +617,7 @@ impl Service<Svm> {
         if user_wallet != opp_swap_data.user_wallet_address {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid wallet address {} in swap instruction. Value does not match the wallet address in swap opportunity {}",
+                    "Invalid wallet address {} in swap instruction accounts. Value does not match the wallet address in swap opportunity {}",
                     user_wallet, opp_swap_data.user_wallet_address
                 ),
             ));
@@ -625,7 +625,7 @@ impl Service<Svm> {
         if expected_input_token != mint_input {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid input token {} in swap instruction. Value does not match the input token in swap opportunity {}",
+                    "Invalid input token {} in swap instruction accounts. Value does not match the input token in swap opportunity {}",
                     mint_input, expected_input_token
                 ),
             ));
@@ -633,7 +633,7 @@ impl Service<Svm> {
         if expected_output_token != mint_output {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid output token {} in swap instruction. Value does not match the output token in swap opportunity {}",
+                    "Invalid output token {} in swap instruction accounts. Value does not match the output token in swap opportunity {}",
                     mint_output, expected_output_token
                 ),
             ));
@@ -642,7 +642,7 @@ impl Service<Svm> {
         if token_program_input != opp_swap_data.input_token_program {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid input token program {} in swap instruction. Value does not match the input token program in swap opportunity {}",
+                    "Invalid input token program {} in swap instruction accounts. Value does not match the input token program in swap opportunity {}",
                     token_program_input, opp_swap_data.input_token_program
                 ),
             ));
@@ -651,7 +651,7 @@ impl Service<Svm> {
         if token_program_output != opp_swap_data.output_token_program {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid output token program {} in swap instruction. Value does not match the output token program in swap opportunity {}",
+                    "Invalid output token program {} in swap instruction accounts. Value does not match the output token program in swap opportunity {}",
                     token_program_output, opp_swap_data.output_token_program
                 ),
             ));
@@ -662,7 +662,7 @@ impl Service<Svm> {
             if expected_input_amount != swap_data.amount_input {
                 return Err(RestError::BadParameters(
                     format!(
-                        "Invalid input amount {} in swap instruction. Value does not match the input amount in swap opportunity {}",
+                        "Invalid input amount {} in swap instruction data. Value does not match the input amount in swap opportunity {}",
                         swap_data.amount_input, expected_input_amount
                     ),
                 ));
@@ -672,7 +672,7 @@ impl Service<Svm> {
             if expected_output_amount != swap_data.amount_output {
                 return Err(RestError::BadParameters(
                     format!(
-                        "Invalid output amount {} in swap instruction. Value does not match the output amount in swap opportunity {}",
+                        "Invalid output amount {} in swap instruction data. Value does not match the output amount in swap opportunity {}",
                         swap_data.amount_output, expected_output_amount
                     ),
                 ));
@@ -681,7 +681,7 @@ impl Service<Svm> {
         if opp_swap_data.fee_token != swap_data.fee_token {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid fee token {:?} in swap instruction. Value does not match the fee token in swap opportunity {:?}",
+                    "Invalid fee token {:?} in swap instruction data. Value does not match the fee token in swap opportunity {:?}",
                     swap_data.fee_token, opp_swap_data.fee_token
                 ),
             ));
@@ -690,7 +690,7 @@ impl Service<Svm> {
         if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid referral fee bps {} in swap instruction. Value does not match the referral fee bps in swap opportunity {}",
+                    "Invalid referral fee bps {} in swap instruction data. Value does not match the referral fee bps in swap opportunity {}",
                     swap_data.referral_fee_bps, opp_swap_data.referral_fee_bps
                 ),
             ));

@@ -4,18 +4,17 @@ from typing import ClassVar
 
 import web3
 from eth_account.datastructures import SignedMessage
-from pydantic import BaseModel, model_validator, Field
+from express_relay.models.base import (
+    BidStatusVariantsEvm,
+    IntString,
+    UnsupportedOpportunityDeleteVersionException,
+    UnsupportedOpportunityVersionException,
+    UUIDString,
+)
+from pydantic import BaseModel, Field, model_validator
 from pydantic.functional_serializers import PlainSerializer
 from pydantic.functional_validators import AfterValidator
 from typing_extensions import Annotated
-
-from express_relay.models.base import (
-    IntString,
-    UUIDString,
-    UnsupportedOpportunityDeleteVersionException,
-    UnsupportedOpportunityVersionException,
-    BidStatusVariantsEvm,
-)
 
 
 def check_hex_string(s: str):
@@ -164,7 +163,10 @@ class BidStatusEvm(BaseModel):
 
     @model_validator(mode="after")
     def check_index(self):
-        if self.type == BidStatusVariantsEvm.SUBMITTED or self.type == BidStatusVariantsEvm.WON:
+        if (
+            self.type == BidStatusVariantsEvm.SUBMITTED
+            or self.type == BidStatusVariantsEvm.WON
+        ):
             assert self.index is not None, "index must be a valid integer"
         elif self.type == BidStatusVariantsEvm.LOST:
             pass
@@ -206,6 +208,7 @@ class OpportunityDeleteEvm(BaseModel):
         chain_id: The chain ID for opportunities to be removed.
         permission_key: The permission key for the opportunities to be removed.
     """
+
     chain_id: str
     permission_key: HexString
 

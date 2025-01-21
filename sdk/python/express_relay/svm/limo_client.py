@@ -1,29 +1,22 @@
-from decimal import Decimal
-from typing import Sequence, List, TypedDict, Tuple
+from typing import List, Sequence, Tuple, TypedDict
 
-from solana.constants import SYSTEM_PROGRAM_ID
+import spl.token.instructions as spl_token
+from express_relay.svm.generated.limo.accounts import Order
+from express_relay.svm.generated.limo.instructions import TakeOrderArgs, take_order
+from express_relay.svm.generated.limo.program_id import PROGRAM_ID
+from express_relay.svm.token_utils import (
+    create_associated_token_account_idempotent,
+    get_ata,
+)
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.types import MemcmpOpts
 from solders import system_program
-from solders.instruction import Instruction, AccountMeta
+from solders.instruction import Instruction
 from solders.pubkey import Pubkey
 from solders.system_program import TransferParams
-from solders.sysvar import RENT, INSTRUCTIONS
-from spl.token._layouts import MINT_LAYOUT, ACCOUNT_LAYOUT as TOKEN_ACCOUNT_LAYOUT
-from spl.token.constants import (
-    WRAPPED_SOL_MINT,
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
-)
-
-from express_relay.svm.generated.limo.accounts import Order
-from express_relay.svm.generated.limo.instructions import (
-    take_order,
-    TakeOrderArgs,
-)
-from express_relay.svm.generated.limo.program_id import PROGRAM_ID
-
-import spl.token.instructions as spl_token
+from solders.sysvar import INSTRUCTIONS
+from spl.token._layouts import MINT_LAYOUT
+from spl.token.constants import TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT
 
 ESCROW_VAULT_SEED = b"escrow_vault"
 GLOBAL_AUTH_SEED = b"authority"
@@ -78,35 +71,6 @@ class LimoClient:
         decimals = decoded_data.decimals
         return decimals
 
-    def create_associated_token_account_idempotent(
-        self, payer: Pubkey, owner: Pubkey, mint: Pubkey, token_program_id: Pubkey
-    ) -> Instruction:
-        """Creates a transaction instruction to create an associated token account.
-
-        Returns:
-            The instruction to create the associated token account.
-        """
-        associated_token_address = self.get_ata(owner, mint, token_program_id)
-        return Instruction(
-            accounts=[
-                AccountMeta(pubkey=payer, is_signer=True, is_writable=True),
-                AccountMeta(
-                    pubkey=associated_token_address, is_signer=False, is_writable=True
-                ),
-                AccountMeta(pubkey=owner, is_signer=False, is_writable=False),
-                AccountMeta(pubkey=mint, is_signer=False, is_writable=False),
-                AccountMeta(
-                    pubkey=SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False
-                ),
-                AccountMeta(
-                    pubkey=token_program_id, is_signer=False, is_writable=False
-                ),
-                AccountMeta(pubkey=RENT, is_signer=False, is_writable=False),
-            ],
-            program_id=ASSOCIATED_TOKEN_PROGRAM_ID,
-            data=bytes([1]),  # idempotent version of the instruction
-        )
-
     def get_ata_and_create_ixn_if_required(
         self,
         owner: Pubkey,
@@ -114,8 +78,8 @@ class LimoClient:
         token_program_id: Pubkey,
         payer: Pubkey,
     ) -> Tuple[Pubkey, Sequence[Instruction]]:
-        ata = self.get_ata(owner, token_mint_address, token_program_id)
-        ix = self.create_associated_token_account_idempotent(
+        ata = get_ata(owner, token_mint_address, token_program_id)
+        ix = create_associated_token_account_idempotent(
             payer, owner, token_mint_address, token_program_id
         )
         return ata, [ix]
@@ -133,10 +97,10 @@ class LimoClient:
             payer: Who pays for the instructions
             amount_to_deposit_lamports: Amount of lamports to deposit into the WSOL account
         """
-        ata = self.get_ata(owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
+        ata = get_ata(owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
 
         create_ixs = [
-            self.create_associated_token_account_idempotent(
+            create_associated_token_account_idempotent(
                 payer, owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
             )
         ]
@@ -228,7 +192,9 @@ class LimoClient:
             close_wsol_ixns.extend(instructions["close_ixs"])
             taker_output_ata = instructions["ata"]
 
-            intermediary_output_token_account = self.get_intermediary_token_account_pda(PROGRAM_ID, order["address"])
+            intermediary_output_token_account = self.get_intermediary_token_account_pda(
+                PROGRAM_ID, order["address"]
+            )
         else:
             (
                 taker_output_ata,
@@ -332,23 +298,16 @@ class LimoClient:
         )[0]
 
     @staticmethod
-    def get_ata(
-        owner: Pubkey, token_mint_address: Pubkey, token_program_id: Pubkey
-    ) -> Pubkey:
-        ata, _ = Pubkey.find_program_address(
-            seeds=[bytes(owner), bytes(token_program_id), bytes(token_mint_address)],
-            program_id=ASSOCIATED_TOKEN_PROGRAM_ID,
-        )
-        return ata
-
-    @staticmethod
     def get_event_authority(program_id: Pubkey) -> Pubkey:
         return Pubkey.find_program_address(
             seeds=[EVENT_AUTH_SEED], program_id=program_id
         )[0]
 
     @staticmethod
-    def get_intermediary_token_account_pda(program_id: Pubkey, order_address: Pubkey) -> Pubkey:
+    def get_intermediary_token_account_pda(
+        program_id: Pubkey, order_address: Pubkey
+    ) -> Pubkey:
         return Pubkey.find_program_address(
-            seeds=[INTERMEDIARY_OUTPUT_TOKEN_ACCOUNT_SEED, bytes(order_address)], program_id=program_id
+            seeds=[INTERMEDIARY_OUTPUT_TOKEN_ACCOUNT_SEED, bytes(order_address)],
+            program_id=program_id,
         )[0]

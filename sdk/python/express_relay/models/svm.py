@@ -1,15 +1,23 @@
 import base64
 from datetime import datetime
 from enum import Enum
-from typing import Any, Annotated, ClassVar
+from typing import Annotated, Any, ClassVar, Literal
 
+from express_relay.models.base import (
+    BidStatusVariantsSvm,
+    IntString,
+    UnsupportedOpportunityDeleteVersionException,
+    UnsupportedOpportunityVersionException,
+    UUIDString,
+)
+from express_relay.svm.generated.limo.accounts.order import Order
 from pydantic import (
+    Base64Bytes,
+    BaseModel,
+    Field,
     GetCoreSchemaHandler,
     GetJsonSchemaHandler,
-    BaseModel,
     model_validator,
-    Field,
-    Base64Bytes,
 )
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
@@ -17,15 +25,6 @@ from solders.hash import Hash as _SvmHash
 from solders.pubkey import Pubkey as _SvmAddress
 from solders.signature import Signature as _SvmSignature
 from solders.transaction import Transaction as _SvmTransaction
-
-from express_relay.svm.generated.limo.accounts.order import Order
-from express_relay.models.base import (
-    IntString,
-    UUIDString,
-    UnsupportedOpportunityDeleteVersionException,
-    UnsupportedOpportunityVersionException,
-    BidStatusVariantsSvm,
-)
 
 
 class _TransactionPydanticAnnotation:
@@ -186,7 +185,21 @@ SvmHash = Annotated[_SvmHash, _HashPydanticAnnotation]
 SvmSignature = Annotated[_SvmSignature, _SignaturePydanticAnnotation]
 
 
-class BidSvm(BaseModel):
+class SwapBidSvm(BaseModel):
+    """
+    Attributes:
+        transaction: The transaction including the bid for swap opportunity.
+        chain_id: The chain ID to bid on.
+        opportunity_id: The ID of the swap opportunity.
+    """
+
+    transaction: SvmTransaction
+    chain_id: str
+    opportunity_id: UUIDString
+    type: Literal["swap"] = "swap"
+
+
+class OnChainBidSvm(BaseModel):
     """
     Attributes:
         transaction: The transaction including the bid
@@ -198,6 +211,9 @@ class BidSvm(BaseModel):
     transaction: SvmTransaction
     chain_id: str
     slot: int | None
+
+
+BidSvm = SwapBidSvm | OnChainBidSvm
 
 
 class _OrderPydanticAnnotation:
@@ -241,7 +257,7 @@ class _OrderPydanticAnnotation:
         return handler(core_schema.str_schema())
 
 
-class OpportunitySvm(BaseModel):
+class BaseOpportunitySvm(BaseModel):
     """
     Attributes:
         chain_id: The chain ID to bid on.
@@ -249,24 +265,15 @@ class OpportunitySvm(BaseModel):
         creation_time: The creation time of the opportunity.
         opportunity_id: The ID of the opportunity.
         slot: The slot where this order was created or updated
-        program: The program which handles this opportunity
-        order: The order to be executed.
-        order_address: The address of the order.
     """
 
     chain_id: str
     version: str
     creation_time: IntString
     opportunity_id: UUIDString
-
     slot: int
 
-    program: str
-    order: Annotated[Order, _OrderPydanticAnnotation]
-    order_address: SvmAddress
-
     supported_versions: ClassVar[list[str]] = ["v1"]
-    supported_programs: ClassVar[list[str]] = ["limo"]
 
     @model_validator(mode="before")
     @classmethod
@@ -276,6 +283,72 @@ class OpportunitySvm(BaseModel):
                 f"Cannot handle opportunity version: {data['version']}. Please upgrade your client."
             )
         return data
+
+
+class LimoOpportunitySvm(BaseOpportunitySvm):
+    """
+    Attributes:
+        program: The program which handles this opportunity
+        order: The order to be executed.
+        order_address: The address of the order.
+    """
+
+    program: Literal["limo"]
+    order: Annotated[Order, _OrderPydanticAnnotation]
+    order_address: SvmAddress
+
+
+class TokenAmountSvm(BaseModel):
+    """
+    Attributes:
+        token: The token mint address.
+        amount: The token amount, represented in the smallest denomination of that token (e.g. lamports for SOL).
+    """
+
+    token: SvmAddress
+    amount: int
+
+
+class SwapTokensBase(BaseModel):
+    """
+    Attributes:
+        input_token_program: The token program address for the input token.
+        output_token_program: The token program address for the output token.
+    """
+
+    input_token_program: SvmAddress
+    output_token_program: SvmAddress
+
+
+class SwapTokensInputSpecified(SwapTokensBase):
+    side_specified: Literal["input"]
+    input_token: TokenAmountSvm
+    output_token: SvmAddress
+
+
+class SwapTokensOutputSpecified(SwapTokensBase):
+    side_specified: Literal["output"]
+    input_token: SvmAddress
+    output_token: TokenAmountSvm
+
+
+class SwapOpportunitySvm(BaseOpportunitySvm):
+    """
+    Attributes:
+        program: The program which handles this opportunity
+    """
+
+    program: Literal["swap"]
+    permission_account: SvmAddress
+
+    fee_token: Literal["input_token", "output_token"]
+    referral_fee_bps: int
+    router_account: SvmAddress
+    user_wallet_address: SvmAddress
+    tokens: SwapTokensInputSpecified | SwapTokensOutputSpecified
+
+
+OpportunitySvm = SwapOpportunitySvm | LimoOpportunitySvm
 
 
 class BidStatusSvm(BaseModel):
@@ -291,7 +364,10 @@ class BidStatusSvm(BaseModel):
 
     @model_validator(mode="after")
     def check_result(self):
-        if self.type == BidStatusVariantsSvm.WON or self.type == BidStatusVariantsSvm.SUBMITTED:
+        if (
+            self.type == BidStatusVariantsSvm.WON
+            or self.type == BidStatusVariantsSvm.SUBMITTED
+        ):
             assert (
                 self.result is not None
             ), "bid result should not be empty when status is won or submitted"
@@ -319,12 +395,14 @@ class BidResponseSvm(BaseModel):
     transaction: SvmTransaction
     profile_id: str | None = Field(default=None)
 
+
 class SvmChainUpdate(BaseModel):
     """
     Attributes:
         chain_id: The chain ID corresponding to the update.
         blockhash: A recent blockhash from the chain.
     """
+
     chain_id: str
     blockhash: SvmHash
     latest_prioritization_fee: int
@@ -343,6 +421,7 @@ class OpportunityDeleteSvm(BaseModel):
         permission_account: The permission account for the opportunities to be removed.
         router: The router for opportunties to be removed.
     """
+
     chain_id: str
     program: ProgramSvm
     permission_account: SvmAddress

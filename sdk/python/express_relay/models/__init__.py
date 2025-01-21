@@ -1,30 +1,28 @@
-from typing import Union, Any
-from typing_extensions import Literal, Annotated
+from typing import Any, Union
 
-from pydantic import BaseModel, Field, RootModel, Tag, Discriminator
-
-from express_relay.models.base import UUIDString, IntString
-
+from express_relay.models.base import IntString, UUIDString
 from express_relay.models.evm import (
+    Address,
     BidEvm,
+    BidResponseEvm,
+    BidStatusEvm,
     Bytes32,
     HexString,
-    Address,
     OpportunityDeleteEvm,
-    SignedMessageString,
     OpportunityEvm,
+    SignedMessageString,
     TokenAmount,
-    BidStatusEvm,
-    BidResponseEvm,
 )
 from express_relay.models.svm import (
+    BidResponseSvm,
+    BidStatusSvm,
     BidSvm,
     OpportunityDeleteSvm,
     OpportunitySvm,
     SvmTransaction,
-    BidStatusSvm,
-    BidResponseSvm,
 )
+from pydantic import BaseModel, Discriminator, Field, RootModel, Tag
+from typing_extensions import Annotated, Literal
 
 Bid = Union[BidEvm, BidSvm]
 
@@ -161,7 +159,7 @@ class PostBidMessageParamsEvm(BaseModel):
     permission_key: HexString
 
 
-class PostBidMessageParamsSvm(BaseModel):
+class PostOnChainBidMessageParamsSvm(BaseModel):
     """
     Attributes:
         method: A string literal "post_bid".
@@ -177,6 +175,22 @@ class PostBidMessageParamsSvm(BaseModel):
     slot: int | None
 
 
+class PostSwapBidMessageParamsSvm(BaseModel):
+    """
+    Attributes:
+        method: A string literal "post_bid".
+        chain_id: The chain ID to bid on.
+        transaction: The transaction including the bid.
+        opportunity_id: The ID of the swap opportunity.
+    """
+
+    method: Literal["post_bid"]
+    type: Literal["swap"]
+    chain_id: str
+    transaction: SvmTransaction
+    opportunity_id: UUIDString
+
+
 def get_discriminator_value(v: Any) -> str:
     if isinstance(v, dict):
         if "transaction" in v:
@@ -190,7 +204,10 @@ def get_discriminator_value(v: Any) -> str:
 PostBidMessageParams = Annotated[
     Union[
         Annotated[PostBidMessageParamsEvm, Tag("evm")],
-        Annotated[PostBidMessageParamsSvm, Tag("svm")],
+        Annotated[
+            Union[PostOnChainBidMessageParamsSvm, PostSwapBidMessageParamsSvm],
+            Tag("svm"),
+        ],
     ],
     Discriminator(get_discriminator_value),
 ]

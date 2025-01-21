@@ -1,8 +1,7 @@
 from typing import Dict, TypedDict
 
-from solders.pubkey import Pubkey
-
 from express_relay.models import OpportunityAdapterConfig
+from solders.pubkey import Pubkey
 
 OPPORTUNITY_ADAPTER_CONFIGS = {
     "op_sepolia": OpportunityAdapterConfig(
@@ -44,5 +43,5 @@ SVM_CONFIGS: Dict[str, SvmProgramConfig] = {
         "express_relay_program": Pubkey.from_string(
             "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou"
         ),
-    }
+    },
 }

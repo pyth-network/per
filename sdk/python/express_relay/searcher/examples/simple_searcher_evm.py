@@ -2,22 +2,14 @@ import argparse
 import asyncio
 import logging
 import typing
-
-from eth_account.account import Account
 from secrets import randbits
 
-from express_relay.client import (
-    ExpressRelayClient,
-    sign_bid,
-)
+from eth_account.account import Account
+from express_relay.client import ExpressRelayClient, sign_bid
 from express_relay.constants import OPPORTUNITY_ADAPTER_CONFIGS
-from express_relay.models.evm import (
-    BidEvm,
-    Bytes32,
-)
-from express_relay.models import BidStatusUpdate, OpportunityBidParams, Opportunity
-from express_relay.models.evm import OpportunityEvm, BidStatusEvm
+from express_relay.models import BidStatusUpdate, Opportunity, OpportunityBidParams
 from express_relay.models.base import BidStatusVariantsEvm
+from express_relay.models.evm import BidEvm, BidStatusEvm, Bytes32, OpportunityEvm
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +91,10 @@ class SimpleSearcher:
         index = bid_status.index
 
         result_details = ""
-        if status == BidStatusVariantsEvm.SUBMITTED or status == BidStatusVariantsEvm.WON:
+        if (
+            status == BidStatusVariantsEvm.SUBMITTED
+            or status == BidStatusVariantsEvm.WON
+        ):
             result_details = f", transaction {result}, index {index} of multicall"
         elif status == BidStatusVariantsEvm.LOST:
             if result:

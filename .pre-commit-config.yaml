@@ -54,7 +54,7 @@ repos:
         pass_filenames: false
         language: system
         files: .
-      # For python files
+      # For python tilt scripts
       - id: isort
         name: isort
         entry: poetry -C tilt-scripts run isort --profile=black tilt-scripts
@@ -68,5 +68,21 @@ repos:
       - id: pyflakes
         name: pyflakes
         entry: poetry -C tilt-scripts run pyflakes tilt-scripts
+        pass_filenames: false
+        language: system
+      # For python sdk
+      - id: isort
+        name: isort
+        entry: poetry -C sdk/python run isort --profile=black --skip-glob sdk/python/express_relay/svm/generated sdk/python
+        pass_filenames: false
+        language: system
+      - id: black
+        name: black
+        entry: poetry -C sdk/python run black sdk/python
+        pass_filenames: false
+        language: system
+      - id: flake8
+        name: flake8
+        entry: poetry -C sdk/python run flake8 --config sdk/python/.flake8 sdk/python
         pass_filenames: false
         language: system
