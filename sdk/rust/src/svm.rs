@@ -100,6 +100,7 @@ pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
     pub router_account:       Pubkey,
     pub fee_receiver_relayer: Pubkey,
     pub referral_fee_bps:     u16,
+    pub chain_id:             String,
 }
 
 pub struct Svm {
@@ -113,9 +114,13 @@ impl Svm {
         }
     }
 
-    pub async fn get_express_relay_metadata(&self) -> Result<ExpressRelayMetadata, ClientError> {
+    pub async fn get_express_relay_metadata(
+        &self,
+        chain_id: String,
+    ) -> Result<ExpressRelayMetadata, ClientError> {
         let express_relay_metadata =
-            Pubkey::find_program_address(&[SEED_METADATA], &express_relay::ID.to_bytes().into()).0;
+            Pubkey::find_program_address(&[SEED_METADATA], &Self::get_express_relay_pid(chain_id))
+                .0;
 
         let data = self
             .client
@@ -134,7 +139,8 @@ impl Svm {
             Pubkey::from_str("stag1NN9voD7436oFvKmy1kvRZYLLW8drKocSCt2W79")
                 .expect("Failed to parse express relay pubkey")
         } else {
-            express_relay::ID.to_bytes().into()
+            Pubkey::from_str("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou")
+                .expect("Failed to parse express relay pubkey")
         }
     }
 
@@ -209,7 +215,11 @@ impl Svm {
         ));
         instructions.push(create_associated_token_account_idempotent(
             &params.payer,
-            &Pubkey::find_program_address(&[SEED_METADATA], &express_relay::ID.to_bytes().into()).0,
+            &Pubkey::find_program_address(
+                &[SEED_METADATA],
+                &Self::get_express_relay_pid(params.chain_id),
+            )
+            .0,
             &params.fee_token,
             &params.fee_token_program,
         ));

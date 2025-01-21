@@ -110,14 +110,9 @@ pub fn create_swap_instruction(
     let express_relay_metadata =
         Pubkey::find_program_address(&[SEED_METADATA], &express_relay_pid).0;
 
-    let mint_fee = match swap_args.fee_token {
-        FeeToken::Input => mint_input,
-        FeeToken::Output => mint_output,
-    };
-
-    let token_program_fee = match swap_args.fee_token {
-        FeeToken::Input => token_program_input,
-        FeeToken::Output => token_program_output,
+    let (mint_fee, token_program_fee) = match swap_args.fee_token {
+        FeeToken::Input => (mint_input, token_program_input),
+        FeeToken::Output => (mint_output, token_program_output),
     };
 
     let accounts_submit_bid = accounts::Swap {

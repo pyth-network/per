@@ -803,6 +803,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         router_account,
                         fee_receiver_relayer: params.fee_receiver_relayer,
                         referral_fee_bps,
+                        chain_id: opportunity_params.chain_id.clone(),
                     },
                 ));
                 instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -820,7 +821,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         ClientError::NewBidError(format!("Failed to sign transaction: {:?}", e))
                     })?;
                 Ok(BidCreate::Svm(BidCreateSvm::Swap(BidCreateSwapSvm {
-                    chain_id:       opportunity_params.chain_id.clone(),
+                    chain_id:       opportunity_params.chain_id,
                     transaction:    transaction.into(),
                     opportunity_id: opportunity.opportunity_id,
                     _type:          BidCreateSwapSvmTag::Swap,
