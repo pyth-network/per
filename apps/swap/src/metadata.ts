@@ -44,6 +44,7 @@ export const metadata = {
       sizes: "180x180",
     },
   },
+  robots: { index: false, follow: false },
 } satisfies Metadata;
 
 export const viewport = {
