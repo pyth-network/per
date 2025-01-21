@@ -15,7 +15,7 @@ const USDC = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 const USDT = new PublicKey("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
 
 export default function Home() {
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const expressRelayClient = useExpressRelayClient();
 
@@ -23,37 +23,45 @@ export default function Home() {
 
   const handleClick = useCallback(() => {
     const inner = async () => {
-      if (!publicKey || !signTransaction) return;
+      if (!publicKey || !sendTransaction) return;
       setLog(["Getting quote..."]);
-      try {
-        // random to avoid same opportunity submitted recently error
-        const amount = 1000000 + Math.floor(Math.random() * 1000);
-        setLog((log) => [...log, `Selling ${amount / 1e6} USDT for USDC`]);
-        const quote = await expressRelayClient.getQuote({
-          chainId: "development-solana",
-          inputTokenMint: USDC,
-          outputTokenMint: USDT,
-          router: publicKey,
-          userWallet: publicKey,
-          specifiedTokenAmount: {
-            amount: amount,
-            side: "input",
+      // random to avoid same opportunity submitted recently error
+      const amount = 1000000 + Math.floor(Math.random() * 1000);
+      setLog((log) => [...log, `Selling ${amount / 1e6} USDT for USDC`]);
+      const quote = await expressRelayClient.getQuote({
+        chainId: "development-solana",
+        inputTokenMint: USDC,
+        outputTokenMint: USDT,
+        router: publicKey,
+        userWallet: publicKey,
+        specifiedTokenAmount: {
+          amount: amount,
+          side: "input",
+        },
+      });
+
+      setLog((log) => [
+        ...log,
+        JSON.stringify(
+          {
+            inputAmount: quote.inputToken.amount.toString(),
+            outputAmount: quote.outputToken.amount.toString(),
+            expirationTime: quote.expirationTime.toISOString(),
           },
-        });
-        setLog((log) => [...log, JSON.stringify(quote, null, 2)]);
-        const signedTransaction = await signTransaction(quote.transaction);
-        connection.sendTransaction(signedTransaction);
-      } catch (error) {
-        setLog((log) => [...log, error.message]);
-        return;
-      }
+          null,
+          2,
+        ),
+      ]);
+      const txHash = await sendTransaction(quote.transaction, connection);
+      setLog((log) => [...log, `Transaction sent: ${txHash}`]);
     };
     inner().catch((error) => {
+      setLog((log) => [...log, error.message]);
       console.error(error);
     });
-  }, [expressRelayClient, publicKey, signTransaction, connection]);
+  }, [expressRelayClient, publicKey, sendTransaction, connection]);
 
-  const canSwap = publicKey && signTransaction;
+  const canSwap = publicKey && sendTransaction;
   return (
     <main>
       <div className="m-auto w-2/4">
