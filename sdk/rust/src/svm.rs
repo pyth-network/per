@@ -100,7 +100,7 @@ pub struct Svm {
     client: RpcClient,
 }
 
-// After anchor releas version 0.31, we can remove all of the following functions
+// After anchor releases version 0.31, we can remove all of the following functions
 // And use the ones from the express-relay contract crate
 pub const SEED_METADATA: &[u8] = b"metadata";
 pub const SEED_CONFIG_ROUTER: &[u8] = b"config_router";
