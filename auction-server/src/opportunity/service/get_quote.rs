@@ -24,7 +24,10 @@ use {
         },
         kernel::entities::PermissionKeySvm,
         opportunity::{
-            entities,
+            entities::{
+                self,
+                TokenAmountSvm,
+            },
             service::add_opportunity::AddOpportunityInput,
         },
     },
@@ -34,20 +37,16 @@ use {
         FeeToken,
     },
     axum_prometheus::metrics,
-    // TODO: is it okay to import api types into the service layer?
     express_relay_api_types::opportunity::ProgramSvm,
     futures::future::join_all,
     solana_sdk::{
         clock::Slot,
         pubkey::Pubkey,
     },
+    spl_associated_token_account::get_associated_token_address_with_program_id,
     std::time::Duration,
     time::OffsetDateTime,
     tokio::time::sleep,
-};
-use {
-    crate::opportunity::entities::TokenAmountSvm,
-    express_relay::sdk::helpers::get_associated_token_address_with_program_id,
 };
 
 /// Time to wait for searchers to submit bids.
