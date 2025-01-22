@@ -61,6 +61,7 @@ pub struct OpportunitySvmProgramSwap {
     pub user_wallet_address:  Pubkey,
     pub fee_token:            FeeToken,
     pub referral_fee_bps:     u16,
+    pub platform_fee_bps:     u64,
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
     pub input_token_program:  Pubkey,
     pub output_token_program: Pubkey,
@@ -128,6 +129,7 @@ impl Opportunity for OpportunitySvm {
                         user_wallet_address:  program.user_wallet_address,
                         fee_token:            program.fee_token,
                         referral_fee_bps:     program.referral_fee_bps,
+                        platform_fee_bps:     program.platform_fee_bps,
                         input_token_program:  program.input_token_program,
                         output_token_program: program.output_token_program,
                     },
@@ -263,6 +265,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     router_account: val.router,
                     fee_token,
                     referral_fee_bps: program.referral_fee_bps,
+                    platform_fee_bps: program.platform_fee_bps,
                     tokens,
                 }
             }
@@ -313,6 +316,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     user_wallet_address:  program.user_wallet_address,
                     fee_token:            program.fee_token,
                     referral_fee_bps:     program.referral_fee_bps,
+                    platform_fee_bps:     program.platform_fee_bps,
                     input_token_program:  program.input_token_program,
                     output_token_program: program.output_token_program,
                 })
@@ -346,20 +350,6 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             } => OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
                 order,
                 order_address,
-            }),
-            // TODO*: this arm doesn't matter bc this conversion is only called in `post_opportunity` in api.rs. but we should handle this better
-            api::OpportunityCreateProgramParamsV1Svm::Swap {
-                user_wallet_address,
-                referral_fee_bps,
-                input_token_program,
-                output_token_program,
-            } => OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address,
-                // TODO*: see comment above about this arm
-                fee_token: FeeToken::InputToken,
-                referral_fee_bps,
-                input_token_program,
-                output_token_program,
             }),
         };
 

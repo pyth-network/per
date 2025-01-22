@@ -118,20 +118,68 @@ impl Service<ChainTypeSvm> {
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
         // TODO*: we should determine this more intelligently
-        let fee_token = entities::FeeToken::InputToken;
+        let fee_token = entities::FeeToken::OutputToken;
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
+        let metadata = self
+            .get_express_relay_metadata(GetExpressRelayMetadata {
+                chain_id: quote_create.chain_id.clone(),
+            })
+            .await?;
         let (input_mint, input_amount, output_mint, output_amount) =
-            match quote_create.tokens.clone() {
-                entities::QuoteTokens::InputTokenSpecified {
-                    input_token,
-                    output_token,
-                } => (input_token.token, input_token.amount, output_token, 0),
-                entities::QuoteTokens::OutputTokenSpecified {
-                    input_token,
-                    output_token,
-                } => (input_token, 0, output_token.token, output_token.amount),
+            match (quote_create.tokens.clone(), fee_token.clone()) {
+                (
+                    entities::QuoteTokens::InputTokenSpecified {
+                        input_token,
+                        output_token,
+                    },
+                    entities::FeeToken::InputToken,
+                ) => {
+                    // user wants this amount AFTER the fees so we have to
+                    // broadcast a larger input amount factoring in the fees
+                    let denominator: u64 = FEE_SPLIT_PRECISION
+                        - <u16 as Into<u64>>::into(quote_create.referral_fee_bps)
+                        - metadata.swap_platform_fee_bps;
+                    let numerator = input_token.amount * FEE_SPLIT_PRECISION;
+                    let amount_before_fees = numerator.div_ceil(denominator);
+                    (input_token.token, amount_before_fees, output_token, 0)
+                }
+                (
+                    entities::QuoteTokens::InputTokenSpecified {
+                        input_token,
+                        output_token,
+                    },
+                    entities::FeeToken::OutputToken,
+                ) =>
+                // searcher bid amount (minimum they are willing to receive)
+                // scaled up in the sdk to factor in the fees
+                {
+                    (input_token.token, input_token.amount, output_token, 0)
+                }
+                (
+                    entities::QuoteTokens::OutputTokenSpecified {
+                        input_token,
+                        output_token,
+                    },
+                    entities::FeeToken::InputToken,
+                ) =>
+                // input amount shown to the user should be scaled down to factor in the fees
+                {
+                    (input_token, 0, output_token.token, output_token.amount)
+                }
+                (
+                    entities::QuoteTokens::OutputTokenSpecified {
+                        input_token,
+                        output_token,
+                    },
+                    entities::FeeToken::OutputToken,
+                ) =>
+                // amount searcher receives will be less after fees
+                // sdk should show a smaller amount to the searcher
+                {
+                    (input_token, 0, output_token.token, output_token.amount)
+                }
             };
         let input_token_program = self
             .get_token_program(GetTokenProgramInput {
@@ -198,6 +246,7 @@ impl Service<ChainTypeSvm> {
                     user_wallet_address: quote_create.user_wallet_address,
                     fee_token,
                     referral_fee_bps: quote_create.referral_fee_bps,
+                    platform_fee_bps: metadata.swap_platform_fee_bps,
                     input_token_program,
                     output_token_program,
                 })
@@ -392,7 +441,6 @@ impl Service<ChainTypeSvm> {
                 chain_id: input.quote_create.chain_id.clone(),
             })
             .await?;
-        tracing::info!(swap_platform_fee_bps = ?metadata.swap_platform_fee_bps, "Express relay metadata fetched");
         let (input_amount, output_amount) = match swap_data.fee_token {
             FeeToken::Input => (
                 metadata

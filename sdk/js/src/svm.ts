@@ -30,6 +30,8 @@ function getExpressRelayProgram(chain: string): PublicKey {
   return SVM_CONSTANTS[chain].expressRelayProgram;
 }
 
+export const FEE_SPLIT_PRECISION = new anchor.BN(10000);
+
 export function getConfigRouterPda(
   chain: string,
   router: PublicKey,
@@ -151,6 +153,23 @@ export async function constructSwapInstruction(
     router,
   } = extractSwapInfo(swapOpportunity);
 
+  if (
+    swapOpportunity.tokens.type === "input_specified" &&
+    swapOpportunity.feeToken === "output_token"
+  ) {
+    // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
+    const denominator = FEE_SPLIT_PRECISION.sub(
+      new anchor.BN(
+        swapOpportunity.platformFeeBps + swapOpportunity.referralFeeBps,
+      ),
+    );
+    const numerator = bidAmount.mul(FEE_SPLIT_PRECISION);
+    // add denominator - 1 to round up
+    bidAmount = numerator
+      .add(denominator.sub(new anchor.BN(1)))
+      .div(denominator);
+  }
+
   const swapArgs = {
     amountInput:
       swapOpportunity.tokens.type === "input_specified"
@@ -158,7 +177,7 @@ export async function constructSwapInstruction(
         : bidAmount,
     amountOutput:
       swapOpportunity.tokens.type === "output_specified"
-        ? new anchor.BN(swapOpportunity.tokens.outputToken.amount)
+        ? new anchor.BN(swapOpportunity.tokens.outputTokenAmountBeforeFees)
         : bidAmount,
     referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
     deadline,

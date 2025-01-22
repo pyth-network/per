@@ -427,46 +427,20 @@ export interface components {
       version: "v1";
     };
     /** @description Program specific parameters for the opportunity. */
-    OpportunityCreateProgramParamsV1Svm:
-      | {
-          /**
-           * @description The Limo order to be executed, encoded in base64.
-           * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
-           */
-          order: string;
-          /**
-           * @description Address of the order account.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          order_address: string;
-          /** @enum {string} */
-          program: "limo";
-        }
-      | {
-          /**
-           * @description The token program of the input mint.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          input_token_program: string;
-          /**
-           * @description The token program of the output mint.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          output_token_program: string;
-          /** @enum {string} */
-          program: "swap";
-          /**
-           * Format: int32
-           * @description The referral fee in basis points.
-           * @example 10
-           */
-          referral_fee_bps: number;
-          /**
-           * @description The user wallet address which requested the quote from the wallet.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          user_wallet_address: string;
-        };
+    OpportunityCreateProgramParamsV1Svm: {
+      /**
+       * @description The Limo order to be executed, encoded in base64.
+       * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
+       */
+      order: string;
+      /**
+       * @description Address of the order account.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      order_address: string;
+      /** @enum {string} */
+      program: "limo";
+    };
     OpportunityCreateSvm: components["schemas"]["OpportunityCreateV1Svm"] & {
       /** @enum {string} */
       version: "v1";
@@ -510,47 +484,20 @@ export interface components {
      * @description Opportunity parameters needed for on-chain execution.
      * Parameters may differ for each program.
      */
-    OpportunityCreateV1Svm: (
-      | {
-          /**
-           * @description The Limo order to be executed, encoded in base64.
-           * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
-           */
-          order: string;
-          /**
-           * @description Address of the order account.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          order_address: string;
-          /** @enum {string} */
-          program: "limo";
-        }
-      | {
-          /**
-           * @description The token program of the input mint.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          input_token_program: string;
-          /**
-           * @description The token program of the output mint.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          output_token_program: string;
-          /** @enum {string} */
-          program: "swap";
-          /**
-           * Format: int32
-           * @description The referral fee in basis points.
-           * @example 10
-           */
-          referral_fee_bps: number;
-          /**
-           * @description The user wallet address which requested the quote from the wallet.
-           * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-           */
-          user_wallet_address: string;
-        }
-    ) & {
+    OpportunityCreateV1Svm: {
+      /**
+       * @description The Limo order to be executed, encoded in base64.
+       * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
+       */
+      order: string;
+      /**
+       * @description Address of the order account.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      order_address: string;
+      /** @enum {string} */
+      program: "limo";
+    } & {
       buy_tokens: components["schemas"]["TokenAmountSvm"][];
       /**
        * @description The chain id where the opportunity will be executed.
@@ -677,6 +624,12 @@ export interface components {
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           permission_account: string;
+          /**
+           * Format: int64
+           * @description The platform fee in basis points.
+           * @example 10
+           */
+          platform_fee_bps: number;
           /** @enum {string} */
           program: "swap";
           /**
@@ -977,7 +930,8 @@ export interface components {
     TokenAmountSvm: {
       /**
        * Format: int64
-       * @description The token amount, represented in the smallest unit of the respective token.
+       * @description The token amount, represented in the smallest denomination of that token
+       * (e.g. lamports for SOL).
        * @example 1000
        */
       amount: number;

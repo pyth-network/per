@@ -629,13 +629,29 @@ export class Client {
           ),
         } as const;
       } else {
+        let outputAmount = new anchor.BN(
+          opportunity.tokens.output_token.amount,
+        );
+        if (opportunity.fee_token == "output_token") {
+          const fees = outputAmount
+            .mul(
+              new anchor.BN(
+                opportunity.platform_fee_bps + opportunity.referral_fee_bps,
+              ),
+            )
+            .div(svm.FEE_SPLIT_PRECISION);
+          outputAmount = outputAmount.sub(fees);
+        }
         tokens = {
           type: "output_specified",
           inputToken: new PublicKey(opportunity.tokens.input_token),
           outputToken: {
-            amount: BigInt(opportunity.tokens.output_token.amount),
+            amount: BigInt(outputAmount.toNumber()),
             token: new PublicKey(opportunity.tokens.output_token.token),
           },
+          outputTokenAmountBeforeFees: BigInt(
+            opportunity.tokens.output_token.amount,
+          ),
           inputTokenProgram: new PublicKey(
             opportunity.tokens.input_token_program,
           ),
@@ -650,6 +666,7 @@ export class Client {
         opportunityId: opportunity.opportunity_id,
         program: "swap",
         referralFeeBps: opportunity.referral_fee_bps,
+        platformFeeBps: opportunity.platform_fee_bps,
         feeToken: opportunity.fee_token,
         permissionAccount: new PublicKey(opportunity.permission_account),
         routerAccount: new PublicKey(opportunity.router_account),

@@ -208,25 +208,6 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
     },
-    /// Swap program specific parameters for the opportunity.
-    #[schema(title = "swap")]
-    Swap {
-        /// The user wallet address which requested the quote from the wallet.
-        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        user_wallet_address:  Pubkey,
-        /// The referral fee in basis points.
-        #[schema(example = 10, value_type = u16)]
-        referral_fee_bps:     u16,
-        /// The token program of the input mint.
-        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        input_token_program:  Pubkey,
-        /// The token program of the output mint.
-        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        output_token_program: Pubkey,
-    },
 }
 
 /// Opportunity parameters needed for on-chain execution.
@@ -338,8 +319,12 @@ pub enum OpportunityParamsV1ProgramSvm {
         router_account: Pubkey,
 
         /// The referral fee in basis points.
-        #[schema(example = 10, value_type = u16)]
+        #[schema(example = 10)]
         referral_fee_bps: u16,
+
+        /// The platform fee in basis points.
+        #[schema(example = 10)]
+        platform_fee_bps: u64,
 
         /// Specifies whether the fees are to be paid in input or output token.
         #[schema(example = "input_token")]
@@ -629,8 +614,6 @@ impl OpportunityCreateSvm {
         match self {
             OpportunityCreateSvm::V1(params) => match &params.program_params {
                 OpportunityCreateProgramParamsV1Svm::Limo { .. } => ProgramSvm::Limo,
-                // TODO*: this arm doesn't really matter, bc this function will never be called in get_quote, but we should figure out how to handle this
-                OpportunityCreateProgramParamsV1Svm::Swap { .. } => ProgramSvm::Swap,
             },
         }
     }

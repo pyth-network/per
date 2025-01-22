@@ -132,6 +132,7 @@ export type SvmSwapTokens = (
   | {
       inputToken: PublicKey;
       outputToken: TokenAmountSvm;
+      outputTokenAmountBeforeFees: bigint;
       type: "output_specified";
     }
   | {
@@ -149,6 +150,7 @@ export type OpportunitySvmSwap = {
   userWalletAddress: PublicKey;
   feeToken: "input_token" | "output_token";
   referralFeeBps: number;
+  platformFeeBps: number;
   tokens: SvmSwapTokens;
   program: "swap";
 } & OpportunitySvmMetadata;
