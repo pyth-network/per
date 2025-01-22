@@ -51,6 +51,25 @@ use {
     tokio::time::sleep,
 };
 
+// FeeToken and TokenSpecified combinations possible and how they are handled:
+// --------------------------------------------------------------------------------------------
+// FeeToken=InputToken, TokenSpecified=InputTokenSpecified
+// User wants the amount specified in the api AFTER the fees so we increase it to factor
+// in fees before creating and broadcasting the swap opportunity
+// --------------------------------------------------------------------------------------------
+// FeeToken=InputToken, TokenSpecified=OutputTokenSpecified
+// get_quote function will return the input amount after fees
+// --------------------------------------------------------------------------------------------
+// FeeToken=OutputToken, TokenSpecified=InputTokenSpecified
+// Searcher bid amount (minimum they are willing to receive after the fees)
+// is scaled up in the sdk to factor in the fees
+// --------------------------------------------------------------------------------------------
+// FeeToken=OutputToken, TokenSpecified=OutputTokenSpecified
+// Sdk shows a smaller amount (after fees) to the searcher for their pricing engine
+// while keeping the original amount (before fees) in the bid
+// --------------------------------------------------------------------------------------------
+
+
 /// Time to wait for searchers to submit bids.
 const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
 
@@ -118,7 +137,7 @@ impl Service<ChainTypeSvm> {
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let router = quote_create.router;
         // TODO*: we should determine this more intelligently
-        let fee_token = entities::FeeToken::OutputToken;
+        let fee_token = entities::FeeToken::InputToken;
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
@@ -136,8 +155,6 @@ impl Service<ChainTypeSvm> {
                     },
                     entities::FeeToken::InputToken,
                 ) => {
-                    // user wants this amount AFTER the fees so we have to
-                    // broadcast a larger input amount factoring in the fees
                     let denominator: u64 = FEE_SPLIT_PRECISION
                         - <u16 as Into<u64>>::into(quote_create.referral_fee_bps)
                         - metadata.swap_platform_fee_bps;
@@ -151,35 +168,14 @@ impl Service<ChainTypeSvm> {
                         output_token,
                     },
                     entities::FeeToken::OutputToken,
-                ) =>
-                // searcher bid amount (minimum they are willing to receive)
-                // scaled up in the sdk to factor in the fees
-                {
-                    (input_token.token, input_token.amount, output_token, 0)
-                }
+                ) => (input_token.token, input_token.amount, output_token, 0),
                 (
                     entities::QuoteTokens::OutputTokenSpecified {
                         input_token,
                         output_token,
                     },
-                    entities::FeeToken::InputToken,
-                ) =>
-                // input amount shown to the user should be scaled down to factor in the fees
-                {
-                    (input_token, 0, output_token.token, output_token.amount)
-                }
-                (
-                    entities::QuoteTokens::OutputTokenSpecified {
-                        input_token,
-                        output_token,
-                    },
-                    entities::FeeToken::OutputToken,
-                ) =>
-                // amount searcher receives will be less after fees
-                // sdk should show a smaller amount to the searcher
-                {
-                    (input_token, 0, output_token.token, output_token.amount)
-                }
+                    _,
+                ) => (input_token, 0, output_token.token, output_token.amount),
             };
         let input_token_program = self
             .get_token_program(GetTokenProgramInput {

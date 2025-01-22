@@ -28,7 +28,6 @@ impl Service<ChainTypeSvm> {
         let program_id = config.get_auction_service().await.get_program_id();
         let seed = express_relay_svm::state::SEED_METADATA;
         let metadata_address = Pubkey::find_program_address(&[seed], &program_id).0;
-        tracing::info!("Express relay metadata address: {}", metadata_address);
         let token_program_query = self.repo.query_express_relay_metadata().await;
         let metadata = match token_program_query {
             Some(metadata) => metadata,
