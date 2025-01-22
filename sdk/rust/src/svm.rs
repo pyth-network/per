@@ -139,17 +139,6 @@ struct SubmitBidArgs {
     pub bid_amount: u64,
 }
 
-pub fn deserialize_metadata(data: Vec<u8>) -> Result<ExpressRelayMetadata, ClientError> {
-    let buf = &mut &data[8..];
-    match ExpressRelayMetadata::deserialize(buf) {
-        Ok(metadata) => Ok(metadata),
-        Err(e) => Err(ClientError::SvmError(format!(
-            "Failed to deserialize express relay metadata: {:?}",
-            e
-        ))),
-    }
-}
-
 impl Svm {
     pub fn new(rpc_url: String) -> Self {
         Self {
@@ -172,7 +161,15 @@ impl Svm {
             .map_err(|_| {
                 ClientError::SvmError("Failed to fetch express relay metadata".to_string())
             })?;
-        deserialize_metadata(data)
+
+        let buf = &mut &data[8..];
+        match ExpressRelayMetadata::deserialize(buf) {
+            Ok(metadata) => Ok(metadata),
+            Err(e) => Err(ClientError::SvmError(format!(
+                "Failed to deserialize express relay metadata: {:?}",
+                e
+            ))),
+        }
     }
 
     pub fn get_express_relay_pid(chain_id: String) -> Pubkey {
