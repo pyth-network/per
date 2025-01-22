@@ -74,6 +74,7 @@ pub mod get_bid;
 pub mod get_bids;
 pub mod get_live_bids;
 pub mod get_permission_keys_for_auction;
+pub mod get_program_id;
 pub mod handle_auction;
 pub mod handle_auctions;
 pub mod handle_bid;

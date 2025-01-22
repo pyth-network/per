@@ -57,6 +57,7 @@ pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
 pub mod verification;
 
+mod get_express_relay_metadata;
 mod get_spoof_info;
 mod get_token_program;
 mod make_adapter_calldata;

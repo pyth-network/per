@@ -28,11 +28,13 @@ use {
                 self,
                 TokenAmountSvm,
             },
-            service::add_opportunity::AddOpportunityInput,
+            service::{
+                add_opportunity::AddOpportunityInput,
+                get_express_relay_metadata::GetExpressRelayMetadata,
+            },
         },
     },
     ::express_relay::{
-        self as express_relay_svm,
         state::FEE_SPLIT_PRECISION,
         FeeToken,
     },
@@ -385,12 +387,14 @@ impl Service<ChainTypeSvm> {
             tracing::error!(winner_bid = ?winner_bid, opportunity = ?opportunity, "Failed to update winner bid status");
             return Err(RestError::TemporarilyUnavailable);
         }
-        // TODO*: fetch this on-chain to incorporate the actual fees based on swap_platform_fee_bps and relayer_split
-        let metadata = express_relay_svm::state::ExpressRelayMetadata::default();
+        let metadata = self
+            .get_express_relay_metadata(GetExpressRelayMetadata {
+                chain_id: input.quote_create.chain_id.clone(),
+            })
+            .await?;
+        tracing::info!(swap_platform_fee_bps = ?metadata.swap_platform_fee_bps, "Express relay metadata fetched");
         let (input_amount, output_amount) = match swap_data.fee_token {
-            FeeToken::Input => (swap_data.amount_input, swap_data.amount_output),
-            FeeToken::Output => (
-                swap_data.amount_input,
+            FeeToken::Input => (
                 metadata
                     .compute_swap_fees(swap_data.referral_fee_bps, swap_data.amount_input)
                     .map_err(|e| {
@@ -398,7 +402,9 @@ impl Service<ChainTypeSvm> {
                         RestError::TemporarilyUnavailable
                     })?
                     .remaining_amount,
+                swap_data.amount_output,
             ),
+            FeeToken::Output => (swap_data.amount_input, swap_data.amount_output),
         };
 
         Ok(entities::Quote {
