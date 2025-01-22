@@ -366,7 +366,6 @@ impl Svm {
             &fee_token_mint,
             &fee_token_program,
         );
-        println!("relayer_fee_receiver_ata: {:?}", relayer_fee_receiver_ata);
         let express_relay_metadata = &Pubkey::find_program_address(
             &[SEED_METADATA],
             &Self::get_express_relay_pid(chain_id.clone()),
