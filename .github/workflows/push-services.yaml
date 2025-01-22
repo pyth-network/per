@@ -1,11 +1,11 @@
 name: Build and Push Services Images
 on:
-  pull_request:
   push:
     tags:
       - v*
     branches:
       - main
+      - fix-ci-2
   workflow_dispatch:
     inputs:
       dispatch_description:
