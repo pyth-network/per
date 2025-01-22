@@ -42,7 +42,10 @@ use {
         },
         time::Instant,
     },
-    time::Duration,
+    time::{
+        Duration,
+        OffsetDateTime,
+    },
     tokio::sync::RwLock,
 };
 
@@ -386,7 +389,7 @@ impl Simulator {
     pub async fn simulate_transaction(
         &self,
         transaction: &VersionedTransaction,
-        timestamp: Option<i64>,
+        warp_to_timestamp: bool,
     ) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let txs_to_fetch = pending_txs
@@ -395,6 +398,12 @@ impl Simulator {
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
+        // we grab the timestamp after fetching the accounts to maximize chance of timestamp exceeds any timestamps stored in fetched accounts
+        let timestamp = if warp_to_timestamp {
+            Some(OffsetDateTime::now_utc().unix_timestamp())
+        } else {
+            None
+        };
         let mut svm = self.setup_lite_svm(&accounts_config_with_context, timestamp);
 
         pending_txs.into_iter().for_each(|tx| {
@@ -413,7 +422,11 @@ impl Simulator {
     /// Right now, for simplicity, the method assume the bids are sorted, and tries to submit them in order
     /// and only return the ones that are successfully submitted.
     #[tracing::instrument(skip_all)]
-    pub async fn optimize_bids(&self, bids: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
+    pub async fn optimize_bids(
+        &self,
+        bids: &[Bid<Svm>],
+        warp_to_timestamp: bool,
+    ) -> RpcResult<Vec<Bid<Svm>>> {
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let txs_to_fetch = pending_txs
             .iter()
@@ -421,7 +434,12 @@ impl Simulator {
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
-        let mut svm = self.setup_lite_svm(&accounts_config_with_context, None);
+        let timestamp = if warp_to_timestamp {
+            Some(OffsetDateTime::now_utc().unix_timestamp())
+        } else {
+            None
+        };
+        let mut svm = self.setup_lite_svm(&accounts_config_with_context, timestamp);
 
         pending_txs.into_iter().for_each(|tx| {
             let _ = svm.send_transaction(tx);
