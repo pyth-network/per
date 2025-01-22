@@ -28,6 +28,7 @@ use {
         account_utils::StateMut,
         address_lookup_table::state::AddressLookupTable,
         bpf_loader_upgradeable::UpgradeableLoaderState,
+        clock::Clock,
         commitment_config::CommitmentConfig,
         pubkey::Pubkey,
         signature::Signature,
@@ -41,7 +42,10 @@ use {
         },
         time::Instant,
     },
-    time::Duration,
+    time::{
+        Duration,
+        OffsetDateTime,
+    },
     tokio::sync::RwLock,
 };
 
@@ -328,8 +332,18 @@ impl Simulator {
         // this is necessary for correct lookup table access
         // otherwise 0 = slot < table.last_extended_slot
         svm.warp_to_slot(accounts_config_with_context.context.slot);
+        // we grab the timestamp after fetching the accounts to maximize chance of timestamp exceeds any timestamps stored in fetched accounts
+        self.warp_to_timestamp(&mut svm, OffsetDateTime::now_utc().unix_timestamp());
         accounts_config_with_context.value.apply(&mut svm);
         svm
+    }
+
+    /// Warps the LiteSVM object clock to the given timestamp
+    /// This is necessary because LiteSVM does not natively support warping to a timestamp
+    fn warp_to_timestamp(&self, svm: &mut LiteSVM, timestamp: i64) {
+        let mut clock = svm.get_sysvar::<Clock>();
+        clock.unix_timestamp = timestamp;
+        svm.set_sysvar(&clock);
     }
 
 
