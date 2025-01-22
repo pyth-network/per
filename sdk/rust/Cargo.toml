@@ -8,7 +8,6 @@ license = "Apache-2.0"
 
 [dependencies]
 express-relay-api-types = { version = "0.3.0", path = "../../auction-server/api-types" }
-express-relay = { version = "0.4.1", path = "../../contracts/svm/programs/express_relay" }
 reqwest = { version = "0.12.9", features = ["json"] }
 url = { workspace = true}
 serde = { workspace = true }
@@ -20,4 +19,5 @@ futures-util = "0.3.31"
 ethers = { workspace = true }
 solana-sdk = { workspace = true }
 solana-rpc-client = { workspace = true }
+borsh = { workspace = true }
 spl-associated-token-account = { workspace = true }

@@ -27,8 +27,8 @@ RUN rustup default nightly-2024-04-10
 
 # Install dependencies
 RUN curl -L https://foundry.paradigm.xyz | bash
-ENV PATH="$/root/.foundry/bin:${PATH}"
-RUN foundryup -v nightly-3ba3d5f9e6008779c68b94ef9a0015ca2fe60b6a
+ENV PATH="${PATH}:/root/.foundry/bin"
+RUN foundryup
 
 # Add contracts
 WORKDIR /src

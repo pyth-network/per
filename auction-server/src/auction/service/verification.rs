@@ -822,8 +822,8 @@ impl Service<Svm> {
                 };
                 let expected_router_token_account = get_associated_token_address_with_program_id(
                     &opp.router,
-                    &fee_token_program,
                     &fee_token,
+                    &fee_token_program,
                 );
 
                 if router_token_account != expected_router_token_account {

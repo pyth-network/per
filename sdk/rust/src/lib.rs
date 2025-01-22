@@ -734,7 +734,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         relayer_signer:       program_params.relayer_signer,
                         fee_receiver_relayer: params.fee_receiver_relayer,
                     },
-                ));
+                )?);
                 let mut transaction =
                     Transaction::new_with_payer(instructions.as_slice(), Some(&params.payer));
                 transaction
