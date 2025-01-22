@@ -190,6 +190,7 @@ impl SimpleSearcher {
                     .get_express_relay_metadata(opportunity.get_chain_id().clone())
                     .await
                     .map_err(|e| anyhow!("Failed to get express relay metadata: {:?}", e))?;
+
                 let OpportunityParamsSvm::V1(params) = opportunity.params.clone();
                 match params.program {
                     OpportunityParamsV1ProgramSvm::Limo {

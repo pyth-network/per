@@ -175,7 +175,6 @@ pub fn create_swap_instruction(
     }
 }
 
-
 pub fn deserialize_metadata(data: Vec<u8>) -> Result<ExpressRelayMetadata> {
     let buf = &mut &data[..];
     match ExpressRelayMetadata::try_deserialize(buf) {
