@@ -32,6 +32,7 @@ use {
         WsClient,
     },
     rand::Rng,
+    spl_associated_token_account::instruction::create_associated_token_account_idempotent,
     std::{
         collections::HashMap,
         sync::Arc,
@@ -245,13 +246,12 @@ impl SimpleSearcher {
                                 ..
                             } => (input_token, input_token_program),
                         };
-                        let create_input_account_ix =
-                            svm::Svm::create_associated_token_account_idempotent(
-                                &payer.pubkey(),
-                                &payer.pubkey(),
-                                &input_token,
-                                &input_token_program,
-                            );
+                        let create_input_account_ix = create_associated_token_account_idempotent(
+                            &payer.pubkey(),
+                            &payer.pubkey(),
+                            &input_token,
+                            &input_token_program,
+                        );
                         self.client
                             .new_bid(
                                 opportunity.clone(),

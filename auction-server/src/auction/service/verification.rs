@@ -70,11 +70,6 @@ use {
             U256,
         },
     },
-    express_relay::sdk::helpers::{
-        get_associated_token_address_with_program_id,
-        AssociatedTokenAccountInstruction,
-        AssociatedTokenAccountPID,
-    },
     litesvm::types::FailedTransactionMetadata,
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
@@ -86,6 +81,10 @@ use {
         signature::Signature,
         signer::Signer as _,
         transaction::VersionedTransaction,
+    },
+    spl_associated_token_account::{
+        get_associated_token_address_with_program_id,
+        instruction::AssociatedTokenAccountInstruction,
     },
     std::{
         sync::Arc,
@@ -529,7 +528,7 @@ impl Service<Svm> {
 
         if *program_id == compute_budget::id() {
             Ok(())
-        } else if *program_id == AssociatedTokenAccountPID.to_bytes().into() {
+        } else if *program_id == spl_associated_token_account::id() {
             let ix_parsed =
                 AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
                     RestError::BadParameters(format!(
@@ -822,12 +821,10 @@ impl Service<Svm> {
                     FeeToken::Output => (mint_output, token_program_output),
                 };
                 let expected_router_token_account = get_associated_token_address_with_program_id(
-                    &opp.router.to_bytes().into(),
-                    &fee_token.to_bytes().into(),
-                    &fee_token_program.to_bytes().into(),
-                )
-                .to_bytes()
-                .into();
+                    &opp.router,
+                    &fee_token_program,
+                    &fee_token,
+                );
 
                 if router_token_account != expected_router_token_account {
                     return Err(RestError::BadParameters(
