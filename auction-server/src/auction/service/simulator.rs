@@ -324,11 +324,7 @@ impl Simulator {
     }
 
     #[tracing::instrument(skip_all)]
-    fn setup_lite_svm(
-        &self,
-        accounts_config_with_context: &Response<AccountsConfig>,
-        timestamp: Option<i64>,
-    ) -> LiteSVM {
+    fn setup_lite_svm(&self, accounts_config_with_context: &Response<AccountsConfig>) -> LiteSVM {
         let mut svm = LiteSVM::new()
             .with_sigverify(false)
             .with_blockhash_check(false)
@@ -336,20 +332,18 @@ impl Simulator {
         // this is necessary for correct lookup table access
         // otherwise 0 = slot < table.last_extended_slot
         svm.warp_to_slot(accounts_config_with_context.context.slot);
-        if let Some(timestamp) = timestamp {
-            svm = self.warp_to_timestamp(svm, timestamp);
-        }
+        // we grab the timestamp after fetching the accounts to maximize chance of timestamp exceeds any timestamps stored in fetched accounts
+        self.warp_to_timestamp(&mut svm, OffsetDateTime::now_utc().unix_timestamp());
         accounts_config_with_context.value.apply(&mut svm);
         svm
     }
 
     /// Warps the LiteSVM object clock to the given timestamp
     /// This is necessary because LiteSVM does not natively support warping to a timestamp
-    fn warp_to_timestamp(&self, mut svm: LiteSVM, timestamp: i64) -> LiteSVM {
+    fn warp_to_timestamp(&self, svm: &mut LiteSVM, timestamp: i64) {
         let mut clock = svm.get_sysvar::<Clock>();
         clock.unix_timestamp = timestamp;
         svm.set_sysvar(&clock);
-        svm
     }
 
 
@@ -389,7 +383,6 @@ impl Simulator {
     pub async fn simulate_transaction(
         &self,
         transaction: &VersionedTransaction,
-        warp_to_timestamp: bool,
     ) -> RpcResult<Result<SimulatedTransactionInfo, FailedTransactionMetadata>> {
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let txs_to_fetch = pending_txs
@@ -398,13 +391,7 @@ impl Simulator {
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
-        // we grab the timestamp after fetching the accounts to maximize chance of timestamp exceeds any timestamps stored in fetched accounts
-        let timestamp = if warp_to_timestamp {
-            Some(OffsetDateTime::now_utc().unix_timestamp())
-        } else {
-            None
-        };
-        let mut svm = self.setup_lite_svm(&accounts_config_with_context, timestamp);
+        let mut svm = self.setup_lite_svm(&accounts_config_with_context);
 
         pending_txs.into_iter().for_each(|tx| {
             let _ = svm.send_transaction(tx);
@@ -422,11 +409,7 @@ impl Simulator {
     /// Right now, for simplicity, the method assume the bids are sorted, and tries to submit them in order
     /// and only return the ones that are successfully submitted.
     #[tracing::instrument(skip_all)]
-    pub async fn optimize_bids(
-        &self,
-        bids: &[Bid<Svm>],
-        warp_to_timestamp: bool,
-    ) -> RpcResult<Vec<Bid<Svm>>> {
+    pub async fn optimize_bids(&self, bids: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let txs_to_fetch = pending_txs
             .iter()
@@ -434,12 +417,7 @@ impl Simulator {
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
-        let timestamp = if warp_to_timestamp {
-            Some(OffsetDateTime::now_utc().unix_timestamp())
-        } else {
-            None
-        };
-        let mut svm = self.setup_lite_svm(&accounts_config_with_context, timestamp);
+        let mut svm = self.setup_lite_svm(&accounts_config_with_context);
 
         pending_txs.into_iter().for_each(|tx| {
             let _ = svm.send_transaction(tx);

@@ -392,7 +392,7 @@ impl AuctionManager<Svm> for Service<Svm> {
             .config
             .chain_config
             .simulator
-            .optimize_bids(&bids, true)
+            .optimize_bids(&bids)
             .await
             .map(|x| x.value)
             // If the optimization fails (mainly because of rpc issues)

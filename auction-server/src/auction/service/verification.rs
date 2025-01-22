@@ -981,7 +981,7 @@ impl Service<Svm> {
                 .config
                 .chain_config
                 .simulator
-                .simulate_transaction(bid.chain_data.get_transaction(), true)
+                .simulate_transaction(bid.chain_data.get_transaction())
                 .await;
             let result = response.map_err(|e| {
                 tracing::error!("Error while simulating bid: {:?}", e);
