@@ -625,6 +625,7 @@ impl Service<Svm> {
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>) {
         let start = Instant::now();
+        let mut outcome = "expired";
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
@@ -636,29 +637,37 @@ impl Service<Svm> {
                 log = receiver.recv() => {
                     if let Ok(log) = log {
                         if log.value.signature.eq(&signature.to_string()) {
+                            if log.value.err.is_some() {
+                                outcome = "failed";
+                            } else {
+                                outcome = "success";
+                            }
                             break
                         }
                     }
                 }
-            _ = retry_interval.tick() => {
-                try_count += 1;
-                if let Err(e) = self
-                    .config
-                    .chain_config
-                    .tx_broadcaster_client
-                    .send_transaction_with_config(
-                        &bid.chain_data.transaction,
-                        self.get_send_transaction_config(),
-                    )
-                    .await
-                {
-                    tracing::error!(error = ?e, "Failed to resend transaction");
-                }
+                _ = retry_interval.tick() => {
+                    try_count += 1;
+                    if let Err(e) = self
+                        .config
+                        .chain_config
+                        .tx_broadcaster_client
+                        .send_transaction_with_config(
+                            &bid.chain_data.transaction,
+                            self.get_send_transaction_config(),
+                        )
+                        .await
+                    {
+                        tracing::error!(error = ?e, "Failed to resend transaction");
+                    }
                 }
             }
         }
 
-        let labels = [("chain_id", self.config.chain_id.clone())];
+        let labels = [
+            ("chain_id", self.config.chain_id.clone()),
+            ("outcome", outcome.to_string()),
+        ];
         metrics::histogram!("transaction_landing_time_seconds_svm", &labels)
             .record(start.elapsed().as_secs_f64());
 
