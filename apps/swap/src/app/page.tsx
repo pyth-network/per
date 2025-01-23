@@ -72,7 +72,7 @@ export default function Home() {
         <pre>{publicKey?.toBase58()}</pre>
         {canSwap && (
           <Button onClick={handleClick}>
-            Click me to sell 1 USDT for USDC
+            Click me to buy 1 USDC with USDT
           </Button>
         )}
         <pre>
