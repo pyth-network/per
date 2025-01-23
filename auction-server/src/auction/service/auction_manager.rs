@@ -64,7 +64,10 @@ use {
             Context,
             Poll,
         },
-        time::Duration,
+        time::{
+            Duration,
+            Instant,
+        },
     },
     time::OffsetDateTime,
     tokio::time::{
@@ -593,7 +596,7 @@ impl AuctionManager<Svm> for Service<Svm> {
 }
 
 const SEND_TRANSACTION_RETRY_COUNT_SVM: i32 = 30;
-const RETRY_INTERVAL: Duration = Duration::from_secs(2);
+const RETRY_DURATION: Duration = Duration::from_secs(2);
 
 impl Service<Svm> {
     pub fn add_relayer_signature(&self, bid: &mut entities::Bid<Svm>) {
@@ -621,11 +624,12 @@ impl Service<Svm> {
 
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>) {
+        let start = Instant::now();
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
         let mut receiver = self.config.chain_config.log_sender.subscribe();
-        let mut retry_interval = tokio::time::interval(RETRY_INTERVAL);
+        let mut retry_interval = tokio::time::interval(RETRY_DURATION);
         let mut try_count = 0;
         while try_count < SEND_TRANSACTION_RETRY_COUNT_SVM {
             tokio::select! {
@@ -656,7 +660,8 @@ impl Service<Svm> {
 
         let labels = [("chain_id", self.config.chain_id.clone())];
         metrics::histogram!("svm_transaction_landing_time_seconds", &labels)
-            .record(RETRY_INTERVAL.as_secs_f64() * try_count as f64);
+            .record(start.elapsed().as_secs_f64());
+
         tracing::Span::current().record("total_tries", try_count);
     }
 
