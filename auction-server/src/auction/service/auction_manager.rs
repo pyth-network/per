@@ -23,6 +23,7 @@ use {
     },
     anyhow::Result,
     axum::async_trait,
+    axum_prometheus::metrics,
     ethers::{
         contract::EthEvent,
         providers::{
@@ -592,6 +593,7 @@ impl AuctionManager<Svm> for Service<Svm> {
 }
 
 const SEND_TRANSACTION_RETRY_COUNT_SVM: i32 = 30;
+const RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
 impl Service<Svm> {
     pub fn add_relayer_signature(&self, bid: &mut entities::Bid<Svm>) {
@@ -623,15 +625,14 @@ impl Service<Svm> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
         let mut receiver = self.config.chain_config.log_sender.subscribe();
-        let mut retry_interval = tokio::time::interval(Duration::from_secs(2));
+        let mut retry_interval = tokio::time::interval(RETRY_INTERVAL);
         let mut try_count = 0;
         while try_count < SEND_TRANSACTION_RETRY_COUNT_SVM {
             tokio::select! {
                 log = receiver.recv() => {
                     if let Ok(log) = log {
                         if log.value.signature.eq(&signature.to_string()) {
-                            tracing::Span::current().record("total_tries", try_count);
-                            return;
+                            break
                         }
                     }
                 }
@@ -653,6 +654,8 @@ impl Service<Svm> {
             }
         }
 
+        metrics::histogram!("svm_transaction_landing_time_seconds")
+            .record(RETRY_INTERVAL.as_secs_f64() * try_count as f64);
         tracing::Span::current().record("total_tries", try_count);
     }
 
