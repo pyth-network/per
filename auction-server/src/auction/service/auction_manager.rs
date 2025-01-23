@@ -23,7 +23,6 @@ use {
     },
     anyhow::Result,
     axum::async_trait,
-    axum_prometheus::metrics,
     ethers::{
         contract::EthEvent,
         providers::{
@@ -623,14 +622,15 @@ impl Service<Svm> {
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
-        let mut retry_interval = tokio::time::interval(Duration::from_secs(2));
         let mut receiver = self.config.chain_config.log_sender.subscribe();
+        let mut retry_interval = tokio::time::interval(Duration::from_secs(2));
         let mut try_count = 0;
         while try_count < SEND_TRANSACTION_RETRY_COUNT_SVM {
             tokio::select! {
-                rpc_log = receiver.recv() => {
-                    if let Ok(rpc_log) = rpc_log {
-                        if rpc_log.value.signature.eq(&signature.to_string()) {
+                log = receiver.recv() => {
+                    if let Ok(log) = log {
+                        if log.value.signature.eq(&signature.to_string()) {
+                            tracing::Span::current().record("total_tries", try_count);
                             return;
                         }
                     }
@@ -652,8 +652,6 @@ impl Service<Svm> {
                 }
             }
         }
-
-        metrics::histogram!("auction_server.svm.send_transaction.success").record(try_count as f64);
 
         tracing::Span::current().record("total_tries", try_count);
     }
