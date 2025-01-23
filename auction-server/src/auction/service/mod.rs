@@ -110,7 +110,7 @@ pub struct ConfigSvm {
     pub express_relay:                 ExpressRelaySvm,
     pub simulator:                     Simulator,
     pub ws_address:                    String,
-    pub tx_broadcaster_client:         RpcClient,
+    pub tx_broadcaster_clients:        Vec<RpcClient>,
     pub log_sender:                    Sender<Response<RpcLogsResponse>>,
     pub prioritization_fee_percentile: Option<u64>,
 }
