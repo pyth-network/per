@@ -232,6 +232,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
         let program = match val.program.clone() {
             OpportunitySvmProgram::Limo(program) => api::OpportunityParamsV1ProgramSvm::Limo {
+                slot:          val.slot,
                 order:         program.order,
                 order_address: program.order_address,
             },
@@ -292,7 +293,6 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
         api::OpportunitySvm {
             opportunity_id: val.id,
             creation_time:  val.creation_time.unix_timestamp_nanos() / 1000,
-            slot:           val.slot,
             params:         api::OpportunityParamsSvm::V1(api::OpportunityParamsV1Svm {
                 program,
                 chain_id: val.chain_id.clone(),

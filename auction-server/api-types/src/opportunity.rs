@@ -300,6 +300,9 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
+        /// The slot where the opportunity params were fetched from using the RPC.
+        #[schema(example = 293106477, value_type = u64)]
+        slot:          Slot,
     },
     /// Swap program specific parameters for the opportunity.
     #[schema(title = "swap")]
@@ -422,9 +425,6 @@ pub struct OpportunitySvm {
     /// Creation time of the opportunity (in microseconds since the Unix epoch).
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     pub creation_time:  UnixTimestampMicros,
-    /// The slot where the program params were fetched from using the RPC.
-    #[schema(example = 293106477, value_type = u64)]
-    pub slot:           Slot,
 
     #[serde(flatten)]
     #[schema(inline)]
