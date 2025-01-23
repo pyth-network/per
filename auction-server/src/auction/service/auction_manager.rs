@@ -631,14 +631,13 @@ impl Service<Svm> {
                 rpc_log = receiver.recv() => {
                     if let Ok(rpc_log) = rpc_log {
                         if rpc_log.value.signature.eq(&signature.to_string()) {
-                            metrics::histogram!("auction_server.svm.send_transaction.success").record(try_count as f64);
                             return;
                         }
                     }
                 }
-                _ = retry_interval.tick() => {
-                    try_count += 1;
-                    if let Err(e) = self
+            _ = retry_interval.tick() => {
+                try_count += 1;
+                if let Err(e) = self
                     .config
                     .chain_config
                     .tx_broadcaster_client
