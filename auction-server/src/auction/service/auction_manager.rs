@@ -659,7 +659,7 @@ impl Service<Svm> {
         }
 
         let labels = [("chain_id", self.config.chain_id.clone())];
-        metrics::histogram!("svm_transaction_landing_time_seconds", &labels)
+        metrics::histogram!("transaction_landing_time_seconds_svm", &labels)
             .record(start.elapsed().as_secs_f64());
 
         tracing::Span::current().record("total_tries", try_count);
