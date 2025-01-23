@@ -7,10 +7,7 @@ use {
         collections::HashMap,
         ops::Deref,
     },
-    tokio::{
-        sync::RwLock,
-        time::Instant,
-    },
+    tokio::sync::RwLock,
 };
 
 mod add_opportunity;
@@ -62,7 +59,7 @@ pub struct InMemoryStoreEvm {
 pub struct InMemoryStoreSvm {
     pub core_fields:            InMemoryStoreCoreFields<entities::OpportunitySvm>,
     pub token_program_cache:    RwLock<HashMap<Pubkey, Pubkey>>,
-    pub express_relay_metadata: RwLock<Option<(Instant, ExpressRelayMetadata)>>,
+    pub express_relay_metadata: RwLock<Option<ExpressRelayMetadata>>,
 }
 
 impl InMemoryStore for InMemoryStoreEvm {

@@ -146,37 +146,38 @@ impl Service<ChainTypeSvm> {
                 chain_id: quote_create.chain_id.clone(),
             })
             .await?;
-        let (input_mint, input_amount, output_mint, output_amount) =
-            match (quote_create.tokens.clone(), fee_token.clone()) {
-                (
-                    entities::QuoteTokens::InputTokenSpecified {
-                        input_token,
-                        output_token,
-                    },
-                    entities::FeeToken::InputToken,
-                ) => {
-                    let denominator: u64 = FEE_SPLIT_PRECISION
-                        - <u16 as Into<u64>>::into(quote_create.referral_fee_bps)
-                        - metadata.swap_platform_fee_bps;
-                    let numerator = input_token.amount * FEE_SPLIT_PRECISION;
-                    let amount_before_fees = numerator.div_ceil(denominator);
-                    (input_token.token, amount_before_fees, output_token, 0)
-                }
-                (
-                    entities::QuoteTokens::InputTokenSpecified {
-                        input_token,
-                        output_token,
-                    },
-                    entities::FeeToken::OutputToken,
-                ) => (input_token.token, input_token.amount, output_token, 0),
-                (
-                    entities::QuoteTokens::OutputTokenSpecified {
-                        input_token,
-                        output_token,
-                    },
-                    _,
-                ) => (input_token, 0, output_token.token, output_token.amount),
-            };
+        let (input_mint, output_mint) = match quote_create.tokens.clone() {
+            entities::QuoteTokens::InputTokenSpecified {
+                input_token,
+                output_token,
+            } => (input_token.token, output_token),
+            entities::QuoteTokens::OutputTokenSpecified {
+                input_token,
+                output_token,
+            } => (input_token, output_token.token),
+        };
+        let (input_amount, output_amount) = match (quote_create.tokens.clone(), fee_token.clone()) {
+            (
+                entities::QuoteTokens::InputTokenSpecified { input_token, .. },
+                entities::FeeToken::InputToken,
+            ) => {
+                // This is not exactly accurate and may overestimate the amount needed
+                // because of floor / ceil rounding errors.
+                let denominator: u64 = FEE_SPLIT_PRECISION
+                    - <u16 as Into<u64>>::into(quote_create.referral_fee_bps)
+                    - metadata.swap_platform_fee_bps;
+                let numerator = input_token.amount * FEE_SPLIT_PRECISION;
+                let amount_before_fees = numerator.div_ceil(denominator);
+                (amount_before_fees, 0)
+            }
+            (
+                entities::QuoteTokens::InputTokenSpecified { input_token, .. },
+                entities::FeeToken::OutputToken,
+            ) => (input_token.amount, 0),
+            (entities::QuoteTokens::OutputTokenSpecified { output_token, .. }, _) => {
+                (0, output_token.amount)
+            }
+        };
         let input_token_program = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
