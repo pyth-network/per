@@ -665,21 +665,18 @@ impl Service<Svm> {
     ) -> solana_client::client_error::Result<Signature> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
-        let signature = tx.signatures[0];
-
         self.config
             .chain_config
             .simulator
             .add_pending_transaction(tx)
             .await;
-
         self.task_tracker.spawn({
             let (service, bid) = (self.clone(), bid.clone());
             async move {
                 service.blocking_send_transaction(bid).await;
             }
         });
-        Ok(signature)
+        Ok(tx.signatures[0])
     }
 }
 
