@@ -41,10 +41,7 @@ use {
     axum_prometheus::metrics,
     express_relay_api_types::opportunity::ProgramSvm,
     futures::future::join_all,
-    solana_sdk::{
-        clock::Slot,
-        pubkey::Pubkey,
-    },
+    solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
     std::time::Duration,
     time::OffsetDateTime,
@@ -258,8 +255,6 @@ impl Service<ChainTypeSvm> {
             router,
             permission_account,
             program: program_opportunity,
-            // TODO* extract latest slot
-            slot: Slot::default(),
         })
     }
 

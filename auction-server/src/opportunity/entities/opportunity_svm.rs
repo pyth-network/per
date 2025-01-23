@@ -42,6 +42,7 @@ use {
 pub struct OpportunitySvmProgramLimo {
     pub order:         Vec<u8>,
     pub order_address: Pubkey,
+    pub slot:          Slot,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -84,7 +85,6 @@ pub struct OpportunitySvm {
     pub router:             Pubkey,
     pub permission_account: Pubkey,
     pub program:            OpportunitySvmProgram,
-    pub slot:               Slot,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -94,7 +94,6 @@ pub struct OpportunityCreateSvm {
     pub router:             Pubkey,
     pub permission_account: Pubkey,
     pub program:            OpportunitySvmProgram,
-    pub slot:               Slot,
 }
 
 // Opportunity can be refreshed after 30 seconds
@@ -113,7 +112,6 @@ impl Opportunity for OpportunitySvm {
             router:             val.router,
             permission_account: val.permission_account,
             program:            val.program,
-            slot:               val.slot,
         }
     }
 
@@ -124,6 +122,7 @@ impl Opportunity for OpportunitySvm {
                     repository::OpportunityMetadataSvmProgramLimo {
                         order:         program.order,
                         order_address: program.order_address,
+                        slot:          program.slot,
                     },
                 )
             }
@@ -144,7 +143,6 @@ impl Opportunity for OpportunitySvm {
             program,
             router: self.router,
             permission_account: self.permission_account,
-            slot: self.slot,
         }
     }
 
@@ -157,9 +155,15 @@ impl Opportunity for OpportunitySvm {
         }))
     }
 
-    fn compare(&self, other: &Self::OpportunityCreate) -> super::OpportunityComparison {
+    fn compare(&self, other: &OpportunityCreateSvm) -> super::OpportunityComparison {
         let mut self_clone: OpportunityCreateSvm = self.clone().into();
-        self_clone.slot = other.slot;
+        if let (
+            OpportunitySvmProgram::Limo(self_program),
+            OpportunitySvmProgram::Limo(other_program),
+        ) = (&mut self_clone.program, &other.program)
+        {
+            self_program.slot = other_program.slot;
+        };
         if *other == self_clone {
             if self.refresh_time + MIN_REFRESH_TIME < OffsetDateTime::now_utc() {
                 OpportunityComparison::NeedsRefresh
@@ -232,7 +236,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
         let program = match val.program.clone() {
             OpportunitySvmProgram::Limo(program) => api::OpportunityParamsV1ProgramSvm::Limo {
-                slot:          val.slot,
+                slot:          program.slot,
                 order:         program.order,
                 order_address: program.order_address,
             },
@@ -326,6 +330,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
         let program = match val.metadata.program.clone() {
             repository::OpportunityMetadataSvmProgram::Limo(program) => {
                 OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
+                    slot:          program.slot,
                     order:         program.order,
                     order_address: program.order_address,
                 })
@@ -354,7 +359,6 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             router: val.metadata.router,
             permission_account: val.metadata.permission_account,
             program,
-            slot: val.metadata.slot,
         })
     }
 }
@@ -369,6 +373,7 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             } => OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
                 order,
                 order_address,
+                slot: params.slot,
             }),
         };
 
@@ -391,7 +396,6 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             program,
             permission_account: params.permission_account,
             router: params.router,
-            slot: params.slot,
         }
     }
 }
@@ -408,7 +412,6 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
             router:             val.router,
             permission_account: val.permission_account,
             program:            val.program,
-            slot:               val.slot,
         }
     }
 }

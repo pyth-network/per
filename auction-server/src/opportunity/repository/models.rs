@@ -56,6 +56,7 @@ pub struct OpportunityMetadataSvmProgramLimo {
     pub order:         Vec<u8>,
     #[serde_as(as = "DisplayFromStr")]
     pub order_address: Pubkey,
+    pub slot:          Slot,
 }
 
 #[serde_as]
@@ -88,7 +89,6 @@ pub struct OpportunityMetadataSvm {
     pub router:             Pubkey,
     #[serde_as(as = "DisplayFromStr")]
     pub permission_account: Pubkey,
-    pub slot:               Slot,
 }
 
 pub trait OpportunityMetadata:
