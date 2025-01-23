@@ -437,18 +437,33 @@ impl Service<ChainTypeSvm> {
                 chain_id: input.quote_create.chain_id.clone(),
             })
             .await?;
-        let (input_amount, output_amount) = match swap_data.fee_token {
-            FeeToken::Input => (
-                metadata
-                    .compute_swap_fees(swap_data.referral_fee_bps, swap_data.amount_input)
-                    .map_err(|e| {
-                        tracing::error!("Failed to compute swap fees: {:?}", e);
-                        RestError::TemporarilyUnavailable
-                    })?
-                    .remaining_amount,
+
+        let fee_token = match swap_data.fee_token {
+            FeeToken::Input => input_token.token,
+            FeeToken::Output => output_token.token,
+        };
+        let compute_fees = |amount: u64| {
+            metadata
+                .compute_swap_fees(input.quote_create.referral_fee_bps, amount)
+                .map_err(|e| {
+                    tracing::error!("Failed to compute swap fees: {:?}", e);
+                    RestError::TemporarilyUnavailable
+                })
+        };
+        let (input_amount, output_amount, fees) = match swap_data.fee_token {
+            FeeToken::Input => {
+                let swap_fees = compute_fees(swap_data.amount_input)?;
+                (
+                    swap_fees.remaining_amount,
+                    swap_data.amount_output,
+                    swap_fees.fees,
+                )
+            }
+            FeeToken::Output => (
+                swap_data.amount_input,
                 swap_data.amount_output,
+                compute_fees(swap_data.amount_output)?.fees,
             ),
-            FeeToken::Output => (swap_data.amount_input, swap_data.amount_output),
         };
 
         Ok(entities::Quote {
@@ -462,6 +477,14 @@ impl Service<ChainTypeSvm> {
             output_token: TokenAmountSvm {
                 token:  output_token.token,
                 amount: output_amount,
+            },
+            referrer_fee: TokenAmountSvm {
+                token:  fee_token,
+                amount: fees.relayer_fee,
+            },
+            platform_fee: TokenAmountSvm {
+                token:  fee_token,
+                amount: fees.express_relay_fee + fees.relayer_fee,
             },
             chain_id:     input.quote_create.chain_id,
         })

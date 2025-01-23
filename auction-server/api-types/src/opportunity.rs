@@ -585,10 +585,14 @@ pub struct QuoteV1Svm {
     /// The expiration time of the quote (in seconds since the Unix epoch).
     #[schema(example = 1_700_000_000_000_000i64, value_type = i64)]
     pub expiration_time: i64,
-    /// The input token amount that the user wants to swap.
-    pub input_token:     TokenAmountSvm,
-    /// The output token amount that the user will receive.
+    /// The token and amount that the user needs to send to fulfill the swap transaction.
     pub output_token:    TokenAmountSvm,
+    /// The token and amount that the user will receive when the swap is complete.
+    pub input_token:     TokenAmountSvm,
+    /// The token and amount that the referrer will receive when the swap is complete.
+    pub referrer_fee:    TokenAmountSvm,
+    /// The token and amount that the platform will receive when the swap is complete.
+    pub platform_fee:    TokenAmountSvm,
     /// The chain id for the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:        ChainId,
