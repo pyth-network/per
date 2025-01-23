@@ -52,18 +52,25 @@ impl From<api::QuoteTokens> for QuoteTokens {
             api::QuoteTokens::InputTokenSpecified {
                 input_token,
                 output_token,
-                ..
+                input_amount,
             } => QuoteTokens::InputTokenSpecified {
-                input_token: input_token.into(),
+                input_token: TokenAmountSvm {
+                    token:  input_token,
+                    amount: input_amount,
+                },
                 output_token,
             },
             api::QuoteTokens::OutputTokenSpecified {
                 input_token,
                 output_token,
+                output_amount,
                 ..
             } => QuoteTokens::OutputTokenSpecified {
                 input_token,
-                output_token: output_token.into(),
+                output_token: TokenAmountSvm {
+                    token:  output_token,
+                    amount: output_amount,
+                },
             },
         }
     }

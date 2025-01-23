@@ -643,47 +643,18 @@ export interface components {
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           router_account: string;
-          tokens:
-            | {
-                input_token: components["schemas"]["TokenAmountSvm"];
-                /**
-                 * @description The token program of the input mint.
-                 * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
-                 */
-                input_token_program: string;
-                /**
-                 * @description The token that the user wants to send in exchange
-                 * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-                 */
-                output_token: string;
-                /**
-                 * @description The token program of the output mint.
-                 * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
-                 */
-                output_token_program: string;
-                /** @enum {string} */
-                side_specified: "input";
-              }
-            | {
-                /**
-                 * @description The token that the user wants to receive
-                 * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-                 */
-                input_token: string;
-                /**
-                 * @description The token program of the input mint.
-                 * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
-                 */
-                input_token_program: string;
-                output_token: components["schemas"]["TokenAmountSvm"];
-                /**
-                 * @description The token program of the output mint.
-                 * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
-                 */
-                output_token_program: string;
-                /** @enum {string} */
-                side_specified: "output";
-              };
+          tokens: components["schemas"]["QuoteTokens"] & {
+            /**
+             * @description The token program of the input mint.
+             * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+             */
+            input_token_program: string;
+            /**
+             * @description The token program of the output mint.
+             * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+             */
+            output_token_program: string;
+          };
           /**
            * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -785,22 +756,21 @@ export interface components {
     };
     QuoteTokens:
       | {
-          input_token: components["schemas"]["TokenAmountSvm"];
           /**
-           * @description The token program of the input mint.
-           * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+           * Format: int64
+           * @description The exact amount that the user wants to receive from the input_token
            */
-          input_token_program: string;
+          input_amount: number;
           /**
-           * @description The token that the user wants to send in exchange
+           * @description The token that the user wants to receive
            * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
            */
-          output_token: string;
+          input_token: string;
           /**
-           * @description The token program of the output mint.
-           * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+           * @description The token that the user wants to send in exchange
+           * @example So11111111111111111111111111111111111111112
            */
-          output_token_program: string;
+          output_token: string;
           /** @enum {string} */
           side_specified: "input";
         }
@@ -811,16 +781,20 @@ export interface components {
            */
           input_token: string;
           /**
-           * @description The token program of the input mint.
-           * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+           * Format: int64
+           * @description The amount that searcher will receive after deducting fees
            */
-          input_token_program: string;
-          output_token: components["schemas"]["TokenAmountSvm"];
+          output_amount: number;
           /**
-           * @description The token program of the output mint.
-           * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+           * Format: int64
+           * @description The exact amount of output_token that the user wants to send in exchange
            */
-          output_token_program: string;
+          output_amount_before_fees: number;
+          /**
+           * @description The token that the user wants to send in exchange
+           * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+           */
+          output_token: string;
           /** @enum {string} */
           side_specified: "output";
         };
@@ -838,6 +812,8 @@ export interface components {
       expiration_time: number;
       input_token: components["schemas"]["TokenAmountSvm"];
       output_token: components["schemas"]["TokenAmountSvm"];
+      platform_fee: components["schemas"]["TokenAmountSvm"];
+      referrer_fee: components["schemas"]["TokenAmountSvm"];
       /**
        * @description The signed transaction for the quote to be executed on chain which is valid until the expiration time.
        * @example SGVsbG8sIFdvcmxkIQ==

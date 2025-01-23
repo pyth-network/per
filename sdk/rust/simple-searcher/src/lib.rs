@@ -235,17 +235,13 @@ impl SimpleSearcher {
                         ))
                     }
                     OpportunityParamsV1ProgramSvm::Swap { tokens, .. } => {
-                        let (input_token, input_token_program) = match tokens {
-                            QuoteTokens::InputTokenSpecified {
-                                input_token,
-                                input_token_program,
-                                ..
-                            } => (input_token.token, input_token_program),
-                            QuoteTokens::OutputTokenSpecified {
-                                input_token,
-                                input_token_program,
-                                ..
-                            } => (input_token, input_token_program),
+                        let (input_token, input_token_program) = match tokens.tokens {
+                            QuoteTokens::InputTokenSpecified { input_token, .. } => {
+                                (input_token, tokens.input_token_program)
+                            }
+                            QuoteTokens::OutputTokenSpecified { input_token, .. } => {
+                                (input_token, tokens.input_token_program)
+                            }
                         };
                         let create_input_account_ix = create_associated_token_account_idempotent(
                             &payer.pubkey(),

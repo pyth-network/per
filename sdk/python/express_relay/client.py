@@ -122,6 +122,9 @@ class SwapAccounts(TypedDict):
     router: Pubkey
 
 
+FEE_SPLIT_PRECISION = 10000
+
+
 class ExpressRelayClient:
     def __init__(
         self,
@@ -542,16 +545,8 @@ class ExpressRelayClient:
     def extract_swap_info(swap_opportunity: SwapOpportunitySvm) -> SwapAccounts:
         input_token_program = swap_opportunity.tokens.input_token_program
         output_token_program = swap_opportunity.tokens.output_token_program
-        input_token: Pubkey = (
-            swap_opportunity.tokens.input_token.token
-            if swap_opportunity.tokens.side_specified == "input"
-            else swap_opportunity.tokens.input_token
-        )
-        output_token: Pubkey = (
-            swap_opportunity.tokens.output_token.token
-            if swap_opportunity.tokens.side_specified == "output"
-            else swap_opportunity.tokens.output_token
-        )
+        input_token = swap_opportunity.tokens.input_token
+        output_token = swap_opportunity.tokens.output_token
         trader = swap_opportunity.user_wallet_address
         mint_fee, fee_token_program = (
             (input_token, input_token_program)
@@ -584,6 +579,17 @@ class ExpressRelayClient:
             raise ValueError(f"Chain ID {chain_id} not supported")
         svm_config = SVM_CONFIGS[chain_id]
         program_id = svm_config["express_relay_program"]
+        if (
+            swap_opportunity.tokens.side_specified == "input"
+            and swap_opportunity.fee_token == "output_token"
+        ):
+            # scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
+            denominator = FEE_SPLIT_PRECISION - (
+                swap_opportunity.platform_fee_bps + swap_opportunity.referral_fee_bps
+            )
+            numerator = bid_amount * FEE_SPLIT_PRECISION
+            # add denominator - 1 to round up
+            bid_amount = (numerator + (denominator - 1)) // denominator
         express_relay_metadata = LimoClient.get_express_relay_metadata_pda(program_id)
         fee_token = (
             swap_fee_token.Input()
@@ -591,12 +597,12 @@ class ExpressRelayClient:
             else swap_fee_token.Output()
         )
         amount_input = (
-            swap_opportunity.tokens.input_token.amount
+            swap_opportunity.tokens.input_amount
             if swap_opportunity.tokens.side_specified == "input"
             else bid_amount
         )
         amount_output = (
-            swap_opportunity.tokens.output_token.amount
+            swap_opportunity.tokens.output_amount_before_fees
             if swap_opportunity.tokens.side_specified == "output"
             else bid_amount
         )

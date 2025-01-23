@@ -18,7 +18,11 @@ use {
         },
     },
     ::express_relay::FeeToken as ProgramFeeToken,
-    express_relay_api_types::opportunity as api,
+    express_relay::state::FEE_SPLIT_PRECISION,
+    express_relay_api_types::{
+        opportunity as api,
+        opportunity::QuoteTokensWithPrograms,
+    },
     serde::{
         Deserialize,
         Serialize,
@@ -239,20 +243,31 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         input_token,
                         output_token,
                     } => api::QuoteTokens::InputTokenSpecified {
-                        input_token: input_token.into(),
+                        input_token: input_token.token,
+                        input_amount: input_token.amount,
                         output_token,
-                        input_token_program: program.input_token_program,
-                        output_token_program: program.output_token_program,
                     },
                     QuoteTokens::OutputTokenSpecified {
                         input_token,
                         output_token,
-                    } => api::QuoteTokens::OutputTokenSpecified {
-                        input_token,
-                        output_token: output_token.into(),
-                        input_token_program: program.input_token_program,
-                        output_token_program: program.output_token_program,
-                    },
+                    } => {
+                        let output_amount_after_fees = match program.fee_token {
+                            FeeToken::InputToken => output_token.amount,
+                            FeeToken::OutputToken => {
+                                let fees = (output_token.amount
+                                    * (program.platform_fee_bps
+                                        + <u16 as Into<u64>>::into(program.referral_fee_bps)))
+                                .div_ceil(FEE_SPLIT_PRECISION);
+                                output_token.amount - fees
+                            }
+                        };
+                        api::QuoteTokens::OutputTokenSpecified {
+                            input_token,
+                            output_token: output_token.token,
+                            output_amount: output_amount_after_fees,
+                            output_amount_before_fees: output_token.amount,
+                        }
+                    }
                 };
 
                 let fee_token = match program.fee_token {
@@ -266,7 +281,11 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     fee_token,
                     referral_fee_bps: program.referral_fee_bps,
                     platform_fee_bps: program.platform_fee_bps,
-                    tokens,
+                    tokens: QuoteTokensWithPrograms {
+                        tokens,
+                        input_token_program: program.input_token_program,
+                        output_token_program: program.output_token_program,
+                    },
                 }
             }
         };

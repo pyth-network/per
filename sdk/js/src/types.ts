@@ -130,19 +130,19 @@ export type OpportunitySvmLimo = {
 
 export type SvmSwapTokens = (
   | {
-      inputToken: PublicKey;
-      outputToken: TokenAmountSvm;
+      outputAmount: bigint;
       outputTokenAmountBeforeFees: bigint;
       type: "output_specified";
     }
   | {
-      inputToken: TokenAmountSvm;
-      outputToken: PublicKey;
+      inputAmount: bigint;
       type: "input_specified";
     }
 ) & {
   inputTokenProgram: PublicKey;
   outputTokenProgram: PublicKey;
+  inputToken: PublicKey;
+  outputToken: PublicKey;
 };
 export type OpportunitySvmSwap = {
   permissionAccount: PublicKey;

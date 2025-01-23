@@ -9,6 +9,7 @@ use {
         OpportunityParamsSvm,
         OpportunityParamsV1ProgramSvm,
         QuoteTokens,
+        QuoteTokensWithPrograms,
     },
     solana_rpc_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
@@ -77,10 +78,11 @@ pub struct GetSwapInstructionParams {
 
 struct OpportunitySwapData {
     trader:           Pubkey,
-    tokens:           QuoteTokens,
+    tokens:           QuoteTokensWithPrograms,
     fee_token:        ApiFeeToken,
     router_account:   Pubkey,
     referral_fee_bps: u16,
+    platform_fee_bps: u64,
 }
 
 pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
@@ -104,6 +106,8 @@ pub struct Svm {
 // And use the ones from the express-relay contract crate
 pub const SEED_METADATA: &[u8] = b"metadata";
 pub const SEED_CONFIG_ROUTER: &[u8] = b"config_router";
+
+pub const FEE_SPLIT_PRECISION: u64 = 10_000;
 
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct ExpressRelayMetadata {
@@ -235,6 +239,7 @@ impl Svm {
                 fee_token,
                 referral_fee_bps,
                 router_account,
+                platform_fee_bps,
                 ..
             } => Ok(OpportunitySwapData {
                 trader: user_wallet_address,
@@ -242,6 +247,7 @@ impl Svm {
                 fee_token,
                 router_account,
                 referral_fee_bps,
+                platform_fee_bps,
             }),
             _ => Err(ClientError::SvmError(
                 "Invalid opportunity program".to_string(),
@@ -293,39 +299,37 @@ impl Svm {
         let OpportunityParamsSvm::V1(opportunity_params) = params.opportunity_params;
         let chain_id = opportunity_params.chain_id;
 
-        let (
-            mint_input,
-            mint_output,
-            amount_input,
-            amount_output,
-            input_token_program,
-            output_token_program,
-        ) = match swap_data.tokens {
+
+        let bid_amount = match (&swap_data.tokens.tokens, &swap_data.fee_token) {
+            // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
+            (QuoteTokens::InputTokenSpecified { .. }, ApiFeeToken::OutputToken) => {
+                let denominator = FEE_SPLIT_PRECISION
+                    - <u16 as Into<u64>>::into(swap_data.referral_fee_bps)
+                    - swap_data.platform_fee_bps;
+                let numerator = params.bid_amount * FEE_SPLIT_PRECISION;
+                numerator.div_ceil(denominator)
+            }
+            _ => params.bid_amount,
+        };
+
+        let input_token_program = swap_data.tokens.input_token_program;
+        let output_token_program = swap_data.tokens.output_token_program;
+        let (mint_input, mint_output, amount_input, amount_output) = match swap_data.tokens.tokens {
             QuoteTokens::InputTokenSpecified {
                 input_token,
                 output_token,
-                input_token_program,
-                output_token_program,
-            } => (
-                input_token.token,
-                output_token,
-                input_token.amount,
-                params.bid_amount,
-                input_token_program,
-                output_token_program,
-            ),
+                input_amount,
+            } => (input_token, output_token, input_amount, bid_amount),
             QuoteTokens::OutputTokenSpecified {
                 input_token,
                 output_token,
-                input_token_program,
-                output_token_program,
+                output_amount: _output_amount, // Only for searcher internal pricing
+                output_amount_before_fees,
             } => (
                 input_token,
-                output_token.token,
-                params.bid_amount,
-                output_token.amount,
-                input_token_program,
-                output_token_program,
+                output_token,
+                bid_amount,
+                output_amount_before_fees,
             ),
         };
 

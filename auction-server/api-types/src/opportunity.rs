@@ -285,6 +285,7 @@ pub struct OpportunityEvm {
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(tag = "program", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum OpportunityParamsV1ProgramSvm {
     /// Limo program specific parameters for the opportunity.
     /// It contains the Limo order to be executed, encoded in base64.
@@ -332,7 +333,7 @@ pub enum OpportunityParamsV1ProgramSvm {
 
         /// Details about the tokens to be swapped. Either the input token amount or the output token amount must be specified.
         #[schema(inline)]
-        tokens: QuoteTokens,
+        tokens: QuoteTokensWithPrograms,
     },
 }
 
@@ -349,39 +350,49 @@ pub enum FeeToken {
 pub enum QuoteTokens {
     #[serde(rename = "input")]
     InputTokenSpecified {
-        /// The token and the exact amount that the user wants to receive
-        input_token:          TokenAmountSvm,
-        /// The token that the user wants to send in exchange
+        /// The token that the user wants to receive
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        output_token:         Pubkey,
-        /// The token program of the input mint.
-        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+        input_token:  Pubkey,
+        /// The exact amount that the user wants to receive from the input_token
+        input_amount: u64,
+        /// The token that the user wants to send in exchange
+        #[schema(example = "So11111111111111111111111111111111111111112", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token_program:  Pubkey,
-        /// The token program of the output mint.
-        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        output_token_program: Pubkey,
+        output_token: Pubkey,
     },
     #[serde(rename = "output")]
     OutputTokenSpecified {
         /// The token that the user wants to receive
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token:          Pubkey,
-        /// The token and the exact amount that the user wants to send in exchange
-        output_token:         TokenAmountSvm,
-        /// The token program of the input mint.
-        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+        input_token:               Pubkey,
+        /// The token that the user wants to send in exchange
+        #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token_program:  Pubkey,
-        /// The token program of the output mint.
-        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        output_token_program: Pubkey,
+        output_token:              Pubkey,
+        /// The amount that searcher will receive after deducting fees
+        output_amount:             u64,
+        /// The exact amount of output_token that the user wants to send in exchange
+        output_amount_before_fees: u64,
     },
 }
+
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+pub struct QuoteTokensWithPrograms {
+    #[serde(flatten)]
+    pub tokens:               QuoteTokens,
+    /// The token program of the input mint.
+    #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub input_token_program:  Pubkey,
+    /// The token program of the output mint.
+    #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub output_token_program: Pubkey,
+}
+
 
 /// Opportunity parameters needed for on-chain execution.
 /// Parameters may differ for each program.

@@ -173,7 +173,7 @@ export async function constructSwapInstruction(
   const swapArgs = {
     amountInput:
       swapOpportunity.tokens.type === "input_specified"
-        ? new anchor.BN(swapOpportunity.tokens.inputToken.amount)
+        ? new anchor.BN(swapOpportunity.tokens.inputAmount)
         : bidAmount,
     amountOutput:
       swapOpportunity.tokens.type === "output_specified"
@@ -251,14 +251,8 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
 } {
   const inputTokenProgram = swapOpportunity.tokens.inputTokenProgram;
   const outputTokenProgram = swapOpportunity.tokens.outputTokenProgram;
-  const inputToken =
-    swapOpportunity.tokens.type === "input_specified"
-      ? swapOpportunity.tokens.inputToken.token
-      : swapOpportunity.tokens.inputToken;
-  const outputToken =
-    swapOpportunity.tokens.type === "output_specified"
-      ? swapOpportunity.tokens.outputToken.token
-      : swapOpportunity.tokens.outputToken;
+  const inputToken = swapOpportunity.tokens.inputToken;
+  const outputToken = swapOpportunity.tokens.outputToken;
   const trader = swapOpportunity.userWalletAddress;
   const [mintFee, feeTokenProgram] =
     swapOpportunity.feeToken === "input_token"

@@ -616,11 +616,9 @@ export class Client {
       if (opportunity.tokens.side_specified === "input") {
         tokens = {
           type: "input_specified",
-          inputToken: {
-            amount: BigInt(opportunity.tokens.input_token.amount),
-            token: new PublicKey(opportunity.tokens.input_token.token),
-          },
+          inputToken: new PublicKey(opportunity.tokens.input_token),
           outputToken: new PublicKey(opportunity.tokens.output_token),
+          inputAmount: BigInt(opportunity.tokens.input_amount),
           inputTokenProgram: new PublicKey(
             opportunity.tokens.input_token_program,
           ),
@@ -629,29 +627,14 @@ export class Client {
           ),
         } as const;
       } else {
-        let outputAmount = new anchor.BN(
-          opportunity.tokens.output_token.amount,
-        );
-        if (opportunity.fee_token == "output_token") {
-          const fees = outputAmount
-            .mul(
-              new anchor.BN(
-                opportunity.platform_fee_bps + opportunity.referral_fee_bps,
-              ),
-            )
-            .div(svm.FEE_SPLIT_PRECISION);
-          outputAmount = outputAmount.sub(fees);
-        }
         tokens = {
           type: "output_specified",
           inputToken: new PublicKey(opportunity.tokens.input_token),
-          outputToken: {
-            amount: BigInt(outputAmount.toNumber()),
-            token: new PublicKey(opportunity.tokens.output_token.token),
-          },
+          outputToken: new PublicKey(opportunity.tokens.output_token),
           outputTokenAmountBeforeFees: BigInt(
-            opportunity.tokens.output_token.amount,
+            opportunity.tokens.output_amount_before_fees,
           ),
+          outputAmount: BigInt(opportunity.tokens.output_amount),
           inputTokenProgram: new PublicKey(
             opportunity.tokens.input_token_program,
           ),
