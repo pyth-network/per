@@ -23,6 +23,7 @@ use {
     },
     anyhow::Result,
     axum::async_trait,
+    axum_prometheus::metrics,
     ethers::{
         contract::EthEvent,
         providers::{
@@ -618,22 +619,25 @@ impl Service<Svm> {
     }
 
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
-    async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>, signature: Signature) {
+    async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>) {
+        let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
+        let mut retry_interval = tokio::time::interval(Duration::from_secs(2));
         let mut receiver = self.config.chain_config.log_sender.subscribe();
-        for retry_count in 0..SEND_TRANSACTION_RETRY_COUNT_SVM {
-            tokio::time::sleep(Duration::from_secs(2)).await;
-
-            // Do not wait for the logs to be received
-            // just check if the transaction is in the logs already
-            while let Ok(log) = receiver.try_recv() {
-                if log.value.signature.eq(&signature.to_string()) {
-                    tracing::Span::current().record("total_tries", retry_count + 1);
-                    return;
+        let mut try_count = 0;
+        tokio::select! {
+            rpc_log = receiver.recv() => {
+                if let Ok(rpc_log) = rpc_log {
+                    if rpc_log.value.signature.eq(&signature.to_string()) {
+                        metrics::histogram!("auction_server.svm.send_transaction.success").record(try_count as f64);
+                        return;
+                    }
                 }
             }
-            if let Err(e) = self
+            _ = retry_interval.tick() => {
+                try_count += 1;
+                if let Err(e) = self
                 .config
                 .chain_config
                 .tx_broadcaster_client
@@ -645,9 +649,12 @@ impl Service<Svm> {
             {
                 tracing::error!(error = ?e, "Failed to resend transaction");
             }
+            }
         }
 
-        tracing::Span::current().record("total_tries", SEND_TRANSACTION_RETRY_COUNT_SVM + 1);
+        metrics::histogram!("auction_server.svm.send_transaction.success").record(try_count as f64);
+
+        tracing::Span::current().record("total_tries", try_count);
     }
 
     #[tracing::instrument(skip_all, fields(bid_id))]
@@ -657,24 +664,21 @@ impl Service<Svm> {
     ) -> solana_client::client_error::Result<Signature> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
-        let res = self
-            .config
-            .chain_config
-            .tx_broadcaster_client
-            .send_transaction_with_config(tx, self.get_send_transaction_config())
-            .await?;
+        let signature = tx.signatures[0];
+
         self.config
             .chain_config
             .simulator
             .add_pending_transaction(tx)
             .await;
+
         self.task_tracker.spawn({
             let (service, bid) = (self.clone(), bid.clone());
             async move {
-                service.blocking_send_transaction(bid, res).await;
+                service.blocking_send_transaction(bid).await;
             }
         });
-        Ok(res)
+        Ok(signature)
     }
 }
 
