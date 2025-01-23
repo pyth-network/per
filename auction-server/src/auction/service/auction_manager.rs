@@ -625,7 +625,7 @@ impl Service<Svm> {
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>) {
         let start = Instant::now();
-        let mut outcome = "expired";
+        let mut result_label = "expired";
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
@@ -638,9 +638,9 @@ impl Service<Svm> {
                     if let Ok(log) = log {
                         if log.value.signature.eq(&signature.to_string()) {
                             if log.value.err.is_some() {
-                                outcome = "failed";
+                                result_label = "failed";
                             } else {
-                                outcome = "success";
+                                result_label = "success";
                             }
                             break
                         }
@@ -666,7 +666,7 @@ impl Service<Svm> {
 
         let labels = [
             ("chain_id", self.config.chain_id.clone()),
-            ("outcome", outcome.to_string()),
+            ("result", result_label.to_string()),
         ];
         metrics::histogram!("transaction_landing_time_seconds_svm", &labels)
             .record(start.elapsed().as_secs_f64());
