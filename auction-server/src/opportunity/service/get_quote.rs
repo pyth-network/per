@@ -164,8 +164,8 @@ impl Service<ChainTypeSvm> {
                     - <u16 as Into<u64>>::into(quote_create.referral_fee_bps)
                     - metadata.swap_platform_fee_bps;
                 let numerator = input_token.amount * FEE_SPLIT_PRECISION;
-                let amount_before_fees = numerator.div_ceil(denominator);
-                (amount_before_fees, 0)
+                let amount_including_fees = numerator.div_ceil(denominator);
+                (amount_including_fees, 0)
             }
             (
                 entities::QuoteTokens::InputTokenSpecified { input_token, .. },

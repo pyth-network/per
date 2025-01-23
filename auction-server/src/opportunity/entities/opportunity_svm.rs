@@ -256,7 +256,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         input_token,
                         output_token,
                     } => {
-                        let output_amount_after_fees = match program.fee_token {
+                        let output_amount_excluding_fees = match program.fee_token {
                             FeeToken::InputToken => output_token.amount,
                             FeeToken::OutputToken => {
                                 let fees = (output_token.amount
@@ -269,7 +269,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         api::QuoteTokens::OutputTokenSpecified {
                             input_token,
                             output_token: output_token.token,
-                            output_amount: output_amount_after_fees,
+                            output_amount: output_amount_excluding_fees,
                             output_amount_before_fees: output_token.amount,
                         }
                     }
