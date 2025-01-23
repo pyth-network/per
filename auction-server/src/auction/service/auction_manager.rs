@@ -626,29 +626,31 @@ impl Service<Svm> {
         let mut retry_interval = tokio::time::interval(Duration::from_secs(2));
         let mut receiver = self.config.chain_config.log_sender.subscribe();
         let mut try_count = 0;
-        tokio::select! {
-            rpc_log = receiver.recv() => {
-                if let Ok(rpc_log) = rpc_log {
-                    if rpc_log.value.signature.eq(&signature.to_string()) {
-                        metrics::histogram!("auction_server.svm.send_transaction.success").record(try_count as f64);
-                        return;
+        while try_count < SEND_TRANSACTION_RETRY_COUNT_SVM {
+            tokio::select! {
+                rpc_log = receiver.recv() => {
+                    if let Ok(rpc_log) = rpc_log {
+                        if rpc_log.value.signature.eq(&signature.to_string()) {
+                            metrics::histogram!("auction_server.svm.send_transaction.success").record(try_count as f64);
+                            return;
+                        }
                     }
                 }
-            }
-            _ = retry_interval.tick() => {
-                try_count += 1;
-                if let Err(e) = self
-                .config
-                .chain_config
-                .tx_broadcaster_client
-                .send_transaction_with_config(
-                    &bid.chain_data.transaction,
-                    self.get_send_transaction_config(),
-                )
-                .await
-            {
-                tracing::error!(error = ?e, "Failed to resend transaction");
-            }
+                _ = retry_interval.tick() => {
+                    try_count += 1;
+                    if let Err(e) = self
+                    .config
+                    .chain_config
+                    .tx_broadcaster_client
+                    .send_transaction_with_config(
+                        &bid.chain_data.transaction,
+                        self.get_send_transaction_config(),
+                    )
+                    .await
+                {
+                    tracing::error!(error = ?e, "Failed to resend transaction");
+                }
+                }
             }
         }
 
