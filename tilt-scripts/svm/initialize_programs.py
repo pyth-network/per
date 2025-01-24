@@ -135,7 +135,7 @@ async def main():
     ix_set_swap_platform_fee = set_swap_platform_fee(
         {
             "data": SetSwapPlatformFeeArgs(
-                swap_platform_fee_bps=args.split_protocol_default
+                swap_platform_fee_bps=args.swap_platform_fee_bps
             ),
         },
         SetSwapPlatformFeeAccounts(
