@@ -666,6 +666,9 @@ impl Service<Svm> {
 
         let labels = [
             ("chain_id", self.config.chain_id.clone()),
+            // note: this metric can have the label "expired" even when the transaction landed
+            // if the log listener didn't get the log in time
+            // but this is rare as we retry for 60 seconds and blockhash expires after 60 seconds
             ("result", result_label.to_string()),
         ];
         metrics::histogram!("transaction_landing_time_seconds_svm", &labels)
@@ -681,6 +684,7 @@ impl Service<Svm> {
     ) -> solana_client::client_error::Result<Signature> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
+
         self.config
             .chain_config
             .simulator
