@@ -54,7 +54,10 @@ use {
             Signature,
             Signer,
         },
-        transaction::{TransactionError, VersionedTransaction},
+        transaction::{
+            TransactionError,
+            VersionedTransaction,
+        },
     },
     std::{
         fmt::Debug,
@@ -639,14 +642,12 @@ impl Service<Svm> {
                 result
             }),
         ).await;
-        for res in result {
-            if let Ok(signature) = res {
-                return Ok(signature);
-            }
-        }
-        Err(solana_client::client_error::ClientErrorKind::Custom(
-            "All tx broadcasters failed".to_string(),
-        ).into())
+        result.into_iter().find(|res| res.is_ok()).unwrap_or({
+            Err(solana_client::client_error::ClientErrorKind::Custom(
+                "All tx broadcasters failed".to_string(),
+            )
+            .into())
+        })
     }
 
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
@@ -702,7 +703,8 @@ impl Service<Svm> {
     ) -> solana_client::client_error::Result<Signature> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
-        self.send_transaction_to_network(&bid.chain_data.transaction).await?;
+        self.send_transaction_to_network(&bid.chain_data.transaction)
+            .await?;
         self.config
             .chain_config
             .simulator
