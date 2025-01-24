@@ -684,7 +684,11 @@ impl Service<Svm> {
     ) -> solana_client::client_error::Result<Signature> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
-
+        self.config
+            .chain_config
+            .tx_broadcaster_client
+            .send_transaction_with_config(tx, self.get_send_transaction_config())
+            .await?;
         self.config
             .chain_config
             .simulator
