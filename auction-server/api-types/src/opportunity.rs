@@ -352,6 +352,7 @@ pub enum FeeToken {
 #[serde(tag = "side_specified")]
 pub enum QuoteTokens {
     #[serde(rename = "input")]
+    #[schema(title = "input_specified")]
     InputTokenSpecified {
         /// The token that the user wants to receive
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
@@ -365,6 +366,7 @@ pub enum QuoteTokens {
         output_token: Pubkey,
     },
     #[serde(rename = "output")]
+    #[schema(title = "output_specified")]
     OutputTokenSpecified {
         /// The token that the user wants to receive
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
