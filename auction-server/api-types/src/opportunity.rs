@@ -336,7 +336,7 @@ pub enum OpportunityParamsV1ProgramSvm {
 
         /// Details about the tokens to be swapped. Either the input token amount or the output token amount must be specified.
         #[schema(inline)]
-        tokens: QuoteTokensWithPrograms,
+        tokens: QuoteTokensWithTokenPrograms,
     },
 }
 
@@ -383,7 +383,7 @@ pub enum QuoteTokens {
 
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-pub struct QuoteTokensWithPrograms {
+pub struct QuoteTokensWithTokenPrograms {
     #[serde(flatten)]
     pub tokens:               QuoteTokens,
     /// The token program of the input mint.

@@ -9,7 +9,7 @@ use {
         OpportunityParamsSvm,
         OpportunityParamsV1ProgramSvm,
         QuoteTokens,
-        QuoteTokensWithPrograms,
+        QuoteTokensWithTokenPrograms,
     },
     solana_rpc_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
@@ -78,7 +78,7 @@ pub struct GetSwapInstructionParams {
 
 struct OpportunitySwapData {
     trader:           Pubkey,
-    tokens:           QuoteTokensWithPrograms,
+    tokens:           QuoteTokensWithTokenPrograms,
     fee_token:        ApiFeeToken,
     router_account:   Pubkey,
     referral_fee_bps: u16,

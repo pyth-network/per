@@ -21,7 +21,7 @@ use {
     express_relay::state::FEE_SPLIT_PRECISION,
     express_relay_api_types::{
         opportunity as api,
-        opportunity::QuoteTokensWithPrograms,
+        opportunity::QuoteTokensWithTokenPrograms,
     },
     serde::{
         Deserialize,
@@ -259,11 +259,13 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         let output_amount_excluding_fees = match program.fee_token {
                             FeeToken::InputToken => output_token.amount,
                             FeeToken::OutputToken => {
-                                let fees = (output_token.amount
-                                    * (program.platform_fee_bps
-                                        + <u16 as Into<u64>>::into(program.referral_fee_bps)))
-                                .div_ceil(FEE_SPLIT_PRECISION);
-                                output_token.amount - fees
+                                // TODO: Do this calculation based on express relay metadata
+                                let router_fee = output_token.amount
+                                    * program.referral_fee_bps as u64
+                                    / FEE_SPLIT_PRECISION;
+                                let platform_fee = output_token.amount * program.platform_fee_bps
+                                    / FEE_SPLIT_PRECISION;
+                                output_token.amount - router_fee - platform_fee
                             }
                         };
                         api::QuoteTokens::OutputTokenSpecified {
@@ -286,7 +288,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     fee_token,
                     referral_fee_bps: program.referral_fee_bps,
                     platform_fee_bps: program.platform_fee_bps,
-                    tokens: QuoteTokensWithPrograms {
+                    tokens: QuoteTokensWithTokenPrograms {
                         tokens,
                         input_token_program: program.input_token_program,
                         output_token_program: program.output_token_program,
