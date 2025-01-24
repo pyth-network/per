@@ -158,7 +158,7 @@ pub struct ConfigSvm {
     /// RPC endpoint to use for reading from the blockchain.
     pub rpc_read_url:                  String,
     /// RPC endpoint to use for broadcasting transactions
-    pub rpc_tx_submission_url:         String,
+    pub rpc_tx_submission_urls:        Vec<String>,
     /// WS endpoint to use for interacting with the blockchain.
     pub ws_addr:                       String,
     /// Timeout for RPC requests in seconds.
