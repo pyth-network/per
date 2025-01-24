@@ -30,6 +30,8 @@ function getExpressRelayProgram(chain: string): PublicKey {
   return SVM_CONSTANTS[chain].expressRelayProgram;
 }
 
+export const FEE_SPLIT_PRECISION = new anchor.BN(10000);
+
 export function getConfigRouterPda(
   chain: string,
   router: PublicKey,
@@ -151,14 +153,31 @@ export async function constructSwapInstruction(
     router,
   } = extractSwapInfo(swapOpportunity);
 
+  if (
+    swapOpportunity.tokens.type === "input_specified" &&
+    swapOpportunity.feeToken === "output_token"
+  ) {
+    // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
+    const denominator = FEE_SPLIT_PRECISION.sub(
+      new anchor.BN(
+        swapOpportunity.platformFeeBps + swapOpportunity.referralFeeBps,
+      ),
+    );
+    const numerator = bidAmount.mul(FEE_SPLIT_PRECISION);
+    // add denominator - 1 to round up
+    bidAmount = numerator
+      .add(denominator.sub(new anchor.BN(1)))
+      .div(denominator);
+  }
+
   const swapArgs = {
     amountInput:
       swapOpportunity.tokens.type === "input_specified"
-        ? new anchor.BN(swapOpportunity.tokens.inputToken.amount)
+        ? new anchor.BN(swapOpportunity.tokens.inputAmount)
         : bidAmount,
     amountOutput:
       swapOpportunity.tokens.type === "output_specified"
-        ? new anchor.BN(swapOpportunity.tokens.outputToken.amount)
+        ? new anchor.BN(swapOpportunity.tokens.outputTokenAmountBeforeFees)
         : bidAmount,
     referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
     deadline,
@@ -232,14 +251,8 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
 } {
   const inputTokenProgram = swapOpportunity.tokens.inputTokenProgram;
   const outputTokenProgram = swapOpportunity.tokens.outputTokenProgram;
-  const inputToken =
-    swapOpportunity.tokens.type === "input_specified"
-      ? swapOpportunity.tokens.inputToken.token
-      : swapOpportunity.tokens.inputToken;
-  const outputToken =
-    swapOpportunity.tokens.type === "output_specified"
-      ? swapOpportunity.tokens.outputToken.token
-      : swapOpportunity.tokens.outputToken;
+  const inputToken = swapOpportunity.tokens.inputToken;
+  const outputToken = swapOpportunity.tokens.outputToken;
   const trader = swapOpportunity.userWalletAddress;
   const [mintFee, feeTokenProgram] =
     swapOpportunity.feeToken === "input_token"

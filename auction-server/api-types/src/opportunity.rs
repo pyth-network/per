@@ -208,25 +208,6 @@ pub enum OpportunityCreateProgramParamsV1Svm {
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
     },
-    /// Swap program specific parameters for the opportunity.
-    #[schema(title = "swap")]
-    Swap {
-        /// The user wallet address which requested the quote from the wallet.
-        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        user_wallet_address:  Pubkey,
-        /// The referral fee in basis points.
-        #[schema(example = 10, value_type = u16)]
-        referral_fee_bps:     u16,
-        /// The token program of the input mint.
-        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        input_token_program:  Pubkey,
-        /// The token program of the output mint.
-        #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        output_token_program: Pubkey,
-    },
 }
 
 /// Opportunity parameters needed for on-chain execution.
@@ -304,6 +285,7 @@ pub struct OpportunityEvm {
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(tag = "program", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum OpportunityParamsV1ProgramSvm {
     /// Limo program specific parameters for the opportunity.
     /// It contains the Limo order to be executed, encoded in base64.
@@ -318,6 +300,9 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         order_address: Pubkey,
+        /// The slot where the opportunity params were fetched from using the RPC.
+        #[schema(example = 293106477, value_type = u64)]
+        slot:          Slot,
     },
     /// Swap program specific parameters for the opportunity.
     #[schema(title = "swap")]
@@ -338,8 +323,12 @@ pub enum OpportunityParamsV1ProgramSvm {
         router_account: Pubkey,
 
         /// The referral fee in basis points.
-        #[schema(example = 10, value_type = u16)]
+        #[schema(example = 10)]
         referral_fee_bps: u16,
+
+        /// The platform fee in basis points.
+        #[schema(example = 10)]
+        platform_fee_bps: u64,
 
         /// Specifies whether the fees are to be paid in input or output token.
         #[schema(example = "input_token")]
@@ -347,7 +336,7 @@ pub enum OpportunityParamsV1ProgramSvm {
 
         /// Details about the tokens to be swapped. Either the input token amount or the output token amount must be specified.
         #[schema(inline)]
-        tokens: QuoteTokens,
+        tokens: QuoteTokensWithTokenPrograms,
     },
 }
 
@@ -363,40 +352,52 @@ pub enum FeeToken {
 #[serde(tag = "side_specified")]
 pub enum QuoteTokens {
     #[serde(rename = "input")]
+    #[schema(title = "input_specified")]
     InputTokenSpecified {
-        /// The token and the exact amount that the user wants to receive
-        input_token:          TokenAmountSvm,
-        /// The token that the user wants to send in exchange
+        /// The token that the user wants to receive
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        output_token:         Pubkey,
-        /// The token program of the input mint.
-        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+        input_token:  Pubkey,
+        /// The exact amount that the user wants to receive from the input_token
+        input_amount: u64,
+        /// The token that the user wants to send in exchange
+        #[schema(example = "So11111111111111111111111111111111111111112", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token_program:  Pubkey,
-        /// The token program of the output mint.
-        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        output_token_program: Pubkey,
+        output_token: Pubkey,
     },
     #[serde(rename = "output")]
+    #[schema(title = "output_specified")]
     OutputTokenSpecified {
         /// The token that the user wants to receive
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token:          Pubkey,
-        /// The token and the exact amount that the user wants to send in exchange
-        output_token:         TokenAmountSvm,
-        /// The token program of the input mint.
-        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+        input_token:               Pubkey,
+        /// The token that the user wants to send in exchange
+        #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token_program:  Pubkey,
-        /// The token program of the output mint.
-        #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
-        #[serde_as(as = "DisplayFromStr")]
-        output_token_program: Pubkey,
+        output_token:              Pubkey,
+        /// The amount that searcher will receive after deducting fees
+        output_amount:             u64,
+        /// The exact amount of output_token that the user wants to send in exchange
+        output_amount_before_fees: u64,
     },
 }
+
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+pub struct QuoteTokensWithTokenPrograms {
+    #[serde(flatten)]
+    pub tokens:               QuoteTokens,
+    /// The token program of the input mint.
+    #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub input_token_program:  Pubkey,
+    /// The token program of the output mint.
+    #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub output_token_program: Pubkey,
+}
+
 
 /// Opportunity parameters needed for on-chain execution.
 /// Parameters may differ for each program.
@@ -426,9 +427,6 @@ pub struct OpportunitySvm {
     /// Creation time of the opportunity (in microseconds since the Unix epoch).
     #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
     pub creation_time:  UnixTimestampMicros,
-    /// The slot where the program params were fetched from using the RPC.
-    #[schema(example = 293106477, value_type = u64)]
-    pub slot:           Slot,
 
     #[serde(flatten)]
     #[schema(inline)]
@@ -600,10 +598,14 @@ pub struct QuoteV1Svm {
     /// The expiration time of the quote (in seconds since the Unix epoch).
     #[schema(example = 1_700_000_000_000_000i64, value_type = i64)]
     pub expiration_time: i64,
-    /// The input token amount that the user wants to swap.
-    pub input_token:     TokenAmountSvm,
-    /// The output token amount that the user will receive.
+    /// The token and amount that the user needs to send to fulfill the swap transaction.
     pub output_token:    TokenAmountSvm,
+    /// The token and amount that the user will receive when the swap is complete.
+    pub input_token:     TokenAmountSvm,
+    /// The token and amount that the referrer will receive when the swap is complete.
+    pub referrer_fee:    TokenAmountSvm,
+    /// The token and amount that the platform will receive when the swap is complete.
+    pub platform_fee:    TokenAmountSvm,
     /// The chain id for the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:        ChainId,
@@ -629,8 +631,6 @@ impl OpportunityCreateSvm {
         match self {
             OpportunityCreateSvm::V1(params) => match &params.program_params {
                 OpportunityCreateProgramParamsV1Svm::Limo { .. } => ProgramSvm::Limo,
-                // TODO*: this arm doesn't really matter, bc this function will never be called in get_quote, but we should figure out how to handle this
-                OpportunityCreateProgramParamsV1Svm::Swap { .. } => ProgramSvm::Swap,
             },
         }
     }

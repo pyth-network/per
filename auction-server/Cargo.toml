@@ -23,7 +23,7 @@ anyhow = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 async-stream = {workspace = true}
 utoipa = { workspace = true, features = ["axum_extras"] }
-utoipa-redoc = { version = "4", features = ["axum"] }
+utoipa-redoc = { version = "5.0.0", features = ["axum"] }
 serde_yaml = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 axum-macros = "0.4.0"

@@ -28,26 +28,44 @@ use {
                 self,
                 TokenAmountSvm,
             },
-            service::add_opportunity::AddOpportunityInput,
+            service::{
+                add_opportunity::AddOpportunityInput,
+                get_express_relay_metadata::GetExpressRelayMetadata,
+            },
         },
     },
     ::express_relay::{
-        self as express_relay_svm,
         state::FEE_SPLIT_PRECISION,
         FeeToken,
     },
     axum_prometheus::metrics,
     express_relay_api_types::opportunity::ProgramSvm,
     futures::future::join_all,
-    solana_sdk::{
-        clock::Slot,
-        pubkey::Pubkey,
-    },
+    solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
     std::time::Duration,
     time::OffsetDateTime,
     tokio::time::sleep,
 };
+
+// FeeToken and TokenSpecified combinations possible and how they are handled:
+// --------------------------------------------------------------------------------------------
+// FeeToken=InputToken, TokenSpecified=InputTokenSpecified
+// User wants the amount specified in the api AFTER the fees so we increase it to factor
+// in fees before creating and broadcasting the swap opportunity
+// --------------------------------------------------------------------------------------------
+// FeeToken=InputToken, TokenSpecified=OutputTokenSpecified
+// get_quote function will return the input amount after fees
+// --------------------------------------------------------------------------------------------
+// FeeToken=OutputToken, TokenSpecified=InputTokenSpecified
+// Searcher bid amount (minimum they are willing to receive after the fees)
+// is scaled up in the sdk to factor in the fees
+// --------------------------------------------------------------------------------------------
+// FeeToken=OutputToken, TokenSpecified=OutputTokenSpecified
+// Sdk shows a smaller amount (after fees) to the searcher for their pricing engine
+// while keeping the original amount (before fees) in the bid
+// --------------------------------------------------------------------------------------------
+
 
 /// Time to wait for searchers to submit bids.
 const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
@@ -120,17 +138,43 @@ impl Service<ChainTypeSvm> {
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
-        let (input_mint, input_amount, output_mint, output_amount) =
-            match quote_create.tokens.clone() {
-                entities::QuoteTokens::InputTokenSpecified {
-                    input_token,
-                    output_token,
-                } => (input_token.token, input_token.amount, output_token, 0),
-                entities::QuoteTokens::OutputTokenSpecified {
-                    input_token,
-                    output_token,
-                } => (input_token, 0, output_token.token, output_token.amount),
-            };
+        let metadata = self
+            .get_express_relay_metadata(GetExpressRelayMetadata {
+                chain_id: quote_create.chain_id.clone(),
+            })
+            .await?;
+        let (input_mint, output_mint) = match quote_create.tokens.clone() {
+            entities::QuoteTokens::InputTokenSpecified {
+                input_token,
+                output_token,
+            } => (input_token.token, output_token),
+            entities::QuoteTokens::OutputTokenSpecified {
+                input_token,
+                output_token,
+            } => (input_token, output_token.token),
+        };
+        let (input_amount, output_amount) = match (quote_create.tokens.clone(), fee_token.clone()) {
+            (
+                entities::QuoteTokens::InputTokenSpecified { input_token, .. },
+                entities::FeeToken::InputToken,
+            ) => {
+                // This is not exactly accurate and may overestimate the amount needed
+                // because of floor / ceil rounding errors.
+                let denominator: u64 = FEE_SPLIT_PRECISION
+                    - <u16 as Into<u64>>::into(quote_create.referral_fee_bps)
+                    - metadata.swap_platform_fee_bps;
+                let numerator = input_token.amount * FEE_SPLIT_PRECISION;
+                let amount_including_fees = numerator.div_ceil(denominator);
+                (amount_including_fees, 0)
+            }
+            (
+                entities::QuoteTokens::InputTokenSpecified { input_token, .. },
+                entities::FeeToken::OutputToken,
+            ) => (input_token.amount, 0),
+            (entities::QuoteTokens::OutputTokenSpecified { output_token, .. }, _) => {
+                (0, output_token.amount)
+            }
+        };
         let input_token_program = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
@@ -196,6 +240,7 @@ impl Service<ChainTypeSvm> {
                     user_wallet_address: quote_create.user_wallet_address,
                     fee_token,
                     referral_fee_bps: quote_create.referral_fee_bps,
+                    platform_fee_bps: metadata.swap_platform_fee_bps,
                     input_token_program,
                     output_token_program,
                 })
@@ -210,8 +255,6 @@ impl Service<ChainTypeSvm> {
             router,
             permission_account,
             program: program_opportunity,
-            // TODO* extract latest slot
-            slot: Slot::default(),
         })
     }
 
@@ -385,19 +428,37 @@ impl Service<ChainTypeSvm> {
             tracing::error!(winner_bid = ?winner_bid, opportunity = ?opportunity, "Failed to update winner bid status");
             return Err(RestError::TemporarilyUnavailable);
         }
-        // TODO*: fetch this on-chain to incorporate the actual fees based on swap_platform_fee_bps and relayer_split
-        let metadata = express_relay_svm::state::ExpressRelayMetadata::default();
-        let (input_amount, output_amount) = match swap_data.fee_token {
-            FeeToken::Input => (swap_data.amount_input, swap_data.amount_output),
+        let metadata = self
+            .get_express_relay_metadata(GetExpressRelayMetadata {
+                chain_id: input.quote_create.chain_id.clone(),
+            })
+            .await?;
+
+        let fee_token = match swap_data.fee_token {
+            FeeToken::Input => input_token.token,
+            FeeToken::Output => output_token.token,
+        };
+        let compute_fees = |amount: u64| {
+            metadata
+                .compute_swap_fees(input.quote_create.referral_fee_bps, amount)
+                .map_err(|e| {
+                    tracing::error!("Failed to compute swap fees: {:?}", e);
+                    RestError::TemporarilyUnavailable
+                })
+        };
+        let (input_amount, output_amount, fees) = match swap_data.fee_token {
+            FeeToken::Input => {
+                let swap_fees = compute_fees(swap_data.amount_input)?;
+                (
+                    swap_fees.remaining_amount,
+                    swap_data.amount_output,
+                    swap_fees.fees,
+                )
+            }
             FeeToken::Output => (
                 swap_data.amount_input,
-                metadata
-                    .compute_swap_fees(swap_data.referral_fee_bps, swap_data.amount_input)
-                    .map_err(|e| {
-                        tracing::error!("Failed to compute swap fees: {:?}", e);
-                        RestError::TemporarilyUnavailable
-                    })?
-                    .remaining_amount,
+                swap_data.amount_output,
+                compute_fees(swap_data.amount_output)?.fees,
             ),
         };
 
@@ -412,6 +473,14 @@ impl Service<ChainTypeSvm> {
             output_token: TokenAmountSvm {
                 token:  output_token.token,
                 amount: output_amount,
+            },
+            referrer_fee: TokenAmountSvm {
+                token:  fee_token,
+                amount: fees.relayer_fee,
+            },
+            platform_fee: TokenAmountSvm {
+                token:  fee_token,
+                amount: fees.express_relay_fee + fees.relayer_fee,
             },
             chain_id:     input.quote_create.chain_id,
         })

@@ -1,6 +1,7 @@
 use {
     super::entities,
     ethers::types::Address,
+    express_relay::state::ExpressRelayMetadata,
     solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
@@ -11,6 +12,7 @@ use {
 
 mod add_opportunity;
 mod add_spoof_info;
+mod get_express_relay_metadata;
 mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
 mod get_in_memory_opportunity_by_id;
@@ -55,8 +57,9 @@ pub struct InMemoryStoreEvm {
     pub spoof_info:  RwLock<HashMap<Address, entities::SpoofState>>,
 }
 pub struct InMemoryStoreSvm {
-    pub core_fields:         InMemoryStoreCoreFields<entities::OpportunitySvm>,
-    pub token_program_cache: RwLock<HashMap<Pubkey, Pubkey>>,
+    pub core_fields:            InMemoryStoreCoreFields<entities::OpportunitySvm>,
+    pub token_program_cache:    RwLock<HashMap<Pubkey, Pubkey>>,
+    pub express_relay_metadata: RwLock<Option<ExpressRelayMetadata>>,
 }
 
 impl InMemoryStore for InMemoryStoreEvm {
@@ -75,8 +78,9 @@ impl InMemoryStore for InMemoryStoreSvm {
 
     fn new() -> Self {
         Self {
-            core_fields:         InMemoryStoreCoreFields::new(),
-            token_program_cache: RwLock::new(HashMap::new()),
+            core_fields:            InMemoryStoreCoreFields::new(),
+            token_program_cache:    RwLock::new(HashMap::new()),
+            express_relay_metadata: RwLock::new(None),
         }
     }
 }

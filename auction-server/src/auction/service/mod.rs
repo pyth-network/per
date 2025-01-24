@@ -72,6 +72,7 @@ pub mod conclude_auction;
 pub mod conclude_auctions;
 pub mod get_bid;
 pub mod get_bids;
+pub mod get_express_relay_program_id;
 pub mod get_live_bids;
 pub mod get_permission_keys_for_auction;
 pub mod handle_auction;

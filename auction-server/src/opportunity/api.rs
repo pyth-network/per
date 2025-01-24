@@ -138,7 +138,9 @@ pub async fn post_opportunity(
 }
 
 /// Fetch opportunities ready for execution or historical opportunities
-/// depending on the mode. You need to provide `chain_id` for historical mode.
+/// depending on the mode.
+///
+/// You need to provide `chain_id` for historical mode.
 /// Opportunities are sorted by creation time in ascending order.
 /// Total number of opportunities returned is capped by the server to preserve bandwidth.
 #[utoipa::path(get, path = "/v1/opportunities", responses(

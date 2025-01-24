@@ -76,10 +76,12 @@ async def main():
             args.auction_server_url + "/v1/opportunities/quote", json=payload
         )
         if result.status_code != 200:
-            logger.error("Failed to get quote from auction server")
+            logger.error("Failed to get quote from auction server %s", result.text)
             return
         logger.info("Input token %s", result.json()["input_token"])
         logger.info("Output token %s", result.json()["output_token"])
+        logger.info("Referrer fee %s", result.json()["referrer_fee"])
+        logger.info("Platform fee %s", result.json()["platform_fee"])
         tx = SoldersTransaction.from_bytes(
             base64.b64decode(result.json()["transaction"])
         )

@@ -762,34 +762,21 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         "Invalid program params for swap opportunity".to_string(),
                     )),
                 }?;
-                let (input_token, output_token, input_token_program, output_token_program) =
-                    match tokens {
-                        QuoteTokens::InputTokenSpecified {
-                            input_token,
-                            output_token,
-                            input_token_program,
-                            output_token_program,
-                        } => (
-                            input_token.token,
-                            output_token,
-                            input_token_program,
-                            output_token_program,
-                        ),
-                        QuoteTokens::OutputTokenSpecified {
-                            input_token,
-                            output_token,
-                            input_token_program,
-                            output_token_program,
-                        } => (
-                            input_token,
-                            output_token.token,
-                            input_token_program,
-                            output_token_program,
-                        ),
-                    };
+                let (input_token, output_token) = match tokens.tokens {
+                    QuoteTokens::InputTokenSpecified {
+                        input_token,
+                        output_token,
+                        ..
+                    } => (input_token, output_token),
+                    QuoteTokens::OutputTokenSpecified {
+                        input_token,
+                        output_token,
+                        ..
+                    } => (input_token, output_token),
+                };
                 let (fee_token, fee_token_program) = match fee_token {
-                    FeeToken::InputToken => (input_token, input_token_program),
-                    FeeToken::OutputToken => (output_token, output_token_program),
+                    FeeToken::InputToken => (input_token, tokens.input_token_program),
+                    FeeToken::OutputToken => (output_token, tokens.output_token_program),
                 };
                 let mut instructions = params.instructions;
                 instructions.extend(svm::Svm::get_swap_create_accounts_idempotent_instructions(
@@ -797,7 +784,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         payer: params.payer,
                         trader: user_wallet_address,
                         output_token,
-                        output_token_program,
+                        output_token_program: tokens.output_token_program,
                         fee_token,
                         fee_token_program,
                         router_account,

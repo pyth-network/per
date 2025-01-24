@@ -196,6 +196,7 @@ impl SimpleSearcher {
                     OpportunityParamsV1ProgramSvm::Limo {
                         order: _order,
                         order_address: _order_address,
+                        slot: _slot,
                     } => {
                         // TODO EXTRACT ROUTER DATA FROM LIMONADE SDK
                         // self.client
@@ -207,7 +208,7 @@ impl SimpleSearcher {
                         //             block_hash: svm_update.blockhash,
                         //             instructions: vec![fee_ix],
                         //             payer: payer.pubkey(),
-                        //             slot: Some(opportunity.slot),
+                        //             slot: Some(slot),
                         //             searcher: payer.pubkey(),
                         //             fee_receiver_relayer: metadata
                         //                 .fee_receiver_relayer
@@ -235,17 +236,13 @@ impl SimpleSearcher {
                         ))
                     }
                     OpportunityParamsV1ProgramSvm::Swap { tokens, .. } => {
-                        let (input_token, input_token_program) = match tokens {
-                            QuoteTokens::InputTokenSpecified {
-                                input_token,
-                                input_token_program,
-                                ..
-                            } => (input_token.token, input_token_program),
-                            QuoteTokens::OutputTokenSpecified {
-                                input_token,
-                                input_token_program,
-                                ..
-                            } => (input_token, input_token_program),
+                        let (input_token, input_token_program) = match tokens.tokens {
+                            QuoteTokens::InputTokenSpecified { input_token, .. } => {
+                                (input_token, tokens.input_token_program)
+                            }
+                            QuoteTokens::OutputTokenSpecified { input_token, .. } => {
+                                (input_token, tokens.input_token_program)
+                            }
                         };
                         let create_input_account_ix = create_associated_token_account_idempotent(
                             &payer.pubkey(),
@@ -262,7 +259,7 @@ impl SimpleSearcher {
                                     block_hash: svm_update.blockhash,
                                     instructions: vec![fee_ix, create_input_account_ix],
                                     payer: payer.pubkey(),
-                                    slot: Some(opportunity.slot),
+                                    slot: None,
                                     searcher: payer.pubkey(),
                                     fee_receiver_relayer: metadata
                                         .fee_receiver_relayer
