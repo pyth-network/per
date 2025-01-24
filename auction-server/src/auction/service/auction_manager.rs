@@ -647,6 +647,28 @@ impl Service<Svm> {
                     }
                 }
                 _ = retry_interval.tick() => {
+                    match self
+                        .config
+                        .chain_config
+                        .tx_broadcaster_client
+                        .get_signature_status(&signature)
+                        .await
+                    {
+                        Ok(status) => {
+                            if let Some(status) = status {
+                                if status.is_err() {
+                                    result_label = "failed";
+                                } else {
+                                    result_label = "success";
+                                }
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(error = ?e, "Failed to get signature status");
+                        }
+                    }
+
                     try_count += 1;
                     if let Err(e) = self
                         .config
