@@ -653,6 +653,9 @@ impl Service<Svm> {
         })
     }
 
+    /// Returns Some() if the transaction has landed, None if:
+    /// - the transaction is not yet confirmed
+    /// - the rpc calls failed
     async fn get_signature_status(
         &self,
         signature: &Signature,
