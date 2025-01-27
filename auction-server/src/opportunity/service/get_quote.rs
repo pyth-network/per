@@ -494,6 +494,7 @@ impl Service<ChainTypeSvm> {
                 amount: fees.express_relay_fee + fees.relayer_fee,
             },
             chain_id:       input.quote_create.chain_id,
+            quote_id:       opportunity.id,
         })
     }
 }
