@@ -79,7 +79,7 @@ where
                     tracing::debug!("Submitted transaction: {:?}", tx_hash);
                     let auction = self.repo.submit_auction(auction, tx_hash.clone()).await?;
 
-                    // Now we update all the bid statuses with the tx hash
+                    // Now we update the status for the actually submitted bids
                     join_all(
                         auction
                             .bids
