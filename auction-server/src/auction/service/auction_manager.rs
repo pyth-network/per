@@ -706,7 +706,7 @@ impl Service<Svm> {
 
                     retry_count += 1;
                     if let Err(e) = self.send_transaction_to_network(&bid.chain_data.transaction).await {
-                        tracing::error!(error = ?e, "Failed to resend transaction");
+                        tracing::error!(error = ?e, "Failed to resubmit transaction");
                     }
                 }
             }
