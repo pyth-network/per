@@ -99,14 +99,16 @@ impl From<api::QuoteCreate> for QuoteCreate {
         let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(params)) = quote_create;
 
         let tokens = match params.specified_token_amount {
-            api::SpecifiedTokenAmount::InputToken { amount } => QuoteTokens::UserTokenSpecified {
-                user_token:     TokenAmountSvm {
-                    token: params.input_token_mint,
-                    amount,
-                },
-                searcher_token: params.output_token_mint,
-            },
-            api::SpecifiedTokenAmount::OutputToken { amount } => {
+            api::SpecifiedTokenAmount::UserInputToken { amount } => {
+                QuoteTokens::UserTokenSpecified {
+                    user_token:     TokenAmountSvm {
+                        token: params.input_token_mint,
+                        amount,
+                    },
+                    searcher_token: params.output_token_mint,
+                }
+            }
+            api::SpecifiedTokenAmount::UserOutputToken { amount } => {
                 QuoteTokens::SearcherTokenSpecified {
                     user_token:     params.input_token_mint,
                     searcher_token: TokenAmountSvm {
