@@ -600,6 +600,9 @@ impl AuctionManager<Svm> for Service<Svm> {
 
 const SEND_TRANSACTION_RETRY_COUNT_SVM: i32 = 30;
 const RETRY_DURATION: Duration = Duration::from_secs(2);
+const METRIC_LABEL_SUCCESS: &str = "success";
+const METRIC_LABEL_FAILED: &str = "failed";
+const METRIC_LABEL_EXPIRED: &str = "expired";
 
 impl Service<Svm> {
     pub fn add_relayer_signature(&self, bid: &mut entities::Bid<Svm>) {
@@ -650,10 +653,34 @@ impl Service<Svm> {
         })
     }
 
+    /// Returns Some() if the transaction has landed, None if:
+    /// - the transaction is not yet confirmed
+    /// - the rpc calls failed
+    async fn get_signature_status(
+        &self,
+        signature: &Signature,
+    ) -> Option<Result<(), TransactionError>> {
+        let result = join_all(self.config.chain_config.tx_broadcaster_clients.iter().map(
+            |tx_broadcaster_client| async {
+                let result = tx_broadcaster_client.get_signature_status(signature).await;
+                if let Err(e) = &result {
+                    tracing::error!(error = ?e, client = ?tx_broadcaster_client.url(), "Failed to get signature status");
+                }
+                result
+            },
+        ))
+        .await;
+        result
+            .into_iter()
+            .find(|res| matches!(res, Ok(Some(_))))
+            .and_then(|res| res.ok())
+            .flatten()
+    }
+
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>) {
         let start = Instant::now();
-        let mut result_label = "expired";
+        let mut result_label = METRIC_LABEL_EXPIRED;
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
@@ -666,15 +693,24 @@ impl Service<Svm> {
                     if let Ok(log) = log {
                         if log.value.signature.eq(&signature.to_string()) {
                             if log.value.err.is_some() {
-                                result_label = "failed";
+                                result_label = METRIC_LABEL_FAILED;
                             } else {
-                                result_label = "success";
+                                result_label = METRIC_LABEL_SUCCESS;
                             }
                             break
                         }
                     }
                 }
                 _ = retry_interval.tick() => {
+                    if let Some(status) = self.get_signature_status(&signature).await {
+                        if status.is_err() {
+                            result_label = METRIC_LABEL_FAILED;
+                        } else {
+                            result_label = METRIC_LABEL_SUCCESS;
+                        }
+                        break;
+                    }
+
                     retry_count += 1;
                     if let Err(e) = self.send_transaction_to_network(&bid.chain_data.transaction).await {
                         tracing::error!(error = ?e, "Failed to resubmit transaction");
