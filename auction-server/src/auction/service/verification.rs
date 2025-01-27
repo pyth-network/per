@@ -585,30 +585,30 @@ impl Service<Svm> {
             }
         };
         let (
-            expected_input_token,
-            expected_input_amount,
-            expected_output_token,
-            expected_output_amount,
+            expected_user_token,
+            expected_user_amount,
+            expected_searcher_token,
+            expected_searcher_amount,
         ) = match quote_tokens.clone() {
-            QuoteTokens::InputTokenSpecified {
-                input_token,
-                output_token,
+            QuoteTokens::UserTokenSpecified {
+                user_token,
+                searcher_token,
                 ..
             } => (
-                input_token.token,
-                Some(input_token.amount),
-                output_token,
+                user_token.token,
+                Some(user_token.amount),
+                searcher_token,
                 None,
             ),
-            QuoteTokens::OutputTokenSpecified {
-                input_token,
-                output_token,
+            QuoteTokens::SearcherTokenSpecified {
+                user_token,
+                searcher_token,
                 ..
             } => (
-                input_token,
+                user_token,
                 None,
-                output_token.token,
-                Some(output_token.amount),
+                searcher_token.token,
+                Some(searcher_token.amount),
             ),
         };
         if user_wallet != opp_swap_data.user_wallet_address {
@@ -619,58 +619,58 @@ impl Service<Svm> {
                 ),
             ));
         }
-        if expected_input_token != mint_input {
+        if expected_searcher_token != mint_input {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid input token {} in swap instruction accounts. Value does not match the input token in swap opportunity {}",
-                    mint_input, expected_input_token
+                    "Invalid input token {} in swap instruction accounts. Value does not match the searcher token in swap opportunity {}",
+                    mint_input, expected_searcher_token
                 ),
             ));
         }
-        if expected_output_token != mint_output {
+        if expected_user_token != mint_output {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid output token {} in swap instruction accounts. Value does not match the output token in swap opportunity {}",
-                    mint_output, expected_output_token
-                ),
-            ));
-        }
-
-        if token_program_input != opp_swap_data.input_token_program {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid input token program {} in swap instruction accounts. Value does not match the input token program in swap opportunity {}",
-                    token_program_input, opp_swap_data.input_token_program
+                    "Invalid output token {} in swap instruction accounts. Value does not match the user token in swap opportunity {}",
+                    mint_output, expected_user_token
                 ),
             ));
         }
 
-        if token_program_output != opp_swap_data.output_token_program {
+        if token_program_input != opp_swap_data.searcher_token_program {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid output token program {} in swap instruction accounts. Value does not match the output token program in swap opportunity {}",
-                    token_program_output, opp_swap_data.output_token_program
+                    "Invalid input token program {} in swap instruction accounts. Value does not match the searcher token program in swap opportunity {}",
+                    token_program_input, opp_swap_data.searcher_token_program
+                ),
+            ));
+        }
+
+        if token_program_output != opp_swap_data.user_token_program {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid output token program {} in swap instruction accounts. Value does not match the user token program in swap opportunity {}",
+                    token_program_output, opp_swap_data.user_token_program
                 ),
             ));
         }
 
 
-        if let Some(expected_input_amount) = expected_input_amount {
-            if expected_input_amount != swap_data.amount_input {
+        if let Some(expected_searcher_amount) = expected_searcher_amount {
+            if expected_searcher_amount != swap_data.amount_input {
                 return Err(RestError::BadParameters(
                     format!(
-                        "Invalid input amount {} in swap instruction data. Value does not match the input amount in swap opportunity {}",
-                        swap_data.amount_input, expected_input_amount
+                        "Invalid input amount {} in swap instruction data. Value does not match the searcher amount in swap opportunity {}",
+                        swap_data.amount_input, expected_searcher_amount
                     ),
                 ));
             }
         }
-        if let Some(expected_output_amount) = expected_output_amount {
-            if expected_output_amount != swap_data.amount_output {
+        if let Some(expected_user_amount) = expected_user_amount {
+            if expected_user_amount != swap_data.amount_output {
                 return Err(RestError::BadParameters(
                     format!(
-                        "Invalid output amount {} in swap instruction data. Value does not match the output amount in swap opportunity {}",
-                        swap_data.amount_output, expected_output_amount
+                        "Invalid output amount {} in swap instruction data. Value does not match the user amount in swap opportunity {}",
+                        swap_data.amount_output, expected_user_amount
                     ),
                 ));
             }
@@ -813,8 +813,9 @@ impl Service<Svm> {
                     .await?;
                 let quote_tokens = get_swap_quote_tokens(&opp);
                 let bid_amount = match quote_tokens.clone() {
-                    QuoteTokens::InputTokenSpecified { .. } => swap_data.amount_output,
-                    QuoteTokens::OutputTokenSpecified { .. } => swap_data.amount_input,
+                    // bid is in the unspecified token
+                    QuoteTokens::UserTokenSpecified { .. } => swap_data.amount_input,
+                    QuoteTokens::SearcherTokenSpecified { .. } => swap_data.amount_output,
                 };
                 let (fee_token, fee_token_program) = match swap_data.fee_token {
                     FeeToken::Input => (mint_input, token_program_input),

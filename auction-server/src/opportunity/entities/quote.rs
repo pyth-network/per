@@ -17,8 +17,8 @@ pub struct Quote {
     pub transaction:     VersionedTransaction,
     // The expiration time of the quote (in seconds since the Unix epoch)
     pub expiration_time: i64,
-    pub input_token:     TokenAmountSvm,
-    pub output_token:    TokenAmountSvm,
+    pub searcher_token:  TokenAmountSvm,
+    pub user_token:      TokenAmountSvm,
     pub referrer_fee:    TokenAmountSvm,
     pub platform_fee:    TokenAmountSvm,
     pub chain_id:        ChainId,
@@ -41,40 +41,40 @@ pub struct QuoteCreate {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum QuoteTokens {
-    InputTokenSpecified {
-        input_token:  TokenAmountSvm,
-        output_token: Pubkey,
+    UserTokenSpecified {
+        user_token:     TokenAmountSvm,
+        searcher_token: Pubkey,
     },
-    OutputTokenSpecified {
-        input_token:  Pubkey,
-        output_token: TokenAmountSvm,
+    SearcherTokenSpecified {
+        user_token:     Pubkey,
+        searcher_token: TokenAmountSvm,
     },
 }
 
 impl From<api::QuoteTokens> for QuoteTokens {
     fn from(quote_tokens: api::QuoteTokens) -> Self {
         match quote_tokens {
-            api::QuoteTokens::InputTokenSpecified {
-                input_token,
-                output_token,
-                input_amount,
-            } => QuoteTokens::InputTokenSpecified {
-                input_token: TokenAmountSvm {
-                    token:  input_token,
-                    amount: input_amount,
-                },
-                output_token,
-            },
-            api::QuoteTokens::OutputTokenSpecified {
-                input_token,
-                output_token,
-                output_amount,
+            api::QuoteTokens::UserTokenSpecified {
+                user_token,
+                searcher_token,
+                user_amount,
                 ..
-            } => QuoteTokens::OutputTokenSpecified {
-                input_token,
-                output_token: TokenAmountSvm {
-                    token:  output_token,
-                    amount: output_amount,
+            } => QuoteTokens::UserTokenSpecified {
+                user_token: TokenAmountSvm {
+                    token:  user_token,
+                    amount: user_amount,
+                },
+                searcher_token,
+            },
+            api::QuoteTokens::SearcherTokenSpecified {
+                user_token,
+                searcher_token,
+                searcher_amount,
+            } => QuoteTokens::SearcherTokenSpecified {
+                user_token,
+                searcher_token: TokenAmountSvm {
+                    token:  searcher_token,
+                    amount: searcher_amount,
                 },
             },
         }
@@ -95,17 +95,17 @@ impl From<api::QuoteCreate> for QuoteCreate {
         let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(params)) = quote_create;
 
         let tokens = match params.specified_token_amount {
-            api::SpecifiedTokenAmount::InputToken { amount } => QuoteTokens::InputTokenSpecified {
-                input_token:  TokenAmountSvm {
+            api::SpecifiedTokenAmount::InputToken { amount } => QuoteTokens::UserTokenSpecified {
+                user_token:     TokenAmountSvm {
                     token: params.input_token_mint,
                     amount,
                 },
-                output_token: params.output_token_mint,
+                searcher_token: params.output_token_mint,
             },
             api::SpecifiedTokenAmount::OutputToken { amount } => {
-                QuoteTokens::OutputTokenSpecified {
-                    input_token:  params.input_token_mint,
-                    output_token: TokenAmountSvm {
+                QuoteTokens::SearcherTokenSpecified {
+                    user_token:     params.input_token_mint,
+                    searcher_token: TokenAmountSvm {
                         token: params.output_token_mint,
                         amount,
                     },
@@ -129,8 +129,8 @@ impl From<Quote> for api::Quote {
         api::Quote::Svm(api::QuoteSvm::V1(api::QuoteV1Svm {
             transaction:     quote.transaction,
             expiration_time: quote.expiration_time,
-            input_token:     quote.input_token.into(),
-            output_token:    quote.output_token.into(),
+            input_token:     quote.user_token.into(),
+            output_token:    quote.searcher_token.into(),
             referrer_fee:    quote.referrer_fee.into(),
             platform_fee:    quote.platform_fee.into(),
             chain_id:        quote.chain_id,

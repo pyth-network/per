@@ -48,28 +48,28 @@ pub struct OpportunitySvmProgramLimo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FeeToken {
-    InputToken,
-    OutputToken,
+    UserToken,
+    SearcherToken,
 }
 
 impl PartialEq<ProgramFeeToken> for FeeToken {
     fn eq(&self, other: &ProgramFeeToken) -> bool {
         match self {
-            FeeToken::InputToken => matches!(other, ProgramFeeToken::Input),
-            FeeToken::OutputToken => matches!(other, ProgramFeeToken::Output),
+            FeeToken::SearcherToken => matches!(other, ProgramFeeToken::Input),
+            FeeToken::UserToken => matches!(other, ProgramFeeToken::Output),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramSwap {
-    pub user_wallet_address:  Pubkey,
-    pub fee_token:            FeeToken,
-    pub referral_fee_bps:     u16,
-    pub platform_fee_bps:     u64,
+    pub user_wallet_address:    Pubkey,
+    pub fee_token:              FeeToken,
+    pub referral_fee_bps:       u16,
+    pub platform_fee_bps:       u64,
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
-    pub input_token_program:  Pubkey,
-    pub output_token_program: Pubkey,
+    pub user_token_program:     Pubkey,
+    pub searcher_token_program: Pubkey,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -129,12 +129,12 @@ impl Opportunity for OpportunitySvm {
             OpportunitySvmProgram::Swap(program) => {
                 repository::OpportunityMetadataSvmProgram::Swap(
                     repository::OpportunityMetadataSvmProgramSwap {
-                        user_wallet_address:  program.user_wallet_address,
-                        fee_token:            program.fee_token,
-                        referral_fee_bps:     program.referral_fee_bps,
-                        platform_fee_bps:     program.platform_fee_bps,
-                        input_token_program:  program.input_token_program,
-                        output_token_program: program.output_token_program,
+                        user_wallet_address:    program.user_wallet_address,
+                        fee_token:              program.fee_token,
+                        referral_fee_bps:       program.referral_fee_bps,
+                        platform_fee_bps:       program.platform_fee_bps,
+                        user_token_program:     program.user_token_program,
+                        searcher_token_program: program.searcher_token_program,
                     },
                 )
             }
@@ -218,14 +218,14 @@ pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
         .buy_tokens
         .first()
         .expect("Swap opportunity buy tokens must not be empty");
-    match (opp_sell_token.amount, opp_buy_token.amount) {
-        (_, 0) => QuoteTokens::InputTokenSpecified {
-            input_token:  opp_sell_token.clone(),
-            output_token: opp_buy_token.token,
+    match (opp_buy_token.amount, opp_sell_token.amount) {
+        (_, 0) => QuoteTokens::UserTokenSpecified {
+            user_token:     opp_buy_token.clone(),
+            searcher_token: opp_sell_token.token,
         },
-        (0, _) => QuoteTokens::OutputTokenSpecified {
-            input_token:  opp_sell_token.token,
-            output_token: opp_buy_token.clone(),
+        (0, _) => QuoteTokens::SearcherTokenSpecified {
+            user_token:     opp_buy_token.token,
+            searcher_token: opp_sell_token.clone(),
         },
         _ => {
             panic!("Non zero amount for both sell and buy tokens in swap opportunity");
@@ -244,42 +244,42 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 let quote_tokens = get_swap_quote_tokens(&val);
 
                 let tokens = match quote_tokens {
-                    QuoteTokens::InputTokenSpecified {
-                        input_token,
-                        output_token,
-                    } => api::QuoteTokens::InputTokenSpecified {
-                        input_token: input_token.token,
-                        input_amount: input_token.amount,
-                        output_token,
+                    QuoteTokens::SearcherTokenSpecified {
+                        user_token,
+                        searcher_token,
+                    } => api::QuoteTokens::SearcherTokenSpecified {
+                        searcher_token: searcher_token.token,
+                        searcher_amount: searcher_token.amount,
+                        user_token,
                     },
-                    QuoteTokens::OutputTokenSpecified {
-                        input_token,
-                        output_token,
+                    QuoteTokens::UserTokenSpecified {
+                        user_token,
+                        searcher_token,
                     } => {
-                        let output_amount_excluding_fees = match program.fee_token {
-                            FeeToken::InputToken => output_token.amount,
-                            FeeToken::OutputToken => {
+                        let user_amount_excluding_fees = match program.fee_token {
+                            FeeToken::UserToken => {
                                 // TODO: Do this calculation based on express relay metadata
-                                let router_fee = output_token.amount
+                                let router_fee = user_token.amount
                                     * program.referral_fee_bps as u64
                                     / FEE_SPLIT_PRECISION;
-                                let platform_fee = output_token.amount * program.platform_fee_bps
+                                let platform_fee = user_token.amount * program.platform_fee_bps
                                     / FEE_SPLIT_PRECISION;
-                                output_token.amount - router_fee - platform_fee
+                                user_token.amount - router_fee - platform_fee
                             }
+                            FeeToken::SearcherToken => user_token.amount,
                         };
-                        api::QuoteTokens::OutputTokenSpecified {
-                            input_token,
-                            output_token: output_token.token,
-                            output_amount: output_amount_excluding_fees,
-                            output_amount_before_fees: output_token.amount,
+                        api::QuoteTokens::UserTokenSpecified {
+                            searcher_token,
+                            user_token: user_token.token,
+                            user_amount: user_amount_excluding_fees,
+                            user_amount_before_fees: user_token.amount,
                         }
                     }
                 };
 
                 let fee_token = match program.fee_token {
-                    FeeToken::InputToken => api::FeeToken::InputToken,
-                    FeeToken::OutputToken => api::FeeToken::OutputToken,
+                    FeeToken::UserToken => api::FeeToken::UserToken,
+                    FeeToken::SearcherToken => api::FeeToken::SearcherToken,
                 };
                 api::OpportunityParamsV1ProgramSvm::Swap {
                     user_wallet_address: program.user_wallet_address,
@@ -290,8 +290,8 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     platform_fee_bps: program.platform_fee_bps,
                     tokens: QuoteTokensWithTokenPrograms {
                         tokens,
-                        input_token_program: program.input_token_program,
-                        output_token_program: program.output_token_program,
+                        user_token_program: program.user_token_program,
+                        searcher_token_program: program.searcher_token_program,
                     },
                 }
             }
@@ -339,12 +339,12 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             }
             repository::OpportunityMetadataSvmProgram::Swap(program) => {
                 OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                    user_wallet_address:  program.user_wallet_address,
-                    fee_token:            program.fee_token,
-                    referral_fee_bps:     program.referral_fee_bps,
-                    platform_fee_bps:     program.platform_fee_bps,
-                    input_token_program:  program.input_token_program,
-                    output_token_program: program.output_token_program,
+                    user_wallet_address:    program.user_wallet_address,
+                    fee_token:              program.fee_token,
+                    referral_fee_bps:       program.referral_fee_bps,
+                    platform_fee_bps:       program.platform_fee_bps,
+                    user_token_program:     program.user_token_program,
+                    searcher_token_program: program.searcher_token_program,
                 })
             }
         };

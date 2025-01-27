@@ -330,11 +330,11 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = 10)]
         platform_fee_bps: u64,
 
-        /// Specifies whether the fees are to be paid in input or output token.
+        /// Specifies whether the fees are to be paid in the searcher or user token.
         #[schema(example = "input_token")]
         fee_token: FeeToken,
 
-        /// Details about the tokens to be swapped. Either the input token amount or the output token amount must be specified.
+        /// Details about the tokens to be swapped. Either the searcher token amount or the user token amount must be specified.
         #[schema(inline)]
         tokens: QuoteTokensWithTokenPrograms,
     },
@@ -343,43 +343,43 @@ pub enum OpportunityParamsV1ProgramSvm {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(rename_all = "snake_case")]
 pub enum FeeToken {
-    InputToken,
-    OutputToken,
+    SearcherToken,
+    UserToken,
 }
 
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(tag = "side_specified")]
 pub enum QuoteTokens {
-    #[serde(rename = "input")]
-    #[schema(title = "input_specified")]
-    InputTokenSpecified {
-        /// The token that the user wants to receive
+    #[serde(rename = "searcher")]
+    #[schema(title = "searcher_specified")]
+    SearcherTokenSpecified {
+        /// The token that the searcher will provide
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token:  Pubkey,
-        /// The exact amount that the user wants to receive from the input_token
-        input_amount: u64,
-        /// The token that the user wants to send in exchange
+        searcher_token:  Pubkey,
+        /// The exact amount that the searcher will provide
+        searcher_amount: u64,
+        /// The token that the user will provide
         #[schema(example = "So11111111111111111111111111111111111111112", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        output_token: Pubkey,
+        user_token:      Pubkey,
     },
-    #[serde(rename = "output")]
-    #[schema(title = "output_specified")]
-    OutputTokenSpecified {
-        /// The token that the user wants to receive
+    #[serde(rename = "user")]
+    #[schema(title = "user_specified")]
+    UserTokenSpecified {
+        /// The token that the searcher will provide
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token:               Pubkey,
-        /// The token that the user wants to send in exchange
+        searcher_token:          Pubkey,
+        /// The token that the user will provide
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        output_token:              Pubkey,
-        /// The amount that searcher will receive after deducting fees
-        output_amount:             u64,
-        /// The exact amount of output_token that the user wants to send in exchange
-        output_amount_before_fees: u64,
+        user_token:              Pubkey,
+        /// The amount that searcher will receive from the user after deducting fees
+        user_amount:             u64,
+        /// The exact amount that the user will provide
+        user_amount_before_fees: u64,
     },
 }
 
@@ -387,15 +387,15 @@ pub enum QuoteTokens {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct QuoteTokensWithTokenPrograms {
     #[serde(flatten)]
-    pub tokens:               QuoteTokens,
-    /// The token program of the input mint.
+    pub tokens:                 QuoteTokens,
+    /// The token program of the searcher mint.
     #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub input_token_program:  Pubkey,
-    /// The token program of the output mint.
+    pub searcher_token_program: Pubkey,
+    /// The token program of the user mint.
     #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub output_token_program: Pubkey,
+    pub user_token_program:     Pubkey,
 }
 
 
