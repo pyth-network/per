@@ -78,22 +78,32 @@ where
                 if let Some(Ok(tx_hash)) = tx_hash {
                     tracing::debug!("Submitted transaction: {:?}", tx_hash);
                     let auction = self.repo.submit_auction(auction, tx_hash.clone()).await?;
-                    join_all(auction.bids.iter().zip(tx_hashes.iter()).filter(|(_, tx_hash)| tx_hash.is_ok()).map(|(bid, tx_hash)| {
-                        self.update_bid_status(UpdateBidStatusInput {
-                            new_status: Service::get_new_status(
-                                bid,
-                                &winner_bids,
-                                entities::BidStatusAuction {
-                                    tx_hash: tx_hash.clone().unwrap(),
-                                    id:      auction.id,
-                                },
-                            ),
-                            bid:        bid.clone(),
-                        })
-                    }))
+
+                    // Now we update all the bid statuses with the tx hash
+                    join_all(
+                        auction
+                            .bids
+                            .into_iter()
+                            .zip(tx_hashes.into_iter())
+                            .filter_map(|(bid, tx_hash)| {
+                                tx_hash.map_or_else(|_| None, |tx_hash| Some((bid, tx_hash)))
+                            })
+                            .map(|(bid, tx_hash)| {
+                                self.update_bid_status(UpdateBidStatusInput {
+                                    new_status: Service::get_new_status(
+                                        &bid,
+                                        &winner_bids,
+                                        entities::BidStatusAuction {
+                                            tx_hash,
+                                            id: auction.id,
+                                        },
+                                    ),
+                                    bid:        bid.clone(),
+                                })
+                            }),
+                    )
                     .await;
                 }
-
             }
             Err(err) => {
                 tracing::error!("Transaction failed to submit: {:?}", err);

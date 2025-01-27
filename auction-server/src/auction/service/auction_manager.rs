@@ -1,6 +1,7 @@
 use {
     super::{
-        simulator::MySimulator, ChainTrait, Service
+        ChainTrait,
+        Service,
     },
     crate::{
         auction::entities::{
@@ -428,12 +429,16 @@ impl AuctionManager<Svm> for Service<Svm> {
             })
             .collect();
 
-        Ok(join_all(send_futures).await.into_iter().map(|res| {
-            res.map_err(|e| {
-                tracing::error!(error = ?e, "Error while submitting bid");
-                anyhow::anyhow!(e)
+        Ok(join_all(send_futures)
+            .await
+            .into_iter()
+            .map(|res| {
+                res.map_err(|e| {
+                    tracing::error!(error = ?e, "Error while submitting bid");
+                    anyhow::anyhow!(e)
+                })
             })
-        }).collect())
+            .collect())
     }
 
     #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, bid_statuses))]
@@ -731,7 +736,11 @@ impl Service<Svm> {
         let tx = &bid.chain_data.transaction;
         self.send_transaction_to_network(&bid.chain_data.transaction)
             .await?;
-        self.add_pending_transaction(tx).await;
+        self.config
+            .chain_config
+            .simulator
+            .add_pending_transaction(tx)
+            .await;
         self.task_tracker.spawn({
             let (service, bid) = (self.clone(), bid.clone());
             async move {
