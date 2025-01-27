@@ -1,7 +1,6 @@
 use {
     super::{
-        ChainTrait,
-        Service,
+        simulator::MySimulator, ChainTrait, Service
     },
     crate::{
         auction::entities::{
@@ -111,7 +110,7 @@ pub trait AuctionManager<T: ChainTrait> {
         &self,
         permission_key: entities::PermissionKey<T>,
         bids: Vec<entities::Bid<T>>,
-    ) -> Result<entities::TxHash<T>>;
+    ) -> Result<Vec<Result<entities::TxHash<T>>>>;
     /// Get the bid results for the bids submitted for the auction after the transaction is concluded.
     /// Order of the returned BidStatus is as same as the order of the bids.
     /// Returns None for each bid if the bid is not yet confirmed on chain.
@@ -211,7 +210,8 @@ impl AuctionManager<Evm> for Service<Evm> {
         &self,
         permission_key: entities::PermissionKey<Evm>,
         bids: Vec<entities::Bid<Evm>>,
-    ) -> Result<entities::TxHash<Evm>> {
+    ) -> Result<Vec<Result<entities::TxHash<Evm>>>> {
+        let len = bids.len();
         let gas_estimate = bids
             .iter()
             .fold(U256::zero(), |sum, b| sum + b.chain_data.gas_limit);
@@ -229,7 +229,7 @@ impl AuctionManager<Evm> for Service<Evm> {
             .await?
             .tx_hash();
         tracing::Span::current().record("tx_hash", format!("{:?}", tx_hash));
-        Ok(tx_hash)
+        Ok((0..len).map(|_| Ok(tx_hash)).collect())
     }
 
     #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, result))]
@@ -415,7 +415,7 @@ impl AuctionManager<Svm> for Service<Svm> {
         &self,
         _permission_key: entities::PermissionKey<Svm>,
         bids: Vec<entities::Bid<Svm>>,
-    ) -> Result<entities::TxHash<Svm>> {
+    ) -> Result<Vec<Result<entities::TxHash<Svm>>>> {
         if bids.is_empty() {
             return Err(anyhow::anyhow!("No bids to submit"));
         }
@@ -428,22 +428,12 @@ impl AuctionManager<Svm> for Service<Svm> {
             })
             .collect();
 
-        let results = join_all(send_futures).await;
-        let mut result = None;
-        for res in results.into_iter() {
-            match res {
-                Ok(sig) => {
-                    result = Some(Ok(sig));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e, "Error while submitting bid");
-                    if result.is_none() {
-                        result = Some(Err(anyhow::anyhow!(e)));
-                    }
-                }
-            }
-        }
-        result.expect("results should not be empty because bids is not empty")
+        Ok(join_all(send_futures).await.into_iter().map(|res| {
+            res.map_err(|e| {
+                tracing::error!(error = ?e, "Error while submitting bid");
+                anyhow::anyhow!(e)
+            })
+        }).collect())
     }
 
     #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, bid_statuses))]
@@ -741,11 +731,7 @@ impl Service<Svm> {
         let tx = &bid.chain_data.transaction;
         self.send_transaction_to_network(&bid.chain_data.transaction)
             .await?;
-        self.config
-            .chain_config
-            .simulator
-            .add_pending_transaction(tx)
-            .await;
+        self.add_pending_transaction(tx).await;
         self.task_tracker.spawn({
             let (service, bid) = (self.clone(), bid.clone());
             async move {

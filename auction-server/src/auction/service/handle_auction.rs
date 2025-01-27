@@ -72,23 +72,28 @@ where
             .submit_bids(permission_key.clone(), winner_bids.clone())
             .await
         {
-            Ok(tx_hash) => {
-                tracing::debug!("Submitted transaction: {:?}", tx_hash);
-                let auction = self.repo.submit_auction(auction, tx_hash.clone()).await?;
-                join_all(auction.bids.iter().map(|bid| {
-                    self.update_bid_status(UpdateBidStatusInput {
-                        new_status: Service::get_new_status(
-                            bid,
-                            &winner_bids,
-                            entities::BidStatusAuction {
-                                tx_hash: tx_hash.clone(),
-                                id:      auction.id,
-                            },
-                        ),
-                        bid:        bid.clone(),
-                    })
-                }))
-                .await;
+            Ok(tx_hashes) => {
+                // If at least one tx is submitted successfully, we submit the auction.
+                let tx_hash = tx_hashes.iter().find(|res| res.is_ok());
+                if let Some(Ok(tx_hash)) = tx_hash {
+                    tracing::debug!("Submitted transaction: {:?}", tx_hash);
+                    let auction = self.repo.submit_auction(auction, tx_hash.clone()).await?;
+                    join_all(auction.bids.iter().zip(tx_hashes.iter()).filter(|(_, tx_hash)| tx_hash.is_ok()).map(|(bid, tx_hash)| {
+                        self.update_bid_status(UpdateBidStatusInput {
+                            new_status: Service::get_new_status(
+                                bid,
+                                &winner_bids,
+                                entities::BidStatusAuction {
+                                    tx_hash: tx_hash.clone().unwrap(),
+                                    id:      auction.id,
+                                },
+                            ),
+                            bid:        bid.clone(),
+                        })
+                    }))
+                    .await;
+                }
+
             }
             Err(err) => {
                 tracing::error!("Transaction failed to submit: {:?}", err);
