@@ -331,7 +331,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         platform_fee_bps: u64,
 
         /// Specifies whether the fees are to be paid in the searcher or user token.
-        #[schema(example = "input_token")]
+        #[schema(example = "searcher_token")]
         fee_token: FeeToken,
 
         /// Details about the tokens to be swapped. Either the searcher token amount or the user token amount must be specified.
@@ -521,7 +521,6 @@ pub struct OpportunityBidEvm {
 }
 
 /// Parameters needed to create a new opportunity from the swap request.
-/// Auction server will extract the output token price for the auction.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteCreateV1SvmParams {

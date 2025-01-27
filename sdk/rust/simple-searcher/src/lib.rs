@@ -244,7 +244,7 @@ impl SimpleSearcher {
                                 (searcher_token, tokens.searcher_token_program)
                             }
                         };
-                        let create_input_account_ix = create_associated_token_account_idempotent(
+                        let create_ata_ix = create_associated_token_account_idempotent(
                             &payer.pubkey(),
                             &payer.pubkey(),
                             &searcher_token,
@@ -257,7 +257,7 @@ impl SimpleSearcher {
                                     amount: SVM_BID_AMOUNT,
                                     deadline,
                                     block_hash: svm_update.blockhash,
-                                    instructions: vec![fee_ix, create_input_account_ix],
+                                    instructions: vec![fee_ix, create_ata_ix],
                                     payer: payer.pubkey(),
                                     slot: None,
                                     searcher: payer.pubkey(),

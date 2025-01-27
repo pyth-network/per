@@ -446,8 +446,8 @@ impl Service<ChainTypeSvm> {
             .await?;
 
         let fee_token = match swap_data.fee_token {
-            FeeToken::Input => searcher_token.token,
-            FeeToken::Output => user_token.token,
+            FeeToken::Searcher => searcher_token.token,
+            FeeToken::User => user_token.token,
         };
         let compute_fees = |amount: u64| {
             metadata
@@ -458,18 +458,18 @@ impl Service<ChainTypeSvm> {
                 })
         };
         let (searcher_amount, user_amount, fees) = match swap_data.fee_token {
-            FeeToken::Input => {
-                let swap_fees = compute_fees(swap_data.amount_input)?;
+            FeeToken::Searcher => {
+                let swap_fees = compute_fees(swap_data.amount_searcher)?;
                 (
                     swap_fees.remaining_amount,
-                    swap_data.amount_output,
+                    swap_data.amount_user,
                     swap_fees.fees,
                 )
             }
-            FeeToken::Output => (
-                swap_data.amount_input,
-                swap_data.amount_output,
-                compute_fees(swap_data.amount_output)?.fees,
+            FeeToken::User => (
+                swap_data.amount_searcher,
+                swap_data.amount_user,
+                compute_fees(swap_data.amount_user)?.fees,
             ),
         };
 

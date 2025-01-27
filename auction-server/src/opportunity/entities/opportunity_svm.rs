@@ -55,8 +55,8 @@ pub enum FeeToken {
 impl PartialEq<ProgramFeeToken> for FeeToken {
     fn eq(&self, other: &ProgramFeeToken) -> bool {
         match self {
-            FeeToken::SearcherToken => matches!(other, ProgramFeeToken::Input),
-            FeeToken::UserToken => matches!(other, ProgramFeeToken::Output),
+            FeeToken::SearcherToken => matches!(other, ProgramFeeToken::Searcher),
+            FeeToken::UserToken => matches!(other, ProgramFeeToken::User),
         }
     }
 }

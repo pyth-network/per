@@ -86,12 +86,12 @@ pub mod verification;
 pub mod workers;
 
 pub struct SwapInstructionAccountPositions {
-    pub router_token_account: usize,
-    pub user_wallet_account:  usize,
-    pub mint_input_account:   usize,
-    pub mint_output_account:  usize,
-    pub token_program_input:  usize,
-    pub token_program_output: usize,
+    pub router_token_account:   usize,
+    pub user_wallet_account:    usize,
+    pub mint_searcher_account:  usize,
+    pub mint_user_account:      usize,
+    pub token_program_searcher: usize,
+    pub token_program_user:     usize,
 }
 
 pub struct SubmitBidInstructionAccountPositions {

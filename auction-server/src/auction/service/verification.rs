@@ -113,12 +113,12 @@ pub trait Verification<T: ChainTrait> {
 }
 
 struct SwapAccounts {
-    user_wallet:          Pubkey,
-    mint_input:           Pubkey,
-    mint_output:          Pubkey,
-    router_token_account: Pubkey,
-    token_program_input:  Pubkey,
-    token_program_output: Pubkey,
+    user_wallet:            Pubkey,
+    mint_searcher:          Pubkey,
+    mint_user:              Pubkey,
+    router_token_account:   Pubkey,
+    token_program_searcher: Pubkey,
+    token_program_user:     Pubkey,
 }
 
 impl Service<Evm> {
@@ -566,10 +566,10 @@ impl Service<Svm> {
         let swap_data = Self::extract_swap_data(&swap_instruction)?;
         let SwapAccounts {
             user_wallet,
-            mint_input,
-            mint_output,
-            token_program_input,
-            token_program_output,
+            mint_searcher,
+            mint_user,
+            token_program_searcher,
+            token_program_user,
             ..
         } = self
             .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
@@ -619,58 +619,58 @@ impl Service<Svm> {
                 ),
             ));
         }
-        if expected_searcher_token != mint_input {
+        if expected_searcher_token != mint_searcher {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid input token {} in swap instruction accounts. Value does not match the searcher token in swap opportunity {}",
-                    mint_input, expected_searcher_token
+                    "Invalid searcher mint {} in swap instruction accounts. Value does not match the searcher mint in swap opportunity {}",
+                    mint_searcher, expected_searcher_token
                 ),
             ));
         }
-        if expected_user_token != mint_output {
+        if expected_user_token != mint_user {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid output token {} in swap instruction accounts. Value does not match the user token in swap opportunity {}",
-                    mint_output, expected_user_token
-                ),
-            ));
-        }
-
-        if token_program_input != opp_swap_data.searcher_token_program {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid input token program {} in swap instruction accounts. Value does not match the searcher token program in swap opportunity {}",
-                    token_program_input, opp_swap_data.searcher_token_program
+                    "Invalid user mint {} in swap instruction accounts. Value does not match the user mint in swap opportunity {}",
+                    mint_user, expected_user_token
                 ),
             ));
         }
 
-        if token_program_output != opp_swap_data.user_token_program {
+        if token_program_searcher != opp_swap_data.searcher_token_program {
             return Err(RestError::BadParameters(
                 format!(
-                    "Invalid output token program {} in swap instruction accounts. Value does not match the user token program in swap opportunity {}",
-                    token_program_output, opp_swap_data.user_token_program
+                    "Invalid searcher token program {} in swap instruction accounts. Value does not match the searcher token program in swap opportunity {}",
+                    token_program_searcher, opp_swap_data.searcher_token_program
+                ),
+            ));
+        }
+
+        if token_program_user != opp_swap_data.user_token_program {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid user token program {} in swap instruction accounts. Value does not match the user token program in swap opportunity {}",
+                    token_program_user, opp_swap_data.user_token_program
                 ),
             ));
         }
 
 
         if let Some(expected_searcher_amount) = expected_searcher_amount {
-            if expected_searcher_amount != swap_data.amount_input {
+            if expected_searcher_amount != swap_data.amount_searcher {
                 return Err(RestError::BadParameters(
                     format!(
-                        "Invalid input amount {} in swap instruction data. Value does not match the searcher amount in swap opportunity {}",
-                        swap_data.amount_input, expected_searcher_amount
+                        "Invalid searcher amount {} in swap instruction data. Value does not match the searcher amount in swap opportunity {}",
+                        swap_data.amount_searcher, expected_searcher_amount
                     ),
                 ));
             }
         }
         if let Some(expected_user_amount) = expected_user_amount {
-            if expected_user_amount != swap_data.amount_output {
+            if expected_user_amount != swap_data.amount_user {
                 return Err(RestError::BadParameters(
                     format!(
-                        "Invalid output amount {} in swap instruction data. Value does not match the user amount in swap opportunity {}",
-                        swap_data.amount_output, expected_user_amount
+                        "Invalid user amount {} in swap instruction data. Value does not match the user amount in swap opportunity {}",
+                        swap_data.amount_user, expected_user_amount
                     ),
                 ));
             }
@@ -710,29 +710,29 @@ impl Service<Svm> {
         let user_wallet = self
             .extract_account(tx, swap_instruction, positions.user_wallet_account)
             .await?;
-        let mint_input = self
-            .extract_account(tx, swap_instruction, positions.mint_input_account)
+        let mint_searcher = self
+            .extract_account(tx, swap_instruction, positions.mint_searcher_account)
             .await?;
-        let mint_output = self
-            .extract_account(tx, swap_instruction, positions.mint_output_account)
+        let mint_user = self
+            .extract_account(tx, swap_instruction, positions.mint_user_account)
             .await?;
         let router_token_account = self
             .extract_account(tx, swap_instruction, positions.router_token_account)
             .await?;
-        let token_program_input = self
-            .extract_account(tx, swap_instruction, positions.token_program_input)
+        let token_program_searcher = self
+            .extract_account(tx, swap_instruction, positions.token_program_searcher)
             .await?;
-        let token_program_output = self
-            .extract_account(tx, swap_instruction, positions.token_program_output)
+        let token_program_user = self
+            .extract_account(tx, swap_instruction, positions.token_program_user)
             .await?;
 
         Ok(SwapAccounts {
             user_wallet,
-            mint_input,
-            mint_output,
+            mint_searcher,
+            mint_user,
             router_token_account,
-            token_program_input,
-            token_program_output,
+            token_program_searcher,
+            token_program_user,
         })
     }
 
@@ -803,23 +803,23 @@ impl Service<Svm> {
                 let swap_data = Self::extract_swap_data(&swap_instruction)?;
                 let SwapAccounts {
                     user_wallet,
-                    mint_input,
-                    mint_output,
+                    mint_searcher,
+                    mint_user,
                     router_token_account,
-                    token_program_input,
-                    token_program_output,
+                    token_program_searcher,
+                    token_program_user,
                 } = self
                     .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
                     .await?;
                 let quote_tokens = get_swap_quote_tokens(&opp);
                 let bid_amount = match quote_tokens.clone() {
                     // bid is in the unspecified token
-                    QuoteTokens::UserTokenSpecified { .. } => swap_data.amount_input,
-                    QuoteTokens::SearcherTokenSpecified { .. } => swap_data.amount_output,
+                    QuoteTokens::UserTokenSpecified { .. } => swap_data.amount_searcher,
+                    QuoteTokens::SearcherTokenSpecified { .. } => swap_data.amount_user,
                 };
                 let (fee_token, fee_token_program) = match swap_data.fee_token {
-                    FeeToken::Input => (mint_input, token_program_input),
-                    FeeToken::Output => (mint_output, token_program_output),
+                    FeeToken::Searcher => (mint_searcher, token_program_searcher),
+                    FeeToken::User => (mint_user, token_program_user),
                 };
                 let expected_router_token_account = get_associated_token_address_with_program_id(
                     &opp.router,

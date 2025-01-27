@@ -100,51 +100,49 @@ pub fn create_submit_bid_instruction(
 pub fn create_swap_instruction(
     express_relay_pid: Pubkey,
     searcher: Pubkey,
-    trader: Pubkey,
-    searcher_input_ta: Option<Pubkey>,
-    searcher_output_ta: Option<Pubkey>,
+    user: Pubkey,
+    searcher_ta_searcher: Option<Pubkey>,
+    searcher_ta_user: Option<Pubkey>,
     router_fee_receiver_ta: Pubkey,
     fee_receiver_relayer: Pubkey,
-    mint_input: Pubkey,
-    mint_output: Pubkey,
-    token_program_input: Pubkey,
-    token_program_output: Pubkey,
+    mint_searcher: Pubkey,
+    mint_user: Pubkey,
+    token_program_searcher: Pubkey,
+    token_program_user: Pubkey,
     swap_args: SwapArgs,
 ) -> Instruction {
     let express_relay_metadata =
         Pubkey::find_program_address(&[SEED_METADATA], &express_relay_pid).0;
 
     let (mint_fee, token_program_fee) = match swap_args.fee_token {
-        FeeToken::Input => (mint_input, token_program_input),
-        FeeToken::Output => (mint_output, token_program_output),
+        FeeToken::Searcher => (mint_searcher, token_program_searcher),
+        FeeToken::User => (mint_user, token_program_user),
     };
 
     let accounts_submit_bid = accounts::Swap {
         searcher,
-        trader,
-        searcher_input_ta: searcher_input_ta.unwrap_or(
+        user,
+        searcher_ta_searcher: searcher_ta_searcher.unwrap_or(
             get_associated_token_address_with_program_id(
                 &searcher,
-                &mint_input,
-                &token_program_input,
+                &mint_searcher,
+                &token_program_searcher,
             ),
         ),
-        searcher_output_ta: searcher_output_ta.unwrap_or(
-            get_associated_token_address_with_program_id(
-                &searcher,
-                &mint_output,
-                &token_program_output,
-            ),
+        searcher_ta_user: searcher_ta_user.unwrap_or(get_associated_token_address_with_program_id(
+            &searcher,
+            &mint_user,
+            &token_program_user,
+        )),
+        user_ata_searcher: get_associated_token_address_with_program_id(
+            &user,
+            &mint_searcher,
+            &token_program_searcher,
         ),
-        trader_input_ata: get_associated_token_address_with_program_id(
-            &trader,
-            &mint_input,
-            &token_program_input,
-        ),
-        trader_output_ata: get_associated_token_address_with_program_id(
-            &trader,
-            &mint_output,
-            &token_program_output,
+        user_ata_user: get_associated_token_address_with_program_id(
+            &user,
+            &mint_user,
+            &token_program_user,
         ),
         router_fee_receiver_ta,
         relayer_fee_receiver_ata: get_associated_token_address_with_program_id(
@@ -157,11 +155,11 @@ pub fn create_swap_instruction(
             &mint_fee,
             &token_program_fee,
         ),
-        mint_input,
-        mint_output,
+        mint_searcher,
+        mint_user,
         mint_fee,
-        token_program_input,
-        token_program_output,
+        token_program_searcher,
+        token_program_user,
         token_program_fee,
         express_relay_metadata,
     }

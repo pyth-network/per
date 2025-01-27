@@ -218,12 +218,12 @@ macro_rules! read_svm_position_env {
 
 fn get_swap_instruction_account_positions() -> SwapInstructionAccountPositions {
     SwapInstructionAccountPositions {
-        router_token_account: read_svm_position_env!("SWAP_ROUTER_TOKEN_ACCOUNT_POSITION"),
-        user_wallet_account:  read_svm_position_env!("SWAP_USER_WALLET_ACCOUNT_POSITION"),
-        mint_input_account:   read_svm_position_env!("SWAP_MINT_INPUT_ACCOUNT_POSITION"),
-        mint_output_account:  read_svm_position_env!("SWAP_MINT_OUTPUT_ACCOUNT_POSITION"),
-        token_program_input:  read_svm_position_env!("SWAP_TOKEN_PROGRAM_INPUT_POSITION"),
-        token_program_output: read_svm_position_env!("SWAP_TOKEN_PROGRAM_OUTPUT_POSITION"),
+        router_token_account:   read_svm_position_env!("SWAP_ROUTER_TOKEN_ACCOUNT_POSITION"),
+        user_wallet_account:    read_svm_position_env!("SWAP_USER_WALLET_ACCOUNT_POSITION"),
+        mint_searcher_account:  read_svm_position_env!("SWAP_MINT_SEARCHER_ACCOUNT_POSITION"),
+        mint_user_account:      read_svm_position_env!("SWAP_MINT_USER_ACCOUNT_POSITION"),
+        token_program_searcher: read_svm_position_env!("SWAP_TOKEN_PROGRAM_SEARCHER_POSITION"),
+        token_program_user:     read_svm_position_env!("SWAP_TOKEN_PROGRAM_USER_POSITION"),
     }
 }
 
