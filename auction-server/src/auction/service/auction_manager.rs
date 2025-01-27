@@ -662,7 +662,11 @@ impl Service<Svm> {
     ) -> Option<Result<(), TransactionError>> {
         let result = join_all(self.config.chain_config.tx_broadcaster_clients.iter().map(
             |tx_broadcaster_client| async {
-                tx_broadcaster_client.get_signature_status(signature).await
+                let result = tx_broadcaster_client.get_signature_status(signature).await;
+                if let Err(e) = &result {
+                    tracing::error!(error = ?e, client = ?tx_broadcaster_client.url(), "Failed to get signature status");
+                }
+                result
             },
         ))
         .await;
