@@ -25,11 +25,16 @@ pub struct Quote {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ReferralFeeInfo {
+    pub router:           Pubkey,
+    pub referral_fee_bps: u16,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct QuoteCreate {
     pub user_wallet_address: Pubkey,
-    pub referral_fee_bps:    u16,
     pub tokens:              QuoteTokens,
-    pub router:              Pubkey,
+    pub referral_fee_info:   Option<ReferralFeeInfo>,
     pub chain_id:            ChainId,
 }
 
@@ -76,6 +81,15 @@ impl From<api::QuoteTokens> for QuoteTokens {
     }
 }
 
+impl From<api::ReferralFeeInfo> for ReferralFeeInfo {
+    fn from(referral_fee_info: api::ReferralFeeInfo) -> Self {
+        Self {
+            router:           referral_fee_info.router,
+            referral_fee_bps: referral_fee_info.referral_fee_bps,
+        }
+    }
+}
+
 impl From<api::QuoteCreate> for QuoteCreate {
     fn from(quote_create: api::QuoteCreate) -> Self {
         let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(params)) = quote_create;
@@ -99,11 +113,12 @@ impl From<api::QuoteCreate> for QuoteCreate {
             }
         };
 
+        let referral_fee_info = params.referral_fee_info.map(Into::into);
+
         Self {
             user_wallet_address: params.user_wallet_address,
-            referral_fee_bps: params.referral_fee_bps,
             tokens,
-            router: params.router,
+            referral_fee_info,
             chain_id: params.chain_id,
         }
     }

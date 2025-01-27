@@ -540,21 +540,24 @@ pub struct QuoteCreateV1SvmParams {
     /// The token amount that the user wants to swap out of/into.
     #[schema(inline)]
     pub specified_token_amount: SpecifiedTokenAmount,
-    /// The router account to send referral fees to.
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-    #[serde_as(as = "DisplayFromStr")]
-    pub router:                 Pubkey,
-    /// The referral fee in basis points. If not provided, the referral fee will default to 0.
-    #[serde(default = "default_referral_fee_bps")]
-    #[schema(example = 10, value_type = u16)]
-    pub referral_fee_bps:       u16,
+    /// Information about the referral fee and the router to send the fee to. If not provided, referral fee will be set to 0.
+    #[schema(inline)]
+    pub referral_fee_info:      Option<ReferralFeeInfo>,
     /// The chain id for creating the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:               ChainId,
 }
 
-fn default_referral_fee_bps() -> u16 {
-    0
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct ReferralFeeInfo {
+    /// The router account to send referral fees to.
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub router:           Pubkey,
+    /// The referral fee in basis points.
+    #[schema(example = 10, value_type = u16)]
+    pub referral_fee_bps: u16,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]

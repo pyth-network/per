@@ -132,7 +132,10 @@ impl Service<ChainTypeSvm> {
         quote_create: entities::QuoteCreate,
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
-        let router = quote_create.router;
+        let referral_fee_info = self
+            .unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)
+            .await?;
+
         // TODO*: we should determine this more intelligently
         let fee_token = entities::FeeToken::InputToken;
 
@@ -161,7 +164,7 @@ impl Service<ChainTypeSvm> {
                 // This is not exactly accurate and may overestimate the amount needed
                 // because of floor / ceil rounding errors.
                 let denominator: u64 = FEE_SPLIT_PRECISION
-                    - <u16 as Into<u64>>::into(quote_create.referral_fee_bps)
+                    - <u16 as Into<u64>>::into(referral_fee_info.referral_fee_bps)
                     - metadata.swap_platform_fee_bps;
                 let numerator = input_token.amount * FEE_SPLIT_PRECISION;
                 let amount_including_fees = numerator.div_ceil(denominator);
@@ -198,12 +201,12 @@ impl Service<ChainTypeSvm> {
 
         let router_token_account = match fee_token {
             entities::FeeToken::InputToken => get_associated_token_address_with_program_id(
-                &router.to_bytes().into(),
+                &referral_fee_info.router.to_bytes().into(),
                 &input_mint.to_bytes().into(),
                 &input_token_program.to_bytes().into(),
             ),
             entities::FeeToken::OutputToken => get_associated_token_address_with_program_id(
-                &router.to_bytes().into(),
+                &referral_fee_info.router.to_bytes().into(),
                 &output_mint.to_bytes().into(),
                 &output_token_program.to_bytes().into(),
             ),
@@ -214,13 +217,13 @@ impl Service<ChainTypeSvm> {
             &quote_create.tokens,
             &quote_create.user_wallet_address,
             &router_token_account,
-            quote_create.referral_fee_bps,
+            referral_fee_info.referral_fee_bps,
         );
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
             permission_key: entities::OpportunitySvm::get_permission_key(
                 BidPaymentInstructionType::Swap,
-                router,
+                referral_fee_info.router,
                 permission_account,
             ),
             chain_id:       quote_create.chain_id.clone(),
@@ -239,7 +242,7 @@ impl Service<ChainTypeSvm> {
                 entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                     user_wallet_address: quote_create.user_wallet_address,
                     fee_token,
-                    referral_fee_bps: quote_create.referral_fee_bps,
+                    referral_fee_bps: referral_fee_info.referral_fee_bps,
                     platform_fee_bps: metadata.swap_platform_fee_bps,
                     input_token_program,
                     output_token_program,
@@ -252,7 +255,7 @@ impl Service<ChainTypeSvm> {
 
         Ok(entities::OpportunityCreateSvm {
             core_fields,
-            router,
+            router: referral_fee_info.router,
             permission_account,
             program: program_opportunity,
         })
@@ -278,8 +281,15 @@ impl Service<ChainTypeSvm> {
 
     #[tracing::instrument(skip_all)]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
+        let referral_fee_info = self
+            .unwrap_referral_fee_info(
+                input.quote_create.referral_fee_info.clone(),
+                &input.quote_create.chain_id,
+            )
+            .await?;
+
         // TODO use compute_swap_fees to make sure instead when the metadata is fetched from on-chain
-        if FEE_SPLIT_PRECISION < input.quote_create.referral_fee_bps.into() {
+        if FEE_SPLIT_PRECISION < referral_fee_info.referral_fee_bps.into() {
             return Err(RestError::BadParameters(format!(
                 "Referral fee bps higher than {}",
                 FEE_SPLIT_PRECISION
@@ -440,7 +450,7 @@ impl Service<ChainTypeSvm> {
         };
         let compute_fees = |amount: u64| {
             metadata
-                .compute_swap_fees(input.quote_create.referral_fee_bps, amount)
+                .compute_swap_fees(referral_fee_info.referral_fee_bps, amount)
                 .map_err(|e| {
                     tracing::error!("Failed to compute swap fees: {:?}", e);
                     RestError::TemporarilyUnavailable
