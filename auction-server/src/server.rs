@@ -50,7 +50,10 @@ use {
         future::join_all,
         Future,
     },
-    solana_client::rpc_client::RpcClientConfig,
+    solana_client::{
+        nonblocking::rpc_client::RpcClient,
+        rpc_client::RpcClientConfig,
+    },
     solana_sdk::{
         commitment_config::CommitmentConfig,
         signature::Keypair,
@@ -330,6 +333,22 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         })
         .collect();
     chains_svm.iter().for_each(|(chain_id, chain_store)| {
+        let tx_broadcaster_clients: Vec<RpcClient> = chain_store
+            .config
+            .rpc_tx_submission_urls
+            .iter()
+            .map(|url| {
+                TracedSenderSvm::new_client(
+                    chain_id.clone(),
+                    url.as_str(),
+                    chain_store.config.rpc_timeout,
+                    RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                )
+            })
+            .collect();
+        if tx_broadcaster_clients.is_empty() {
+            panic!("No tx broadcaster client provided for chain {}", chain_id);
+        }
         if auction_services
             .insert(
                 chain_id.clone(),
@@ -338,21 +357,19 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                     auction_service::Config {
                         chain_id:     chain_id.clone(),
                         chain_config: auction_service::ConfigSvm {
-                            client:                        TracedSenderSvm::new_client(
+                            client: TracedSenderSvm::new_client(
                                 chain_id.clone(),
                                 chain_store.config.rpc_read_url.as_str(),
                                 chain_store.config.rpc_timeout,
                                 RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                             ),
-                            simulator:                     Simulator::new(
-                                TracedSenderSvm::new_client(
-                                    chain_id.clone(),
-                                    chain_store.config.rpc_read_url.as_str(),
-                                    chain_store.config.rpc_timeout,
-                                    RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-                                ),
-                            ),
-                            express_relay:                 auction_service::ExpressRelaySvm {
+                            simulator: Simulator::new(TracedSenderSvm::new_client(
+                                chain_id.clone(),
+                                chain_store.config.rpc_read_url.as_str(),
+                                chain_store.config.rpc_timeout,
+                                RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                            )),
+                            express_relay: auction_service::ExpressRelaySvm {
                                 program_id:                               chain_store
                                     .config
                                     .express_relay_program_id,
@@ -368,14 +385,9 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                                 swap_instruction_account_positions:
                                     get_swap_instruction_account_positions(),
                             },
-                            ws_address:                    chain_store.config.ws_addr.clone(),
-                            tx_broadcaster_client:         TracedSenderSvm::new_client(
-                                chain_id.clone(),
-                                chain_store.config.rpc_tx_submission_url.as_str(),
-                                chain_store.config.rpc_timeout,
-                                RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-                            ),
-                            log_sender:                    chain_store.log_sender.clone(),
+                            ws_address: chain_store.config.ws_addr.clone(),
+                            tx_broadcaster_clients,
+                            log_sender: chain_store.log_sender.clone(),
                             prioritization_fee_percentile: chain_store
                                 .config
                                 .prioritization_fee_percentile,

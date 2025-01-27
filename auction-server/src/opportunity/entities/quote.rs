@@ -19,6 +19,8 @@ pub struct Quote {
     pub expiration_time: i64,
     pub input_token:     TokenAmountSvm,
     pub output_token:    TokenAmountSvm,
+    pub referrer_fee:    TokenAmountSvm,
+    pub platform_fee:    TokenAmountSvm,
     pub chain_id:        ChainId,
 }
 
@@ -50,18 +52,25 @@ impl From<api::QuoteTokens> for QuoteTokens {
             api::QuoteTokens::InputTokenSpecified {
                 input_token,
                 output_token,
-                ..
+                input_amount,
             } => QuoteTokens::InputTokenSpecified {
-                input_token: input_token.into(),
+                input_token: TokenAmountSvm {
+                    token:  input_token,
+                    amount: input_amount,
+                },
                 output_token,
             },
             api::QuoteTokens::OutputTokenSpecified {
                 input_token,
                 output_token,
+                output_amount,
                 ..
             } => QuoteTokens::OutputTokenSpecified {
                 input_token,
-                output_token: output_token.into(),
+                output_token: TokenAmountSvm {
+                    token:  output_token,
+                    amount: output_amount,
+                },
             },
         }
     }
@@ -107,6 +116,8 @@ impl From<Quote> for api::Quote {
             expiration_time: quote.expiration_time,
             input_token:     quote.input_token.into(),
             output_token:    quote.output_token.into(),
+            referrer_fee:    quote.referrer_fee.into(),
+            platform_fee:    quote.platform_fee.into(),
             chain_id:        quote.chain_id,
         }))
     }

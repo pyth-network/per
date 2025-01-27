@@ -616,11 +616,9 @@ export class Client {
       if (opportunity.tokens.side_specified === "input") {
         tokens = {
           type: "input_specified",
-          inputToken: {
-            amount: BigInt(opportunity.tokens.input_token.amount),
-            token: new PublicKey(opportunity.tokens.input_token.token),
-          },
+          inputToken: new PublicKey(opportunity.tokens.input_token),
           outputToken: new PublicKey(opportunity.tokens.output_token),
+          inputAmount: BigInt(opportunity.tokens.input_amount),
           inputTokenProgram: new PublicKey(
             opportunity.tokens.input_token_program,
           ),
@@ -632,10 +630,11 @@ export class Client {
         tokens = {
           type: "output_specified",
           inputToken: new PublicKey(opportunity.tokens.input_token),
-          outputToken: {
-            amount: BigInt(opportunity.tokens.output_token.amount),
-            token: new PublicKey(opportunity.tokens.output_token.token),
-          },
+          outputToken: new PublicKey(opportunity.tokens.output_token),
+          outputTokenAmountBeforeFees: BigInt(
+            opportunity.tokens.output_amount_before_fees,
+          ),
+          outputAmount: BigInt(opportunity.tokens.output_amount),
           inputTokenProgram: new PublicKey(
             opportunity.tokens.input_token_program,
           ),
@@ -650,6 +649,7 @@ export class Client {
         opportunityId: opportunity.opportunity_id,
         program: "swap",
         referralFeeBps: opportunity.referral_fee_bps,
+        platformFeeBps: opportunity.platform_fee_bps,
         feeToken: opportunity.fee_token,
         permissionAccount: new PublicKey(opportunity.permission_account),
         routerAccount: new PublicKey(opportunity.router_account),

@@ -32,6 +32,7 @@ def main():
         f.write('export SECRET_KEY=admin\n')
         f.write(f'export PRIVATE_KEY_SVM={str(relayer_key_svm)}\n')
     # config_template
+    # Added two rpc_tx_submission_urls for test
     template = f'''
 chains:
   development:
@@ -45,7 +46,9 @@ chains:
   local-solana:
     express_relay_program_id: PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou
     rpc_read_url: http://localhost:8899
-    rpc_tx_submission_url: http://localhost:8899
+    rpc_tx_submission_urls:
+      - http://localhost:8899
+      - http://localhost:8899
     ws_addr: ws://localhost:8900
     accepted_token_programs:
       - TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA

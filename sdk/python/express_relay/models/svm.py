@@ -322,14 +322,17 @@ class SwapTokensBase(BaseModel):
 
 class SwapTokensInputSpecified(SwapTokensBase):
     side_specified: Literal["input"]
-    input_token: TokenAmountSvm
+    input_token: SvmAddress
+    input_amount: int
     output_token: SvmAddress
 
 
 class SwapTokensOutputSpecified(SwapTokensBase):
     side_specified: Literal["output"]
     input_token: SvmAddress
-    output_token: TokenAmountSvm
+    output_token: SvmAddress
+    output_amount: int
+    output_amount_before_fees: int
 
 
 class SwapOpportunitySvm(BaseOpportunitySvm):
@@ -343,6 +346,7 @@ class SwapOpportunitySvm(BaseOpportunitySvm):
 
     fee_token: Literal["input_token", "output_token"]
     referral_fee_bps: int
+    platform_fee_bps: int
     router_account: SvmAddress
     user_wallet_address: SvmAddress
     tokens: SwapTokensInputSpecified | SwapTokensOutputSpecified

@@ -18,7 +18,11 @@ use {
         },
     },
     ::express_relay::FeeToken as ProgramFeeToken,
-    express_relay_api_types::opportunity as api,
+    express_relay::state::FEE_SPLIT_PRECISION,
+    express_relay_api_types::{
+        opportunity as api,
+        opportunity::QuoteTokensWithTokenPrograms,
+    },
     serde::{
         Deserialize,
         Serialize,
@@ -38,6 +42,7 @@ use {
 pub struct OpportunitySvmProgramLimo {
     pub order:         Vec<u8>,
     pub order_address: Pubkey,
+    pub slot:          Slot,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -61,6 +66,7 @@ pub struct OpportunitySvmProgramSwap {
     pub user_wallet_address:  Pubkey,
     pub fee_token:            FeeToken,
     pub referral_fee_bps:     u16,
+    pub platform_fee_bps:     u64,
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
     pub input_token_program:  Pubkey,
     pub output_token_program: Pubkey,
@@ -79,7 +85,6 @@ pub struct OpportunitySvm {
     pub router:             Pubkey,
     pub permission_account: Pubkey,
     pub program:            OpportunitySvmProgram,
-    pub slot:               Slot,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,7 +94,6 @@ pub struct OpportunityCreateSvm {
     pub router:             Pubkey,
     pub permission_account: Pubkey,
     pub program:            OpportunitySvmProgram,
-    pub slot:               Slot,
 }
 
 // Opportunity can be refreshed after 30 seconds
@@ -108,7 +112,6 @@ impl Opportunity for OpportunitySvm {
             router:             val.router,
             permission_account: val.permission_account,
             program:            val.program,
-            slot:               val.slot,
         }
     }
 
@@ -119,6 +122,7 @@ impl Opportunity for OpportunitySvm {
                     repository::OpportunityMetadataSvmProgramLimo {
                         order:         program.order,
                         order_address: program.order_address,
+                        slot:          program.slot,
                     },
                 )
             }
@@ -128,6 +132,7 @@ impl Opportunity for OpportunitySvm {
                         user_wallet_address:  program.user_wallet_address,
                         fee_token:            program.fee_token,
                         referral_fee_bps:     program.referral_fee_bps,
+                        platform_fee_bps:     program.platform_fee_bps,
                         input_token_program:  program.input_token_program,
                         output_token_program: program.output_token_program,
                     },
@@ -138,7 +143,6 @@ impl Opportunity for OpportunitySvm {
             program,
             router: self.router,
             permission_account: self.permission_account,
-            slot: self.slot,
         }
     }
 
@@ -151,9 +155,15 @@ impl Opportunity for OpportunitySvm {
         }))
     }
 
-    fn compare(&self, other: &Self::OpportunityCreate) -> super::OpportunityComparison {
+    fn compare(&self, other: &OpportunityCreateSvm) -> super::OpportunityComparison {
         let mut self_clone: OpportunityCreateSvm = self.clone().into();
-        self_clone.slot = other.slot;
+        if let (
+            OpportunitySvmProgram::Limo(self_program),
+            OpportunitySvmProgram::Limo(other_program),
+        ) = (&mut self_clone.program, &other.program)
+        {
+            self_program.slot = other_program.slot;
+        };
         if *other == self_clone {
             if self.refresh_time + MIN_REFRESH_TIME < OffsetDateTime::now_utc() {
                 OpportunityComparison::NeedsRefresh
@@ -226,6 +236,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
         let program = match val.program.clone() {
             OpportunitySvmProgram::Limo(program) => api::OpportunityParamsV1ProgramSvm::Limo {
+                slot:          program.slot,
                 order:         program.order,
                 order_address: program.order_address,
             },
@@ -237,20 +248,33 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         input_token,
                         output_token,
                     } => api::QuoteTokens::InputTokenSpecified {
-                        input_token: input_token.into(),
+                        input_token: input_token.token,
+                        input_amount: input_token.amount,
                         output_token,
-                        input_token_program: program.input_token_program,
-                        output_token_program: program.output_token_program,
                     },
                     QuoteTokens::OutputTokenSpecified {
                         input_token,
                         output_token,
-                    } => api::QuoteTokens::OutputTokenSpecified {
-                        input_token,
-                        output_token: output_token.into(),
-                        input_token_program: program.input_token_program,
-                        output_token_program: program.output_token_program,
-                    },
+                    } => {
+                        let output_amount_excluding_fees = match program.fee_token {
+                            FeeToken::InputToken => output_token.amount,
+                            FeeToken::OutputToken => {
+                                // TODO: Do this calculation based on express relay metadata
+                                let router_fee = output_token.amount
+                                    * program.referral_fee_bps as u64
+                                    / FEE_SPLIT_PRECISION;
+                                let platform_fee = output_token.amount * program.platform_fee_bps
+                                    / FEE_SPLIT_PRECISION;
+                                output_token.amount - router_fee - platform_fee
+                            }
+                        };
+                        api::QuoteTokens::OutputTokenSpecified {
+                            input_token,
+                            output_token: output_token.token,
+                            output_amount: output_amount_excluding_fees,
+                            output_amount_before_fees: output_token.amount,
+                        }
+                    }
                 };
 
                 let fee_token = match program.fee_token {
@@ -263,14 +287,18 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     router_account: val.router,
                     fee_token,
                     referral_fee_bps: program.referral_fee_bps,
-                    tokens,
+                    platform_fee_bps: program.platform_fee_bps,
+                    tokens: QuoteTokensWithTokenPrograms {
+                        tokens,
+                        input_token_program: program.input_token_program,
+                        output_token_program: program.output_token_program,
+                    },
                 }
             }
         };
         api::OpportunitySvm {
             opportunity_id: val.id,
             creation_time:  val.creation_time.unix_timestamp_nanos() / 1000,
-            slot:           val.slot,
             params:         api::OpportunityParamsSvm::V1(api::OpportunityParamsV1Svm {
                 program,
                 chain_id: val.chain_id.clone(),
@@ -304,6 +332,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
         let program = match val.metadata.program.clone() {
             repository::OpportunityMetadataSvmProgram::Limo(program) => {
                 OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
+                    slot:          program.slot,
                     order:         program.order,
                     order_address: program.order_address,
                 })
@@ -313,6 +342,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     user_wallet_address:  program.user_wallet_address,
                     fee_token:            program.fee_token,
                     referral_fee_bps:     program.referral_fee_bps,
+                    platform_fee_bps:     program.platform_fee_bps,
                     input_token_program:  program.input_token_program,
                     output_token_program: program.output_token_program,
                 })
@@ -331,7 +361,6 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             router: val.metadata.router,
             permission_account: val.metadata.permission_account,
             program,
-            slot: val.metadata.slot,
         })
     }
 }
@@ -346,20 +375,7 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             } => OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
                 order,
                 order_address,
-            }),
-            // TODO*: this arm doesn't matter bc this conversion is only called in `post_opportunity` in api.rs. but we should handle this better
-            api::OpportunityCreateProgramParamsV1Svm::Swap {
-                user_wallet_address,
-                referral_fee_bps,
-                input_token_program,
-                output_token_program,
-            } => OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address,
-                // TODO*: see comment above about this arm
-                fee_token: FeeToken::InputToken,
-                referral_fee_bps,
-                input_token_program,
-                output_token_program,
+                slot: params.slot,
             }),
         };
 
@@ -382,7 +398,6 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             program,
             permission_account: params.permission_account,
             router: params.router,
-            slot: params.slot,
         }
     }
 }
@@ -399,7 +414,6 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
             router:             val.router,
             permission_account: val.permission_account,
             program:            val.program,
-            slot:               val.slot,
         }
     }
 }

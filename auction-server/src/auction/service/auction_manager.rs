@@ -54,7 +54,10 @@ use {
             Signature,
             Signer,
         },
-        transaction::TransactionError,
+        transaction::{
+            TransactionError,
+            VersionedTransaction,
+        },
     },
     std::{
         fmt::Debug,
@@ -597,6 +600,9 @@ impl AuctionManager<Svm> for Service<Svm> {
 
 const SEND_TRANSACTION_RETRY_COUNT_SVM: i32 = 30;
 const RETRY_DURATION: Duration = Duration::from_secs(2);
+const METRIC_LABEL_SUCCESS: &str = "success";
+const METRIC_LABEL_FAILED: &str = "failed";
+const METRIC_LABEL_EXPIRED: &str = "expired";
 
 impl Service<Svm> {
     pub fn add_relayer_signature(&self, bid: &mut entities::Bid<Svm>) {
@@ -622,64 +628,84 @@ impl Service<Svm> {
         }
     }
 
+    async fn send_transaction_to_network(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> solana_client::client_error::Result<Signature> {
+        let result = join_all(
+            self.config.chain_config.tx_broadcaster_clients.iter().map(|tx_broadcaster_client| async {
+                let result = tx_broadcaster_client
+                    .send_transaction_with_config(
+                        transaction,
+                        self.get_send_transaction_config(),
+                    ).await;
+                if let Err(e) = &result {
+                    tracing::error!(error = ?e, client = ?tx_broadcaster_client.url(), "Failed to send transaction to network");
+                }
+                result
+            }),
+        ).await;
+        result.into_iter().find(|res| res.is_ok()).unwrap_or({
+            Err(solana_client::client_error::ClientErrorKind::Custom(
+                "All tx broadcasters failed".to_string(),
+            )
+            .into())
+        })
+    }
+
+    async fn get_signature_status(
+        &self,
+        signature: &Signature,
+    ) -> Option<Result<(), TransactionError>> {
+        let result = join_all(self.config.chain_config.tx_broadcaster_clients.iter().map(
+            |tx_broadcaster_client| async {
+                tx_broadcaster_client.get_signature_status(signature).await
+            },
+        ))
+        .await;
+        result
+            .into_iter()
+            .find(|res| matches!(res, Ok(Some(_))))
+            .and_then(|res| res.ok())
+            .flatten()
+    }
+
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>) {
         let start = Instant::now();
-        let mut result_label = "expired";
+        let mut result_label = METRIC_LABEL_EXPIRED;
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
         let mut receiver = self.config.chain_config.log_sender.subscribe();
         let mut retry_interval = tokio::time::interval(RETRY_DURATION);
-        let mut try_count = 0;
-        while try_count < SEND_TRANSACTION_RETRY_COUNT_SVM {
+        let mut retry_count = 0;
+        while retry_count < SEND_TRANSACTION_RETRY_COUNT_SVM {
             tokio::select! {
                 log = receiver.recv() => {
                     if let Ok(log) = log {
                         if log.value.signature.eq(&signature.to_string()) {
                             if log.value.err.is_some() {
-                                result_label = "failed";
+                                result_label = METRIC_LABEL_FAILED;
                             } else {
-                                result_label = "success";
+                                result_label = METRIC_LABEL_SUCCESS;
                             }
                             break
                         }
                     }
                 }
                 _ = retry_interval.tick() => {
-                    match self
-                        .config
-                        .chain_config
-                        .tx_broadcaster_client
-                        .get_signature_status(&signature)
-                        .await
-                    {
-                        Ok(status) => {
-                            if let Some(status) = status {
-                                if status.is_err() {
-                                    result_label = "failed";
-                                } else {
-                                    result_label = "success";
-                                }
-                                break;
-                            }
+                    if let Some(status) = self.get_signature_status(&signature).await {
+                        if status.is_err() {
+                            result_label = METRIC_LABEL_FAILED;
+                        } else {
+                            result_label = METRIC_LABEL_SUCCESS;
                         }
-                        Err(e) => {
-                            tracing::error!(error = ?e, "Failed to get signature status");
-                        }
+                        break;
                     }
 
-                    try_count += 1;
-                    if let Err(e) = self
-                        .config
-                        .chain_config
-                        .tx_broadcaster_client
-                        .send_transaction_with_config(
-                            &bid.chain_data.transaction,
-                            self.get_send_transaction_config(),
-                        )
-                        .await
-                    {
+                    retry_count += 1;
+                    if let Err(e) = self.send_transaction_to_network(&bid.chain_data.transaction).await {
                         tracing::error!(error = ?e, "Failed to resend transaction");
                     }
                 }
@@ -696,7 +722,7 @@ impl Service<Svm> {
         metrics::histogram!("transaction_landing_time_seconds_svm", &labels)
             .record(start.elapsed().as_secs_f64());
 
-        tracing::Span::current().record("total_tries", try_count);
+        tracing::Span::current().record("total_tries", retry_count + 1);
     }
 
     #[tracing::instrument(skip_all, fields(bid_id))]
@@ -706,10 +732,7 @@ impl Service<Svm> {
     ) -> solana_client::client_error::Result<Signature> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
-        self.config
-            .chain_config
-            .tx_broadcaster_client
-            .send_transaction_with_config(tx, self.get_send_transaction_config())
+        self.send_transaction_to_network(&bid.chain_data.transaction)
             .await?;
         self.config
             .chain_config
