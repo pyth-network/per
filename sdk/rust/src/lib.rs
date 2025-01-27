@@ -762,29 +762,29 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         "Invalid program params for swap opportunity".to_string(),
                     )),
                 }?;
-                let (input_token, output_token) = match tokens.tokens {
-                    QuoteTokens::InputTokenSpecified {
-                        input_token,
-                        output_token,
+                let (searcher_token, user_token) = match tokens.tokens {
+                    QuoteTokens::SearcherTokenSpecified {
+                        searcher_token,
+                        user_token,
                         ..
-                    } => (input_token, output_token),
-                    QuoteTokens::OutputTokenSpecified {
-                        input_token,
-                        output_token,
+                    } => (searcher_token, user_token),
+                    QuoteTokens::UserTokenSpecified {
+                        searcher_token,
+                        user_token,
                         ..
-                    } => (input_token, output_token),
+                    } => (searcher_token, user_token),
                 };
                 let (fee_token, fee_token_program) = match fee_token {
-                    FeeToken::InputToken => (input_token, tokens.input_token_program),
-                    FeeToken::OutputToken => (output_token, tokens.output_token_program),
+                    FeeToken::SearcherToken => (searcher_token, tokens.searcher_token_program),
+                    FeeToken::UserToken => (user_token, tokens.user_token_program),
                 };
                 let mut instructions = params.instructions;
                 instructions.extend(svm::Svm::get_swap_create_accounts_idempotent_instructions(
                     svm::GetSwapCreateAccountsIdempotentInstructionsParams {
                         payer: params.payer,
-                        trader: user_wallet_address,
-                        output_token,
-                        output_token_program: tokens.output_token_program,
+                        user: user_wallet_address,
+                        user_token,
+                        user_token_program: tokens.user_token_program,
                         fee_token,
                         fee_token_program,
                         router_account,
