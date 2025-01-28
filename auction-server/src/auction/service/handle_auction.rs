@@ -87,7 +87,8 @@ where
                     let submitted_bids: Vec<entities::Bid<T>> = winner_bids
                         .into_iter()
                         .zip(tx_hashes)
-                        .filter_map(|(bid, result)| result.as_ref().ok().map(|_| bid))
+                        .filter(|(_, result)| result.is_ok())
+                        .map(|(bid, _)| bid)
                         .collect();
 
                     // Update status for all bids
