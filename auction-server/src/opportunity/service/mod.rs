@@ -273,3 +273,40 @@ impl<T: ChainType> Service<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::AtomicUsize;
+    use crate::{api::ws::WsState, server::setup_metrics_recorder};
+
+    use super::*;
+
+    
+
+    #[tokio::test]
+    async fn test_new() {
+
+        let (broadcast_sender, broadcast_receiver) =
+        tokio::sync::broadcast::channel(100);
+
+        let db = DB::connect_lazy("https://mock_url").unwrap();
+
+        let store = Arc::new(Store {
+            db:               db.clone(),
+            chains_evm:       HashMap::new(),
+            chains_svm:       HashMap::new(),
+            ws:               WsState {
+                subscriber_counter: AtomicUsize::new(0),
+                broadcast_sender,
+                broadcast_receiver,
+            },
+            secret_key:       "mock_secret_key".to_string(),
+            access_tokens:    RwLock::new(HashMap::new()),
+            metrics_recorder:   setup_metrics_recorder().unwrap(),
+        });
+        let config = HashMap::new();
+        let service = Service::<ChainTypeSvm>::new(store, db, config);
+
+        service.add_opportunity(input)
+    }
+}
