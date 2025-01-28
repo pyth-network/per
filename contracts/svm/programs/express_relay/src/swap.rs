@@ -38,7 +38,7 @@ impl<'info> Swap<'info> {
                     },
                     TransferSwapFeeArgs {
                         fees,
-                        from: &self.searcher_ta_searcher,
+                        from: &self.searcher_ta_mint_searcher,
                         authority: &self.searcher,
                     },
                 )
@@ -57,7 +57,7 @@ impl<'info> Swap<'info> {
                     },
                     TransferSwapFeeArgs {
                         fees,
-                        from: &self.user_ata_user,
+                        from: &self.user_ata_mint_user,
                         authority: &self.user,
                     },
                 )

@@ -178,8 +178,8 @@ pub mod express_relay {
 
         // Transfer tokens
         transfer_token_if_needed(
-            &ctx.accounts.searcher_ta_searcher,
-            &ctx.accounts.user_ata_searcher,
+            &ctx.accounts.searcher_ta_mint_searcher,
+            &ctx.accounts.user_ata_mint_searcher,
             &ctx.accounts.token_program_searcher,
             &ctx.accounts.searcher,
             &ctx.accounts.mint_searcher,
@@ -187,8 +187,8 @@ pub mod express_relay {
         )?;
 
         transfer_token_if_needed(
-            &ctx.accounts.user_ata_user,
-            &ctx.accounts.searcher_ta_user,
+            &ctx.accounts.user_ata_mint_user,
+            &ctx.accounts.searcher_ta_mint_user,
             &ctx.accounts.token_program_user,
             &ctx.accounts.user,
             &ctx.accounts.mint_user,
@@ -372,9 +372,9 @@ pub enum FeeToken {
 /// For all swap instructions and contexts, the mint is defined with respect to the party that provides that token in the swap.
 /// So `mint_searcher` refers to the token that the searcher provides in the swap,
 /// and `mint_user` refers to the token that the user provides in the swap.
-/// The `{X}_ta/ata_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap.
-/// For example, `searcher_ta_searcher` is the searcher's token account of the mint the searcher provides in the swap,
-/// and `user_ata_searcher` is the user's token account of the same mint.
+/// The `{X}_ta/ata_mint_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap.
+/// For example, `searcher_ta_mint_searcher` is the searcher's token account of the mint the searcher provides in the swap,
+/// and `user_ata_mint_searcher` is the user's token account of the same mint.
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapArgs {
     // deadline as a unix timestamp in seconds
@@ -403,7 +403,7 @@ pub struct Swap<'info> {
         token::authority = searcher,
         token::token_program = token_program_searcher
     )]
-    pub searcher_ta_searcher: InterfaceAccount<'info, TokenAccount>,
+    pub searcher_ta_mint_searcher: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         mut,
@@ -411,7 +411,7 @@ pub struct Swap<'info> {
         token::authority = searcher,
         token::token_program = token_program_user
     )]
-    pub searcher_ta_user: InterfaceAccount<'info, TokenAccount>,
+    pub searcher_ta_mint_user: InterfaceAccount<'info, TokenAccount>,
 
     // User accounts
     #[account(
@@ -420,7 +420,7 @@ pub struct Swap<'info> {
         associated_token::authority = user,
         associated_token::token_program = token_program_searcher
     )]
-    pub user_ata_searcher: InterfaceAccount<'info, TokenAccount>,
+    pub user_ata_mint_searcher: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         mut,
@@ -428,7 +428,7 @@ pub struct Swap<'info> {
         associated_token::authority = user,
         associated_token::token_program = token_program_user
     )]
-    pub user_ata_user: InterfaceAccount<'info, TokenAccount>,
+    pub user_ata_mint_user: InterfaceAccount<'info, TokenAccount>,
 
     // Fee receivers
     /// Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee

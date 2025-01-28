@@ -340,23 +340,23 @@ impl Svm {
             }
             ApiFeeToken::UserToken => (FeeToken::User, mint_user, user_token_program),
         };
-        // the `{X}_ta/ata_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap
-        let searcher_ta_searcher = get_associated_token_address_with_program_id(
+        // the `{X}_ta/ata_mint_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap
+        let searcher_ta_mint_searcher = get_associated_token_address_with_program_id(
             &params.searcher,
             &mint_searcher,
             &searcher_token_program,
         );
-        let searcher_ta_user = get_associated_token_address_with_program_id(
+        let searcher_ta_mint_user = get_associated_token_address_with_program_id(
             &params.searcher,
             &mint_user,
             &user_token_program,
         );
-        let user_ata_searcher = get_associated_token_address_with_program_id(
+        let user_ata_mint_searcher = get_associated_token_address_with_program_id(
             &swap_data.user,
             &mint_searcher,
             &searcher_token_program,
         );
-        let user_ata_user = get_associated_token_address_with_program_id(
+        let user_ata_mint_user = get_associated_token_address_with_program_id(
             &swap_data.user,
             &mint_user,
             &user_token_program,
@@ -385,10 +385,10 @@ impl Svm {
         let accounts = vec![
             AccountMeta::new_readonly(params.searcher, true),
             AccountMeta::new_readonly(swap_data.user, true),
-            AccountMeta::new(searcher_ta_searcher, false),
-            AccountMeta::new(searcher_ta_user, false),
-            AccountMeta::new(user_ata_searcher, false),
-            AccountMeta::new(user_ata_user, false),
+            AccountMeta::new(searcher_ta_mint_searcher, false),
+            AccountMeta::new(searcher_ta_mint_user, false),
+            AccountMeta::new(user_ata_mint_searcher, false),
+            AccountMeta::new(user_ata_mint_user, false),
             AccountMeta::new(router_fee_receiver_ta, false),
             AccountMeta::new(relayer_fee_receiver_ata, false),
             AccountMeta::new(express_relay_fee_receiver_ata, false),

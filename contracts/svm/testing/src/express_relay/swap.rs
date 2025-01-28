@@ -26,13 +26,13 @@ use {
 };
 
 /// Builds a swap instruction.
-/// If provides two overrides, `user_ata_user_override` and `mint_fee_override`, that may result in an invalid instruction and are meant to be used for testing.
+/// If provides two overrides, `user_ata_mint_user_override` and `mint_fee_override`, that may result in an invalid instruction and are meant to be used for testing.
 #[allow(clippy::too_many_arguments)]
 pub fn create_swap_instruction(
     searcher: Pubkey,
     user: Pubkey,
-    searcher_ta_searcher: Option<Pubkey>,
-    searcher_ta_user: Option<Pubkey>,
+    searcher_ta_mint_searcher: Option<Pubkey>,
+    searcher_ta_mint_user: Option<Pubkey>,
     router_fee_receiver_ta: Pubkey,
     fee_receiver_relayer: Pubkey,
     mint_searcher: Pubkey,
@@ -40,7 +40,7 @@ pub fn create_swap_instruction(
     token_program_searcher: Option<Pubkey>,
     token_program_user: Option<Pubkey>,
     swap_args: SwapArgs,
-    user_ata_user_override: Option<Pubkey>,
+    user_ata_mint_user_override: Option<Pubkey>,
     mint_fee_override: Option<Pubkey>,
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
@@ -60,24 +60,26 @@ pub fn create_swap_instruction(
     let accounts_submit_bid = accounts::Swap {
         searcher,
         user,
-        searcher_ta_searcher: searcher_ta_searcher.unwrap_or(
+        searcher_ta_mint_searcher: searcher_ta_mint_searcher.unwrap_or(
             get_associated_token_address_with_program_id(
                 &searcher,
                 &mint_searcher,
                 &token_program_searcher,
             ),
         ),
-        searcher_ta_user: searcher_ta_user.unwrap_or(get_associated_token_address_with_program_id(
-            &searcher,
-            &mint_user,
-            &token_program_user,
-        )),
-        user_ata_searcher: get_associated_token_address_with_program_id(
+        searcher_ta_mint_user: searcher_ta_mint_user.unwrap_or(
+            get_associated_token_address_with_program_id(
+                &searcher,
+                &mint_user,
+                &token_program_user,
+            ),
+        ),
+        user_ata_mint_searcher: get_associated_token_address_with_program_id(
             &user,
             &mint_searcher,
             &token_program_searcher,
         ),
-        user_ata_user: user_ata_user_override.unwrap_or(
+        user_ata_mint_user: user_ata_mint_user_override.unwrap_or(
             get_associated_token_address_with_program_id(&user, &mint_user, &token_program_user),
         ),
         router_fee_receiver_ta,
@@ -109,13 +111,13 @@ pub fn create_swap_instruction(
 }
 
 /// Builds a set of instructions to perform a swap, including creating the associated token accounts.
-/// If provides two overrides, `user_ata_user_override` and `mint_fee_override`, that may result in invalid instructions and are meant to be used for testing.
+/// If provides two overrides, `user_ata_mint_user_override` and `mint_fee_override`, that may result in invalid instructions and are meant to be used for testing.
 #[allow(clippy::too_many_arguments)]
 pub fn build_swap_instructions(
     searcher: Pubkey,
     user: Pubkey,
-    searcher_ta_searcher: Option<Pubkey>,
-    searcher_ta_user: Option<Pubkey>,
+    searcher_ta_mint_searcher: Option<Pubkey>,
+    searcher_ta_mint_user: Option<Pubkey>,
     router_fee_receiver_ta: Pubkey,
     fee_receiver_relayer: Pubkey,
     mint_searcher: Pubkey,
@@ -123,7 +125,7 @@ pub fn build_swap_instructions(
     token_program_searcher: Option<Pubkey>,
     token_program_user: Option<Pubkey>,
     swap_args: SwapArgs,
-    user_ata_user_override: Option<Pubkey>,
+    user_ata_mint_user_override: Option<Pubkey>,
     mint_fee_override: Option<Pubkey>,
 ) -> Vec<Instruction> {
     let mut instructions: Vec<Instruction> = vec![];
@@ -139,7 +141,7 @@ pub fn build_swap_instructions(
         FeeToken::User => token_program_user,
     };
 
-    if searcher_ta_user.is_none() {
+    if searcher_ta_mint_user.is_none() {
         instructions.push(create_associated_token_account_idempotent(
             &searcher,
             &searcher,
@@ -170,8 +172,8 @@ pub fn build_swap_instructions(
     instructions.push(create_swap_instruction(
         searcher,
         user,
-        searcher_ta_searcher,
-        searcher_ta_user,
+        searcher_ta_mint_searcher,
+        searcher_ta_mint_user,
         router_fee_receiver_ta,
         fee_receiver_relayer,
         mint_searcher,
@@ -179,7 +181,7 @@ pub fn build_swap_instructions(
         Some(token_program_searcher),
         Some(token_program_user),
         swap_args,
-        user_ata_user_override,
+        user_ata_mint_user_override,
         mint_fee_override,
     ));
 

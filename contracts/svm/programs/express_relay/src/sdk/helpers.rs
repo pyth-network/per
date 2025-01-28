@@ -101,8 +101,8 @@ pub fn create_swap_instruction(
     express_relay_pid: Pubkey,
     searcher: Pubkey,
     user: Pubkey,
-    searcher_ta_searcher: Option<Pubkey>,
-    searcher_ta_user: Option<Pubkey>,
+    searcher_ta_mint_searcher: Option<Pubkey>,
+    searcher_ta_mint_user: Option<Pubkey>,
     router_fee_receiver_ta: Pubkey,
     fee_receiver_relayer: Pubkey,
     mint_searcher: Pubkey,
@@ -122,24 +122,26 @@ pub fn create_swap_instruction(
     let accounts_submit_bid = accounts::Swap {
         searcher,
         user,
-        searcher_ta_searcher: searcher_ta_searcher.unwrap_or(
+        searcher_ta_mint_searcher: searcher_ta_mint_searcher.unwrap_or(
             get_associated_token_address_with_program_id(
                 &searcher,
                 &mint_searcher,
                 &token_program_searcher,
             ),
         ),
-        searcher_ta_user: searcher_ta_user.unwrap_or(get_associated_token_address_with_program_id(
-            &searcher,
-            &mint_user,
-            &token_program_user,
-        )),
-        user_ata_searcher: get_associated_token_address_with_program_id(
+        searcher_ta_mint_user: searcher_ta_mint_user.unwrap_or(
+            get_associated_token_address_with_program_id(
+                &searcher,
+                &mint_user,
+                &token_program_user,
+            ),
+        ),
+        user_ata_mint_searcher: get_associated_token_address_with_program_id(
             &user,
             &mint_searcher,
             &token_program_searcher,
         ),
-        user_ata_user: get_associated_token_address_with_program_id(
+        user_ata_mint_user: get_associated_token_address_with_program_id(
             &user,
             &mint_user,
             &token_program_user,

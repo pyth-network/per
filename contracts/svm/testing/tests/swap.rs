@@ -193,13 +193,13 @@ pub struct SwapSetupParams {
 }
 
 pub struct SwapSetupResult {
-    pub svm:                LiteSVM,
-    pub user:               Keypair,
-    pub searcher:           Keypair,
-    pub token_searcher:     Token,
-    pub token_user:         Token,
-    pub router_ta_searcher: Pubkey,
-    pub router_ta_user:     Pubkey,
+    pub svm:                     LiteSVM,
+    pub user:                    Keypair,
+    pub searcher:                Keypair,
+    pub token_searcher:          Token,
+    pub token_user:              Token,
+    pub router_ta_mint_searcher: Pubkey,
+    pub router_ta_mint_user:     Pubkey,
 }
 
 pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
@@ -226,8 +226,8 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
     token_user.airdrop(&mut svm, &user.pubkey(), 10.);
 
     let router = Keypair::new().pubkey();
-    let router_ta_searcher = token_searcher.create_token_account(&mut svm, &router);
-    let router_ta_user = token_user.create_token_account(&mut svm, &router);
+    let router_ta_mint_searcher = token_searcher.create_token_account(&mut svm, &router);
+    let router_ta_mint_user = token_user.create_token_account(&mut svm, &router);
 
     SwapSetupResult {
         svm,
@@ -235,8 +235,8 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
         searcher,
         token_searcher,
         token_user,
-        router_ta_searcher,
-        router_ta_user,
+        router_ta_mint_searcher,
+        router_ta_mint_user,
     }
 }
 
@@ -283,8 +283,8 @@ fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
         searcher,
         token_searcher,
         token_user,
-        router_ta_searcher,
-        router_ta_user,
+        router_ta_mint_searcher,
+        router_ta_mint_user,
     } = setup_swap(args);
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
@@ -312,7 +312,7 @@ fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_ta_searcher,
+        &router_ta_mint_searcher,
         token_searcher.get_amount_with_decimals(0.),
     ));
 
@@ -329,7 +329,7 @@ fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_ta_user,
+        &router_ta_mint_user,
         token_user.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
@@ -356,7 +356,7 @@ fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
         user.pubkey(),
         None,
         None,
-        router_ta_searcher,
+        router_ta_mint_searcher,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
@@ -391,7 +391,7 @@ fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_ta_searcher,
+        &router_ta_mint_searcher,
         token_searcher.get_amount_with_decimals(0.3),
     ));
 
@@ -418,7 +418,7 @@ fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_ta_user,
+        &router_ta_mint_user,
         token_user.get_amount_with_decimals(0.),
     ));
 }
@@ -430,8 +430,8 @@ fn test_swap_fee_mint_user(args: SwapSetupParams) {
         searcher,
         token_searcher,
         token_user,
-        router_ta_searcher,
-        router_ta_user,
+        router_ta_mint_searcher,
+        router_ta_mint_user,
     } = setup_swap(args);
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
@@ -459,7 +459,7 @@ fn test_swap_fee_mint_user(args: SwapSetupParams) {
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_ta_searcher,
+        &router_ta_mint_searcher,
         token_searcher.get_amount_with_decimals(0.),
     ));
 
@@ -476,7 +476,7 @@ fn test_swap_fee_mint_user(args: SwapSetupParams) {
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_ta_user,
+        &router_ta_mint_user,
         token_user.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
@@ -503,7 +503,7 @@ fn test_swap_fee_mint_user(args: SwapSetupParams) {
         user.pubkey(),
         None,
         None,
-        router_ta_user,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
@@ -538,7 +538,7 @@ fn test_swap_fee_mint_user(args: SwapSetupParams) {
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_ta_searcher,
+        &router_ta_mint_searcher,
         token_searcher.get_amount_with_decimals(0.),
     ));
 
@@ -565,7 +565,7 @@ fn test_swap_fee_mint_user(args: SwapSetupParams) {
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_ta_user,
+        &router_ta_mint_user,
         token_user.get_amount_with_decimals(0.15),
     ));
 }
@@ -578,7 +578,7 @@ fn test_swap_expired_deadline() {
         searcher,
         token_searcher,
         token_user,
-        router_ta_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -604,7 +604,7 @@ fn test_swap_expired_deadline() {
         user.pubkey(),
         None,
         None,
-        router_ta_user,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
@@ -631,7 +631,7 @@ fn test_swap_invalid_referral_fee_bps() {
         searcher,
         token_searcher,
         token_user,
-        router_ta_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -656,7 +656,7 @@ fn test_swap_invalid_referral_fee_bps() {
         user.pubkey(),
         None,
         None,
-        router_ta_user,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
@@ -683,7 +683,7 @@ fn test_swap_fee_calculation_overflow() {
         searcher,
         token_searcher,
         token_user,
-        router_ta_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        5000, // <--- high platform fee bps
@@ -708,7 +708,7 @@ fn test_swap_fee_calculation_overflow() {
         user.pubkey(),
         None,
         None,
-        router_ta_user,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
@@ -731,7 +731,7 @@ fn test_swap_router_ta_has_wrong_mint() {
         searcher,
         token_searcher,
         token_user,
-        router_ta_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -756,7 +756,7 @@ fn test_swap_router_ta_has_wrong_mint() {
         user.pubkey(),
         None,
         None,
-        router_ta_user, // <--- router should receive the searcher token
+        router_ta_mint_user, // <--- router should receive the searcher token
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
@@ -776,14 +776,14 @@ fn test_swap_router_ta_has_wrong_mint() {
 }
 
 #[test]
-fn test_swap_searcher_ta_wrong_mint() {
+fn test_swap_searcher_ta_has_wrong_mint() {
     let SwapSetupResult {
         mut svm,
         user,
         searcher,
         token_searcher,
         token_user,
-        router_ta_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -811,7 +811,7 @@ fn test_swap_searcher_ta_wrong_mint() {
         user.pubkey(),
         Some(third_token.get_associated_token_address(&searcher.pubkey())), // <--- searcher ta (supposed to be of mint_searcher) has the wrong mint
         None,
-        router_ta_user,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
@@ -838,7 +838,7 @@ fn test_swap_searcher_ta_wrong_owner() {
         searcher,
         token_searcher,
         token_user,
-        router_ta_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -863,7 +863,7 @@ fn test_swap_searcher_ta_wrong_owner() {
         user.pubkey(),
         Some(token_searcher.get_associated_token_address(&user.pubkey())), // <--- searcher ta (supposed to be of mint_searcher) has the wrong owner
         None,
-        router_ta_user,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
@@ -890,7 +890,7 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         searcher,
         token_searcher,
         token_user,
-        router_ta_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -913,7 +913,7 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         user.pubkey(),
         None,
         None,
-        router_ta_user,
+        router_ta_mint_user,
         Keypair::new().pubkey(), // <--- wrong express relay fee receiver
         token_searcher.mint,
         token_user.mint,
@@ -933,14 +933,14 @@ fn test_swap_wrong_express_relay_fee_receiver() {
 }
 
 #[test]
-fn test_swap_user_ata_user_is_not_ata() {
+fn test_swap_user_ata_mint_user_is_not_ata() {
     let SwapSetupResult {
         mut svm,
         user,
         searcher,
         token_searcher,
         token_user,
-        router_ta_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -951,7 +951,7 @@ fn test_swap_user_ata_user_is_not_ata() {
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
-    let user_ata_user = token_user.create_token_account(&mut svm, &user.pubkey());
+    let user_ata_mint_user = token_user.create_token_account(&mut svm, &user.pubkey());
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
@@ -966,14 +966,14 @@ fn test_swap_user_ata_user_is_not_ata() {
         user.pubkey(),
         None,
         None,
-        router_ta_user,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
         Some(token_searcher.token_program),
         Some(token_user.token_program),
         swap_args,
-        Some(user_ata_user), // <--- user ata (of mint_user) is not an ata
+        Some(user_ata_mint_user), // <--- user ata (of mint_user) is not an ata
         None,
     );
     let result =
@@ -993,7 +993,7 @@ fn test_swap_wrong_mint_fee() {
         searcher,
         token_searcher,
         token_user,
-        router_ta_searcher,
+        router_ta_mint_searcher,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -1018,7 +1018,7 @@ fn test_swap_wrong_mint_fee() {
         user.pubkey(),
         None,
         None,
-        router_ta_searcher,
+        router_ta_mint_searcher,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
