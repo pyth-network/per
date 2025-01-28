@@ -356,6 +356,8 @@ pub enum Route {
     GetBidsByTime,
     #[strum(serialize = ":bid_id")]
     GetBidStatus,
+    #[strum(serialize = "submit")]
+    PostSubmitQuote,
 }
 
 #[derive(Clone)]
@@ -367,19 +369,18 @@ pub enum DeprecatedRoute {
 
 impl Routable for Route {
     fn properties(&self) -> crate::RouteProperties {
-        let full_path = format!(
-            "{}{}{}",
-            crate::Route::V1.as_ref(),
-            crate::Route::Bid.as_ref(),
-            self.as_ref()
-        )
-        .trim_end_matches('/')
-        .to_string();
+        let prefix = match self {
+            Route::PostSubmitQuote => crate::Route::Quote.as_ref(),
+            _ => crate::Route::Bid.as_ref(),
+        };
+        let full_path = format!("{}{}{}", crate::Route::V1.as_ref(), prefix, self.as_ref())
+            .trim_end_matches('/')
+            .to_string();
 
         let full_path_with_chain = format!(
             "{}{}{}",
             crate::Route::V1Chain.as_ref(),
-            crate::Route::Bid.as_ref(),
+            prefix,
             self.as_ref()
         )
         .trim_end_matches('/')
@@ -398,6 +399,11 @@ impl Routable for Route {
             },
             Route::GetBidStatus => crate::RouteProperties {
                 method:       http::Method::GET,
+                access_level: AccessLevel::Public,
+                full_path:    full_path_with_chain,
+            },
+            Route::PostSubmitQuote => crate::RouteProperties {
+                method:       http::Method::POST,
                 access_level: AccessLevel::Public,
                 full_path:    full_path_with_chain,
             },

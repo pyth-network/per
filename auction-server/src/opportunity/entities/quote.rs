@@ -1,7 +1,10 @@
 use {
     super::token_amount_svm::TokenAmountSvm,
     crate::kernel::entities::ChainId,
-    express_relay_api_types::opportunity as api,
+    express_relay_api_types::{
+        bid::BidId,
+        opportunity as api,
+    },
     serde::{
         Deserialize,
         Serialize,
@@ -22,6 +25,7 @@ pub struct Quote {
     pub referrer_fee:    TokenAmountSvm,
     pub platform_fee:    TokenAmountSvm,
     pub chain_id:        ChainId,
+    pub reference_id:    BidId,
 }
 
 #[derive(Debug, Clone, PartialEq)]

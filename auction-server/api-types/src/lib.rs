@@ -26,6 +26,7 @@ use {
 pub mod bid;
 pub mod opportunity;
 pub mod profile;
+pub mod quote;
 pub mod serde;
 pub mod ws;
 
@@ -83,6 +84,8 @@ pub enum Route {
     Bid,
     #[strum(serialize = "opportunities")]
     Opportunity,
+    #[strum(serialize = "quotes")]
+    Quote,
     #[strum(serialize = "profiles")]
     Profile,
     #[strum(serialize = "")]
