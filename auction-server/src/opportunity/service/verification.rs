@@ -287,3 +287,18 @@ impl Verification<ChainTypeSvm> for Service<ChainTypeSvm> {
         Ok(entities::OpportunityVerificationResult::UnableToSpoof)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::opportunity::service::MockChainType;
+    use super::*;
+    
+    impl Verification<MockChainType> for Service<MockChainType> {
+        async fn verify_opportunity(
+            &self,
+            _: VerifyOpportunityInput<entities::test::MockOpportunityCreate>,
+        ) -> Result<entities::OpportunityVerificationResult, RestError> {
+            Ok(entities::OpportunityVerificationResult::UnableToSpoof)
+        }
+    }
+}

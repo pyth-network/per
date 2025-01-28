@@ -85,6 +85,8 @@ where
             e
         })?;
 
+        println!("action: {:?}", action);
+
         let opportunity = if let OpportunityAction::Refresh(opp) = action {
             self.repo.refresh_in_memory_opportunity(opp.clone()).await
         } else {
@@ -98,7 +100,7 @@ where
             .broadcast_sender
             .send(NewOpportunity(opportunity.clone().into()))
             .map_err(|e| {
-                tracing::error!(
+                println!(
                     "Failed to send update: {} - opportunity: {:?}",
                     e,
                     opportunity
@@ -116,5 +118,71 @@ where
         );
 
         Ok(opportunity)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::{collections::HashMap, sync::{atomic::AtomicUsize, Arc}};
+
+    use ethers::types::Bytes;
+    use time::OffsetDateTime;
+    use tokio::sync::RwLock;
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::{api::ws::WsState, kernel::db::DB, opportunity::{entities::{MockOpportunity, OpportunityCoreFields}, repository::{self, test::MockInMemoryStore, InMemoryStoreCoreFields, MockOpportunityMetadata}, service::MockChainType}, server::setup_metrics_recorder, state::Store};
+
+    #[tokio::test]
+    async fn test_add_opportunity() {
+        let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
+
+        let db = DB::connect_lazy("https://mock_url").unwrap();
+
+        let store = Arc::new(Store {
+            db:               db.clone(),
+            chains_evm:       HashMap::new(),
+            chains_svm:       HashMap::new(),
+            ws:               WsState {
+                subscriber_counter: AtomicUsize::new(0),
+                broadcast_sender,
+                broadcast_receiver,
+            },
+            secret_key:       "mock_secret_key".to_string(),
+            access_tokens:    RwLock::new(HashMap::new()),
+            metrics_recorder: setup_metrics_recorder().unwrap(),
+        });
+        let config = HashMap::new();
+
+        let mut in_memory_store = MockInMemoryStore::default();
+        in_memory_store.expect_deref().return_const(InMemoryStoreCoreFields::new());
+
+        let opportunity_context = MockOpportunity::new_with_current_time_context();
+        opportunity_context.expect().returning(|_| {
+            let mut opportunity = MockOpportunity::default();
+            opportunity.expect_get_models_metadata().return_const(MockOpportunityMetadata::default());
+            opportunity.expect_deref().return_const(OpportunityCoreFields {
+                id: Uuid::new_v4(),
+                permission_key: Bytes::default(),
+                chain_id: "".to_string(),
+                sell_tokens: vec![],
+                buy_tokens: vec![],
+                creation_time: OffsetDateTime::now_utc(),
+                refresh_time: OffsetDateTime::now_utc(),
+            });
+            opportunity
+        });
+
+        let service = Service::<MockChainType> {
+            store,
+            db,
+            repo: Arc::new(repository::Repository { in_memory_store: in_memory_store }),
+            config,
+        };
+
+        let input = AddOpportunityInput {
+            opportunity: entities::test::MockOpportunityCreate {},
+        };
+        service.add_opportunity(input).await.unwrap();
     }
 }

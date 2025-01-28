@@ -130,7 +130,7 @@ pub struct Opportunity<T: OpportunityMetadata> {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    #[derive(Clone, Debug, Serialize, Deserialize)]
+    #[derive(Clone, Debug, Serialize, Deserialize, Default)]
     pub struct MockOpportunityMetadata {}
 
     impl OpportunityMetadata for MockOpportunityMetadata {

@@ -231,7 +231,7 @@ impl ConfigSvm {
     }
 }
 
-// #[cfg_attr(test, automock(type Config = MockConfig; type InMemoryStore = MockInMemoryStore;))]
+#[cfg_attr(test, automock(type Config = MockConfig; type InMemoryStore = MockInMemoryStore;))]
 pub trait ChainType: Send + Sync {
     type Config: Config;
     type InMemoryStore: InMemoryStore;
@@ -291,27 +291,28 @@ mod tests {
         std::sync::atomic::AtomicUsize,
     };
 
+        impl Service<MockChainType> {
+            pub fn new_test() -> Self {
+                let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
 
-    #[tokio::test]
-    async fn test_new() {
-        let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
-
-        let db = DB::connect_lazy("https://mock_url").unwrap();
-
-        let store = Arc::new(Store {
-            db:               db.clone(),
-            chains_evm:       HashMap::new(),
-            chains_svm:       HashMap::new(),
-            ws:               WsState {
-                subscriber_counter: AtomicUsize::new(0),
-                broadcast_sender,
-                broadcast_receiver,
-            },
-            secret_key:       "mock_secret_key".to_string(),
-            access_tokens:    RwLock::new(HashMap::new()),
-            metrics_recorder: setup_metrics_recorder().unwrap(),
-        });
-        let config = HashMap::new();
-        let service = Service::<ChainTypeSvm>::new(store, db, config);
+                let db = DB::connect_lazy("https://mock_url").unwrap();
+        
+                let store = Arc::new(Store {
+                    db:               db.clone(),
+                    chains_evm:       HashMap::new(),
+                    chains_svm:       HashMap::new(),
+                    ws:               WsState {
+                        subscriber_counter: AtomicUsize::new(0),
+                        broadcast_sender,
+                        broadcast_receiver,
+                    },
+                    secret_key:       "mock_secret_key".to_string(),
+                    access_tokens:    RwLock::new(HashMap::new()),
+                    metrics_recorder: setup_metrics_recorder().unwrap(),
+                });
+                let config = HashMap::new();
+                Self::new(store, db, config)
+        }
     }
+
 }
