@@ -417,10 +417,6 @@ impl AuctionManager<Svm> for Service<Svm> {
         _permission_key: entities::PermissionKey<Svm>,
         bids: Vec<entities::Bid<Svm>>,
     ) -> Result<Vec<Result<entities::TxHash<Svm>>>> {
-        if bids.is_empty() {
-            return Err(anyhow::anyhow!("No bids to submit"));
-        }
-
         let send_futures: Vec<_> = bids
             .into_iter()
             .map(|mut bid| {
