@@ -2,7 +2,7 @@
   "address": "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou",
   "metadata": {
     "name": "express_relay",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "spec": "0.1.0",
     "description": "Pyth Express Relay program for handling permissioning and bid distribution",
     "repository": "https://github.com/pyth-network/per"
@@ -370,42 +370,38 @@
       "accounts": [
         {
           "name": "searcher",
-          "docs": [
-            "Searcher is the party that sends the input token and receives the output token"
-          ],
+          "docs": ["Searcher is the party that fulfills the quote request"],
           "signer": true
         },
         {
-          "name": "trader",
-          "docs": [
-            "Trader is the party that sends the output token and receives the input token"
-          ],
+          "name": "user",
+          "docs": ["User is the party that requests the quote"],
           "signer": true
         },
         {
-          "name": "searcher_input_ta",
+          "name": "searcher_ta_mint_searcher",
           "writable": true
         },
         {
-          "name": "searcher_output_ta",
+          "name": "searcher_ta_mint_user",
           "writable": true
         },
         {
-          "name": "trader_input_ata",
+          "name": "user_ata_mint_searcher",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "trader"
+                "path": "user"
               },
               {
                 "kind": "account",
-                "path": "token_program_input"
+                "path": "token_program_searcher"
               },
               {
                 "kind": "account",
-                "path": "mint_input"
+                "path": "mint_searcher"
               }
             ],
             "program": {
@@ -419,21 +415,21 @@
           }
         },
         {
-          "name": "trader_output_ata",
+          "name": "user_ata_mint_user",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "trader"
+                "path": "user"
               },
               {
                 "kind": "account",
-                "path": "token_program_output"
+                "path": "token_program_user"
               },
               {
                 "kind": "account",
-                "path": "mint_output"
+                "path": "mint_user"
               }
             ],
             "program": {
@@ -511,19 +507,19 @@
           }
         },
         {
-          "name": "mint_input"
+          "name": "mint_searcher"
         },
         {
-          "name": "mint_output"
+          "name": "mint_user"
         },
         {
           "name": "mint_fee"
         },
         {
-          "name": "token_program_input"
+          "name": "token_program_searcher"
         },
         {
-          "name": "token_program_output"
+          "name": "token_program_user"
         },
         {
           "name": "token_program_fee"
@@ -634,21 +630,6 @@
     },
     {
       "code": 6008,
-      "name": "InvalidAta",
-      "msg": "Invalid ATA provided"
-    },
-    {
-      "code": 6009,
-      "name": "InvalidMint",
-      "msg": "A token account has the wrong mint"
-    },
-    {
-      "code": 6010,
-      "name": "InvalidTokenProgram",
-      "msg": "A token account belongs to the wrong token program"
-    },
-    {
-      "code": 6011,
       "name": "InvalidReferralFee",
       "msg": "Invalid referral fee"
     }
@@ -708,10 +689,10 @@
         "kind": "enum",
         "variants": [
           {
-            "name": "Input"
+            "name": "Searcher"
           },
           {
-            "name": "Output"
+            "name": "User"
           }
         ]
       }
@@ -791,10 +772,12 @@
     {
       "name": "SwapArgs",
       "docs": [
-        "For all swap instructions and contexts, input and output are defined with respect to the searcher",
-        "So `mint_input` refers to the token that the searcher provides to the trader and",
-        "`mint_output` refers to the token that the searcher receives from the trader",
-        "This choice is made to minimize confusion for the searchers, who are more likely to parse the program"
+        "For all swap instructions and contexts, the mint is defined with respect to the party that provides that token in the swap.",
+        "So `mint_searcher` refers to the token that the searcher provides in the swap,",
+        "and `mint_user` refers to the token that the user provides in the swap.",
+        "The `{X}_ta/ata_mint_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap.",
+        "For example, `searcher_ta_mint_searcher` is the searcher's token account of the mint the searcher provides in the swap,",
+        "and `user_ata_mint_searcher` is the user's token account of the same mint."
       ],
       "type": {
         "kind": "struct",
@@ -804,11 +787,11 @@
             "type": "i64"
           },
           {
-            "name": "amount_input",
+            "name": "amount_searcher",
             "type": "u64"
           },
           {
-            "name": "amount_output",
+            "name": "amount_user",
             "type": "u64"
           },
           {
