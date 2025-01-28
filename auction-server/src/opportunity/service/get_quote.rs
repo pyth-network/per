@@ -214,8 +214,31 @@ impl Service<ChainTypeSvm> {
         }
         .to_bytes()
         .into();
+        // this uses the fee-adjusted token amounts to correctly calculate the permission account
+        let tokens_for_permission = match quote_create.tokens {
+            entities::QuoteTokens::UserTokenSpecified {
+                user_token,
+                searcher_token,
+            } => entities::QuoteTokens::UserTokenSpecified {
+                user_token: TokenAmountSvm {
+                    token:  user_token.token,
+                    amount: user_amount,
+                },
+                searcher_token,
+            },
+            entities::QuoteTokens::SearcherTokenSpecified {
+                user_token,
+                searcher_token,
+            } => entities::QuoteTokens::SearcherTokenSpecified {
+                user_token,
+                searcher_token: TokenAmountSvm {
+                    token:  searcher_token.token,
+                    amount: searcher_amount,
+                },
+            },
+        };
         let permission_account = get_quote_virtual_permission_account(
-            &quote_create.tokens,
+            &tokens_for_permission,
             &quote_create.user_wallet_address,
             &router_token_account,
             referral_fee_info.referral_fee_bps,
