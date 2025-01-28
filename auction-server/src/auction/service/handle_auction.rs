@@ -72,30 +72,37 @@ where
             .submit_bids(permission_key.clone(), winner_bids.clone())
             .await
         {
+
             Ok(tx_hashes) => {
                 // If at least one tx is submitted successfully, we submit the auction.
-                let tx_hash = tx_hashes.iter().find(|res| res.is_ok());
-                if let Some(Ok(tx_hash)) = tx_hash {
-                    tracing::debug!("Submitted transaction: {:?}", tx_hash);
-                    let auction = self.repo.submit_auction(auction, tx_hash.clone()).await?;
+                let auction_tx_hash = {
+                    let tx_hash = tx_hashes.iter().find(|res| res.is_ok());
+                    if let Some(Ok(tx_hash)) = tx_hash {
+                        Some(tx_hash.clone())
+                    }
+                    else {
+                        None
+                    }
+                };
+
+                if let Some(auction_tx_hash) = auction_tx_hash {
+                    tracing::debug!("Submitted transaction: {:?}", auction_tx_hash);
+                    let auction = self.repo.submit_auction(auction, auction_tx_hash.clone()).await?;
 
                     // Now we update the status for the actually submitted bids
+                    let submitted_bids : Vec<entities::Bid<T>> = winner_bids.into_iter().zip(tx_hashes.into_iter()).filter_map(|(bid, tx_hash)| tx_hash.map(|_| bid).ok()).collect();
                     join_all(
                         auction
                             .bids
                             .into_iter()
-                            .zip(tx_hashes.into_iter())
-                            .filter_map(|(bid, tx_hash)| {
-                                tx_hash.map_or_else(|_| None, |tx_hash| Some((bid, tx_hash)))
-                            })
-                            .map(|(bid, tx_hash)| {
+                            .map(|bid| {
                                 self.update_bid_status(UpdateBidStatusInput {
                                     new_status: Service::get_new_status(
                                         &bid,
-                                        &winner_bids,
+                                        &submitted_bids,
                                         entities::BidStatusAuction {
-                                            tx_hash,
-                                            id: auction.id,
+                                            tx_hash: auction_tx_hash.clone(),
+                                            id:      auction.id,
                                         },
                                     ),
                                     bid:        bid.clone(),
