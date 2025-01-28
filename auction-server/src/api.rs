@@ -366,6 +366,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::opportunity::OpportunityDeleteV1Evm,
     api_types::opportunity::ProgramSvm,
     api_types::opportunity::FeeToken,
+    api_types::opportunity::ReferralFeeInfo,
 
     ErrorBodyResponse,
     api_types::ws::ClientRequest,
