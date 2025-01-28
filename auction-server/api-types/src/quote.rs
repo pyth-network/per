@@ -20,7 +20,7 @@ use {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct SubmitQuote {
     /// The reference id for the quote that should be submitted.
-    #[schema(example = "1", value_type = u64)]
+    #[schema(example = "beedbeed-58cc-4372-a567-0e02b2c3d479", value_type=String)]
     pub reference_id:   BidId,
     /// The signature of the user for the quote.
     #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
