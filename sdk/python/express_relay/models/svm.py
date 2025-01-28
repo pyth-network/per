@@ -264,14 +264,12 @@ class BaseOpportunitySvm(BaseModel):
         version: The version of the opportunity.
         creation_time: The creation time of the opportunity.
         opportunity_id: The ID of the opportunity.
-        slot: The slot where this order was created or updated
     """
 
     chain_id: str
     version: str
     creation_time: IntString
     opportunity_id: UUIDString
-    slot: int
 
     supported_versions: ClassVar[list[str]] = ["v1"]
 
@@ -291,11 +289,13 @@ class LimoOpportunitySvm(BaseOpportunitySvm):
         program: The program which handles this opportunity
         order: The order to be executed.
         order_address: The address of the order.
+        slot: The slot where this order was created or updated
     """
 
     program: Literal["limo"]
     order: Annotated[Order, _OrderPydanticAnnotation]
     order_address: SvmAddress
+    slot: int
 
 
 class TokenAmountSvm(BaseModel):
@@ -312,27 +312,27 @@ class TokenAmountSvm(BaseModel):
 class SwapTokensBase(BaseModel):
     """
     Attributes:
-        input_token_program: The token program address for the input token.
-        output_token_program: The token program address for the output token.
+        searcher_token_program: The token program address for the searcher token.
+        user_token_program: The token program address for the user token.
     """
 
-    input_token_program: SvmAddress
-    output_token_program: SvmAddress
+    searcher_token_program: SvmAddress
+    user_token_program: SvmAddress
 
 
-class SwapTokensInputSpecified(SwapTokensBase):
-    side_specified: Literal["input"]
-    input_token: SvmAddress
-    input_amount: int
-    output_token: SvmAddress
+class SwapTokensSearcherSpecified(SwapTokensBase):
+    side_specified: Literal["searcher"]
+    searcher_token: SvmAddress
+    searcher_amount: int
+    user_token: SvmAddress
 
 
-class SwapTokensOutputSpecified(SwapTokensBase):
-    side_specified: Literal["output"]
-    input_token: SvmAddress
-    output_token: SvmAddress
-    output_amount: int
-    output_amount_before_fees: int
+class SwapTokensUserSpecified(SwapTokensBase):
+    side_specified: Literal["user"]
+    searcher_token: SvmAddress
+    user_token: SvmAddress
+    user_amount: int
+    user_amount_before_fees: int
 
 
 class SwapOpportunitySvm(BaseOpportunitySvm):
@@ -344,12 +344,12 @@ class SwapOpportunitySvm(BaseOpportunitySvm):
     program: Literal["swap"]
     permission_account: SvmAddress
 
-    fee_token: Literal["input_token", "output_token"]
+    fee_token: Literal["searcher_token", "user_token"]
     referral_fee_bps: int
     platform_fee_bps: int
     router_account: SvmAddress
     user_wallet_address: SvmAddress
-    tokens: SwapTokensInputSpecified | SwapTokensOutputSpecified
+    tokens: SwapTokensSearcherSpecified | SwapTokensUserSpecified
 
 
 OpportunitySvm = SwapOpportunitySvm | LimoOpportunitySvm

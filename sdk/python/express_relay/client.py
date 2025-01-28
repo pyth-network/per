@@ -112,11 +112,11 @@ class ExpressRelayClientException(Exception):
 
 
 class SwapAccounts(TypedDict):
-    input_token: Pubkey
-    input_token_program: Pubkey
-    output_token_program: Pubkey
-    output_token: Pubkey
-    trader: Pubkey
+    searcher_token: Pubkey
+    searcher_token_program: Pubkey
+    user_token_program: Pubkey
+    user_token: Pubkey
+    user: Pubkey
     mint_fee: Pubkey
     fee_token_program: Pubkey
     router: Pubkey
@@ -543,24 +543,24 @@ class ExpressRelayClient:
 
     @staticmethod
     def extract_swap_info(swap_opportunity: SwapOpportunitySvm) -> SwapAccounts:
-        input_token_program = swap_opportunity.tokens.input_token_program
-        output_token_program = swap_opportunity.tokens.output_token_program
-        input_token = swap_opportunity.tokens.input_token
-        output_token = swap_opportunity.tokens.output_token
-        trader = swap_opportunity.user_wallet_address
+        searcher_token_program = swap_opportunity.tokens.searcher_token_program
+        user_token_program = swap_opportunity.tokens.user_token_program
+        searcher_token = swap_opportunity.tokens.searcher_token
+        user_token = swap_opportunity.tokens.user_token
+        user = swap_opportunity.user_wallet_address
         mint_fee, fee_token_program = (
-            (input_token, input_token_program)
-            if swap_opportunity.fee_token == "input_token"
-            else (output_token, output_token_program)
+            (searcher_token, searcher_token_program)
+            if swap_opportunity.fee_token == "searcher_token"
+            else (user_token, user_token_program)
         )
         router = swap_opportunity.router_account
 
         return {
-            "input_token": input_token,
-            "input_token_program": input_token_program,
-            "output_token_program": output_token_program,
-            "output_token": output_token,
-            "trader": trader,
+            "searcher_token": searcher_token,
+            "searcher_token_program": searcher_token_program,
+            "user_token_program": user_token_program,
+            "user_token": user_token,
+            "user": user,
             "mint_fee": mint_fee,
             "fee_token_program": fee_token_program,
             "router": router,
@@ -580,8 +580,8 @@ class ExpressRelayClient:
         svm_config = SVM_CONFIGS[chain_id]
         program_id = svm_config["express_relay_program"]
         if (
-            swap_opportunity.tokens.side_specified == "input"
-            and swap_opportunity.fee_token == "output_token"
+            swap_opportunity.tokens.side_specified == "searcher"
+            and swap_opportunity.fee_token == "user_token"
         ):
             # scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
             denominator = FEE_SPLIT_PRECISION - (
@@ -592,18 +592,18 @@ class ExpressRelayClient:
             bid_amount = (numerator + (denominator - 1)) // denominator
         express_relay_metadata = LimoClient.get_express_relay_metadata_pda(program_id)
         fee_token = (
-            swap_fee_token.Input()
-            if swap_opportunity.fee_token == "input_token"
-            else swap_fee_token.Output()
+            swap_fee_token.Searcher()
+            if swap_opportunity.fee_token == "searcher_token"
+            else swap_fee_token.User()
         )
-        amount_input = (
-            swap_opportunity.tokens.input_amount
-            if swap_opportunity.tokens.side_specified == "input"
+        amount_searcher = (
+            swap_opportunity.tokens.searcher_amount
+            if swap_opportunity.tokens.side_specified == "searcher"
             else bid_amount
         )
-        amount_output = (
-            swap_opportunity.tokens.output_amount_before_fees
-            if swap_opportunity.tokens.side_specified == "output"
+        amount_user = (
+            swap_opportunity.tokens.user_amount_before_fees
+            if swap_opportunity.tokens.side_specified == "user"
             else bid_amount
         )
         accs = ExpressRelayClient.extract_swap_info(swap_opportunity)
@@ -622,9 +622,9 @@ class ExpressRelayClient:
                 "program": accs["fee_token_program"],
             },
             {
-                "owner": accs["trader"],
-                "mint": accs["output_token"],
-                "program": accs["output_token_program"],
+                "owner": accs["user"],
+                "mint": accs["user_token"],
+                "program": accs["user_token_program"],
             },
         ]
         if swap_opportunity.referral_fee_bps > 0:
@@ -650,30 +650,30 @@ class ExpressRelayClient:
             {
                 "data": SwapArgs(
                     deadline=deadline,
-                    amount_input=amount_input,
-                    amount_output=amount_output,
+                    amount_searcher=amount_searcher,
+                    amount_user=amount_user,
                     fee_token=fee_token,
                     referral_fee_bps=swap_opportunity.referral_fee_bps,
                 )
             },
             {
                 "searcher": searcher,
-                "trader": swap_opportunity.user_wallet_address,
-                "searcher_input_ta": get_ata(
-                    searcher, accs["input_token"], accs["input_token_program"]
+                "user": swap_opportunity.user_wallet_address,
+                "searcher_ta_mint_searcher": get_ata(
+                    searcher, accs["searcher_token"], accs["searcher_token_program"]
                 ),
-                "searcher_output_ta": get_ata(
-                    searcher, accs["output_token"], accs["output_token_program"]
+                "searcher_ta_mint_user": get_ata(
+                    searcher, accs["user_token"], accs["user_token_program"]
                 ),
-                "trader_input_ata": get_ata(
+                "user_ata_mint_searcher": get_ata(
                     swap_opportunity.user_wallet_address,
-                    accs["input_token"],
-                    accs["input_token_program"],
+                    accs["searcher_token"],
+                    accs["searcher_token_program"],
                 ),
-                "trader_output_ata": get_ata(
+                "user_ata_mint_user": get_ata(
                     swap_opportunity.user_wallet_address,
-                    accs["output_token"],
-                    accs["output_token_program"],
+                    accs["user_token"],
+                    accs["user_token_program"],
                 ),
                 "router_fee_receiver_ta": get_ata(
                     accs["router"], accs["mint_fee"], accs["fee_token_program"]
@@ -684,11 +684,11 @@ class ExpressRelayClient:
                 "express_relay_fee_receiver_ata": get_ata(
                     express_relay_metadata, accs["mint_fee"], accs["fee_token_program"]
                 ),
-                "mint_input": accs["input_token"],
-                "mint_output": accs["output_token"],
+                "mint_searcher": accs["searcher_token"],
+                "mint_user": accs["user_token"],
                 "mint_fee": accs["mint_fee"],
-                "token_program_input": accs["input_token_program"],
-                "token_program_output": accs["output_token_program"],
+                "token_program_searcher": accs["searcher_token_program"],
+                "token_program_user": accs["user_token_program"],
                 "token_program_fee": accs["fee_token_program"],
                 "express_relay_metadata": express_relay_metadata,
             },

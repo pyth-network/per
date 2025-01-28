@@ -5,71 +5,71 @@ from anchorpy.borsh_extension import EnumForCodegen
 import borsh_construct as borsh
 
 
-class InputJSON(typing.TypedDict):
-    kind: typing.Literal["Input"]
+class SearcherJSON(typing.TypedDict):
+    kind: typing.Literal["Searcher"]
 
 
-class OutputJSON(typing.TypedDict):
-    kind: typing.Literal["Output"]
+class UserJSON(typing.TypedDict):
+    kind: typing.Literal["User"]
 
 
 @dataclass
-class Input:
+class Searcher:
     discriminator: typing.ClassVar = 0
-    kind: typing.ClassVar = "Input"
+    kind: typing.ClassVar = "Searcher"
 
     @classmethod
-    def to_json(cls) -> InputJSON:
-        return InputJSON(
-            kind="Input",
+    def to_json(cls) -> SearcherJSON:
+        return SearcherJSON(
+            kind="Searcher",
         )
 
     @classmethod
     def to_encodable(cls) -> dict:
         return {
-            "Input": {},
+            "Searcher": {},
         }
 
 
 @dataclass
-class Output:
+class User:
     discriminator: typing.ClassVar = 1
-    kind: typing.ClassVar = "Output"
+    kind: typing.ClassVar = "User"
 
     @classmethod
-    def to_json(cls) -> OutputJSON:
-        return OutputJSON(
-            kind="Output",
+    def to_json(cls) -> UserJSON:
+        return UserJSON(
+            kind="User",
         )
 
     @classmethod
     def to_encodable(cls) -> dict:
         return {
-            "Output": {},
+            "User": {},
         }
 
 
-FeeTokenKind = typing.Union[Input, Output]
-FeeTokenJSON = typing.Union[InputJSON, OutputJSON]
+FeeTokenKind = typing.Union[Searcher, User]
+FeeTokenJSON = typing.Union[SearcherJSON, UserJSON]
 
 
 def from_decoded(obj: dict) -> FeeTokenKind:
     if not isinstance(obj, dict):
         raise ValueError("Invalid enum object")
-    if "Input" in obj:
-        return Input()
-    if "Output" in obj:
-        return Output()
+    if "Searcher" in obj:
+        return Searcher()
+    if "User" in obj:
+        return User()
     raise ValueError("Invalid enum object")
 
 
 def from_json(obj: FeeTokenJSON) -> FeeTokenKind:
-    if obj["kind"] == "Input":
-        return Input()
-    if obj["kind"] == "Output":
-        return Output()
+    if obj["kind"] == "Searcher":
+        return Searcher()
+    if obj["kind"] == "User":
+        return User()
     kind = obj["kind"]
     raise ValueError(f"Unrecognized enum kind: {kind}")
 
 
-layout = EnumForCodegen("Input" / borsh.CStruct(), "Output" / borsh.CStruct())
+layout = EnumForCodegen("Searcher" / borsh.CStruct(), "User" / borsh.CStruct())
