@@ -128,7 +128,7 @@ export type OpportunitySvmLimo = {
 export type SvmSwapTokens = (
   | {
       userAmount: bigint;
-      userTokenAmountBeforeFees: bigint;
+      userTokenAmountIncludingFees: bigint;
       type: "user_specified";
     }
   | {

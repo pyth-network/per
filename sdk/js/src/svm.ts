@@ -177,7 +177,7 @@ export async function constructSwapInstruction(
         : bidAmount,
     amountUser:
       swapOpportunity.tokens.type === "user_specified"
-        ? new anchor.BN(swapOpportunity.tokens.userTokenAmountBeforeFees)
+        ? new anchor.BN(swapOpportunity.tokens.userTokenAmountIncludingFees)
         : bidAmount,
     referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
     deadline,

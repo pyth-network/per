@@ -325,12 +325,12 @@ impl Svm {
                 searcher_token,
                 user_token,
                 user_amount: _user_amount, // Only for searcher internal pricing
-                user_amount_before_fees,
+                user_amount_including_fees,
             } => (
                 searcher_token,
                 user_token,
                 bid_amount,
-                user_amount_before_fees,
+                user_amount_including_fees,
             ),
         };
 

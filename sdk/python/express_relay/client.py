@@ -602,7 +602,7 @@ class ExpressRelayClient:
             else bid_amount
         )
         amount_user = (
-            swap_opportunity.tokens.user_amount_before_fees
+            swap_opportunity.tokens.user_amount_including_fees
             if swap_opportunity.tokens.side_specified == "user"
             else bid_amount
         )

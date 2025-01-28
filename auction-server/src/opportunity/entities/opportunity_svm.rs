@@ -272,7 +272,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                             searcher_token,
                             user_token: user_token.token,
                             user_amount: user_amount_excluding_fees,
-                            user_amount_before_fees: user_token.amount,
+                            user_amount_including_fees: user_token.amount,
                         }
                     }
                 };

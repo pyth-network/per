@@ -635,8 +635,8 @@ export class Client {
           type: "user_specified",
           searcherToken: new PublicKey(opportunity.tokens.searcher_token),
           userToken: new PublicKey(opportunity.tokens.user_token),
-          userTokenAmountBeforeFees: BigInt(
-            opportunity.tokens.user_amount_before_fees,
+          userTokenAmountIncludingFees: BigInt(
+            opportunity.tokens.user_amount_including_fees,
           ),
           userAmount: BigInt(opportunity.tokens.user_amount),
           searcherTokenProgram: new PublicKey(

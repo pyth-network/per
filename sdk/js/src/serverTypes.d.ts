@@ -59,8 +59,8 @@ export interface paths {
   "/v1/opportunities/quote": {
     /**
      * Submit a quote request.
-     * @description The server will estimate the quote price, which will be used to create an opportunity.
-     * After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.
+     * @description The server will create an opportunity, and searcher bids will be received.
+     * After a certain time, the winning bid will be returned as the response.
      */
     post: operations["post_quote"];
   };
@@ -828,9 +828,9 @@ export interface components {
           user_amount: number;
           /**
            * Format: int64
-           * @description The exact amount that the user will provide
+           * @description The exact amount that the user will provide, including any fees on the user token side
            */
-          user_amount_before_fees: number;
+          user_amount_including_fees: number;
           /**
            * @description The token that the user will provide
            * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
@@ -1215,8 +1215,8 @@ export interface operations {
   };
   /**
    * Submit a quote request.
-   * @description The server will estimate the quote price, which will be used to create an opportunity.
-   * After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.
+   * @description The server will create an opportunity, and searcher bids will be received.
+   * After a certain time, the winning bid will be returned as the response.
    */
   post_quote: {
     requestBody: {

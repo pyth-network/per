@@ -332,7 +332,7 @@ class SwapTokensUserSpecified(SwapTokensBase):
     searcher_token: SvmAddress
     user_token: SvmAddress
     user_amount: int
-    user_amount_before_fees: int
+    user_amount_including_fees: int
 
 
 class SwapOpportunitySvm(BaseOpportunitySvm):

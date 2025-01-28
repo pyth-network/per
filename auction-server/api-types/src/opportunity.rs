@@ -312,7 +312,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
 
-        /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
+        /// The permission account that serves as an identifier for the swap opportunity.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         permission_account: Pubkey,
@@ -371,15 +371,15 @@ pub enum QuoteTokens {
         /// The token that the searcher will provide
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        searcher_token:          Pubkey,
+        searcher_token:             Pubkey,
         /// The token that the user will provide
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        user_token:              Pubkey,
+        user_token:                 Pubkey,
         /// The amount that searcher will receive from the user after deducting fees
-        user_amount:             u64,
-        /// The exact amount that the user will provide
-        user_amount_before_fees: u64,
+        user_amount:                u64,
+        /// The exact amount that the user will provide, including any fees on the user token side
+        user_amount_including_fees: u64,
     },
 }
 
