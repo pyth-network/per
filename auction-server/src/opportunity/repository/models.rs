@@ -124,3 +124,16 @@ pub struct Opportunity<T: OpportunityMetadata> {
     pub removal_reason: Option<OpportunityRemovalReason>,
     pub metadata:       Json<T>,
 }
+
+#[cfg(test)]
+pub mod test {
+    use super::*;
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    struct MockOpportunityMetadata {}
+
+    impl OpportunityMetadata for MockOpportunityMetadata {
+        fn get_chain_type() -> ChainType {
+            ChainType::Evm
+        }
+    }
+}
