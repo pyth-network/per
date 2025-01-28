@@ -19,7 +19,7 @@ impl<T: InMemoryStore> Repository<T> {
     pub async fn add_opportunity(
         &self,
         db: &sqlx::Pool<Postgres>,
-        opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreate,
+        opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreateAssociatedType,
     ) -> Result<T::Opportunity, RestError> {
         let opportunity: T::Opportunity =
             <T::Opportunity as entities::Opportunity>::new_with_current_time(opportunity);

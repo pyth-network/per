@@ -44,9 +44,9 @@ pub struct OpportunityCreateEvm {
 impl Opportunity for OpportunityEvm {
     type TokenAmount = TokenAmountEvm;
     type ModelMetadata = repository::OpportunityMetadataEvm;
-    type OpportunityCreate = OpportunityCreateEvm;
+    type OpportunityCreateAssociatedType = OpportunityCreateEvm;
 
-    fn new_with_current_time(val: Self::OpportunityCreate) -> Self {
+    fn new_with_current_time(val: Self::OpportunityCreateAssociatedType) -> Self {
         Self {
             core_fields:       OpportunityCoreFields::new_with_current_time(val.core_fields),
             target_contract:   val.target_contract,
@@ -70,7 +70,10 @@ impl Opportunity for OpportunityEvm {
         }))
     }
 
-    fn compare(&self, other: &Self::OpportunityCreate) -> super::OpportunityComparison {
+    fn compare(
+        &self,
+        other: &Self::OpportunityCreateAssociatedType,
+    ) -> super::OpportunityComparison {
         if *other == self.clone().into() {
             OpportunityComparison::Duplicate
         } else {

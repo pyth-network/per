@@ -1,3 +1,5 @@
+#[cfg(test)]
+pub use test::MockOpportunity;
 use {
     super::token_amount::TokenAmount,
     crate::{
@@ -70,23 +72,23 @@ pub trait Opportunity:
     + Deref<Target = OpportunityCoreFields<<Self as Opportunity>::TokenAmount>>
     + PartialEq
     + Into<api::Opportunity>
-    + Into<Self::OpportunityCreate>
+    + Into<Self::OpportunityCreateAssociatedType>
     + TryFrom<repository::Opportunity<Self::ModelMetadata>>
     + Send
     + Sync
 {
     type TokenAmount: TokenAmount;
     type ModelMetadata: repository::OpportunityMetadata;
-    type OpportunityCreate: OpportunityCreate;
+    type OpportunityCreateAssociatedType: OpportunityCreate;
 
-    fn new_with_current_time(val: Self::OpportunityCreate) -> Self;
+    fn new_with_current_time(val: Self::OpportunityCreateAssociatedType) -> Self;
     fn get_models_metadata(&self) -> Self::ModelMetadata;
     fn get_opportunity_delete(&self) -> api::OpportunityDelete;
     fn get_key(&self) -> OpportunityKey {
         OpportunityKey(self.chain_id.clone(), self.permission_key.clone())
     }
 
-    fn compare(&self, other: &Self::OpportunityCreate) -> OpportunityComparison;
+    fn compare(&self, other: &Self::OpportunityCreateAssociatedType) -> OpportunityComparison;
     fn refresh(&mut self);
 }
 
@@ -114,6 +116,85 @@ impl From<OpportunityRemovalReason> for repository::OpportunityRemovalReason {
         match reason {
             OpportunityRemovalReason::Expired => repository::OpportunityRemovalReason::Expired,
             OpportunityRemovalReason::Invalid(_) => repository::OpportunityRemovalReason::Invalid,
+        }
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use {
+        super::{
+            super::token_amount::test::MockTokenAmount,
+            *,
+        },
+        mockall::mock,
+        repository::MockOpportunityMetadata,
+        serde::{
+            Deserialize,
+            Serialize,
+        },
+    };
+
+
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+    pub struct MockOpportunityCreate {}
+
+    impl OpportunityCreate for MockOpportunityCreate {
+        type ApiOpportunityCreate = MockOpportunityCreate;
+
+        fn get_key(&self) -> OpportunityKey {
+            OpportunityKey(ChainId::default(), PermissionKey::default())
+        }
+    }
+
+
+    mock! {
+        pub Opportunity{}
+
+        impl Opportunity for Opportunity {
+            type TokenAmount = MockTokenAmount;
+            type ModelMetadata = MockOpportunityMetadata;
+            type OpportunityCreateAssociatedType = MockOpportunityCreate;
+
+            fn new_with_current_time(val: <MockOpportunity as Opportunity>::OpportunityCreateAssociatedType) -> Self;
+            fn get_models_metadata(&self) -> <MockOpportunity as Opportunity>::ModelMetadata;
+            fn get_opportunity_delete(&self) -> api::OpportunityDelete;
+            fn get_key(&self) -> OpportunityKey;
+            fn compare(&self, other: &<MockOpportunity as Opportunity>::OpportunityCreateAssociatedType) -> OpportunityComparison;
+            fn refresh(&mut self);
+        }
+
+        impl Deref for Opportunity {
+            type Target = OpportunityCoreFields<MockTokenAmount>;
+
+            fn deref(&self) -> &<MockOpportunity as Deref>::Target;
+        }
+
+        impl PartialEq for Opportunity {
+            fn eq(&self, other: &Self) -> bool;
+        }
+
+        impl Clone for Opportunity {
+            fn clone(&self) -> Self;
+        }
+
+        impl Debug for Opportunity {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+
+        impl Into<api::Opportunity> for Opportunity {
+            fn into(self) -> api::Opportunity;
+        }
+
+        impl TryFrom<repository::Opportunity<<MockOpportunity as Opportunity>::ModelMetadata>> for Opportunity {
+            type Error = ();
+            fn try_from(value: repository::Opportunity<<MockOpportunity as Opportunity>::ModelMetadata>) -> Result<Self, <MockOpportunity as TryFrom<repository::Opportunity<<MockOpportunity as Opportunity>::ModelMetadata>>>::Error>;
+        }
+    }
+
+    impl Into<<MockOpportunity as Opportunity>::OpportunityCreateAssociatedType> for MockOpportunity {
+        fn into(self) -> MockOpportunityCreate {
+            MockOpportunityCreate::default()
         }
     }
 }

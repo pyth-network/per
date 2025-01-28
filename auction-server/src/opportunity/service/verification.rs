@@ -59,7 +59,7 @@ pub struct VerifyOpportunityInput<T: entities::OpportunityCreate> {
 pub trait Verification<T: ChainType> {
     fn verify_opportunity(
         &self,
-        input: VerifyOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as entities::Opportunity>::OpportunityCreate>,
+        input: VerifyOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as entities::Opportunity>::OpportunityCreateAssociatedType>,
     ) -> impl Future<Output = Result<entities::OpportunityVerificationResult, RestError>>;
 }
 

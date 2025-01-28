@@ -108,3 +108,28 @@ impl<T: InMemoryStore> Repository<T> {
         }
     }
 }
+
+#[cfg(test)]
+pub mod test {
+    use {
+        super::{
+            entities::MockOpportunity,
+            *,
+        },
+        mockall::mock,
+    };
+
+    mock! {
+        pub InMemoryStore {}
+
+        impl super::InMemoryStore for InMemoryStore {
+            type Opportunity = MockOpportunity;
+            fn new() -> Self;
+        }
+
+        impl Deref for InMemoryStore {
+            type Target = InMemoryStoreCoreFields<MockOpportunity>;
+            fn deref(&self) -> &InMemoryStoreCoreFields<MockOpportunity>;
+        }
+    }
+}

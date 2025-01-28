@@ -26,7 +26,8 @@ pub struct AddOpportunityInput<T: entities::OpportunityCreate> {
 }
 
 type OpportunityType<T> = <<T as ChainType>::InMemoryStore as InMemoryStore>::Opportunity;
-type OpportunityCreateType<T> = <OpportunityType<T> as entities::Opportunity>::OpportunityCreate;
+type OpportunityCreateType<T> =
+    <OpportunityType<T> as entities::Opportunity>::OpportunityCreateAssociatedType;
 
 #[derive(Debug, Clone)]
 enum OpportunityAction<T: entities::Opportunity> {

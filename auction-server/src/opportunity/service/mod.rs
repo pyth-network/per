@@ -1,3 +1,7 @@
+#[cfg(test)]
+use super::repository::test::MockInMemoryStore;
+#[cfg(test)]
+use mockall::automock;
 use {
     super::repository::{
         InMemoryStore,
@@ -113,6 +117,7 @@ impl ConfigSvm {
 }
 
 #[allow(dead_code)]
+#[cfg_attr(test, automock)]
 pub trait Config: Send + Sync {}
 
 impl Config for ConfigEvm {
@@ -226,6 +231,7 @@ impl ConfigSvm {
     }
 }
 
+// #[cfg_attr(test, automock(type Config = MockConfig; type InMemoryStore = MockInMemoryStore;))]
 pub trait ChainType: Send + Sync {
     type Config: Config;
     type InMemoryStore: InMemoryStore;
@@ -276,18 +282,19 @@ impl<T: ChainType> Service<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::AtomicUsize;
-    use crate::{api::ws::WsState, server::setup_metrics_recorder};
+    use {
+        super::*,
+        crate::{
+            api::ws::WsState,
+            server::setup_metrics_recorder,
+        },
+        std::sync::atomic::AtomicUsize,
+    };
 
-    use super::*;
-
-    
 
     #[tokio::test]
     async fn test_new() {
-
-        let (broadcast_sender, broadcast_receiver) =
-        tokio::sync::broadcast::channel(100);
+        let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
 
         let db = DB::connect_lazy("https://mock_url").unwrap();
 
@@ -302,11 +309,9 @@ mod tests {
             },
             secret_key:       "mock_secret_key".to_string(),
             access_tokens:    RwLock::new(HashMap::new()),
-            metrics_recorder:   setup_metrics_recorder().unwrap(),
+            metrics_recorder: setup_metrics_recorder().unwrap(),
         });
         let config = HashMap::new();
         let service = Service::<ChainTypeSvm>::new(store, db, config);
-
-        service.add_opportunity(input)
     }
 }

@@ -1,5 +1,6 @@
 use serde::{
-    de::DeserializeOwned, Serialize
+    de::DeserializeOwned,
+    Serialize,
 };
 
 pub trait TokenAmount:
@@ -10,19 +11,45 @@ pub trait TokenAmount:
 
 #[cfg(test)]
 pub mod test {
-    use super::*;
-    use serde::Deserialize;
-    use serde_with::serde_as;
+    use {
+        super::*,
+        mockall::mock,
+        serde::{
+            Deserialize,
+            Deserializer,
+            Serializer,
+        },
+    };
 
+    mock! {
+        #[derive(Serialize, Deserialize)]
+        pub TokenAmount {
+        }
 
-    #[serde_as]
-    #[derive(PartialEq, Serialize, Deserialize)]
-    pub struct MockTokenAmount {
-        pub token: String,
-        pub amount: u64,
+        impl TokenAmount for TokenAmount {
+            type ApiTokenAmount = MockTokenAmount;
+        }
+
+        impl PartialEq for TokenAmount {
+            fn eq(&self, other: &Self) -> bool;
+        }
     }
 
-    impl TokenAmount for MockTokenAmount {
-        type ApiTokenAmount = MockTokenAmount;
+    impl Serialize for MockTokenAmount {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            serializer.serialize_unit()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for MockTokenAmount {
+        fn deserialize<D>(_: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Ok(Self::default())
+        }
     }
 }

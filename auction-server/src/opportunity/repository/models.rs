@@ -1,3 +1,5 @@
+#[cfg(test)]
+pub use test::*;
 use {
     crate::{
         models::ChainType,
@@ -129,11 +131,11 @@ pub struct Opportunity<T: OpportunityMetadata> {
 pub mod test {
     use super::*;
     #[derive(Clone, Debug, Serialize, Deserialize)]
-    struct MockOpportunityMetadata {}
+    pub struct MockOpportunityMetadata {}
 
     impl OpportunityMetadata for MockOpportunityMetadata {
         fn get_chain_type() -> ChainType {
-            ChainType::Evm
+            ChainType::Svm
         }
     }
 }

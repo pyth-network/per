@@ -102,9 +102,9 @@ const MIN_REFRESH_TIME: Duration = Duration::seconds(30);
 impl Opportunity for OpportunitySvm {
     type TokenAmount = TokenAmountSvm;
     type ModelMetadata = repository::OpportunityMetadataSvm;
-    type OpportunityCreate = OpportunityCreateSvm;
+    type OpportunityCreateAssociatedType = OpportunityCreateSvm;
 
-    fn new_with_current_time(val: Self::OpportunityCreate) -> Self {
+    fn new_with_current_time(val: Self::OpportunityCreateAssociatedType) -> Self {
         OpportunitySvm {
             core_fields:        OpportunityCoreFields::<TokenAmountSvm>::new_with_current_time(
                 val.core_fields,
