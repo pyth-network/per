@@ -15,6 +15,7 @@ use {
         signature::Signature,
         transaction::VersionedTransaction,
     },
+    std::time::Duration,
     time::OffsetDateTime,
 };
 
@@ -22,6 +23,8 @@ pub struct SubmitQuoteInput {
     pub bid_id:         entities::BidId,
     pub user_signature: Signature,
 }
+
+const DEADLINE_BUFFER: Duration = Duration::from_secs(2);
 
 impl Service<Svm> {
     pub async fn submit_quote(
@@ -44,7 +47,9 @@ impl Service<Svm> {
                 let swap_args = Self::extract_swap_data(&swap_instruction)
                     .map_err(|_| RestError::BadParameters("Invalid quote".to_string()))?;
 
-                if swap_args.deadline < OffsetDateTime::now_utc().unix_timestamp() {
+                if swap_args.deadline
+                    < (OffsetDateTime::now_utc() - DEADLINE_BUFFER).unix_timestamp()
+                {
                     return Err(RestError::BadParameters("Quote is expired".to_string()));
                 }
 
