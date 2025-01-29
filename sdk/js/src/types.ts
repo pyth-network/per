@@ -398,5 +398,4 @@ export type QuoteResponse = {
   inputToken: TokenAmountSvm;
   outputToken: TokenAmountSvm;
   transaction: VersionedTransaction;
-  quoteId: string;
 };

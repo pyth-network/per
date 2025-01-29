@@ -1,8 +1,5 @@
 use {
-    super::{
-        token_amount_svm::TokenAmountSvm,
-        OpportunityId,
-    },
+    super::token_amount_svm::TokenAmountSvm,
     crate::kernel::entities::ChainId,
     express_relay_api_types::opportunity as api,
     serde::{
@@ -25,7 +22,6 @@ pub struct Quote {
     pub referrer_fee:    TokenAmountSvm,
     pub platform_fee:    TokenAmountSvm,
     pub chain_id:        ChainId,
-    pub quote_id:        OpportunityId,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -140,7 +136,6 @@ impl From<Quote> for api::Quote {
             referrer_fee:    quote.referrer_fee.into(),
             platform_fee:    quote.platform_fee.into(),
             chain_id:        quote.chain_id,
-            quote_id:        quote.quote_id,
         }))
     }
 }

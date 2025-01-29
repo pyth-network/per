@@ -716,7 +716,6 @@ export class Client {
       transaction: VersionedTransaction.deserialize(
         new Uint8Array(base64.decode(quoteResponse.transaction)),
       ),
-      quoteId: quoteResponse.quote_id,
     };
   }
 

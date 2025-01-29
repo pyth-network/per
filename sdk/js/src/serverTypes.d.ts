@@ -59,7 +59,7 @@ export interface paths {
   "/v1/opportunities/quote": {
     /**
      * Submit a quote request.
-     * @description The server will create an opportunity, and searcher bids will be received.
+     * @description The server will create an opportunity and receive searcher bids
      * After a certain time, the winning bid will be returned as the response.
      */
     post: operations["post_quote"];
@@ -857,11 +857,6 @@ export interface components {
       output_token: components["schemas"]["TokenAmountSvm"];
       /** @description The token and amount of the platform fee paid to the Express Relay program and relayer. */
       platform_fee: components["schemas"]["TokenAmountSvm"];
-      /**
-       * @description The opportunity id corresponding to the quote request.
-       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
-       */
-      quote_id: string;
       /** @description The token and amount of the referral fee paid to the party that routed the swap request to Express Relay. */
       referrer_fee: components["schemas"]["TokenAmountSvm"];
       /**
@@ -1215,7 +1210,7 @@ export interface operations {
   };
   /**
    * Submit a quote request.
-   * @description The server will create an opportunity, and searcher bids will be received.
+   * @description The server will create an opportunity and receive searcher bids
    * After a certain time, the winning bid will be returned as the response.
    */
   post_quote: {
