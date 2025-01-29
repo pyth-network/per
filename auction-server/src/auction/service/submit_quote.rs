@@ -15,6 +15,7 @@ use {
         signature::Signature,
         transaction::VersionedTransaction,
     },
+    time::OffsetDateTime,
 };
 
 pub struct SubmitQuoteInput {
@@ -40,6 +41,12 @@ impl Service<Svm> {
                     .extract_swap_accounts(&bid.chain_data.transaction, &swap_instruction)
                     .await
                     .map_err(|_| RestError::BadParameters("Invalid quote".to_string()))?;
+                let swap_args = Self::extract_swap_data(&swap_instruction)
+                    .map_err(|_| RestError::BadParameters("Invalid quote".to_string()))?;
+
+                if swap_args.deadline < OffsetDateTime::now_utc().unix_timestamp() {
+                    return Err(RestError::BadParameters("Quote is expired".to_string()));
+                }
 
                 if !input.user_signature.verify(
                     &user_wallet.to_bytes(),
