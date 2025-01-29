@@ -56,7 +56,7 @@ impl Service<ChainTypeSvm> {
         chain_id: &ChainId,
     ) -> Result<Account, RestError> {
         let config = self.get_config(chain_id)?;
-        let metadata_address = self.calculate_metadata_address(config).await;
+        let metadata_address = Self::calculate_metadata_address(config).await;
         let metadata_account = config
             .rpc_client
             .get_account(&metadata_address)
@@ -70,7 +70,7 @@ impl Service<ChainTypeSvm> {
         Ok(metadata_account)
     }
 
-    pub async fn calculate_metadata_address(&self, config: &ConfigSvm) -> Pubkey {
+    pub async fn calculate_metadata_address(config: &ConfigSvm) -> Pubkey {
         let program_id = config
             .get_auction_service()
             .await

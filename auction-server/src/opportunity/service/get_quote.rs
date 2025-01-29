@@ -55,7 +55,7 @@ use {
 // in fees before creating and broadcasting the swap opportunity
 // --------------------------------------------------------------------------------------------
 // FeeToken=SearcherToken, TokenSpecified=UserTokenSpecified
-// get_quote function will return the user amount after fees
+// get_quote function will return the searcher amount after fees
 // --------------------------------------------------------------------------------------------
 // FeeToken=UserToken, TokenSpecified=SearcherTokenSpecified
 // Searcher bid amount (minimum they are willing to receive after the fees)

@@ -24,7 +24,8 @@ impl Service<ChainTypeSvm> {
             None => {
                 let config = self.get_config(chain_id)?;
                 Ok(ReferralFeeInfo {
-                    router:           self.calculate_metadata_address(config).await,
+                    router:           Service::<ChainTypeSvm>::calculate_metadata_address(config)
+                        .await,
                     referral_fee_bps: 0,
                 })
             }
