@@ -5801,7 +5801,7 @@ dependencies = [
 
 [[package]]
 name = "testing"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
