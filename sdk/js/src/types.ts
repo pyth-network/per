@@ -136,8 +136,8 @@ export type SvmSwapTokens = (
       type: "searcher_specified";
     }
 ) & {
-  searcherTokenProgram: PublicKey;
-  userTokenProgram: PublicKey;
+  tokenProgramSearcher: PublicKey;
+  tokenProgramUser: PublicKey;
   searcherToken: PublicKey;
   userToken: PublicKey;
 };

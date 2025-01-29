@@ -144,8 +144,8 @@ export async function constructSwapInstruction(
 
   const {
     searcherToken,
-    searcherTokenProgram,
-    userTokenProgram,
+    tokenProgramSearcher,
+    tokenProgramUser,
     userToken,
     user,
     mintFee,
@@ -195,26 +195,26 @@ export async function constructSwapInstruction(
       searcherTaMintSearcher: getAssociatedTokenAddress(
         searcher,
         searcherToken,
-        searcherTokenProgram,
+        tokenProgramSearcher,
       ),
       searcherTaMintUser: getAssociatedTokenAddress(
         searcher,
         userToken,
-        userTokenProgram,
+        tokenProgramUser,
       ),
       userAtaMintSearcher: getAssociatedTokenAddress(
         user,
         searcherToken,
-        searcherTokenProgram,
+        tokenProgramSearcher,
       ),
-      tokenProgramSearcher: searcherTokenProgram,
+      tokenProgramSearcher: tokenProgramSearcher,
       mintSearcher: searcherToken,
       userAtaMintUser: getAssociatedTokenAddress(
         user,
         userToken,
-        userTokenProgram,
+        tokenProgramUser,
       ),
-      tokenProgramUser: userTokenProgram,
+      tokenProgramUser: tokenProgramUser,
       mintUser: userToken,
       routerFeeReceiverTa: getAssociatedTokenAddress(
         router,
@@ -240,29 +240,29 @@ export async function constructSwapInstruction(
 }
 
 function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
-  userTokenProgram: PublicKey;
+  tokenProgramUser: PublicKey;
   userToken: PublicKey;
   user: PublicKey;
   mintFee: PublicKey;
   feeTokenProgram: PublicKey;
   router: PublicKey;
   searcherToken: PublicKey;
-  searcherTokenProgram: PublicKey;
+  tokenProgramSearcher: PublicKey;
 } {
-  const searcherTokenProgram = swapOpportunity.tokens.searcherTokenProgram;
-  const userTokenProgram = swapOpportunity.tokens.userTokenProgram;
+  const tokenProgramSearcher = swapOpportunity.tokens.tokenProgramSearcher;
+  const tokenProgramUser = swapOpportunity.tokens.tokenProgramUser;
   const searcherToken = swapOpportunity.tokens.searcherToken;
   const userToken = swapOpportunity.tokens.userToken;
   const user = swapOpportunity.userWalletAddress;
   const [mintFee, feeTokenProgram] =
     swapOpportunity.feeToken === "searcher_token"
-      ? [searcherToken, searcherTokenProgram]
-      : [userToken, userTokenProgram];
+      ? [searcherToken, tokenProgramSearcher]
+      : [userToken, tokenProgramUser];
   const router = swapOpportunity.routerAccount;
   return {
     searcherToken,
-    searcherTokenProgram,
-    userTokenProgram,
+    tokenProgramSearcher,
+    tokenProgramUser,
     userToken,
     user,
     mintFee,
@@ -282,7 +282,7 @@ export async function constructSwapBid(
 ): Promise<BidSvmSwap> {
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
   const {
-    userTokenProgram,
+    tokenProgramUser,
     userToken,
     user,
     mintFee,
@@ -292,7 +292,7 @@ export async function constructSwapBid(
   const tokenAccountsToCreate = [
     { owner: relayerSigner, mint: mintFee, program: feeTokenProgram },
     { owner: expressRelayMetadata, mint: mintFee, program: feeTokenProgram },
-    { owner: user, mint: userToken, program: userTokenProgram },
+    { owner: user, mint: userToken, program: tokenProgramUser },
   ];
   if (swapOpportunity.referralFeeBps > 0) {
     tokenAccountsToCreate.push({

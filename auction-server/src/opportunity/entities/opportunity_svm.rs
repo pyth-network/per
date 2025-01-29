@@ -68,8 +68,8 @@ pub struct OpportunitySvmProgramSwap {
     pub referral_fee_bps:       u16,
     pub platform_fee_bps:       u64,
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
-    pub user_token_program:     Pubkey,
-    pub searcher_token_program: Pubkey,
+    pub token_program_user:     Pubkey,
+    pub token_program_searcher: Pubkey,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -133,8 +133,8 @@ impl Opportunity for OpportunitySvm {
                         fee_token:              program.fee_token,
                         referral_fee_bps:       program.referral_fee_bps,
                         platform_fee_bps:       program.platform_fee_bps,
-                        user_token_program:     program.user_token_program,
-                        searcher_token_program: program.searcher_token_program,
+                        token_program_user:     program.token_program_user,
+                        token_program_searcher: program.token_program_searcher,
                     },
                 )
             }
@@ -290,8 +290,8 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     platform_fee_bps: program.platform_fee_bps,
                     tokens: QuoteTokensWithTokenPrograms {
                         tokens,
-                        user_token_program: program.user_token_program,
-                        searcher_token_program: program.searcher_token_program,
+                        token_program_user: program.token_program_user,
+                        token_program_searcher: program.token_program_searcher,
                     },
                 }
             }
@@ -343,8 +343,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     fee_token:              program.fee_token,
                     referral_fee_bps:       program.referral_fee_bps,
                     platform_fee_bps:       program.platform_fee_bps,
-                    user_token_program:     program.user_token_program,
-                    searcher_token_program: program.searcher_token_program,
+                    token_program_user:     program.token_program_user,
+                    token_program_searcher: program.token_program_searcher,
                 })
             }
         };

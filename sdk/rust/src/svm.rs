@@ -89,7 +89,7 @@ pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
     pub payer:                Pubkey,
     pub user:                 Pubkey,
     pub user_token:           Pubkey,
-    pub user_token_program:   Pubkey,
+    pub token_program_user:   Pubkey,
     pub fee_token:            Pubkey,
     pub fee_token_program:    Pubkey,
     pub router_account:       Pubkey,
@@ -263,7 +263,7 @@ impl Svm {
             &params.payer,
             &params.user,
             &params.user_token,
-            &params.user_token_program,
+            &params.token_program_user,
         ));
         instructions.push(create_associated_token_account_idempotent(
             &params.payer,
@@ -312,8 +312,8 @@ impl Svm {
             _ => params.bid_amount,
         };
 
-        let searcher_token_program = swap_data.tokens.searcher_token_program;
-        let user_token_program = swap_data.tokens.user_token_program;
+        let token_program_searcher = swap_data.tokens.token_program_searcher;
+        let token_program_user = swap_data.tokens.token_program_user;
         let (mint_searcher, mint_user, amount_searcher, amount_user) = match swap_data.tokens.tokens
         {
             QuoteTokens::SearcherTokenSpecified {
@@ -336,30 +336,30 @@ impl Svm {
 
         let (fee_token, fee_token_mint, fee_token_program) = match swap_data.fee_token {
             ApiFeeToken::SearcherToken => {
-                (FeeToken::Searcher, mint_searcher, searcher_token_program)
+                (FeeToken::Searcher, mint_searcher, token_program_searcher)
             }
-            ApiFeeToken::UserToken => (FeeToken::User, mint_user, user_token_program),
+            ApiFeeToken::UserToken => (FeeToken::User, mint_user, token_program_user),
         };
         // the `{X}_ta/ata_mint_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap
         let searcher_ta_mint_searcher = get_associated_token_address_with_program_id(
             &params.searcher,
             &mint_searcher,
-            &searcher_token_program,
+            &token_program_searcher,
         );
         let searcher_ta_mint_user = get_associated_token_address_with_program_id(
             &params.searcher,
             &mint_user,
-            &user_token_program,
+            &token_program_user,
         );
         let user_ata_mint_searcher = get_associated_token_address_with_program_id(
             &swap_data.user,
             &mint_searcher,
-            &searcher_token_program,
+            &token_program_searcher,
         );
         let user_ata_mint_user = get_associated_token_address_with_program_id(
             &swap_data.user,
             &mint_user,
-            &user_token_program,
+            &token_program_user,
         );
         let router_fee_receiver_ta = get_associated_token_address_with_program_id(
             &swap_data.router_account,
@@ -395,8 +395,8 @@ impl Svm {
             AccountMeta::new_readonly(mint_searcher, false),
             AccountMeta::new_readonly(mint_user, false),
             AccountMeta::new_readonly(fee_token_mint, false),
-            AccountMeta::new_readonly(searcher_token_program, false),
-            AccountMeta::new_readonly(user_token_program, false),
+            AccountMeta::new_readonly(token_program_searcher, false),
+            AccountMeta::new_readonly(token_program_user, false),
             AccountMeta::new_readonly(fee_token_program, false),
             AccountMeta::new_readonly(*express_relay_metadata, false),
         ];

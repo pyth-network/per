@@ -179,7 +179,7 @@ impl Service<ChainTypeSvm> {
                 (0, user_token.amount)
             }
         };
-        let searcher_token_program = self
+        let token_program_searcher = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
                 mint:     searcher_mint,
@@ -189,7 +189,7 @@ impl Service<ChainTypeSvm> {
                 tracing::error!("Failed to get searcher token program: {:?}", err);
                 RestError::BadParameters("Searcher token program not found".to_string())
             })?;
-        let user_token_program = self
+        let token_program_user = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
                 mint:     user_mint,
@@ -204,12 +204,12 @@ impl Service<ChainTypeSvm> {
             entities::FeeToken::SearcherToken => get_associated_token_address_with_program_id(
                 &referral_fee_info.router.to_bytes().into(),
                 &searcher_mint.to_bytes().into(),
-                &searcher_token_program.to_bytes().into(),
+                &token_program_searcher.to_bytes().into(),
             ),
             entities::FeeToken::UserToken => get_associated_token_address_with_program_id(
                 &referral_fee_info.router.to_bytes().into(),
                 &user_mint.to_bytes().into(),
-                &user_token_program.to_bytes().into(),
+                &token_program_user.to_bytes().into(),
             ),
         }
         .to_bytes()
@@ -268,8 +268,8 @@ impl Service<ChainTypeSvm> {
                     fee_token,
                     referral_fee_bps: referral_fee_info.referral_fee_bps,
                     platform_fee_bps: metadata.swap_platform_fee_bps,
-                    user_token_program,
-                    searcher_token_program,
+                    token_program_user,
+                    token_program_searcher,
                 })
             }
             _ => {

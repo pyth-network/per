@@ -653,7 +653,7 @@ export interface components {
           /** @description Specifies whether the fees are to be paid in the searcher or user token. */
           fee_token: components["schemas"]["FeeToken"];
           /**
-           * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
+           * @description The permission account that serves as an identifier for the swap opportunity.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           permission_account: string;
@@ -682,12 +682,12 @@ export interface components {
              * @description The token program of the searcher mint.
              * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
              */
-            searcher_token_program: string;
+            token_program_searcher: string;
             /**
              * @description The token program of the user mint.
              * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
              */
-            user_token_program: string;
+            token_program_user: string;
           };
           /**
            * @description The user wallet address which requested the quote from the wallet.
@@ -855,17 +855,17 @@ export interface components {
       input_token: components["schemas"]["TokenAmountSvm"];
       /** @description The token and amount that the user will receive when the swap is complete. */
       output_token: components["schemas"]["TokenAmountSvm"];
-      /** @description The token and amount of the platform fee. */
+      /** @description The token and amount of the platform fee paid to the Express Relay program and relayer. */
       platform_fee: components["schemas"]["TokenAmountSvm"];
       /**
        * @description The opportunity id corresponding to the quote request.
        * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
        */
       quote_id: string;
-      /** @description The token and amount of the referral fee. */
+      /** @description The token and amount of the referral fee paid to the party that routed the swap request to Express Relay. */
       referrer_fee: components["schemas"]["TokenAmountSvm"];
       /**
-       * @description The signed transaction for the quote to be executed on chain which is valid until the expiration time.
+       * @description The transaction for the quote to be executed on chain which is valid until the expiration time.
        * @example SGVsbG8sIFdvcmxkIQ==
        */
       transaction: string;

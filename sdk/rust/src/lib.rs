@@ -775,8 +775,8 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     } => (searcher_token, user_token),
                 };
                 let (fee_token, fee_token_program) = match fee_token {
-                    FeeToken::SearcherToken => (searcher_token, tokens.searcher_token_program),
-                    FeeToken::UserToken => (user_token, tokens.user_token_program),
+                    FeeToken::SearcherToken => (searcher_token, tokens.token_program_searcher),
+                    FeeToken::UserToken => (user_token, tokens.token_program_user),
                 };
                 let mut instructions = params.instructions;
                 instructions.extend(svm::Svm::get_swap_create_accounts_idempotent_instructions(
@@ -784,7 +784,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         payer: params.payer,
                         user: user_wallet_address,
                         user_token,
-                        user_token_program: tokens.user_token_program,
+                        token_program_user: tokens.token_program_user,
                         fee_token,
                         fee_token_program,
                         router_account,

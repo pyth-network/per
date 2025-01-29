@@ -623,11 +623,11 @@ export class Client {
           searcherToken: new PublicKey(opportunity.tokens.searcher_token),
           userToken: new PublicKey(opportunity.tokens.user_token),
           searcherAmount: BigInt(opportunity.tokens.searcher_amount),
-          searcherTokenProgram: new PublicKey(
-            opportunity.tokens.searcher_token_program,
+          tokenProgramSearcher: new PublicKey(
+            opportunity.tokens.token_program_searcher,
           ),
-          userTokenProgram: new PublicKey(
-            opportunity.tokens.user_token_program,
+          tokenProgramUser: new PublicKey(
+            opportunity.tokens.token_program_user,
           ),
         } as const;
       } else {
@@ -639,11 +639,11 @@ export class Client {
             opportunity.tokens.user_amount_including_fees,
           ),
           userAmount: BigInt(opportunity.tokens.user_amount),
-          searcherTokenProgram: new PublicKey(
-            opportunity.tokens.searcher_token_program,
+          tokenProgramSearcher: new PublicKey(
+            opportunity.tokens.token_program_searcher,
           ),
-          userTokenProgram: new PublicKey(
-            opportunity.tokens.user_token_program,
+          tokenProgramUser: new PublicKey(
+            opportunity.tokens.token_program_user,
           ),
         } as const;
       }

@@ -585,10 +585,10 @@ impl Service<Svm> {
             }
         };
         let (
-            expected_user_token,
-            expected_user_amount,
-            expected_searcher_token,
-            expected_searcher_amount,
+            expected_mint_user,
+            expected_amount_user,
+            expected_mint_searcher,
+            expected_amount_searcher,
         ) = match quote_tokens.clone() {
             QuoteTokens::UserTokenSpecified {
                 user_token,
@@ -619,58 +619,58 @@ impl Service<Svm> {
                 ),
             ));
         }
-        if expected_searcher_token != mint_searcher {
+        if expected_mint_searcher != mint_searcher {
             return Err(RestError::BadParameters(
                 format!(
                     "Invalid searcher mint {} in swap instruction accounts. Value does not match the searcher mint in swap opportunity {}",
-                    mint_searcher, expected_searcher_token
+                    mint_searcher, expected_mint_searcher
                 ),
             ));
         }
-        if expected_user_token != mint_user {
+        if expected_mint_user != mint_user {
             return Err(RestError::BadParameters(
                 format!(
                     "Invalid user mint {} in swap instruction accounts. Value does not match the user mint in swap opportunity {}",
-                    mint_user, expected_user_token
+                    mint_user, expected_mint_user
                 ),
             ));
         }
 
-        if token_program_searcher != opp_swap_data.searcher_token_program {
+        if token_program_searcher != opp_swap_data.token_program_searcher {
             return Err(RestError::BadParameters(
                 format!(
                     "Invalid searcher token program {} in swap instruction accounts. Value does not match the searcher token program in swap opportunity {}",
-                    token_program_searcher, opp_swap_data.searcher_token_program
+                    token_program_searcher, opp_swap_data.token_program_searcher
                 ),
             ));
         }
 
-        if token_program_user != opp_swap_data.user_token_program {
+        if token_program_user != opp_swap_data.token_program_user {
             return Err(RestError::BadParameters(
                 format!(
                     "Invalid user token program {} in swap instruction accounts. Value does not match the user token program in swap opportunity {}",
-                    token_program_user, opp_swap_data.user_token_program
+                    token_program_user, opp_swap_data.token_program_user
                 ),
             ));
         }
 
 
-        if let Some(expected_searcher_amount) = expected_searcher_amount {
-            if expected_searcher_amount != swap_data.amount_searcher {
+        if let Some(expected_amount_searcher) = expected_amount_searcher {
+            if expected_amount_searcher != swap_data.amount_searcher {
                 return Err(RestError::BadParameters(
                     format!(
                         "Invalid searcher amount {} in swap instruction data. Value does not match the searcher amount in swap opportunity {}",
-                        swap_data.amount_searcher, expected_searcher_amount
+                        swap_data.amount_searcher, expected_amount_searcher
                     ),
                 ));
             }
         }
-        if let Some(expected_user_amount) = expected_user_amount {
-            if expected_user_amount != swap_data.amount_user {
+        if let Some(expected_amount_user) = expected_amount_user {
+            if expected_amount_user != swap_data.amount_user {
                 return Err(RestError::BadParameters(
                     format!(
                         "Invalid user amount {} in swap instruction data. Value does not match the user amount in swap opportunity {}",
-                        swap_data.amount_user, expected_user_amount
+                        swap_data.amount_user, expected_amount_user
                     ),
                 ));
             }

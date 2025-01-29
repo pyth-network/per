@@ -68,9 +68,9 @@ pub struct OpportunityMetadataSvmProgramSwap {
     pub referral_fee_bps:       u16,
     pub platform_fee_bps:       u64,
     #[serde_as(as = "DisplayFromStr")]
-    pub user_token_program:     Pubkey,
+    pub token_program_user:     Pubkey,
     #[serde_as(as = "DisplayFromStr")]
-    pub searcher_token_program: Pubkey,
+    pub token_program_searcher: Pubkey,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

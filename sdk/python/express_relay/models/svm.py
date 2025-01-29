@@ -312,12 +312,12 @@ class TokenAmountSvm(BaseModel):
 class SwapTokensBase(BaseModel):
     """
     Attributes:
-        searcher_token_program: The token program address for the searcher token.
-        user_token_program: The token program address for the user token.
+        token_program_searcher: The token program address for the searcher token.
+        token_program_user: The token program address for the user token.
     """
 
-    searcher_token_program: SvmAddress
-    user_token_program: SvmAddress
+    token_program_searcher: SvmAddress
+    token_program_user: SvmAddress
 
 
 class SwapTokensSearcherSpecified(SwapTokensBase):

@@ -391,11 +391,11 @@ pub struct QuoteTokensWithTokenPrograms {
     /// The token program of the searcher mint.
     #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub searcher_token_program: Pubkey,
+    pub token_program_searcher: Pubkey,
     /// The token program of the user mint.
     #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub user_token_program:     Pubkey,
+    pub token_program_user:     Pubkey,
 }
 
 

@@ -113,8 +113,8 @@ class ExpressRelayClientException(Exception):
 
 class SwapAccounts(TypedDict):
     searcher_token: Pubkey
-    searcher_token_program: Pubkey
-    user_token_program: Pubkey
+    token_program_searcher: Pubkey
+    token_program_user: Pubkey
     user_token: Pubkey
     user: Pubkey
     mint_fee: Pubkey
@@ -543,22 +543,22 @@ class ExpressRelayClient:
 
     @staticmethod
     def extract_swap_info(swap_opportunity: SwapOpportunitySvm) -> SwapAccounts:
-        searcher_token_program = swap_opportunity.tokens.searcher_token_program
-        user_token_program = swap_opportunity.tokens.user_token_program
+        token_program_searcher = swap_opportunity.tokens.token_program_searcher
+        token_program_user = swap_opportunity.tokens.token_program_user
         searcher_token = swap_opportunity.tokens.searcher_token
         user_token = swap_opportunity.tokens.user_token
         user = swap_opportunity.user_wallet_address
         mint_fee, fee_token_program = (
-            (searcher_token, searcher_token_program)
+            (searcher_token, token_program_searcher)
             if swap_opportunity.fee_token == "searcher_token"
-            else (user_token, user_token_program)
+            else (user_token, token_program_user)
         )
         router = swap_opportunity.router_account
 
         return {
             "searcher_token": searcher_token,
-            "searcher_token_program": searcher_token_program,
-            "user_token_program": user_token_program,
+            "token_program_searcher": token_program_searcher,
+            "token_program_user": token_program_user,
             "user_token": user_token,
             "user": user,
             "mint_fee": mint_fee,
@@ -624,7 +624,7 @@ class ExpressRelayClient:
             {
                 "owner": accs["user"],
                 "mint": accs["user_token"],
-                "program": accs["user_token_program"],
+                "program": accs["token_program_user"],
             },
         ]
         if swap_opportunity.referral_fee_bps > 0:
@@ -660,20 +660,20 @@ class ExpressRelayClient:
                 "searcher": searcher,
                 "user": swap_opportunity.user_wallet_address,
                 "searcher_ta_mint_searcher": get_ata(
-                    searcher, accs["searcher_token"], accs["searcher_token_program"]
+                    searcher, accs["searcher_token"], accs["token_program_searcher"]
                 ),
                 "searcher_ta_mint_user": get_ata(
-                    searcher, accs["user_token"], accs["user_token_program"]
+                    searcher, accs["user_token"], accs["token_program_user"]
                 ),
                 "user_ata_mint_searcher": get_ata(
                     swap_opportunity.user_wallet_address,
                     accs["searcher_token"],
-                    accs["searcher_token_program"],
+                    accs["token_program_searcher"],
                 ),
                 "user_ata_mint_user": get_ata(
                     swap_opportunity.user_wallet_address,
                     accs["user_token"],
-                    accs["user_token_program"],
+                    accs["token_program_user"],
                 ),
                 "router_fee_receiver_ta": get_ata(
                     accs["router"], accs["mint_fee"], accs["fee_token_program"]
@@ -687,8 +687,8 @@ class ExpressRelayClient:
                 "mint_searcher": accs["searcher_token"],
                 "mint_user": accs["user_token"],
                 "mint_fee": accs["mint_fee"],
-                "token_program_searcher": accs["searcher_token_program"],
-                "token_program_user": accs["user_token_program"],
+                "token_program_searcher": accs["token_program_searcher"],
+                "token_program_user": accs["token_program_user"],
                 "token_program_fee": accs["fee_token_program"],
                 "express_relay_metadata": express_relay_metadata,
             },
