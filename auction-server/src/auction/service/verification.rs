@@ -113,12 +113,12 @@ pub trait Verification<T: ChainTrait> {
 }
 
 pub struct SwapAccounts {
-    user_wallet:            Pubkey,
-    mint_searcher:          Pubkey,
-    mint_user:              Pubkey,
-    router_token_account:   Pubkey,
-    token_program_searcher: Pubkey,
-    token_program_user:     Pubkey,
+    pub user_wallet:            Pubkey,
+    pub mint_searcher:          Pubkey,
+    pub mint_user:              Pubkey,
+    pub router_token_account:   Pubkey,
+    pub token_program_searcher: Pubkey,
+    pub token_program_user:     Pubkey,
 }
 
 impl Service<Evm> {

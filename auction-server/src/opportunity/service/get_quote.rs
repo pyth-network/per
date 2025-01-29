@@ -516,8 +516,8 @@ impl Service<ChainTypeSvm> {
                 token:  fee_token,
                 amount: fees.express_relay_fee + fees.relayer_fee,
             },
-            chain_id:     input.quote_create.chain_id,
-            reference_id: winner_bid.id,
+            chain_id:       input.quote_create.chain_id,
+            reference_id:   winner_bid.id,
         })
     }
 }
