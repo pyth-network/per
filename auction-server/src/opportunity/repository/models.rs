@@ -63,14 +63,14 @@ pub struct OpportunityMetadataSvmProgramLimo {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OpportunityMetadataSvmProgramSwap {
     #[serde_as(as = "DisplayFromStr")]
-    pub user_wallet_address:  Pubkey,
-    pub fee_token:            FeeToken,
-    pub referral_fee_bps:     u16,
-    pub platform_fee_bps:     u64,
+    pub user_wallet_address:    Pubkey,
+    pub fee_token:              FeeToken,
+    pub referral_fee_bps:       u16,
+    pub platform_fee_bps:       u64,
     #[serde_as(as = "DisplayFromStr")]
-    pub input_token_program:  Pubkey,
+    pub token_program_user:     Pubkey,
     #[serde_as(as = "DisplayFromStr")]
-    pub output_token_program: Pubkey,
+    pub token_program_searcher: Pubkey,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

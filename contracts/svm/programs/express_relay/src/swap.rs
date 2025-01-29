@@ -16,49 +16,49 @@ use {
 };
 
 pub struct PostFeeSwapArgs {
-    pub input_after_fees:  u64,
-    pub output_after_fees: u64,
+    pub amount_searcher_after_fees: u64,
+    pub amount_user_after_fees:     u64,
 }
 
 
 impl<'info> Swap<'info> {
     pub fn transfer_swap_fees(&self, args: &SwapArgs) -> Result<PostFeeSwapArgs> {
         let (post_fee_swap_args, transfer_swap_fees) = match args.fee_token {
-            FeeToken::Input => {
+            FeeToken::Searcher => {
                 let SwapFeesWithRemainingAmount {
                     fees,
                     remaining_amount,
                 } = self
                     .express_relay_metadata
-                    .compute_swap_fees(args.referral_fee_bps, args.amount_input)?;
+                    .compute_swap_fees(args.referral_fee_bps, args.amount_searcher)?;
                 (
                     PostFeeSwapArgs {
-                        input_after_fees:  remaining_amount,
-                        output_after_fees: args.amount_output,
+                        amount_searcher_after_fees: remaining_amount,
+                        amount_user_after_fees:     args.amount_user,
                     },
                     TransferSwapFeeArgs {
                         fees,
-                        from: &self.searcher_input_ta,
+                        from: &self.searcher_ta_mint_searcher,
                         authority: &self.searcher,
                     },
                 )
             }
-            FeeToken::Output => {
+            FeeToken::User => {
                 let SwapFeesWithRemainingAmount {
                     fees,
                     remaining_amount,
                 } = self
                     .express_relay_metadata
-                    .compute_swap_fees(args.referral_fee_bps, args.amount_output)?;
+                    .compute_swap_fees(args.referral_fee_bps, args.amount_user)?;
                 (
                     PostFeeSwapArgs {
-                        input_after_fees:  args.amount_input,
-                        output_after_fees: remaining_amount,
+                        amount_searcher_after_fees: args.amount_searcher,
+                        amount_user_after_fees:     remaining_amount,
                     },
                     TransferSwapFeeArgs {
                         fees,
-                        from: &self.trader_output_ata,
-                        authority: &self.trader,
+                        from: &self.user_ata_mint_user,
+                        authority: &self.user,
                     },
                 )
             }

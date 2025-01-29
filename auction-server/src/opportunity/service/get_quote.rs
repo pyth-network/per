@@ -50,18 +50,18 @@ use {
 
 // FeeToken and TokenSpecified combinations possible and how they are handled:
 // --------------------------------------------------------------------------------------------
-// FeeToken=InputToken, TokenSpecified=InputTokenSpecified
+// FeeToken=SearcherToken, TokenSpecified=SearcherTokenSpecified
 // User wants the amount specified in the api AFTER the fees so we increase it to factor
 // in fees before creating and broadcasting the swap opportunity
 // --------------------------------------------------------------------------------------------
-// FeeToken=InputToken, TokenSpecified=OutputTokenSpecified
-// get_quote function will return the input amount after fees
+// FeeToken=SearcherToken, TokenSpecified=UserTokenSpecified
+// get_quote function will return the searcher amount after fees
 // --------------------------------------------------------------------------------------------
-// FeeToken=OutputToken, TokenSpecified=InputTokenSpecified
+// FeeToken=UserToken, TokenSpecified=SearcherTokenSpecified
 // Searcher bid amount (minimum they are willing to receive after the fees)
 // is scaled up in the sdk to factor in the fees
 // --------------------------------------------------------------------------------------------
-// FeeToken=OutputToken, TokenSpecified=OutputTokenSpecified
+// FeeToken=UserToken, TokenSpecified=UserTokenSpecified
 // Sdk shows a smaller amount (after fees) to the searcher for their pricing engine
 // while keeping the original amount (before fees) in the bid
 // --------------------------------------------------------------------------------------------
@@ -84,39 +84,39 @@ pub fn get_quote_virtual_permission_account(
     router_token_account: &Pubkey,
     referral_fee_bps: u16,
 ) -> Pubkey {
-    let input_token_amount: [u8; 8];
-    let output_token_amount: [u8; 8];
+    let user_token_amount: [u8; 8];
+    let searcher_token_amount: [u8; 8];
     let referral_fee_bps = referral_fee_bps.to_le_bytes();
     let seeds = match tokens {
-        entities::QuoteTokens::InputTokenSpecified {
-            input_token,
-            output_token,
+        entities::QuoteTokens::UserTokenSpecified {
+            user_token,
+            searcher_token,
         } => {
-            let input_token_mint = input_token.token.as_ref();
-            let output_token_mint = output_token.as_ref();
-            input_token_amount = input_token.amount.to_le_bytes();
+            let user_token_mint = user_token.token.as_ref();
+            let searcher_token_mint = searcher_token.as_ref();
+            user_token_amount = user_token.amount.to_le_bytes();
             [
                 router_token_account.as_ref(),
                 user_wallet_address.as_ref(),
-                input_token_mint,
-                input_token_amount.as_ref(),
-                output_token_mint,
+                searcher_token_mint,
+                user_token_mint,
+                user_token_amount.as_ref(),
                 referral_fee_bps.as_ref(),
             ]
         }
-        entities::QuoteTokens::OutputTokenSpecified {
-            input_token,
-            output_token,
+        entities::QuoteTokens::SearcherTokenSpecified {
+            user_token,
+            searcher_token,
         } => {
-            let input_token_mint = input_token.as_ref();
-            let output_token_mint = output_token.token.as_ref();
-            output_token_amount = output_token.amount.to_le_bytes();
+            let user_token_mint = user_token.as_ref();
+            let searcher_token_mint = searcher_token.token.as_ref();
+            searcher_token_amount = searcher_token.amount.to_le_bytes();
             [
                 router_token_account.as_ref(),
                 user_wallet_address.as_ref(),
-                input_token_mint,
-                output_token_mint,
-                output_token_amount.as_ref(),
+                searcher_token_mint,
+                searcher_token_amount.as_ref(),
+                user_token_mint,
                 referral_fee_bps.as_ref(),
             ]
         }
@@ -132,9 +132,12 @@ impl Service<ChainTypeSvm> {
         quote_create: entities::QuoteCreate,
         program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
-        let router = quote_create.router;
+        let referral_fee_info = self
+            .unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)
+            .await?;
+
         // TODO*: we should determine this more intelligently
-        let fee_token = entities::FeeToken::InputToken;
+        let fee_token = entities::FeeToken::SearcherToken;
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
@@ -143,94 +146,118 @@ impl Service<ChainTypeSvm> {
                 chain_id: quote_create.chain_id.clone(),
             })
             .await?;
-        let (input_mint, output_mint) = match quote_create.tokens.clone() {
-            entities::QuoteTokens::InputTokenSpecified {
-                input_token,
-                output_token,
-            } => (input_token.token, output_token),
-            entities::QuoteTokens::OutputTokenSpecified {
-                input_token,
-                output_token,
-            } => (input_token, output_token.token),
+        let (user_mint, searcher_mint) = match quote_create.tokens.clone() {
+            entities::QuoteTokens::UserTokenSpecified {
+                user_token,
+                searcher_token,
+            } => (user_token.token, searcher_token),
+            entities::QuoteTokens::SearcherTokenSpecified {
+                user_token,
+                searcher_token,
+            } => (user_token, searcher_token.token),
         };
-        let (input_amount, output_amount) = match (quote_create.tokens.clone(), fee_token.clone()) {
+        let (searcher_amount, user_amount) = match (quote_create.tokens.clone(), fee_token.clone())
+        {
             (
-                entities::QuoteTokens::InputTokenSpecified { input_token, .. },
-                entities::FeeToken::InputToken,
+                entities::QuoteTokens::SearcherTokenSpecified { searcher_token, .. },
+                entities::FeeToken::SearcherToken,
             ) => {
                 // This is not exactly accurate and may overestimate the amount needed
                 // because of floor / ceil rounding errors.
                 let denominator: u64 = FEE_SPLIT_PRECISION
-                    - <u16 as Into<u64>>::into(quote_create.referral_fee_bps)
+                    - <u16 as Into<u64>>::into(referral_fee_info.referral_fee_bps)
                     - metadata.swap_platform_fee_bps;
-                let numerator = input_token.amount * FEE_SPLIT_PRECISION;
+                let numerator = searcher_token.amount * FEE_SPLIT_PRECISION;
                 let amount_including_fees = numerator.div_ceil(denominator);
-                (amount_including_fees, 0)
+                (amount_including_fees, 0u64)
             }
             (
-                entities::QuoteTokens::InputTokenSpecified { input_token, .. },
-                entities::FeeToken::OutputToken,
-            ) => (input_token.amount, 0),
-            (entities::QuoteTokens::OutputTokenSpecified { output_token, .. }, _) => {
-                (0, output_token.amount)
+                entities::QuoteTokens::SearcherTokenSpecified { searcher_token, .. },
+                entities::FeeToken::UserToken,
+            ) => (searcher_token.amount, 0u64),
+            (entities::QuoteTokens::UserTokenSpecified { user_token, .. }, _) => {
+                (0, user_token.amount)
             }
         };
-        let input_token_program = self
+        let token_program_searcher = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
-                mint:     input_mint,
+                mint:     searcher_mint,
             })
             .await
             .map_err(|err| {
-                tracing::error!("Failed to get input token program: {:?}", err);
-                RestError::BadParameters("Input token program not found".to_string())
+                tracing::error!("Failed to get searcher token program: {:?}", err);
+                RestError::BadParameters("Searcher token program not found".to_string())
             })?;
-        let output_token_program = self
+        let token_program_user = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
-                mint:     output_mint,
+                mint:     user_mint,
             })
             .await
             .map_err(|err| {
-                tracing::error!("Failed to get output token program: {:?}", err);
-                RestError::BadParameters("Output token program not found".to_string())
+                tracing::error!("Failed to get user token program: {:?}", err);
+                RestError::BadParameters("User token program not found".to_string())
             })?;
 
         let router_token_account = match fee_token {
-            entities::FeeToken::InputToken => get_associated_token_address_with_program_id(
-                &router.to_bytes().into(),
-                &input_mint.to_bytes().into(),
-                &input_token_program.to_bytes().into(),
+            entities::FeeToken::SearcherToken => get_associated_token_address_with_program_id(
+                &referral_fee_info.router.to_bytes().into(),
+                &searcher_mint.to_bytes().into(),
+                &token_program_searcher.to_bytes().into(),
             ),
-            entities::FeeToken::OutputToken => get_associated_token_address_with_program_id(
-                &router.to_bytes().into(),
-                &output_mint.to_bytes().into(),
-                &output_token_program.to_bytes().into(),
+            entities::FeeToken::UserToken => get_associated_token_address_with_program_id(
+                &referral_fee_info.router.to_bytes().into(),
+                &user_mint.to_bytes().into(),
+                &token_program_user.to_bytes().into(),
             ),
         }
         .to_bytes()
         .into();
+        // this uses the fee-adjusted token amounts to correctly calculate the permission account
+        let tokens_for_permission = match quote_create.tokens {
+            entities::QuoteTokens::UserTokenSpecified {
+                user_token,
+                searcher_token,
+            } => entities::QuoteTokens::UserTokenSpecified {
+                user_token: TokenAmountSvm {
+                    token:  user_token.token,
+                    amount: user_amount,
+                },
+                searcher_token,
+            },
+            entities::QuoteTokens::SearcherTokenSpecified {
+                user_token,
+                searcher_token,
+            } => entities::QuoteTokens::SearcherTokenSpecified {
+                user_token,
+                searcher_token: TokenAmountSvm {
+                    token:  searcher_token.token,
+                    amount: searcher_amount,
+                },
+            },
+        };
         let permission_account = get_quote_virtual_permission_account(
-            &quote_create.tokens,
+            &tokens_for_permission,
             &quote_create.user_wallet_address,
             &router_token_account,
-            quote_create.referral_fee_bps,
+            referral_fee_info.referral_fee_bps,
         );
 
         let core_fields = entities::OpportunityCoreFieldsCreate {
             permission_key: entities::OpportunitySvm::get_permission_key(
                 BidPaymentInstructionType::Swap,
-                router,
+                referral_fee_info.router,
                 permission_account,
             ),
             chain_id:       quote_create.chain_id.clone(),
             sell_tokens:    vec![entities::TokenAmountSvm {
-                token:  input_mint,
-                amount: input_amount,
+                token:  searcher_mint,
+                amount: searcher_amount,
             }],
             buy_tokens:     vec![entities::TokenAmountSvm {
-                token:  output_mint,
-                amount: output_amount,
+                token:  user_mint,
+                amount: user_amount,
             }],
         };
 
@@ -239,10 +266,10 @@ impl Service<ChainTypeSvm> {
                 entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                     user_wallet_address: quote_create.user_wallet_address,
                     fee_token,
-                    referral_fee_bps: quote_create.referral_fee_bps,
+                    referral_fee_bps: referral_fee_info.referral_fee_bps,
                     platform_fee_bps: metadata.swap_platform_fee_bps,
-                    input_token_program,
-                    output_token_program,
+                    token_program_user,
+                    token_program_searcher,
                 })
             }
             _ => {
@@ -252,7 +279,7 @@ impl Service<ChainTypeSvm> {
 
         Ok(entities::OpportunityCreateSvm {
             core_fields,
-            router,
+            router: referral_fee_info.router,
             permission_account,
             program: program_opportunity,
         })
@@ -278,8 +305,15 @@ impl Service<ChainTypeSvm> {
 
     #[tracing::instrument(skip_all)]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
+        let referral_fee_info = self
+            .unwrap_referral_fee_info(
+                input.quote_create.referral_fee_info.clone(),
+                &input.quote_create.chain_id,
+            )
+            .await?;
+
         // TODO use compute_swap_fees to make sure instead when the metadata is fetched from on-chain
-        if FEE_SPLIT_PRECISION < input.quote_create.referral_fee_bps.into() {
+        if FEE_SPLIT_PRECISION < referral_fee_info.referral_fee_bps.into() {
             return Err(RestError::BadParameters(format!(
                 "Referral fee bps higher than {}",
                 FEE_SPLIT_PRECISION
@@ -299,11 +333,11 @@ impl Service<ChainTypeSvm> {
                 opportunity: opportunity_create,
             })
             .await?;
-        let input_token = opportunity.sell_tokens[0].clone();
-        let output_token = opportunity.buy_tokens[0].clone();
-        if input_token.amount == 0 && output_token.amount == 0 {
+        let searcher_token = opportunity.sell_tokens[0].clone();
+        let user_token = opportunity.buy_tokens[0].clone();
+        if searcher_token.amount == 0 && user_token.amount == 0 {
             return Err(RestError::BadParameters(
-                "Token amount can not be zero".to_string(),
+                "Token amount cannot be zero".to_string(),
             ));
         }
 
@@ -349,12 +383,12 @@ impl Service<ChainTypeSvm> {
 
         // Find winner bid:
         match input.quote_create.tokens {
-            entities::QuoteTokens::InputTokenSpecified { .. } => {
-                // highest bid = best (most output token returned)
+            entities::QuoteTokens::UserTokenSpecified { .. } => {
+                // highest bid = best (most searcher token returned)
                 bids.sort_by(|a, b| b.amount.cmp(&a.amount));
             }
-            entities::QuoteTokens::OutputTokenSpecified { .. } => {
-                // lowest bid = best (least input token consumed)
+            entities::QuoteTokens::SearcherTokenSpecified { .. } => {
+                // lowest bid = best (least user token consumed)
                 bids.sort_by(|a, b| a.amount.cmp(&b.amount));
             }
         }
@@ -435,30 +469,30 @@ impl Service<ChainTypeSvm> {
             .await?;
 
         let fee_token = match swap_data.fee_token {
-            FeeToken::Input => input_token.token,
-            FeeToken::Output => output_token.token,
+            FeeToken::Searcher => searcher_token.token,
+            FeeToken::User => user_token.token,
         };
         let compute_fees = |amount: u64| {
             metadata
-                .compute_swap_fees(input.quote_create.referral_fee_bps, amount)
+                .compute_swap_fees(referral_fee_info.referral_fee_bps, amount)
                 .map_err(|e| {
                     tracing::error!("Failed to compute swap fees: {:?}", e);
                     RestError::TemporarilyUnavailable
                 })
         };
-        let (input_amount, output_amount, fees) = match swap_data.fee_token {
-            FeeToken::Input => {
-                let swap_fees = compute_fees(swap_data.amount_input)?;
+        let (searcher_amount, user_amount, fees) = match swap_data.fee_token {
+            FeeToken::Searcher => {
+                let swap_fees = compute_fees(swap_data.amount_searcher)?;
                 (
                     swap_fees.remaining_amount,
-                    swap_data.amount_output,
+                    swap_data.amount_user,
                     swap_fees.fees,
                 )
             }
-            FeeToken::Output => (
-                swap_data.amount_input,
-                swap_data.amount_output,
-                compute_fees(swap_data.amount_output)?.fees,
+            FeeToken::User => (
+                swap_data.amount_searcher,
+                swap_data.amount_user,
+                compute_fees(swap_data.amount_user)?.fees,
             ),
         };
 
@@ -466,23 +500,23 @@ impl Service<ChainTypeSvm> {
             transaction:     bid.chain_data.transaction.clone(),
             expiration_time: deadline,
 
-            input_token:  TokenAmountSvm {
-                token:  input_token.token,
-                amount: input_amount,
+            searcher_token: TokenAmountSvm {
+                token:  searcher_token.token,
+                amount: searcher_amount,
             },
-            output_token: TokenAmountSvm {
-                token:  output_token.token,
-                amount: output_amount,
+            user_token:     TokenAmountSvm {
+                token:  user_token.token,
+                amount: user_amount,
             },
-            referrer_fee: TokenAmountSvm {
+            referrer_fee:   TokenAmountSvm {
                 token:  fee_token,
                 amount: fees.relayer_fee,
             },
-            platform_fee: TokenAmountSvm {
+            platform_fee:   TokenAmountSvm {
                 token:  fee_token,
                 amount: fees.express_relay_fee + fees.relayer_fee,
             },
-            chain_id:     input.quote_create.chain_id,
+            chain_id:       input.quote_create.chain_id,
         })
     }
 }

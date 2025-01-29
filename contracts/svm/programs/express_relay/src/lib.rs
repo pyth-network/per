@@ -172,27 +172,27 @@ pub mod express_relay {
         check_deadline(data.deadline)?;
 
         let PostFeeSwapArgs {
-            input_after_fees,
-            output_after_fees,
+            amount_searcher_after_fees,
+            amount_user_after_fees,
         } = ctx.accounts.transfer_swap_fees(&data)?;
 
         // Transfer tokens
         transfer_token_if_needed(
-            &ctx.accounts.searcher_input_ta,
-            &ctx.accounts.trader_input_ata,
-            &ctx.accounts.token_program_input,
+            &ctx.accounts.searcher_ta_mint_searcher,
+            &ctx.accounts.user_ata_mint_searcher,
+            &ctx.accounts.token_program_searcher,
             &ctx.accounts.searcher,
-            &ctx.accounts.mint_input,
-            input_after_fees,
+            &ctx.accounts.mint_searcher,
+            amount_searcher_after_fees,
         )?;
 
         transfer_token_if_needed(
-            &ctx.accounts.trader_output_ata,
-            &ctx.accounts.searcher_output_ta,
-            &ctx.accounts.token_program_output,
-            &ctx.accounts.trader,
-            &ctx.accounts.mint_output,
-            output_after_fees,
+            &ctx.accounts.user_ata_mint_user,
+            &ctx.accounts.searcher_ta_mint_user,
+            &ctx.accounts.token_program_user,
+            &ctx.accounts.user,
+            &ctx.accounts.mint_user,
+            amount_user_after_fees,
         )?;
 
 
@@ -365,20 +365,22 @@ pub struct WithdrawFees<'info> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub enum FeeToken {
-    Input,
-    Output,
+    Searcher,
+    User,
 }
 
-/// For all swap instructions and contexts, input and output are defined with respect to the searcher
-/// So `mint_input` refers to the token that the searcher provides to the trader and
-/// `mint_output` refers to the token that the searcher receives from the trader
-/// This choice is made to minimize confusion for the searchers, who are more likely to parse the program
+/// For all swap instructions and contexts, the mint is defined with respect to the party that provides that token in the swap.
+/// So `mint_searcher` refers to the token that the searcher provides in the swap,
+/// and `mint_user` refers to the token that the user provides in the swap.
+/// The `{X}_ta/ata_mint_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap.
+/// For example, `searcher_ta_mint_searcher` is the searcher's token account of the mint the searcher provides in the swap,
+/// and `user_ata_mint_searcher` is the user's token account of the same mint.
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapArgs {
     // deadline as a unix timestamp in seconds
     pub deadline:         i64,
-    pub amount_input:     u64,
-    pub amount_output:    u64,
+    pub amount_searcher:  u64,
+    pub amount_user:      u64,
     // The referral fee is specified in basis points
     pub referral_fee_bps: u16,
     // Token in which the fees will be paid
@@ -388,45 +390,45 @@ pub struct SwapArgs {
 #[derive(Accounts)]
 #[instruction(data: Box<SwapArgs>)]
 pub struct Swap<'info> {
-    /// Searcher is the party that sends the input token and receives the output token
+    /// Searcher is the party that fulfills the quote request
     pub searcher: Signer<'info>,
 
-    /// Trader is the party that sends the output token and receives the input token
-    pub trader: Signer<'info>,
+    /// User is the party that requests the quote
+    pub user: Signer<'info>,
 
     // Searcher accounts
     #[account(
         mut,
-        token::mint = mint_input,
+        token::mint = mint_searcher,
         token::authority = searcher,
-        token::token_program = token_program_input
+        token::token_program = token_program_searcher
     )]
-    pub searcher_input_ta: InterfaceAccount<'info, TokenAccount>,
+    pub searcher_ta_mint_searcher: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         mut,
-        token::mint = mint_output,
+        token::mint = mint_user,
         token::authority = searcher,
-        token::token_program = token_program_output
+        token::token_program = token_program_user
     )]
-    pub searcher_output_ta: InterfaceAccount<'info, TokenAccount>,
+    pub searcher_ta_mint_user: InterfaceAccount<'info, TokenAccount>,
 
-    // Trader accounts
+    // User accounts
     #[account(
         mut,
-        associated_token::mint = mint_input,
-        associated_token::authority = trader,
-        associated_token::token_program = token_program_input
+        associated_token::mint = mint_searcher,
+        associated_token::authority = user,
+        associated_token::token_program = token_program_searcher
     )]
-    pub trader_input_ata: InterfaceAccount<'info, TokenAccount>,
+    pub user_ata_mint_searcher: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         mut,
-        associated_token::mint = mint_output,
-        associated_token::authority = trader,
-        associated_token::token_program = token_program_output
+        associated_token::mint = mint_user,
+        associated_token::authority = user,
+        associated_token::token_program = token_program_user
     )]
-    pub trader_output_ata: InterfaceAccount<'info, TokenAccount>,
+    pub user_ata_mint_user: InterfaceAccount<'info, TokenAccount>,
 
     // Fee receivers
     /// Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee
@@ -454,24 +456,24 @@ pub struct Swap<'info> {
     pub express_relay_fee_receiver_ata: InterfaceAccount<'info, TokenAccount>,
 
     // Mints
-    #[account(mint::token_program = token_program_input)]
-    pub mint_input: InterfaceAccount<'info, Mint>,
+    #[account(mint::token_program = token_program_searcher)]
+    pub mint_searcher: InterfaceAccount<'info, Mint>,
 
-    #[account(mint::token_program = token_program_output)]
-    pub mint_output: InterfaceAccount<'info, Mint>,
+    #[account(mint::token_program = token_program_user)]
+    pub mint_user: InterfaceAccount<'info, Mint>,
 
     #[account(
         mint::token_program = token_program_fee,
-        constraint = mint_fee.key() == if data.fee_token == FeeToken::Input { mint_input.key() } else { mint_output.key() }
+        constraint = mint_fee.key() == if data.fee_token == FeeToken::Searcher { mint_searcher.key() } else { mint_user.key() }
     )]
     pub mint_fee: InterfaceAccount<'info, Mint>,
 
     // Token programs
-    pub token_program_input:  Interface<'info, TokenInterface>,
-    pub token_program_output: Interface<'info, TokenInterface>,
+    pub token_program_searcher: Interface<'info, TokenInterface>,
+    pub token_program_user:     Interface<'info, TokenInterface>,
 
     #[account(
-        constraint = token_program_fee.key() == if data.fee_token == FeeToken::Input { token_program_input.key() } else { token_program_output.key() }
+        constraint = token_program_fee.key() == if data.fee_token == FeeToken::Searcher { token_program_searcher.key() } else { token_program_user.key() }
     )]
     pub token_program_fee: Interface<'info, TokenInterface>,
 

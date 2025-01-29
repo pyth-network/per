@@ -490,8 +490,12 @@ export class Client {
       chain_id: quoteRequest.chainId,
       input_token_mint: quoteRequest.inputTokenMint.toBase58(),
       output_token_mint: quoteRequest.outputTokenMint.toBase58(),
-      router: quoteRequest.router.toBase58(),
-      referral_fee_bps: quoteRequest.referralFeeBps,
+      referral_fee_info: quoteRequest.referralFeeInfo
+        ? {
+            router: quoteRequest.referralFeeInfo.router.toBase58(),
+            referral_fee_bps: quoteRequest.referralFeeInfo.referralFeeBps,
+          }
+        : null,
       specified_token_amount: quoteRequest.specifiedTokenAmount,
       user_wallet_address: quoteRequest.userWallet.toBase58(),
       version: "v1" as const,
@@ -613,39 +617,38 @@ export class Client {
       };
     } else if (opportunity.program === "swap") {
       let tokens;
-      if (opportunity.tokens.side_specified === "input") {
+      if (opportunity.tokens.side_specified === "searcher") {
         tokens = {
-          type: "input_specified",
-          inputToken: new PublicKey(opportunity.tokens.input_token),
-          outputToken: new PublicKey(opportunity.tokens.output_token),
-          inputAmount: BigInt(opportunity.tokens.input_amount),
-          inputTokenProgram: new PublicKey(
-            opportunity.tokens.input_token_program,
+          type: "searcher_specified",
+          searcherToken: new PublicKey(opportunity.tokens.searcher_token),
+          userToken: new PublicKey(opportunity.tokens.user_token),
+          searcherAmount: BigInt(opportunity.tokens.searcher_amount),
+          tokenProgramSearcher: new PublicKey(
+            opportunity.tokens.token_program_searcher,
           ),
-          outputTokenProgram: new PublicKey(
-            opportunity.tokens.output_token_program,
+          tokenProgramUser: new PublicKey(
+            opportunity.tokens.token_program_user,
           ),
         } as const;
       } else {
         tokens = {
-          type: "output_specified",
-          inputToken: new PublicKey(opportunity.tokens.input_token),
-          outputToken: new PublicKey(opportunity.tokens.output_token),
-          outputTokenAmountBeforeFees: BigInt(
-            opportunity.tokens.output_amount_before_fees,
+          type: "user_specified",
+          searcherToken: new PublicKey(opportunity.tokens.searcher_token),
+          userToken: new PublicKey(opportunity.tokens.user_token),
+          userTokenAmountIncludingFees: BigInt(
+            opportunity.tokens.user_amount_including_fees,
           ),
-          outputAmount: BigInt(opportunity.tokens.output_amount),
-          inputTokenProgram: new PublicKey(
-            opportunity.tokens.input_token_program,
+          userAmount: BigInt(opportunity.tokens.user_amount),
+          tokenProgramSearcher: new PublicKey(
+            opportunity.tokens.token_program_searcher,
           ),
-          outputTokenProgram: new PublicKey(
-            opportunity.tokens.output_token_program,
+          tokenProgramUser: new PublicKey(
+            opportunity.tokens.token_program_user,
           ),
         } as const;
       }
       return {
         chainId: opportunity.chain_id,
-        slot: opportunity.slot,
         opportunityId: opportunity.opportunity_id,
         program: "swap",
         referralFeeBps: opportunity.referral_fee_bps,
@@ -711,7 +714,7 @@ export class Client {
         amount: BigInt(quoteResponse.output_token.amount),
       },
       transaction: VersionedTransaction.deserialize(
-        base64.decode(quoteResponse.transaction),
+        new Uint8Array(base64.decode(quoteResponse.transaction)),
       ),
     };
   }
@@ -853,7 +856,7 @@ export class Client {
    * @param tx The transaction to add the instructions to
    * @param searcher The address of the searcher filling the swap order
    * @param swapOpportunity The swap opportunity to bid on
-   * @param bidAmount The amount of the bid in either input or output tokens depending on the swap opportunity
+   * @param bidAmount The amount of the bid in either searcher side or user side tokens depending on the swap opportunity
    * @param deadline The deadline for the bid in seconds since Unix epoch
    * @param chainId The chain ID as a string, e.g. "solana"
    * @param relayerSigner The address of the relayer that is handling the bid

@@ -8,7 +8,7 @@ export type ExpressRelay = {
   address: "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou";
   metadata: {
     name: "expressRelay";
-    version: "0.4.0";
+    version: "0.5.0";
     spec: "0.1.0";
     description: "Pyth Express Relay program for handling permissioning and bid distribution";
     repository: "https://github.com/pyth-network/per";
@@ -412,42 +412,38 @@ export type ExpressRelay = {
       accounts: [
         {
           name: "searcher";
-          docs: [
-            "Searcher is the party that sends the input token and receives the output token",
-          ];
+          docs: ["Searcher is the party that fulfills the quote request"];
           signer: true;
         },
         {
-          name: "trader";
-          docs: [
-            "Trader is the party that sends the output token and receives the input token",
-          ];
+          name: "user";
+          docs: ["User is the party that requests the quote"];
           signer: true;
         },
         {
-          name: "searcherInputTa";
+          name: "searcherTaMintSearcher";
           writable: true;
         },
         {
-          name: "searcherOutputTa";
+          name: "searcherTaMintUser";
           writable: true;
         },
         {
-          name: "traderInputAta";
+          name: "userAtaMintSearcher";
           writable: true;
           pda: {
             seeds: [
               {
                 kind: "account";
-                path: "trader";
+                path: "user";
               },
               {
                 kind: "account";
-                path: "tokenProgramInput";
+                path: "tokenProgramSearcher";
               },
               {
                 kind: "account";
-                path: "mintInput";
+                path: "mintSearcher";
               },
             ];
             program: {
@@ -490,21 +486,21 @@ export type ExpressRelay = {
           };
         },
         {
-          name: "traderOutputAta";
+          name: "userAtaMintUser";
           writable: true;
           pda: {
             seeds: [
               {
                 kind: "account";
-                path: "trader";
+                path: "user";
               },
               {
                 kind: "account";
-                path: "tokenProgramOutput";
+                path: "tokenProgramUser";
               },
               {
                 kind: "account";
-                path: "mintOutput";
+                path: "mintUser";
               },
             ];
             program: {
@@ -669,19 +665,19 @@ export type ExpressRelay = {
           };
         },
         {
-          name: "mintInput";
+          name: "mintSearcher";
         },
         {
-          name: "mintOutput";
+          name: "mintUser";
         },
         {
           name: "mintFee";
         },
         {
-          name: "tokenProgramInput";
+          name: "tokenProgramSearcher";
         },
         {
-          name: "tokenProgramOutput";
+          name: "tokenProgramUser";
         },
         {
           name: "tokenProgramFee";
@@ -792,21 +788,6 @@ export type ExpressRelay = {
     },
     {
       code: 6008;
-      name: "invalidAta";
-      msg: "Invalid ATA provided";
-    },
-    {
-      code: 6009;
-      name: "invalidMint";
-      msg: "A token account has the wrong mint";
-    },
-    {
-      code: 6010;
-      name: "invalidTokenProgram";
-      msg: "A token account belongs to the wrong token program";
-    },
-    {
-      code: 6011;
       name: "invalidReferralFee";
       msg: "Invalid referral fee";
     },
@@ -866,10 +847,10 @@ export type ExpressRelay = {
         kind: "enum";
         variants: [
           {
-            name: "input";
+            name: "searcher";
           },
           {
-            name: "output";
+            name: "user";
           },
         ];
       };
@@ -949,10 +930,12 @@ export type ExpressRelay = {
     {
       name: "swapArgs";
       docs: [
-        "For all swap instructions and contexts, input and output are defined with respect to the searcher",
-        "So `mint_input` refers to the token that the searcher provides to the trader and",
-        "`mint_output` refers to the token that the searcher receives from the trader",
-        "This choice is made to minimize confusion for the searchers, who are more likely to parse the program",
+        "For all swap instructions and contexts, the mint is defined with respect to the party that provides that token in the swap.",
+        "So `mint_searcher` refers to the token that the searcher provides in the swap,",
+        "and `mint_user` refers to the token that the user provides in the swap.",
+        "The `{X}_ta/ata_mint_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap.",
+        "For example, `searcher_ta_mint_searcher` is the searcher's token account of the mint the searcher provides in the swap,",
+        "and `user_ata_mint_searcher` is the user's token account of the same mint.",
       ];
       type: {
         kind: "struct";
@@ -962,11 +945,11 @@ export type ExpressRelay = {
             type: "i64";
           },
           {
-            name: "amountInput";
+            name: "amountSearcher";
             type: "u64";
           },
           {
-            name: "amountOutput";
+            name: "amountUser";
             type: "u64";
           },
           {

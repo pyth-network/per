@@ -77,7 +77,7 @@ pub struct GetSwapInstructionParams {
 }
 
 struct OpportunitySwapData {
-    trader:           Pubkey,
+    user:             Pubkey,
     tokens:           QuoteTokensWithTokenPrograms,
     fee_token:        ApiFeeToken,
     router_account:   Pubkey,
@@ -87,9 +87,9 @@ struct OpportunitySwapData {
 
 pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
     pub payer:                Pubkey,
-    pub trader:               Pubkey,
-    pub output_token:         Pubkey,
-    pub output_token_program: Pubkey,
+    pub user:                 Pubkey,
+    pub user_token:           Pubkey,
+    pub token_program_user:   Pubkey,
     pub fee_token:            Pubkey,
     pub fee_token_program:    Pubkey,
     pub router_account:       Pubkey,
@@ -124,15 +124,15 @@ pub struct ExpressRelayMetadata {
 
 #[derive(BorshSerialize, BorshDeserialize)]
 enum FeeToken {
-    Input,
-    Output,
+    Searcher,
+    User,
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
 struct SwapArgs {
     pub deadline:         i64,
-    pub amount_input:     u64,
-    pub amount_output:    u64,
+    pub amount_searcher:  u64,
+    pub amount_user:      u64,
     pub referral_fee_bps: u16,
     pub fee_token:        FeeToken,
 }
@@ -242,7 +242,7 @@ impl Svm {
                 platform_fee_bps,
                 ..
             } => Ok(OpportunitySwapData {
-                trader: user_wallet_address,
+                user: user_wallet_address,
                 tokens,
                 fee_token,
                 router_account,
@@ -261,9 +261,9 @@ impl Svm {
         let mut instructions = vec![];
         instructions.push(create_associated_token_account_idempotent(
             &params.payer,
-            &params.trader,
-            &params.output_token,
-            &params.output_token_program,
+            &params.user,
+            &params.user_token,
+            &params.token_program_user,
         ));
         instructions.push(create_associated_token_account_idempotent(
             &params.payer,
@@ -302,7 +302,7 @@ impl Svm {
 
         let bid_amount = match (&swap_data.tokens.tokens, &swap_data.fee_token) {
             // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
-            (QuoteTokens::InputTokenSpecified { .. }, ApiFeeToken::OutputToken) => {
+            (QuoteTokens::SearcherTokenSpecified { .. }, ApiFeeToken::UserToken) => {
                 let denominator = FEE_SPLIT_PRECISION
                     - <u16 as Into<u64>>::into(swap_data.referral_fee_bps)
                     - swap_data.platform_fee_bps;
@@ -312,50 +312,54 @@ impl Svm {
             _ => params.bid_amount,
         };
 
-        let input_token_program = swap_data.tokens.input_token_program;
-        let output_token_program = swap_data.tokens.output_token_program;
-        let (mint_input, mint_output, amount_input, amount_output) = match swap_data.tokens.tokens {
-            QuoteTokens::InputTokenSpecified {
-                input_token,
-                output_token,
-                input_amount,
-            } => (input_token, output_token, input_amount, bid_amount),
-            QuoteTokens::OutputTokenSpecified {
-                input_token,
-                output_token,
-                output_amount: _output_amount, // Only for searcher internal pricing
-                output_amount_before_fees,
+        let token_program_searcher = swap_data.tokens.token_program_searcher;
+        let token_program_user = swap_data.tokens.token_program_user;
+        let (mint_searcher, mint_user, amount_searcher, amount_user) = match swap_data.tokens.tokens
+        {
+            QuoteTokens::SearcherTokenSpecified {
+                searcher_token,
+                user_token,
+                searcher_amount,
+            } => (searcher_token, user_token, searcher_amount, bid_amount),
+            QuoteTokens::UserTokenSpecified {
+                searcher_token,
+                user_token,
+                user_amount: _user_amount, // Only for searcher internal pricing
+                user_amount_including_fees,
             } => (
-                input_token,
-                output_token,
+                searcher_token,
+                user_token,
                 bid_amount,
-                output_amount_before_fees,
+                user_amount_including_fees,
             ),
         };
 
         let (fee_token, fee_token_mint, fee_token_program) = match swap_data.fee_token {
-            ApiFeeToken::InputToken => (FeeToken::Input, mint_input, input_token_program),
-            ApiFeeToken::OutputToken => (FeeToken::Output, mint_output, output_token_program),
+            ApiFeeToken::SearcherToken => {
+                (FeeToken::Searcher, mint_searcher, token_program_searcher)
+            }
+            ApiFeeToken::UserToken => (FeeToken::User, mint_user, token_program_user),
         };
-        let searcher_input_ta = get_associated_token_address_with_program_id(
+        // the `{X}_ta/ata_mint_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap
+        let searcher_ta_mint_searcher = get_associated_token_address_with_program_id(
             &params.searcher,
-            &mint_input,
-            &input_token_program,
+            &mint_searcher,
+            &token_program_searcher,
         );
-        let searcher_output_ta = get_associated_token_address_with_program_id(
+        let searcher_ta_mint_user = get_associated_token_address_with_program_id(
             &params.searcher,
-            &mint_output,
-            &output_token_program,
+            &mint_user,
+            &token_program_user,
         );
-        let trader_input_ata = get_associated_token_address_with_program_id(
-            &swap_data.trader,
-            &mint_input,
-            &input_token_program,
+        let user_ata_mint_searcher = get_associated_token_address_with_program_id(
+            &swap_data.user,
+            &mint_searcher,
+            &token_program_searcher,
         );
-        let trader_output_ata = get_associated_token_address_with_program_id(
-            &swap_data.trader,
-            &mint_output,
-            &output_token_program,
+        let user_ata_mint_user = get_associated_token_address_with_program_id(
+            &swap_data.user,
+            &mint_user,
+            &token_program_user,
         );
         let router_fee_receiver_ta = get_associated_token_address_with_program_id(
             &swap_data.router_account,
@@ -380,27 +384,27 @@ impl Svm {
 
         let accounts = vec![
             AccountMeta::new_readonly(params.searcher, true),
-            AccountMeta::new_readonly(swap_data.trader, true),
-            AccountMeta::new(searcher_input_ta, false),
-            AccountMeta::new(searcher_output_ta, false),
-            AccountMeta::new(trader_input_ata, false),
-            AccountMeta::new(trader_output_ata, false),
+            AccountMeta::new_readonly(swap_data.user, true),
+            AccountMeta::new(searcher_ta_mint_searcher, false),
+            AccountMeta::new(searcher_ta_mint_user, false),
+            AccountMeta::new(user_ata_mint_searcher, false),
+            AccountMeta::new(user_ata_mint_user, false),
             AccountMeta::new(router_fee_receiver_ta, false),
             AccountMeta::new(relayer_fee_receiver_ata, false),
             AccountMeta::new(express_relay_fee_receiver_ata, false),
-            AccountMeta::new_readonly(mint_input, false),
-            AccountMeta::new_readonly(mint_output, false),
+            AccountMeta::new_readonly(mint_searcher, false),
+            AccountMeta::new_readonly(mint_user, false),
             AccountMeta::new_readonly(fee_token_mint, false),
-            AccountMeta::new_readonly(input_token_program, false),
-            AccountMeta::new_readonly(output_token_program, false),
+            AccountMeta::new_readonly(token_program_searcher, false),
+            AccountMeta::new_readonly(token_program_user, false),
             AccountMeta::new_readonly(fee_token_program, false),
             AccountMeta::new_readonly(*express_relay_metadata, false),
         ];
 
         let swap_args = SwapArgs {
             deadline: params.deadline,
-            amount_input,
-            amount_output,
+            amount_searcher,
+            amount_user,
             referral_fee_bps: swap_data.referral_fee_bps,
             fee_token,
         };

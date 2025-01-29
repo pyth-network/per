@@ -366,6 +366,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::opportunity::OpportunityDeleteV1Evm,
     api_types::opportunity::ProgramSvm,
     api_types::opportunity::FeeToken,
+    api_types::opportunity::ReferralFeeInfo,
 
     ErrorBodyResponse,
     api_types::ws::ClientRequest,
@@ -430,11 +431,15 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         }))
         .build_pair();
 
+    let original_doc = serde_json::to_value(ApiDoc::openapi())
+        .expect("Failed to serialize OpenAPI document to json value");
+
     let app: Router<()> = Router::new()
         .merge(Redoc::with_url(Route::Docs.as_ref(), ApiDoc::openapi()))
         .merge(routes)
         .route(Route::Root.as_ref(), get(root))
         .route(Route::Liveness.as_ref(), get(live))
+        .route(Route::OpenApi.as_ref(), get(original_doc.to_string()))
         .layer(CorsLayer::permissive())
         .layer(middleware::from_extractor_with_state::<Auth, Arc<StoreNew>>(store.clone()))
         .layer(prometheus_layer)

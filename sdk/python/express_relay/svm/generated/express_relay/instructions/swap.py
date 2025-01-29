@@ -16,19 +16,19 @@ layout = borsh.CStruct("data" / types.swap_args.SwapArgs.layout)
 
 class SwapAccounts(typing.TypedDict):
     searcher: Pubkey
-    trader: Pubkey
-    searcher_input_ta: Pubkey
-    searcher_output_ta: Pubkey
-    trader_input_ata: Pubkey
-    trader_output_ata: Pubkey
+    user: Pubkey
+    searcher_ta_mint_searcher: Pubkey
+    searcher_ta_mint_user: Pubkey
+    user_ata_mint_searcher: Pubkey
+    user_ata_mint_user: Pubkey
     router_fee_receiver_ta: Pubkey
     relayer_fee_receiver_ata: Pubkey
     express_relay_fee_receiver_ata: Pubkey
-    mint_input: Pubkey
-    mint_output: Pubkey
+    mint_searcher: Pubkey
+    mint_user: Pubkey
     mint_fee: Pubkey
-    token_program_input: Pubkey
-    token_program_output: Pubkey
+    token_program_searcher: Pubkey
+    token_program_user: Pubkey
     token_program_fee: Pubkey
     express_relay_metadata: Pubkey
 
@@ -41,18 +41,20 @@ def swap(
 ) -> Instruction:
     keys: list[AccountMeta] = [
         AccountMeta(pubkey=accounts["searcher"], is_signer=True, is_writable=False),
-        AccountMeta(pubkey=accounts["trader"], is_signer=True, is_writable=False),
+        AccountMeta(pubkey=accounts["user"], is_signer=True, is_writable=False),
         AccountMeta(
-            pubkey=accounts["searcher_input_ta"], is_signer=False, is_writable=True
+            pubkey=accounts["searcher_ta_mint_searcher"],
+            is_signer=False,
+            is_writable=True,
         ),
         AccountMeta(
-            pubkey=accounts["searcher_output_ta"], is_signer=False, is_writable=True
+            pubkey=accounts["searcher_ta_mint_user"], is_signer=False, is_writable=True
         ),
         AccountMeta(
-            pubkey=accounts["trader_input_ata"], is_signer=False, is_writable=True
+            pubkey=accounts["user_ata_mint_searcher"], is_signer=False, is_writable=True
         ),
         AccountMeta(
-            pubkey=accounts["trader_output_ata"], is_signer=False, is_writable=True
+            pubkey=accounts["user_ata_mint_user"], is_signer=False, is_writable=True
         ),
         AccountMeta(
             pubkey=accounts["router_fee_receiver_ta"], is_signer=False, is_writable=True
@@ -67,14 +69,18 @@ def swap(
             is_signer=False,
             is_writable=True,
         ),
-        AccountMeta(pubkey=accounts["mint_input"], is_signer=False, is_writable=False),
-        AccountMeta(pubkey=accounts["mint_output"], is_signer=False, is_writable=False),
+        AccountMeta(
+            pubkey=accounts["mint_searcher"], is_signer=False, is_writable=False
+        ),
+        AccountMeta(pubkey=accounts["mint_user"], is_signer=False, is_writable=False),
         AccountMeta(pubkey=accounts["mint_fee"], is_signer=False, is_writable=False),
         AccountMeta(
-            pubkey=accounts["token_program_input"], is_signer=False, is_writable=False
+            pubkey=accounts["token_program_searcher"],
+            is_signer=False,
+            is_writable=False,
         ),
         AccountMeta(
-            pubkey=accounts["token_program_output"], is_signer=False, is_writable=False
+            pubkey=accounts["token_program_user"], is_signer=False, is_writable=False
         ),
         AccountMeta(
             pubkey=accounts["token_program_fee"], is_signer=False, is_writable=False

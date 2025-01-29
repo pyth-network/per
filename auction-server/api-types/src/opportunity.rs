@@ -312,7 +312,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
 
-        /// The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
+        /// The permission account that serves as an identifier for the swap opportunity.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         permission_account: Pubkey,
@@ -330,11 +330,11 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = 10)]
         platform_fee_bps: u64,
 
-        /// Specifies whether the fees are to be paid in input or output token.
-        #[schema(example = "input_token")]
+        /// Specifies whether the fees are to be paid in the searcher or user token.
+        #[schema(example = "searcher_token")]
         fee_token: FeeToken,
 
-        /// Details about the tokens to be swapped. Either the input token amount or the output token amount must be specified.
+        /// Details about the tokens to be swapped. Either the searcher token amount or the user token amount must be specified.
         #[schema(inline)]
         tokens: QuoteTokensWithTokenPrograms,
     },
@@ -343,43 +343,43 @@ pub enum OpportunityParamsV1ProgramSvm {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(rename_all = "snake_case")]
 pub enum FeeToken {
-    InputToken,
-    OutputToken,
+    SearcherToken,
+    UserToken,
 }
 
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(tag = "side_specified")]
 pub enum QuoteTokens {
-    #[serde(rename = "input")]
-    #[schema(title = "input_specified")]
-    InputTokenSpecified {
-        /// The token that the user wants to receive
+    #[serde(rename = "searcher")]
+    #[schema(title = "searcher_specified")]
+    SearcherTokenSpecified {
+        /// The token that the searcher will provide
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token:  Pubkey,
-        /// The exact amount that the user wants to receive from the input_token
-        input_amount: u64,
-        /// The token that the user wants to send in exchange
+        searcher_token:  Pubkey,
+        /// The exact amount that the searcher will provide
+        searcher_amount: u64,
+        /// The token that the user will provide
         #[schema(example = "So11111111111111111111111111111111111111112", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        output_token: Pubkey,
+        user_token:      Pubkey,
     },
-    #[serde(rename = "output")]
-    #[schema(title = "output_specified")]
-    OutputTokenSpecified {
-        /// The token that the user wants to receive
+    #[serde(rename = "user")]
+    #[schema(title = "user_specified")]
+    UserTokenSpecified {
+        /// The token that the searcher will provide
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        input_token:               Pubkey,
-        /// The token that the user wants to send in exchange
+        searcher_token:             Pubkey,
+        /// The token that the user will provide
         #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
-        output_token:              Pubkey,
-        /// The amount that searcher will receive after deducting fees
-        output_amount:             u64,
-        /// The exact amount of output_token that the user wants to send in exchange
-        output_amount_before_fees: u64,
+        user_token:                 Pubkey,
+        /// The amount that searcher will receive from the user after deducting fees
+        user_amount:                u64,
+        /// The exact amount that the user will provide, including any fees on the user token side
+        user_amount_including_fees: u64,
     },
 }
 
@@ -387,15 +387,15 @@ pub enum QuoteTokens {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct QuoteTokensWithTokenPrograms {
     #[serde(flatten)]
-    pub tokens:               QuoteTokens,
-    /// The token program of the input mint.
+    pub tokens:                 QuoteTokens,
+    /// The token program of the searcher mint.
     #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub input_token_program:  Pubkey,
-    /// The token program of the output mint.
+    pub token_program_searcher: Pubkey,
+    /// The token program of the user mint.
     #[schema(example = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
-    pub output_token_program: Pubkey,
+    pub token_program_user:     Pubkey,
 }
 
 
@@ -521,7 +521,6 @@ pub struct OpportunityBidEvm {
 }
 
 /// Parameters needed to create a new opportunity from the swap request.
-/// Auction server will extract the output token price for the auction.
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteCreateV1SvmParams {
@@ -529,32 +528,35 @@ pub struct QuoteCreateV1SvmParams {
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub user_wallet_address:    Pubkey,
-    /// The token mint address of the input token.
+    /// The mint address of the token the user will provide in the swap.
     #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub input_token_mint:       Pubkey,
-    /// The token mint address of the output token.
+    /// The mint address of the token the user will receive in the swap.
     #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub output_token_mint:      Pubkey,
     /// The token amount that the user wants to swap out of/into.
     #[schema(inline)]
     pub specified_token_amount: SpecifiedTokenAmount,
-    /// The router account to send referral fees to.
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-    #[serde_as(as = "DisplayFromStr")]
-    pub router:                 Pubkey,
-    /// The referral fee in basis points. If not provided, the referral fee will default to 0.
-    #[serde(default = "default_referral_fee_bps")]
-    #[schema(example = 10, value_type = u16)]
-    pub referral_fee_bps:       u16,
+    /// Information about the referral fee and the router to send the fee to. If not provided, referral fee will be set to 0.
+    #[schema(inline)]
+    pub referral_fee_info:      Option<ReferralFeeInfo>,
     /// The chain id for creating the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:               ChainId,
 }
 
-fn default_referral_fee_bps() -> u16 {
-    0
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+pub struct ReferralFeeInfo {
+    /// The router account to send referral fees to.
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
+    #[serde_as(as = "DisplayFromStr")]
+    pub router:           Pubkey,
+    /// The referral fee in basis points.
+    #[schema(example = 10, value_type = u16)]
+    pub referral_fee_bps: u16,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
@@ -562,13 +564,13 @@ fn default_referral_fee_bps() -> u16 {
 pub enum SpecifiedTokenAmount {
     #[serde(rename = "input")]
     #[schema(title = "input")]
-    InputToken {
+    UserInputToken {
         #[schema(example = 100)]
         amount: u64,
     },
     #[serde(rename = "output")]
     #[schema(title = "output")]
-    OutputToken {
+    UserOutputToken {
         #[schema(example = 50)]
         amount: u64,
     },
@@ -591,7 +593,7 @@ pub enum QuoteCreate {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteV1Svm {
-    /// The signed transaction for the quote to be executed on chain which is valid until the expiration time.
+    /// The transaction for the quote to be executed on chain which is valid until the expiration time.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde(with = "crate::serde::transaction_svm")]
     pub transaction:     VersionedTransaction,
@@ -599,12 +601,12 @@ pub struct QuoteV1Svm {
     #[schema(example = 1_700_000_000_000_000i64, value_type = i64)]
     pub expiration_time: i64,
     /// The token and amount that the user needs to send to fulfill the swap transaction.
-    pub output_token:    TokenAmountSvm,
-    /// The token and amount that the user will receive when the swap is complete.
     pub input_token:     TokenAmountSvm,
-    /// The token and amount that the referrer will receive when the swap is complete.
+    /// The token and amount that the user will receive when the swap is complete.
+    pub output_token:    TokenAmountSvm,
+    /// The token and amount of the referral fee paid to the party that routed the swap request to Express Relay.
     pub referrer_fee:    TokenAmountSvm,
-    /// The token and amount that the platform will receive when the swap is complete.
+    /// The token and amount of the platform fee paid to the Express Relay program and relayer.
     pub platform_fee:    TokenAmountSvm,
     /// The chain id for the quote.
     #[schema(example = "solana", value_type = String)]

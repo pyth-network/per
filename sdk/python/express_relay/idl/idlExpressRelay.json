@@ -1,0 +1,621 @@
+{
+  "version": "0.5.0",
+  "name": "express_relay",
+  "instructions": [
+    {
+      "name": "initialize",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "relayerSigner",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "feeReceiverRelayer",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": "InitializeArgs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "setAdmin",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "adminNew",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "setRelayer",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "relayerSigner",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "feeReceiverRelayer",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "setSplits",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": "SetSplitsArgs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "setSwapPlatformFee",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": "SetSwapPlatformFeeArgs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "setRouterSplit",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "configRouter",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "router",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": "SetRouterSplitArgs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "submitBid",
+      "docs": [
+        "Submits a bid for a particular (permission, router) pair and distributes bids according to splits."
+      ],
+      "accounts": [
+        {
+          "name": "searcher",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "relayerSigner",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "permission",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "router",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "configRouter",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeReceiverRelayer",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "sysvarInstructions",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": "SubmitBidArgs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "checkPermission",
+      "docs": [
+        "Checks if permissioning exists for a particular (permission, router) pair within the same transaction.",
+        "Permissioning takes the form of a SubmitBid instruction with matching permission and router accounts.",
+        "Returns the fees paid to the router in the matching instructions."
+      ],
+      "accounts": [
+        {
+          "name": "sysvarInstructions",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "permission",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "router",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "configRouter",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [],
+      "returns": "u64"
+    },
+    {
+      "name": "withdrawFees",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "feeReceiverAdmin",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "swap",
+      "accounts": [
+        {
+          "name": "searcher",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["Searcher is the party that fulfills the quote request"]
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["User is the party that requests the quote"]
+        },
+        {
+          "name": "searcherTaMintSearcher",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "searcherTaMintUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userAtaMintSearcher",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userAtaMintUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "routerFeeReceiverTa",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee"
+          ]
+        },
+        {
+          "name": "relayerFeeReceiverAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayFeeReceiverAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mintSearcher",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "mintUser",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "mintFee",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgramSearcher",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgramUser",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgramFee",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": false,
+          "isSigner": false,
+          "docs": ["Express relay configuration"]
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": "SwapArgs"
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ExpressRelayMetadata",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "publicKey"
+          },
+          {
+            "name": "relayerSigner",
+            "type": "publicKey"
+          },
+          {
+            "name": "feeReceiverRelayer",
+            "type": "publicKey"
+          },
+          {
+            "name": "splitRouterDefault",
+            "type": "u64"
+          },
+          {
+            "name": "splitRelayer",
+            "type": "u64"
+          },
+          {
+            "name": "swapPlatformFeeBps",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigRouter",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "publicKey"
+          },
+          {
+            "name": "split",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "InitializeArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "splitRouterDefault",
+            "type": "u64"
+          },
+          {
+            "name": "splitRelayer",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SetSplitsArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "splitRouterDefault",
+            "type": "u64"
+          },
+          {
+            "name": "splitRelayer",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SetSwapPlatformFeeArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "swapPlatformFeeBps",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SetRouterSplitArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "splitRouter",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SubmitBidArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "deadline",
+            "type": "i64"
+          },
+          {
+            "name": "bidAmount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwapArgs",
+      "docs": [
+        "For all swap instructions and contexts, the mint is defined with respect to the party that provides that token in the swap.",
+        "So `mint_searcher` refers to the token that the searcher provides in the swap,",
+        "and `mint_user` refers to the token that the user provides in the swap.",
+        "The `{X}_ta/ata_mint_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap.",
+        "For example, `searcher_ta_mint_searcher` is the searcher's token account of the mint the searcher provides in the swap,",
+        "and `user_ata_mint_searcher` is the user's token account of the same mint."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "deadline",
+            "type": "i64"
+          },
+          {
+            "name": "amountSearcher",
+            "type": "u64"
+          },
+          {
+            "name": "amountUser",
+            "type": "u64"
+          },
+          {
+            "name": "referralFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "feeToken",
+            "type": {
+              "defined": "FeeToken"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeToken",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Searcher"
+          },
+          {
+            "name": "User"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "FeeSplitLargerThanPrecision",
+      "msg": "Fee split(s) larger than fee precision"
+    },
+    {
+      "code": 6001,
+      "name": "FeesHigherThanBid",
+      "msg": "Fees higher than bid"
+    },
+    {
+      "code": 6002,
+      "name": "DeadlinePassed",
+      "msg": "Deadline passed"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidCPISubmitBid",
+      "msg": "Invalid CPI into submit bid instruction"
+    },
+    {
+      "code": 6004,
+      "name": "MissingPermission",
+      "msg": "Missing permission"
+    },
+    {
+      "code": 6005,
+      "name": "MultiplePermissions",
+      "msg": "Multiple permissions"
+    },
+    {
+      "code": 6006,
+      "name": "InsufficientSearcherFunds",
+      "msg": "Insufficient searcher funds"
+    },
+    {
+      "code": 6007,
+      "name": "InsufficientRent",
+      "msg": "Insufficient funds for rent"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidReferralFee",
+      "msg": "Invalid referral fee"
+    }
+  ]
+}

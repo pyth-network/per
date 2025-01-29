@@ -5,10 +5,10 @@
  * IDL can be found at `target/idl/dummy.json`.
  */
 export type Dummy = {
-  address: "HYCgALnu6CM2gkQVopa1HGaNf8Vzbs9bomWRiKP267P3";
+  address: "";
   metadata: {
     name: "dummy";
-    version: "0.2.0";
+    version: "0.3.0";
     spec: "0.1.0";
     description: "Created with Anchor";
   };
@@ -24,7 +24,7 @@ export type Dummy = {
         },
         {
           name: "expressRelay";
-          address: "GwEtasTAxdS9neVE4GPUpcwR7DB7AizntQSPcG36ubZM";
+          address: "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou";
         },
         {
           name: "expressRelayMetadata";
@@ -150,6 +150,10 @@ export type Dummy = {
           },
           {
             name: "splitRelayer";
+            type: "u64";
+          },
+          {
+            name: "swapPlatformFeeBps";
             type: "u64";
           },
         ];

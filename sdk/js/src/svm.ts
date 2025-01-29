@@ -143,19 +143,19 @@ export async function constructSwapInstruction(
   const svmConstants = SVM_CONSTANTS[chainId];
 
   const {
-    inputToken,
-    inputTokenProgram,
-    outputTokenProgram,
-    outputToken,
-    trader,
+    searcherToken,
+    tokenProgramSearcher,
+    tokenProgramUser,
+    userToken,
+    user,
     mintFee,
     feeTokenProgram,
     router,
   } = extractSwapInfo(swapOpportunity);
 
   if (
-    swapOpportunity.tokens.type === "input_specified" &&
-    swapOpportunity.feeToken === "output_token"
+    swapOpportunity.tokens.type === "searcher_specified" &&
+    swapOpportunity.feeToken === "user_token"
   ) {
     // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
     const denominator = FEE_SPLIT_PRECISION.sub(
@@ -171,51 +171,51 @@ export async function constructSwapInstruction(
   }
 
   const swapArgs = {
-    amountInput:
-      swapOpportunity.tokens.type === "input_specified"
-        ? new anchor.BN(swapOpportunity.tokens.inputAmount)
+    amountSearcher:
+      swapOpportunity.tokens.type === "searcher_specified"
+        ? new anchor.BN(swapOpportunity.tokens.searcherAmount)
         : bidAmount,
-    amountOutput:
-      swapOpportunity.tokens.type === "output_specified"
-        ? new anchor.BN(swapOpportunity.tokens.outputTokenAmountBeforeFees)
+    amountUser:
+      swapOpportunity.tokens.type === "user_specified"
+        ? new anchor.BN(swapOpportunity.tokens.userTokenAmountIncludingFees)
         : bidAmount,
     referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
     deadline,
     feeToken:
-      swapOpportunity.feeToken === "input_token"
-        ? { input: {} }
-        : { output: {} },
+      swapOpportunity.feeToken === "searcher_token"
+        ? { searcher: {} }
+        : { user: {} },
   };
   const ixSwap = await expressRelay.methods
     .swap(swapArgs)
     .accountsStrict({
       expressRelayMetadata,
       searcher,
-      trader: swapOpportunity.userWalletAddress,
-      searcherInputTa: getAssociatedTokenAddress(
+      user: swapOpportunity.userWalletAddress,
+      searcherTaMintSearcher: getAssociatedTokenAddress(
         searcher,
-        inputToken,
-        inputTokenProgram,
+        searcherToken,
+        tokenProgramSearcher,
       ),
-      searcherOutputTa: getAssociatedTokenAddress(
+      searcherTaMintUser: getAssociatedTokenAddress(
         searcher,
-        outputToken,
-        outputTokenProgram,
+        userToken,
+        tokenProgramUser,
       ),
-      traderInputAta: getAssociatedTokenAddress(
-        trader,
-        inputToken,
-        inputTokenProgram,
+      userAtaMintSearcher: getAssociatedTokenAddress(
+        user,
+        searcherToken,
+        tokenProgramSearcher,
       ),
-      tokenProgramInput: inputTokenProgram,
-      mintInput: inputToken,
-      traderOutputAta: getAssociatedTokenAddress(
-        trader,
-        outputToken,
-        outputTokenProgram,
+      tokenProgramSearcher: tokenProgramSearcher,
+      mintSearcher: searcherToken,
+      userAtaMintUser: getAssociatedTokenAddress(
+        user,
+        userToken,
+        tokenProgramUser,
       ),
-      tokenProgramOutput: outputTokenProgram,
-      mintOutput: outputToken,
+      tokenProgramUser: tokenProgramUser,
+      mintUser: userToken,
       routerFeeReceiverTa: getAssociatedTokenAddress(
         router,
         mintFee,
@@ -240,31 +240,31 @@ export async function constructSwapInstruction(
 }
 
 function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
-  outputTokenProgram: PublicKey;
-  outputToken: PublicKey;
-  trader: PublicKey;
+  tokenProgramUser: PublicKey;
+  userToken: PublicKey;
+  user: PublicKey;
   mintFee: PublicKey;
   feeTokenProgram: PublicKey;
   router: PublicKey;
-  inputToken: PublicKey;
-  inputTokenProgram: PublicKey;
+  searcherToken: PublicKey;
+  tokenProgramSearcher: PublicKey;
 } {
-  const inputTokenProgram = swapOpportunity.tokens.inputTokenProgram;
-  const outputTokenProgram = swapOpportunity.tokens.outputTokenProgram;
-  const inputToken = swapOpportunity.tokens.inputToken;
-  const outputToken = swapOpportunity.tokens.outputToken;
-  const trader = swapOpportunity.userWalletAddress;
+  const tokenProgramSearcher = swapOpportunity.tokens.tokenProgramSearcher;
+  const tokenProgramUser = swapOpportunity.tokens.tokenProgramUser;
+  const searcherToken = swapOpportunity.tokens.searcherToken;
+  const userToken = swapOpportunity.tokens.userToken;
+  const user = swapOpportunity.userWalletAddress;
   const [mintFee, feeTokenProgram] =
-    swapOpportunity.feeToken === "input_token"
-      ? [inputToken, inputTokenProgram]
-      : [outputToken, outputTokenProgram];
+    swapOpportunity.feeToken === "searcher_token"
+      ? [searcherToken, tokenProgramSearcher]
+      : [userToken, tokenProgramUser];
   const router = swapOpportunity.routerAccount;
   return {
-    inputToken,
-    inputTokenProgram,
-    outputTokenProgram,
-    outputToken,
-    trader,
+    searcherToken,
+    tokenProgramSearcher,
+    tokenProgramUser,
+    userToken,
+    user,
     mintFee,
     feeTokenProgram,
     router,
@@ -282,9 +282,9 @@ export async function constructSwapBid(
 ): Promise<BidSvmSwap> {
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
   const {
-    outputTokenProgram,
-    outputToken,
-    trader,
+    tokenProgramUser,
+    userToken,
+    user,
     mintFee,
     feeTokenProgram,
     router,
@@ -292,7 +292,7 @@ export async function constructSwapBid(
   const tokenAccountsToCreate = [
     { owner: relayerSigner, mint: mintFee, program: feeTokenProgram },
     { owner: expressRelayMetadata, mint: mintFee, program: feeTokenProgram },
-    { owner: trader, mint: outputToken, program: outputTokenProgram },
+    { owner: user, mint: userToken, program: tokenProgramUser },
   ];
   if (swapOpportunity.referralFeeBps > 0) {
     tokenAccountsToCreate.push({

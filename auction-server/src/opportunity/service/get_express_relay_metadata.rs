@@ -70,7 +70,7 @@ impl Service<ChainTypeSvm> {
         Ok(metadata_account)
     }
 
-    async fn calculate_metadata_address(config: &ConfigSvm) -> Pubkey {
+    pub async fn calculate_metadata_address(config: &ConfigSvm) -> Pubkey {
         let program_id = config
             .get_auction_service()
             .await

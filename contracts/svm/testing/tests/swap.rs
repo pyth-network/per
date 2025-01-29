@@ -185,21 +185,21 @@ impl Token {
 }
 
 pub struct SwapSetupParams {
-    pub platform_fee_bps:      u64,
-    pub input_token_program:   Pubkey,
-    pub input_token_decimals:  u8,
-    pub output_token_program:  Pubkey,
-    pub output_token_decimals: u8,
+    pub platform_fee_bps:        u64,
+    pub token_program_searcher:  Pubkey,
+    pub token_decimals_searcher: u8,
+    pub token_program_user:      Pubkey,
+    pub token_decimals_user:     u8,
 }
 
 pub struct SwapSetupResult {
-    pub svm:              LiteSVM,
-    pub trader:           Keypair,
-    pub searcher:         Keypair,
-    pub input_token:      Token,
-    pub output_token:     Token,
-    pub router_input_ta:  Pubkey,
-    pub router_output_ta: Pubkey,
+    pub svm:                     LiteSVM,
+    pub user:                    Keypair,
+    pub searcher:                Keypair,
+    pub token_searcher:          Token,
+    pub token_user:              Token,
+    pub router_ta_mint_searcher: Pubkey,
+    pub router_ta_mint_user:     Pubkey,
 }
 
 pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
@@ -210,366 +210,363 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
         ..
     } = setup(None).expect("setup failed");
 
-    let trader = Keypair::new();
-    let input_token = Token::create_mint(
+    let user = Keypair::new();
+    let token_searcher = Token::create_mint(
         &mut svm,
-        args.input_token_program,
-        args.input_token_decimals,
+        args.token_program_searcher,
+        args.token_decimals_searcher,
     );
-    let output_token = Token::create_mint(
-        &mut svm,
-        args.output_token_program,
-        args.output_token_decimals,
-    );
+    let token_user =
+        Token::create_mint(&mut svm, args.token_program_user, args.token_decimals_user);
 
     let set_swap_platform_fee_ix = set_swap_platform_fee_instruction(&admin, args.platform_fee_bps);
     submit_transaction(&mut svm, &[set_swap_platform_fee_ix], &admin, &[&admin]).unwrap();
 
-    input_token.airdrop(&mut svm, &searcher.pubkey(), 10.);
-    output_token.airdrop(&mut svm, &trader.pubkey(), 10.);
+    token_searcher.airdrop(&mut svm, &searcher.pubkey(), 10.);
+    token_user.airdrop(&mut svm, &user.pubkey(), 10.);
 
     let router = Keypair::new().pubkey();
-    let router_input_ta = input_token.create_token_account(&mut svm, &router);
-    let router_output_ta = output_token.create_token_account(&mut svm, &router);
+    let router_ta_mint_searcher = token_searcher.create_token_account(&mut svm, &router);
+    let router_ta_mint_user = token_user.create_token_account(&mut svm, &router);
 
     SwapSetupResult {
         svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_input_ta,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_searcher,
+        router_ta_mint_user,
     }
 }
 
 #[test]
 fn test_swaps() {
-    test_swap_fee_input_token(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token_2022::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token_2022::ID,
-        output_token_decimals: 6,
+    test_swap_fee_mint_searcher(SwapSetupParams {
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token_2022::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token_2022::ID,
+        token_decimals_user:     6,
     });
 
-    test_swap_fee_input_token(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 8,
+    test_swap_fee_mint_searcher(SwapSetupParams {
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     8,
     });
 
-    test_swap_fee_output_token(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token_2022::ID,
-        input_token_decimals:  5,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 7,
+    test_swap_fee_mint_user(SwapSetupParams {
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token_2022::ID,
+        token_decimals_searcher: 5,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     7,
     });
 
-    test_swap_fee_output_token(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  3,
-        output_token_program:  spl_token_2022::ID,
-        output_token_decimals: 4,
+    test_swap_fee_mint_user(SwapSetupParams {
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 3,
+        token_program_user:      spl_token_2022::ID,
+        token_decimals_user:     4,
     });
 }
 
 
-fn test_swap_fee_input_token(args: SwapSetupParams) {
+fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_input_ta,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_searcher,
+        router_ta_mint_user,
     } = setup_swap(args);
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
-    // input token balances
+    // searcher token balances
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&searcher.pubkey()),
-        input_token.get_amount_with_decimals(10.),
+        &token_searcher.get_associated_token_address(&searcher.pubkey()),
+        token_searcher.get_amount_with_decimals(10.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&trader.pubkey()),
-        output_token.get_amount_with_decimals(0.),
+        &token_searcher.get_associated_token_address(&user.pubkey()),
+        token_user.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
-        input_token.get_amount_with_decimals(0.),
+        &token_searcher.get_associated_token_address(&get_express_relay_metadata_key()),
+        token_searcher.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        input_token.get_amount_with_decimals(0.),
+        &token_searcher.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
+        token_searcher.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_input_ta,
-        input_token.get_amount_with_decimals(0.),
-    ));
-
-    // output token balances
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &output_token.get_associated_token_address(&searcher.pubkey()),
-        output_token.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &output_token.get_associated_token_address(&trader.pubkey()),
-        output_token.get_amount_with_decimals(10.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &router_output_ta,
-        output_token.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
-        output_token.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        output_token.get_amount_with_decimals(0.),
+        &router_ta_mint_searcher,
+        token_searcher.get_amount_with_decimals(0.),
     ));
 
-    // input token fee
+    // user token balances
+    assert!(Token::token_balance_matches(
+        &mut svm,
+        &token_user.get_associated_token_address(&searcher.pubkey()),
+        token_user.get_amount_with_decimals(0.),
+    ));
+    assert!(Token::token_balance_matches(
+        &mut svm,
+        &token_user.get_associated_token_address(&user.pubkey()),
+        token_user.get_amount_with_decimals(10.),
+    ));
+    assert!(Token::token_balance_matches(
+        &mut svm,
+        &router_ta_mint_user,
+        token_user.get_amount_with_decimals(0.),
+    ));
+    assert!(Token::token_balance_matches(
+        &mut svm,
+        &token_user.get_associated_token_address(&get_express_relay_metadata_key()),
+        token_user.get_amount_with_decimals(0.),
+    ));
+    assert!(Token::token_balance_matches(
+        &mut svm,
+        &token_user.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
+        token_user.get_amount_with_decimals(0.),
+    ));
+
+    // searcher token fee
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 3000,
-        fee_token:        FeeToken::Input,
+        fee_token:        FeeToken::Searcher,
     };
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
+        user.pubkey(),
         None,
         None,
-        router_input_ta,
+        router_ta_mint_searcher,
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
         None,
     );
-    submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
+    submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap();
 
-    // input token balances
+    // searcher token balances
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&searcher.pubkey()),
-        input_token.get_amount_with_decimals(9.),
+        &token_searcher.get_associated_token_address(&searcher.pubkey()),
+        token_searcher.get_amount_with_decimals(9.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&trader.pubkey()),
-        input_token.get_amount_with_decimals(0.6),
+        &token_searcher.get_associated_token_address(&user.pubkey()),
+        token_searcher.get_amount_with_decimals(0.6),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
-        input_token.get_amount_with_decimals(0.08),
+        &token_searcher.get_associated_token_address(&get_express_relay_metadata_key()),
+        token_searcher.get_amount_with_decimals(0.08),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        input_token.get_amount_with_decimals(0.02),
+        &token_searcher.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
+        token_searcher.get_amount_with_decimals(0.02),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_input_ta,
-        input_token.get_amount_with_decimals(0.3),
+        &router_ta_mint_searcher,
+        token_searcher.get_amount_with_decimals(0.3),
     ));
 
-    // output token balances
+    // user token balances
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&searcher.pubkey()),
-        output_token.get_amount_with_decimals(1.),
+        &token_user.get_associated_token_address(&searcher.pubkey()),
+        token_user.get_amount_with_decimals(1.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&trader.pubkey()),
-        output_token.get_amount_with_decimals(9.),
+        &token_user.get_associated_token_address(&user.pubkey()),
+        token_user.get_amount_with_decimals(9.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
-        output_token.get_amount_with_decimals(0.),
+        &token_user.get_associated_token_address(&get_express_relay_metadata_key()),
+        token_user.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        output_token.get_amount_with_decimals(0.),
+        &token_user.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
+        token_user.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_output_ta,
-        output_token.get_amount_with_decimals(0.),
+        &router_ta_mint_user,
+        token_user.get_amount_with_decimals(0.),
     ));
 }
 
-fn test_swap_fee_output_token(args: SwapSetupParams) {
+fn test_swap_fee_mint_user(args: SwapSetupParams) {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_input_ta,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_searcher,
+        router_ta_mint_user,
     } = setup_swap(args);
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
-    // input token balances
+    // searcher token balances
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&searcher.pubkey()),
-        input_token.get_amount_with_decimals(10.),
+        &token_searcher.get_associated_token_address(&searcher.pubkey()),
+        token_searcher.get_amount_with_decimals(10.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&trader.pubkey()),
-        output_token.get_amount_with_decimals(0.),
+        &token_searcher.get_associated_token_address(&user.pubkey()),
+        token_user.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
-        input_token.get_amount_with_decimals(0.),
+        &token_searcher.get_associated_token_address(&get_express_relay_metadata_key()),
+        token_searcher.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        input_token.get_amount_with_decimals(0.),
+        &token_searcher.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
+        token_searcher.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_input_ta,
-        input_token.get_amount_with_decimals(0.),
+        &router_ta_mint_searcher,
+        token_searcher.get_amount_with_decimals(0.),
     ));
 
-    // output token balances
+    // user token balances
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&searcher.pubkey()),
-        output_token.get_amount_with_decimals(0.),
+        &token_user.get_associated_token_address(&searcher.pubkey()),
+        token_user.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&trader.pubkey()),
-        output_token.get_amount_with_decimals(10.),
+        &token_user.get_associated_token_address(&user.pubkey()),
+        token_user.get_amount_with_decimals(10.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_output_ta,
-        output_token.get_amount_with_decimals(0.),
+        &router_ta_mint_user,
+        token_user.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
-        output_token.get_amount_with_decimals(0.),
+        &token_user.get_associated_token_address(&get_express_relay_metadata_key()),
+        token_user.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        output_token.get_amount_with_decimals(0.),
+        &token_user.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
+        token_user.get_amount_with_decimals(0.),
     ));
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 1500,
-        fee_token:        FeeToken::Output,
+        fee_token:        FeeToken::User,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
+        user.pubkey(),
         None,
         None,
-        router_output_ta,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
         None,
     );
-    submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap();
+    submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap();
 
-    // input token balances
+    // searcher token balances
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&searcher.pubkey()),
-        input_token.get_amount_with_decimals(9.),
+        &token_searcher.get_associated_token_address(&searcher.pubkey()),
+        token_searcher.get_amount_with_decimals(9.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&trader.pubkey()),
-        input_token.get_amount_with_decimals(1.),
+        &token_searcher.get_associated_token_address(&user.pubkey()),
+        token_searcher.get_amount_with_decimals(1.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&get_express_relay_metadata_key()),
-        input_token.get_amount_with_decimals(0.),
+        &token_searcher.get_associated_token_address(&get_express_relay_metadata_key()),
+        token_searcher.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &input_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        input_token.get_amount_with_decimals(0.),
+        &token_searcher.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
+        token_searcher.get_amount_with_decimals(0.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_input_ta,
-        input_token.get_amount_with_decimals(0.),
+        &router_ta_mint_searcher,
+        token_searcher.get_amount_with_decimals(0.),
     ));
 
-    // output token balances
+    // user token balances
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&searcher.pubkey()),
-        output_token.get_amount_with_decimals(0.75),
+        &token_user.get_associated_token_address(&searcher.pubkey()),
+        token_user.get_amount_with_decimals(0.75),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&trader.pubkey()),
-        output_token.get_amount_with_decimals(9.),
+        &token_user.get_associated_token_address(&user.pubkey()),
+        token_user.get_amount_with_decimals(9.),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&get_express_relay_metadata_key()),
-        output_token.get_amount_with_decimals(0.08),
+        &token_user.get_associated_token_address(&get_express_relay_metadata_key()),
+        token_user.get_amount_with_decimals(0.08),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &output_token.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        output_token.get_amount_with_decimals(0.02),
+        &token_user.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
+        token_user.get_amount_with_decimals(0.02),
     ));
     assert!(Token::token_balance_matches(
         &mut svm,
-        &router_output_ta,
-        output_token.get_amount_with_decimals(0.15),
+        &router_ta_mint_user,
+        token_user.get_amount_with_decimals(0.15),
     ));
 }
 
@@ -577,48 +574,48 @@ fn test_swap_fee_output_token(args: SwapSetupParams) {
 fn test_swap_expired_deadline() {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 6,
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
-    // output token fee
+    // user token fee
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp - 1, // <--- deadline is in the past
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 1500,
-        fee_token:        FeeToken::Output,
+        fee_token:        FeeToken::User,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
+        user.pubkey(),
         None,
         None,
-        router_output_ta,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
         None,
     );
     let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -630,47 +627,47 @@ fn test_swap_expired_deadline() {
 fn test_swap_invalid_referral_fee_bps() {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 6,
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: (FEE_SPLIT_PRECISION + 1) as u16, // <--- referral fee bps is too high
-        fee_token:        FeeToken::Output,
+        fee_token:        FeeToken::User,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
+        user.pubkey(),
         None,
         None,
-        router_output_ta,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
         None,
     );
     let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -682,47 +679,47 @@ fn test_swap_invalid_referral_fee_bps() {
 fn test_swap_fee_calculation_overflow() {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
-        platform_fee_bps:      5000, // <--- high platform fee bps
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 6,
+        platform_fee_bps:        5000, // <--- high platform fee bps
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 5001, // <--- referral fee bps + platform fee bps is more than 100%
-        fee_token:        FeeToken::Output,
+        fee_token:        FeeToken::User,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
+        user.pubkey(),
         None,
         None,
-        router_output_ta,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
         None,
     );
     let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
     assert_custom_error(result.err, 4, InstructionError::ArithmeticOverflow);
 }
 
@@ -730,47 +727,47 @@ fn test_swap_fee_calculation_overflow() {
 fn test_swap_router_ta_has_wrong_mint() {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 6,
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 1500,
-        fee_token:        FeeToken::Input,
+        fee_token:        FeeToken::Searcher,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
+        user.pubkey(),
         None,
         None,
-        router_output_ta, // <--- router should receive the input token
+        router_ta_mint_user, // <--- router should receive the searcher token
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
         None,
     );
     let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -779,21 +776,21 @@ fn test_swap_router_ta_has_wrong_mint() {
 }
 
 #[test]
-fn test_swap_searcher_ta_wrong_mint() {
+fn test_swap_searcher_ta_has_wrong_mint() {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 6,
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
@@ -803,29 +800,29 @@ fn test_swap_searcher_ta_wrong_mint() {
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 1500,
-        fee_token:        FeeToken::Output,
+        fee_token:        FeeToken::User,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
-        Some(third_token.get_associated_token_address(&searcher.pubkey())), // <--- searcher input ta has the wrong mint
+        user.pubkey(),
+        Some(third_token.get_associated_token_address(&searcher.pubkey())), // <--- searcher ta (supposed to be of mint_searcher) has the wrong mint
         None,
-        router_output_ta,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
         None,
     );
     let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -837,47 +834,47 @@ fn test_swap_searcher_ta_wrong_mint() {
 fn test_swap_searcher_ta_wrong_owner() {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 6,
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 1500,
-        fee_token:        FeeToken::Output,
+        fee_token:        FeeToken::User,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
-        Some(input_token.get_associated_token_address(&trader.pubkey())), // <--- searcher input ta has the wrong owner
+        user.pubkey(),
+        Some(token_searcher.get_associated_token_address(&user.pubkey())), // <--- searcher ta (supposed to be of mint_searcher) has the wrong owner
         None,
-        router_output_ta,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
         None,
     );
     let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -889,45 +886,45 @@ fn test_swap_searcher_ta_wrong_owner() {
 fn test_swap_wrong_express_relay_fee_receiver() {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 6,
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
     });
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 1500,
-        fee_token:        FeeToken::Output,
+        fee_token:        FeeToken::User,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
+        user.pubkey(),
         None,
         None,
-        router_output_ta,
+        router_ta_mint_user,
         Keypair::new().pubkey(), // <--- wrong express relay fee receiver
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
         None,
     );
     let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -936,51 +933,51 @@ fn test_swap_wrong_express_relay_fee_receiver() {
 }
 
 #[test]
-fn test_swap_trader_output_ata_is_not_ata() {
+fn test_swap_user_ata_mint_user_is_not_ata() {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_output_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
         ..
     } = setup_swap(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 6,
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
-    let trader_output_ata = output_token.create_token_account(&mut svm, &trader.pubkey());
+    let user_ata_mint_user = token_user.create_token_account(&mut svm, &user.pubkey());
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 1500,
-        fee_token:        FeeToken::Output,
+        fee_token:        FeeToken::User,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
+        user.pubkey(),
         None,
         None,
-        router_output_ta,
+        router_ta_mint_user,
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
-        Some(trader_output_ata), // <--- trader output ata is not an ata
+        Some(user_ata_mint_user), // <--- user ata (of mint_user) is not an ata
         None,
     );
     let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -992,47 +989,47 @@ fn test_swap_trader_output_ata_is_not_ata() {
 fn test_swap_wrong_mint_fee() {
     let SwapSetupResult {
         mut svm,
-        trader,
+        user,
         searcher,
-        input_token,
-        output_token,
-        router_input_ta,
+        token_searcher,
+        token_user,
+        router_ta_mint_searcher,
         ..
     } = setup_swap(SwapSetupParams {
-        platform_fee_bps:      1000,
-        input_token_program:   spl_token::ID,
-        input_token_decimals:  6,
-        output_token_program:  spl_token::ID,
-        output_token_decimals: 6,
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
     });
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_input:     input_token.get_amount_with_decimals(1.),
-        amount_output:    output_token.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(1.),
         referral_fee_bps: 1500,
-        fee_token:        FeeToken::Output,
+        fee_token:        FeeToken::User,
     };
 
     let instructions = build_swap_instructions(
         searcher.pubkey(),
-        trader.pubkey(),
+        user.pubkey(),
         None,
         None,
-        router_input_ta,
+        router_ta_mint_searcher,
         express_relay_metadata.fee_receiver_relayer,
-        input_token.mint,
-        output_token.mint,
-        Some(input_token.token_program),
-        Some(output_token.token_program),
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
         swap_args,
         None,
-        Some(input_token.mint), // <--- wrong mint fee
+        Some(token_searcher.mint), // <--- wrong mint fee
     );
     let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &trader]).unwrap_err();
+        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
     assert_custom_error(
         result.err,
         4,

@@ -4,14 +4,22 @@ Utility library for searchers and protocols to interact with the Express Relay A
 
 The SDK includes searcher-side utilities and protocol-side utilities. The searcher-side utilities include a basic Searcher client for connecting to the Express Relay server as well as an example SimpleSearcher class that provides a simple workflow for assessing and bidding on liquidation opportunities.
 
-# Searcher
-
 ## Installation
 
 ### poetry
 
 ```
 $ poetry add express-relay
+```
+
+## Development
+
+You can use `anchorpy` to generate a Python client of the Express Relay program. `anchorpy` only works with anchor versions `>=0.29`, so you will need to use such a version. Building may fail due to backward incompatibility with anchor `0.29.0`, so you may have to use `anchor idl parse --file` to generate the IDL.
+
+You can generate the Python client from the IDL via:
+
+```bash
+anchorpy client-gen express_relay/idl/idlExpressRelay.json express_relay/svm/generated/ --program-id PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfountagged
 ```
 
 ## Quickstart

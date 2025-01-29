@@ -114,10 +114,6 @@ export type OpportunitySvmMetadata = {
    */
   chainId: ChainId;
   /**
-   * Slot where the opportunity was found
-   */
-  slot: number;
-  /**
    * Unique identifier for the opportunity
    */
   opportunityId: string;
@@ -126,29 +122,30 @@ export type OpportunitySvmMetadata = {
 export type OpportunitySvmLimo = {
   order: OrderStateAndAddress;
   program: "limo";
+  slot: number;
 } & OpportunitySvmMetadata;
 
 export type SvmSwapTokens = (
   | {
-      outputAmount: bigint;
-      outputTokenAmountBeforeFees: bigint;
-      type: "output_specified";
+      userAmount: bigint;
+      userTokenAmountIncludingFees: bigint;
+      type: "user_specified";
     }
   | {
-      inputAmount: bigint;
-      type: "input_specified";
+      searcherAmount: bigint;
+      type: "searcher_specified";
     }
 ) & {
-  inputTokenProgram: PublicKey;
-  outputTokenProgram: PublicKey;
-  inputToken: PublicKey;
-  outputToken: PublicKey;
+  tokenProgramSearcher: PublicKey;
+  tokenProgramUser: PublicKey;
+  searcherToken: PublicKey;
+  userToken: PublicKey;
 };
 export type OpportunitySvmSwap = {
   permissionAccount: PublicKey;
   routerAccount: PublicKey;
   userWalletAddress: PublicKey;
-  feeToken: "input_token" | "output_token";
+  feeToken: "searcher_token" | "user_token";
   referralFeeBps: number;
   platformFeeBps: number;
   tokens: SvmSwapTokens;
@@ -355,6 +352,19 @@ export type SpecifiedTokenAmount = {
   amount: number;
 };
 
+export type ReferralFeeInfo = {
+  /**
+   * @description The router account that referral fees will be sent to
+   * @example 11111111111111111111111111111111
+   */
+  router: PublicKey;
+  /**
+   * @description The referral fee for the swap in bps
+   * @example 10
+   */
+  referralFeeBps: number;
+};
+
 export type QuoteRequest = {
   chainId: ChainId;
   /**
@@ -368,15 +378,9 @@ export type QuoteRequest = {
    */
   outputTokenMint: PublicKey;
   /**
-   * @description The router account that referral fees will be sent to
-   * @example 11111111111111111111111111111111
+   * @description Info about the referral fee. If not provided, no referral fee will be charged.
    */
-  router: PublicKey;
-  /**
-   * @description The referral fee for the swap in bps. If not provided, the referral fee will be set to the default value.
-   * @example 10
-   */
-  referralFeeBps?: number;
+  referralFeeInfo?: ReferralFeeInfo;
   /**
    * @description The specified token amount for the swap
    */

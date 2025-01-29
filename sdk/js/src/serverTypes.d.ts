@@ -3,6 +3,17 @@
  * Do not make direct changes to the file.
  */
 
+/** OneOf type helpers */
+type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never };
+type XOR<T, U> = T | U extends object
+  ? (Without<T, U> & U) | (Without<U, T> & T)
+  : T | U;
+type OneOf<T extends any[]> = T extends [infer Only]
+  ? Only
+  : T extends [infer A, infer B, ...infer Rest]
+    ? OneOf<[XOR<A, B>, ...Rest]>
+    : never;
+
 export interface paths {
   "/v1/bids": {
     /**
@@ -30,7 +41,8 @@ export interface paths {
   "/v1/opportunities": {
     /**
      * Fetch opportunities ready for execution or historical opportunities
-     * @description depending on the mode. You need to provide `chain_id` for historical mode.
+     * depending on the mode.
+     * @description You need to provide `chain_id` for historical mode.
      * Opportunities are sorted by creation time in ascending order.
      * Total number of opportunities returned is capped by the server to preserve bandwidth.
      */
@@ -47,8 +59,8 @@ export interface paths {
   "/v1/opportunities/quote": {
     /**
      * Submit a quote request.
-     * @description The server will estimate the quote price, which will be used to create an opportunity.
-     * After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.
+     * @description The server will create an opportunity and receive searcher bids
+     * After a certain time, the winning bid will be returned as the response.
      */
     post: operations["post_quote"];
   };
@@ -66,7 +78,7 @@ export interface paths {
   "/v1/{chain_id}/bids": {
     /**
      * Returns at most 20 bids which were submitted after a specific time and chain.
-     * @description If no time is provided, the server will return the first bids.
+     * If no time is provided, the server will return the first bids.
      */
     get: operations["get_bids_by_time"];
   };
@@ -150,6 +162,7 @@ export interface components {
        * @example SGVsbG8sIFdvcmxkIQ==
        */
       transaction: string;
+      /** @description The bid type. Should be "swap" */
       type: components["schemas"]["BidCreateSwapSvmTag"];
     };
     /** @enum {string} */
@@ -191,6 +204,7 @@ export interface components {
        * @example 0xdeadbeef
        */
       permission_key: string;
+      /** @description The latest status for bid. */
       status: components["schemas"]["BidStatusEvm"];
       /**
        * @description Calldata for the contract call.
@@ -218,12 +232,13 @@ export interface components {
     BidStatus:
       | components["schemas"]["BidStatusEvm"]
       | components["schemas"]["BidStatusSvm"];
-    BidStatusEvm:
-      | {
+    BidStatusEvm: OneOf<
+      [
+        {
           /** @enum {string} */
           type: "pending";
-        }
-      | {
+        },
+        {
           /**
            * Format: int32
            * @example 1
@@ -233,8 +248,8 @@ export interface components {
           result: string;
           /** @enum {string} */
           type: "submitted";
-        }
-      | {
+        },
+        {
           /**
            * Format: int32
            * @example 1
@@ -244,8 +259,8 @@ export interface components {
           result?: string | null;
           /** @enum {string} */
           type: "lost";
-        }
-      | {
+        },
+        {
           /**
            * Format: int32
            * @example 1
@@ -255,7 +270,9 @@ export interface components {
           result: string;
           /** @enum {string} */
           type: "won";
-        };
+        },
+      ]
+    >;
     BidStatusSvm:
       | {
           /** @enum {string} */
@@ -329,6 +346,7 @@ export interface components {
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       permission_key: string;
+      /** @description The latest status for bid. */
       status: components["schemas"]["BidStatusSvm"];
       /**
        * @description The transaction of the bid.
@@ -339,36 +357,39 @@ export interface components {
     Bids: {
       items: components["schemas"]["Bid"][];
     };
-    ClientMessage:
-      | {
+    ClientMessage: OneOf<
+      [
+        {
           /** @enum {string} */
           method: "subscribe";
           params: {
             chain_ids: string[];
           };
-        }
-      | {
+        },
+        {
           /** @enum {string} */
           method: "unsubscribe";
           params: {
             chain_ids: string[];
           };
-        }
-      | {
+        },
+        {
           /** @enum {string} */
           method: "post_bid";
           params: {
             bid: components["schemas"]["BidCreate"];
           };
-        }
-      | {
+        },
+        {
           /** @enum {string} */
           method: "post_opportunity_bid";
           params: {
             opportunity_bid: components["schemas"]["OpportunityBidEvm"];
             opportunity_id: string;
           };
-        };
+        },
+      ]
+    >;
     ClientRequest: components["schemas"]["ClientMessage"] & {
       id: string;
     };
@@ -376,7 +397,7 @@ export interface components {
       error: string;
     };
     /** @enum {string} */
-    FeeToken: "input_token" | "output_token";
+    FeeToken: "searcher_token" | "user_token";
     Opportunity:
       | components["schemas"]["OpportunityEvm"]
       | components["schemas"]["OpportunitySvm"];
@@ -523,15 +544,18 @@ export interface components {
       slot: number;
     };
     /** @description The input type for deleting opportunities. */
-    OpportunityDelete:
-      | (components["schemas"]["OpportunityDeleteSvm"] & {
+    OpportunityDelete: OneOf<
+      [
+        components["schemas"]["OpportunityDeleteSvm"] & {
           /** @enum {string} */
           chain_type: "svm";
-        })
-      | (components["schemas"]["OpportunityDeleteEvm"] & {
+        },
+        components["schemas"]["OpportunityDeleteEvm"] & {
           /** @enum {string} */
           chain_type: "evm";
-        });
+        },
+      ]
+    >;
     OpportunityDeleteEvm: components["schemas"]["OpportunityDeleteV1Evm"] & {
       /** @enum {string} */
       version: "v1";
@@ -565,6 +589,7 @@ export interface components {
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       permission_account: string;
+      /** @description The program for the opportunity. */
       program: components["schemas"]["ProgramSvm"];
       /**
        * @description The router account for the opportunity.
@@ -602,8 +627,9 @@ export interface components {
      * @description Opportunity parameters needed for on-chain execution.
      * Parameters may differ for each program.
      */
-    OpportunityParamsV1Svm: (
-      | {
+    OpportunityParamsV1Svm: OneOf<
+      [
+        {
           /**
            * @description The Limo order to be executed, encoded in base64.
            * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
@@ -616,11 +642,18 @@ export interface components {
           order_address: string;
           /** @enum {string} */
           program: "limo";
-        }
-      | {
+          /**
+           * Format: int64
+           * @description The slot where the opportunity params were fetched from using the RPC.
+           * @example 293106477
+           */
+          slot: number;
+        },
+        {
+          /** @description Specifies whether the fees are to be paid in the searcher or user token. */
           fee_token: components["schemas"]["FeeToken"];
           /**
-           * @description The permission account to be permitted by the ER contract for the opportunity execution of the protocol.
+           * @description The permission account that serves as an identifier for the swap opportunity.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           permission_account: string;
@@ -643,25 +676,27 @@ export interface components {
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           router_account: string;
+          /** @description Details about the tokens to be swapped. Either the searcher token amount or the user token amount must be specified. */
           tokens: components["schemas"]["QuoteTokens"] & {
             /**
-             * @description The token program of the input mint.
+             * @description The token program of the searcher mint.
              * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
              */
-            input_token_program: string;
+            token_program_searcher: string;
             /**
-             * @description The token program of the output mint.
+             * @description The token program of the user mint.
              * @example TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
              */
-            output_token_program: string;
+            token_program_user: string;
           };
           /**
            * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           user_wallet_address: string;
-        }
-    ) & {
+        },
+      ]
+    > & {
       /** @example solana */
       chain_id: string;
     };
@@ -679,12 +714,6 @@ export interface components {
        * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
        */
       opportunity_id: string;
-      /**
-       * Format: int64
-       * @description The slot where the program params were fetched from using the RPC.
-       * @example 293106477
-       */
-      slot: number;
     };
     /** @enum {string} */
     ProgramSvm: "swap" | "limo";
@@ -694,10 +723,7 @@ export interface components {
       /** @enum {string} */
       version: "v1";
     };
-    /**
-     * @description Parameters needed to create a new opportunity from the swap request.
-     * Auction server will extract the output token price for the auction.
-     */
+    /** @description Parameters needed to create a new opportunity from the swap request. */
     QuoteCreateV1SvmParams: {
       /**
        * @description The chain id for creating the quote.
@@ -705,28 +731,38 @@ export interface components {
        */
       chain_id: string;
       /**
-       * @description The token mint address of the input token.
+       * @description The mint address of the token the user will provide in the swap.
        * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
        */
       input_token_mint: string;
       /**
-       * @description The token mint address of the output token.
+       * @description The mint address of the token the user will receive in the swap.
        * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
        */
       output_token_mint: string;
-      /**
-       * Format: int32
-       * @description The referral fee in basis points. If not provided, the referral fee will default to 0.
-       * @example 10
-       */
-      referral_fee_bps?: number;
-      /**
-       * @description The router account to send referral fees to.
-       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-       */
-      router: string;
-      specified_token_amount:
-        | {
+      /** @description Information about the referral fee and the router to send the fee to. If not provided, referral fee will be set to 0. */
+      referral_fee_info?: OneOf<
+        [
+          null,
+          {
+            /**
+             * Format: int32
+             * @description The referral fee in basis points.
+             * @example 10
+             */
+            referral_fee_bps: number;
+            /**
+             * @description The router account to send referral fees to.
+             * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+             */
+            router: string;
+          },
+        ]
+      >;
+      /** @description The token amount that the user wants to swap out of/into. */
+      specified_token_amount: OneOf<
+        [
+          {
             /**
              * Format: int64
              * @example 100
@@ -734,8 +770,8 @@ export interface components {
             amount: number;
             /** @enum {string} */
             side: "input";
-          }
-        | {
+          },
+          {
             /**
              * Format: int64
              * @example 50
@@ -743,7 +779,9 @@ export interface components {
             amount: number;
             /** @enum {string} */
             side: "output";
-          };
+          },
+        ]
+      >;
       /**
        * @description The user wallet address which requested the quote from the wallet.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -754,50 +792,53 @@ export interface components {
       /** @enum {string} */
       version: "v1";
     };
-    QuoteTokens:
-      | {
+    QuoteTokens: OneOf<
+      [
+        {
           /**
            * Format: int64
-           * @description The exact amount that the user wants to receive from the input_token
+           * @description The exact amount that the searcher will provide
            */
-          input_amount: number;
+          searcher_amount: number;
           /**
-           * @description The token that the user wants to receive
+           * @description The token that the searcher will provide
            * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
            */
-          input_token: string;
+          searcher_token: string;
+          /** @enum {string} */
+          side_specified: "searcher";
           /**
-           * @description The token that the user wants to send in exchange
+           * @description The token that the user will provide
            * @example So11111111111111111111111111111111111111112
            */
-          output_token: string;
-          /** @enum {string} */
-          side_specified: "input";
-        }
-      | {
+          user_token: string;
+        },
+        {
           /**
-           * @description The token that the user wants to receive
+           * @description The token that the searcher will provide
            * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
            */
-          input_token: string;
+          searcher_token: string;
+          /** @enum {string} */
+          side_specified: "user";
           /**
            * Format: int64
-           * @description The amount that searcher will receive after deducting fees
+           * @description The amount that searcher will receive from the user after deducting fees
            */
-          output_amount: number;
+          user_amount: number;
           /**
            * Format: int64
-           * @description The exact amount of output_token that the user wants to send in exchange
+           * @description The exact amount that the user will provide, including any fees on the user token side
            */
-          output_amount_before_fees: number;
+          user_amount_including_fees: number;
           /**
-           * @description The token that the user wants to send in exchange
+           * @description The token that the user will provide
            * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
            */
-          output_token: string;
-          /** @enum {string} */
-          side_specified: "output";
-        };
+          user_token: string;
+        },
+      ]
+    >;
     QuoteV1Svm: {
       /**
        * @description The chain id for the quote.
@@ -810,27 +851,47 @@ export interface components {
        * @example 1700000000000000
        */
       expiration_time: number;
+      /** @description The token and amount that the user needs to send to fulfill the swap transaction. */
       input_token: components["schemas"]["TokenAmountSvm"];
+      /** @description The token and amount that the user will receive when the swap is complete. */
       output_token: components["schemas"]["TokenAmountSvm"];
+      /** @description The token and amount of the platform fee paid to the Express Relay program and relayer. */
       platform_fee: components["schemas"]["TokenAmountSvm"];
+      /** @description The token and amount of the referral fee paid to the party that routed the swap request to Express Relay. */
       referrer_fee: components["schemas"]["TokenAmountSvm"];
       /**
-       * @description The signed transaction for the quote to be executed on chain which is valid until the expiration time.
+       * @description The transaction for the quote to be executed on chain which is valid until the expiration time.
        * @example SGVsbG8sIFdvcmxkIQ==
        */
       transaction: string;
     };
-    ServerResultMessage:
-      | {
-          result: components["schemas"]["APIResponse"] | null;
+    ReferralFeeInfo: {
+      /**
+       * Format: int32
+       * @description The referral fee in basis points.
+       * @example 10
+       */
+      referral_fee_bps: number;
+      /**
+       * @description The router account to send referral fees to.
+       * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+       */
+      router: string;
+    };
+    ServerResultMessage: OneOf<
+      [
+        {
+          result: null | components["schemas"]["APIResponse"];
           /** @enum {string} */
           status: "success";
-        }
-      | {
+        },
+        {
           result: string;
           /** @enum {string} */
           status: "error";
-        };
+        },
+      ]
+    >;
     /**
      * @description This enum is used to send the result for a specific client request with the same id.
      * Id is only None when the client message is invalid.
@@ -839,29 +900,33 @@ export interface components {
       id?: string | null;
     };
     /** @description This enum is used to send an update to the client for any subscriptions made. */
-    ServerUpdateResponse:
-      | {
+    ServerUpdateResponse: OneOf<
+      [
+        {
           opportunity: components["schemas"]["Opportunity"];
           /** @enum {string} */
           type: "new_opportunity";
-        }
-      | {
+        },
+        {
           status: components["schemas"]["BidStatusWithId"];
           /** @enum {string} */
           type: "bid_status_update";
-        }
-      | {
+        },
+        {
           /** @enum {string} */
           type: "svm_chain_update";
           update: components["schemas"]["SvmChainUpdate"];
-        }
-      | {
+        },
+        {
           opportunity_delete: components["schemas"]["OpportunityDelete"];
           /** @enum {string} */
           type: "remove_opportunities";
-        };
-    SpecifiedTokenAmount:
-      | {
+        },
+      ]
+    >;
+    SpecifiedTokenAmount: OneOf<
+      [
+        {
           /**
            * Format: int64
            * @example 100
@@ -869,8 +934,8 @@ export interface components {
           amount: number;
           /** @enum {string} */
           side: "input";
-        }
-      | {
+        },
+        {
           /**
            * Format: int64
            * @example 50
@@ -878,7 +943,9 @@ export interface components {
           amount: number;
           /** @enum {string} */
           side: "output";
-        };
+        },
+      ]
+    >;
     SvmChainUpdate: {
       /** @example SLxp9LxX1eE9Z5v99Y92DaYEwyukFgMUF6zRerCF12j */
       blockhash: string;
@@ -1048,7 +1115,8 @@ export interface operations {
   };
   /**
    * Fetch opportunities ready for execution or historical opportunities
-   * @description depending on the mode. You need to provide `chain_id` for historical mode.
+   * depending on the mode.
+   * @description You need to provide `chain_id` for historical mode.
    * Opportunities are sorted by creation time in ascending order.
    * Total number of opportunities returned is capped by the server to preserve bandwidth.
    */
@@ -1142,8 +1210,8 @@ export interface operations {
   };
   /**
    * Submit a quote request.
-   * @description The server will estimate the quote price, which will be used to create an opportunity.
-   * After a certain time, searcher bids are collected, the winning signed bid will be returned along with the estimated price.
+   * @description The server will create an opportunity and receive searcher bids
+   * After a certain time, the winning bid will be returned as the response.
    */
   post_quote: {
     requestBody: {
@@ -1211,7 +1279,7 @@ export interface operations {
   };
   /**
    * Returns at most 20 bids which were submitted after a specific time and chain.
-   * @description If no time is provided, the server will return the first bids.
+   * If no time is provided, the server will return the first bids.
    */
   get_bids_by_time: {
     parameters: {
