@@ -130,8 +130,8 @@ pub enum BidStatusSvm {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(untagged)]
 pub enum BidStatus {
-    Evm(BidStatusEvm),
     Svm(BidStatusSvm),
+    Evm(BidStatusEvm),
 }
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
