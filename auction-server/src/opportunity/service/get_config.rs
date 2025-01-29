@@ -16,4 +16,3 @@ impl<T: ChainType> Service<T> {
             .ok_or(RestError::BadParameters("Chain not found".to_string()))
     }
 }
-

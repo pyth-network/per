@@ -290,9 +290,11 @@ impl Verification<ChainTypeSvm> for Service<ChainTypeSvm> {
 
 #[cfg(test)]
 mod test {
-    use crate::opportunity::service::MockChainType;
-    use super::*;
-    
+    use {
+        super::*,
+        crate::opportunity::service::MockChainType,
+    };
+
     impl Verification<MockChainType> for Service<MockChainType> {
         async fn verify_opportunity(
             &self,
