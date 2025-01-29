@@ -200,7 +200,7 @@ pub async fn get_opportunities(
 
 /// Submit a quote request.
 ///
-/// The server will create an opportunity, and searcher bids will be received.
+/// The server will create an opportunity and receive searcher bids
 /// After a certain time, the winning bid will be returned as the response.
 #[utoipa::path(post, path = "/v1/opportunities/quote", request_body = QuoteCreate, responses(
     (status = 200, description = "The created quote", body = Quote),
