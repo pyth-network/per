@@ -311,6 +311,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     opportunity::post_quote,
     opportunity::delete_opportunities,
 
+    bid::post_submit_quote,
+
     profile::delete_profile_access_token,
     ),
     components(
@@ -367,6 +369,9 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::opportunity::ProgramSvm,
     api_types::opportunity::FeeToken,
     api_types::opportunity::ReferralFeeInfo,
+
+    api_types::quote::SubmitQuote,
+    api_types::quote::SubmitQuoteResponse,
 
     ErrorBodyResponse,
     api_types::ws::ClientRequest,

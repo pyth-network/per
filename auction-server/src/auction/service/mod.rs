@@ -79,6 +79,7 @@ pub mod handle_auction;
 pub mod handle_auctions;
 pub mod handle_bid;
 pub mod simulator;
+pub mod submit_quote;
 pub mod update_bid_status;
 pub mod update_recent_prioritization_fee;
 pub mod update_submitted_auction;

@@ -112,13 +112,13 @@ pub trait Verification<T: ChainTrait> {
     ) -> Result<VerificationResult<T>, RestError>;
 }
 
-struct SwapAccounts {
-    user_wallet:            Pubkey,
-    mint_searcher:          Pubkey,
-    mint_user:              Pubkey,
-    router_token_account:   Pubkey,
-    token_program_searcher: Pubkey,
-    token_program_user:     Pubkey,
+pub struct SwapAccounts {
+    pub user_wallet:            Pubkey,
+    pub mint_searcher:          Pubkey,
+    pub mint_user:              Pubkey,
+    pub router_token_account:   Pubkey,
+    pub token_program_searcher: Pubkey,
+    pub token_program_user:     Pubkey,
 }
 
 impl Service<Evm> {
@@ -290,12 +290,12 @@ impl Verification<Evm> for Service<Evm> {
     }
 }
 
-struct BidDataSvm {
-    amount:             u64,
-    router:             Pubkey,
-    permission_account: Pubkey,
-    deadline:           OffsetDateTime,
-    submit_type:        SubmitType,
+pub struct BidDataSvm {
+    pub amount:             u64,
+    pub router:             Pubkey,
+    pub permission_account: Pubkey,
+    pub deadline:           OffsetDateTime,
+    pub submit_type:        SubmitType,
 }
 
 const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
@@ -695,7 +695,7 @@ impl Service<Svm> {
         Ok(())
     }
 
-    async fn extract_swap_accounts(
+    pub async fn extract_swap_accounts(
         &self,
         tx: &VersionedTransaction,
         swap_instruction: &CompiledInstruction,
@@ -736,7 +736,7 @@ impl Service<Svm> {
         })
     }
 
-    async fn extract_bid_data(
+    pub async fn extract_bid_data(
         &self,
         bid_chain_data_create_svm: &BidChainDataCreateSvm,
     ) -> Result<BidDataSvm, RestError> {

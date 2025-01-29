@@ -733,7 +733,7 @@ impl Service<Svm> {
     }
 
     #[tracing::instrument(skip_all, fields(bid_id))]
-    async fn send_transaction(
+    pub async fn send_transaction(
         &self,
         bid: &entities::Bid<Svm>,
     ) -> solana_client::client_error::Result<Signature> {

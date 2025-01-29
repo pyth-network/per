@@ -8,6 +8,7 @@ use {
             get_bid::GetBidInput,
             get_bids::GetBidsInput,
             handle_bid::HandleBidInput,
+            submit_quote::SubmitQuoteInput,
             verification::Verification,
             ChainTrait,
             Service,
@@ -56,6 +57,10 @@ use {
             GetBidStatusParams,
             GetBidsByTimeQueryParams,
             Route,
+        },
+        quote::{
+            SubmitQuote,
+            SubmitQuoteResponse,
         },
         ErrorBodyResponse,
     },
@@ -227,6 +232,39 @@ pub async fn get_bids_by_time_deprecated(
     }
 }
 
+/// Signs and submits the transaction for the specified quote.
+///
+/// Server will verify the quote and checks if the quote is still valid.
+/// If the quote is valid, the server will submit the transaction to the blockchain.
+#[utoipa::path(post, path = "/v1/{chain_id}/quotes/submit", request_body = SubmitQuote,
+    responses(
+        (status = 200, body = SubmitQuoteResponse),
+        (status = 400, response = ErrorBodyResponse),
+    ),
+    tag = "quote",
+)]
+pub async fn post_submit_quote(
+    State(store): State<Arc<StoreNew>>,
+    Path(chain_id): Path<ChainId>,
+    Json(submit_quote): Json<SubmitQuote>,
+) -> Result<Json<SubmitQuoteResponse>, RestError> {
+    let service = store.get_auction_service(&chain_id)?;
+    match service {
+        ServiceEnum::Evm(_) => Err(RestError::BadParameters(
+            "EVM chain_id is not supported for submit_quote".to_string(),
+        )),
+        ServiceEnum::Svm(service) => {
+            let transaction = service
+                .submit_quote(SubmitQuoteInput {
+                    bid_id:         submit_quote.reference_id,
+                    user_signature: submit_quote.user_signature,
+                })
+                .await?;
+            Ok(Json(SubmitQuoteResponse { transaction }))
+        }
+    }
+}
+
 pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     #[allow(deprecated)]
     WrappedRouter::new(store)
@@ -241,6 +279,7 @@ pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
             express_relay_api_types::bid::DeprecatedRoute::DeprecatedGetBidStatus,
             get_bid_status_deprecated,
         )
+        .route(Route::PostSubmitQuote, post_submit_quote)
         .router
 }
 
