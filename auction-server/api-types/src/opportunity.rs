@@ -593,7 +593,7 @@ pub enum QuoteCreate {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteV1Svm {
-    /// The signed transaction for the quote to be executed on chain which is valid until the expiration time.
+    /// The transaction for the quote to be executed on chain which is valid until the expiration time.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
     #[serde(with = "crate::serde::transaction_svm")]
     pub transaction:     VersionedTransaction,
@@ -604,9 +604,9 @@ pub struct QuoteV1Svm {
     pub input_token:     TokenAmountSvm,
     /// The token and amount that the user will receive when the swap is complete.
     pub output_token:    TokenAmountSvm,
-    /// The token and amount of the referral fee.
+    /// The token and amount of the referral fee paid to the party that routed the swap request to Express Relay.
     pub referrer_fee:    TokenAmountSvm,
-    /// The token and amount of the platform fee.
+    /// The token and amount of the platform fee paid to the Express Relay program and relayer.
     pub platform_fee:    TokenAmountSvm,
     /// The chain id for the quote.
     #[schema(example = "solana", value_type = String)]
