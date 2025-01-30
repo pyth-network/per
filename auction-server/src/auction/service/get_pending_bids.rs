@@ -11,12 +11,12 @@ pub struct GetLiveBidsInput<T: entities::BidChainData> {
 }
 
 impl<T: ChainTrait> Service<T> {
-    pub async fn get_live_bids(
+    pub async fn get_pending_bids(
         &self,
         input: GetLiveBidsInput<T::BidChainDataType>,
     ) -> Vec<entities::Bid<T>> {
         self.repo
-            .get_in_memory_bids_by_permission_key(&input.permission_key)
+            .get_in_memory_pending_bids_by_permission_key(&input.permission_key)
             .await
     }
 }

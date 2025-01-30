@@ -15,7 +15,7 @@ use {
                 BidPaymentInstructionType,
                 SubmitType,
             },
-            service::get_live_bids::GetLiveBidsInput,
+            service::get_pending_bids::GetLiveBidsInput,
         },
         kernel::{
             contracts::{
@@ -1100,10 +1100,10 @@ impl Verification<Svm> for Service<Svm> {
         self.simulate_bid(&bid).await?;
 
         // Check if the bid is not duplicate
-        let live_bids = self
-            .get_live_bids(GetLiveBidsInput { permission_key })
+        let pending_bids = self
+            .get_pending_bids(GetLiveBidsInput { permission_key })
             .await;
-        if live_bids.iter().any(|b| bid == *b) {
+        if pending_bids.iter().any(|b| bid == *b) {
             return Err(RestError::BadParameters("Duplicate bid".to_string()));
         }
 

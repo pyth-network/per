@@ -1,12 +1,16 @@
 use {
     super::{
+        get_auction_by_id::GetAuctionByIdInput,
         update_bid_status::UpdateBidStatusInput,
         verification::SwapAccounts,
         Service,
     },
     crate::{
         api::RestError,
-        auction::entities,
+        auction::entities::{
+            self,
+            BidStatus,
+        },
         kernel::entities::Svm,
     },
     solana_sdk::{
@@ -18,7 +22,7 @@ use {
 };
 
 pub struct SubmitQuoteInput {
-    pub bid_id:         entities::BidId,
+    pub auction_id:     entities::AuctionId,
     pub user_signature: Signature,
 }
 
@@ -29,10 +33,28 @@ impl Service<Svm> {
         &self,
         input: SubmitQuoteInput,
     ) -> Result<VersionedTransaction, RestError> {
-        let bid: Option<entities::Bid<Svm>> = self.repo.get_in_memory_bid_by_id(input.bid_id).await;
-        match bid {
-            Some(original_bid) => {
-                let mut bid = original_bid.clone();
+        let auction: Option<entities::Auction<Svm>> = self
+            .get_auction_by_id(GetAuctionByIdInput {
+                auction_id: input.auction_id,
+            })
+            .await;
+
+        match auction {
+            Some(auction) => {
+                let winner_bid = auction
+                    .bids
+                    .iter()
+                    .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_submitted())
+                    .cloned()
+                    .ok_or(RestError::BadParameters("Invalid quote".to_string()))?;
+
+                if winner_bid.status.is_submitted() {
+                    return Err(RestError::BadParameters(
+                        "Quote is already submitted".to_string(),
+                    ));
+                }
+
+                let mut bid = winner_bid.clone();
                 let swap_instruction = self
                     .extract_express_relay_instruction(
                         bid.chain_data.transaction.clone(),
@@ -72,39 +94,38 @@ impl Service<Svm> {
                 // TODO add relayer signature after program update
                 // self.add_relayer_signature(&mut bid);
 
-                // TODO change it to a better state (Wait for user signature)
-                match bid.status.clone() {
-                    entities::BidStatusSvm::AwaitingSignature { auction } => {
-                        if bid.chain_data.bid_payment_instruction_type
-                            == entities::BidPaymentInstructionType::Swap
-                        {
-                            self.send_transaction(&bid).await.map_err(|e| {
-                                tracing::error!(error = ?e, "Error sending quote transaction to network");
+                if bid.chain_data.bid_payment_instruction_type
+                    == entities::BidPaymentInstructionType::Swap
+                {
+                    let tx_hash = self.send_transaction(&bid).await.map_err(|e| {
+                        tracing::error!(error = ?e, "Error sending quote transaction to network");
+                        RestError::TemporarilyUnavailable
+                    })?;
+                    let auction =
+                        self.repo
+                            .submit_auction(auction, tx_hash)
+                            .await
+                            .map_err(|e| {
+                                tracing::error!(error = ?e, "Error repo submitting auction");
                                 RestError::TemporarilyUnavailable
                             })?;
-                            self.update_bid_status(UpdateBidStatusInput {
-                                bid:        original_bid,
-                                new_status: entities::BidStatusSvm::Submitted { auction },
-                            })
-                            .await?;
-                            Ok(bid.chain_data.transaction)
-                        } else {
-                            Err(RestError::BadParameters(
-                                "Quote is not a swap instruction".to_string(),
-                            ))
-                        }
-                    }
-                    entities::BidStatusSvm::Submitted { .. } => Err(RestError::BadParameters(
-                        "Quote is already submitted".to_string(),
-                    )),
-                    _ => Err(RestError::BadParameters(
-                        "Quote is not valid anymore".to_string(),
-                    )),
+                    self.update_bid_status(UpdateBidStatusInput {
+                        bid:        winner_bid.clone(),
+                        new_status: entities::BidStatusSvm::Submitted {
+                            auction: entities::BidStatusAuction {
+                                id: auction.id,
+                                tx_hash,
+                            },
+                        },
+                    })
+                    .await?;
+
+                    Ok(bid.chain_data.transaction)
+                } else {
+                    Err(RestError::BadParameters("Invalid quote".to_string()))
                 }
             }
-            None => Err(RestError::BadParameters(
-                "Quote is not valid anymore".to_string(),
-            )),
+            None => Err(RestError::BadParameters("Invalid quote".to_string())),
         }
     }
 }

@@ -16,9 +16,9 @@ use {
             service::{
                 add_auction::AddAuctionInput,
                 auction_manager::AuctionManager,
-                get_live_bids::GetLiveBidsInput,
+                get_auction_by_id::GetAuctionByIdInput,
+                get_pending_bids::GetLiveBidsInput,
                 update_bid_status::UpdateBidStatusInput,
-                update_submitted_auction::UpdateSubmittedAuctionInput,
                 Service as AuctionService,
             },
         },
@@ -354,7 +354,7 @@ impl Service<ChainTypeSvm> {
 
         let bid_collection_time = OffsetDateTime::now_utc();
         let mut bids = auction_service
-            .get_live_bids(GetLiveBidsInput {
+            .get_pending_bids(GetLiveBidsInput {
                 permission_key: permission_key_svm.clone(),
             })
             .await;
@@ -413,19 +413,17 @@ impl Service<ChainTypeSvm> {
         let auction = Auction::try_new(bids.clone(), bid_collection_time)
             .expect("Failed to create auction for bids");
 
-        let mut auction = auction_service
+        // NOTE: These auctions need user signature to be submitted later.
+        // Later if we have a quote without last look, we can assume these auctions are submitted.
+        let auction = auction_service
             .add_auction(AddAuctionInput { auction })
             .await?;
 
-        let bid = winner_bid.clone();
-        let signature = bid.chain_data.transaction.signatures[0];
-        auction = auction_service
-            .update_submitted_auction(UpdateSubmittedAuctionInput {
-                auction,
-                transaction_hash: signature,
-            })
-            .await?;
+        // Remove opportunity to prevent further bids
+        // The handle auction loop will take care of the bids that were submitted late
+        self.remove_quote_opportunity(opportunity.clone()).await;
 
+        let signature = winner_bid.chain_data.transaction.signatures[0];
         join_all(auction.bids.iter().map(|bid| {
             auction_service.update_bid_status(UpdateBidStatusInput {
                 new_status: AuctionService::get_new_status(
@@ -442,27 +440,32 @@ impl Service<ChainTypeSvm> {
         }))
         .await;
 
-        // Remove opportunity to prevent further bids
-        // The handle auction loop will take care of the bids that were submitted late
-        self.remove_quote_opportunity(opportunity.clone()).await;
-
-        // we check the winner bid status here to make sure the winner bid was successfully entered into the db as submitted
-        // this is because: if the winner bid was not successfully entered as submitted, that could indicate the presence of
-        // duplicate auctions for the same quote. in such a scenario, one auction will conclude first and update the bid status
-        // of its winner bid, and we want to ensure that a winner bid whose status is already updated is not further updated
-        // to prevent a new status update from being broadcast
-        let live_bids = auction_service
-            .get_live_bids(GetLiveBidsInput {
-                permission_key: permission_key_svm,
+        // We check if the winner bid status is successfully updated.
+        // This is important for the submit_quote function to work correctly.
+        match auction_service
+            .get_auction_by_id(GetAuctionByIdInput {
+                auction_id: auction.id,
             })
-            .await;
-        if !live_bids
-            .iter()
-            .any(|bid| bid.id == winner_bid.id && bid.status.is_submitted())
+            .await
         {
-            tracing::error!(winner_bid = ?winner_bid, opportunity = ?opportunity, "Failed to update winner bid status");
-            return Err(RestError::TemporarilyUnavailable);
-        }
+            Some(auction) => match auction.bids.iter().find(|bid| bid.id == winner_bid.id) {
+                Some(bid) => {
+                    if !bid.status.is_awaiting_signature() {
+                        tracing::error!(winner_bid = ?winner_bid, opportunity = ?opportunity, "Failed to update winner bid status");
+                        return Err(RestError::TemporarilyUnavailable);
+                    }
+                }
+                None => {
+                    tracing::error!(auction = ?auction, winner_bid = ?winner_bid, "Failed to winner bid from auction");
+                    return Err(RestError::TemporarilyUnavailable);
+                }
+            },
+            None => {
+                tracing::error!(auction = ?auction, opportunity = ?opportunity, winner_bid = ?winner_bid, "Failed to get auction by id");
+                return Err(RestError::TemporarilyUnavailable);
+            }
+        };
+
         let metadata = self
             .get_express_relay_metadata(GetExpressRelayMetadata {
                 chain_id: input.quote_create.chain_id.clone(),
@@ -498,7 +501,7 @@ impl Service<ChainTypeSvm> {
         };
 
         Ok(entities::Quote {
-            transaction:     bid.chain_data.transaction.clone(),
+            transaction:     winner_bid.chain_data.transaction.clone(),
             expiration_time: deadline,
 
             searcher_token: TokenAmountSvm {
@@ -518,7 +521,7 @@ impl Service<ChainTypeSvm> {
                 amount: fees.express_relay_fee + fees.relayer_fee,
             },
             chain_id:       input.quote_create.chain_id,
-            reference_id:   winner_bid.id,
+            reference_id:   auction.id,
         })
     }
 }

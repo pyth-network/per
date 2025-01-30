@@ -7,6 +7,7 @@ use {
         auction::entities::{
             self,
             BidPaymentInstructionType,
+            BidStatus,
             BidStatusAuction,
         },
         kernel::{
@@ -112,7 +113,7 @@ pub trait AuctionManager<T: ChainTrait> {
         permission_key: entities::PermissionKey<T>,
         bids: Vec<entities::Bid<T>>,
     ) -> Result<entities::TxHash<T>>;
-    /// Get the bid results for the bids submitted for the auction after the transaction is concluded.
+    /// Get the on chain bid results for the bids.
     /// Order of the returned BidStatus is as same as the order of the bids.
     /// Returns None for each bid if the bid is not yet confirmed on chain.
     async fn get_bid_results(
@@ -474,19 +475,23 @@ impl AuctionManager<Svm> for Service<Svm> {
                     .expect("Signature array is empty on svm bid tx")
             })
             .collect();
-        let statuses: Vec<_> = self
-            .config
-            .chain_config
-            .client
-            // TODO: Chunk this if signatures.len() > 256, RPC can only handle 256 signatures at a time
-            .get_signature_statuses(&signatures)
-            .await?
-            .value
-            .into_iter()
-            .map(|status| {
-                status.filter(|status| status.satisfies_commitment(CommitmentConfig::confirmed()))
-            })
-            .collect();
+        let statuses = if bids.iter().any(|bid| bid.status.is_submitted()) {
+            self.config
+                .chain_config
+                .client
+                // TODO: Chunk this if signatures.len() > 256, RPC can only handle 256 signatures at a time
+                .get_signature_statuses(&signatures)
+                .await?
+                .value
+                .into_iter()
+                .map(|status| {
+                    status
+                        .filter(|status| status.satisfies_commitment(CommitmentConfig::confirmed()))
+                })
+                .collect()
+        } else {
+            vec![None; bids.len()]
+        };
 
         tracing::Span::current().record("bid_statuses", format!("{:?}", statuses));
         // TODO: find a better place to put this

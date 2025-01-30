@@ -256,7 +256,7 @@ pub async fn post_submit_quote(
         ServiceEnum::Svm(service) => {
             let transaction = service
                 .submit_quote(SubmitQuoteInput {
-                    bid_id:         submit_quote.reference_id,
+                    auction_id:     submit_quote.reference_id,
                     user_signature: submit_quote.user_signature,
                 })
                 .await?;

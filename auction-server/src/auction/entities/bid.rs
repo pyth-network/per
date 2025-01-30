@@ -66,6 +66,8 @@ pub trait BidStatus:
     fn is_finalized(&self) -> bool;
 
     fn new_lost() -> Self;
+
+    fn get_auction_id(&self) -> Option<AuctionId>;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -145,6 +147,19 @@ impl BidStatus for BidStatusSvm {
     fn new_lost() -> Self {
         BidStatusSvm::Lost { auction: None }
     }
+
+    fn get_auction_id(&self) -> Option<AuctionId> {
+        match self {
+            BidStatusSvm::Pending => None,
+            BidStatusSvm::AwaitingSignature { auction } => Some(auction.id),
+            BidStatusSvm::Submitted { auction } => Some(auction.id),
+            BidStatusSvm::Lost { auction } => auction.as_ref().map(|a| a.id),
+            BidStatusSvm::Won { auction } => Some(auction.id),
+            BidStatusSvm::Failed { auction } => Some(auction.id),
+            BidStatusSvm::Expired { auction } => Some(auction.id),
+            BidStatusSvm::Cancelled { auction } => Some(auction.id),
+        }
+    }
 }
 
 impl BidStatus for BidStatusEvm {
@@ -170,6 +185,15 @@ impl BidStatus for BidStatusEvm {
         BidStatusEvm::Lost {
             auction: None,
             index:   None,
+        }
+    }
+
+    fn get_auction_id(&self) -> Option<AuctionId> {
+        match self {
+            BidStatusEvm::Pending => None,
+            BidStatusEvm::Submitted { auction, .. } => Some(auction.id),
+            BidStatusEvm::Lost { auction, .. } => auction.as_ref().map(|a| a.id),
+            BidStatusEvm::Won { auction, .. } => Some(auction.id),
         }
     }
 }

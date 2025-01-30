@@ -25,6 +25,12 @@ impl<T: ChainTrait> Repository<T> {
         )
         .execute(&self.db)
         .await?;
+
+        self.in_memory_store
+            .auctions
+            .write()
+            .await
+            .push(auction.clone());
         Ok(auction)
     }
 }
