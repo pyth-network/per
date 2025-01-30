@@ -73,14 +73,16 @@ pub struct Auction {
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
-#[sqlx(type_name = "bid_status", rename_all = "lowercase")]
+#[sqlx(type_name = "bid_status", rename_all = "snake_case")]
 pub enum BidStatus {
     Pending,
+    AwaitingSignature,
     Submitted,
     Lost,
     Won,
     Failed,
     Expired,
+    Cancelled,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -182,6 +184,9 @@ impl ModelTrait<Evm> for Evm {
         let index = Self::get_bid_bundle_index(bid);
         match bid.status {
             BidStatus::Pending => Ok(entities::BidStatusEvm::Pending),
+            BidStatus::AwaitingSignature => {
+                Err(anyhow::anyhow!("Evm bid cannot be awaiting signature"))
+            }
             BidStatus::Submitted => {
                 if bid_status_auction.is_none() || index.is_none() {
                     return Err(anyhow::anyhow!(
@@ -212,6 +217,7 @@ impl ModelTrait<Evm> for Evm {
             }),
             BidStatus::Failed => Err(anyhow::anyhow!("Evm bid cannot be failed")),
             BidStatus::Expired => Err(anyhow::anyhow!("Evm bid cannot be expired")),
+            BidStatus::Cancelled => Err(anyhow::anyhow!("Evm bid cannot be cancelled")),
         }
     }
     fn convert_bid_status(status: &entities::BidStatusEvm) -> BidStatus {
@@ -365,6 +371,14 @@ impl ModelTrait<Svm> for Svm {
                 bid.status
             )),
 
+            (BidStatus::AwaitingSignature, Some(auction)) => {
+                Ok(entities::BidStatusSvm::AwaitingSignature {
+                    auction: entities::BidStatusAuction {
+                        tx_hash: sig,
+                        id:      auction.id,
+                    },
+                })
+            }
             (BidStatus::Submitted, Some(auction)) => Ok(entities::BidStatusSvm::Submitted {
                 auction: entities::BidStatusAuction {
                     tx_hash: sig,
@@ -389,17 +403,25 @@ impl ModelTrait<Svm> for Svm {
                     id:      auction.id,
                 },
             }),
+            (BidStatus::Cancelled, Some(auction)) => Ok(entities::BidStatusSvm::Cancelled {
+                auction: entities::BidStatusAuction {
+                    tx_hash: sig,
+                    id:      auction.id,
+                },
+            }),
         }
     }
 
     fn convert_bid_status(status: &entities::BidStatusSvm) -> BidStatus {
         match status {
             entities::BidStatusSvm::Pending => BidStatus::Pending,
+            entities::BidStatusSvm::AwaitingSignature { .. } => BidStatus::AwaitingSignature,
             entities::BidStatusSvm::Submitted { .. } => BidStatus::Submitted,
             entities::BidStatusSvm::Lost { .. } => BidStatus::Lost,
             entities::BidStatusSvm::Won { .. } => BidStatus::Won,
             entities::BidStatusSvm::Failed { .. } => BidStatus::Failed,
             entities::BidStatusSvm::Expired { .. } => BidStatus::Expired,
+            &entities::BidStatusSvm::Cancelled { .. } => BidStatus::Cancelled,
         }
     }
 
@@ -461,12 +483,20 @@ impl ModelTrait<Svm> for Svm {
             entities::BidStatusSvm::Pending => {
                 Err(anyhow::anyhow!("Cannot update bid status to pending"))
             }
-            entities::BidStatusSvm::Submitted { auction } => Ok(sqlx::query!(
+            entities::BidStatusSvm::AwaitingSignature { auction } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+                BidStatus::AwaitingSignature as _,
+                auction.id,
+                bid.id,
+                BidStatus::Pending as _,
+            )),
+            entities::BidStatusSvm::Submitted { auction } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5)",
                 BidStatus::Submitted as _,
                 auction.id,
                 bid.id,
                 BidStatus::Pending as _,
+                BidStatus::AwaitingSignature as _,
             )),
             entities::BidStatusSvm::Lost { auction: Some(auction) } => Ok(sqlx::query!(
                     "UPDATE bid SET status = $1, auction_id = $2, conclusion_time = $3 WHERE id = $4 AND status = $5",
@@ -489,6 +519,14 @@ impl ModelTrait<Svm> for Svm {
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
                 BidStatus::Submitted as _,
+            )),
+            entities::BidStatusSvm::Cancelled { auction } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status = $5",
+                BidStatus::Cancelled as _,
+                PrimitiveDateTime::new(now.date(), now.time()),
+                auction.id,
+                bid.id,
+                BidStatus::AwaitingSignature as _,
             )),
         }
     }

@@ -127,11 +127,12 @@ pub trait AuctionManager<T: ChainTrait> {
         permission_key: &entities::PermissionKey<T>,
     ) -> entities::SubmitType;
 
-    /// Get the new status for the bid after the bids of the auction are submitted.
+    /// Get the new status for the bid after the bids of the auction happened.
     fn get_new_status(
         bid: &entities::Bid<T>,
-        submitted_bids: &[entities::Bid<T>],
+        winner_bids: &[entities::Bid<T>],
         bid_status_auction: entities::BidStatusAuction<T::BidStatusType>,
+        is_submitted: bool,
     ) -> T::BidStatusType;
 }
 
@@ -305,6 +306,7 @@ impl AuctionManager<Evm> for Service<Evm> {
         bid: &entities::Bid<Evm>,
         submitted_bids: &[entities::Bid<Evm>],
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusEvm>,
+        _is_submitted: bool,
     ) -> entities::BidStatusEvm {
         let index = submitted_bids.iter().position(|b| b.id == bid.id);
         match index {
@@ -575,20 +577,24 @@ impl AuctionManager<Svm> for Service<Svm> {
 
     fn get_new_status(
         bid: &entities::Bid<Svm>,
-        submitted_bids: &[entities::Bid<Svm>],
+        winner_bids: &[entities::Bid<Svm>],
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
+        is_submitted: bool,
     ) -> entities::BidStatusSvm {
-        if submitted_bids.iter().any(|b| b.id == bid.id) {
-            entities::BidStatusSvm::Submitted {
-                auction: BidStatusAuction {
-                    id:      bid_status_auction.id,
-                    tx_hash: *bid
-                        .chain_data
-                        .transaction
-                        .signatures
-                        .first()
-                        .expect("Bid has no signature"),
-                },
+        if winner_bids.iter().any(|b| b.id == bid.id) {
+            let auction = BidStatusAuction {
+                id:      bid_status_auction.id,
+                tx_hash: *bid
+                    .chain_data
+                    .transaction
+                    .signatures
+                    .first()
+                    .expect("Bid has no signature"),
+            };
+            if is_submitted {
+                entities::BidStatusSvm::Submitted { auction }
+            } else {
+                entities::BidStatusSvm::AwaitingSignature { auction }
             }
         } else {
             entities::BidStatusSvm::Lost {

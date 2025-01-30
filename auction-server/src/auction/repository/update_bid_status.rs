@@ -55,7 +55,7 @@ impl<T: ChainTrait> Repository<T> {
         let update_query = T::get_update_bid_query(&bid, new_status.clone())?;
         let query_result = update_query.execute(&self.db).await?;
 
-        if new_status.is_submitted() {
+        if new_status.is_submitted() || new_status.is_awaiting_signature() {
             self.update_in_memory_bid(&bid, new_status).await;
         } else if new_status.is_finalized() {
             self.remove_in_memory_bid(&bid).await;

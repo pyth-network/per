@@ -435,6 +435,7 @@ impl Service<ChainTypeSvm> {
                         tx_hash: signature,
                         id:      auction.id,
                     },
+                    false,
                 ),
                 bid:        bid.clone(),
             })

@@ -61,6 +61,7 @@ pub trait BidStatus:
     }
 
     fn is_pending(&self) -> bool;
+    fn is_awaiting_signature(&self) -> bool;
     fn is_submitted(&self) -> bool;
     fn is_finalized(&self) -> bool;
 
@@ -76,6 +77,9 @@ pub struct BidStatusAuction<T: BidStatus> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum BidStatusSvm {
     Pending,
+    AwaitingSignature {
+        auction: BidStatusAuction<Self>,
+    },
     Submitted {
         auction: BidStatusAuction<Self>,
     },
@@ -89,6 +93,9 @@ pub enum BidStatusSvm {
         auction: BidStatusAuction<Self>,
     },
     Expired {
+        auction: BidStatusAuction<Self>,
+    },
+    Cancelled {
         auction: BidStatusAuction<Self>,
     },
 }
@@ -117,6 +124,10 @@ impl BidStatus for BidStatusSvm {
         matches!(self, BidStatusSvm::Pending)
     }
 
+    fn is_awaiting_signature(&self) -> bool {
+        matches!(self, BidStatusSvm::AwaitingSignature { .. })
+    }
+
     fn is_submitted(&self) -> bool {
         matches!(self, BidStatusSvm::Submitted { .. })
     }
@@ -141,6 +152,10 @@ impl BidStatus for BidStatusEvm {
 
     fn is_pending(&self) -> bool {
         matches!(self, BidStatusEvm::Pending)
+    }
+
+    fn is_awaiting_signature(&self) -> bool {
+        false
     }
 
     fn is_submitted(&self) -> bool {

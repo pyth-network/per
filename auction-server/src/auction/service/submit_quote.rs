@@ -1,14 +1,12 @@
 use {
     super::{
+        update_bid_status::UpdateBidStatusInput,
         verification::SwapAccounts,
         Service,
     },
     crate::{
         api::RestError,
-        auction::entities::{
-            self,
-            BidStatus,
-        },
+        auction::entities,
         kernel::entities::Svm,
     },
     solana_sdk::{
@@ -33,7 +31,8 @@ impl Service<Svm> {
     ) -> Result<VersionedTransaction, RestError> {
         let bid: Option<entities::Bid<Svm>> = self.repo.get_in_memory_bid_by_id(input.bid_id).await;
         match bid {
-            Some(mut bid) => {
+            Some(original_bid) => {
+                let mut bid = original_bid.clone();
                 let swap_instruction = self
                     .extract_express_relay_instruction(
                         bid.chain_data.transaction.clone(),
@@ -74,22 +73,33 @@ impl Service<Svm> {
                 // self.add_relayer_signature(&mut bid);
 
                 // TODO change it to a better state (Wait for user signature)
-                if bid.status.is_submitted() {
-                    if bid.chain_data.bid_payment_instruction_type
-                        == entities::BidPaymentInstructionType::Swap
-                    {
-                        self.send_transaction(&bid).await.map_err(|e| {
-                            tracing::error!(error = ?e, "Error sending quote transaction to network");
-                            RestError::TemporarilyUnavailable
-                        })?;
-                        Ok(bid.chain_data.transaction)
-                    } else {
-                        Err(RestError::BadParameters("Invalid quote".to_string()))
+                match bid.status.clone() {
+                    entities::BidStatusSvm::AwaitingSignature { auction } => {
+                        if bid.chain_data.bid_payment_instruction_type
+                            == entities::BidPaymentInstructionType::Swap
+                        {
+                            self.send_transaction(&bid).await.map_err(|e| {
+                                tracing::error!(error = ?e, "Error sending quote transaction to network");
+                                RestError::TemporarilyUnavailable
+                            })?;
+                            self.update_bid_status(UpdateBidStatusInput {
+                                bid:        original_bid,
+                                new_status: entities::BidStatusSvm::Submitted { auction },
+                            })
+                            .await?;
+                            Ok(bid.chain_data.transaction)
+                        } else {
+                            Err(RestError::BadParameters(
+                                "Quote is not a swap instruction".to_string(),
+                            ))
+                        }
                     }
-                } else {
-                    Err(RestError::BadParameters(
+                    entities::BidStatusSvm::Submitted { .. } => Err(RestError::BadParameters(
+                        "Quote is already submitted".to_string(),
+                    )),
+                    _ => Err(RestError::BadParameters(
                         "Quote is not valid anymore".to_string(),
-                    ))
+                    )),
                 }
             }
             None => Err(RestError::BadParameters(
