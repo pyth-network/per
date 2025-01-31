@@ -128,7 +128,7 @@ pub trait AuctionManager<T: ChainTrait> {
         permission_key: &entities::PermissionKey<T>,
     ) -> entities::SubmitType;
 
-    /// Get the new status for the bid after the bids of the auction happened.
+    /// Get the new status for the bid based on the auction result.
     fn get_new_status(
         bid: &entities::Bid<T>,
         winner_bids: &[entities::Bid<T>],

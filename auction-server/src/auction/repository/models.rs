@@ -421,7 +421,7 @@ impl ModelTrait<Svm> for Svm {
             entities::BidStatusSvm::Won { .. } => BidStatus::Won,
             entities::BidStatusSvm::Failed { .. } => BidStatus::Failed,
             entities::BidStatusSvm::Expired { .. } => BidStatus::Expired,
-            &entities::BidStatusSvm::Cancelled { .. } => BidStatus::Cancelled,
+            entities::BidStatusSvm::Cancelled { .. } => BidStatus::Cancelled,
         }
     }
 

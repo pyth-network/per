@@ -24,7 +24,12 @@ impl<T: ChainTrait> Repository<T> {
         }
     }
 
-    async fn update_in_memory_bid(&self, bid: &entities::Bid<T>, new_status: T::BidStatusType) {
+    // Find the in memory auction which contains the bid and update the bid status
+    async fn update_in_memory_auction_bid(
+        &self,
+        bid: &entities::Bid<T>,
+        new_status: T::BidStatusType,
+    ) {
         if let Some(auction_id) = new_status.get_auction_id() {
             let mut write_guard = self.in_memory_store.auctions.write().await;
             if let Some(auction) = write_guard.iter_mut().find(|a| a.id == auction_id) {
@@ -47,7 +52,7 @@ impl<T: ChainTrait> Repository<T> {
 
         if !new_status.is_pending() {
             self.remove_in_memory_pending_bid(&bid).await;
-            self.update_in_memory_bid(&bid, new_status).await;
+            self.update_in_memory_auction_bid(&bid, new_status).await;
         }
 
         Ok(query_result.rows_affected() > 0)
