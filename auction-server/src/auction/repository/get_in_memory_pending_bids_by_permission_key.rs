@@ -7,12 +7,12 @@ use {
 };
 
 impl<T: ChainTrait> Repository<T> {
-    pub async fn get_in_memory_bids_by_permission_key(
+    pub async fn get_in_memory_pending_bids_by_permission_key(
         &self,
         permission_key: &<T::BidChainDataType as entities::BidChainData>::PermissionKey,
     ) -> Vec<entities::Bid<T>> {
         self.in_memory_store
-            .bids
+            .pending_bids
             .read()
             .await
             .get(permission_key)

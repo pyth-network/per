@@ -84,6 +84,7 @@ where
                                 tx_hash: tx_hash.clone(),
                                 id:      auction.id,
                             },
+                            true,
                         ),
                         bid:        bid.clone(),
                     })
@@ -108,7 +109,7 @@ where
         let bid_collection_time = OffsetDateTime::now_utc();
         let bids = self
             .repo
-            .get_in_memory_bids_by_permission_key(permission_key)
+            .get_in_memory_pending_bids_by_permission_key(permission_key)
             .await;
 
         tracing::Span::current().record(
@@ -151,7 +152,7 @@ where
                 // Fetch all pending bids and mark them as lost
                 let bids: Vec<entities::Bid<T>> = self
                     .repo
-                    .get_in_memory_bids_by_permission_key(&permission_key)
+                    .get_in_memory_pending_bids_by_permission_key(&permission_key)
                     .await
                     .into_iter()
                     .filter(|bid| bid.status.is_pending())

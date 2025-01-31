@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bid SET status = $1, auction_id = $2, metadata = jsonb_set(metadata, '{bundle_index}', $3) WHERE id = $4 AND status = $5",
+  "query": "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -23,8 +23,24 @@
           }
         },
         "Uuid",
-        "Jsonb",
         "Uuid",
+        {
+          "Custom": {
+            "name": "bid_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "lost",
+                "submitted",
+                "won",
+                "expired",
+                "failed",
+                "awaiting_signature",
+                "cancelled"
+              ]
+            }
+          }
+        },
         {
           "Custom": {
             "name": "bid_status",
@@ -46,5 +62,5 @@
     },
     "nullable": []
   },
-  "hash": "756fe3557caee2202d61430982956109d0a3ba60cce3536dc5ac2e4eb3682a23"
+  "hash": "744013026c0b31750c2452f98851bb38e8bebeba59012b86ac6b0de653332cea"
 }

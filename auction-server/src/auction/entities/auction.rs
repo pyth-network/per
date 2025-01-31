@@ -26,6 +26,7 @@ pub struct Auction<T: ChainTrait> {
     pub chain_id:            ChainId,
     pub permission_key:      super::PermissionKey<T>,
     pub creation_time:       OffsetDateTime,
+    #[allow(dead_code)]
     pub conclusion_time:     Option<OffsetDateTime>,
     pub bid_collection_time: OffsetDateTime,
     pub submission_time:     Option<OffsetDateTime>,

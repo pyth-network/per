@@ -46,7 +46,7 @@ impl<T: ChainTrait> Repository<T> {
         })?;
 
         self.in_memory_store
-            .bids
+            .pending_bids
             .write()
             .await
             .entry(bid.chain_data.get_permission_key())

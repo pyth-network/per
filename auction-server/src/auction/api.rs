@@ -256,7 +256,7 @@ pub async fn post_submit_quote(
         ServiceEnum::Svm(service) => {
             let transaction = service
                 .submit_quote(SubmitQuoteInput {
-                    bid_id:         submit_quote.reference_id,
+                    auction_id:     submit_quote.reference_id,
                     user_signature: submit_quote.user_signature,
                 })
                 .await?;
@@ -307,6 +307,11 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
     fn from(status: entities::BidStatusSvm) -> Self {
         match status {
             entities::BidStatusSvm::Pending => BidStatusSvm::Pending,
+            entities::BidStatusSvm::AwaitingSignature { auction } => {
+                BidStatusSvm::AwaitingSignature {
+                    result: auction.tx_hash,
+                }
+            }
             entities::BidStatusSvm::Submitted { auction } => BidStatusSvm::Submitted {
                 result: auction.tx_hash,
             },
@@ -320,6 +325,9 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
                 result: auction.tx_hash,
             },
             entities::BidStatusSvm::Expired { auction } => BidStatusSvm::Expired {
+                result: auction.tx_hash,
+            },
+            entities::BidStatusSvm::Cancelled { auction } => BidStatusSvm::Cancelled {
                 result: auction.tx_hash,
             },
         }
