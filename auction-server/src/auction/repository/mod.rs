@@ -36,6 +36,7 @@ mod get_priority_fees;
 mod models;
 mod remove_in_memory_auction;
 mod remove_in_memory_auction_lock;
+mod remove_in_memory_pending_bids;
 mod submit_auction;
 mod update_bid_status;
 mod update_in_memory_auction;

@@ -513,11 +513,21 @@ impl ModelTrait<Svm> for Svm {
                     bid.id,
                     BidStatus::Pending as _
                 )),
-            entities::BidStatusSvm::Won { .. } | entities::BidStatusSvm::Expired { .. } | entities::BidStatusSvm::Failed { .. }  => Ok(sqlx::query!(
+            entities::BidStatusSvm::Won { .. } | entities::BidStatusSvm::Failed { .. }  => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5)",
                 Self::convert_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
+                BidStatus::Submitted as _,
+                // TODO Remove it after all tasks for the last look are done
+                BidStatus::AwaitingSignature as _,
+            )),
+            &entities::BidStatusSvm::Expired { .. } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5, $6)",
+                BidStatus::Expired as _,
+                PrimitiveDateTime::new(now.date(), now.time()),
+                bid.id,
+                BidStatus::Pending as _,
                 BidStatus::Submitted as _,
                 BidStatus::AwaitingSignature as _,
             )),

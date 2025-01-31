@@ -26,6 +26,8 @@ impl<T: ChainTrait> Repository<T> {
         .execute(&self.db)
         .await?;
 
+        self.remove_in_memory_pending_bids(auction.bids.as_slice())
+            .await;
         self.in_memory_store
             .auctions
             .write()

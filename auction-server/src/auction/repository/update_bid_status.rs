@@ -3,27 +3,13 @@ use {
     crate::auction::{
         entities::{
             self,
-            BidChainData,
             BidStatus,
         },
         service::ChainTrait,
     },
-    std::collections::hash_map::Entry,
 };
 
 impl<T: ChainTrait> Repository<T> {
-    async fn remove_in_memory_pending_bid(&self, bid: &entities::Bid<T>) {
-        let mut write_guard = self.in_memory_store.pending_bids.write().await;
-        let key = bid.chain_data.get_permission_key();
-        if let Entry::Occupied(mut entry) = write_guard.entry(key.clone()) {
-            let bids = entry.get_mut();
-            bids.retain(|b| b.id != bid.id);
-            if bids.is_empty() {
-                entry.remove();
-            }
-        }
-    }
-
     // Find the in memory auction which contains the bid and update the bid status
     async fn update_in_memory_auction_bid(
         &self,
@@ -50,8 +36,8 @@ impl<T: ChainTrait> Repository<T> {
         let update_query = T::get_update_bid_query(&bid, new_status.clone())?;
         let query_result = update_query.execute(&self.db).await?;
 
-        if !new_status.is_pending() {
-            self.remove_in_memory_pending_bid(&bid).await;
+        if query_result.rows_affected() > 0 && !new_status.is_pending() {
+            self.remove_in_memory_pending_bids(&[bid.clone()]).await;
             self.update_in_memory_auction_bid(&bid, new_status).await;
         }
 
