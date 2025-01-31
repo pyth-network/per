@@ -92,6 +92,7 @@ pub trait AuctionManager<T: ChainTrait> {
     type WsClient;
     /// The conclusion result type when try to conclude the auction for the chain.
     type ConclusionResult;
+
     /// The minimum lifetime for an auction. If any bid for auction is older than this, the auction is ready to be submitted.
     const AUCTION_MINIMUM_LIFETIME: Duration;
 
@@ -135,6 +136,9 @@ pub trait AuctionManager<T: ChainTrait> {
         bid_status_auction: entities::BidStatusAuction<T::BidStatusType>,
         is_submitted: bool,
     ) -> T::BidStatusType;
+
+    /// Check if the auction is expired based on the creation time of the auction.
+    fn is_auction_expired(auction: &entities::Auction<T>) -> bool;
 }
 
 // While we are submitting bids together, increasing this number will have the following effects:
@@ -143,6 +147,7 @@ pub trait AuctionManager<T: ChainTrait> {
 // 3. Gas consumption limit will decrease for the bid
 pub const TOTAL_BIDS_PER_AUCTION_EVM: usize = 3;
 const EXTRA_GAS_FOR_SUBMISSION: u32 = 500 * 1000;
+const BID_MAXIMUM_LIFE_TIME_EVM: Duration = Duration::from_secs(600);
 
 #[async_trait]
 impl AuctionManager<Evm> for Service<Evm> {
@@ -321,12 +326,16 @@ impl AuctionManager<Evm> for Service<Evm> {
             },
         }
     }
+
+    fn is_auction_expired(auction: &entities::Auction<Evm>) -> bool {
+        auction.creation_time + BID_MAXIMUM_LIFE_TIME_EVM < OffsetDateTime::now_utc()
+    }
 }
 
 /// This is to make sure we are not missing any transaction.
 /// We run this once every minute (150 * 0.4).
 const CONCLUSION_TRIGGER_INTERVAL_SVM: u64 = 150;
-const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(120);
+const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(10);
 const TRIGGER_DURATION_SVM: Duration = Duration::from_millis(400);
 
 pub struct TriggerStreamSvm {
@@ -606,6 +615,10 @@ impl AuctionManager<Svm> for Service<Svm> {
                 auction: Some(bid_status_auction),
             }
         }
+    }
+
+    fn is_auction_expired(auction: &entities::Auction<Svm>) -> bool {
+        auction.creation_time + BID_MAXIMUM_LIFE_TIME_SVM < OffsetDateTime::now_utc()
     }
 }
 

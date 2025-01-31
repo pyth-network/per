@@ -141,6 +141,7 @@ impl BidStatus for BidStatusSvm {
                 | BidStatusSvm::Won { .. }
                 | BidStatusSvm::Failed { .. }
                 | BidStatusSvm::Expired { .. }
+                | BidStatusSvm::Cancelled { .. }
         )
     }
 

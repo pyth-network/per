@@ -409,10 +409,13 @@ impl Service<ChainTypeSvm> {
         })?;
         let deadline = swap_data.deadline;
 
-        // Bids is not empty
-        let auction = Auction::try_new(bids.clone(), bid_collection_time)
+        // Bids are not empty
+        let mut auction = Auction::try_new(bids.clone(), bid_collection_time)
             .expect("Failed to create auction for bids");
-
+        // Add tx_hash to auction to make sure conclude_auction works correctly
+        // TODO These are auctions that are not submitted but has tx_hash of the winner bid inside
+        // TODO Maybe we should think a bit more about how to handle these auctions and the overall auction model
+        auction.tx_hash = Some(winner_bid.chain_data.transaction.signatures[0]);
         // NOTE: These auctions need user signature to be submitted later.
         // Later if we have a quote without last look, we can assume these auctions are submitted.
         let auction = auction_service

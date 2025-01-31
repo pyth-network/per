@@ -92,6 +92,20 @@ where
                     .collect(),
             })
             .await?;
+        } else if Self::is_auction_expired(&auction) {
+            // This only happens if auction submission to chain failes
+            // This is a very rare case and should not happen
+            tracing::warn!("Auction has no transaction hash and is expired");
+            let lost_status = T::BidStatusType::new_lost();
+            self.conclude_auction_with_statuses(ConcludeAuctionWithStatusesInput {
+                auction:      auction.clone(),
+                bid_statuses: auction
+                    .bids
+                    .iter()
+                    .map(|bid| (lost_status.clone(), bid.clone()))
+                    .collect(),
+            })
+            .await?;
         }
         Ok(())
     }
