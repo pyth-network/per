@@ -678,8 +678,7 @@ impl Service<Svm> {
     }
 
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
-    async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>) {
-        let start = Instant::now();
+    async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>, start: Instant) {
         let mut result_label = METRIC_LABEL_EXPIRED;
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
@@ -738,18 +737,19 @@ impl Service<Svm> {
         bid: &entities::Bid<Svm>,
     ) -> solana_client::client_error::Result<Signature> {
         tracing::Span::current().record("bid_id", bid.id.to_string());
+        let start = Instant::now();
         let tx = &bid.chain_data.transaction;
-        self.send_transaction_to_network(&bid.chain_data.transaction)
-            .await?;
+        self.send_transaction_to_network(tx).await?;
         self.config
             .chain_config
             .simulator
             .add_pending_transaction(tx)
             .await;
+
         self.task_tracker.spawn({
             let (service, bid) = (self.clone(), bid.clone());
             async move {
-                service.blocking_send_transaction(bid).await;
+                service.blocking_send_transaction(bid, start).await;
             }
         });
         Ok(tx.signatures[0])
