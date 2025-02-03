@@ -21,6 +21,7 @@ use {
             self,
             service::get_live_opportunities::GetLiveOpportunitiesInput,
         },
+        per_metrics::TRANSACTION_LANDING_TIME_SECONDS_SVM,
     },
     anyhow::Result,
     axum::async_trait,
@@ -737,7 +738,7 @@ impl Service<Svm> {
             // but this is rare as we retry for 60 seconds and blockhash expires after 60 seconds
             ("result", result_label.to_string()),
         ];
-        metrics::histogram!("transaction_landing_time_seconds_svm", &labels)
+        metrics::histogram!(TRANSACTION_LANDING_TIME_SECONDS_SVM, &labels)
             .record(start.elapsed().as_secs_f64());
 
         tracing::Span::current().record("total_tries", retry_count + 1);

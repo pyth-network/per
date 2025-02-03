@@ -23,7 +23,10 @@ use {
             service as opportunity_service,
             workers::run_verification_loop,
         },
-        per_metrics,
+        per_metrics::{
+            self,
+            TRANSACTION_LANDING_TIME_SECONDS_SVM,
+        },
         state::{
             ChainStoreEvm,
             ChainStoreSvm,
@@ -138,6 +141,15 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
 pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
     PrometheusBuilder::new()
         .set_buckets(SECONDS_DURATION_BUCKETS)
+        .unwrap()
+        .set_buckets_for_metric(
+            axum_prometheus::metrics_exporter_prometheus::Matcher::Full(
+                TRANSACTION_LANDING_TIME_SECONDS_SVM.to_string(),
+            ), // Specific metric name
+            &[
+                0.5, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 60.0,
+            ], // Custom buckets
+        )
         .unwrap()
         .install_recorder()
         .map_err(|err| anyhow!("Failed to set up metrics recorder: {:?}", err))
