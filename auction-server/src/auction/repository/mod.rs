@@ -26,7 +26,7 @@ mod add_recent_priotization_fee;
 mod conclude_auction;
 mod get_bid;
 mod get_bids;
-mod get_in_memory_auction_bid_by_id;
+mod get_in_memory_auction_by_bid_id;
 mod get_in_memory_auction_by_id;
 mod get_in_memory_auctions;
 mod get_in_memory_pending_bids;

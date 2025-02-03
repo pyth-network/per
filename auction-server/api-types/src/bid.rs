@@ -475,13 +475,11 @@ pub struct BidCancelParams {
     /// The chain id of the bid to cancel.
     #[param(example="solana", value_type = String)]
     pub chain_id: ChainId,
-
     /// The id of the bid to cancel.
     #[param(example="obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
-    pub bid_id: BidId,
+    pub bid_id:   BidId,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
 pub struct BidCancelSvm {
     /// The chain id of the bid to cancel.

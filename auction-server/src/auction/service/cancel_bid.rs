@@ -48,7 +48,7 @@ impl Service<Svm> {
     pub async fn cancel_bid(&self, input: CancelBidInput) -> Result<(), RestError> {
         let (bid, auction) = self
             .repo
-            .get_in_memory_auction_bid_by_id(input.bid_id)
+            .get_in_memory_auction_bid_by_bid_id(input.bid_id)
             .await
             .ok_or(RestError::BadParameters(
                 "Bid is not cancellable".to_string(),

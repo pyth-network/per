@@ -299,7 +299,6 @@ impl Subscriber {
         id: String,
         chain_ids: Vec<String>,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
-        tracing::Span::current().record("name", "handle_subscribe");
         let available_chain_ids: Vec<&ChainId> = self
             .store
             .store
@@ -332,7 +331,6 @@ impl Subscriber {
         id: String,
         chain_ids: Vec<String>,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
-        tracing::Span::current().record("name", "unsubscribe");
         self.chain_ids
             .retain(|chain_id| !chain_ids.contains(chain_id));
         Ok(ok_response(id))
@@ -343,7 +341,6 @@ impl Subscriber {
         id: String,
         bid: BidCreate,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
-        tracing::Span::current().record("name", "post_bid");
         match process_bid(self.auth.clone(), self.store.clone(), bid).await {
             Ok(bid_result) => {
                 self.bid_ids.insert(bid_result.id);
@@ -366,7 +363,6 @@ impl Subscriber {
         id: String,
         bid_cancel: BidCancel,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
-        tracing::Span::current().record("name", "cancel_bid");
         match cancel_bid(self.auth.clone(), self.store.clone(), bid_cancel).await {
             Ok(_) => Ok(ServerResultResponse {
                 id:     Some(id.clone()),
@@ -386,7 +382,6 @@ impl Subscriber {
         opportunity_bid: OpportunityBidEvm,
         opportunity_id: OpportunityId,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
-        tracing::Span::current().record("name", "post_opportunity_bid");
         match self
             .store
             .opportunity_service_evm
