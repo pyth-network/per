@@ -296,7 +296,7 @@ impl Subscriber {
 
     async fn handle_subscribe(
         &mut self,
-        id: String,
+        message_id: String,
         chain_ids: Vec<String>,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         let available_chain_ids: Vec<&ChainId> = self
@@ -314,7 +314,7 @@ impl Subscriber {
         // asked correct chain ids and return an error to be more explicit and clear.
         if !not_found_chain_ids.is_empty() {
             Err(ServerResultResponse {
-                id:     Some(id),
+                id:     Some(message_id),
                 result: ServerResultMessage::Err(format!(
                     "Chain id(s) with id(s) {:?} not found",
                     not_found_chain_ids
@@ -322,37 +322,37 @@ impl Subscriber {
             })
         } else {
             self.chain_ids.extend(chain_ids);
-            Ok(ok_response(id))
+            Ok(ok_response(message_id))
         }
     }
 
     async fn handle_unsubscribe(
         &mut self,
-        id: String,
+        message_id: String,
         chain_ids: Vec<String>,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         self.chain_ids
             .retain(|chain_id| !chain_ids.contains(chain_id));
-        Ok(ok_response(id))
+        Ok(ok_response(message_id))
     }
 
     async fn handle_post_bid(
         &mut self,
-        id: String,
+        message_id: String,
         bid: BidCreate,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         match process_bid(self.auth.clone(), self.store.clone(), bid).await {
             Ok(bid_result) => {
                 self.bid_ids.insert(bid_result.id);
                 Ok(ServerResultResponse {
-                    id:     Some(id.clone()),
+                    id:     Some(message_id.clone()),
                     result: ServerResultMessage::Success(Some(APIResponse::BidResult(
                         bid_result.0,
                     ))),
                 })
             }
             Err(e) => Err(ServerResultResponse {
-                id:     Some(id),
+                id:     Some(message_id),
                 result: ServerResultMessage::Err(e.to_status_and_message().1),
             }),
         }
@@ -360,16 +360,13 @@ impl Subscriber {
 
     async fn handle_cancel_bid(
         &mut self,
-        id: String,
+        message_id: String,
         bid_cancel: BidCancel,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
         match cancel_bid(self.auth.clone(), self.store.clone(), bid_cancel).await {
-            Ok(_) => Ok(ServerResultResponse {
-                id:     Some(id.clone()),
-                result: ServerResultMessage::Success(None),
-            }),
+            Ok(_) => Ok(ok_response(message_id)),
             Err(e) => Err(ServerResultResponse {
-                id:     Some(id),
+                id:     Some(message_id),
                 result: ServerResultMessage::Err(e.to_status_and_message().1),
             }),
         }
@@ -378,7 +375,7 @@ impl Subscriber {
     #[instrument(skip_all)]
     async fn handle_post_opportunity_bid(
         &mut self,
-        id: String,
+        message_id: String,
         opportunity_bid: OpportunityBidEvm,
         opportunity_id: OpportunityId,
     ) -> Result<ServerResultResponse, ServerResultResponse> {
@@ -396,7 +393,7 @@ impl Subscriber {
             Ok(bid_result) => {
                 self.bid_ids.insert(bid_result);
                 Ok(ServerResultResponse {
-                    id:     Some(id.clone()),
+                    id:     Some(message_id.clone()),
                     result: ServerResultMessage::Success(Some(APIResponse::BidResult(BidResult {
                         status: "OK".to_string(),
                         id:     bid_result,
@@ -404,7 +401,7 @@ impl Subscriber {
                 })
             }
             Err(e) => Err(ServerResultResponse {
-                id:     Some(id),
+                id:     Some(message_id),
                 result: ServerResultMessage::Err(e.to_status_and_message().1),
             }),
         }
