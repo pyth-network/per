@@ -140,6 +140,7 @@ impl From<Quote> for api::Quote {
             referrer_fee:    quote.referrer_fee.into(),
             platform_fee:    quote.platform_fee.into(),
             chain_id:        quote.chain_id,
+            reference_id:    quote.reference_id,
         }))
     }
 }
