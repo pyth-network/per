@@ -611,6 +611,9 @@ pub struct QuoteV1Svm {
     /// The chain id for the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:        ChainId,
+    /// The reference id for the quote.
+    #[schema(example = "beedbeed-58cc-4372-a567-0e02b2c3d479", value_type = String)]
+    pub reference_id:    Uuid,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
