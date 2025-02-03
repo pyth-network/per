@@ -5,7 +5,10 @@ use {
     },
     crate::{
         auction::{
-            api::process_bid,
+            api::{
+                cancel_bid,
+                process_bid,
+            },
             entities::BidId,
         },
         config::ChainId,
@@ -34,6 +37,7 @@ use {
     },
     express_relay_api_types::{
         bid::{
+            BidCancel,
             BidCreate,
             BidResult,
             BidStatusWithId,
@@ -357,6 +361,24 @@ impl Subscriber {
         }
     }
 
+    async fn handle_cancel_bid(
+        &mut self,
+        id: String,
+        bid_cancel: BidCancel,
+    ) -> Result<ServerResultResponse, ServerResultResponse> {
+        tracing::Span::current().record("name", "cancel_bid");
+        match cancel_bid(self.auth.clone(), self.store.clone(), bid_cancel).await {
+            Ok(_) => Ok(ServerResultResponse {
+                id:     Some(id.clone()),
+                result: ServerResultMessage::Success(None),
+            }),
+            Err(e) => Err(ServerResultResponse {
+                id:     Some(id),
+                result: ServerResultMessage::Err(e.to_status_and_message().1),
+            }),
+        }
+    }
+
     #[instrument(skip_all)]
     async fn handle_post_opportunity_bid(
         &mut self,
@@ -456,6 +478,10 @@ impl Subscriber {
                     self.handle_post_opportunity_bid(id, opportunity_bid, opportunity_id)
                         .in_current_span()
                         .await
+                }
+                ClientMessage::CancelBid { data } => {
+                    tracing::Span::current().record("name", "cancel_bid");
+                    self.handle_cancel_bid(id, data).await
                 }
             },
         };

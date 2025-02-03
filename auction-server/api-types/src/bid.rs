@@ -306,14 +306,12 @@ pub struct BidCreateSwapSvm {
     pub _type:          BidCreateSwapSvmTag, // this is mainly to distinguish next types of bids in the future
 }
 
-
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
 #[serde(untagged)]
 pub enum BidCreateSvm {
     Swap(BidCreateSwapSvm),
     OnChain(BidCreateOnChainSvm),
 }
-
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
 #[serde(untagged)] // Remove tags to avoid key-value wrapping
@@ -375,6 +373,8 @@ pub enum Route {
     GetBidStatus,
     #[strum(serialize = "submit")]
     PostSubmitQuote,
+    #[strum(serialize = ":bid_id/cancel")]
+    PostCancelBid,
 }
 
 #[derive(Clone)]
@@ -424,6 +424,11 @@ impl Routable for Route {
                 access_level: AccessLevel::Public,
                 full_path:    full_path_with_chain,
             },
+            Route::PostCancelBid => crate::RouteProperties {
+                method:       http::Method::POST,
+                access_level: AccessLevel::LoggedIn,
+                full_path:    full_path_with_chain,
+            },
         }
     }
 }
@@ -463,4 +468,32 @@ impl Routable for DeprecatedRoute {
             },
         }
     }
+}
+
+#[derive(Serialize, Deserialize, IntoParams, Clone)]
+pub struct BidCancelParams {
+    /// The chain id of the bid to cancel.
+    #[param(example="solana", value_type = String)]
+    pub chain_id: ChainId,
+
+    /// The id of the bid to cancel.
+    #[param(example="obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
+    pub bid_id: BidId,
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
+pub struct BidCancelSvm {
+    /// The chain id of the bid to cancel.
+    #[schema(example = "solana", value_type = String)]
+    pub chain_id: ChainId,
+    /// The id of the bid to cancel.
+    #[schema(example="obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
+    pub bid_id:   BidId,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
+#[serde(untagged)] // Remove tags to avoid key-value wrapping
+pub enum BidCancel {
+    Svm(BidCancelSvm),
 }
