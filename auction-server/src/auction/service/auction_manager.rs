@@ -439,23 +439,10 @@ impl AuctionManager<Svm> for Service<Svm> {
                 async move { self.send_transaction(&bid).await }
             })
             .collect();
-
         let results = join_all(send_futures).await;
-        let mut result = None;
-        for res in results.into_iter() {
-            match res {
-                Ok(sig) => {
-                    result = Some(Ok(sig));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e, "Error while submitting bid");
-                    if result.is_none() {
-                        result = Some(Err(anyhow::anyhow!(e)));
-                    }
-                }
-            }
-        }
-        result.expect("results should not be empty because bids is not empty")
+        Ok(*results
+            .first()
+            .expect("results should not be empty because bids is not empty"))
     }
 
     #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, bid_statuses))]
@@ -756,15 +743,20 @@ impl Service<Svm> {
         tracing::Span::current().record("total_tries", retry_count + 1);
     }
 
+    /// Sends the transaction to the network and adds it to the pending transactions.
+    ///
+    /// If the first try fails, it will retry for multiple times.
     #[tracing::instrument(skip_all, fields(bid_id))]
-    pub async fn send_transaction(
-        &self,
-        bid: &entities::Bid<Svm>,
-    ) -> solana_client::client_error::Result<Signature> {
+    pub async fn send_transaction(&self, bid: &entities::Bid<Svm>) -> Signature {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let tx = &bid.chain_data.transaction;
-        self.send_transaction_to_network(&bid.chain_data.transaction)
-            .await?;
+        // Do not propagate the error because we retry more in the blocking_send_transaction
+        if let Err(e) = self
+            .send_transaction_to_network(&bid.chain_data.transaction)
+            .await
+        {
+            tracing::warn!(error = ?e, "Failed to send transaction to network");
+        }
         self.config
             .chain_config
             .simulator
@@ -776,7 +768,7 @@ impl Service<Svm> {
                 service.blocking_send_transaction(bid).await;
             }
         });
-        Ok(tx.signatures[0])
+        tx.signatures[0]
     }
 }
 

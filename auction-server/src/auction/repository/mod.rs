@@ -26,16 +26,19 @@ mod add_recent_priotization_fee;
 mod conclude_auction;
 mod get_bid;
 mod get_bids;
+mod get_in_memory_auction_by_bid_id;
 mod get_in_memory_auction_by_id;
 mod get_in_memory_auctions;
 mod get_in_memory_pending_bids;
 mod get_in_memory_pending_bids_by_permission_key;
 mod get_lookup_table;
 mod get_or_create_in_memory_auction_lock;
+mod get_or_create_in_memory_bid_lock;
 mod get_priority_fees;
 mod models;
 mod remove_in_memory_auction;
 mod remove_in_memory_auction_lock;
+mod remove_in_memory_bid_lock;
 mod remove_in_memory_pending_bids;
 mod submit_auction;
 mod update_bid_status;
@@ -63,8 +66,10 @@ pub struct ChainStoreEvm {}
 #[derive(Debug)]
 pub struct InMemoryStore<T: ChainTrait> {
     pub pending_bids: RwLock<HashMap<entities::PermissionKey<T>, Vec<entities::Bid<T>>>>,
-    pub auction_lock: Mutex<HashMap<entities::PermissionKey<T>, entities::AuctionLock>>,
     pub auctions:     RwLock<Vec<entities::Auction<T>>>,
+
+    pub auction_lock: Mutex<HashMap<entities::PermissionKey<T>, entities::AuctionLock>>,
+    pub bid_lock:     Mutex<HashMap<entities::BidId, entities::BidLock>>,
 
     pub chain_store: T::ChainStore,
 }
@@ -73,8 +78,9 @@ impl<T: ChainTrait> Default for InMemoryStore<T> {
     fn default() -> Self {
         Self {
             pending_bids: RwLock::new(HashMap::new()),
-            auction_lock: Mutex::new(HashMap::new()),
             auctions:     RwLock::new(Vec::new()),
+            auction_lock: Mutex::new(HashMap::new()),
+            bid_lock:     Mutex::new(HashMap::new()),
             chain_store:  T::ChainStore::default(),
         }
     }

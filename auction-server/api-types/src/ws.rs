@@ -1,6 +1,7 @@
 use {
     crate::{
         bid::{
+            BidCancel,
             BidCreate,
             BidResult,
             BidStatusWithId,
@@ -47,6 +48,9 @@ pub enum ClientMessage {
         opportunity_id:  OpportunityId,
         opportunity_bid: OpportunityBidEvm,
     },
+
+    #[serde(rename = "cancel_bid")]
+    CancelBid { data: BidCancel },
 }
 
 #[derive(Deserialize, Clone, ToSchema, Serialize)]

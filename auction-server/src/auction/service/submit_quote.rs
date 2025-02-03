@@ -29,6 +29,39 @@ pub struct SubmitQuoteInput {
 const DEADLINE_BUFFER: Duration = Duration::from_secs(2);
 
 impl Service<Svm> {
+    async fn submit_auction_bid_for_lock(
+        &self,
+        bid: entities::Bid<Svm>,
+        auction: entities::Auction<Svm>,
+        _lock: entities::BidLock,
+    ) -> Result<(), RestError> {
+        let tx_hash = bid.chain_data.transaction.signatures[0];
+        let auction = self
+            .repo
+            .submit_auction(auction, tx_hash)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?e, "Error repo submitting auction");
+                RestError::TemporarilyUnavailable
+            })?;
+        self.update_bid_status(UpdateBidStatusInput {
+            bid:        bid.clone(),
+            new_status: entities::BidStatusSvm::Submitted {
+                auction: entities::BidStatusAuction {
+                    id: auction.id,
+                    tx_hash,
+                },
+            },
+        })
+        .await?;
+
+        // Send transaction after updating bid status to make sure the bid is not cancellable anymore
+        // If we submit the transaction before updating the bid status, the DB update can be failed and the bid can be cancelled later.
+        // This will cause the transaction to be submitted but the bid to be cancelled.
+        self.send_transaction(&bid).await;
+        Ok(())
+    }
+
     pub async fn submit_quote(
         &self,
         input: SubmitQuoteInput,
@@ -96,29 +129,13 @@ impl Service<Svm> {
             return Err(RestError::BadParameters("Invalid quote".to_string()));
         }
 
-        let tx_hash = self.send_transaction(&bid).await.map_err(|e| {
-            tracing::error!(error = ?e, "Error sending quote transaction to network");
-            RestError::TemporarilyUnavailable
-        })?;
-        let auction = self
+        let bid_lock = self
             .repo
-            .submit_auction(auction, tx_hash)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = ?e, "Error repo submitting auction");
-                RestError::TemporarilyUnavailable
-            })?;
-        self.update_bid_status(UpdateBidStatusInput {
-            bid:        winner_bid.clone(),
-            new_status: entities::BidStatusSvm::Submitted {
-                auction: entities::BidStatusAuction {
-                    id: auction.id,
-                    tx_hash,
-                },
-            },
-        })
-        .await?;
-
+            .get_or_create_in_memory_bid_lock(winner_bid.id)
+            .await;
+        self.submit_auction_bid_for_lock(bid.clone(), auction, bid_lock)
+            .await?;
+        self.repo.remove_in_memory_bid_lock(&winner_bid.id).await;
         Ok(bid.chain_data.transaction)
     }
 }

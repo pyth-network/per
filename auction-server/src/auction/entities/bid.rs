@@ -38,13 +38,16 @@ use {
             Formatter,
         },
         hash::Hash,
+        sync::Arc,
     },
     strum::FromRepr,
     time::OffsetDateTime,
+    tokio::sync::Mutex,
     uuid::Uuid,
 };
 
 pub type BidId = Uuid;
+pub type BidLock = Arc<Mutex<()>>;
 
 pub trait BidStatus:
     Clone
