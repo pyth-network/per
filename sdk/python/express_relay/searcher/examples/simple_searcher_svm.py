@@ -122,10 +122,7 @@ class SimpleSearcherSvm:
         result = bid_status_update.bid_status.result
 
         result_details = ""
-        if (
-            status == BidStatusVariantsSvm.SUBMITTED
-            or status == BidStatusVariantsSvm.WON
-        ):
+        if status not in [BidStatusVariantsSvm.PENDING, BidStatusVariantsSvm.LOST]:
             result_details = f", transaction {result}"
         elif status == BidStatusVariantsSvm.LOST:
             if result:
@@ -190,6 +187,7 @@ class SimpleSearcherSvm:
 
     async def generate_bid_swap(self, opp: SwapOpportunitySvm) -> SwapBidSvm:
         bid_amount = await self.get_bid_amount(opp)
+        metadata = await self.get_metadata()
 
         swap_ixs = self.client.get_svm_swap_instructions(
             searcher=self.private_key.pubkey(),
@@ -197,7 +195,8 @@ class SimpleSearcherSvm:
             deadline=DEADLINE,
             chain_id=self.chain_id,
             swap_opportunity=opp,
-            relayer_signer=(await self.get_metadata()).relayer_signer,
+            fee_receiver_relayer=metadata.fee_receiver_relayer,
+            relayer_signer=metadata.relayer_signer,
         )
         latest_chain_update = self.latest_chain_update[self.chain_id]
         fee_instruction = set_compute_unit_price(

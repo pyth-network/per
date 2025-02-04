@@ -86,6 +86,22 @@ export interface paths {
     /** Query the status of a specific bid. */
     get: operations["get_bid_status"];
   };
+  "/v1/{chain_id}/bids/{bid_id}/cancel": {
+    /**
+     * Cancel a specific bid.
+     * @description Bids can only be cancelled if they are in the awaiting signature state.
+     * Only the user who created the bid can cancel it.
+     */
+    post: operations["post_cancel_bid"];
+  };
+  "/v1/{chain_id}/quotes/submit": {
+    /**
+     * Signs and submits the transaction for the specified quote.
+     * @description Server will verify the quote and checks if the quote is still valid.
+     * If the quote is valid, the server will submit the transaction to the blockchain.
+     */
+    post: operations["post_submit_quote"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -94,6 +110,19 @@ export interface components {
   schemas: {
     APIResponse: components["schemas"]["BidResult"];
     Bid: components["schemas"]["BidEvm"] | components["schemas"]["BidSvm"];
+    BidCancel: components["schemas"]["BidCancelSvm"];
+    BidCancelSvm: {
+      /**
+       * @description The id of the bid to cancel.
+       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
+       */
+      bid_id: string;
+      /**
+       * @description The chain id of the bid to cancel.
+       * @example solana
+       */
+      chain_id: string;
+    };
     BidCreate:
       | components["schemas"]["BidCreateEvm"]
       | components["schemas"]["BidCreateSvm"];
@@ -230,8 +259,8 @@ export interface components {
       status: string;
     };
     BidStatus:
-      | components["schemas"]["BidStatusEvm"]
-      | components["schemas"]["BidStatusSvm"];
+      | components["schemas"]["BidStatusSvm"]
+      | components["schemas"]["BidStatusEvm"];
     BidStatusEvm: OneOf<
       [
         {
@@ -280,6 +309,12 @@ export interface components {
         }
       | {
           /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+          result: string;
+          /** @enum {string} */
+          type: "awaiting_signature";
+        }
+      | {
+          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
           result?: string | null;
           /** @enum {string} */
           type: "lost";
@@ -307,6 +342,12 @@ export interface components {
           result: string;
           /** @enum {string} */
           type: "expired";
+        }
+      | {
+          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+          result: string;
+          /** @enum {string} */
+          type: "cancelled";
         };
     BidStatusWithId: {
       bid_status: components["schemas"]["BidStatus"];
@@ -386,6 +427,13 @@ export interface components {
           params: {
             opportunity_bid: components["schemas"]["OpportunityBidEvm"];
             opportunity_id: string;
+          };
+        },
+        {
+          /** @enum {string} */
+          method: "cancel_bid";
+          params: {
+            data: components["schemas"]["BidCancel"];
           };
         },
       ]
@@ -857,6 +905,11 @@ export interface components {
       output_token: components["schemas"]["TokenAmountSvm"];
       /** @description The token and amount of the platform fee paid to the Express Relay program and relayer. */
       platform_fee: components["schemas"]["TokenAmountSvm"];
+      /**
+       * @description The reference id for the quote.
+       * @example beedbeed-58cc-4372-a567-0e02b2c3d479
+       */
+      reference_id: string;
       /** @description The token and amount of the referral fee paid to the party that routed the swap request to Express Relay. */
       referrer_fee: components["schemas"]["TokenAmountSvm"];
       /**
@@ -946,6 +999,28 @@ export interface components {
         },
       ]
     >;
+    /** @description Parameters needed to submit a quote from server. */
+    SubmitQuote: {
+      /**
+       * @description The reference id for the quote that should be submitted.
+       * @example beedbeed-58cc-4372-a567-0e02b2c3d479
+       */
+      reference_id: string;
+      /**
+       * @description The signature of the user for the quote.
+       * @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg
+       */
+      user_signature: string;
+    };
+    /** @description Response to a quote submission. */
+    SubmitQuoteResponse: {
+      /**
+       * @description The fully signed versioned transaction that was submitted.
+       * The transaction is encoded in base64.
+       * @example SGVsbG8sIFdvcmxkIQ==
+       */
+      transaction: string;
+    };
     SvmChainUpdate: {
       /** @example SLxp9LxX1eE9Z5v99Y92DaYEwyukFgMUF6zRerCF12j */
       blockhash: string;
@@ -1328,6 +1403,46 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
+    };
+  };
+  /**
+   * Cancel a specific bid.
+   * @description Bids can only be cancelled if they are in the awaiting signature state.
+   * Only the user who created the bid can cancel it.
+   */
+  post_cancel_bid: {
+    responses: {
+      /** @description Bid was cancelled successfully */
+      200: {
+        content: never;
+      };
+      400: components["responses"]["ErrorBodyResponse"];
+      /** @description Chain id was not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorBodyResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Signs and submits the transaction for the specified quote.
+   * @description Server will verify the quote and checks if the quote is still valid.
+   * If the quote is valid, the server will submit the transaction to the blockchain.
+   */
+  post_submit_quote: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SubmitQuote"];
+      };
+    };
+    responses: {
+      200: {
+        content: {
+          "application/json": components["schemas"]["SubmitQuoteResponse"];
+        };
+      };
+      400: components["responses"]["ErrorBodyResponse"];
     };
   };
 }

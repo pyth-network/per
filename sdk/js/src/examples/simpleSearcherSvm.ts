@@ -75,7 +75,14 @@ export class SimpleSearcherSvm {
 
   async bidStatusHandler(bidStatus: BidStatusUpdate) {
     let resultDetails = "";
-    if (bidStatus.type == "submitted" || bidStatus.type == "won") {
+    if (
+      bidStatus.type == "submitted" ||
+      bidStatus.type == "won" ||
+      bidStatus.type == "expired" ||
+      bidStatus.type == "cancelled" ||
+      bidStatus.type == "failed" ||
+      bidStatus.type == "awaiting_signature"
+    ) {
       resultDetails = `, transaction ${bidStatus.result}`;
     } else if (bidStatus.type == "lost") {
       if (bidStatus.result) {
@@ -163,6 +170,7 @@ export class SimpleSearcherSvm {
       bidAmount,
       new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
       this.chainId,
+      config.feeReceiverRelayer,
       config.relayerSigner,
     );
 

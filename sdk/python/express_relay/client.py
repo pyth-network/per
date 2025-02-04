@@ -573,6 +573,7 @@ class ExpressRelayClient:
         deadline: int,
         chain_id: str,
         swap_opportunity: SwapOpportunitySvm,
+        fee_receiver_relayer: Pubkey,
         relayer_signer: Pubkey,
     ) -> List[Instruction]:
         if chain_id not in SVM_CONFIGS:
@@ -612,7 +613,7 @@ class ExpressRelayClient:
 
         token_accounts_to_create = [
             {
-                "owner": relayer_signer,
+                "owner": fee_receiver_relayer,
                 "mint": accs["mint_fee"],
                 "program": accs["fee_token_program"],
             },
@@ -679,7 +680,7 @@ class ExpressRelayClient:
                     accs["router"], accs["mint_fee"], accs["fee_token_program"]
                 ),
                 "relayer_fee_receiver_ata": get_ata(
-                    relayer_signer, accs["mint_fee"], accs["fee_token_program"]
+                    fee_receiver_relayer, accs["mint_fee"], accs["fee_token_program"]
                 ),
                 "express_relay_fee_receiver_ata": get_ata(
                     express_relay_metadata, accs["mint_fee"], accs["fee_token_program"]
@@ -691,6 +692,7 @@ class ExpressRelayClient:
                 "token_program_user": accs["token_program_user"],
                 "token_program_fee": accs["fee_token_program"],
                 "express_relay_metadata": express_relay_metadata,
+                "relayer_signer": relayer_signer,
             },
             svm_config["express_relay_program"],
         )
