@@ -200,6 +200,7 @@ pub struct SwapSetupResult {
     pub token_user:              Token,
     pub router_ta_mint_searcher: Pubkey,
     pub router_ta_mint_user:     Pubkey,
+    pub relayer_signer:          Keypair,
 }
 
 pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
@@ -207,6 +208,7 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
         mut svm,
         admin,
         searcher,
+        relayer_signer,
         ..
     } = setup(None).expect("setup failed");
 
@@ -237,6 +239,7 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
         token_user,
         router_ta_mint_searcher,
         router_ta_mint_user,
+        relayer_signer,
     }
 }
 
@@ -285,6 +288,7 @@ fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
         token_user,
         router_ta_mint_searcher,
         router_ta_mint_user,
+        relayer_signer,
     } = setup_swap(args);
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
@@ -365,8 +369,15 @@ fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
         swap_args,
         None,
         None,
+        relayer_signer.pubkey(),
     );
-    submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap();
+    submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap();
 
     // searcher token balances
     assert!(Token::token_balance_matches(
@@ -432,6 +443,7 @@ fn test_swap_fee_mint_user(args: SwapSetupParams) {
         token_user,
         router_ta_mint_searcher,
         router_ta_mint_user,
+        relayer_signer,
     } = setup_swap(args);
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
@@ -512,8 +524,15 @@ fn test_swap_fee_mint_user(args: SwapSetupParams) {
         swap_args,
         None,
         None,
+        relayer_signer.pubkey(),
     );
-    submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap();
+    submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap();
 
     // searcher token balances
     assert!(Token::token_balance_matches(
@@ -579,6 +598,7 @@ fn test_swap_expired_deadline() {
         token_searcher,
         token_user,
         router_ta_mint_user,
+        relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -613,9 +633,15 @@ fn test_swap_expired_deadline() {
         swap_args,
         None,
         None,
+        relayer_signer.pubkey(),
     );
-    let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -632,6 +658,7 @@ fn test_swap_invalid_referral_fee_bps() {
         token_searcher,
         token_user,
         router_ta_mint_user,
+        relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -665,9 +692,15 @@ fn test_swap_invalid_referral_fee_bps() {
         swap_args,
         None,
         None,
+        relayer_signer.pubkey(),
     );
-    let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -684,6 +717,7 @@ fn test_swap_fee_calculation_overflow() {
         token_searcher,
         token_user,
         router_ta_mint_user,
+        relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        5000, // <--- high platform fee bps
@@ -717,9 +751,15 @@ fn test_swap_fee_calculation_overflow() {
         swap_args,
         None,
         None,
+        relayer_signer.pubkey(),
     );
-    let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
     assert_custom_error(result.err, 4, InstructionError::ArithmeticOverflow);
 }
 
@@ -732,6 +772,7 @@ fn test_swap_router_ta_has_wrong_mint() {
         token_searcher,
         token_user,
         router_ta_mint_user,
+        relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -765,9 +806,15 @@ fn test_swap_router_ta_has_wrong_mint() {
         swap_args,
         None,
         None,
+        relayer_signer.pubkey(),
     );
-    let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -784,6 +831,7 @@ fn test_swap_searcher_ta_has_wrong_mint() {
         token_searcher,
         token_user,
         router_ta_mint_user,
+        relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -820,9 +868,15 @@ fn test_swap_searcher_ta_has_wrong_mint() {
         swap_args,
         None,
         None,
+        relayer_signer.pubkey(),
     );
-    let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -839,6 +893,7 @@ fn test_swap_searcher_ta_wrong_owner() {
         token_searcher,
         token_user,
         router_ta_mint_user,
+        relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -872,9 +927,15 @@ fn test_swap_searcher_ta_wrong_owner() {
         swap_args,
         None,
         None,
+        relayer_signer.pubkey(),
     );
-    let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -891,6 +952,7 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         token_searcher,
         token_user,
         router_ta_mint_user,
+        relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -922,9 +984,15 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         swap_args,
         None,
         None,
+        relayer_signer.pubkey(),
     );
-    let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -941,6 +1009,7 @@ fn test_swap_user_ata_mint_user_is_not_ata() {
         token_searcher,
         token_user,
         router_ta_mint_user,
+        relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -975,9 +1044,15 @@ fn test_swap_user_ata_mint_user_is_not_ata() {
         swap_args,
         Some(user_ata_mint_user), // <--- user ata (of mint_user) is not an ata
         None,
+        relayer_signer.pubkey(),
     );
-    let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
     assert_custom_error(
         result.err,
         4,
@@ -994,6 +1069,7 @@ fn test_swap_wrong_mint_fee() {
         token_searcher,
         token_user,
         router_ta_mint_searcher,
+        relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
         platform_fee_bps:        1000,
@@ -1027,9 +1103,15 @@ fn test_swap_wrong_mint_fee() {
         swap_args,
         None,
         Some(token_searcher.mint), // <--- wrong mint fee
+        relayer_signer.pubkey(),
     );
-    let result =
-        submit_transaction(&mut svm, &instructions, &searcher, &[&searcher, &user]).unwrap_err();
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
     assert_custom_error(
         result.err,
         4,

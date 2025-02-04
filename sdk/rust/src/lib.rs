@@ -731,7 +731,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         searcher:             params.searcher,
                         permission:           program_params.permission,
                         router:               program_params.router,
-                        relayer_signer:       program_params.relayer_signer,
+                        relayer_signer:       params.relayer_signer,
                         fee_receiver_relayer: params.fee_receiver_relayer,
                     },
                 )?);
@@ -799,6 +799,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     deadline:             params.deadline,
                     searcher:             params.searcher,
                     fee_receiver_relayer: params.fee_receiver_relayer,
+                    relayer_signer:       params.relayer_signer,
                 })?);
                 let mut transaction =
                     Transaction::new_with_payer(instructions.as_slice(), Some(&params.payer));

@@ -120,9 +120,7 @@ impl Service<Svm> {
             .position(|p| p.eq(&user_wallet))
             .expect("User wallet not found in transaction");
         bid.chain_data.transaction.signatures[user_signature_pos] = input.user_signature;
-
-        // TODO add relayer signature after program update
-        // self.add_relayer_signature(&mut bid);
+        self.add_relayer_signature(&mut bid);
 
         if bid.chain_data.bid_payment_instruction_type != entities::BidPaymentInstructionType::Swap
         {

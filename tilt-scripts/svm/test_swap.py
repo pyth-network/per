@@ -84,13 +84,15 @@ async def main():
         response = result.json()
         logger.info(response)
         tx = SoldersTransaction.from_bytes(base64.b64decode(response["transaction"]))
+        accounts = tx.message.account_keys
         tx = Transaction.from_solders(tx)
         tx.sign_partial(kp_taker)
+        position = accounts.index(pk_taker)
         reference_id = response["reference_id"]
 
         payload = {
             "reference_id": reference_id,
-            "user_signature": str(tx.signatures[1]),
+            "user_signature": str(tx.signatures[position]),
         }
         await asyncio.sleep(3)
         result = await http_client.post(
