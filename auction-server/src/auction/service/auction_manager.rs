@@ -605,7 +605,7 @@ impl AuctionManager<Svm> for Service<Svm> {
     }
 
     fn is_auction_expired(auction: &entities::Auction<Svm>) -> bool {
-        auction.creation_time + BID_MAXIMUM_LIFE_TIME_SVM < OffsetDateTime::now_utc()
+        auction.creation_time + BID_MAXIMUM_LIFE_TIME_SVM * 2 < OffsetDateTime::now_utc()
     }
 }
 
