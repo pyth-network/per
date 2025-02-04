@@ -8,7 +8,6 @@ from typing import List
 from express_relay.client import ExpressRelayClient
 from express_relay.constants import SVM_CONFIGS
 from express_relay.models import BidStatusUpdate, Opportunity, OpportunityDelete
-from express_relay.models.base import BidStatusVariantsSvm
 from express_relay.models.svm import (
     BidSvm,
     LimoOpportunitySvm,
@@ -117,17 +116,9 @@ class SimpleSearcherSvm:
         Args:
             bid_status_update: An object representing an update to the status of a bid.
         """
-        id = bid_status_update.id
-        status = bid_status_update.bid_status.type
-        result = bid_status_update.bid_status.result
-
-        result_details = ""
-        if status not in [BidStatusVariantsSvm.PENDING, BidStatusVariantsSvm.LOST]:
-            result_details = f", transaction {result}"
-        elif status == BidStatusVariantsSvm.LOST:
-            if result:
-                result_details = f", transaction {result}"
-        self.logger.info(f"Bid status for bid {id}: {status.value}{result_details}")
+        self.logger.info(
+            f"Bid status for bid {bid_status_update.id}: {bid_status_update.bid_status}"
+        )
 
     async def get_mint_decimals(self, mint: Pubkey) -> int:
         if str(mint) not in self.mint_decimals_cache:

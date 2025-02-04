@@ -74,23 +74,9 @@ export class SimpleSearcherSvm {
   }
 
   async bidStatusHandler(bidStatus: BidStatusUpdate) {
-    let resultDetails = "";
-    if (
-      bidStatus.type == "submitted" ||
-      bidStatus.type == "won" ||
-      bidStatus.type == "expired" ||
-      bidStatus.type == "cancelled" ||
-      bidStatus.type == "failed" ||
-      bidStatus.type == "awaiting_signature"
-    ) {
-      resultDetails = `, transaction ${bidStatus.result}`;
-    } else if (bidStatus.type == "lost") {
-      if (bidStatus.result) {
-        resultDetails = `, transaction ${bidStatus.result}`;
-      }
-    }
+    console.log("hiiiii daniiiiii");
     console.log(
-      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`,
+      `Bid status for bid ${bidStatus.id}: ${JSON.stringify(bidStatus)}`,
     );
   }
 
