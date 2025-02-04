@@ -1,6 +1,6 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { BidStatusUpdateEvm, checkHex, Client } from "../index";
+import { checkHex, Client } from "../index";
 import { privateKeyToAccount } from "viem/accounts";
 import { isHex } from "viem";
 import { BidStatusUpdate, Opportunity } from "../types";
@@ -35,21 +35,9 @@ class SimpleSearcherEvm {
     process.exit(1);
   }
 
-  async bidStatusHandler(_bidStatus: BidStatusUpdate) {
-    const bidStatus = _bidStatus as BidStatusUpdateEvm;
-    let resultDetails = "";
-    if (bidStatus.type == "submitted" || bidStatus.type == "won") {
-      resultDetails = `, transaction ${bidStatus.result}, index ${bidStatus.index} of multicall`;
-    } else if (bidStatus.type == "lost") {
-      if (bidStatus.result) {
-        resultDetails = `, transaction ${bidStatus.result}`;
-      }
-      if (bidStatus.index) {
-        resultDetails += `, index ${bidStatus.index} of multicall`;
-      }
-    }
+  async bidStatusHandler(bidStatus: BidStatusUpdate) {
     console.log(
-      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`,
+      `Bid status for bid ${bidStatus.id}: ${JSON.stringify(bidStatus)}`,
     );
   }
 

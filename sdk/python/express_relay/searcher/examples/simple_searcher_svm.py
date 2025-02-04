@@ -8,7 +8,6 @@ from typing import List
 from express_relay.client import ExpressRelayClient
 from express_relay.constants import SVM_CONFIGS
 from express_relay.models import BidStatusUpdate, Opportunity, OpportunityDelete
-from express_relay.models.base import BidStatusVariantsSvm
 from express_relay.models.svm import (
     BidSvm,
     LimoOpportunitySvm,
@@ -117,20 +116,9 @@ class SimpleSearcherSvm:
         Args:
             bid_status_update: An object representing an update to the status of a bid.
         """
-        id = bid_status_update.id
-        status = bid_status_update.bid_status.type
-        result = bid_status_update.bid_status.result
-
-        result_details = ""
-        if (
-            status == BidStatusVariantsSvm.SUBMITTED
-            or status == BidStatusVariantsSvm.WON
-        ):
-            result_details = f", transaction {result}"
-        elif status == BidStatusVariantsSvm.LOST:
-            if result:
-                result_details = f", transaction {result}"
-        self.logger.info(f"Bid status for bid {id}: {status.value}{result_details}")
+        self.logger.info(
+            f"Bid status for bid {bid_status_update.id}: {bid_status_update.bid_status}"
+        )
 
     async def get_mint_decimals(self, mint: Pubkey) -> int:
         if str(mint) not in self.mint_decimals_cache:
@@ -190,6 +178,7 @@ class SimpleSearcherSvm:
 
     async def generate_bid_swap(self, opp: SwapOpportunitySvm) -> SwapBidSvm:
         bid_amount = await self.get_bid_amount(opp)
+        metadata = await self.get_metadata()
 
         swap_ixs = self.client.get_svm_swap_instructions(
             searcher=self.private_key.pubkey(),
@@ -197,7 +186,8 @@ class SimpleSearcherSvm:
             deadline=DEADLINE,
             chain_id=self.chain_id,
             swap_opportunity=opp,
-            relayer_signer=(await self.get_metadata()).relayer_signer,
+            fee_receiver_relayer=metadata.fee_receiver_relayer,
+            relayer_signer=metadata.relayer_signer,
         )
         latest_chain_update = self.latest_chain_update[self.chain_id]
         fee_instruction = set_compute_unit_price(

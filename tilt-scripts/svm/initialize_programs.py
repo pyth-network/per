@@ -48,6 +48,12 @@ def parse_args() -> argparse.Namespace:
         help="JSON file containing the private key (as a byte array) of the relayer signer for express relay",
     )
     parser.add_argument(
+        "--file-private-key-fee-receiver-relayer",
+        type=str,
+        required=True,
+        help="JSON file containing the private key (as a byte array) of the fee receiver for the relayer",
+    )
+    parser.add_argument(
         "--express-relay-program",
         type=str,
         required=True,
@@ -103,6 +109,12 @@ async def main():
     pk_relayer_signer = kp_relayer_signer.pubkey()
     logger.info("Relayer signer pubkey: %s", pk_relayer_signer)
 
+    kp_fee_receiver_relayer = read_kp_from_json(
+        args.file_private_key_fee_receiver_relayer
+    )
+    pk_fee_receiver_relayer = kp_fee_receiver_relayer.pubkey()
+    logger.info("Fee Receiver Relayer: %s", pk_fee_receiver_relayer)
+
     client = AsyncClient(args.rpc_url, Confirmed)
 
     pk_express_relay_metadata = Pubkey.find_program_address(
@@ -125,7 +137,7 @@ async def main():
                 express_relay_metadata=pk_express_relay_metadata,
                 admin=pk_admin,
                 relayer_signer=pk_relayer_signer,
-                fee_receiver_relayer=pk_relayer_signer,
+                fee_receiver_relayer=pk_fee_receiver_relayer,
             ),
             program_id=express_relay_pid,
         )

@@ -933,12 +933,10 @@ impl Service<Svm> {
                 opportunity.check_fee_payer(accounts).map_err(|e| {
                     RestError::BadParameters(format!("Invalid first signer: {:?}", e))
                 })?;
-                self.all_signatures_exists(
-                    &message_bytes,
-                    accounts,
-                    &signatures,
-                    &opportunity.get_missing_signers(),
-                )
+                let mut missing_signers = opportunity.get_missing_signers();
+                missing_signers.push(self.config.chain_config.express_relay.relayer.pubkey());
+                self.relayer_signer_exists(accounts, &signatures)?;
+                self.all_signatures_exists(&message_bytes, accounts, &signatures, &missing_signers)
             }
             SubmitType::ByServer => {
                 self.relayer_signer_exists(accounts, &signatures)?;

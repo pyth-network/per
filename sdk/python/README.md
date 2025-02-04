@@ -19,7 +19,7 @@ You can use `anchorpy` to generate a Python client of the Express Relay program.
 You can generate the Python client from the IDL via:
 
 ```bash
-anchorpy client-gen express_relay/idl/idlExpressRelay.json express_relay/svm/generated/ --program-id PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfountagged
+poetry run anchorpy client-gen express_relay/idl/idlExpressRelay.json express_relay/svm/generated/express_relay --program-id PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou
 ```
 
 ## Quickstart

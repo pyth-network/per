@@ -335,7 +335,7 @@ impl AuctionManager<Evm> for Service<Evm> {
 /// This is to make sure we are not missing any transaction.
 /// We run this once every minute (150 * 0.4).
 const CONCLUSION_TRIGGER_INTERVAL_SVM: u64 = 150;
-const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(10);
+const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(120);
 const TRIGGER_DURATION_SVM: Duration = Duration::from_millis(400);
 
 pub struct TriggerStreamSvm {

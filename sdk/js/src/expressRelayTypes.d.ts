@@ -8,7 +8,7 @@ export type ExpressRelay = {
   address: "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou";
   metadata: {
     name: "expressRelay";
-    version: "0.5.0";
+    version: "0.6.0";
     spec: "0.1.0";
     description: "Pyth Express Relay program for handling permissioning and bid distribution";
     repository: "https://github.com/pyth-network/per";
@@ -693,6 +693,11 @@ export type ExpressRelay = {
               },
             ];
           };
+        },
+        {
+          name: "relayerSigner";
+          signer: true;
+          relations: ["expressRelayMetadata"];
         },
       ];
       args: [

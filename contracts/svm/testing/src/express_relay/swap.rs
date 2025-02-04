@@ -42,6 +42,7 @@ pub fn create_swap_instruction(
     swap_args: SwapArgs,
     user_ata_mint_user_override: Option<Pubkey>,
     mint_fee_override: Option<Pubkey>,
+    relayer_signer: Pubkey,
 ) -> Instruction {
     let express_relay_metadata = get_express_relay_metadata_key();
 
@@ -100,6 +101,7 @@ pub fn create_swap_instruction(
         token_program_user,
         token_program_fee,
         express_relay_metadata,
+        relayer_signer,
     }
     .to_account_metas(None);
 
@@ -127,6 +129,7 @@ pub fn build_swap_instructions(
     swap_args: SwapArgs,
     user_ata_mint_user_override: Option<Pubkey>,
     mint_fee_override: Option<Pubkey>,
+    relayer_signer: Pubkey,
 ) -> Vec<Instruction> {
     let mut instructions: Vec<Instruction> = vec![];
 
@@ -183,6 +186,7 @@ pub fn build_swap_instructions(
         swap_args,
         user_ata_mint_user_override,
         mint_fee_override,
+        relayer_signer,
     ));
 
     instructions

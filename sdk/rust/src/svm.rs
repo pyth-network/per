@@ -32,9 +32,8 @@ use {
 };
 
 pub struct ProgramParamsLimo {
-    pub permission:     Pubkey,
-    pub router:         Pubkey,
-    pub relayer_signer: Pubkey,
+    pub permission: Pubkey,
+    pub router:     Pubkey,
 }
 
 pub struct ProgramParamsSwap {}
@@ -54,6 +53,7 @@ pub struct NewBidParams {
     pub searcher:             Pubkey,
     pub signers:              Vec<Keypair>,
     pub fee_receiver_relayer: Pubkey,
+    pub relayer_signer:       Pubkey,
     pub program_params:       ProgramParams,
 }
 
@@ -74,6 +74,7 @@ pub struct GetSwapInstructionParams {
     pub bid_amount:           u64,
     pub deadline:             i64,
     pub fee_receiver_relayer: Pubkey,
+    pub relayer_signer:       Pubkey,
 }
 
 struct OpportunitySwapData {
@@ -299,7 +300,6 @@ impl Svm {
         let OpportunityParamsSvm::V1(opportunity_params) = params.opportunity_params;
         let chain_id = opportunity_params.chain_id;
 
-
         let bid_amount = match (&swap_data.tokens.tokens, &swap_data.fee_token) {
             // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
             (QuoteTokens::SearcherTokenSpecified { .. }, ApiFeeToken::UserToken) => {
@@ -399,6 +399,7 @@ impl Svm {
             AccountMeta::new_readonly(token_program_user, false),
             AccountMeta::new_readonly(fee_token_program, false),
             AccountMeta::new_readonly(*express_relay_metadata, false),
+            AccountMeta::new_readonly(params.relayer_signer, true),
         ];
 
         let swap_args = SwapArgs {
