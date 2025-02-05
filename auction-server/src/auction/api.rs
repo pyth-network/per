@@ -5,6 +5,7 @@ use {
             BidChainData,
         },
         service::{
+            cancel_bid::CancelBidInput,
             get_bid::GetBidInput,
             get_bids::GetBidsInput,
             handle_bid::HandleBidInput,
@@ -42,6 +43,9 @@ use {
     express_relay_api_types::{
         bid::{
             Bid,
+            BidCancel,
+            BidCancelParams,
+            BidCancelSvm,
             BidCoreFields,
             BidCreate,
             BidCreateEvm,
@@ -100,6 +104,60 @@ pub async fn process_bid(
     match store.get_auction_service(&bid_create.get_chain_id())? {
         ServiceEnum::Evm(service) => Evm::handle_bid(&service, &bid_create, profile).await,
         ServiceEnum::Svm(service) => Svm::handle_bid(&service, &bid_create, profile).await,
+    }
+}
+
+/// Cancel a specific bid.
+///
+/// Bids can only be cancelled if they are in the awaiting signature state.
+/// Only the user who created the bid can cancel it.
+#[utoipa::path(post, path = "/v1/{chain_id}/bids/{bid_id}/cancel", responses(
+    (status = 200, description = "Bid was cancelled successfully"),
+    (status = 400, response = ErrorBodyResponse),
+    (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
+),)]
+pub async fn post_cancel_bid(
+    auth: Auth,
+    State(store): State<Arc<StoreNew>>,
+    Path(params): Path<BidCancelParams>,
+) -> Result<Json<()>, RestError> {
+    cancel_bid(
+        auth,
+        store,
+        BidCancel::Svm(BidCancelSvm {
+            chain_id: params.chain_id,
+            bid_id:   params.bid_id,
+        }),
+    )
+    .await
+}
+
+// We cannot be sure that the user is authorized here because this can be called by the ws as well.
+pub async fn cancel_bid(
+    auth: Auth,
+    store: Arc<StoreNew>,
+    bid_cancel: BidCancel,
+) -> Result<Json<()>, RestError> {
+    match auth {
+        Auth::Authorized(_, profile) => {
+            let BidCancel::Svm(bid_cancel) = bid_cancel;
+            let service = store.get_auction_service(&bid_cancel.chain_id)?;
+            match service {
+                ServiceEnum::Evm(_) => Err(RestError::BadParameters(
+                    "EVM chain_id is not supported for cancel_bid".to_string(),
+                )),
+                ServiceEnum::Svm(service) => {
+                    service
+                        .cancel_bid(CancelBidInput {
+                            bid_id: bid_cancel.bid_id,
+                            profile,
+                        })
+                        .await?;
+                    Ok(Json(()))
+                }
+            }
+        }
+        _ => Err(RestError::Unauthorized),
     }
 }
 
@@ -256,7 +314,7 @@ pub async fn post_submit_quote(
         ServiceEnum::Svm(service) => {
             let transaction = service
                 .submit_quote(SubmitQuoteInput {
-                    bid_id:         submit_quote.reference_id,
+                    auction_id:     submit_quote.reference_id,
                     user_signature: submit_quote.user_signature,
                 })
                 .await?;
@@ -280,6 +338,7 @@ pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
             get_bid_status_deprecated,
         )
         .route(Route::PostSubmitQuote, post_submit_quote)
+        .route(Route::PostCancelBid, post_cancel_bid)
         .router
 }
 
@@ -307,6 +366,11 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
     fn from(status: entities::BidStatusSvm) -> Self {
         match status {
             entities::BidStatusSvm::Pending => BidStatusSvm::Pending,
+            entities::BidStatusSvm::AwaitingSignature { auction } => {
+                BidStatusSvm::AwaitingSignature {
+                    result: auction.tx_hash,
+                }
+            }
             entities::BidStatusSvm::Submitted { auction } => BidStatusSvm::Submitted {
                 result: auction.tx_hash,
             },
@@ -320,6 +384,9 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
                 result: auction.tx_hash,
             },
             entities::BidStatusSvm::Expired { auction } => BidStatusSvm::Expired {
+                result: auction.tx_hash,
+            },
+            entities::BidStatusSvm::Cancelled { auction } => BidStatusSvm::Cancelled {
                 result: auction.tx_hash,
             },
         }

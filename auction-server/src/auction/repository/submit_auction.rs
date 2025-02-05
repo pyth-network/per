@@ -32,12 +32,7 @@ impl<T: ChainTrait> Repository<T> {
             T::BidStatusType::convert_tx_hash(&transaction_hash),
             auction.id,
         ).execute(&self.db).await?;
-
-        self.in_memory_store
-            .submitted_auctions
-            .write()
-            .await
-            .push(auction.clone());
+        self.update_in_memory_auction(auction.clone()).await;
         Ok(auction)
     }
 }

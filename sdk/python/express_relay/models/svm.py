@@ -359,7 +359,7 @@ class BidStatusSvm(BaseModel):
     """
     Attributes:
         type: The current status of the bid.
-        result: The result of the bid: a transaction hash if the status is SUBMITTED or WON.
+        result: The result of the bid: a transaction hash if the status is not PENDING.
                 The LOST status may have a result.
     """
 
@@ -368,13 +368,10 @@ class BidStatusSvm(BaseModel):
 
     @model_validator(mode="after")
     def check_result(self):
-        if (
-            self.type == BidStatusVariantsSvm.WON
-            or self.type == BidStatusVariantsSvm.SUBMITTED
-        ):
+        if self.type not in [BidStatusVariantsSvm.PENDING, BidStatusVariantsSvm.LOST]:
             assert (
                 self.result is not None
-            ), "bid result should not be empty when status is won or submitted"
+            ), "bid result should not be empty when status is not pending or lost"
         return self
 
 

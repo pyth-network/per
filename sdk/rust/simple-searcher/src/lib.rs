@@ -215,16 +215,16 @@ impl SimpleSearcher {
                         //                 .to_bytes()
                         //                 .into(),
                         //             signers: vec![payer],
+                        //             relayer_signer: metadata
+                        //                 .relayer_signer
+                        //                 .to_bytes()
+                        //                 .into(),
                         //             program_params: svm::ProgramParams::Limo(
                         //                 svm::ProgramParamsLimo {
                         //                     router:         Pubkey::from_str(
                         //                         "FjgAP9DWiSmULyUKwMrMTTfwdGJeMz22Bcibzq4ijzPR",
                         //                     )
                         //                     .expect("Failed to parse pubkey"),
-                        //                     relayer_signer: metadata
-                        //                         .relayer_signer
-                        //                         .to_bytes()
-                        //                         .into(),
                         //                     permission:     order_address,
                         //                 },
                         //             ),
@@ -266,6 +266,7 @@ impl SimpleSearcher {
                                         .to_bytes()
                                         .into(),
                                     signers: vec![payer],
+                                    relayer_signer: metadata.relayer_signer.to_bytes().into(),
                                     program_params: svm::ProgramParams::Swap(
                                         svm::ProgramParamsSwap {},
                                     ),

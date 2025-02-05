@@ -50,6 +50,7 @@ async def main():
         "searcher_rust",
         "admin",
         "relayer_signer",
+        "fee_receiver_relayer",
     ]:
         file_path = keypairs_dir / f"{account}.json"
         if not file_path.exists():

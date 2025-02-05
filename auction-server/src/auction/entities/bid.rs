@@ -38,13 +38,16 @@ use {
             Formatter,
         },
         hash::Hash,
+        sync::Arc,
     },
     strum::FromRepr,
     time::OffsetDateTime,
+    tokio::sync::Mutex,
     uuid::Uuid,
 };
 
 pub type BidId = Uuid;
+pub type BidLock = Arc<Mutex<()>>;
 
 pub trait BidStatus:
     Clone
@@ -61,10 +64,13 @@ pub trait BidStatus:
     }
 
     fn is_pending(&self) -> bool;
+    fn is_awaiting_signature(&self) -> bool;
     fn is_submitted(&self) -> bool;
     fn is_finalized(&self) -> bool;
 
     fn new_lost() -> Self;
+
+    fn get_auction_id(&self) -> Option<AuctionId>;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -76,6 +82,9 @@ pub struct BidStatusAuction<T: BidStatus> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum BidStatusSvm {
     Pending,
+    AwaitingSignature {
+        auction: BidStatusAuction<Self>,
+    },
     Submitted {
         auction: BidStatusAuction<Self>,
     },
@@ -89,6 +98,9 @@ pub enum BidStatusSvm {
         auction: BidStatusAuction<Self>,
     },
     Expired {
+        auction: BidStatusAuction<Self>,
+    },
+    Cancelled {
         auction: BidStatusAuction<Self>,
     },
 }
@@ -117,6 +129,10 @@ impl BidStatus for BidStatusSvm {
         matches!(self, BidStatusSvm::Pending)
     }
 
+    fn is_awaiting_signature(&self) -> bool {
+        matches!(self, BidStatusSvm::AwaitingSignature { .. })
+    }
+
     fn is_submitted(&self) -> bool {
         matches!(self, BidStatusSvm::Submitted { .. })
     }
@@ -128,11 +144,25 @@ impl BidStatus for BidStatusSvm {
                 | BidStatusSvm::Won { .. }
                 | BidStatusSvm::Failed { .. }
                 | BidStatusSvm::Expired { .. }
+                | BidStatusSvm::Cancelled { .. }
         )
     }
 
     fn new_lost() -> Self {
         BidStatusSvm::Lost { auction: None }
+    }
+
+    fn get_auction_id(&self) -> Option<AuctionId> {
+        match self {
+            BidStatusSvm::Pending => None,
+            BidStatusSvm::AwaitingSignature { auction } => Some(auction.id),
+            BidStatusSvm::Submitted { auction } => Some(auction.id),
+            BidStatusSvm::Lost { auction } => auction.as_ref().map(|a| a.id),
+            BidStatusSvm::Won { auction } => Some(auction.id),
+            BidStatusSvm::Failed { auction } => Some(auction.id),
+            BidStatusSvm::Expired { auction } => Some(auction.id),
+            BidStatusSvm::Cancelled { auction } => Some(auction.id),
+        }
     }
 }
 
@@ -141,6 +171,10 @@ impl BidStatus for BidStatusEvm {
 
     fn is_pending(&self) -> bool {
         matches!(self, BidStatusEvm::Pending)
+    }
+
+    fn is_awaiting_signature(&self) -> bool {
+        false
     }
 
     fn is_submitted(&self) -> bool {
@@ -155,6 +189,15 @@ impl BidStatus for BidStatusEvm {
         BidStatusEvm::Lost {
             auction: None,
             index:   None,
+        }
+    }
+
+    fn get_auction_id(&self) -> Option<AuctionId> {
+        match self {
+            BidStatusEvm::Pending => None,
+            BidStatusEvm::Submitted { auction, .. } => Some(auction.id),
+            BidStatusEvm::Lost { auction, .. } => auction.as_ref().map(|a| a.id),
+            BidStatusEvm::Won { auction, .. } => Some(auction.id),
         }
     }
 }

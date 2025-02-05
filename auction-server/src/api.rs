@@ -304,6 +304,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     bid::get_bids_by_time,
     bid::get_bids_by_time_deprecated,
     bid::get_bid_status_deprecated,
+    bid::post_cancel_bid,
 
     opportunity::post_opportunity,
     opportunity::opportunity_bid,
@@ -334,6 +335,8 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
     api_types::bid::BidSvm,
     api_types::bid::Bids,
     api_types::SvmChainUpdate,
+    api_types::bid::BidCancel,
+    api_types::bid::BidCancelSvm,
 
     api_types::opportunity::SpecifiedTokenAmount,
     api_types::opportunity::OpportunityBidEvm,

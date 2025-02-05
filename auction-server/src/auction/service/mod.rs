@@ -68,12 +68,14 @@ use {
 
 pub mod add_auction;
 pub mod auction_manager;
+pub mod cancel_bid;
 pub mod conclude_auction;
 pub mod conclude_auctions;
+pub mod get_auction_by_id;
 pub mod get_bid;
 pub mod get_bids;
 pub mod get_express_relay_program_id;
-pub mod get_live_bids;
+pub mod get_pending_bids;
 pub mod get_permission_keys_for_auction;
 pub mod handle_auction;
 pub mod handle_auctions;
@@ -82,7 +84,6 @@ pub mod simulator;
 pub mod submit_quote;
 pub mod update_bid_status;
 pub mod update_recent_prioritization_fee;
-pub mod update_submitted_auction;
 pub mod verification;
 pub mod workers;
 

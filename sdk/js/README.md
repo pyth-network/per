@@ -45,7 +45,9 @@ function calculateOpportunityBid(opportunity: Opportunity): BidParams | null {
 }
 
 async function bidStatusCallback(bidStatus: BidStatusUpdate) {
-  console.log(`Bid status for bid ${bidStatus.id}: ${bidStatus.status.status}`);
+  console.log(
+    `Bid status for bid ${bidStatus.id}: ${JSON.stringify(bidStatus)}`,
+  );
 }
 
 async function opportunityCallback(opportunity: Opportunity) {

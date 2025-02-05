@@ -859,6 +859,7 @@ export class Client {
    * @param bidAmount The amount of the bid in either searcher side or user side tokens depending on the swap opportunity
    * @param deadline The deadline for the bid in seconds since Unix epoch
    * @param chainId The chain ID as a string, e.g. "solana"
+   * @param feeReceiverRelayer The fee collection address of the relayer
    * @param relayerSigner The address of the relayer that is handling the bid
    */
   async constructSwapBid(
@@ -868,6 +869,7 @@ export class Client {
     bidAmount: anchor.BN,
     deadline: anchor.BN,
     chainId: string,
+    feeReceiverRelayer: PublicKey,
     relayerSigner: PublicKey,
   ): Promise<BidSvmSwap> {
     return svm.constructSwapBid(
@@ -877,6 +879,7 @@ export class Client {
       bidAmount,
       deadline,
       chainId,
+      feeReceiverRelayer,
       relayerSigner,
     );
   }

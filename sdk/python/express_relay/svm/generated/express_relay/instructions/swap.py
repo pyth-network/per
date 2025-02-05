@@ -31,6 +31,7 @@ class SwapAccounts(typing.TypedDict):
     token_program_user: Pubkey
     token_program_fee: Pubkey
     express_relay_metadata: Pubkey
+    relayer_signer: Pubkey
 
 
 def swap(
@@ -89,6 +90,9 @@ def swap(
             pubkey=accounts["express_relay_metadata"],
             is_signer=False,
             is_writable=False,
+        ),
+        AccountMeta(
+            pubkey=accounts["relayer_signer"], is_signer=True, is_writable=False
         ),
     ]
     if remaining_accounts is not None:

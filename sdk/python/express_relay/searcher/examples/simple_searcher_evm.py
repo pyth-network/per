@@ -8,8 +8,7 @@ from eth_account.account import Account
 from express_relay.client import ExpressRelayClient, sign_bid
 from express_relay.constants import OPPORTUNITY_ADAPTER_CONFIGS
 from express_relay.models import BidStatusUpdate, Opportunity, OpportunityBidParams
-from express_relay.models.base import BidStatusVariantsEvm
-from express_relay.models.evm import BidEvm, BidStatusEvm, Bytes32, OpportunityEvm
+from express_relay.models.evm import BidEvm, Bytes32, OpportunityEvm
 
 logger = logging.getLogger(__name__)
 
@@ -84,25 +83,8 @@ class SimpleSearcher:
         Args:
             bid_status_update: An object representing an update to the status of a bid.
         """
-        id = bid_status_update.id
-        bid_status = typing.cast(BidStatusEvm, bid_status_update.bid_status)
-        status = bid_status.type
-        result = bid_status.result
-        index = bid_status.index
-
-        result_details = ""
-        if (
-            status == BidStatusVariantsEvm.SUBMITTED
-            or status == BidStatusVariantsEvm.WON
-        ):
-            result_details = f", transaction {result}, index {index} of multicall"
-        elif status == BidStatusVariantsEvm.LOST:
-            if result:
-                result_details = f", transaction {result}"
-            if index:
-                result_details += f", index {index} of multicall"
         logger.info(
-            f"Bid status for bid {id}: {status.value.replace('_', ' ')}{result_details}"
+            f"Bid status for bid {bid_status_update.id}: {bid_status_update.bid_status}"
         )
 
 

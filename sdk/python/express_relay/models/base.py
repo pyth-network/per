@@ -26,11 +26,13 @@ class BidStatusVariantsEvm(Enum):
 
 class BidStatusVariantsSvm(Enum):
     PENDING = "pending"
+    AWAITING_SIGNATURE = "awaiting_signature"
     SUBMITTED = "submitted"
     LOST = "lost"
     WON = "won"
     FAILED = "failed"
     EXPIRED = "expired"
+    CANCELLED = "cancelled"
 
 
 IntString = Annotated[int, PlainSerializer(lambda x: str(x), return_type=str)]

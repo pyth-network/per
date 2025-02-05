@@ -6,8 +6,6 @@ import random
 from pathlib import Path
 
 import httpx
-from solana.rpc.async_api import AsyncClient
-from solana.rpc.commitment import Confirmed
 from solana.transaction import Transaction
 from solders.transaction import Transaction as SoldersTransaction
 
@@ -58,11 +56,12 @@ async def main():
 
     configure_logger(logger, args.verbose)
 
+    chain_id = "local-solana"
     kp_taker = read_kp_from_json(args.file_private_key_taker)
     pk_taker = kp_taker.pubkey()
     logger.info("Taker pubkey: %s", pk_taker)
     payload = {
-        "chain_id": "local-solana",
+        "chain_id": chain_id,
         "input_token_mint": args.input_mint,
         "output_token_mint": args.output_mint,
         "router": "3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn",
@@ -82,16 +81,33 @@ async def main():
         logger.info("Output token %s", result.json()["output_token"])
         logger.info("Referrer fee %s", result.json()["referrer_fee"])
         logger.info("Platform fee %s", result.json()["platform_fee"])
-        tx = SoldersTransaction.from_bytes(
-            base64.b64decode(result.json()["transaction"])
-        )
+        response = result.json()
+        logger.info(response)
+        tx = SoldersTransaction.from_bytes(base64.b64decode(response["transaction"]))
+        accounts = tx.message.account_keys
         tx = Transaction.from_solders(tx)
         tx.sign_partial(kp_taker)
-        async with AsyncClient(args.rpc_url) as rpc_client:
-            await rpc_client.send_raw_transaction(tx.serialize())
-            logger.info("Swap transaction sent. Signature: %s", tx.signatures[0])
-            await rpc_client.confirm_transaction(tx.signatures[0], commitment=Confirmed)
-            logger.info("Swap transaction confirmed")
+        position = accounts.index(pk_taker)
+        reference_id = response["reference_id"]
+
+        payload = {
+            "reference_id": reference_id,
+            "user_signature": str(tx.signatures[position]),
+        }
+        await asyncio.sleep(3)
+        result = await http_client.post(
+            args.auction_server_url + "/v1/{}/quotes/submit".format(chain_id),
+            json=payload,
+        )
+        if result.status_code != 200:
+            logger.error("Failed to submit quote to auction server %s", result.text)
+            return
+
+        response = result.json()
+        tx = tx = SoldersTransaction.from_bytes(
+            base64.b64decode(response["transaction"])
+        )
+        logger.info("Quote submitted to server. Signature: %s", tx.signatures[0])
 
 
 if __name__ == "__main__":

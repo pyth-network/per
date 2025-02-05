@@ -15,7 +15,7 @@ use {
                 BidPaymentInstructionType,
                 SubmitType,
             },
-            service::get_live_bids::GetLiveBidsInput,
+            service::get_pending_bids::GetLiveBidsInput,
         },
         kernel::{
             contracts::{
@@ -933,12 +933,10 @@ impl Service<Svm> {
                 opportunity.check_fee_payer(accounts).map_err(|e| {
                     RestError::BadParameters(format!("Invalid first signer: {:?}", e))
                 })?;
-                self.all_signatures_exists(
-                    &message_bytes,
-                    accounts,
-                    &signatures,
-                    &opportunity.get_missing_signers(),
-                )
+                let mut missing_signers = opportunity.get_missing_signers();
+                missing_signers.push(self.config.chain_config.express_relay.relayer.pubkey());
+                self.relayer_signer_exists(accounts, &signatures)?;
+                self.all_signatures_exists(&message_bytes, accounts, &signatures, &missing_signers)
             }
             SubmitType::ByServer => {
                 self.relayer_signer_exists(accounts, &signatures)?;
@@ -1100,10 +1098,10 @@ impl Verification<Svm> for Service<Svm> {
         self.simulate_bid(&bid).await?;
 
         // Check if the bid is not duplicate
-        let live_bids = self
-            .get_live_bids(GetLiveBidsInput { permission_key })
+        let pending_bids = self
+            .get_pending_bids(GetLiveBidsInput { permission_key })
             .await;
-        if live_bids.iter().any(|b| bid == *b) {
+        if pending_bids.iter().any(|b| bid == *b) {
             return Err(RestError::BadParameters("Duplicate bid".to_string()));
         }
 

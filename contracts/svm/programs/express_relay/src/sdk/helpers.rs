@@ -110,6 +110,7 @@ pub fn create_swap_instruction(
     token_program_searcher: Pubkey,
     token_program_user: Pubkey,
     swap_args: SwapArgs,
+    relayer_signer: Pubkey,
 ) -> Instruction {
     let express_relay_metadata =
         Pubkey::find_program_address(&[SEED_METADATA], &express_relay_pid).0;
@@ -119,7 +120,7 @@ pub fn create_swap_instruction(
         FeeToken::User => (mint_user, token_program_user),
     };
 
-    let accounts_submit_bid = accounts::Swap {
+    let accounts_swap = accounts::Swap {
         searcher,
         user,
         searcher_ta_mint_searcher: searcher_ta_mint_searcher.unwrap_or(
@@ -164,13 +165,14 @@ pub fn create_swap_instruction(
         token_program_user,
         token_program_fee,
         express_relay_metadata,
+        relayer_signer,
     }
     .to_account_metas(None);
     let data_submit_bid = instruction::Swap { data: swap_args }.data();
 
     Instruction {
         program_id: express_relay_pid,
-        accounts:   accounts_submit_bid,
+        accounts:   accounts_swap,
         data:       data_submit_bid,
     }
 }

@@ -81,16 +81,8 @@ export class DexRouter {
   }
 
   async bidStatusHandler(bidStatus: BidStatusUpdate) {
-    let resultDetails = "";
-    if (bidStatus.type == "submitted" || bidStatus.type == "won") {
-      resultDetails = `, transaction ${bidStatus.result}`;
-    } else if (bidStatus.type == "lost") {
-      if (bidStatus.result) {
-        resultDetails = `, transaction ${bidStatus.result}`;
-      }
-    }
     console.log(
-      `Bid status for bid ${bidStatus.id}: ${bidStatus.type}${resultDetails}`,
+      `Bid status for bid ${bidStatus.id}: ${JSON.stringify(bidStatus)}`,
     );
   }
 

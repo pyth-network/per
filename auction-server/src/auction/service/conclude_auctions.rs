@@ -12,7 +12,7 @@ where
     Service<T>: AuctionManager<T>,
 {
     pub async fn conclude_auctions(&self) {
-        let auctions = self.repo.get_in_memory_submitted_auctions().await;
+        let auctions = self.repo.get_in_memory_auctions().await;
         for auction in auctions {
             self.task_tracker.spawn({
                 let service = self.clone();

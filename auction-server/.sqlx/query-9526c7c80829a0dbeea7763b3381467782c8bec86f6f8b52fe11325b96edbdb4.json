@@ -31,7 +31,9 @@
                 "submitted",
                 "won",
                 "expired",
-                "failed"
+                "failed",
+                "awaiting_signature",
+                "cancelled"
               ]
             }
           }

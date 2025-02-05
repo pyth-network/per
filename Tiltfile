@@ -186,7 +186,7 @@ local_resource(
 # need to run initialize instructions for the programs one time, script skips if already initialized
 local_resource(
     "svm-initialize-programs",
-    "poetry -C tilt-scripts run python3 -m tilt-scripts.svm.initialize_programs -v --file-private-key-payer keypairs/searcher_py.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --rpc-url %s" % rpc_url_solana,
+    "poetry -C tilt-scripts run python3 -m tilt-scripts.svm.initialize_programs -v --file-private-key-payer keypairs/searcher_py.json --file-private-key-admin keypairs/admin.json --file-private-key-relayer-signer keypairs/relayer_signer.json --file-private-key-fee-receiver-relayer keypairs/fee_receiver_relayer.json --express-relay-program PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou --rpc-url %s" % rpc_url_solana,
     resource_deps=["svm-setup-accounts"]
 )
 
