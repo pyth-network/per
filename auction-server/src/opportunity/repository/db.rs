@@ -160,19 +160,3 @@ impl<T: InMemoryStore> OpportunityTable<T> for DB {
         Ok(())
     }
 }
-
-
-// #[cfg(test)]
-// mod tests {
-//     use crate::opportunity::repository::InMemoryStoreSvm;
-
-//     use super::*;
-
-//     #[tokio::test]
-//     async fn test_get_opportunities() {
-//         let mut db = MockOpportunityTable::<InMemoryStoreSvm>::default();
-//         db.expect_get_opportunities().returning(|_, _, _| Ok(vec![]));
-//         let opps = db.get_opportunities("evm".to_string(), None, None).await;
-//             println!("{:?}", opps);
-//     }
-// }
