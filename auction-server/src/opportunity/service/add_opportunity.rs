@@ -117,3 +117,78 @@ where
         Ok(opportunity)
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use {
+        super::*,
+        crate::{
+            api::ws,
+            kernel::{
+                db::DB,
+                traced_sender_svm::tests::MockRpcClient,
+            },
+            opportunity::{
+                repository::{
+                    InMemoryStoreSvm,
+                    MockOpportunityTable,
+                },
+                service::{
+                    ChainTypeSvm,
+                    Service,
+                },
+            },
+            server::setup_metrics_recorder,
+            state::Store,
+        },
+        solana_client::{
+            nonblocking::rpc_client::RpcClient,
+            rpc_client::RpcClientConfig,
+        },
+        std::{
+            collections::HashMap,
+            sync::{
+                atomic::AtomicUsize,
+                Arc,
+            },
+        },
+        tokio::sync::RwLock,
+    };
+
+    #[tokio::test]
+    async fn test_add_opportunity() {
+        let rpc_client = MockRpcClient::default();
+        let mock_db = MockOpportunityTable::default();
+
+        let config_svm = crate::opportunity::service::ConfigSvm {
+            auction_service:         RwLock::new(None),
+            rpc_client:              RpcClient::new_sender(rpc_client, RpcClientConfig::default()),
+            accepted_token_programs: vec![],
+        };
+
+        let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
+
+        let mut chains_svm = HashMap::new();
+        chains_svm.insert("solana".to_string(), config_svm);
+
+
+        let store = Arc::new(Store {
+            db:               DB::connect_lazy("https://test").unwrap(),
+            chains_evm:       HashMap::new(),
+            chains_svm:       HashMap::new(),
+            ws:               ws::WsState {
+                subscriber_counter: AtomicUsize::new(0),
+                broadcast_sender,
+                broadcast_receiver,
+            },
+            secret_key:       "test".to_string(),
+            access_tokens:    RwLock::new(HashMap::new()),
+            metrics_recorder: setup_metrics_recorder().unwrap(),
+        });
+
+        let _service = Service::<ChainTypeSvm, MockOpportunityTable<InMemoryStoreSvm>>::new(
+            store, mock_db, chains_svm,
+        );
+    }
+}

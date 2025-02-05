@@ -27,7 +27,7 @@ mod remove_opportunities;
 mod remove_opportunity;
 
 pub use {
-    db::OpportunityTable,
+    db::*,
     models::*,
 };
 

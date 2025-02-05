@@ -73,3 +73,21 @@ impl TracedSenderSvm {
         RpcClient::new_sender(TracedSenderSvm { sender, chain_id }, config)
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use {
+        super::*,
+        mockall::mock,
+    };
+
+    mock!(
+        pub RpcClient {}
+        #[async_trait]
+        impl RpcSender for RpcClient {
+            async fn send(&self, request: RpcRequest, params: serde_json::Value) -> client_error::Result<serde_json::Value>;
+            fn get_transport_stats(&self) -> RpcTransportStats ;
+            fn url(&self) -> String;
+        }
+    );
+}
