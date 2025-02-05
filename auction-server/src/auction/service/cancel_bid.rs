@@ -29,7 +29,7 @@ impl Service<Svm> {
             .get_in_memory_auction_bid_by_bid_id(input.bid_id)
             .await
             .ok_or(RestError::BadParameters(
-                "Bid is not cancellable".to_string(),
+                "Bid is only cancellable in awaiting_signature state".to_string(),
             ))?;
 
         if bid.profile_id.ok_or(RestError::Forbidden)? != input.profile.id {
@@ -51,7 +51,7 @@ impl Service<Svm> {
                 .await
             }
             _ => Err(RestError::BadParameters(
-                "Bid is not cancellable".to_string(),
+                "Bid is only cancellable in awaiting_signature state".to_string(),
             )),
         }
     }

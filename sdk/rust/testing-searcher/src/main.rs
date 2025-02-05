@@ -20,7 +20,7 @@ use {
 
 #[derive(Parser, Clone, Debug)]
 pub struct RunOptions {
-    /// The API key to use for authentication.
+    /// The API key to use for auction server authentication.
     #[arg(long = "api-key")]
     #[arg(env = "API_KEY")]
     pub api_key: Option<String>,
