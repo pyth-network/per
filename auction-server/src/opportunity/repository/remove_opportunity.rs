@@ -1,7 +1,6 @@
 use {
     super::{
         db::OpportunityTable,
-        models::OpportunityRemovalReason,
         InMemoryStore,
         Repository,
     },
@@ -10,10 +9,6 @@ use {
         Opportunity,
     },
     sqlx::Postgres,
-    time::{
-        OffsetDateTime,
-        PrimitiveDateTime,
-    },
 };
 
 impl<T: InMemoryStore> Repository<T> {

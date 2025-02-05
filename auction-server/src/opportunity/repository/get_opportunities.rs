@@ -1,9 +1,6 @@
 use {
     super::{
         db::OpportunityTable,
-        models::{
-            self,
-        },
         InMemoryStore,
         Repository,
     },
@@ -13,12 +10,7 @@ use {
             ChainId,
             PermissionKey,
         },
-        opportunity::{
-            entities,
-            repository::models::OpportunityMetadata,
-        },
     },
-    sqlx::QueryBuilder,
     time::OffsetDateTime,
 };
 

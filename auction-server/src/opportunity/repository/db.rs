@@ -36,7 +36,6 @@ pub trait OpportunityTable<T: InMemoryStore> {
         &self,
         permission_key: PermissionKey,
         chain_id: ChainId,
-        opportunity_key: &entities::OpportunityKey,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()>;
     async fn remove_opportunity(
@@ -130,7 +129,6 @@ impl<T: InMemoryStore> OpportunityTable<T> for DB {
         &self,
         permission_key: PermissionKey,
         chain_id: ChainId,
-        opportunity_key: &entities::OpportunityKey,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();

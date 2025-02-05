@@ -13,10 +13,6 @@ use {
         opportunity::entities,
     },
     sqlx::Postgres,
-    time::{
-        OffsetDateTime,
-        PrimitiveDateTime,
-    },
 };
 
 impl<T: InMemoryStore> Repository<T> {
@@ -28,14 +24,7 @@ impl<T: InMemoryStore> Repository<T> {
         opportunity_key: &entities::OpportunityKey,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<Vec<T::Opportunity>> {
-        OpportunityTable::<T>::remove_opportunities(
-            db,
-            permission_key,
-            chain_id,
-            opportunity_key,
-            reason,
-        )
-        .await?;
+        OpportunityTable::<T>::remove_opportunities(db, permission_key, chain_id, reason).await?;
 
         let mut write_guard = self.in_memory_store.opportunities.write().await;
         let opportunities = write_guard.remove(opportunity_key);

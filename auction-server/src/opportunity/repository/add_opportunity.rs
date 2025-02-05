@@ -1,7 +1,6 @@
 use {
     super::{
         db::OpportunityTable,
-        models::OpportunityMetadata,
         InMemoryStore,
         Repository,
     },
@@ -13,7 +12,6 @@ use {
         },
     },
     sqlx::Postgres,
-    time::PrimitiveDateTime,
 };
 
 impl<T: InMemoryStore> Repository<T> {
