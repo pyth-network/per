@@ -21,8 +21,7 @@ impl<T: InMemoryStore> Repository<T> {
         db: &sqlx::Pool<Postgres>,
         opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreate,
     ) -> Result<T::Opportunity, RestError> {
-        let opportunity: T::Opportunity =
-            <T::Opportunity as entities::Opportunity>::new_with_current_time(opportunity);
+        let opportunity: T::Opportunity = T::Opportunity::new_with_current_time(opportunity);
         let metadata = opportunity.get_models_metadata();
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
         sqlx::query!("INSERT INTO opportunity (id,

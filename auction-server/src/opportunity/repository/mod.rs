@@ -12,6 +12,7 @@ use {
 
 mod add_opportunity;
 mod add_spoof_info;
+mod db;
 mod get_express_relay_metadata;
 mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
