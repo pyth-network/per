@@ -1,3 +1,5 @@
+#[cfg(test)]
+use mockall::automock;
 use {
     super::{
         entities,
@@ -24,6 +26,7 @@ use {
     },
 };
 
+#[cfg_attr(test, automock)]
 pub trait OpportunityTable<T: InMemoryStore> {
     async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError>;
     async fn get_opportunities(
@@ -40,7 +43,7 @@ pub trait OpportunityTable<T: InMemoryStore> {
     ) -> anyhow::Result<()>;
     async fn remove_opportunity(
         &self,
-        opportunity: &<T as InMemoryStore>::Opportunity,
+        opportunity: &T::Opportunity,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()>;
 }
@@ -144,7 +147,7 @@ impl<T: InMemoryStore> OpportunityTable<T> for DB {
 
     async fn remove_opportunity(
         &self,
-        opportunity: &<T as InMemoryStore>::Opportunity,
+        opportunity: &T::Opportunity,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();
