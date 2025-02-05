@@ -344,6 +344,24 @@ class ExpressRelayClient:
 
         return bid_id
 
+    async def cancel_bid(self, bid_id: UUID, chain_id: str):
+        """
+        Cancels a bid on the auction server.
+
+        Args:
+            bid_id: The ID of the bid to cancel.
+            chain_id: The chain ID of the bid to cancel.
+        """
+        params = {
+            "method": "cancel_bid",
+            "data": {
+                "bid_id": bid_id,
+                "chain_id": chain_id,
+            },
+        }
+        client_msg = ClientMessage.model_validate({"params": params})
+        await self.send_ws_msg(client_msg)
+
     async def ws_handler(
         self,
         opportunity_callback: (

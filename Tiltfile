@@ -205,7 +205,7 @@ local_resource(
 
 local_resource(
     "svm-searcher-py",
-    serve_cmd="poetry run python3 -m express_relay.searcher.examples.testing_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id local-solana --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
+    serve_cmd="poetry run python3 -m express_relay.searcher.examples.testing_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id local-solana --api-key $(poetry -C tilt-scripts run python3 ../../tilt-scripts/utils/create_profile.py --name python_sdk --email python_sdk@dourolabs.com --role searcher) --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
     serve_dir="sdk/python",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )

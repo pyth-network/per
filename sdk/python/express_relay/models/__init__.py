@@ -27,6 +27,17 @@ from typing_extensions import Annotated, Literal
 Bid = Union[BidEvm, BidSvm]
 
 
+class BidCancel(BaseModel):
+    """
+    Attributes:
+        bid_id: The ID of the bid to cancel.
+        chain_id: The chain ID to cancel the bid on.
+    """
+
+    bid_id: UUIDString
+    chain_id: str
+
+
 class BidStatusUpdate(BaseModel):
     """
     Attributes:
@@ -240,6 +251,17 @@ class PostOpportunityBidMessageParams(BaseModel):
     }
 
 
+class CancelBidMessageParams(BaseModel):
+    """
+    Attributes:
+        method: A string literal "cancel_bid".
+        data: The Cancel Bid data.
+    """
+
+    method: Literal["cancel_bid"]
+    data: BidCancel
+
+
 class ClientMessage(BaseModel):
     """
     Attributes:
@@ -251,6 +273,7 @@ class ClientMessage(BaseModel):
         UnsubscribeMessageParams,
         PostBidMessageParams,
         PostOpportunityBidMessageParams,
+        CancelBidMessageParams,
     ] = Field(..., discriminator="method")
 
 
