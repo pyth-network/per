@@ -348,17 +348,19 @@ impl SimpleSearcher {
                         if let Some(chain_id) =
                             self.bid_chain_id.read().await.get(&status.id).cloned()
                         {
-                            let result = self
-                                .ws_client
-                                .cancel_bid(BidCancel::Svm(BidCancelSvm {
-                                    chain_id,
-                                    bid_id: status.id,
-                                }))
-                                .await;
-                            match result {
-                                Ok(_) => println!("Bid cancelled"),
-                                Err(e) => eprintln!("Failed to cancel bid: {:?}", e),
-                            };
+                            if rand::thread_rng().gen::<f64>() < 1.0 / 3.0 {
+                                let result = self
+                                    .ws_client
+                                    .cancel_bid(BidCancel::Svm(BidCancelSvm {
+                                        chain_id,
+                                        bid_id: status.id,
+                                    }))
+                                    .await;
+                                match result {
+                                    Ok(_) => println!("Bid cancelled"),
+                                    Err(e) => eprintln!("Failed to cancel bid: {:?}", e),
+                                };
+                            }
                         }
                     }
                 }

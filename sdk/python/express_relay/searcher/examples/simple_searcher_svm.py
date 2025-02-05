@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import random
 import typing
 from decimal import Decimal
 from typing import List
@@ -125,7 +126,7 @@ class SimpleSearcherSvm:
         # It's possible to cancel bids with status awaiting_signature
         # Doing it here randomly for demonstration purposes
         if bid_status_update.bid_status.type == BidStatusVariantsSvm.AWAITING_SIGNATURE:
-            if bid_status_update.id in self.bid_chain_id:
+            if bid_status_update.id in self.bid_chain_id and random.random() < 1 / 3:
                 try:
                     await self.client.cancel_bid(
                         bid_status_update.id, self.bid_chain_id[bid_status_update.id]
