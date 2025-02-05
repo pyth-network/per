@@ -44,6 +44,7 @@ export class SimpleSearcherSvm {
   protected expressRelayConfig: ExpressRelaySvmConfig | undefined;
   protected latestChainUpdate: Record<ChainId, SvmChainUpdate> = {};
   protected readonly bid: anchor.BN;
+  protected bidChainId: Record<string, string> = {};
   constructor(
     public endpointExpressRelay: string,
     public chainId: string,
@@ -74,10 +75,24 @@ export class SimpleSearcherSvm {
   }
 
   async bidStatusHandler(bidStatus: BidStatusUpdate) {
-    console.log("hiiiii daniiiiii");
     console.log(
       `Bid status for bid ${bidStatus.id}: ${JSON.stringify(bidStatus)}`,
     );
+    // It's possible to cancel bids with status awaiting_signature
+    // Doing it here randomly for demonstration purposes
+    if (bidStatus.type === "awaiting_signature") {
+      if (this.bidChainId[bidStatus.id] && Math.random() < 1.0 / 3.0) {
+        try {
+          await this.client.cancelBid(
+            bidStatus.id,
+            this.bidChainId[bidStatus.id],
+          );
+          console.log(`Cancelled bid ${bidStatus.id}`);
+        } catch (error) {
+          console.error(`Failed to cancel bid ${bidStatus.id}: ${error}`);
+        }
+      }
+    }
   }
 
   async getMintDecimalsCached(mint: PublicKey): Promise<number> {
@@ -268,6 +283,7 @@ export class SimpleSearcherSvm {
     const bid = await this.generateBid(opportunity as OpportunitySvm);
     try {
       const bidId = await this.client.submitBid(bid);
+      this.bidChainId[bidId] = opportunity.chainId;
       console.log(
         `Successful bid. Opportunity id ${opportunity.opportunityId} Bid id ${bidId}`,
       );

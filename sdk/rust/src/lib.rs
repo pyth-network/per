@@ -449,6 +449,31 @@ impl WsClient {
             ServerResultMessage::Err(error) => Err(ClientError::WsRequestFailed(error)),
         }
     }
+
+    /// Cancel a bid.
+    ///
+    /// # Arguments
+    ///
+    /// * `bid_cancel` - The data needed to cancel bid.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), ClientError>` - The result of the bid cancellation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the WebSocket request fails or the server responds with an error.
+    pub async fn cancel_bid(
+        &self,
+        bid_cancel: api_types::bid::BidCancel,
+    ) -> Result<(), ClientError> {
+        let message = api_types::ws::ClientMessage::CancelBid { data: bid_cancel };
+        let result = self.send(message).await?;
+        match result {
+            ServerResultMessage::Success(_) => Ok(()),
+            ServerResultMessage::Err(error) => Err(ClientError::WsRequestFailed(error)),
+        }
+    }
 }
 
 impl Client {
@@ -490,6 +515,7 @@ impl Client {
         route: impl Routable,
         query: Option<T>,
     ) -> Result<R, ClientError> {
+        // TODO add params and body here
         let properties = route.properties();
         let url = self
             .inner

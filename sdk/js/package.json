@@ -1,6 +1,6 @@
 {
   "name": "@pythnetwork/express-relay-js",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "Utilities for interacting with the express relay protocol",
   "homepage": "https://github.com/pyth-network/per/tree/main/sdk/js",
   "author": "Douro Labs",
@@ -46,7 +46,7 @@
     "decimal.js": "^10.4.3",
     "isomorphic-ws": "^5.0.0",
     "openapi-client-axios": "^7.5.5",
-    "openapi-fetch": "^0.8.2",
+    "openapi-fetch": "^0.13.4",
     "viem": "catalog:",
     "ws": "^8.17.1"
   },
@@ -55,7 +55,7 @@
     "@types/node": "catalog:",
     "@types/yargs": "catalog:",
     "jest": "catalog:",
-    "openapi-typescript": "6.5.5",
+    "openapi-typescript": "7.6.1",
     "prettier": "^2.8.8",
     "typescript": "catalog:",
     "yargs": "catalog:"

@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import random
 import typing
 from decimal import Decimal
 from typing import List
@@ -9,6 +10,7 @@ from express_relay.client import ExpressRelayClient
 from express_relay.constants import SVM_CONFIGS
 from express_relay.models import BidStatusUpdate, Opportunity, OpportunityDelete
 from express_relay.models.svm import (
+    BidStatusVariantsSvm,
     BidSvm,
     LimoOpportunitySvm,
     OnChainBidSvm,
@@ -68,6 +70,7 @@ class SimpleSearcherSvm:
         self.express_relay_metadata = None
         self.mint_decimals_cache = {}
         self.latest_chain_update = {}
+        self.bid_chain_id = {}
 
         self.logger = logging.getLogger("searcher")
         self.setup_logger()
@@ -101,6 +104,7 @@ class SimpleSearcherSvm:
         if bid:
             try:
                 bid_id = await self.client.submit_bid(bid)
+                self.bid_chain_id[bid_id] = opp.chain_id
                 self.logger.info(
                     f"Submitted bid {str(bid_id)} for opportunity {str(opp.opportunity_id)}"
                 )
@@ -119,6 +123,19 @@ class SimpleSearcherSvm:
         self.logger.info(
             f"Bid status for bid {bid_status_update.id}: {bid_status_update.bid_status}"
         )
+        # It's possible to cancel bids with status awaiting_signature
+        # Doing it here randomly for demonstration purposes
+        if bid_status_update.bid_status.type == BidStatusVariantsSvm.AWAITING_SIGNATURE:
+            if bid_status_update.id in self.bid_chain_id and random.random() < 1 / 3:
+                try:
+                    await self.client.cancel_bid(
+                        bid_status_update.id, self.bid_chain_id[bid_status_update.id]
+                    )
+                    self.logger.info(f"Cancelled bid {bid_status_update.id}")
+                except Exception as e:
+                    self.logger.error(
+                        f"Cancelling bid failed {bid_status_update.id}: {e}"
+                    )
 
     async def get_mint_decimals(self, mint: Pubkey) -> int:
         if str(mint) not in self.mint_decimals_cache:

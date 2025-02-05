@@ -5,6 +5,13 @@ use {
     },
     express_relay_client::{
         api_types::{
+            bid::{
+                BidCancel,
+                BidCancelSvm,
+                BidId,
+                BidStatus,
+                BidStatusSvm,
+            },
             opportunity::{
                 self,
                 GetOpportunitiesQueryParams,
@@ -41,6 +48,7 @@ use {
         Duration,
         OffsetDateTime,
     },
+    tokio::sync::RwLock,
     tokio_stream::StreamExt,
 };
 
@@ -58,6 +66,7 @@ pub struct SimpleSearcher {
     chain_ids:       Vec<String>,
     svm_update_map:  HashMap<String, SvmChainUpdate>,
     svm_client:      Option<Arc<svm::Svm>>,
+    bid_chain_id:    Arc<RwLock<HashMap<BidId, String>>>,
 }
 
 const SVM_BID_AMOUNT: u64 = 10_000_000;
@@ -95,6 +104,7 @@ impl SimpleSearcher {
             chain_ids,
             svm_update_map: HashMap::new(),
             svm_client,
+            bid_chain_id: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -138,7 +148,7 @@ impl SimpleSearcher {
 
         match private_key {
             Some(private_key) => {
-                if let Err(e) = self.submit_opportunity(opportunity, private_key).await {
+                if let Err(e) = self.submit_bid(opportunity, private_key).await {
                     eprintln!("Failed to submit opportunity: {:?}", e);
                 }
             }
@@ -148,13 +158,9 @@ impl SimpleSearcher {
         }
     }
 
-    async fn submit_opportunity(
-        &self,
-        opportunity: Opportunity,
-        private_key: String,
-    ) -> Result<()> {
+    async fn submit_bid(&self, opportunity: Opportunity, private_key: String) -> Result<()> {
         let deadline = (OffsetDateTime::now_utc() + Duration::days(1)).unix_timestamp();
-        let bid = match opportunity {
+        let bid = match opportunity.clone() {
             opportunity::Opportunity::Evm(opportunity) => {
                 let wallet = private_key.parse::<LocalWallet>().map_err(|e| {
                     eprintln!("Failed to parse evm private key: {:?}", e);
@@ -284,7 +290,13 @@ impl SimpleSearcher {
 
         let result = self.ws_client.submit_bid(bid).await;
         match result {
-            Ok(_) => println!("Bid submitted"),
+            Ok(bid_result) => {
+                self.bid_chain_id
+                    .write()
+                    .await
+                    .insert(bid_result.id, opportunity.get_chain_id().clone());
+                println!("Bid submitted");
+            }
             Err(e) => eprintln!("Failed to submit bid: {:?}", e),
         };
         Ok(())
@@ -328,6 +340,29 @@ impl SimpleSearcher {
                 }
                 ServerUpdateResponse::BidStatusUpdate { status } => {
                     println!("Bid status update: {:?}", status);
+                    // It's possible to cancel bids with status awaiting_signature
+                    // Doing it here randomly for demonstration purposes
+                    if let BidStatus::Svm(BidStatusSvm::AwaitingSignature { .. }) =
+                        status.bid_status
+                    {
+                        if let Some(chain_id) =
+                            self.bid_chain_id.read().await.get(&status.id).cloned()
+                        {
+                            if rand::thread_rng().gen::<f64>() < 1.0 / 3.0 {
+                                let result = self
+                                    .ws_client
+                                    .cancel_bid(BidCancel::Svm(BidCancelSvm {
+                                        chain_id,
+                                        bid_id: status.id,
+                                    }))
+                                    .await;
+                                match result {
+                                    Ok(_) => println!("Bid cancelled"),
+                                    Err(e) => eprintln!("Failed to cancel bid: {:?}", e),
+                                };
+                            }
+                        }
+                    }
                 }
             }
         }

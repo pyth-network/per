@@ -398,4 +398,11 @@ export type QuoteResponse = {
   inputToken: TokenAmountSvm;
   outputToken: TokenAmountSvm;
   transaction: VersionedTransaction;
+  referenceId: string;
+};
+
+export type SubmitQuote = {
+  chainId: ChainId;
+  referenceId: components["schemas"]["SubmitQuote"]["reference_id"];
+  userSignature: components["schemas"]["SubmitQuote"]["user_signature"];
 };

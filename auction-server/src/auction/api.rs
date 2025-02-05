@@ -111,7 +111,7 @@ pub async fn process_bid(
 ///
 /// Bids can only be cancelled if they are in the awaiting signature state.
 /// Only the user who created the bid can cancel it.
-#[utoipa::path(post, path = "/v1/{chain_id}/bids/{bid_id}/cancel", responses(
+#[utoipa::path(post, path = "/v1/{chain_id}/bids/{bid_id}/cancel", params(BidCancelParams), responses(
     (status = 200, description = "Bid was cancelled successfully"),
     (status = 400, response = ErrorBodyResponse),
     (status = 404, description = "Chain id was not found", body = ErrorBodyResponse),
@@ -295,6 +295,7 @@ pub async fn get_bids_by_time_deprecated(
 /// Server will verify the quote and checks if the quote is still valid.
 /// If the quote is valid, the server will submit the transaction to the blockchain.
 #[utoipa::path(post, path = "/v1/{chain_id}/quotes/submit", request_body = SubmitQuote,
+    params(("chain_id"=String, Path, description = "The chain id to submit the quote for", example = "solana")),
     responses(
         (status = 200, body = SubmitQuoteResponse),
         (status = 400, response = ErrorBodyResponse),

@@ -34,7 +34,7 @@ pub struct RunOptions {
     #[arg(env = "CHAIN_IDS")]
     pub chains: Vec<String>,
 
-    /// The API key to use for authentication.
+    /// The API key to use for auction server authentication.
     #[arg(long = "api-key")]
     #[arg(env = "API_KEY")]
     pub api_key: Option<String>,

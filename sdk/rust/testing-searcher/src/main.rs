@@ -1,4 +1,5 @@
 use {
+    clap::Parser,
     express_relay_client::{
         ethers::utils::hex,
         evm::Config,
@@ -16,8 +17,19 @@ use {
     },
 };
 
+
+#[derive(Parser, Clone, Debug)]
+pub struct RunOptions {
+    /// The API key to use for auction server authentication.
+    #[arg(long = "api-key")]
+    #[arg(env = "API_KEY")]
+    pub api_key: Option<String>,
+}
+
 #[tokio::main]
 async fn main() {
+    let args: RunOptions = RunOptions::parse();
+
     let weth = env::var("WETH").expect("WETH is not set");
     let searcher_sk = env::var("SEARCHER_SK").expect("SEARCHER_SK is not set");
     let adapter_factory = env::var("ADAPTER_FACTORY").expect("ADAPTER_FACTORY is not set");
@@ -50,7 +62,7 @@ async fn main() {
     let client = Client::try_new_with_evm_config(
         ClientConfig {
             http_url: server_url.to_string(),
-            api_key:  None,
+            api_key:  args.api_key,
         },
         config_map.clone(),
     )

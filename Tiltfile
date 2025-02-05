@@ -199,28 +199,32 @@ local_resource(
 
 local_resource(
     "svm-limonade",
-    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id local-solana --api-key $(poetry -C tilt-scripts run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
+    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id local-solana --api-key $(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name limo --email limo@dourolabs.com --role protocol) --rpc-endpoint %s" % rpc_url_solana,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
 local_resource(
     "svm-searcher-py",
-    serve_cmd="poetry run python3 -m express_relay.searcher.examples.testing_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id local-solana --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
+    serve_cmd="poetry run python3 -m express_relay.searcher.examples.testing_searcher_svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id local-solana --api-key $(poetry -C tilt-scripts run python3 ../../tilt-scripts/utils/create_profile.py --name python_sdk --email python_sdk@dourolabs.com --role searcher) --private-key-json-file ../../keypairs/searcher_py.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100 --with-latency",
     serve_dir="sdk/python",
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
+js_searcher_command = (
+    "JS_API_KEY=$(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name js_sdk --email js_sdk@dourolabs.com --role searcher);"
+    + "cd sdk/js;"
+    + "pnpm run testing-searcher-svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id local-solana --api-key $JS_API_KEY --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100"
+)
 local_resource(
     "svm-searcher-js",
-    serve_cmd="pnpm run testing-searcher-svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id local-solana --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100",
-    serve_dir="sdk/js",
+    serve_cmd=js_searcher_command,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
 rust_searcher_command = (
     "source tilt-resources.env;"
     + "export SVM_PRIVATE_KEY_FILE=keypairs/searcher_rust.json;"
-    + "cargo run -p testing-searcher"
+    + "cargo run -p testing-searcher -- --api-key $(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name rust_sdk --email rust_sdk@dourolabs.com --role searcher)"
 )
 local_resource(
     "rust-searcher",
