@@ -39,6 +39,11 @@ use {
     },
 };
 
+pub const TRANSACTION_LANDING_TIME_SVM_METRIC: &str = "transaction_landing_time_seconds_svm";
+pub const TRANSACTION_LANDING_TIME_SVM_BUCKETS: &[f64; 16] = &[
+    0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 3.75, 5.0, 10.0, 20.0, 40.0,
+];
+
 #[derive(Debug, Clone)]
 pub struct MetricsLayerData {
     category:   String,

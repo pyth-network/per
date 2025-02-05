@@ -135,18 +135,13 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
         .collect()
 }
 
-pub const TRANSACTION_LANDING_TIME_SVM_METRIC: &str = "transaction_landing_time_seconds_svm";
-const TRANSACTION_LANDING_TIME_SVM_BUCKETS: &[f64; 14] = &[
-    0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 3.75, 5.0, 10.0,
-];
-
 pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
     PrometheusBuilder::new()
         .set_buckets_for_metric(
             axum_prometheus::metrics_exporter_prometheus::Matcher::Full(
-                TRANSACTION_LANDING_TIME_SVM_METRIC.to_string(),
+                per_metrics::TRANSACTION_LANDING_TIME_SVM_METRIC.to_string(),
             ),
-            TRANSACTION_LANDING_TIME_SVM_BUCKETS,
+            per_metrics::TRANSACTION_LANDING_TIME_SVM_BUCKETS,
         )
         .unwrap()
         .set_buckets(SECONDS_DURATION_BUCKETS)
