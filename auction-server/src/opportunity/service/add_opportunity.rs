@@ -283,6 +283,14 @@ mod tests {
         );
 
         let opportunities = service.repo.get_in_memory_opportunities().await;
+        let opportunities_by_key = service
+            .repo
+            .get_in_memory_opportunities_by_key(&OpportunityKey(
+                chain_id.clone(),
+                permission_key.clone(),
+            ))
+            .await;
+
         assert_eq!(opportunities.len(), 1);
         assert_eq!(
             opportunities
@@ -291,14 +299,6 @@ mod tests {
                 .len(),
             1
         );
-
-        let opportunities_by_key = service
-            .repo
-            .get_in_memory_opportunities_by_key(&OpportunityKey(
-                chain_id.clone(),
-                permission_key.clone(),
-            ))
-            .await;
         assert_eq!(opportunities_by_key.len(), 1);
         assert_eq!(
             opportunities_by_key[0],
