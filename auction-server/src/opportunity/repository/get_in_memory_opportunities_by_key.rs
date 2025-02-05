@@ -1,12 +1,13 @@
 use {
     super::{
         InMemoryStore,
+        OpportunityTable,
         Repository,
     },
     crate::opportunity::entities,
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
     pub async fn get_in_memory_opportunities_by_key(
         &self,
         opportunity_key: &entities::OpportunityKey,

@@ -109,7 +109,7 @@ async fn websocket_handler(stream: WebSocket, state: Arc<StoreNew>, auth: Auth) 
     subscriber.run().await;
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum UpdateEvent {
     NewOpportunity(Opportunity),
     BidStatusUpdate(BidStatusWithId),

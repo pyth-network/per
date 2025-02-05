@@ -15,7 +15,10 @@ use {
                 Opportunity,
                 OpportunityCreate,
             },
-            repository::InMemoryStore,
+            repository::{
+                InMemoryStore,
+                OpportunityTable,
+            },
             service::verification::VerifyOpportunityInput,
         },
     },
@@ -35,9 +38,9 @@ enum OpportunityAction<T: entities::Opportunity> {
     Ignore,
 }
 
-impl<T: ChainType> Service<T>
+impl<T: ChainType, U: OpportunityTable<T::InMemoryStore>> Service<T, U>
 where
-    Service<T>: Verification<T>,
+    Service<T, U>: Verification<T>,
 {
     async fn assess_action(
         &self,
@@ -118,7 +121,6 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use {
@@ -129,11 +131,20 @@ mod tests {
                 traced_sender_svm::tests::MockRpcClient,
             },
             opportunity::{
+                entities::{
+                    OpportunityCoreFieldsCreate,
+                    OpportunityCreateSvm,
+                    OpportunityKey,
+                    OpportunitySvmProgram,
+                    OpportunitySvmProgramLimo,
+                    TokenAmountSvm,
+                },
                 repository::{
                     InMemoryStoreSvm,
                     MockOpportunityTable,
                 },
                 service::{
+                    add_opportunity::AddOpportunityInput,
                     ChainTypeSvm,
                     Service,
                 },
@@ -141,10 +152,15 @@ mod tests {
             server::setup_metrics_recorder,
             state::Store,
         },
+        ethers::{
+            types::Bytes,
+            utils::hex::FromHex,
+        },
         solana_client::{
             nonblocking::rpc_client::RpcClient,
             rpc_client::RpcClientConfig,
         },
+        solana_sdk::pubkey::Pubkey,
         std::{
             collections::HashMap,
             sync::{
@@ -158,7 +174,9 @@ mod tests {
     #[tokio::test]
     async fn test_add_opportunity() {
         let rpc_client = MockRpcClient::default();
-        let mock_db = MockOpportunityTable::default();
+        let mut mock_db = MockOpportunityTable::default();
+
+        mock_db.expect_add_opportunity().returning(|_| Ok(()));
 
         let config_svm = crate::opportunity::service::ConfigSvm {
             auction_service:         RwLock::new(None),
@@ -169,8 +187,8 @@ mod tests {
         let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
 
         let mut chains_svm = HashMap::new();
-        chains_svm.insert("solana".to_string(), config_svm);
-
+        let chain_id = "solana".to_string();
+        chains_svm.insert(chain_id.clone(), config_svm);
 
         let store = Arc::new(Store {
             db:               DB::connect_lazy("https://test").unwrap(),
@@ -186,8 +204,85 @@ mod tests {
             metrics_recorder: setup_metrics_recorder().unwrap(),
         });
 
-        let _service = Service::<ChainTypeSvm, MockOpportunityTable<InMemoryStoreSvm>>::new(
-            store, mock_db, chains_svm,
+        let mut ws_receiver = store.ws.broadcast_receiver.resubscribe();
+
+        let service = Service::<ChainTypeSvm, MockOpportunityTable<InMemoryStoreSvm>>::new(
+            store.clone(),
+            mock_db,
+            chains_svm,
         );
+
+        let permission_account = Pubkey::new_unique();
+        let router = Pubkey::new_unique();
+
+        let sell_token = Pubkey::new_unique();
+        let sell_amount = 2;
+        let buy_token = Pubkey::new_unique();
+        let buy_amount = 1;
+
+        let permission_key = Bytes::from_hex("0xdeadbeef").unwrap();
+        let slot = 3;
+
+        let order_address = Pubkey::new_unique();
+
+        let opportunity = OpportunityCreateSvm {
+            core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
+                permission_key: permission_key.clone(),
+                chain_id:       chain_id.clone(),
+                sell_tokens:    vec![TokenAmountSvm {
+                    token:  sell_token,
+                    amount: sell_amount,
+                }],
+                buy_tokens:     vec![TokenAmountSvm {
+                    token:  buy_token,
+                    amount: buy_amount,
+                }],
+            },
+            router,
+            permission_account,
+            program: OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
+                order: vec![],
+                order_address,
+                slot,
+            }),
+        };
+
+        let opportunity = service
+            .add_opportunity(AddOpportunityInput { opportunity })
+            .await
+            .unwrap();
+
+        let opportunities = service.repo.get_in_memory_opportunities().await;
+        assert_eq!(opportunities.len(), 1);
+        assert_eq!(
+            opportunities
+                .get(&OpportunityKey(chain_id.clone(), permission_key.clone()))
+                .unwrap()
+                .len(),
+            1
+        );
+
+        let opportunities_by_key = service
+            .repo
+            .get_in_memory_opportunities_by_key(&OpportunityKey(
+                chain_id.clone(),
+                permission_key.clone(),
+            ))
+            .await;
+        assert_eq!(opportunities_by_key.len(), 1);
+        assert_eq!(
+            opportunities_by_key[0],
+            opportunities
+                .get(&OpportunityKey(chain_id, permission_key))
+                .unwrap()[0]
+        );
+        assert_eq!(opportunities_by_key[0], opportunity);
+
+        let event = ws_receiver.try_recv().unwrap();
+        assert_eq!(
+            event,
+            ws::UpdateEvent::NewOpportunity(opportunity.clone().into())
+        );
+        assert!(ws_receiver.is_empty());
     }
 }
