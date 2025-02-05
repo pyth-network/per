@@ -74,7 +74,6 @@ export class SimpleSearcherSvm {
   }
 
   async bidStatusHandler(bidStatus: BidStatusUpdate) {
-    console.log("hiiiii daniiiiii");
     console.log(
       `Bid status for bid ${bidStatus.id}: ${JSON.stringify(bidStatus)}`,
     );

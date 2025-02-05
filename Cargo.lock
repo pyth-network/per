@@ -8292,6 +8292,7 @@ dependencies = [
 name = "testing-searcher"
 version = "0.1.0"
 dependencies = [
+ "clap 4.5.23",
  "express-relay-client",
  "express-relay-simple-searcher",
  "serde_json",

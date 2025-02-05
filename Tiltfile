@@ -199,7 +199,7 @@ local_resource(
 
 local_resource(
     "svm-limonade",
-    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id local-solana --api-key $(poetry -C tilt-scripts run python3 create_limo_profile.py) --rpc-endpoint %s" % rpc_url_solana,
+    serve_cmd="pnpm run --prefix scripts/limonade limonade --global-config $(solana-keygen pubkey keypairs/limo_global_config.json)  --endpoint http://127.0.0.1:9000 --chain-id local-solana --api-key $(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name limo --email limo@dourolabs.com --role protocol) --rpc-endpoint %s" % rpc_url_solana,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
@@ -220,7 +220,7 @@ local_resource(
 rust_searcher_command = (
     "source tilt-resources.env;"
     + "export SVM_PRIVATE_KEY_FILE=keypairs/searcher_rust.json;"
-    + "cargo run -p testing-searcher"
+    + "cargo run -p testing-searcher -- --api-key $(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name rust_sdk --email rust_sdk@dourolabs.com --role searcher)"
 )
 local_resource(
     "rust-searcher",
