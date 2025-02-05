@@ -12,7 +12,6 @@ use {
         },
         opportunity::entities,
     },
-    sqlx::Postgres,
 };
 
 impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
