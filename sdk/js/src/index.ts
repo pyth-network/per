@@ -24,6 +24,7 @@ import {
   BidSvmOnChain,
   BidSvmSwap,
   OpportunitySvmSwap,
+  SubmitQuote,
 } from "./types";
 import {
   Connection,
@@ -532,6 +533,36 @@ export class Client {
   }
 
   /**
+   * Posts a submit quote request to the server
+   * @param submitQuote The quote data to be submitted on-chain
+   * @returns The fully signed transaction that was submitted on-chain
+   */
+  async submitQuote(submitQuote: SubmitQuote): Promise<VersionedTransaction> {
+    const client = createClient<paths>(this.clientOptions);
+    const body = {
+      reference_id: submitQuote.referenceId,
+      user_signature: submitQuote.userSignature,
+    };
+    const response = await client.POST("/v1/{chain_id}/quotes/submit", {
+      params: {
+        path: {
+          chain_id: submitQuote.chainId,
+        },
+      },
+      body,
+    });
+    if (response.error) {
+      throw ClientError.newHttpError(
+        JSON.stringify(response.error),
+        response.response.status,
+      );
+    }
+    return VersionedTransaction.deserialize(
+      new Uint8Array(base64.decode(response.data.transaction)),
+    );
+  }
+
+  /**
    * Submits a raw bid for a permission key
    * @param bid
    * @param subscribeToUpdates If true, the client will subscribe to bid status updates via websocket and will call the bid status callback if set
@@ -734,6 +765,7 @@ export class Client {
       transaction: VersionedTransaction.deserialize(
         new Uint8Array(base64.decode(quoteResponse.transaction)),
       ),
+      referenceId: quoteResponse.reference_id,
     };
   }
 
