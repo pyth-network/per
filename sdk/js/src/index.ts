@@ -298,6 +298,24 @@ export class Client {
     });
   }
 
+  /**
+   * Cancels a bid
+   *
+   * Bids can only be cancelled if they are in awaiting_signature state
+   * @param chains
+   */
+  async cancelBid(bid_id: string, chain_id: string): Promise<void> {
+    await this.requestViaWebsocket({
+      method: "cancel_bid",
+      params: {
+        data: {
+          bid_id,
+          chain_id,
+        },
+      },
+    });
+  }
+
   async requestViaWebsocket(
     msg: components["schemas"]["ClientMessage"],
   ): Promise<components["schemas"]["APIResponse"] | null> {

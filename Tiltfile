@@ -210,10 +210,14 @@ local_resource(
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
+js_searcher_command = (
+    "JS_API_KEY=$(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name js_sdk --email js_sdk@dourolabs.com --role searcher);"
+    + "cd sdk/js;"
+    + "pnpm run testing-searcher-svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id local-solana --api-key $JS_API_KEY --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100"
+)
 local_resource(
     "svm-searcher-js",
-    serve_cmd="pnpm run testing-searcher-svm --endpoint-express-relay http://127.0.0.1:9000 --chain-id local-solana --private-key-json-file ../../keypairs/searcher_js.json --endpoint-svm http://127.0.0.1:8899 --bid 10000000 --fill-rate 4 --bid-margin 100",
-    serve_dir="sdk/js",
+    serve_cmd=js_searcher_command,
     resource_deps=["svm-initialize-programs", "auction-server"],
 )
 
