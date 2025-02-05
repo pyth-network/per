@@ -1,5 +1,6 @@
 use {
     super::{
+        db::OpportunityTable,
         models::OpportunityRemovalReason,
         InMemoryStore,
         Repository,
@@ -27,14 +28,14 @@ impl<T: InMemoryStore> Repository<T> {
         opportunity_key: &entities::OpportunityKey,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<Vec<T::Opportunity>> {
-        let now = OffsetDateTime::now_utc();
-        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE permission_key = $3 AND chain_id = $4 and removal_time IS NULL")
-            .bind(PrimitiveDateTime::new(now.date(), now.time()))
-            .bind(reason)
-            .bind(permission_key.as_ref())
-            .bind(chain_id)
-            .execute(db)
-            .await?;
+        OpportunityTable::<T>::remove_opportunities(
+            db,
+            permission_key,
+            chain_id,
+            opportunity_key,
+            reason,
+        )
+        .await?;
 
         let mut write_guard = self.in_memory_store.opportunities.write().await;
         let opportunities = write_guard.remove(opportunity_key);

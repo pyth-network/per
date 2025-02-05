@@ -24,10 +24,8 @@ use {
     },
 };
 
-const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
-
 pub trait OpportunityTable<T: InMemoryStore> {
-    async fn add_opportunity(&self, opportunity: T::Opportunity) -> Result<(), RestError>;
+    async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError>;
     async fn get_opportunities(
         &self,
         chain_id: ChainId,
@@ -49,7 +47,7 @@ pub trait OpportunityTable<T: InMemoryStore> {
 }
 
 impl<T: InMemoryStore> OpportunityTable<T> for DB {
-    async fn add_opportunity(&self, opportunity: T::Opportunity) -> Result<(), RestError> {
+    async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError> {
         let metadata = opportunity.get_models_metadata();
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
         sqlx::query!("INSERT INTO opportunity (id,
