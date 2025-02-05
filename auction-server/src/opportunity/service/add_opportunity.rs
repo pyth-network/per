@@ -126,10 +126,7 @@ mod tests {
     use {
         crate::{
             api::ws,
-            kernel::{
-                db::DB,
-                traced_sender_svm::tests::MockRpcClient,
-            },
+            kernel::traced_sender_svm::tests::MockRpcClient,
             opportunity::{
                 entities::{
                     OpportunityCoreFieldsCreate,
@@ -149,67 +146,28 @@ mod tests {
                     Service,
                 },
             },
-            server::setup_metrics_recorder,
-            state::Store,
         },
         ethers::{
             types::Bytes,
             utils::hex::FromHex,
         },
-        solana_client::{
-            nonblocking::rpc_client::RpcClient,
-            rpc_client::RpcClientConfig,
-        },
         solana_sdk::pubkey::Pubkey,
-        std::{
-            collections::HashMap,
-            sync::{
-                atomic::AtomicUsize,
-                Arc,
-            },
-        },
-        tokio::sync::RwLock,
     };
 
     #[tokio::test]
     async fn test_add_opportunity() {
+        let chain_id = "solana".to_string();
         let rpc_client = MockRpcClient::default();
         let mut mock_db = MockOpportunityTable::default();
 
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
 
-        let config_svm = crate::opportunity::service::ConfigSvm {
-            auction_service:         RwLock::new(None),
-            rpc_client:              RpcClient::new_sender(rpc_client, RpcClientConfig::default()),
-            accepted_token_programs: vec![],
-        };
 
-        let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
-
-        let mut chains_svm = HashMap::new();
-        let chain_id = "solana".to_string();
-        chains_svm.insert(chain_id.clone(), config_svm);
-
-        let store = Arc::new(Store {
-            db:               DB::connect_lazy("https://test").unwrap(),
-            chains_evm:       HashMap::new(),
-            chains_svm:       HashMap::new(),
-            ws:               ws::WsState {
-                subscriber_counter: AtomicUsize::new(0),
-                broadcast_sender,
-                broadcast_receiver,
-            },
-            secret_key:       "test".to_string(),
-            access_tokens:    RwLock::new(HashMap::new()),
-            metrics_recorder: setup_metrics_recorder().unwrap(),
-        });
-
-        let mut ws_receiver = store.ws.broadcast_receiver.resubscribe();
-
-        let service = Service::<ChainTypeSvm, MockOpportunityTable<InMemoryStoreSvm>>::new(
-            store.clone(),
-            mock_db,
-            chains_svm,
+        let (service, mut ws_receiver) = Service::<
+            ChainTypeSvm,
+            MockOpportunityTable<InMemoryStoreSvm>,
+        >::new_with_mocks_svm(
+            chain_id.clone(), mock_db, rpc_client
         );
 
         let permission_account = Pubkey::new_unique();
