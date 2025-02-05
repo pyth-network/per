@@ -43,7 +43,6 @@ impl Service<ChainTypeSvm> {
         let opportunities = self
             .repo
             .remove_opportunities(
-                &self.db,
                 permission_key.clone(),
                 input.chain_id.clone(),
                 &entities::OpportunityKey(input.chain_id.clone(), permission_key),

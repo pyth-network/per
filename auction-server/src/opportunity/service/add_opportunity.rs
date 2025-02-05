@@ -88,7 +88,7 @@ where
             self.repo.refresh_in_memory_opportunity(opp.clone()).await
         } else {
             self.repo
-                .add_opportunity(&self.db, opportunity_create.clone())
+                .add_opportunity(opportunity_create.clone())
                 .await?
         };
 

@@ -14,14 +14,15 @@ use {
     time::OffsetDateTime,
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
     pub async fn get_opportunities(
         &self,
-        db: &sqlx::Pool<sqlx::Postgres>,
         chain_id: ChainId,
         permission_key: Option<PermissionKey>,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<T::Opportunity>, RestError> {
-        OpportunityTable::<T>::get_opportunities(db, chain_id, permission_key, from_time).await
+        self.db
+            .get_opportunities(chain_id, permission_key, from_time)
+            .await
     }
 }

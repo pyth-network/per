@@ -14,14 +14,13 @@ use {
     sqlx::Postgres,
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
     pub async fn add_opportunity(
         &self,
-        db: &sqlx::Pool<Postgres>,
         opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreate,
     ) -> Result<T::Opportunity, RestError> {
         let opportunity: T::Opportunity = T::Opportunity::new_with_current_time(opportunity);
-        OpportunityTable::<T>::add_opportunity(db, &opportunity).await?;
+        self.db.add_opportunity(&opportunity).await?;
         self.in_memory_store
             .opportunities
             .write()

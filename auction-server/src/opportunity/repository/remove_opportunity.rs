@@ -11,14 +11,15 @@ use {
     sqlx::Postgres,
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
     pub async fn remove_opportunity(
         &self,
-        db: &sqlx::Pool<Postgres>,
         opportunity: &T::Opportunity,
         reason: entities::OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
-        OpportunityTable::<T>::remove_opportunity(db, opportunity, reason.into()).await?;
+        self.db
+            .remove_opportunity(opportunity, reason.into())
+            .await?;
 
         let key = opportunity.get_key();
         let mut write_guard = self.in_memory_store.opportunities.write().await;

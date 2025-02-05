@@ -73,7 +73,6 @@ impl<T: ChainType> Service<T> {
                 })?;
                 self.repo
                     .get_opportunities(
-                        &self.db,
                         chain_id,
                         query_params.permission_key.clone(),
                         query_params.from_time,

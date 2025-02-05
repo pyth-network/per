@@ -1,5 +1,7 @@
 use {
     super::entities,
+    crate::kernel::db::DB,
+    db::OpportunityTable,
     ethers::types::Address,
     express_relay::state::ExpressRelayMetadata,
     solana_sdk::pubkey::Pubkey,
@@ -29,8 +31,9 @@ pub use models::*;
 pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 
 #[derive(Debug)]
-pub struct Repository<T: InMemoryStore> {
+pub struct Repository<T: InMemoryStore, U: OpportunityTable<T> = DB> {
     pub in_memory_store: T,
+    pub db:              U,
 }
 
 pub trait InMemoryStore:
@@ -102,10 +105,11 @@ impl Deref for InMemoryStoreSvm {
     }
 }
 
-impl<T: InMemoryStore> Repository<T> {
-    pub fn new() -> Self {
+impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
+    pub fn new(db: U) -> Self {
         Self {
             in_memory_store: T::new(),
+            db,
         }
     }
 }

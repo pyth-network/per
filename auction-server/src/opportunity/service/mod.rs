@@ -258,7 +258,6 @@ impl ChainType for ChainTypeSvm {
 // TODO maybe just create a service per chain_id?
 pub struct Service<T: ChainType> {
     store:  Arc<Store>,
-    db:     DB,
     // TODO maybe after adding state for opportunity we can remove the arc
     repo:   Arc<Repository<T::InMemoryStore>>,
     config: HashMap<ChainId, T::Config>,
@@ -268,8 +267,7 @@ impl<T: ChainType> Service<T> {
     pub fn new(store: Arc<Store>, db: DB, config: HashMap<ChainId, T::Config>) -> Self {
         Self {
             store,
-            db,
-            repo: Arc::new(Repository::<T::InMemoryStore>::new()),
+            repo: Arc::new(Repository::<T::InMemoryStore>::new(db)),
             config,
         }
     }
