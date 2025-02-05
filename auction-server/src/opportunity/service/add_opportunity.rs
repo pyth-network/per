@@ -224,8 +224,9 @@ mod tests {
         let slot = 3;
 
         let order_address = Pubkey::new_unique();
+        let order = vec![1, 2, 3, 4];
 
-        let opportunity = OpportunityCreateSvm {
+        let opportunity_create = OpportunityCreateSvm {
             core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
                 permission_key: permission_key.clone(),
                 chain_id:       chain_id.clone(),
@@ -241,16 +242,45 @@ mod tests {
             router,
             permission_account,
             program: OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
-                order: vec![],
+                order: order.clone(),
                 order_address,
                 slot,
             }),
         };
 
         let opportunity = service
-            .add_opportunity(AddOpportunityInput { opportunity })
+            .add_opportunity(AddOpportunityInput {
+                opportunity: opportunity_create.clone(),
+            })
             .await
             .unwrap();
+        assert!(opportunity.core_fields.creation_time < opportunity.core_fields.refresh_time);
+        assert_eq!(
+            opportunity.core_fields.permission_key,
+            opportunity_create.core_fields.permission_key
+        );
+        assert_eq!(
+            opportunity.core_fields.chain_id,
+            opportunity_create.core_fields.chain_id
+        );
+        assert_eq!(
+            opportunity.core_fields.sell_tokens,
+            opportunity_create.core_fields.sell_tokens
+        );
+        assert_eq!(
+            opportunity.core_fields.buy_tokens,
+            opportunity_create.core_fields.buy_tokens
+        );
+        assert_eq!(opportunity.router, router);
+        assert_eq!(opportunity.permission_account, permission_account);
+        assert_eq!(
+            opportunity.program,
+            OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
+                order: order.clone(),
+                order_address,
+                slot,
+            })
+        );
 
         let opportunities = service.repo.get_in_memory_opportunities().await;
         assert_eq!(opportunities.len(), 1);
