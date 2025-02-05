@@ -137,6 +137,13 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
 
 pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
     PrometheusBuilder::new()
+        .set_buckets_for_metric(
+            axum_prometheus::metrics_exporter_prometheus::Matcher::Full(
+                per_metrics::TRANSACTION_LANDING_TIME_SVM_METRIC.to_string(),
+            ),
+            per_metrics::TRANSACTION_LANDING_TIME_SVM_BUCKETS,
+        )
+        .unwrap()
         .set_buckets(SECONDS_DURATION_BUCKETS)
         .unwrap()
         .install_recorder()

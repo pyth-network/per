@@ -21,6 +21,7 @@ use {
             self,
             service::get_live_opportunities::GetLiveOpportunitiesInput,
         },
+        per_metrics::TRANSACTION_LANDING_TIME_SVM_METRIC,
     },
     anyhow::Result,
     axum::async_trait,
@@ -689,8 +690,7 @@ impl Service<Svm> {
     }
 
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
-    async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>) {
-        let start = Instant::now();
+    async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>, start: Instant) {
         let mut result_label = METRIC_LABEL_EXPIRED;
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
@@ -737,7 +737,7 @@ impl Service<Svm> {
             // but this is rare as we retry for 60 seconds and blockhash expires after 60 seconds
             ("result", result_label.to_string()),
         ];
-        metrics::histogram!("transaction_landing_time_seconds_svm", &labels)
+        metrics::histogram!(TRANSACTION_LANDING_TIME_SVM_METRIC, &labels)
             .record(start.elapsed().as_secs_f64());
 
         tracing::Span::current().record("total_tries", retry_count + 1);
@@ -749,6 +749,7 @@ impl Service<Svm> {
     #[tracing::instrument(skip_all, fields(bid_id))]
     pub async fn send_transaction(&self, bid: &entities::Bid<Svm>) -> Signature {
         tracing::Span::current().record("bid_id", bid.id.to_string());
+        let start = Instant::now();
         let tx = &bid.chain_data.transaction;
         // Do not propagate the error because we retry more in the blocking_send_transaction
         if let Err(e) = self
@@ -762,10 +763,11 @@ impl Service<Svm> {
             .simulator
             .add_pending_transaction(tx)
             .await;
+
         self.task_tracker.spawn({
             let (service, bid) = (self.clone(), bid.clone());
             async move {
-                service.blocking_send_transaction(bid).await;
+                service.blocking_send_transaction(bid, start).await;
             }
         });
         tx.signatures[0]
