@@ -29,12 +29,42 @@ pub struct SubmitQuoteInput {
 const DEADLINE_BUFFER: Duration = Duration::from_secs(2);
 
 impl Service<Svm> {
+    async fn get_bid_to_submit(
+        &self,
+        auction_id: entities::AuctionId,
+    ) -> Result<(entities::Auction<Svm>, entities::Bid<Svm>), RestError> {
+        let auction: entities::Auction<Svm> = self
+            .get_auction_by_id(GetAuctionByIdInput { auction_id })
+            .await
+            .ok_or(RestError::BadParameters("Invalid quote".to_string()))?;
+
+        let winner_bid = auction
+            .bids
+            .iter()
+            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_submitted())
+            .cloned()
+            .ok_or(RestError::BadParameters("Invalid quote".to_string()))?;
+
+        if winner_bid.status.is_submitted() {
+            Err(RestError::BadParameters(
+                "Quote is already submitted".to_string(),
+            ))
+        } else {
+            Ok((auction, winner_bid))
+        }
+    }
+
     async fn submit_auction_bid_for_lock(
         &self,
         bid: entities::Bid<Svm>,
         auction: entities::Auction<Svm>,
-        _lock: entities::BidLock,
+        lock: entities::BidLock,
     ) -> Result<(), RestError> {
+        let _lock = lock.lock().await;
+
+        // Make sure the bid is still awaiting signature
+        let _ = self.get_bid_to_submit(auction.id).await?;
+
         let tx_hash = bid.chain_data.transaction.signatures[0];
         let auction = self
             .repo
@@ -66,25 +96,7 @@ impl Service<Svm> {
         &self,
         input: SubmitQuoteInput,
     ) -> Result<VersionedTransaction, RestError> {
-        let auction: entities::Auction<Svm> = self
-            .get_auction_by_id(GetAuctionByIdInput {
-                auction_id: input.auction_id,
-            })
-            .await
-            .ok_or(RestError::BadParameters("Invalid quote".to_string()))?;
-
-        let winner_bid = auction
-            .bids
-            .iter()
-            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_submitted())
-            .cloned()
-            .ok_or(RestError::BadParameters("Invalid quote".to_string()))?;
-
-        if winner_bid.status.is_submitted() {
-            return Err(RestError::BadParameters(
-                "Quote is already submitted".to_string(),
-            ));
-        }
+        let (auction, winner_bid) = self.get_bid_to_submit(input.auction_id).await?;
 
         let mut bid = winner_bid.clone();
         let swap_instruction = self
