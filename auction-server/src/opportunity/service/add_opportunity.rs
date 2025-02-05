@@ -122,7 +122,6 @@ where
 #[cfg(test)]
 mod tests {
     use {
-        super::*,
         crate::{
             api::ws,
             kernel::{
