@@ -1,7 +1,6 @@
 use {
     super::entities,
     crate::kernel::db::DB,
-    db::OpportunityTable,
     ethers::types::Address,
     express_relay::state::ExpressRelayMetadata,
     solana_sdk::pubkey::Pubkey,
@@ -27,7 +26,11 @@ mod refresh_in_memory_opportunity;
 mod remove_opportunities;
 mod remove_opportunity;
 
-pub use models::*;
+pub use {
+    db::OpportunityTable,
+    models::*,
+};
+
 pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 
 #[derive(Debug)]
