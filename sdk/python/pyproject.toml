@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "express-relay"
-version = "0.21.0"
+version = "0.21.1"
 description = "Utilities for searchers and protocols to interact with the Express Relay protocol."
 authors = ["dourolabs"]
 license = "Apache-2.0"
@@ -8,14 +8,13 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-web3 = "^6.15.1"
-eth_abi = "^5.0.0"
-eth_account = "^0.10.0"
-httpx = "^0.23.3"
+web3 = "^7.8.0"
+eth_abi = "^5.2.0"
+eth_account = "^0.13.5"
+httpx = "^0.28.1"
 websockets = "^10.0"
-asyncio = "^3.4.3"
 argparse = "^1.4.0"
-pydantic = "^2.6.3"
+pydantic = "^2.10.6"
 anchorpy = "^0.20.1"
 solana = "^0.34.3"
 
