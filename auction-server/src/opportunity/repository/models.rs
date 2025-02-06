@@ -111,7 +111,6 @@ impl OpportunityMetadata for OpportunityMetadataSvm {
 
 // TODO Update metdata to exection_params
 #[derive(Clone, FromRow, Debug)]
-#[allow(dead_code)]
 pub struct Opportunity<T: OpportunityMetadata> {
     pub id:             Uuid,
     pub creation_time:  PrimitiveDateTime,

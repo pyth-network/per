@@ -68,11 +68,7 @@ where
                         reason = ?reason,
                         "Removing Opportunity",
                     );
-                    match self
-                        .repo
-                        .remove_opportunity(&self.db, opportunity, reason)
-                        .await
-                    {
+                    match self.repo.remove_opportunity(opportunity, reason).await {
                         Ok(()) => {
                             // TODO Remove this later
                             // For now we don't want searchers to update any of their code on EVM chains.

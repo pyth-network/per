@@ -3,6 +3,7 @@ use {
         InMemoryStore,
         InMemoryStoreEvm,
         InMemoryStoreSvm,
+        OpportunityTable,
         Repository,
     },
     crate::{
@@ -256,21 +257,84 @@ impl ChainType for ChainTypeSvm {
 }
 
 // TODO maybe just create a service per chain_id?
-pub struct Service<T: ChainType> {
+pub struct Service<T: ChainType, U: OpportunityTable<T::InMemoryStore> = DB> {
     store:  Arc<Store>,
-    db:     DB,
     // TODO maybe after adding state for opportunity we can remove the arc
-    repo:   Arc<Repository<T::InMemoryStore>>,
+    repo:   Arc<Repository<T::InMemoryStore, U>>,
     config: HashMap<ChainId, T::Config>,
 }
 
-impl<T: ChainType> Service<T> {
-    pub fn new(store: Arc<Store>, db: DB, config: HashMap<ChainId, T::Config>) -> Self {
+impl<T: ChainType, U: OpportunityTable<T::InMemoryStore>> Service<T, U> {
+    pub fn new(store: Arc<Store>, db: U, config: HashMap<ChainId, T::Config>) -> Self {
         Self {
             store,
-            db,
-            repo: Arc::new(Repository::<T::InMemoryStore>::new()),
+            repo: Arc::new(Repository::new(db)),
             config,
+        }
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use {
+        super::*,
+        crate::{
+            api::ws::{
+                self,
+                UpdateEvent,
+            },
+            kernel::traced_sender_svm::tests::MockRpcClient,
+            opportunity::repository::MockOpportunityTable,
+            server::setup_metrics_recorder,
+        },
+        std::sync::atomic::AtomicUsize,
+        tokio::sync::broadcast::Receiver,
+    };
+
+
+    impl Service<ChainTypeSvm, MockOpportunityTable<InMemoryStoreSvm>> {
+        pub fn new_with_mocks_svm(
+            chain_id: ChainId,
+            db: MockOpportunityTable<InMemoryStoreSvm>,
+            rpc_client: MockRpcClient,
+        ) -> (Self, Receiver<UpdateEvent>) {
+            let config_svm = crate::opportunity::service::ConfigSvm {
+                auction_service:         RwLock::new(None),
+                rpc_client:              RpcClient::new_sender(
+                    rpc_client,
+                    RpcClientConfig::default(),
+                ),
+                accepted_token_programs: vec![],
+            };
+
+            let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
+
+            let mut chains_svm = HashMap::new();
+            chains_svm.insert(chain_id.clone(), config_svm);
+
+            let store = Arc::new(Store {
+                db:               DB::connect_lazy("https://test").unwrap(),
+                chains_evm:       HashMap::new(),
+                chains_svm:       HashMap::new(),
+                ws:               ws::WsState {
+                    subscriber_counter: AtomicUsize::new(0),
+                    broadcast_sender,
+                    broadcast_receiver,
+                },
+                secret_key:       "test".to_string(),
+                access_tokens:    RwLock::new(HashMap::new()),
+                metrics_recorder: setup_metrics_recorder().unwrap(),
+            });
+
+            let ws_receiver = store.ws.broadcast_receiver.resubscribe();
+
+            let service = Service::<ChainTypeSvm, MockOpportunityTable<InMemoryStoreSvm>>::new(
+                store.clone(),
+                db,
+                chains_svm,
+            );
+
+            (service, ws_receiver)
         }
     }
 }

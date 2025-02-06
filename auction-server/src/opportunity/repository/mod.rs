@@ -1,5 +1,6 @@
 use {
     super::entities,
+    crate::kernel::db::DB,
     ethers::types::Address,
     express_relay::state::ExpressRelayMetadata,
     solana_sdk::pubkey::Pubkey,
@@ -12,6 +13,7 @@ use {
 
 mod add_opportunity;
 mod add_spoof_info;
+mod db;
 mod get_express_relay_metadata;
 mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
@@ -24,12 +26,17 @@ mod refresh_in_memory_opportunity;
 mod remove_opportunities;
 mod remove_opportunity;
 
-pub use models::*;
+pub use {
+    db::*,
+    models::*,
+};
+
 pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 
 #[derive(Debug)]
-pub struct Repository<T: InMemoryStore> {
+pub struct Repository<T: InMemoryStore, U: OpportunityTable<T> = DB> {
     pub in_memory_store: T,
+    pub db:              U,
 }
 
 pub trait InMemoryStore:
@@ -101,10 +108,11 @@ impl Deref for InMemoryStoreSvm {
     }
 }
 
-impl<T: InMemoryStore> Repository<T> {
-    pub fn new() -> Self {
+impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
+    pub fn new(db: U) -> Self {
         Self {
             in_memory_store: T::new(),
+            db,
         }
     }
 }

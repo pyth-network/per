@@ -17,7 +17,11 @@ use {
         },
         opportunity::{
             entities,
-            repository::InMemoryStore,
+            repository::{
+                InMemoryStore,
+                OpportunityTable,
+            },
+            service::InMemoryStoreSvm,
             token_spoof,
         },
     },
@@ -275,7 +279,9 @@ impl Verification<ChainTypeEvm> for Service<ChainTypeEvm> {
     }
 }
 
-impl Verification<ChainTypeSvm> for Service<ChainTypeSvm> {
+impl<U: OpportunityTable<InMemoryStoreSvm>> Verification<ChainTypeSvm>
+    for Service<ChainTypeSvm, U>
+{
     async fn verify_opportunity(
         &self,
         input: VerifyOpportunityInput<entities::OpportunityCreateSvm>,

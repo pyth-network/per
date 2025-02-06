@@ -296,7 +296,7 @@ impl Service<ChainTypeSvm> {
         );
         if let Err(e) = self
             .repo
-            .remove_opportunity(&self.db, &opportunity, removal_reason)
+            .remove_opportunity(&opportunity, removal_reason)
             .await
         {
             tracing::error!("Failed to remove opportunity: {:?}", e);

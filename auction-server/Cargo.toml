@@ -55,3 +55,6 @@ litesvm = { workspace = true }
 express-relay-api-types = { path = "api-types" }
 strum.workspace = true
 spl-associated-token-account = { workspace = true }
+
+[dev-dependencies]
+mockall = "0.13.1"
