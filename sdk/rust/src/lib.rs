@@ -37,7 +37,18 @@ use {
         Deserialize,
         Serialize,
     },
-    solana_sdk::transaction::Transaction,
+    solana_sdk::{
+        system_instruction::transfer,
+        transaction::Transaction,
+    },
+    spl_associated_token_account::get_associated_token_address_with_program_id,
+    spl_token::{
+        instruction::{
+            close_account,
+            sync_native,
+        },
+        native_mint,
+    },
     std::{
         collections::HashMap,
         marker::PhantomData,
@@ -788,17 +799,18 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         "Invalid program params for swap opportunity".to_string(),
                     )),
                 }?;
-                let (searcher_token, user_token) = match tokens.tokens {
+                let (searcher_token, user_token, user_amount_including_fees) = match tokens.tokens {
                     QuoteTokens::SearcherTokenSpecified {
                         searcher_token,
                         user_token,
                         ..
-                    } => (searcher_token, user_token),
+                    } => (searcher_token, user_token, params.amount),
                     QuoteTokens::UserTokenSpecified {
                         searcher_token,
                         user_token,
+                        user_amount_including_fees,
                         ..
-                    } => (searcher_token, user_token),
+                    } => (searcher_token, user_token, user_amount_including_fees),
                 };
                 let (fee_token, fee_token_program) = match fee_token {
                     FeeToken::SearcherToken => (searcher_token, tokens.token_program_searcher),
@@ -819,6 +831,21 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         chain_id: opportunity_params.chain_id.clone(),
                     },
                 ));
+                if user_token == native_mint::id() {
+                    let user_ata = get_associated_token_address_with_program_id(
+                        &user_wallet_address,
+                        &user_token,
+                        &tokens.token_program_user,
+                    );
+                    instructions.push(transfer(
+                        &user_wallet_address,
+                        &user_ata,
+                        user_amount_including_fees,
+                    ));
+                    instructions.push(sync_native(&tokens.token_program_user, &user_ata).map_err(
+                        |e| ClientError::NewBidError(format!("Failed to sync native: {:?}", e)),
+                    )?);
+                }
                 instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
                     opportunity_params:   opportunity.params,
                     bid_amount:           params.amount,
@@ -827,6 +854,25 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     fee_receiver_relayer: params.fee_receiver_relayer,
                     relayer_signer:       params.relayer_signer,
                 })?);
+                if searcher_token == native_mint::id() {
+                    let user_ata = get_associated_token_address_with_program_id(
+                        &user_wallet_address,
+                        &user_token,
+                        &tokens.token_program_user,
+                    );
+                    instructions.push(
+                        close_account(
+                            &tokens.token_program_searcher,
+                            &user_ata,
+                            &user_wallet_address,
+                            &user_wallet_address,
+                            &[&user_wallet_address],
+                        )
+                        .map_err(|e| {
+                            ClientError::NewBidError(format!("Failed to close account: {:?}", e))
+                        })?,
+                    );
+                }
                 let mut transaction =
                     Transaction::new_with_payer(instructions.as_slice(), Some(&params.payer));
                 transaction

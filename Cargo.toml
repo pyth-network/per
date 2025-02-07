@@ -43,6 +43,7 @@ anchor-lang = "0.30.1"
 litesvm = "0.3.0"
 borsh = "1.5.1"
 spl-associated-token-account = "4.0.0"
+spl-token = "6.0.0"
 
 # The curve25519-dalek crate is a dependency of solana-sdk.
 # This crate relies on a specific version of zeroize that is incompatible with many other packages.

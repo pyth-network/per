@@ -2687,7 +2687,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-client"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "borsh 1.5.3",
  "ethers",
@@ -2699,6 +2699,7 @@ dependencies = [
  "solana-rpc-client",
  "solana-sdk 2.0.23",
  "spl-associated-token-account 4.0.0",
+ "spl-token 6.0.0",
  "tokio",
  "tokio-stream",
  "tokio-tungstenite 0.24.0",
