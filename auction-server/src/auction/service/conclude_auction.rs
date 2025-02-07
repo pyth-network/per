@@ -55,6 +55,18 @@ where
                     .conclude_auction(auction.id)
                     .await
                     .map_err(|e| anyhow::anyhow!("Failed to conclude auction: {:?}", e))?;
+            } else if Self::is_auction_expired(&auction) {
+                // TODO This is a workaround for a bug, we need to find a better solution
+                // TODO Maybe a way to make sure bids are assigned only to one auction
+                // There are some cases where the bid for the auction is also in another auction
+                // If the other auction is concluded, the bid status for that auction is updated
+                // But the bid status for this auction is not updated and it's impossible to update it
+                // If the auction is expired, we need to remove it from the in-memory store
+                // To make sure that the auction is not stuck for ever
+                self.repo
+                    .conclude_auction(auction.id)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to conclude auction: {:?}", e))?;
             }
         }
 
