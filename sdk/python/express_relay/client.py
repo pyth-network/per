@@ -55,13 +55,16 @@ from express_relay.svm.generated.express_relay.types.submit_bid_args import (
 from express_relay.svm.generated.express_relay.types.swap_args import SwapArgs
 from express_relay.svm.limo_client import LimoClient
 from express_relay.svm.token_utils import (
+    close_wrapped_sol_account,
     create_associated_token_account_idempotent,
     get_ata,
+    wrap_sol,
 )
 from hexbytes import HexBytes
 from solders.instruction import Instruction
 from solders.pubkey import Pubkey
 from solders.sysvar import INSTRUCTIONS
+from spl.token.constants import WRAPPED_SOL_MINT
 from websockets.client import WebSocketClientProtocol
 
 
@@ -642,7 +645,7 @@ class ExpressRelayClient:
             },
             {
                 "owner": accs["user"],
-                "mint": accs["user_token"],
+                "mint": accs["searcher_token"],
                 "program": accs["token_program_user"],
             },
         ]
@@ -665,6 +668,11 @@ class ExpressRelayClient:
                 )
             )
 
+        if accs["user_token"] == WRAPPED_SOL_MINT:
+            instructions.append(
+                instruction
+                for instruction in wrap_sol(searcher, accs["user"], amount_user)
+            )
         swap_ix = swap(
             {
                 "data": SwapArgs(
@@ -715,6 +723,8 @@ class ExpressRelayClient:
             svm_config["express_relay_program"],
         )
         instructions.append(swap_ix)
+        if accs["searcher_token"] == WRAPPED_SOL_MINT:
+            instructions.append(close_wrapped_sol_account(accs["user"]))
         return instructions
 
 
