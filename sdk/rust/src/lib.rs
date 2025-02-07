@@ -37,18 +37,8 @@ use {
         Deserialize,
         Serialize,
     },
-    solana_sdk::{
-        system_instruction::transfer,
-        transaction::Transaction,
-    },
-    spl_associated_token_account::get_associated_token_address_with_program_id,
-    spl_token::{
-        instruction::{
-            close_account,
-            sync_native,
-        },
-        native_mint,
-    },
+    solana_sdk::transaction::Transaction,
+    spl_token::native_mint,
     std::{
         collections::HashMap,
         marker::PhantomData,
@@ -821,7 +811,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     svm::GetSwapCreateAccountsIdempotentInstructionsParams {
                         payer: params.payer,
                         user: user_wallet_address,
-                        user_token,
+                        searcher_token,
                         token_program_user: tokens.token_program_user,
                         fee_token,
                         fee_token_program,
@@ -832,19 +822,11 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     },
                 ));
                 if user_token == native_mint::id() {
-                    let user_ata = get_associated_token_address_with_program_id(
-                        &user_wallet_address,
-                        &user_token,
-                        &tokens.token_program_user,
-                    );
-                    instructions.push(transfer(
-                        &user_wallet_address,
-                        &user_ata,
-                        user_amount_including_fees,
-                    ));
-                    instructions.push(sync_native(&tokens.token_program_user, &user_ata).map_err(
-                        |e| ClientError::NewBidError(format!("Failed to sync native: {:?}", e)),
-                    )?);
+                    svm::Svm::get_wrap_sol_instructions(svm::GetWrapSolInstructionsParams {
+                        payer:   params.payer,
+                        address: user_wallet_address,
+                        amount:  user_amount_including_fees,
+                    })?;
                 }
                 instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
                     opportunity_params:   opportunity.params,
@@ -855,23 +837,11 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     relayer_signer:       params.relayer_signer,
                 })?);
                 if searcher_token == native_mint::id() {
-                    let user_ata = get_associated_token_address_with_program_id(
-                        &user_wallet_address,
-                        &user_token,
-                        &tokens.token_program_user,
-                    );
-                    instructions.push(
-                        close_account(
-                            &tokens.token_program_searcher,
-                            &user_ata,
-                            &user_wallet_address,
-                            &user_wallet_address,
-                            &[&user_wallet_address],
-                        )
-                        .map_err(|e| {
-                            ClientError::NewBidError(format!("Failed to close account: {:?}", e))
-                        })?,
-                    );
+                    instructions.push(svm::Svm::get_close_wrapped_sol_account_instruction(
+                        svm::GetCloseWrappedSolAccountInstructionParams {
+                            address: user_wallet_address,
+                        },
+                    )?)
                 }
                 let mut transaction =
                     Transaction::new_with_payer(instructions.as_slice(), Some(&params.payer));

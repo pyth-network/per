@@ -21,12 +21,18 @@ use {
         },
         pubkey::Pubkey,
         signature::Keypair,
+        system_instruction::transfer,
         system_program,
         sysvar,
     },
     spl_associated_token_account::{
+        get_associated_token_address,
         get_associated_token_address_with_program_id,
         instruction::create_associated_token_account_idempotent,
+    },
+    spl_token::instruction::{
+        close_account,
+        sync_native,
     },
     std::str::FromStr,
 };
@@ -89,7 +95,7 @@ struct OpportunitySwapData {
 pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
     pub payer:                Pubkey,
     pub user:                 Pubkey,
-    pub user_token:           Pubkey,
+    pub searcher_token:       Pubkey,
     pub token_program_user:   Pubkey,
     pub fee_token:            Pubkey,
     pub fee_token_program:    Pubkey,
@@ -97,6 +103,16 @@ pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
     pub fee_receiver_relayer: Pubkey,
     pub referral_fee_bps:     u16,
     pub chain_id:             String,
+}
+
+pub struct GetWrapSolInstructionsParams {
+    pub payer:   Pubkey,
+    pub address: Pubkey,
+    pub amount:  u64,
+}
+
+pub struct GetCloseWrappedSolAccountInstructionParams {
+    pub address: Pubkey,
 }
 
 pub struct Svm {
@@ -263,7 +279,7 @@ impl Svm {
         instructions.push(create_associated_token_account_idempotent(
             &params.payer,
             &params.user,
-            &params.user_token,
+            &params.searcher_token,
             &params.token_program_user,
         ));
         instructions.push(create_associated_token_account_idempotent(
@@ -421,5 +437,38 @@ impl Svm {
             accounts,
             data,
         })
+    }
+
+    pub fn get_wrap_sol_instructions(
+        params: GetWrapSolInstructionsParams,
+    ) -> Result<Vec<Instruction>, ClientError> {
+        let mut instructions = vec![];
+        instructions.push(create_associated_token_account_idempotent(
+            &params.payer,
+            &params.address,
+            &spl_token::native_mint::id(),
+            &spl_token::id(),
+        ));
+        let ata = get_associated_token_address(&params.address, &spl_token::native_mint::id());
+        instructions.push(transfer(&params.address, &ata, params.amount));
+        instructions.push(
+            sync_native(&spl_token::id(), &ata)
+                .map_err(|e| ClientError::SvmError(format!("Failed to sync native: {:?}", e)))?,
+        );
+        Ok(instructions)
+    }
+
+    pub fn get_close_wrapped_sol_account_instruction(
+        params: GetCloseWrappedSolAccountInstructionParams,
+    ) -> Result<Instruction, ClientError> {
+        let ata = get_associated_token_address(&params.address, &spl_token::native_mint::id());
+        close_account(
+            &spl_token::id(),
+            &ata,
+            &params.address,
+            &params.address,
+            &[&params.address],
+        )
+        .map_err(|e| ClientError::SvmError(format!("Failed to close account: {:?}", e)))
     }
 }
