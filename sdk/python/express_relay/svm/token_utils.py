@@ -56,7 +56,7 @@ def create_associated_token_account_idempotent(
 
 def wrap_sol(
     payer: Pubkey,
-    address: Pubkey,
+    owner: Pubkey,
     amount: int,
 ) -> List[Instruction]:
     """Creates transaction instructions to transfer and wrap SOL into an associated token account.
@@ -66,14 +66,14 @@ def wrap_sol(
     """
     instructions = [
         create_associated_token_account_idempotent(
-            payer, address, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
+            payer, owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
         )
     ]
-    ata = get_ata(address, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
+    ata = get_ata(owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
     instructions.append(
         transfer(
             TransferParams(
-                from_pubkey=address,
+                from_pubkey=owner,
                 to_pubkey=ata,
                 lamports=amount,
             )
@@ -90,19 +90,19 @@ def wrap_sol(
     return instructions
 
 
-def close_wrapped_sol_account(address: Pubkey) -> Instruction:
+def unwrap_sol(owner: Pubkey) -> Instruction:
     """Creates a transaction instruction to close a wrapped SOL account.
 
     Returns:
         The instruction to close the wrapped SOL account.
     """
-    ata = get_ata(address, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
+    ata = get_ata(owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
     return close_account(
         CloseAccountParams(
             program_id=TOKEN_PROGRAM_ID,
             account=ata,
-            dest=address,
-            owner=address,
-            signers=[address],
+            dest=owner,
+            owner=owner,
+            signers=[owner],
         )
     )

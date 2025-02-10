@@ -55,9 +55,9 @@ from express_relay.svm.generated.express_relay.types.submit_bid_args import (
 from express_relay.svm.generated.express_relay.types.swap_args import SwapArgs
 from express_relay.svm.limo_client import LimoClient
 from express_relay.svm.token_utils import (
-    close_wrapped_sol_account,
     create_associated_token_account_idempotent,
     get_ata,
+    unwrap_sol,
     wrap_sol,
 )
 from hexbytes import HexBytes
@@ -722,7 +722,7 @@ class ExpressRelayClient:
         )
         instructions.append(swap_ix)
         if accs["searcher_token"] == WRAPPED_SOL_MINT:
-            instructions.append(close_wrapped_sol_account(accs["user"]))
+            instructions.append(unwrap_sol(accs["user"]))
         return instructions
 
 

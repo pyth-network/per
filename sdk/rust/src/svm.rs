@@ -106,13 +106,13 @@ pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
 }
 
 pub struct GetWrapSolInstructionsParams {
-    pub payer:   Pubkey,
-    pub address: Pubkey,
-    pub amount:  u64,
+    pub payer:  Pubkey,
+    pub owner:  Pubkey,
+    pub amount: u64,
 }
 
-pub struct GetCloseWrappedSolAccountInstructionParams {
-    pub address: Pubkey,
+pub struct GetUnwrapSolInstructionParams {
+    pub owner: Pubkey,
 }
 
 pub struct Svm {
@@ -445,30 +445,34 @@ impl Svm {
         let mut instructions = vec![];
         instructions.push(create_associated_token_account_idempotent(
             &params.payer,
-            &params.address,
+            &params.owner,
             &spl_token::native_mint::id(),
             &spl_token::id(),
         ));
-        let ata = get_associated_token_address(&params.address, &spl_token::native_mint::id());
-        instructions.push(transfer(&params.address, &ata, params.amount));
-        instructions.push(
-            sync_native(&spl_token::id(), &ata)
-                .map_err(|e| ClientError::SvmError(format!("Failed to sync native: {:?}", e)))?,
-        );
+        let ata = get_associated_token_address(&params.owner, &spl_token::native_mint::id());
+        instructions.push(transfer(&params.owner, &ata, params.amount));
+        instructions.push(sync_native(&spl_token::id(), &ata).map_err(|e| {
+            ClientError::SvmError(format!("Failed to create sync native instruction: {:?}", e))
+        })?);
         Ok(instructions)
     }
 
-    pub fn get_close_wrapped_sol_account_instruction(
-        params: GetCloseWrappedSolAccountInstructionParams,
+    pub fn get_unwrapped_sol_instruction(
+        params: GetUnwrapSolInstructionParams,
     ) -> Result<Instruction, ClientError> {
-        let ata = get_associated_token_address(&params.address, &spl_token::native_mint::id());
+        let ata = get_associated_token_address(&params.owner, &spl_token::native_mint::id());
         close_account(
             &spl_token::id(),
             &ata,
-            &params.address,
-            &params.address,
-            &[&params.address],
+            &params.owner,
+            &params.owner,
+            &[&params.owner],
         )
-        .map_err(|e| ClientError::SvmError(format!("Failed to close account: {:?}", e)))
+        .map_err(|e| {
+            ClientError::SvmError(format!(
+                "Failed to create close account instruction: {:?}",
+                e
+            ))
+        })
     }
 }

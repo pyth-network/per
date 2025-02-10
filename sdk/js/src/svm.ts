@@ -280,12 +280,12 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
 
 export function getWrapSolInstructions(
   payer: PublicKey,
-  address: PublicKey,
+  owner: PublicKey,
   amount: anchor.BN,
 ): TransactionInstruction[] {
   const instructions = [];
   const [ata, instruction] = createAtaIdempotentInstruction(
-    address,
+    owner,
     NATIVE_MINT,
     payer,
     TOKEN_PROGRAM_ID,
@@ -293,7 +293,7 @@ export function getWrapSolInstructions(
   instructions.push(instruction);
   instructions.push(
     SystemProgram.transfer({
-      fromPubkey: address,
+      fromPubkey: owner,
       toPubkey: ata,
       lamports: BigInt(amount.toString()),
     }),
@@ -302,11 +302,11 @@ export function getWrapSolInstructions(
   return instructions;
 }
 
-export function getCloseWrappedSolAccountInstruction(
-  address: PublicKey,
+export function getUnwrapSolInstructions(
+  owner: PublicKey,
 ): TransactionInstruction {
-  const ata = getAssociatedTokenAddress(address, NATIVE_MINT, TOKEN_PROGRAM_ID);
-  return createCloseAccountInstruction(ata, address, address, [address]);
+  const ata = getAssociatedTokenAddress(owner, NATIVE_MINT, TOKEN_PROGRAM_ID);
+  return createCloseAccountInstruction(ata, owner, owner, [owner]);
 }
 
 export async function constructSwapBid(
@@ -365,7 +365,7 @@ export async function constructSwapBid(
   );
   tx.instructions.push(swapInstruction);
   if (searcherToken.equals(NATIVE_MINT)) {
-    tx.instructions.push(getCloseWrappedSolAccountInstruction(user));
+    tx.instructions.push(getUnwrapSolInstructions(user));
   }
   return {
     transaction: tx,

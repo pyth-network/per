@@ -824,9 +824,9 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                 if user_token == native_mint::id() {
                     instructions.extend(svm::Svm::get_wrap_sol_instructions(
                         svm::GetWrapSolInstructionsParams {
-                            payer:   params.payer,
-                            address: user_wallet_address,
-                            amount:  user_amount_including_fees,
+                            payer:  params.payer,
+                            owner:  user_wallet_address,
+                            amount: user_amount_including_fees,
                         },
                     )?);
                 }
@@ -839,9 +839,9 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     relayer_signer:       params.relayer_signer,
                 })?);
                 if searcher_token == native_mint::id() {
-                    instructions.push(svm::Svm::get_close_wrapped_sol_account_instruction(
-                        svm::GetCloseWrappedSolAccountInstructionParams {
-                            address: user_wallet_address,
+                    instructions.push(svm::Svm::get_unwrapped_sol_instruction(
+                        svm::GetUnwrapSolInstructionParams {
+                            owner: user_wallet_address,
                         },
                     )?)
                 }
