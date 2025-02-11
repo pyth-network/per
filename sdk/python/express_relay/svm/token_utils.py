@@ -5,8 +5,17 @@ from solders.instruction import AccountMeta, Instruction
 from solders.pubkey import Pubkey
 from solders.system_program import TransferParams, transfer
 from solders.sysvar import RENT
-from spl.token.constants import ASSOCIATED_TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT
-from spl.token.instructions import CloseAccountParams, close_account
+from spl.token.constants import (
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    TOKEN_PROGRAM_ID,
+    WRAPPED_SOL_MINT,
+)
+from spl.token.instructions import (
+    CloseAccountParams,
+    SyncNativeParams,
+    close_account,
+    sync_native,
+)
 
 
 def get_ata(
@@ -57,16 +66,24 @@ def wrap_sol(
     """
     instructions = [
         create_associated_token_account_idempotent(
-            payer, address, WRAPPED_SOL_MINT, ASSOCIATED_TOKEN_PROGRAM_ID
+            payer, address, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
         )
     ]
-    ata = get_ata(address, WRAPPED_SOL_MINT, ASSOCIATED_TOKEN_PROGRAM_ID)
+    ata = get_ata(address, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
     instructions.append(
         transfer(
             TransferParams(
                 from_pubkey=address,
                 to_pubkey=ata,
                 lamports=amount,
+            )
+        )
+    )
+    instructions.append(
+        sync_native(
+            SyncNativeParams(
+                program_id=TOKEN_PROGRAM_ID,
+                account=ata,
             )
         )
     )
@@ -79,10 +96,10 @@ def close_wrapped_sol_account(address: Pubkey) -> Instruction:
     Returns:
         The instruction to close the wrapped SOL account.
     """
-    ata = get_ata(address, WRAPPED_SOL_MINT, ASSOCIATED_TOKEN_PROGRAM_ID)
+    ata = get_ata(address, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
     return close_account(
         CloseAccountParams(
-            program_id=ASSOCIATED_TOKEN_PROGRAM_ID,
+            program_id=TOKEN_PROGRAM_ID,
             account=ata,
             dest=address,
             owner=address,

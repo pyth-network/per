@@ -93,16 +93,16 @@ struct OpportunitySwapData {
 }
 
 pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
-    pub payer:                Pubkey,
-    pub user:                 Pubkey,
-    pub searcher_token:       Pubkey,
-    pub token_program_user:   Pubkey,
-    pub fee_token:            Pubkey,
-    pub fee_token_program:    Pubkey,
-    pub router_account:       Pubkey,
-    pub fee_receiver_relayer: Pubkey,
-    pub referral_fee_bps:     u16,
-    pub chain_id:             String,
+    pub payer:                  Pubkey,
+    pub user:                   Pubkey,
+    pub searcher_token:         Pubkey,
+    pub token_program_searcher: Pubkey,
+    pub fee_token:              Pubkey,
+    pub fee_token_program:      Pubkey,
+    pub router_account:         Pubkey,
+    pub fee_receiver_relayer:   Pubkey,
+    pub referral_fee_bps:       u16,
+    pub chain_id:               String,
 }
 
 pub struct GetWrapSolInstructionsParams {
@@ -280,7 +280,7 @@ impl Svm {
             &params.payer,
             &params.user,
             &params.searcher_token,
-            &params.token_program_user,
+            &params.token_program_searcher,
         ));
         instructions.push(create_associated_token_account_idempotent(
             &params.payer,

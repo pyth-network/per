@@ -646,7 +646,7 @@ class ExpressRelayClient:
             {
                 "owner": accs["user"],
                 "mint": accs["searcher_token"],
-                "program": accs["token_program_user"],
+                "program": accs["token_program_searcher"],
             },
         ]
         if swap_opportunity.referral_fee_bps > 0:
@@ -669,10 +669,8 @@ class ExpressRelayClient:
             )
 
         if accs["user_token"] == WRAPPED_SOL_MINT:
-            instructions.append(
-                instruction
-                for instruction in wrap_sol(searcher, accs["user"], amount_user)
-            )
+            for instruction in wrap_sol(searcher, accs["user"], amount_user):
+                instructions.append(instruction)
         swap_ix = swap(
             {
                 "data": SwapArgs(

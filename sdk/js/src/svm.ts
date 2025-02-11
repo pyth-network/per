@@ -20,6 +20,7 @@ import {
   createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
   NATIVE_MINT,
+  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { ExpressRelay } from "./expressRelayTypes";
@@ -287,7 +288,7 @@ export function getWrapSolInstructions(
     address,
     NATIVE_MINT,
     payer,
-    ASSOCIATED_TOKEN_PROGRAM_ID,
+    TOKEN_PROGRAM_ID,
   );
   instructions.push(instruction);
   instructions.push(
@@ -297,20 +298,14 @@ export function getWrapSolInstructions(
       lamports: BigInt(amount.toString()),
     }),
   );
-  instructions.push(
-    createSyncNativeInstruction(ata, ASSOCIATED_TOKEN_PROGRAM_ID),
-  );
+  instructions.push(createSyncNativeInstruction(ata, TOKEN_PROGRAM_ID));
   return instructions;
 }
 
 export function getCloseWrappedSolAccountInstruction(
   address: PublicKey,
 ): TransactionInstruction {
-  const ata = getAssociatedTokenAddress(
-    address,
-    NATIVE_MINT,
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-  );
+  const ata = getAssociatedTokenAddress(address, NATIVE_MINT, TOKEN_PROGRAM_ID);
   return createCloseAccountInstruction(ata, address, address, [address]);
 }
 
@@ -326,7 +321,7 @@ export async function constructSwapBid(
 ): Promise<BidSvmSwap> {
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
   const {
-    tokenProgramUser,
+    tokenProgramSearcher,
     userToken,
     searcherToken,
     user,
@@ -337,7 +332,7 @@ export async function constructSwapBid(
   const tokenAccountsToCreate = [
     { owner: feeReceiverRelayer, mint: mintFee, program: feeTokenProgram },
     { owner: expressRelayMetadata, mint: mintFee, program: feeTokenProgram },
-    { owner: user, mint: searcherToken, program: tokenProgramUser },
+    { owner: user, mint: searcherToken, program: tokenProgramSearcher },
   ];
   if (swapOpportunity.referralFeeBps > 0) {
     tokenAccountsToCreate.push({
@@ -356,7 +351,7 @@ export async function constructSwapBid(
       )[1],
     );
   }
-  if (userToken === NATIVE_MINT) {
+  if (userToken.equals(NATIVE_MINT)) {
     tx.instructions.push(...getWrapSolInstructions(searcher, user, bidAmount));
   }
   const swapInstruction = await constructSwapInstruction(
@@ -369,7 +364,7 @@ export async function constructSwapBid(
     relayerSigner,
   );
   tx.instructions.push(swapInstruction);
-  if (searcherToken === NATIVE_MINT) {
+  if (searcherToken.equals(NATIVE_MINT)) {
     tx.instructions.push(getCloseWrappedSolAccountInstruction(user));
   }
   return {

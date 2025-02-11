@@ -812,7 +812,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         payer: params.payer,
                         user: user_wallet_address,
                         searcher_token,
-                        token_program_user: tokens.token_program_user,
+                        token_program_searcher: tokens.token_program_searcher,
                         fee_token,
                         fee_token_program,
                         router_account,
@@ -822,11 +822,13 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     },
                 ));
                 if user_token == native_mint::id() {
-                    svm::Svm::get_wrap_sol_instructions(svm::GetWrapSolInstructionsParams {
-                        payer:   params.payer,
-                        address: user_wallet_address,
-                        amount:  user_amount_including_fees,
-                    })?;
+                    instructions.extend(svm::Svm::get_wrap_sol_instructions(
+                        svm::GetWrapSolInstructionsParams {
+                            payer:   params.payer,
+                            address: user_wallet_address,
+                            amount:  user_amount_including_fees,
+                        },
+                    )?);
                 }
                 instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
                     opportunity_params:   opportunity.params,
