@@ -97,6 +97,9 @@ local_resource(
         && solana-keygen new -o keypairs/mint_sell.json -f --no-bip39-passphrase \
         && spl-token create-token -u localhost --fee-payer keypairs/admin.json --decimals 6 --mint-authority keypairs/admin.json keypairs/mint_sell.json \
         && spl-token create-token -u localhost --fee-payer keypairs/admin.json --decimals 6 --mint-authority keypairs/admin.json keypairs/mint_buy.json \
+        && spl-token create-account -u localhost So11111111111111111111111111111111111111112 --fee-payer keypairs/admin.json --owner keypairs/searcher_rust.json \
+        && spl-token create-account -u localhost So11111111111111111111111111111111111111112 --fee-payer keypairs/admin.json --owner keypairs/searcher_py.json \
+        && spl-token create-account -u localhost So11111111111111111111111111111111111111112 --fee-payer keypairs/admin.json --owner keypairs/searcher_js.json \
         && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher_js.json \
         && spl-token create-account -u localhost keypairs/mint_sell.json --fee-payer keypairs/admin.json --owner keypairs/searcher_js.json \
         && spl-token create-account -u localhost keypairs/mint_buy.json --fee-payer keypairs/admin.json --owner keypairs/searcher_py.json \
@@ -112,7 +115,13 @@ local_resource(
         && spl-token mint -u localhost keypairs/mint_buy.json 100000000000 --recipient-owner keypairs/searcher_rust.json --mint-authority keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/searcher_rust.json --mint-authority keypairs/admin.json \
         && spl-token mint -u localhost keypairs/mint_buy.json 100000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json \
-        && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json""",
+        && spl-token mint -u localhost keypairs/mint_sell.json 100000000000 --recipient-owner keypairs/admin.json --mint-authority keypairs/admin.json \
+        && solana airdrop 5 $(spl-token address -u localhost --owner keypairs/searcher_rust.json --token So11111111111111111111111111111111111111112 --verbose | grep 'Associated token address' | awk '{print $NF}') -u localhost \
+        && spl-token sync-native keypairs/searcher_rust.json -u localhost \
+        && solana airdrop 5 $(spl-token address -u localhost --owner keypairs/searcher_js.json --token So11111111111111111111111111111111111111112 --verbose | grep 'Associated token address' | awk '{print $NF}') -u localhost \
+        && spl-token sync-native keypairs/searcher_js.json -u localhost \
+        && solana airdrop 5 $(spl-token address -u localhost --owner keypairs/searcher_py.json --token So11111111111111111111111111111111111111112 --verbose | grep 'Associated token address' | awk '{print $NF}') -u localhost \
+        && spl-token sync-native keypairs/searcher_py.json -u localhost""",
     resource_deps=["svm-setup-accounts"]
 )
 

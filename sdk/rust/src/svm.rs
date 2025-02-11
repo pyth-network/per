@@ -21,12 +21,18 @@ use {
         },
         pubkey::Pubkey,
         signature::Keypair,
+        system_instruction::transfer,
         system_program,
         sysvar,
     },
     spl_associated_token_account::{
+        get_associated_token_address,
         get_associated_token_address_with_program_id,
         instruction::create_associated_token_account_idempotent,
+    },
+    spl_token::instruction::{
+        close_account,
+        sync_native,
     },
     std::str::FromStr,
 };
@@ -87,16 +93,26 @@ struct OpportunitySwapData {
 }
 
 pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
-    pub payer:                Pubkey,
-    pub user:                 Pubkey,
-    pub user_token:           Pubkey,
-    pub token_program_user:   Pubkey,
-    pub fee_token:            Pubkey,
-    pub fee_token_program:    Pubkey,
-    pub router_account:       Pubkey,
-    pub fee_receiver_relayer: Pubkey,
-    pub referral_fee_bps:     u16,
-    pub chain_id:             String,
+    pub payer:                  Pubkey,
+    pub user:                   Pubkey,
+    pub searcher_token:         Pubkey,
+    pub token_program_searcher: Pubkey,
+    pub fee_token:              Pubkey,
+    pub fee_token_program:      Pubkey,
+    pub router_account:         Pubkey,
+    pub fee_receiver_relayer:   Pubkey,
+    pub referral_fee_bps:       u16,
+    pub chain_id:               String,
+}
+
+pub struct GetWrapSolInstructionsParams {
+    pub payer:  Pubkey,
+    pub owner:  Pubkey,
+    pub amount: u64,
+}
+
+pub struct GetUnwrapSolInstructionParams {
+    pub owner: Pubkey,
 }
 
 pub struct Svm {
@@ -263,8 +279,8 @@ impl Svm {
         instructions.push(create_associated_token_account_idempotent(
             &params.payer,
             &params.user,
-            &params.user_token,
-            &params.token_program_user,
+            &params.searcher_token,
+            &params.token_program_searcher,
         ));
         instructions.push(create_associated_token_account_idempotent(
             &params.payer,
@@ -420,6 +436,43 @@ impl Svm {
             program_id: Self::get_express_relay_pid(chain_id),
             accounts,
             data,
+        })
+    }
+
+    pub fn get_wrap_sol_instructions(
+        params: GetWrapSolInstructionsParams,
+    ) -> Result<Vec<Instruction>, ClientError> {
+        let mut instructions = vec![];
+        instructions.push(create_associated_token_account_idempotent(
+            &params.payer,
+            &params.owner,
+            &spl_token::native_mint::id(),
+            &spl_token::id(),
+        ));
+        let ata = get_associated_token_address(&params.owner, &spl_token::native_mint::id());
+        instructions.push(transfer(&params.owner, &ata, params.amount));
+        instructions.push(sync_native(&spl_token::id(), &ata).map_err(|e| {
+            ClientError::SvmError(format!("Failed to create sync native instruction: {:?}", e))
+        })?);
+        Ok(instructions)
+    }
+
+    pub fn get_unwrap_sol_instruction(
+        params: GetUnwrapSolInstructionParams,
+    ) -> Result<Instruction, ClientError> {
+        let ata = get_associated_token_address(&params.owner, &spl_token::native_mint::id());
+        close_account(
+            &spl_token::id(),
+            &ata,
+            &params.owner,
+            &params.owner,
+            &[&params.owner],
+        )
+        .map_err(|e| {
+            ClientError::SvmError(format!(
+                "Failed to create close account instruction: {:?}",
+                e
+            ))
         })
     }
 }

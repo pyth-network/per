@@ -80,6 +80,7 @@ use {
         pubkey::Pubkey,
         signature::Signature,
         signer::Signer as _,
+        system_program,
         transaction::VersionedTransaction,
     },
     spl_associated_token_account::{
@@ -526,7 +527,11 @@ impl Service<Svm> {
             .get(ix.program_id_index as usize)
             .ok_or_else(|| RestError::BadParameters("Invalid program id index".to_string()))?;
 
-        if *program_id == compute_budget::id() {
+        if *program_id == system_program::id()
+            || *program_id == spl_token::id()
+            || *program_id == compute_budget::id()
+        {
+            // TODO check if the instruction data and accounts are valid based on the opportunity data
             Ok(())
         } else if *program_id == spl_associated_token_account::id() {
             let ix_parsed =

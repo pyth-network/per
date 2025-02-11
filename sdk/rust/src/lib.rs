@@ -38,6 +38,7 @@ use {
         Serialize,
     },
     solana_sdk::transaction::Transaction,
+    spl_token::native_mint,
     std::{
         collections::HashMap,
         marker::PhantomData,
@@ -788,17 +789,18 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         "Invalid program params for swap opportunity".to_string(),
                     )),
                 }?;
-                let (searcher_token, user_token) = match tokens.tokens {
+                let (searcher_token, user_token, user_amount_including_fees) = match tokens.tokens {
                     QuoteTokens::SearcherTokenSpecified {
                         searcher_token,
                         user_token,
                         ..
-                    } => (searcher_token, user_token),
+                    } => (searcher_token, user_token, params.amount),
                     QuoteTokens::UserTokenSpecified {
                         searcher_token,
                         user_token,
+                        user_amount_including_fees,
                         ..
-                    } => (searcher_token, user_token),
+                    } => (searcher_token, user_token, user_amount_including_fees),
                 };
                 let (fee_token, fee_token_program) = match fee_token {
                     FeeToken::SearcherToken => (searcher_token, tokens.token_program_searcher),
@@ -809,8 +811,8 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     svm::GetSwapCreateAccountsIdempotentInstructionsParams {
                         payer: params.payer,
                         user: user_wallet_address,
-                        user_token,
-                        token_program_user: tokens.token_program_user,
+                        searcher_token,
+                        token_program_searcher: tokens.token_program_searcher,
                         fee_token,
                         fee_token_program,
                         router_account,
@@ -819,6 +821,15 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         chain_id: opportunity_params.chain_id.clone(),
                     },
                 ));
+                if user_token == native_mint::id() {
+                    instructions.extend(svm::Svm::get_wrap_sol_instructions(
+                        svm::GetWrapSolInstructionsParams {
+                            payer:  params.payer,
+                            owner:  user_wallet_address,
+                            amount: user_amount_including_fees,
+                        },
+                    )?);
+                }
                 instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
                     opportunity_params:   opportunity.params,
                     bid_amount:           params.amount,
@@ -827,6 +838,13 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     fee_receiver_relayer: params.fee_receiver_relayer,
                     relayer_signer:       params.relayer_signer,
                 })?);
+                if searcher_token == native_mint::id() {
+                    instructions.push(svm::Svm::get_unwrap_sol_instruction(
+                        svm::GetUnwrapSolInstructionParams {
+                            owner: user_wallet_address,
+                        },
+                    )?)
+                }
                 let mut transaction =
                     Transaction::new_with_payer(instructions.as_slice(), Some(&params.payer));
                 transaction

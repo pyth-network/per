@@ -4,6 +4,7 @@ import {
   PublicKey,
   Transaction,
   TransactionInstruction,
+  SystemProgram,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import {
@@ -15,7 +16,11 @@ import {
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
+  createCloseAccountInstruction,
+  createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
+  NATIVE_MINT,
+  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { ExpressRelay } from "./expressRelayTypes";
@@ -273,6 +278,37 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
   };
 }
 
+export function getWrapSolInstructions(
+  payer: PublicKey,
+  owner: PublicKey,
+  amount: anchor.BN,
+): TransactionInstruction[] {
+  const instructions = [];
+  const [ata, instruction] = createAtaIdempotentInstruction(
+    owner,
+    NATIVE_MINT,
+    payer,
+    TOKEN_PROGRAM_ID,
+  );
+  instructions.push(instruction);
+  instructions.push(
+    SystemProgram.transfer({
+      fromPubkey: owner,
+      toPubkey: ata,
+      lamports: BigInt(amount.toString()),
+    }),
+  );
+  instructions.push(createSyncNativeInstruction(ata, TOKEN_PROGRAM_ID));
+  return instructions;
+}
+
+export function getUnwrapSolInstruction(
+  owner: PublicKey,
+): TransactionInstruction {
+  const ata = getAssociatedTokenAddress(owner, NATIVE_MINT, TOKEN_PROGRAM_ID);
+  return createCloseAccountInstruction(ata, owner, owner, [owner]);
+}
+
 export async function constructSwapBid(
   tx: Transaction,
   searcher: PublicKey,
@@ -285,8 +321,9 @@ export async function constructSwapBid(
 ): Promise<BidSvmSwap> {
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
   const {
-    tokenProgramUser,
+    tokenProgramSearcher,
     userToken,
+    searcherToken,
     user,
     mintFee,
     feeTokenProgram,
@@ -295,7 +332,7 @@ export async function constructSwapBid(
   const tokenAccountsToCreate = [
     { owner: feeReceiverRelayer, mint: mintFee, program: feeTokenProgram },
     { owner: expressRelayMetadata, mint: mintFee, program: feeTokenProgram },
-    { owner: user, mint: userToken, program: tokenProgramUser },
+    { owner: user, mint: searcherToken, program: tokenProgramSearcher },
   ];
   if (swapOpportunity.referralFeeBps > 0) {
     tokenAccountsToCreate.push({
@@ -314,6 +351,21 @@ export async function constructSwapBid(
       )[1],
     );
   }
+  if (userToken.equals(NATIVE_MINT)) {
+    if (swapOpportunity.tokens.type === "searcher_specified") {
+      tx.instructions.push(
+        ...getWrapSolInstructions(searcher, user, bidAmount),
+      );
+    } else {
+      tx.instructions.push(
+        ...getWrapSolInstructions(
+          searcher,
+          user,
+          swapOpportunity.tokens.userTokenAmountIncludingFees,
+        ),
+      );
+    }
+  }
   const swapInstruction = await constructSwapInstruction(
     searcher,
     swapOpportunity,
@@ -324,7 +376,9 @@ export async function constructSwapBid(
     relayerSigner,
   );
   tx.instructions.push(swapInstruction);
-
+  if (searcherToken.equals(NATIVE_MINT)) {
+    tx.instructions.push(getUnwrapSolInstruction(user));
+  }
   return {
     transaction: tx,
     opportunityId: swapOpportunity.opportunityId,

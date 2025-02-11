@@ -51,28 +51,24 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def main():
-    args = parse_args()
-
-    configure_logger(logger, args.verbose)
-
+async def send_and_submit_quote(server_url, kp_taker, input_token, output_token, side):
     chain_id = "local-solana"
-    kp_taker = read_kp_from_json(args.file_private_key_taker)
     pk_taker = kp_taker.pubkey()
     logger.info("Taker pubkey: %s", pk_taker)
     payload = {
         "chain_id": chain_id,
-        "input_token_mint": args.input_mint,
-        "output_token_mint": args.output_mint,
+        "input_token_mint": input_token,
+        "output_token_mint": output_token,
         "router": "3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn",
         "referral_fee_bps": 10,
-        "specified_token_amount": {"amount": random.randint(1, 1000), "side": "output"},
+        "specified_token_amount": {"amount": random.randint(1, 1000), "side": side},
         "user_wallet_address": str(pk_taker),
         "version": "v1",
     }
+
     async with httpx.AsyncClient() as http_client:
         result = await http_client.post(
-            args.auction_server_url + "/v1/opportunities/quote", json=payload
+            server_url + "/v1/opportunities/quote", json=payload
         )
         if result.status_code != 200:
             logger.error("Failed to get quote from auction server %s", result.text)
@@ -94,9 +90,9 @@ async def main():
             "reference_id": reference_id,
             "user_signature": str(tx.signatures[position]),
         }
-        await asyncio.sleep(3)
+        await asyncio.sleep(0.5)
         result = await http_client.post(
-            args.auction_server_url + "/v1/{}/quotes/submit".format(chain_id),
+            server_url + "/v1/{}/quotes/submit".format(chain_id),
             json=payload,
         )
         if result.status_code != 200:
@@ -108,6 +104,26 @@ async def main():
             base64.b64decode(response["transaction"])
         )
         logger.info("Quote submitted to server. Signature: %s", tx.signatures[0])
+
+
+async def main():
+    args = parse_args()
+
+    configure_logger(logger, args.verbose)
+
+    input_mint = args.input_mint
+    output_mint = args.output_mint
+    native_token_address = "So11111111111111111111111111111111111111112"
+    server_url = args.auction_server_url
+    kp_taker = read_kp_from_json(args.file_private_key_taker)
+
+    for input_token in [input_mint, native_token_address]:
+        for output_token in [output_mint, native_token_address]:
+            if input_token != output_token:
+                for side in ["input", "output"]:
+                    await send_and_submit_quote(
+                        server_url, kp_taker, input_token, output_token, side
+                    )
 
 
 if __name__ == "__main__":
