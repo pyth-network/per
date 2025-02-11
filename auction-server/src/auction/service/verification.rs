@@ -84,9 +84,11 @@ use {
         transaction::VersionedTransaction,
     },
     spl_associated_token_account::{
+        get_associated_token_address,
         get_associated_token_address_with_program_id,
         instruction::AssociatedTokenAccountInstruction,
     },
+    spl_token::instruction::TokenInstruction,
     std::{
         sync::Arc,
         time::Duration,
@@ -113,6 +115,7 @@ pub trait Verification<T: ChainTrait> {
     ) -> Result<VerificationResult<T>, RestError>;
 }
 
+#[derive(Debug, Clone)]
 pub struct SwapAccounts {
     pub user_wallet:            Pubkey,
     pub mint_searcher:          Pubkey,
@@ -527,11 +530,27 @@ impl Service<Svm> {
             .get(ix.program_id_index as usize)
             .ok_or_else(|| RestError::BadParameters("Invalid program id index".to_string()))?;
 
-        if *program_id == system_program::id()
-            || *program_id == spl_token::id()
-            || *program_id == compute_budget::id()
-        {
-            // TODO check if the instruction data and accounts are valid based on the opportunity data
+        if *program_id == system_program::id() {
+            if Self::is_system_program_transfer_instruction(ix, accounts) {
+                Ok(())
+            } else {
+                Err(RestError::BadParameters(
+                    "Invalid system program instruction".to_string(),
+                ))
+            }
+        } else if *program_id == spl_token::id() {
+            let ix_parsed = TokenInstruction::unpack(&ix.data).map_err(|e| {
+                RestError::BadParameters(format!("Invalid spl token instruction: {:?}", e))
+            })?;
+            match ix_parsed {
+                TokenInstruction::CloseAccount { .. } => Ok(()),
+                TokenInstruction::SyncNative { .. } => Ok(()),
+                _ => Err(RestError::BadParameters(format!(
+                    "Invalid spl token instruction: {:?}",
+                    ix_parsed
+                ))),
+            }
+        } else if *program_id == compute_budget::id() {
             Ok(())
         } else if *program_id == spl_associated_token_account::id() {
             let ix_parsed =
@@ -741,6 +760,231 @@ impl Service<Svm> {
         })
     }
 
+    fn is_system_program_transfer_instruction(
+        instruction: &CompiledInstruction,
+        accounts: &[Pubkey],
+    ) -> bool {
+        let program_id = instruction.program_id(accounts);
+        if *program_id != system_program::id() {
+            return false;
+        }
+        if instruction.data.len() != 12 {
+            return false;
+        }
+
+        // For the transfer instruction, the first 4 bytes of the data must be 2
+        let bytes: [u8; 4] = instruction.data[0..4]
+            .try_into()
+            .expect("Failed to convert data to bytes");
+        u32::from_le_bytes(bytes) == 2
+    }
+
+    fn extract_transfer_instructions(tx: &VersionedTransaction) -> Vec<&CompiledInstruction> {
+        tx.message
+            .instructions()
+            .iter()
+            .filter(|instruction| {
+                Self::is_system_program_transfer_instruction(
+                    instruction,
+                    tx.message.static_account_keys(),
+                )
+            })
+            .collect()
+    }
+
+    fn check_transfer_instruction(
+        tx: &VersionedTransaction,
+        swap_data: &express_relay_svm::SwapArgs,
+        swap_accounts: &SwapAccounts,
+    ) -> Result<(), RestError> {
+        let transfer_instructions = Self::extract_transfer_instructions(tx);
+        if transfer_instructions.len() != 1 {
+            return Err(RestError::BadParameters(
+                "Exactly one transfer instruction is required".to_string(),
+            ));
+        }
+
+        let transfer_instruction = transfer_instructions[0];
+        if transfer_instruction.accounts.len() != 2 {
+            return Err(RestError::BadParameters(
+                "Invalid transfer instruction accounts".to_string(),
+            ));
+        }
+        if transfer_instruction.data.len() != 12 {
+            return Err(RestError::BadParameters(
+                "Invalid transfer instruction data".to_string(),
+            ));
+        }
+
+        let lamports =
+            u64::from_le_bytes(transfer_instruction.data[4..12].try_into().map_err(|_| {
+                RestError::BadParameters("Invalid transfer instruction data".to_string())
+            })?);
+
+        let from = tx.message.static_account_keys()[transfer_instruction.accounts[0] as usize];
+        let to = tx.message.static_account_keys()[transfer_instruction.accounts[1] as usize];
+
+        let user_ata =
+            get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
+        if from != swap_accounts.user_wallet {
+            return Err(RestError::BadParameters(format!(
+                "Invalid from account in transfer instruction. Expected: {:?} found: {:?}",
+                swap_accounts.user_wallet, from
+            )));
+        }
+        if to != user_ata {
+            return Err(RestError::BadParameters(format!(
+                "Invalid to account in transfer instruction. Expected: {:?} found: {:?}",
+                user_ata, to
+            )));
+        }
+        if swap_data.amount_user != lamports {
+            return Err(RestError::BadParameters(format!(
+                "Invalid amount in transfer instruction. Expected: {:?} found: {:?}",
+                swap_data.amount_user, lamports
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn extract_token_instructions(tx: &VersionedTransaction) -> Vec<&CompiledInstruction> {
+        tx.message
+            .instructions()
+            .iter()
+            .filter(|instruction| {
+                let program_id = instruction.program_id(tx.message.static_account_keys());
+                *program_id == spl_token::id()
+            })
+            .collect()
+    }
+
+    fn extract_sync_native_instructions(tx: &VersionedTransaction) -> Vec<&CompiledInstruction> {
+        let token_instructions = Self::extract_token_instructions(tx);
+        token_instructions
+            .into_iter()
+            .filter(|instruction| {
+                let ix_parsed = TokenInstruction::unpack(&instruction.data).ok();
+                matches!(ix_parsed, Some(TokenInstruction::SyncNative))
+            })
+            .collect()
+    }
+
+    fn check_sync_native_instruction(
+        tx: &VersionedTransaction,
+        swap_accounts: &SwapAccounts,
+    ) -> Result<(), RestError> {
+        let sync_native_instructions = Self::extract_sync_native_instructions(tx);
+        let ata =
+            get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
+
+        if sync_native_instructions
+            .iter()
+            .filter(|instruction| {
+                if instruction.accounts.len() == 1 {
+                    tx.message.static_account_keys()[instruction.accounts[0] as usize] == ata
+                } else {
+                    false
+                }
+            })
+            .count()
+            != 1
+        {
+            return Err(RestError::BadParameters(
+                format!("Exactly one sync native instruction is required for associated token account: {:?}", ata)
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn extract_close_account_instructions(tx: &VersionedTransaction) -> Vec<&CompiledInstruction> {
+        let token_instructions = Self::extract_token_instructions(tx);
+        token_instructions
+            .into_iter()
+            .filter(|instruction| {
+                let ix_parsed = TokenInstruction::unpack(&instruction.data).ok();
+                matches!(ix_parsed, Some(TokenInstruction::CloseAccount))
+            })
+            .collect()
+    }
+
+    fn check_close_account_instruction(
+        tx: &VersionedTransaction,
+        swap_accounts: &SwapAccounts,
+    ) -> Result<(), RestError> {
+        let close_account_instructions = Self::extract_close_account_instructions(tx);
+        let ata =
+            get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
+        if close_account_instructions.len() != 1 {
+            return Err(RestError::BadParameters(
+                "Exactly one close account instruction is required".to_string(),
+            ));
+        }
+
+        let close_account_instruction = close_account_instructions[0];
+        if close_account_instruction.accounts.len() < 2 {
+            return Err(RestError::BadParameters(
+                "Invalid close account instruction accounts".to_string(),
+            ));
+        }
+
+        let account_to_close =
+            tx.message.static_account_keys()[close_account_instruction.accounts[0] as usize];
+        let destination =
+            tx.message.static_account_keys()[close_account_instruction.accounts[1] as usize];
+
+        if account_to_close != ata {
+            return Err(RestError::BadParameters(format!(
+                "Invalid account to close in close account instruction. Expected: {:?} found: {:?}",
+                ata, account_to_close
+            )));
+        }
+
+        if destination != swap_accounts.user_wallet {
+            return Err(RestError::BadParameters(
+                format!(
+                    "Invalid destination account in close account instruction. Expected: {:?} found: {:?}",
+                    swap_accounts.user_wallet, destination
+                ),
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn check_wrap_unwrap_native_token_instructions(
+        &self,
+        tx: &VersionedTransaction,
+        swap_data: &express_relay_svm::SwapArgs,
+        swap_accounts: &SwapAccounts,
+    ) -> Result<(), RestError> {
+        if swap_accounts.mint_user == spl_token::native_mint::id() {
+            Self::check_transfer_instruction(tx, swap_data, swap_accounts)?;
+            Self::check_sync_native_instruction(tx, swap_accounts)?;
+        } else {
+            let transfer_instructions = Self::extract_transfer_instructions(tx);
+            if !transfer_instructions.is_empty() {
+                return Err(RestError::BadParameters(
+                    "No transfer instruction is allowed".to_string(),
+                ));
+            }
+        }
+
+        if swap_accounts.mint_searcher == spl_token::native_mint::id() {
+            Self::check_close_account_instruction(tx, swap_accounts)?;
+        } else {
+            let close_account_instructions = Self::extract_close_account_instructions(tx);
+            if !close_account_instructions.is_empty() {
+                return Err(RestError::BadParameters(
+                    "No close account instruction is allowed".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn extract_bid_data(
         &self,
         bid_chain_data_create_svm: &BidChainDataCreateSvm,
@@ -806,6 +1050,9 @@ impl Service<Svm> {
                     BidPaymentInstructionType::Swap,
                 )?;
                 let swap_data = Self::extract_swap_data(&swap_instruction)?;
+                let swap_accounts = self
+                    .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
+                    .await?;
                 let SwapAccounts {
                     user_wallet,
                     mint_searcher,
@@ -813,9 +1060,14 @@ impl Service<Svm> {
                     router_token_account,
                     token_program_searcher,
                     token_program_user,
-                } = self
-                    .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
-                    .await?;
+                } = swap_accounts.clone();
+
+                self.check_wrap_unwrap_native_token_instructions(
+                    &bid_data.transaction,
+                    &swap_data,
+                    &swap_accounts,
+                )?;
+
                 let quote_tokens = get_swap_quote_tokens(&opp);
                 let bid_amount = match quote_tokens.clone() {
                     // bid is in the unspecified token
