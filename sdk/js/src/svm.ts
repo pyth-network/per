@@ -352,7 +352,19 @@ export async function constructSwapBid(
     );
   }
   if (userToken.equals(NATIVE_MINT)) {
-    tx.instructions.push(...getWrapSolInstructions(searcher, user, bidAmount));
+    if (swapOpportunity.tokens.type === "searcher_specified") {
+      tx.instructions.push(
+        ...getWrapSolInstructions(searcher, user, bidAmount),
+      );
+    } else {
+      tx.instructions.push(
+        ...getWrapSolInstructions(
+          searcher,
+          user,
+          swapOpportunity.tokens.userTokenAmountIncludingFees,
+        ),
+      );
+    }
   }
   const swapInstruction = await constructSwapInstruction(
     searcher,

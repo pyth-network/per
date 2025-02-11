@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
         "--airdrop-amount",
         type=int,
         required=False,
-        default=10**9,
+        default=10**10,
         help="Amount of lamports to airdrop to the keypairs",
     )
     return parser.parse_args()
