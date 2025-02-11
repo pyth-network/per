@@ -62,7 +62,7 @@ def wrap_sol(
     """Creates transaction instructions to transfer and wrap SOL into an associated token account.
 
     Returns:
-        The instruction to wrap SOL into an associated token account.
+        The instructions to wrap SOL into an associated token account.
     """
     instructions = [
         create_associated_token_account_idempotent(

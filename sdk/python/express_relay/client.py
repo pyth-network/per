@@ -669,8 +669,7 @@ class ExpressRelayClient:
             )
 
         if accs["user_token"] == WRAPPED_SOL_MINT:
-            for instruction in wrap_sol(searcher, accs["user"], amount_user):
-                instructions.append(instruction)
+            instructions.extend(wrap_sol(searcher, accs["user"], amount_user))
         swap_ix = swap(
             {
                 "data": SwapArgs(

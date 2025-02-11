@@ -457,7 +457,7 @@ impl Svm {
         Ok(instructions)
     }
 
-    pub fn get_unwrapped_sol_instruction(
+    pub fn get_unwrap_sol_instruction(
         params: GetUnwrapSolInstructionParams,
     ) -> Result<Instruction, ClientError> {
         let ata = get_associated_token_address(&params.owner, &spl_token::native_mint::id());

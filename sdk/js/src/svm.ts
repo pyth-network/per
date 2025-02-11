@@ -302,7 +302,7 @@ export function getWrapSolInstructions(
   return instructions;
 }
 
-export function getUnwrapSolInstructions(
+export function getUnwrapSolInstruction(
   owner: PublicKey,
 ): TransactionInstruction {
   const ata = getAssociatedTokenAddress(owner, NATIVE_MINT, TOKEN_PROGRAM_ID);
@@ -365,7 +365,7 @@ export async function constructSwapBid(
   );
   tx.instructions.push(swapInstruction);
   if (searcherToken.equals(NATIVE_MINT)) {
-    tx.instructions.push(getUnwrapSolInstructions(user));
+    tx.instructions.push(getUnwrapSolInstruction(user));
   }
   return {
     transaction: tx,
