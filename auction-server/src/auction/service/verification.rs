@@ -452,8 +452,11 @@ impl Service<Svm> {
             .instructions()
             .iter()
             .filter(|instruction| {
-                let program_id = instruction.program_id(transaction.message.static_account_keys());
-                *program_id == self.config.chain_config.express_relay.program_id
+                let program_id = transaction
+                    .message
+                    .static_account_keys()
+                    .get(instruction.program_id_index as usize);
+                program_id == Some(&self.config.chain_config.express_relay.program_id)
             })
             .cloned()
             .collect::<Vec<CompiledInstruction>>();
@@ -526,9 +529,12 @@ impl Service<Svm> {
         accounts: &[Pubkey],
         ix: &CompiledInstruction,
     ) -> Result<(), RestError> {
-        let program_id = accounts
-            .get(ix.program_id_index as usize)
-            .ok_or_else(|| RestError::BadParameters("Invalid program id index".to_string()))?;
+        let program_id =
+            accounts
+                .get(ix.program_id_index as usize)
+                .ok_or(RestError::BadParameters(
+                    "Invalid program id index".to_string(),
+                ))?;
 
         if *program_id == system_program::id() {
             if Self::is_system_program_transfer_instruction(ix, accounts) {
@@ -546,7 +552,7 @@ impl Service<Svm> {
                 TokenInstruction::CloseAccount { .. } => Ok(()),
                 TokenInstruction::SyncNative { .. } => Ok(()),
                 _ => Err(RestError::BadParameters(format!(
-                    "Invalid spl token instruction: {:?}",
+                    "Unsupported spl token instruction: {:?}",
                     ix_parsed
                 ))),
             }
@@ -564,7 +570,7 @@ impl Service<Svm> {
                 AssociatedTokenAccountInstruction::Create => Ok(()),
                 AssociatedTokenAccountInstruction::CreateIdempotent => Ok(()),
                 _ => Err(RestError::BadParameters(format!(
-                    "Invalid associated token account instruction: {:?}",
+                    "Unsupported associated token account instruction: {:?}",
                     ix_parsed
                 ))),
             }
@@ -764,8 +770,8 @@ impl Service<Svm> {
         instruction: &CompiledInstruction,
         accounts: &[Pubkey],
     ) -> bool {
-        let program_id = instruction.program_id(accounts);
-        if *program_id != system_program::id() {
+        let program_id = accounts.get(instruction.program_id_index as usize);
+        if program_id != Some(&system_program::id()) {
             return false;
         }
         if instruction.data.len() != 12 {
@@ -800,47 +806,59 @@ impl Service<Svm> {
         let transfer_instructions = Self::extract_transfer_instructions(tx);
         if transfer_instructions.len() != 1 {
             return Err(RestError::BadParameters(
-                "Exactly one transfer instruction is required".to_string(),
+                "Exactly one sol transfer instruction is required".to_string(),
             ));
         }
 
         let transfer_instruction = transfer_instructions[0];
         if transfer_instruction.accounts.len() != 2 {
             return Err(RestError::BadParameters(
-                "Invalid transfer instruction accounts".to_string(),
+                "Invalid sol transfer instruction accounts".to_string(),
             ));
         }
         if transfer_instruction.data.len() != 12 {
             return Err(RestError::BadParameters(
-                "Invalid transfer instruction data".to_string(),
+                "Invalid sol transfer instruction data".to_string(),
             ));
         }
 
         let lamports =
             u64::from_le_bytes(transfer_instruction.data[4..12].try_into().map_err(|_| {
-                RestError::BadParameters("Invalid transfer instruction data".to_string())
+                RestError::BadParameters("Invalid sol transfer instruction data".to_string())
             })?);
 
-        let from = tx.message.static_account_keys()[transfer_instruction.accounts[0] as usize];
-        let to = tx.message.static_account_keys()[transfer_instruction.accounts[1] as usize];
+        let from = tx
+            .message
+            .static_account_keys()
+            .get(transfer_instruction.accounts[0] as usize)
+            .ok_or(RestError::BadParameters(
+                "Invalid account in sol transfer instruction".to_string(),
+            ))?;
+        let to = tx
+            .message
+            .static_account_keys()
+            .get(transfer_instruction.accounts[1] as usize)
+            .ok_or(RestError::BadParameters(
+                "Invalid account in sol transfer instruction".to_string(),
+            ))?;
 
         let user_ata =
             get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
-        if from != swap_accounts.user_wallet {
+        if *from != swap_accounts.user_wallet {
             return Err(RestError::BadParameters(format!(
-                "Invalid from account in transfer instruction. Expected: {:?} found: {:?}",
+                "Invalid from account in sol transfer instruction. Expected: {:?} found: {:?}",
                 swap_accounts.user_wallet, from
             )));
         }
-        if to != user_ata {
+        if *to != user_ata {
             return Err(RestError::BadParameters(format!(
-                "Invalid to account in transfer instruction. Expected: {:?} found: {:?}",
+                "Invalid to account in sol transfer instruction. Expected: {:?} found: {:?}",
                 user_ata, to
             )));
         }
         if swap_data.amount_user != lamports {
             return Err(RestError::BadParameters(format!(
-                "Invalid amount in transfer instruction. Expected: {:?} found: {:?}",
+                "Invalid amount in sol transfer instruction. Expected: {:?} found: {:?}",
                 swap_data.amount_user, lamports
             )));
         }
@@ -853,8 +871,11 @@ impl Service<Svm> {
             .instructions()
             .iter()
             .filter(|instruction| {
-                let program_id = instruction.program_id(tx.message.static_account_keys());
-                *program_id == spl_token::id()
+                let program_id = tx
+                    .message
+                    .static_account_keys()
+                    .get(instruction.program_id_index as usize);
+                program_id == Some(&spl_token::id())
             })
             .collect()
     }
@@ -882,7 +903,10 @@ impl Service<Svm> {
             .iter()
             .filter(|instruction| {
                 if instruction.accounts.len() == 1 {
-                    tx.message.static_account_keys()[instruction.accounts[0] as usize] == ata
+                    tx.message
+                        .static_account_keys()
+                        .get(instruction.accounts[0] as usize)
+                        == Some(&ata)
                 } else {
                     false
                 }
@@ -914,8 +938,6 @@ impl Service<Svm> {
         swap_accounts: &SwapAccounts,
     ) -> Result<(), RestError> {
         let close_account_instructions = Self::extract_close_account_instructions(tx);
-        let ata =
-            get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
         if close_account_instructions.len() != 1 {
             return Err(RestError::BadParameters(
                 "Exactly one close account instruction is required".to_string(),
@@ -929,19 +951,31 @@ impl Service<Svm> {
             ));
         }
 
-        let account_to_close =
-            tx.message.static_account_keys()[close_account_instruction.accounts[0] as usize];
-        let destination =
-            tx.message.static_account_keys()[close_account_instruction.accounts[1] as usize];
+        let account_to_close = tx
+            .message
+            .static_account_keys()
+            .get(close_account_instruction.accounts[0] as usize)
+            .ok_or(RestError::BadParameters(
+                "Invalid account in close account instruction".to_string(),
+            ))?;
+        let destination = tx
+            .message
+            .static_account_keys()
+            .get(close_account_instruction.accounts[1] as usize)
+            .ok_or(RestError::BadParameters(
+                "Invalid account in close account instruction".to_string(),
+            ))?;
 
-        if account_to_close != ata {
+        let ata =
+            get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
+        if *account_to_close != ata {
             return Err(RestError::BadParameters(format!(
                 "Invalid account to close in close account instruction. Expected: {:?} found: {:?}",
                 ata, account_to_close
             )));
         }
 
-        if destination != swap_accounts.user_wallet {
+        if *destination != swap_accounts.user_wallet {
             return Err(RestError::BadParameters(
                 format!(
                     "Invalid destination account in close account instruction. Expected: {:?} found: {:?}",
@@ -1284,8 +1318,11 @@ impl Service<Svm> {
             .instructions()
             .iter()
             .filter_map(|instruction| {
-                let program_id = instruction.program_id(transaction.message.static_account_keys());
-                if program_id != &compute_budget::id() {
+                let program_id = transaction
+                    .message
+                    .static_account_keys()
+                    .get(instruction.program_id_index as usize);
+                if program_id != Some(&compute_budget::id()) {
                     return None;
                 }
 
