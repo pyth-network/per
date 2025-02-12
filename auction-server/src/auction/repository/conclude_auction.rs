@@ -10,6 +10,10 @@ use {
         OffsetDateTime,
         PrimitiveDateTime,
     },
+    tracing::{
+        info_span,
+        Instrument,
+    },
 };
 
 impl<T: ChainTrait> Repository<T> {
@@ -23,6 +27,7 @@ impl<T: ChainTrait> Repository<T> {
             auction_id,
         )
         .execute(&self.db)
+        .instrument(info_span!("db_conclude_auction"))
         .await?;
         self.remove_in_memory_auction(auction_id).await;
         Ok(())

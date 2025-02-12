@@ -80,6 +80,10 @@ use {
         time::sleep,
     },
     tokio_util::task::TaskTracker,
+    tracing::{
+        info_span,
+        Instrument,
+    },
 };
 
 async fn fault_tolerant_handler<F, Fut>(name: String, f: F)
@@ -113,6 +117,7 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
         "SELECT * FROM access_token WHERE revoked_at IS NULL",
     )
     .fetch_all(db)
+    .instrument(info_span!("db_fetch_access_tokens"))
     .await
     .expect("Failed to fetch access tokens from database");
     let profile_ids: Vec<models::ProfileId> =
@@ -120,6 +125,7 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
     let profiles: Vec<models::Profile> = sqlx::query_as("SELECT * FROM profile WHERE id = ANY($1)")
         .bind(profile_ids)
         .fetch_all(db)
+        .instrument(info_span!("db_get_or_create_access_token"))
         .await
         .expect("Failed to fetch profiles from database");
 

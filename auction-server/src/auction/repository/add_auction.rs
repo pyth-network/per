@@ -8,6 +8,10 @@ use {
         service::ChainTrait,
     },
     time::PrimitiveDateTime,
+    tracing::{
+        info_span,
+        Instrument,
+    },
 };
 
 impl<T: ChainTrait> Repository<T> {
@@ -28,6 +32,7 @@ impl<T: ChainTrait> Repository<T> {
             auction.tx_hash.clone().map(|tx_hash| T::BidStatusType::convert_tx_hash(&tx_hash)),
         )
         .execute(&self.db)
+            .instrument(info_span!("db_add_auction"))
         .await?;
 
         self.remove_in_memory_pending_bids(auction.bids.as_slice())

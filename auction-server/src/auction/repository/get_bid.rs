@@ -12,6 +12,10 @@ use {
             service::ChainTrait,
         },
     },
+    tracing::{
+        info_span,
+        Instrument,
+    },
 };
 
 impl<T: ChainTrait> Repository<T> {
@@ -21,6 +25,7 @@ impl<T: ChainTrait> Repository<T> {
                 .bind(bid_id)
                 .bind(self.chain_id.clone())
                 .fetch_one(&self.db)
+                .instrument(info_span!("db_get_bid"))
                 .await
                 .map_err(|e| match e {
                     sqlx::Error::RowNotFound => RestError::BidNotFound,
@@ -39,6 +44,7 @@ impl<T: ChainTrait> Repository<T> {
                 let auction: models::Auction = sqlx::query_as("SELECT * FROM auction WHERE id = $1")
                     .bind(auction_id)
                     .fetch_one(&self.db)
+                    .instrument(info_span!("db_get_bid_auction"))
                     .await
                     .map_err(|e| {
                         tracing::error!(error = e.to_string(), bid = ?bid, auction_id = auction_id.to_string(), "Failed to get auction for bid from db");

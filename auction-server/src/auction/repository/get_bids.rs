@@ -13,6 +13,10 @@ use {
     },
     sqlx::QueryBuilder,
     time::OffsetDateTime,
+    tracing::{
+        info_span,
+        Instrument,
+    },
 };
 
 impl<T: ChainTrait> Repository<T> {
@@ -25,6 +29,7 @@ impl<T: ChainTrait> Repository<T> {
         sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
             .bind(auction_ids)
             .fetch_all(&self.db)
+            .instrument(info_span!("db_get_auctions_by_bids"))
             .await
             .map_err(|e| {
                 tracing::error!("DB: Failed to fetch auctions: {}", e);
@@ -51,6 +56,7 @@ impl<T: ChainTrait> Repository<T> {
         query
             .build_query_as()
             .fetch_all(&self.db)
+            .instrument(info_span!("db_get_bids"))
             .await
             .map_err(|e| {
                 tracing::error!("DB: Failed to fetch bids: {}", e);

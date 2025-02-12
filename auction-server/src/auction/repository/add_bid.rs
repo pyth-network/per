@@ -13,6 +13,10 @@ use {
             service::ChainTrait,
         },
     },
+    tracing::{
+        info_span,
+        Instrument,
+    },
 };
 
 impl<T: ChainTrait> Repository<T> {
@@ -40,6 +44,7 @@ impl<T: ChainTrait> Repository<T> {
             bid_model.profile_id,
             serde_json::to_value(bid_model.metadata).expect("Failed to serialize metadata"),
         ).execute(&self.db)
+            .instrument(info_span!("db_add_bid"))
             .await.map_err(|e| {
             tracing::error!(error = e.to_string(), bid_create = ?bid_create, "DB: Failed to insert bid");
             RestError::TemporarilyUnavailable
