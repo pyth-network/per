@@ -37,7 +37,11 @@ Here are the installation instructions for each:
 
 Note that for the Solana CLI, you may need to alter your terminal's `PATH` variable to include the Solana programs. To make this work with Tilt, you should include the `PATH` update in your `~/.bashrc` or `~/.zshrc` file depending on which shell your machine uses.
 
-Run `tilt up` in the root of the repo to start the development environment. Make sure you installed and build all of the dependencies. Most of them will be installed using `pnpm install` and `pnpm -r build` commands in the project root.
+You also need to setup a postgres database and apply the migrations. Refer to the [auction server README](./auction-server/README.md#db--migrations) for more information.
+
+Run `tilt up` in the root of the repo to start the development environment. Make sure you installed and build all of the dependencies.
+JS/TS dependencies can be installed using `pnpm install` and `pnpm -r build` commands in the project root.
+Python dependencies can be installed using `poetry -C tilt-scripts install` command in the project root.
 You can access the ui at `http://localhost:10350/`.
 
 Here is what `tilt up` does in order:
@@ -52,6 +56,8 @@ Here is what `tilt up` does in order:
 8. [EVM] Start the liquidation monitor
 9. [EVM] Start the simple searcher
 10. [SVM] Submits an SVM transaction bid to the auction server
+11. [SVM] Starts the limonade service
+12. [SVM] Submits sample rfq requests to the auction server
 
 There are some useful gadgets in Tilt ui for creating new vaults and checking the vault status.
 You can use them to test the system end to end.
