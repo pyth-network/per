@@ -80,6 +80,7 @@ use {
         pubkey::Pubkey,
         signature::Signature,
         signer::Signer as _,
+        system_instruction::SystemInstruction,
         system_program,
         transaction::VersionedTransaction,
     },
@@ -774,15 +775,11 @@ impl Service<Svm> {
         if program_id != Some(&system_program::id()) {
             return false;
         }
-        if instruction.data.len() != 12 {
-            return false;
-        }
 
-        // For the transfer instruction, the first 4 bytes of the data must be 2
-        let bytes: [u8; 4] = instruction.data[0..4]
-            .try_into()
-            .expect("Failed to convert data to bytes");
-        u32::from_le_bytes(bytes) == 2
+        matches!(
+            bincode::deserialize::<SystemInstruction>(&instruction.data),
+            Ok(SystemInstruction::Transfer { .. })
+        )
     }
 
     fn extract_transfer_instructions(tx: &VersionedTransaction) -> Vec<&CompiledInstruction> {
@@ -816,16 +813,15 @@ impl Service<Svm> {
                 "Invalid sol transfer instruction accounts".to_string(),
             ));
         }
-        if transfer_instruction.data.len() != 12 {
-            return Err(RestError::BadParameters(
-                "Invalid sol transfer instruction data".to_string(),
-            ));
-        }
 
-        let lamports =
-            u64::from_le_bytes(transfer_instruction.data[4..12].try_into().map_err(|_| {
-                RestError::BadParameters("Invalid sol transfer instruction data".to_string())
-            })?);
+        let lamports = match bincode::deserialize::<SystemInstruction>(&transfer_instruction.data) {
+            Ok(SystemInstruction::Transfer { lamports }) => lamports,
+            _ => {
+                return Err(RestError::BadParameters(
+                    "Invalid sol transfer instruction data".to_string(),
+                ));
+            }
+        };
 
         let from = tx
             .message
