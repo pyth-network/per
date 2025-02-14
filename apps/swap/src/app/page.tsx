@@ -31,8 +31,8 @@ export default function Home() {
       setLog((log) => [...log, `Selling ${amount / 1e6} USDT for USDC`]);
       const quote = await expressRelayClient.getQuote({
         chainId: "development-solana",
-        inputTokenMint: USDC,
-        outputTokenMint: USDT,
+        inputTokenMint: USDT,
+        outputTokenMint: USDC,
         referralFeeInfo: {
           router: publicKey,
           referralFeeBps: 0,
