@@ -11,6 +11,10 @@ use {
         OffsetDateTime,
         PrimitiveDateTime,
     },
+    tracing::{
+        info_span,
+        Instrument,
+    },
 };
 
 impl<T: ChainTrait> Repository<T> {
@@ -31,7 +35,7 @@ impl<T: ChainTrait> Repository<T> {
             PrimitiveDateTime::new(now.date(), now.time()),
             T::BidStatusType::convert_tx_hash(&transaction_hash),
             auction.id,
-        ).execute(&self.db).await?;
+        ).execute(&self.db).instrument(info_span!("db_update_auction")).await?;
         self.update_in_memory_auction(auction.clone()).await;
         Ok(auction)
     }

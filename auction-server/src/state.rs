@@ -44,6 +44,10 @@ use {
         },
         RwLock,
     },
+    tracing::{
+        info_span,
+        Instrument,
+    },
     uuid::Uuid,
 };
 
@@ -189,7 +193,9 @@ impl Store {
         .bind(create_profile.name.clone())
         .bind(create_profile.email.to_string())
         .bind(role)
-        .fetch_one(&self.db).await
+        .fetch_one(&self.db)
+            .instrument(info_span!("db_create_profile")).
+            await
         .map_err(|e| {
             if let Some(true) = e.as_database_error().map(|e| e.is_unique_violation()) {
                 return RestError::BadParameters("Profile with this email already exists".to_string());
@@ -213,6 +219,7 @@ impl Store {
         sqlx::query_as("SELECT * FROM profile WHERE email = $1")
             .bind(email.0.to_string())
             .fetch_optional(&self.db)
+            .instrument(info_span!("db_get_profile_by_email"))
             .await
             .map_err(|e| {
                 tracing::error!("DB: Failed to fetch profile: {} - email: {}", e, email.0);
@@ -261,6 +268,7 @@ impl Store {
             generated_token
         )
         .execute(&self.db)
+        .instrument(info_span!("db_get_or_create_access_token"))
         .await
         .map_err(|e| {
             tracing::error!(
@@ -278,6 +286,7 @@ impl Store {
             profile_id,
         )
         .fetch_one(&self.db)
+        .instrument(info_span!("db_get_or_create_access_token"))
         .await
         .map_err(|e| {
             tracing::error!(
@@ -310,6 +319,7 @@ impl Store {
             token
         )
         .execute(&self.db)
+        .instrument(info_span!("db_revoke_access_token"))
         .await
         .map_err(|e| {
             tracing::error!("DB: Failed to revoke access token: {}", e);
