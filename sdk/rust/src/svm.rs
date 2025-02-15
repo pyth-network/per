@@ -461,14 +461,7 @@ impl Svm {
         params: GetUnwrapSolInstructionParams,
     ) -> Result<Instruction, ClientError> {
         let ata = get_associated_token_address(&params.owner, &spl_token::native_mint::id());
-        close_account(
-            &spl_token::id(),
-            &ata,
-            &params.owner,
-            &params.owner,
-            &[&params.owner],
-        )
-        .map_err(|e| {
+        close_account(&spl_token::id(), &ata, &params.owner, &params.owner, &[]).map_err(|e| {
             ClientError::SvmError(format!(
                 "Failed to create close account instruction: {:?}",
                 e
