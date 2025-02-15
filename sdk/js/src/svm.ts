@@ -306,7 +306,7 @@ export function getUnwrapSolInstruction(
   owner: PublicKey,
 ): TransactionInstruction {
   const ata = getAssociatedTokenAddress(owner, NATIVE_MINT, TOKEN_PROGRAM_ID);
-  return createCloseAccountInstruction(ata, owner, owner, [owner]);
+  return createCloseAccountInstruction(ata, owner, owner);
 }
 
 export async function constructSwapBid(

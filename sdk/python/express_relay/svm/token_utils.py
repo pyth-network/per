@@ -103,6 +103,5 @@ def unwrap_sol(owner: Pubkey) -> Instruction:
             account=ata,
             dest=owner,
             owner=owner,
-            signers=[owner],
         )
     )

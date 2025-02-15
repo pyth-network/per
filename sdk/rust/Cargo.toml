@@ -1,6 +1,6 @@
 [package]
 name = "express-relay-client"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 description = "Pyth Express Relay client"
 repository = "https://github.com/pyth-network/per"

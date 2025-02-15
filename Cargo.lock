@@ -2688,7 +2688,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-client"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "borsh 1.5.3",
  "ethers",
