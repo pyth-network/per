@@ -29,7 +29,7 @@ RUN forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-git --no-commi
 RUN forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v4.9.6 --no-git --no-commit
 RUN forge install Uniswap/permit2@0x000000000022D473030F116dDEE9F6B43aC78BA3 --no-git --no-commit
 RUN forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1fcb4e286 --no-git --no-commit
-RUN forge build --via-ir
+RUN forge build --via-ir --optimize
 
 
 FROM python:$PYTHON_VERSION
