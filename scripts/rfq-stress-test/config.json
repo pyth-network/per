@@ -1,0 +1,8 @@
+{
+  "serverUrl": "https://per-staging.dourolabs.app",
+  "opportunityProvider": "0xe5D76aEeb84D4538A8c04b80ce091B8B8f74B725",
+  "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  "chainNetworkId": 11155420,
+  "chainId": "op_sepolia",
+  "rpcUrl": "https://sepolia.optimism.io/"
+}

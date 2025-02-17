@@ -1,0 +1,29 @@
+{
+  "name": "rfq-stress-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest src/ --passWithNoTests",
+    "stress-test": "pnpm build && node dist/index.js",
+    "lint": "eslint . --ext .ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "APACHE-2.0",
+  "devDependencies": {
+    "@types/lodash": "^4.17.15",
+    "@types/node": "catalog:",
+    "@types/yargs": "catalog:",
+    "jest": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@pythnetwork/express-relay-js": "workspace:*",
+    "@solana/web3.js": "catalog:",
+    "lodash": "^4.17.21",
+    "yargs": "catalog:"
+  }
+}

@@ -27,6 +27,9 @@ catalogs:
     "@types/yargs":
       specifier: 17.0.32
       version: 17.0.32
+    bs58:
+      specifier: 6.0.0
+      version: 6.0.0
     jest:
       specifier: 27.5.1
       version: 27.5.1
@@ -236,7 +239,7 @@ importers:
         specifier: ^1.7.3
         version: 1.7.8
       bs58:
-        specifier: ^6.0.0
+        specifier: "catalog:"
         version: 6.0.0
       yaml:
         specifier: ^2.6.1
@@ -311,6 +314,40 @@ importers:
         specifier: "catalog:"
         version: 5.5.4
 
+  scripts/rfq-stress-test:
+    dependencies:
+      "@pythnetwork/express-relay-js":
+        specifier: workspace:*
+        version: link:../../sdk/js
+      "@solana/web3.js":
+        specifier: "catalog:"
+        version: 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      bs58:
+        specifier: "catalog:"
+        version: 6.0.0
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+      yargs:
+        specifier: "catalog:"
+        version: 17.7.2
+    devDependencies:
+      "@types/lodash":
+        specifier: ^4.17.15
+        version: 4.17.15
+      "@types/node":
+        specifier: "catalog:"
+        version: 20.14.9
+      "@types/yargs":
+        specifier: "catalog:"
+        version: 17.0.32
+      jest:
+        specifier: "catalog:"
+        version: 27.5.1(bufferutil@4.0.8)(ts-node@10.9.2(@types/node@20.14.9)(typescript@5.5.4))(utf-8-validate@5.0.10)
+      typescript:
+        specifier: "catalog:"
+        version: 5.5.4
+
   scripts/swap-beacon:
     dependencies:
       "@pythnetwork/express-relay-evm-js":
@@ -354,7 +391,7 @@ importers:
         specifier: "catalog:"
         version: 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       bs58:
-        specifier: ^6.0.0
+        specifier: "catalog:"
         version: 6.0.0
       decimal.js:
         specifier: ^10.4.3
@@ -4117,6 +4154,12 @@ packages:
     resolution:
       {
         integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==,
+      }
+
+  "@types/lodash@4.17.15":
+    resolution:
+      {
+        integrity: sha512-w/P33JFeySuhN6JLkysYUK2gEmy9kHHFN7E8ro0tkfmlDOgxBDzWEZ/J8cWA+fHqFevpswDTFZnDx+R9lbL6xw==,
       }
 
   "@types/ms@2.1.0":
@@ -16111,8 +16154,8 @@ snapshots:
   "@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)":
     dependencies:
       "@babel/runtime": 7.26.0
-      "@noble/curves": 1.7.0
-      "@noble/hashes": 1.6.1
+      "@noble/curves": 1.8.0
+      "@noble/hashes": 1.7.0
       "@solana/buffer-layout": 4.0.1
       agentkeepalive: 4.5.0
       bigint-buffer: 1.1.5
@@ -16449,6 +16492,8 @@ snapshots:
   "@types/json-schema@7.0.15": {}
 
   "@types/json5@0.0.29": {}
+
+  "@types/lodash@4.17.15": {}
 
   "@types/ms@2.1.0": {}
 
@@ -17451,7 +17496,7 @@ snapshots:
   babel-plugin-jest-hoist@27.5.1:
     dependencies:
       "@babel/template": 7.25.9
-      "@babel/types": 7.26.0
+      "@babel/types": 7.26.5
       "@types/babel__core": 7.20.5
       "@types/babel__traverse": 7.20.6
 
@@ -20266,10 +20311,10 @@ snapshots:
   jest-snapshot@27.5.1:
     dependencies:
       "@babel/core": 7.26.0
-      "@babel/generator": 7.26.2
+      "@babel/generator": 7.26.5
       "@babel/plugin-syntax-typescript": 7.25.9(@babel/core@7.26.0)
-      "@babel/traverse": 7.25.9
-      "@babel/types": 7.26.0
+      "@babel/traverse": 7.26.5
+      "@babel/types": 7.26.5
       "@jest/transform": 27.5.1
       "@jest/types": 27.5.1
       "@types/babel__traverse": 7.20.6
