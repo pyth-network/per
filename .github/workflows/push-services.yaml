@@ -1,8 +1,10 @@
 name: Build and Push Services Images
 on:
   push:
+    tags:
+      - v*
     branches:
-      - fix/via-ir-bug
+      - main
   workflow_dispatch:
     inputs:
       dispatch_description:
