@@ -3,7 +3,7 @@ use std::process::Command;
 fn main() {
     let contract_setup = r#"
         cd ../contracts/evm
-        forge build --via-ir --optimize
+        forge build --via-ir
     "#;
     println!("cargo:rerun-if-changed=../contracts/evm");
 
