@@ -135,7 +135,7 @@ impl Service<Evm> {
 }
 
 const GET_LATEST_BLOCKHASH_INTERVAL_SVM: Duration = Duration::from_secs(5);
-
+const METRIC_COLLECTION_INTERVAL: Duration = Duration::from_secs(1);
 impl Service<Svm> {
     pub async fn conclude_auction_for_log(
         &self,
@@ -263,6 +263,21 @@ impl Service<Svm> {
             }
         }
         tracing::info!("Shutting down log listener svm...");
+        Ok(())
+    }
+
+    pub async fn run_metric_collector_loop(&self) -> Result<()> {
+        let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+        let mut metric_interval = tokio::time::interval(METRIC_COLLECTION_INTERVAL);
+        while !SHOULD_EXIT.load(Ordering::Acquire) {
+            tokio::select! {
+                _ = metric_interval.tick() => {
+                    self.repo.update_metrics().await;
+                }
+                _ = exit_check_interval.tick() => {}
+            }
+        }
+        tracing::info!("Shutting down metric collector svm...");
         Ok(())
     }
 
