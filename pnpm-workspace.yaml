@@ -8,6 +8,7 @@ packages:
   - "scripts/opportunity-provider-limo"
   - "scripts/swap-beacon"
   - "apps/swap"
+  - "scripts/rfq-stress-test"
 
 catalog:
   "typescript": 5.5.4
@@ -21,3 +22,4 @@ catalog:
   "yargs": 17.7.2
   "jest": 27.5.1
   "@coral-xyz/anchor-cli": 0.30.1
+  "bs58": 6.0.0

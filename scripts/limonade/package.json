@@ -28,7 +28,7 @@
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "catalog:",
     "axios": "^1.7.3",
-    "bs58": "^6.0.0",
+    "bs58": "catalog:",
     "yaml": "^2.6.1",
     "yargs": "catalog:"
   }
