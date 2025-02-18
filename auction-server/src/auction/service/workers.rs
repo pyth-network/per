@@ -277,7 +277,7 @@ impl Service<Svm> {
                 _ = exit_check_interval.tick() => {}
             }
         }
-        tracing::info!("Shutting metric collector svm...");
+        tracing::info!("Shutting down metric collector svm...");
         Ok(())
     }
 
