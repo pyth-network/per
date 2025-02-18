@@ -7,6 +7,7 @@ use {
         db::DB,
         entities::ChainId,
     },
+    axum_prometheus::metrics,
     solana_sdk::pubkey::Pubkey,
     std::collections::{
         HashMap,
@@ -100,5 +101,16 @@ impl<T: ChainTrait> Repository<T> {
             db,
             chain_id,
         }
+    }
+    pub async fn update_metrics(&self) {
+        let label = [("chain_id", self.chain_id.to_string())];
+        let store = &self.in_memory_store;
+        metrics::gauge!("in_memory_auctions", &label).set(store.auctions.read().await.len() as f64);
+        metrics::gauge!("in_memory_pending_bids", &label)
+            .set(store.pending_bids.read().await.len() as f64);
+        metrics::gauge!("in_memory_auction_locks", &label)
+            .set(store.auction_lock.lock().await.len() as f64);
+        metrics::gauge!("in_memory_bid_locks", &label)
+            .set(store.bid_lock.lock().await.len() as f64);
     }
 }

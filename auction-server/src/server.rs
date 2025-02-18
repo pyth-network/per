@@ -528,6 +528,22 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             join_all(tracker_loops).await;
         },
         async {
+            let metric_loops = auction_services.iter().filter_map(|(chain_id, service)| {
+                if let auction_service::ServiceEnum::Svm(service) = service {
+                    Some(fault_tolerant_handler(
+                        format!("metric loop for chain {}", chain_id.clone()),
+                        || {
+                            let service = service.clone();
+                            async move { service.run_metric_collector_loop().await }
+                        },
+                    ))
+                } else {
+                    None
+                }
+            });
+            join_all(metric_loops).await;
+        },
+        async {
             let watcher_loops = auction_services.iter().filter_map(|(chain_id, service)| {
                 if let auction_service::ServiceEnum::Svm(service) = service {
                     Some(fault_tolerant_handler(
