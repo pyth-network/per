@@ -8,7 +8,7 @@ const argv = yargs(hideBin(process.argv))
   .option("public-key", {
     description: "Public key to ask quote for in base58 format",
     type: "string",
-    demandOption: true,
+    default: "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
   })
   .option("chain-id", {
     description: "The chain ID to get quotes for",
@@ -43,9 +43,6 @@ const TOKENS = [
   new PublicKey("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"),
 ];
 
-const latency: number[] = [];
-const status: string[] = [];
-
 type TaskResult = {
   latency: number;
   status: string;
@@ -57,13 +54,14 @@ async function runBatches(
   publicKey: PublicKey,
   concurrency: number,
   throughput: number,
-) {
+): Promise<TaskResult[]> {
   const client = new Client({
     baseUrl: url,
   });
   const indices = _.range(throughput);
   const batches = _.chunk(indices, concurrency);
 
+  const result: TaskResult[] = [];
   for (let index = 0; index < batches.length; index++) {
     const startTime = Date.now();
     const batch = batches[index];
@@ -121,11 +119,7 @@ async function runBatches(
       },
     );
 
-    const results = await Promise.all(wrappedTasks);
-    results.forEach((result) => {
-      latency.push(result.latency);
-      status.push(result.status);
-    });
+    result.push(...(await Promise.all(wrappedTasks)));
 
     // Ensure 1-second delay before next batch
     const elapsedTime = Date.now() - startTime;
@@ -133,11 +127,13 @@ async function runBatches(
       await new Promise((resolve) => setTimeout(resolve, 1000 - elapsedTime));
     }
   }
+
+  return result;
 }
 
 const LATENCY_PERCENTILES = [0.5, 0.9, 0.95, 0.99];
 
-function getLatencyPercentile(percentile: number): number {
+function getLatencyPercentile(latency: number[], percentile: number): number {
   const sorted = _.sortBy(latency);
   const index = Math.ceil(percentile * sorted.length) - 1;
   return sorted[Math.max(index, 0)];
@@ -155,19 +151,22 @@ async function run() {
   console.log(`- Throughput: ${throughput.toLocaleString()}`);
   console.log("--------------------------------------------------");
 
-  await runBatches(
+  const result = await runBatches(
     serverUrl,
     argv["chain-id"],
     publicKey,
     concurrency,
     throughput,
   );
-
-  console.log(latency);
+  const latency = result.map((task) => task.latency);
+  const status = result.map((task) => task.status);
 
   for (const percentile of LATENCY_PERCENTILES) {
     console.log(
-      `P${percentile * 100} latency: ${getLatencyPercentile(percentile)} ms`,
+      `P${percentile * 100} latency: ${getLatencyPercentile(
+        latency,
+        percentile,
+      )} ms`,
     );
   }
 
