@@ -57,9 +57,11 @@ export default function Home() {
         ),
       ]);
       const signedTransaction = await signTransaction(quote.transaction);
-      const accountPosition = signedTransaction.message
-        .getAccountKeys()
-        .staticAccountKeys.findIndex((key) => key.equals(publicKey));
+      // Do not call getAccountKeys() in case there is an unresolved lookup table
+      const accountPosition =
+        signedTransaction.message.staticAccountKeys.findIndex((key) =>
+          key.equals(publicKey),
+        );
       const signature = signedTransaction.signatures[accountPosition];
       if (!signature) {
         throw new Error("Signature not found");
