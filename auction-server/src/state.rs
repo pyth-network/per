@@ -234,6 +234,7 @@ impl Store {
         sqlx::query_as("SELECT * FROM profile WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.db)
+            .instrument(info_span!("db_get_profile_by_id"))
             .await
             .map_err(|e| {
                 tracing::error!("DB: Failed to fetch profile: {} - id: {}", e, id);

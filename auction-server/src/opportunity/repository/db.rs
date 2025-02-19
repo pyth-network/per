@@ -24,6 +24,10 @@ use {
         OffsetDateTime,
         PrimitiveDateTime,
     },
+    tracing::{
+        info_span,
+        Instrument,
+    },
 };
 
 #[cfg_attr(test, automock)]
@@ -69,6 +73,7 @@ impl<T: InMemoryStore> OpportunityTable<T> for DB {
         serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
         serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
             .execute(self)
+            .instrument(info_span!("db_add_opportunity"))
             .await
             .map_err(|e| {
                 tracing::error!("DB: Failed to insert opportunity: {}", e);
@@ -102,6 +107,7 @@ impl<T: InMemoryStore> OpportunityTable<T> for DB {
         let opps: Vec<models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>> = query
             .build_query_as()
             .fetch_all(self)
+            .instrument(info_span!("db_get_opportunities"))
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -141,6 +147,7 @@ impl<T: InMemoryStore> OpportunityTable<T> for DB {
             .bind(permission_key.as_ref())
             .bind(chain_id)
             .execute(self)
+            .instrument(info_span!("db_remove_opportunities"))
             .await?;
         Ok(())
     }
@@ -156,6 +163,7 @@ impl<T: InMemoryStore> OpportunityTable<T> for DB {
             .bind(reason)
             .bind(opportunity.id)
             .execute(self)
+            .instrument(info_span!("db_remove_opportunity"))
             .await?;
         Ok(())
     }
