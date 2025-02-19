@@ -182,16 +182,16 @@ async fn setup_chain_store_evm(config_map: ConfigMap) -> Result<HashMap<ChainId,
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 
 // TODO move to kernel repo
-async fn create_pg_pool(database_url: &str) -> Result<PgPool> {
+async fn create_pg_pool(database_url: &str, max_connections: u32) -> Result<PgPool> {
     PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(max_connections)
         .connect(database_url)
         .await
         .map_err(|err| anyhow!("Failed to connect to database: {:?}", err))
 }
 
 pub async fn run_migrations(migrate_options: MigrateOptions) -> Result<()> {
-    let pool = create_pg_pool(&migrate_options.database_url).await?;
+    let pool = create_pg_pool(&migrate_options.database_url, 1).await?;
     let migrator = migrate!("./migrations");
     if let Err(err) = migrator.run(&pool).await {
         match err {
@@ -273,7 +273,11 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let (broadcast_sender, broadcast_receiver) =
         tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
 
-    let pool = create_pg_pool(&run_options.server.database_url).await?;
+    let pool = create_pg_pool(
+        &run_options.server.database_url,
+        run_options.server.database_max_connections,
+    )
+    .await?;
     let task_tracker = TaskTracker::new();
 
     let config_opportunity_service_evm =
