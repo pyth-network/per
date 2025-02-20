@@ -43,7 +43,10 @@ use {
     futures::future::join_all,
     solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
-    std::time::Duration,
+    std::{
+        str::FromStr,
+        time::Duration,
+    },
     time::OffsetDateTime,
     tokio::time::sleep,
 };
@@ -126,6 +129,19 @@ pub fn get_quote_virtual_permission_account(
     Pubkey::find_program_address(&seeds, &Pubkey::default()).0
 }
 
+/// Determines if the fee token should be the user token or the searcher token
+fn get_fee_token(user_mint: Pubkey, _searcher_mint: Pubkey) -> entities::FeeToken {
+    // TODO*: we should determine this more intelligently
+    // Prefer USDC and USDT as the fee token
+    if user_mint == Pubkey::from_str("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB").unwrap()
+        || user_mint == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap()
+    {
+        entities::FeeToken::UserToken
+    } else {
+        entities::FeeToken::SearcherToken
+    }
+}
+
 impl Service<ChainTypeSvm> {
     async fn get_opportunity_create_for_quote(
         &self,
@@ -135,9 +151,6 @@ impl Service<ChainTypeSvm> {
         let referral_fee_info = self
             .unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)
             .await?;
-
-        // TODO*: we should determine this more intelligently
-        let fee_token = entities::FeeToken::SearcherToken;
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
@@ -156,6 +169,7 @@ impl Service<ChainTypeSvm> {
                 searcher_token,
             } => (user_token, searcher_token.token),
         };
+        let fee_token = get_fee_token(user_mint, searcher_mint);
         let (searcher_amount, user_amount) = match (quote_create.tokens.clone(), fee_token.clone())
         {
             (
