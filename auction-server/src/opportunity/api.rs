@@ -47,10 +47,7 @@ use {
         ErrorBodyResponse,
     },
     solana_sdk::pubkey::Pubkey,
-    std::{
-        str::FromStr,
-        sync::Arc,
-    },
+    std::sync::Arc,
     time::OffsetDateTime,
 };
 
@@ -203,7 +200,11 @@ pub async fn get_opportunities(
     }
 }
 
-pub const INDICATIVE_PRICE_TAKER_STR: &str = "Price11111111111111111111111111111111111112";
+/// This corresponds to the base58 pubkey "Price11111111111111111111111111111111111112"
+pub const INDICATIVE_PRICE_TAKER: Pubkey = Pubkey::new_from_array([
+    0x05, 0xda, 0xfe, 0x58, 0xfc, 0xc9, 0x54, 0xbe, 0x96, 0xc9, 0x32, 0xae, 0x8e, 0x9a, 0x17, 0x68,
+    0x9d, 0x10, 0x17, 0xf8, 0xc9, 0xe1, 0xb0, 0x7c, 0x86, 0x32, 0x71, 0xc0, 0x00, 0x00, 0x00, 0x01,
+]);
 
 /// Submit a quote request.
 ///
@@ -218,9 +219,7 @@ pub async fn post_quote(
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
 ) -> Result<Json<Quote>, RestError> {
-    if params.get_user_wallet_address()
-        == Some(&Pubkey::from_str(INDICATIVE_PRICE_TAKER_STR).unwrap())
-    {
+    if params.get_user_wallet_address() == Some(INDICATIVE_PRICE_TAKER) {
         return Err(RestError::BadParameters(
             "Invalid user wallet address".to_string(),
         ));

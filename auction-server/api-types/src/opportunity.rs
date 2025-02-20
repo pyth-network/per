@@ -592,9 +592,9 @@ pub enum QuoteCreate {
 }
 
 impl QuoteCreate {
-    pub fn get_user_wallet_address(&self) -> Option<&Pubkey> {
+    pub fn get_user_wallet_address(&self) -> Option<Pubkey> {
         match self {
-            QuoteCreate::Svm(QuoteCreateSvm::V1(params)) => params.user_wallet_address.as_ref(),
+            QuoteCreate::Svm(QuoteCreateSvm::V1(params)) => params.user_wallet_address,
         }
     }
 }

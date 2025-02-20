@@ -28,7 +28,7 @@ use {
             Svm,
         },
         opportunity::{
-            api::INDICATIVE_PRICE_TAKER_STR,
+            api::INDICATIVE_PRICE_TAKER,
             entities::{
                 self,
                 TokenAmountSvm,
@@ -403,8 +403,8 @@ impl Service<ChainTypeSvm> {
             }
         }
 
-        let indicative_price_request = input.quote_create.user_wallet_address
-            == Pubkey::from_str(INDICATIVE_PRICE_TAKER_STR).unwrap();
+        let indicative_price_request =
+            input.quote_create.user_wallet_address == INDICATIVE_PRICE_TAKER;
 
         let mut bids_filtered: Vec<Bid<Svm>> = Vec::new();
         // here optimize_bids is used to batch the bid simulation.

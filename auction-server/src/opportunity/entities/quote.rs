@@ -2,7 +2,7 @@ use {
     super::token_amount_svm::TokenAmountSvm,
     crate::{
         kernel::entities::ChainId,
-        opportunity::api::INDICATIVE_PRICE_TAKER_STR,
+        opportunity::api::INDICATIVE_PRICE_TAKER,
     },
     express_relay_api_types::{
         bid::BidId,
@@ -16,7 +16,6 @@ use {
         pubkey::Pubkey,
         transaction::VersionedTransaction,
     },
-    std::str::FromStr,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -127,7 +126,7 @@ impl From<api::QuoteCreate> for QuoteCreate {
 
         let user_wallet_address = match params.user_wallet_address {
             Some(user_wallet_address) => user_wallet_address,
-            None => Pubkey::from_str(INDICATIVE_PRICE_TAKER_STR).unwrap(),
+            None => INDICATIVE_PRICE_TAKER,
         };
 
         Self {
