@@ -1,5 +1,6 @@
 use {
     super::{
+        entities::QuoteCreate as QuoteCreateEntity,
         repository::OPPORTUNITY_PAGE_SIZE_CAP,
         service::{
             add_opportunity::AddOpportunityInput,
@@ -45,7 +46,11 @@ use {
         },
         ErrorBodyResponse,
     },
-    std::sync::Arc,
+    solana_sdk::pubkey::Pubkey,
+    std::{
+        str::FromStr,
+        sync::Arc,
+    },
     time::OffsetDateTime,
 };
 
@@ -198,6 +203,8 @@ pub async fn get_opportunities(
     }
 }
 
+pub const INDICATIVE_PRICE_TAKER_STR: &str = "Price11111111111111111111111111111111111112";
+
 /// Submit a quote request.
 ///
 /// The server will create an opportunity and receive searcher bids
@@ -211,11 +218,20 @@ pub async fn post_quote(
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
 ) -> Result<Json<Quote>, RestError> {
+    if params.get_user_wallet_address()
+        == Some(&Pubkey::from_str(INDICATIVE_PRICE_TAKER_STR).unwrap())
+    {
+        return Err(RestError::BadParameters(
+            "Invalid user wallet address".to_string(),
+        ));
+    }
+    let quote_create: QuoteCreateEntity = params.into();
+
     let quote = store
         .opportunity_service_svm
         .get_quote(GetQuoteInput {
-            quote_create: params.into(),
-            program:      ProgramSvm::Swap,
+            quote_create,
+            program: ProgramSvm::Swap,
         })
         .await?;
 

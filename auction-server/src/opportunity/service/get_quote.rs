@@ -28,6 +28,7 @@ use {
             Svm,
         },
         opportunity::{
+            api::INDICATIVE_PRICE_TAKER_STR,
             entities::{
                 self,
                 TokenAmountSvm,
@@ -401,18 +402,27 @@ impl Service<ChainTypeSvm> {
                 bids.sort_by(|a, b| a.amount.cmp(&b.amount));
             }
         }
+
+        let indicative_price_request = input.quote_create.user_wallet_address
+            == Pubkey::from_str(INDICATIVE_PRICE_TAKER_STR).unwrap();
+
         let mut bids_filtered: Vec<Bid<Svm>> = Vec::new();
         // here optimize_bids is used to batch the bid simulation.
         // the first bid in the returned vector is the best bid that passes simulation.
         if !bids.is_empty() {
-            bids_filtered = auction_service
-                .optimize_bids(&bids)
-                .await
-                .map(|x| x.value)
-                .map_err(|e| {
-                    tracing::error!("Failed to simulate swap bids: {:?}", e);
-                    RestError::TemporarilyUnavailable
-                })?;
+            if indicative_price_request {
+                // TODO: we may want to filter out bids by simulation later, but for now we just take the best bid as an indicative price
+                bids_filtered = bids.clone();
+            } else {
+                bids_filtered = auction_service
+                    .optimize_bids(&bids)
+                    .await
+                    .map(|x| x.value)
+                    .map_err(|e| {
+                        tracing::error!("Failed to simulate swap bids: {:?}", e);
+                        RestError::TemporarilyUnavailable
+                    })?;
+            }
         }
 
         if bids_filtered.is_empty() {
@@ -535,28 +545,37 @@ impl Service<ChainTypeSvm> {
             ),
         };
 
+        let transaction = match indicative_price_request {
+            true => None,
+            false => Some(winner_bid.chain_data.transaction.clone()),
+        };
+        let expiration_time = match indicative_price_request {
+            true => None,
+            false => Some(deadline),
+        };
+
         Ok(entities::Quote {
-            transaction:     winner_bid.chain_data.transaction.clone(),
-            expiration_time: deadline,
+            transaction,
+            expiration_time,
 
             searcher_token: TokenAmountSvm {
                 token:  searcher_token.token,
                 amount: searcher_amount,
             },
-            user_token:     TokenAmountSvm {
+            user_token: TokenAmountSvm {
                 token:  user_token.token,
                 amount: user_amount,
             },
-            referrer_fee:   TokenAmountSvm {
+            referrer_fee: TokenAmountSvm {
                 token:  fee_token,
                 amount: fees.relayer_fee,
             },
-            platform_fee:   TokenAmountSvm {
+            platform_fee: TokenAmountSvm {
                 token:  fee_token,
                 amount: fees.express_relay_fee + fees.relayer_fee,
             },
-            chain_id:       input.quote_create.chain_id,
-            reference_id:   auction.id,
+            chain_id: input.quote_create.chain_id,
+            reference_id: auction.id,
         })
     }
 }

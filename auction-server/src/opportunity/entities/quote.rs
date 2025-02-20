@@ -1,6 +1,9 @@
 use {
     super::token_amount_svm::TokenAmountSvm,
-    crate::kernel::entities::ChainId,
+    crate::{
+        kernel::entities::ChainId,
+        opportunity::api::INDICATIVE_PRICE_TAKER_STR,
+    },
     express_relay_api_types::{
         bid::BidId,
         opportunity as api,
@@ -13,13 +16,14 @@ use {
         pubkey::Pubkey,
         transaction::VersionedTransaction,
     },
+    std::str::FromStr,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Quote {
-    pub transaction:     VersionedTransaction,
+    pub transaction:     Option<VersionedTransaction>,
     // The expiration time of the quote (in seconds since the Unix epoch)
-    pub expiration_time: i64,
+    pub expiration_time: Option<i64>,
     pub searcher_token:  TokenAmountSvm,
     pub user_token:      TokenAmountSvm,
     pub referrer_fee:    TokenAmountSvm,
@@ -121,8 +125,13 @@ impl From<api::QuoteCreate> for QuoteCreate {
 
         let referral_fee_info = params.referral_fee_info.map(Into::into);
 
+        let user_wallet_address = match params.user_wallet_address {
+            Some(user_wallet_address) => user_wallet_address,
+            None => Pubkey::from_str(INDICATIVE_PRICE_TAKER_STR).unwrap(),
+        };
+
         Self {
-            user_wallet_address: params.user_wallet_address,
+            user_wallet_address,
             tokens,
             referral_fee_info,
             chain_id: params.chain_id,
