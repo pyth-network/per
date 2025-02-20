@@ -405,9 +405,6 @@ impl Service<ChainTypeSvm> {
         // here optimize_bids is used to batch the bid simulation
         if !bids.is_empty() {
             bids_filtered = auction_service
-                .config
-                .chain_config
-                .simulator
                 .optimize_bids(&bids)
                 .await
                 .map(|x| x.value)
