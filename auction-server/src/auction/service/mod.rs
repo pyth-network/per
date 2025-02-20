@@ -229,7 +229,7 @@ impl ChainTrait for Svm {
 
 pub struct ServiceInner<T: ChainTrait> {
     opportunity_service: Arc<opportunity_service::Service<T::OpportunityServiceType>>,
-    config:              Config<T::ConfigType>,
+    pub config:          Config<T::ConfigType>,
     repo:                Arc<Repository<T>>,
     task_tracker:        TaskTracker,
     event_sender:        broadcast::Sender<UpdateEvent>,

@@ -1374,10 +1374,10 @@ impl Verification<Svm> for Service<Svm> {
             }
         };
         let bid_chain_data = entities::BidChainDataSvm {
-            permission_account: bid_data.permission_account,
-            router: bid_data.router,
-            bid_payment_instruction_type,
-            transaction: transaction.clone(),
+            permission_account:           bid_data.permission_account,
+            router:                       bid_data.router,
+            bid_payment_instruction_type: bid_payment_instruction_type.clone(),
+            transaction:                  transaction.clone(),
         };
         let permission_key = bid_chain_data.get_permission_key();
         tracing::Span::current().record("permission_key", bid_data.permission_account.to_string());
@@ -1385,7 +1385,10 @@ impl Verification<Svm> for Service<Svm> {
             .await?;
         self.verify_signatures(&bid, &bid_chain_data, &bid_data.submit_type)
             .await?;
-        self.simulate_bid(&bid).await?;
+        // we handle simulating swap bids separately, in the get_quote function
+        if bid_payment_instruction_type == BidPaymentInstructionType::SubmitBid {
+            self.simulate_bid(&bid).await?;
+        }
 
         // Check if the bid is not duplicate
         let pending_bids = self
