@@ -402,7 +402,8 @@ impl Service<ChainTypeSvm> {
             }
         }
         let mut bids_filtered: Vec<Bid<Svm>> = Vec::new();
-        // here optimize_bids is used to batch the bid simulation
+        // here optimize_bids is used to batch the bid simulation.
+        // the first bid in the returned vector is the best bid that passes simulation.
         if !bids.is_empty() {
             bids_filtered = auction_service
                 .optimize_bids(&bids)

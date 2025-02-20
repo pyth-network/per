@@ -15,12 +15,12 @@ impl Service<Svm> {
     /// considering the current state of the chain and the pending transactions.
     /// Right now, for simplicity, the method assume the bids are sorted, and tries to submit them in order
     /// and only return the ones that are successfully submitted.
-    pub async fn optimize_bids(&self, bids: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
+    pub async fn optimize_bids(&self, bids_sorted: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
         let simulator = &self.config.chain_config.simulator;
         let pending_txs = simulator.fetch_pending_and_remove_old_txs().await;
         let txs_to_fetch = pending_txs
             .iter()
-            .chain(bids.iter().map(|bid| &bid.chain_data.transaction))
+            .chain(bids_sorted.iter().map(|bid| &bid.chain_data.transaction))
             .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context =
@@ -31,7 +31,7 @@ impl Service<Svm> {
             let _ = svm.send_transaction(tx);
         });
         let mut res = vec![];
-        for bid in bids {
+        for bid in bids_sorted {
             if svm
                 .send_transaction(bid.chain_data.transaction.clone())
                 .is_ok()
