@@ -386,18 +386,18 @@ export type QuoteRequest = {
    */
   specifiedTokenAmount: SpecifiedTokenAmount;
   /**
-   * @description The user wallet account
+   * @description The user wallet account. If not provided, queries for an indicative price.
    * @example 11111111111111111111111111111111
    */
-  userWallet: PublicKey;
+  userWallet?: PublicKey;
 };
 
 export type QuoteResponse = {
   chainId: ChainId;
-  expirationTime: Date;
+  expirationTime?: Date;
   inputToken: TokenAmountSvm;
   outputToken: TokenAmountSvm;
-  transaction: VersionedTransaction;
+  transaction?: VersionedTransaction;
   referenceId: string;
 };
 

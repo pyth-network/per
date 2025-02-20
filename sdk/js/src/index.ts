@@ -516,7 +516,9 @@ export class Client {
           }
         : null,
       specified_token_amount: quoteRequest.specifiedTokenAmount,
-      user_wallet_address: quoteRequest.userWallet.toBase58(),
+      user_wallet_address: quoteRequest.userWallet
+        ? quoteRequest.userWallet.toBase58()
+        : null,
       version: "v1" as const,
     };
     // TODO: we may want to wrap all the GET/POST calls in a try/catch block to handle errors
@@ -753,7 +755,9 @@ export class Client {
   ): QuoteResponse {
     return {
       chainId: quoteResponse.chain_id,
-      expirationTime: new Date(quoteResponse.expiration_time * 1000),
+      expirationTime: quoteResponse.expiration_time
+        ? new Date(quoteResponse.expiration_time * 1000)
+        : undefined,
       inputToken: {
         token: new PublicKey(quoteResponse.input_token.token),
         amount: BigInt(quoteResponse.input_token.amount),
@@ -762,9 +766,11 @@ export class Client {
         token: new PublicKey(quoteResponse.output_token.token),
         amount: BigInt(quoteResponse.output_token.amount),
       },
-      transaction: VersionedTransaction.deserialize(
-        new Uint8Array(base64.decode(quoteResponse.transaction)),
-      ),
+      transaction: quoteResponse.transaction
+        ? VersionedTransaction.deserialize(
+            new Uint8Array(base64.decode(quoteResponse.transaction)),
+          )
+        : undefined,
       referenceId: quoteResponse.reference_id,
     };
   }
