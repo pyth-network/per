@@ -15,6 +15,7 @@ impl Service<Svm> {
     /// considering the current state of the chain and the pending transactions.
     /// Right now, for simplicity, the method assume the bids are sorted, and tries to submit them in order
     /// and only return the ones that are successfully submitted.
+    #[tracing::instrument(skip_all)]
     pub async fn optimize_bids(&self, bids_sorted: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
         let simulator = &self.config.chain_config.simulator;
         let pending_txs = simulator.fetch_pending_and_remove_old_txs().await;
