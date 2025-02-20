@@ -9,6 +9,7 @@ use {
         auction::{
             entities::{
                 Auction,
+                Bid,
                 BidPaymentInstructionType,
                 BidStatus,
                 BidStatusAuction,
@@ -22,7 +23,10 @@ use {
                 Service as AuctionService,
             },
         },
-        kernel::entities::PermissionKeySvm,
+        kernel::entities::{
+            PermissionKeySvm,
+            Svm,
+        },
         opportunity::{
             entities::{
                 self,
@@ -386,15 +390,6 @@ impl Service<ChainTypeSvm> {
         ];
         metrics::counter!("get_quote_total_bids", &labels).increment(1);
 
-        if bids.is_empty() {
-            tracing::warn!(opportunity = ?opportunity, "No bids found for quote opportunity");
-
-            // Remove opportunity to prevent further bids
-            // The handle auction loop will take care of the bids that were submitted late
-            self.remove_quote_opportunity(opportunity.clone()).await;
-            return Err(RestError::QuoteNotFound);
-        }
-
         // Find winner bid:
         match input.quote_create.tokens {
             entities::QuoteTokens::UserTokenSpecified { .. } => {
@@ -406,7 +401,30 @@ impl Service<ChainTypeSvm> {
                 bids.sort_by(|a, b| a.amount.cmp(&b.amount));
             }
         }
-        let winner_bid = bids.first().expect("failed to get first bid");
+        let mut bids_filtered: Vec<Bid<Svm>> = Vec::new();
+        // here optimize_bids is used to batch the bid simulation.
+        // the first bid in the returned vector is the best bid that passes simulation.
+        if !bids.is_empty() {
+            bids_filtered = auction_service
+                .optimize_bids(&bids)
+                .await
+                .map(|x| x.value)
+                .map_err(|e| {
+                    tracing::error!("Failed to simulate swap bids: {:?}", e);
+                    RestError::TemporarilyUnavailable
+                })?;
+        }
+
+        if bids_filtered.is_empty() {
+            tracing::warn!(opportunity = ?opportunity, "No bids found for quote opportunity");
+
+            // Remove opportunity to prevent further bids
+            // The handle auction loop will take care of the bids that were submitted late
+            self.remove_quote_opportunity(opportunity.clone()).await;
+            return Err(RestError::QuoteNotFound);
+        }
+
+        let winner_bid = bids_filtered.first().expect("failed to get first bid");
 
         let swap_instruction = auction_service
             .extract_express_relay_instruction(

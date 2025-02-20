@@ -409,9 +409,6 @@ impl AuctionManager<Svm> for Service<Svm> {
         let mut bids = auction.bids.clone();
         bids.sort_by(|a, b| b.amount.cmp(&a.amount));
         return Ok(self
-            .config
-            .chain_config
-            .simulator
             .optimize_bids(&bids)
             .await
             .map(|x| x.value)
