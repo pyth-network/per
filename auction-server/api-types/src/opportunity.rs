@@ -524,7 +524,7 @@ pub struct OpportunityBidEvm {
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteCreateV1SvmParams {
-    /// The user wallet address which requested the quote from the wallet. If not provided, an indicative quote without a transaction will be returned.
+    /// The user wallet address which requested the quote from the wallet. If not provided, an indicative price without a transaction will be returned.
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = Option<String>)]
     #[serde_as(as = "Option<DisplayFromStr>")]
     pub user_wallet_address:    Option<Pubkey>,
@@ -601,7 +601,7 @@ impl QuoteCreate {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteV1Svm {
-    /// The transaction for the quote to be executed on chain which is valid until the expiration time. If not provided, the quote is only an indicative price.
+    /// The transaction for the quote to be executed on chain which is valid until the expiration time. Not provided if the quote to return is only an indicative price.
     #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = Option<String>)]
     #[serde(with = "crate::serde::nullable_transaction_svm")]
     pub transaction:     Option<VersionedTransaction>,

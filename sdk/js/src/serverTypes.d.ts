@@ -831,7 +831,7 @@ export interface components {
         ]
       >;
       /**
-       * @description The user wallet address which requested the quote from the wallet. If not provided, an indicative quote without a transaction will be returned.
+       * @description The user wallet address which requested the quote from the wallet. If not provided, an indicative price without a transaction will be returned.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       user_wallet_address?: string | null;
@@ -913,7 +913,7 @@ export interface components {
       /** @description The token and amount of the referral fee paid to the party that routed the swap request to Express Relay. */
       referrer_fee: components["schemas"]["TokenAmountSvm"];
       /**
-       * @description The transaction for the quote to be executed on chain which is valid until the expiration time. If not provided, the quote is only an indicative price.
+       * @description The transaction for the quote to be executed on chain which is valid until the expiration time. Not provided if the quote to return is only an indicative price.
        * @example SGVsbG8sIFdvcmxkIQ==
        */
       transaction?: string | null;
