@@ -11,9 +11,11 @@ impl<T: ChainTrait> Repository<T> {
         &self,
         auction_id: entities::AuctionId,
     ) -> Option<entities::Auction<T>> {
-        self.get_in_memory_auctions()
+        self.in_memory_store
+            .auctions
+            .read()
             .await
-            .into_iter()
-            .find(|auction| auction.id == auction_id)
+            .get(&auction_id)
+            .cloned()
     }
 }

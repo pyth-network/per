@@ -67,7 +67,7 @@ pub struct ChainStoreEvm {}
 #[derive(Debug)]
 pub struct InMemoryStore<T: ChainTrait> {
     pub pending_bids: RwLock<HashMap<entities::PermissionKey<T>, Vec<entities::Bid<T>>>>,
-    pub auctions:     RwLock<Vec<entities::Auction<T>>>,
+    pub auctions:     RwLock<HashMap<entities::AuctionId, entities::Auction<T>>>,
 
     pub auction_lock: Mutex<HashMap<entities::PermissionKey<T>, entities::AuctionLock>>,
     pub bid_lock:     Mutex<HashMap<entities::BidId, entities::BidLock>>,
@@ -79,7 +79,7 @@ impl<T: ChainTrait> Default for InMemoryStore<T> {
     fn default() -> Self {
         Self {
             pending_bids: RwLock::new(HashMap::new()),
-            auctions:     RwLock::new(Vec::new()),
+            auctions:     RwLock::new(HashMap::new()),
             auction_lock: Mutex::new(HashMap::new()),
             bid_lock:     Mutex::new(HashMap::new()),
             chain_store:  T::ChainStore::default(),

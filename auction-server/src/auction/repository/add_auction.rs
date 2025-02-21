@@ -15,6 +15,15 @@ use {
 };
 
 impl<T: ChainTrait> Repository<T> {
+    #[tracing::instrument(skip_all)]
+    async fn add_in_memory_auction(&self, auction: entities::Auction<T>) {
+        self.in_memory_store
+            .auctions
+            .write()
+            .await
+            .insert(auction.id, auction);
+    }
+
     #[tracing::instrument(skip_all, name = "add_auction_repo", fields(auction_id))]
     pub async fn add_auction(
         &self,
@@ -37,11 +46,7 @@ impl<T: ChainTrait> Repository<T> {
 
         self.remove_in_memory_pending_bids(auction.bids.as_slice())
             .await;
-        self.in_memory_store
-            .auctions
-            .write()
-            .await
-            .push(auction.clone());
+        self.add_in_memory_auction(auction.clone()).await;
         Ok(auction)
     }
 }
