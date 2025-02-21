@@ -256,9 +256,13 @@ impl Service<ChainTypeSvm> {
                 },
             },
         };
+        let user_wallet_address = match quote_create.user_wallet_address {
+            Some(address) => address,
+            None => INDICATIVE_PRICE_TAKER,
+        };
         let permission_account = get_quote_virtual_permission_account(
             &tokens_for_permission,
-            &quote_create.user_wallet_address,
+            &user_wallet_address,
             &router_token_account,
             referral_fee_info.referral_fee_bps,
         );
@@ -283,7 +287,7 @@ impl Service<ChainTypeSvm> {
         let program_opportunity = match program {
             ProgramSvm::Swap => {
                 entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
-                    user_wallet_address: quote_create.user_wallet_address,
+                    user_wallet_address,
                     fee_token,
                     referral_fee_bps: referral_fee_info.referral_fee_bps,
                     platform_fee_bps: metadata.swap_platform_fee_bps,
@@ -403,14 +407,11 @@ impl Service<ChainTypeSvm> {
             }
         }
 
-        let indicative_price_request =
-            input.quote_create.user_wallet_address == INDICATIVE_PRICE_TAKER;
-
         let mut bids_filtered: Vec<Bid<Svm>> = Vec::new();
         // here optimize_bids is used to batch the bid simulation.
         // the first bid in the returned vector is the best bid that passes simulation.
         if !bids.is_empty() {
-            if indicative_price_request {
+            if input.quote_create.user_wallet_address.is_none() {
                 // TODO: we may want to filter out bids by simulation later, but for now we just take the best bid as an indicative price
                 bids_filtered = bids.clone();
             } else {
@@ -545,13 +546,12 @@ impl Service<ChainTypeSvm> {
             ),
         };
 
-        let transaction = match indicative_price_request {
-            true => None,
-            false => Some(winner_bid.chain_data.transaction.clone()),
-        };
-        let expiration_time = match indicative_price_request {
-            true => None,
-            false => Some(deadline),
+        let (transaction, expiration_time) = match input.quote_create.user_wallet_address {
+            None => (None, None),
+            Some(_) => (
+                Some(winner_bid.chain_data.transaction.clone()),
+                Some(deadline),
+            ),
         };
 
         Ok(entities::Quote {

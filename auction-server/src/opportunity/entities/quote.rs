@@ -1,9 +1,6 @@
 use {
     super::token_amount_svm::TokenAmountSvm,
-    crate::{
-        kernel::entities::ChainId,
-        opportunity::api::INDICATIVE_PRICE_TAKER,
-    },
+    crate::kernel::entities::ChainId,
     express_relay_api_types::{
         bid::BidId,
         opportunity as api,
@@ -39,7 +36,7 @@ pub struct ReferralFeeInfo {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuoteCreate {
-    pub user_wallet_address: Pubkey,
+    pub user_wallet_address: Option<Pubkey>,
     pub tokens:              QuoteTokens,
     pub referral_fee_info:   Option<ReferralFeeInfo>,
     pub chain_id:            ChainId,
@@ -124,13 +121,8 @@ impl From<api::QuoteCreate> for QuoteCreate {
 
         let referral_fee_info = params.referral_fee_info.map(Into::into);
 
-        let user_wallet_address = match params.user_wallet_address {
-            Some(user_wallet_address) => user_wallet_address,
-            None => INDICATIVE_PRICE_TAKER,
-        };
-
         Self {
-            user_wallet_address,
+            user_wallet_address: params.user_wallet_address,
             tokens,
             referral_fee_info,
             chain_id: params.chain_id,
