@@ -22,7 +22,7 @@ impl<T: ChainTrait> Repository<T> {
     ) {
         if let Some(auction_id) = new_status.get_auction_id() {
             let mut write_guard = self.in_memory_store.auctions.write().await;
-            if let Some(auction) = write_guard.iter_mut().find(|a| a.id == auction_id) {
+            if let Some(auction) = write_guard.get_mut(&auction_id) {
                 let bid_index = auction.bids.iter().position(|b| b.id == bid.id);
                 if let Some(index) = bid_index {
                     auction.bids[index].status = new_status;
