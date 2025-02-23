@@ -28,6 +28,7 @@ use {
             Svm,
         },
         opportunity::{
+            api::INDICATIVE_PRICE_TAKER,
             entities::{
                 self,
                 TokenAmountSvm,
@@ -255,9 +256,13 @@ impl Service<ChainTypeSvm> {
                 },
             },
         };
+        let user_wallet_address = match quote_create.user_wallet_address {
+            Some(address) => address,
+            None => INDICATIVE_PRICE_TAKER,
+        };
         let permission_account = get_quote_virtual_permission_account(
             &tokens_for_permission,
-            &quote_create.user_wallet_address,
+            &user_wallet_address,
             &router_token_account,
             referral_fee_info.referral_fee_bps,
         );
@@ -282,7 +287,7 @@ impl Service<ChainTypeSvm> {
         let program_opportunity = match program {
             ProgramSvm::Swap => {
                 entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
-                    user_wallet_address: quote_create.user_wallet_address,
+                    user_wallet_address,
                     fee_token,
                     referral_fee_bps: referral_fee_info.referral_fee_bps,
                     platform_fee_bps: metadata.swap_platform_fee_bps,
@@ -401,18 +406,24 @@ impl Service<ChainTypeSvm> {
                 bids.sort_by(|a, b| a.amount.cmp(&b.amount));
             }
         }
+
         let mut bids_filtered: Vec<Bid<Svm>> = Vec::new();
         // here optimize_bids is used to batch the bid simulation.
         // the first bid in the returned vector is the best bid that passes simulation.
         if !bids.is_empty() {
-            bids_filtered = auction_service
-                .optimize_bids(&bids)
-                .await
-                .map(|x| x.value)
-                .map_err(|e| {
-                    tracing::error!("Failed to simulate swap bids: {:?}", e);
-                    RestError::TemporarilyUnavailable
-                })?;
+            if input.quote_create.user_wallet_address.is_none() {
+                // TODO: we may want to filter out bids by simulation later, but for now we just take the best bid as an indicative price
+                bids_filtered = bids.clone();
+            } else {
+                bids_filtered = auction_service
+                    .optimize_bids(&bids)
+                    .await
+                    .map(|x| x.value)
+                    .map_err(|e| {
+                        tracing::error!("Failed to simulate swap bids: {:?}", e);
+                        RestError::TemporarilyUnavailable
+                    })?;
+            }
         }
 
         if bids_filtered.is_empty() {
@@ -535,28 +546,36 @@ impl Service<ChainTypeSvm> {
             ),
         };
 
+        let (transaction, expiration_time) = match input.quote_create.user_wallet_address {
+            None => (None, None),
+            Some(_) => (
+                Some(winner_bid.chain_data.transaction.clone()),
+                Some(deadline),
+            ),
+        };
+
         Ok(entities::Quote {
-            transaction:     winner_bid.chain_data.transaction.clone(),
-            expiration_time: deadline,
+            transaction,
+            expiration_time,
 
             searcher_token: TokenAmountSvm {
                 token:  searcher_token.token,
                 amount: searcher_amount,
             },
-            user_token:     TokenAmountSvm {
+            user_token: TokenAmountSvm {
                 token:  user_token.token,
                 amount: user_amount,
             },
-            referrer_fee:   TokenAmountSvm {
+            referrer_fee: TokenAmountSvm {
                 token:  fee_token,
                 amount: fees.relayer_fee,
             },
-            platform_fee:   TokenAmountSvm {
+            platform_fee: TokenAmountSvm {
                 token:  fee_token,
                 amount: fees.express_relay_fee + fees.relayer_fee,
             },
-            chain_id:       input.quote_create.chain_id,
-            reference_id:   auction.id,
+            chain_id: input.quote_create.chain_id,
+            reference_id: auction.id,
         })
     }
 }

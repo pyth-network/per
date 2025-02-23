@@ -17,9 +17,9 @@ use {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Quote {
-    pub transaction:     VersionedTransaction,
+    pub transaction:     Option<VersionedTransaction>,
     // The expiration time of the quote (in seconds since the Unix epoch)
-    pub expiration_time: i64,
+    pub expiration_time: Option<i64>,
     pub searcher_token:  TokenAmountSvm,
     pub user_token:      TokenAmountSvm,
     pub referrer_fee:    TokenAmountSvm,
@@ -36,7 +36,7 @@ pub struct ReferralFeeInfo {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuoteCreate {
-    pub user_wallet_address: Pubkey,
+    pub user_wallet_address: Option<Pubkey>,
     pub tokens:              QuoteTokens,
     pub referral_fee_info:   Option<ReferralFeeInfo>,
     pub chain_id:            ChainId,

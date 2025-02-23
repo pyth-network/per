@@ -50,12 +50,19 @@ export default function Home() {
           {
             inputAmount: quote.inputToken.amount.toString(),
             outputAmount: quote.outputToken.amount.toString(),
-            expirationTime: quote.expirationTime.toISOString(),
+            expirationTime: quote.expirationTime
+              ? quote.expirationTime.toISOString()
+              : "undefined",
           },
           null,
           2,
         ),
       ]);
+      if (!quote.transaction) {
+        throw new Error(
+          "Transaction not found due to wallet not being connected",
+        );
+      }
       const signedTransaction = await signTransaction(quote.transaction);
       // Do not call getAccountKeys() in case there is an unresolved lookup table
       const accountPosition =

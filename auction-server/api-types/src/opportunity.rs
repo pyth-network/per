@@ -524,10 +524,10 @@ pub struct OpportunityBidEvm {
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteCreateV1SvmParams {
-    /// The user wallet address which requested the quote from the wallet.
-    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
-    #[serde_as(as = "DisplayFromStr")]
-    pub user_wallet_address:    Pubkey,
+    /// The user wallet address which requested the quote from the wallet. If not provided, an indicative price without a transaction will be returned.
+    #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = Option<String>)]
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    pub user_wallet_address:    Option<Pubkey>,
     /// The mint address of the token the user will provide in the swap.
     #[schema(example = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
@@ -591,15 +591,23 @@ pub enum QuoteCreate {
     Svm(QuoteCreateSvm),
 }
 
+impl QuoteCreate {
+    pub fn get_user_wallet_address(&self) -> Option<Pubkey> {
+        match self {
+            QuoteCreate::Svm(QuoteCreateSvm::V1(params)) => params.user_wallet_address,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 pub struct QuoteV1Svm {
-    /// The transaction for the quote to be executed on chain which is valid until the expiration time.
-    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = String)]
-    #[serde(with = "crate::serde::transaction_svm")]
-    pub transaction:     VersionedTransaction,
-    /// The expiration time of the quote (in seconds since the Unix epoch).
-    #[schema(example = 1_700_000_000_000_000i64, value_type = i64)]
-    pub expiration_time: i64,
+    /// The transaction for the quote to be executed on chain which is valid until the expiration time. Not provided if the quote to return is only an indicative price.
+    #[schema(example = "SGVsbG8sIFdvcmxkIQ==", value_type = Option<String>)]
+    #[serde(with = "crate::serde::nullable_transaction_svm")]
+    pub transaction:     Option<VersionedTransaction>,
+    /// The expiration time of the quote (in seconds since the Unix epoch). Not provided if indicative price.
+    #[schema(example = 1_700_000_000_000_000i64, value_type = Option<i64>)]
+    pub expiration_time: Option<i64>,
     /// The token and amount that the user needs to send to fulfill the swap transaction.
     pub input_token:     TokenAmountSvm,
     /// The token and amount that the user will receive when the swap is complete.
