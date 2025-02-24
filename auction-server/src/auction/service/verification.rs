@@ -1237,6 +1237,33 @@ impl Service<Svm> {
         }
     }
 
+    pub async fn simulate_swap_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
+        let tx = bid.chain_data.get_transaction();
+        let simulation = self
+            .config
+            .chain_config
+            .client
+            .simulate_transaction(tx)
+            .await;
+        match simulation {
+            Ok(simulation) => {
+                if simulation.value.err.is_some() {
+                    let msgs = simulation.value.logs.unwrap_or_default();
+                    Err(RestError::SimulationError {
+                        result: Default::default(),
+                        reason: msgs.join("\n"),
+                    })
+                } else {
+                    Ok(())
+                }
+            }
+            Err(e) => {
+                tracing::error!("Error while simulating swap bid: {:?}", e);
+                Err(RestError::TemporarilyUnavailable)
+            }
+        }
+    }
+
     pub async fn simulate_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
         const RETRY_LIMIT: usize = 5;
         const RETRY_DELAY: Duration = Duration::from_millis(100);
@@ -1385,9 +1412,9 @@ impl Verification<Svm> for Service<Svm> {
             .await?;
         self.verify_signatures(&bid, &bid_chain_data, &bid_data.submit_type)
             .await?;
-        // we handle simulating swap bids separately, in the get_quote function
-        if bid_payment_instruction_type == BidPaymentInstructionType::SubmitBid {
-            self.simulate_bid(&bid).await?;
+        match bid_payment_instruction_type {
+            BidPaymentInstructionType::Swap => self.simulate_swap_bid(&bid).await?,
+            BidPaymentInstructionType::SubmitBid => self.simulate_bid(&bid).await?,
         }
 
         // Check if the bid is not duplicate
