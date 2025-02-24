@@ -206,7 +206,7 @@ impl Simulator {
 
     async fn resolve_lookup_addresses(
         &self,
-        transactions: &[VersionedTransaction],
+        transactions: &[&VersionedTransaction],
     ) -> client_error::Result<Vec<Pubkey>> {
         let mut lookup_table_keys: HashMap<Pubkey, HashSet<u8>> = HashMap::default();
         transactions
@@ -255,7 +255,7 @@ impl Simulator {
     #[tracing::instrument(skip_all, fields(slot))]
     pub async fn fetch_tx_accounts_via_rpc(
         &self,
-        transactions: &[VersionedTransaction],
+        transactions: &[&VersionedTransaction],
     ) -> RpcResult<AccountsConfig> {
         let mut keys = transactions
             .iter()
@@ -387,7 +387,6 @@ impl Simulator {
         let txs_to_fetch = pending_txs
             .iter()
             .chain(std::iter::once(transaction))
-            .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context = self.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
         let mut svm = self.setup_lite_svm(&accounts_config_with_context);

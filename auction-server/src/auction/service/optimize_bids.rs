@@ -22,7 +22,6 @@ impl Service<Svm> {
         let txs_to_fetch = pending_txs
             .iter()
             .chain(bids_sorted.iter().map(|bid| &bid.chain_data.transaction))
-            .cloned()
             .collect::<Vec<_>>();
         let accounts_config_with_context =
             simulator.fetch_tx_accounts_via_rpc(&txs_to_fetch).await?;
