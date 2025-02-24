@@ -1414,7 +1414,7 @@ impl Verification<Svm> for Service<Svm> {
             .await?;
         match bid_payment_instruction_type {
             BidPaymentInstructionType::Swap => self.simulate_swap_bid(&bid).await?,
-            _ => self.simulate_bid(&bid).await?,
+            BidPaymentInstructionType::SubmitBid => self.simulate_bid(&bid).await?,
         }
 
         // Check if the bid is not duplicate
