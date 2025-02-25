@@ -111,7 +111,7 @@ where
     }
 }
 
-async fn metric_collector<F, Fut>(name: String, update_metrics: F)
+async fn metric_collector<F, Fut>(service_name: String, update_metrics: F)
 where
     F: Fn() -> Fut,
     Fut: Future<Output = ()> + Send + 'static,
@@ -126,7 +126,7 @@ where
             _ = exit_check_interval.tick() => {}
         }
     }
-    tracing::info!("Shutting down metric collector {}...", name);
+    tracing::info!("Shutting down metric collector for {}...", service_name);
 }
 
 async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, models::Profile> {
@@ -553,7 +553,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             let metric_loops = auction_services.iter().filter_map(|(chain_id, service)| {
                 if let auction_service::ServiceEnum::Svm(service) = service {
                     Some(metric_collector(
-                        format!("metric loop for chain {}", chain_id.clone()),
+                        format!("auction service for chain {}", chain_id.clone()),
                         || {
                             let service = service.clone();
                             async move { service.update_metrics().await }
@@ -587,7 +587,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         fault_tolerant_handler("svm verification loop".to_string(), || {
             run_verification_loop(store_new.opportunity_service_svm.clone())
         }),
-        metric_collector("opportunity store metrics".to_string(), || {
+        metric_collector("opportunity store".to_string(), || {
             let service = store_new.opportunity_service_svm.clone();
             async move { service.update_metrics().await }
         }),
