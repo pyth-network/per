@@ -9,7 +9,10 @@ use {
             self,
             BidStatus,
         },
-        service::update_bid_status::UpdateBidStatusInput,
+        service::{
+            add_auction::AddAuctionInput,
+            update_bid_status::UpdateBidStatusInput,
+        },
     },
     futures::future::join_all,
     time::OffsetDateTime,
@@ -61,7 +64,14 @@ where
             return Ok(());
         }
 
-        let auction = self.repo.add_auction(auction).await?;
+        let auction = self
+            .add_auction(AddAuctionInput { auction })
+            .await
+            .map_err(|err| {
+                tracing::error!(error = ?err, "Failed to add auction");
+                anyhow::anyhow!("Failed to add auction")
+            })?;
+
         tracing::info!(
             auction = ?auction,
             chain_id = self.config.chain_id,
@@ -73,7 +83,7 @@ where
             .await
         {
             Ok(tx_hash) => {
-                tracing::debug!("Submitted transaction: {:?}", tx_hash);
+                tracing::debug!(tx_hash = ?tx_hash, "Submitted transaction");
                 let auction = self.repo.submit_auction(auction, tx_hash.clone()).await?;
                 join_all(auction.bids.iter().map(|bid| {
                     self.update_bid_status(UpdateBidStatusInput {
@@ -92,7 +102,7 @@ where
                 .await;
             }
             Err(err) => {
-                tracing::error!("Transaction failed to submit: {:?}", err);
+                tracing::error!(error = ?err, "Transaction failed to submit");
             }
         };
         Ok(())

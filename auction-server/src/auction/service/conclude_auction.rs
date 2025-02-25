@@ -75,7 +75,7 @@ where
 
     /// Concludes an auction by getting the auction transaction status from the chain.
     #[tracing::instrument(skip_all)]
-    pub async fn conclude_auction(&self, input: ConcludeAuctionInput<T>) -> anyhow::Result<()> {
+    async fn conclude_auction(&self, input: ConcludeAuctionInput<T>) -> anyhow::Result<()> {
         let auction = input.auction;
         tracing::info!(chain_id = self.config.chain_id, auction_id = ?auction.id, permission_key = auction.permission_key.to_string(), "Concluding auction");
         if let Some(tx_hash) = auction.tx_hash.clone() {
@@ -120,5 +120,22 @@ where
             .await?;
         }
         Ok(())
+    }
+
+    pub async fn conclude_auction_loop(&self, auction_id: entities::AuctionId) {
+        let mut interval = Self::get_conclusion_interval();
+        loop {
+            interval.tick().await;
+            if let Some(auction) = self.repo.get_in_memory_auction_by_id(auction_id).await {
+                if let Err(e) = self
+                    .conclude_auction(ConcludeAuctionInput { auction })
+                    .await
+                {
+                    tracing::error!(error = ?e, "Failed to conclude auction");
+                }
+            } else {
+                break;
+            }
+        }
     }
 }

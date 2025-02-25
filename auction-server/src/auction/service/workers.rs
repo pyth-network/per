@@ -72,15 +72,6 @@ where
                             service.handle_auctions().await;
                         }
                     });
-
-                    if Service::is_ready_to_conclude(trigger) {
-                        self.task_tracker.spawn({
-                            let service = self.clone();
-                            async move {
-                                service.conclude_auctions().await;
-                            }
-                        });
-                    }
                 }
                 _ = exit_check_interval.tick() => {}
             }
