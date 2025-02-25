@@ -24,6 +24,7 @@ impl<T: ChainTrait> Repository<T> {
             .insert(auction.id, auction);
     }
 
+    // NOTE: Do not call this function directly. Instead call `add_auction` from `Service`.
     #[tracing::instrument(skip_all, name = "add_auction_repo", fields(auction_id))]
     pub async fn add_auction(
         &self,

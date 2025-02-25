@@ -70,7 +70,6 @@ pub mod add_auction;
 pub mod auction_manager;
 pub mod cancel_bid;
 pub mod conclude_auction;
-pub mod conclude_auctions;
 pub mod get_auction_by_id;
 pub mod get_bid;
 pub mod get_bids;

@@ -101,8 +101,6 @@ pub trait AuctionManager<T: ChainTrait> {
     async fn get_ws_client(&self) -> Result<Self::WsClient>;
     /// Get the trigger stream for the ws client to subscribe to new triggers.
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>>;
-    /// Check if the auction is ready to be concluded based on the trigger.
-    fn is_ready_to_conclude(trigger: Self::Trigger) -> bool;
 
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
     async fn get_winner_bids(
@@ -140,6 +138,9 @@ pub trait AuctionManager<T: ChainTrait> {
 
     /// Check if the auction is expired based on the creation time of the auction.
     fn is_auction_expired(auction: &entities::Auction<T>) -> bool;
+
+    /// Get the conclusion interval for the auction.
+    fn get_conclusion_interval() -> Interval;
 }
 
 // While we are submitting bids together, increasing this number will have the following effects:
@@ -167,10 +168,6 @@ impl AuctionManager<Evm> for Service<Evm> {
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>> {
         let block_stream = client.subscribe_blocks().await?;
         Ok(block_stream)
-    }
-
-    fn is_ready_to_conclude(_trigger: Self::Trigger) -> bool {
-        true
     }
 
     #[tracing::instrument(skip_all, fields(auction_id, bid_ids, simulation_result))]
@@ -331,11 +328,12 @@ impl AuctionManager<Evm> for Service<Evm> {
     fn is_auction_expired(auction: &entities::Auction<Evm>) -> bool {
         auction.creation_time + BID_MAXIMUM_LIFE_TIME_EVM < OffsetDateTime::now_utc()
     }
+
+    fn get_conclusion_interval() -> Interval {
+        interval(Duration::from_secs(4))
+    }
 }
 
-/// This is to make sure we are not missing any transaction.
-/// We run this once every minute (150 * 0.4).
-const CONCLUSION_TRIGGER_INTERVAL_SVM: u64 = 150;
 const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(120);
 const TRIGGER_DURATION_SVM: Duration = Duration::from_millis(400);
 
@@ -389,11 +387,6 @@ impl AuctionManager<Svm> for Service<Svm> {
         _client: &'a Self::WsClient,
     ) -> Result<Self::TriggerStream<'a>> {
         Ok(TriggerStreamSvm::new(interval(TRIGGER_DURATION_SVM)))
-    }
-
-    fn is_ready_to_conclude(trigger: Self::Trigger) -> bool {
-        // To make sure we run it once at the beginning
-        trigger % CONCLUSION_TRIGGER_INTERVAL_SVM == 1
     }
 
     #[tracing::instrument(skip_all, fields(auction_id, bid_ids))]
@@ -604,6 +597,10 @@ impl AuctionManager<Svm> for Service<Svm> {
 
     fn is_auction_expired(auction: &entities::Auction<Svm>) -> bool {
         auction.creation_time + BID_MAXIMUM_LIFE_TIME_SVM * 2 < OffsetDateTime::now_utc()
+    }
+
+    fn get_conclusion_interval() -> Interval {
+        interval(Duration::from_secs(60))
     }
 }
 
