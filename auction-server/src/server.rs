@@ -111,6 +111,24 @@ where
     }
 }
 
+async fn metric_collector<F, Fut>(name: String, update_metrics: F)
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+    let mut metric_interval = tokio::time::interval(METRIC_COLLECTION_INTERVAL);
+    while !SHOULD_EXIT.load(Ordering::Acquire) {
+        tokio::select! {
+            _ = metric_interval.tick() => {
+                update_metrics().await;
+            }
+            _ = exit_check_interval.tick() => {}
+        }
+    }
+    tracing::info!("Shutting down metric collector {}...", name);
+}
+
 async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, models::Profile> {
     let access_tokens = sqlx::query_as!(
         models::AccessToken,
@@ -534,11 +552,11 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         async {
             let metric_loops = auction_services.iter().filter_map(|(chain_id, service)| {
                 if let auction_service::ServiceEnum::Svm(service) = service {
-                    Some(fault_tolerant_handler(
+                    Some(metric_collector(
                         format!("metric loop for chain {}", chain_id.clone()),
                         || {
                             let service = service.clone();
-                            async move { service.run_metric_collector_loop().await }
+                            async move { service.update_metrics().await }
                         },
                     ))
                 } else {
@@ -568,6 +586,10 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         }),
         fault_tolerant_handler("svm verification loop".to_string(), || {
             run_verification_loop(store_new.opportunity_service_svm.clone())
+        }),
+        metric_collector("opportunity store metrics".to_string(), || {
+            let service = store_new.opportunity_service_svm.clone();
+            async move { service.update_metrics().await }
         }),
         fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),
@@ -615,3 +637,4 @@ fn setup_chain_store_svm(config_map: ConfigMap) -> Result<HashMap<ChainId, Chain
 // we don't rely on global state for anything else.
 pub(crate) static SHOULD_EXIT: AtomicBool = AtomicBool::new(false);
 pub const EXIT_CHECK_INTERVAL: Duration = Duration::from_secs(1);
+const METRIC_COLLECTION_INTERVAL: Duration = Duration::from_secs(1);

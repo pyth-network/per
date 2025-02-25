@@ -272,6 +272,9 @@ impl<T: ChainType, U: OpportunityTable<T::InMemoryStore>> Service<T, U> {
             config,
         }
     }
+    pub async fn update_metrics(&self) {
+        self.repo.update_metrics().await;
+    }
 }
 
 #[cfg(test)]

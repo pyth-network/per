@@ -1,6 +1,7 @@
 use {
     super::entities,
     crate::kernel::db::DB,
+    axum_prometheus::metrics,
     ethers::types::Address,
     express_relay::state::ExpressRelayMetadata,
     solana_sdk::pubkey::Pubkey,
@@ -114,5 +115,10 @@ impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
             in_memory_store: T::new(),
             db,
         }
+    }
+    pub(super) async fn update_metrics(&self) {
+        let store = &self.in_memory_store;
+        metrics::gauge!("in_memory_opportunities")
+            .set(store.opportunities.read().await.len() as f64);
     }
 }

@@ -102,7 +102,7 @@ impl<T: ChainTrait> Repository<T> {
             chain_id,
         }
     }
-    pub async fn update_metrics(&self) {
+    pub(super) async fn update_metrics(&self) {
         let label = [("chain_id", self.chain_id.to_string())];
         let store = &self.in_memory_store;
         metrics::gauge!("in_memory_auctions", &label).set(store.auctions.read().await.len() as f64);
