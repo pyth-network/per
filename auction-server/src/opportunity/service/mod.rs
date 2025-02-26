@@ -46,6 +46,7 @@ use {
         sync::Arc,
     },
     tokio::sync::RwLock,
+    tokio_util::task::TaskTracker,
 };
 
 pub mod add_opportunity;
@@ -258,18 +259,25 @@ impl ChainType for ChainTypeSvm {
 
 // TODO maybe just create a service per chain_id?
 pub struct Service<T: ChainType, U: OpportunityTable<T::InMemoryStore> = DB> {
-    store:  Arc<Store>,
+    store:        Arc<Store>,
     // TODO maybe after adding state for opportunity we can remove the arc
-    repo:   Arc<Repository<T::InMemoryStore, U>>,
-    config: HashMap<ChainId, T::Config>,
+    repo:         Arc<Repository<T::InMemoryStore, U>>,
+    config:       HashMap<ChainId, T::Config>,
+    task_tracker: TaskTracker,
 }
 
 impl<T: ChainType, U: OpportunityTable<T::InMemoryStore>> Service<T, U> {
-    pub fn new(store: Arc<Store>, db: U, config: HashMap<ChainId, T::Config>) -> Self {
+    pub fn new(
+        store: Arc<Store>,
+        task_tracker: TaskTracker,
+        db: U,
+        config: HashMap<ChainId, T::Config>,
+    ) -> Self {
         Self {
             store,
             repo: Arc::new(Repository::new(db)),
             config,
+            task_tracker,
         }
     }
     pub async fn update_metrics(&self) {
@@ -333,6 +341,7 @@ pub mod tests {
 
             let service = Service::<ChainTypeSvm, MockOpportunityTable<InMemoryStoreSvm>>::new(
                 store.clone(),
+                TaskTracker::new(),
                 db,
                 chains_svm,
             );

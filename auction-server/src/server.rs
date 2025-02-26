@@ -331,6 +331,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         opportunity_service::ChainTypeEvm,
     >::new(
         store.clone(),
+        task_tracker.clone(),
         pool.clone(),
         config_opportunity_service_evm,
     ));
@@ -338,6 +339,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         opportunity_service::ChainTypeSvm,
     >::new(
         store.clone(),
+        task_tracker.clone(),
         pool.clone(),
         config_opportunity_service_svm,
     ));

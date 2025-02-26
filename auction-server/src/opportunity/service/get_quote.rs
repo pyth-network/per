@@ -10,13 +10,11 @@ use {
             entities::{
                 Auction,
                 BidPaymentInstructionType,
-                BidStatus,
                 BidStatusAuction,
             },
             service::{
                 add_auction::AddAuctionInput,
                 auction_manager::AuctionManager,
-                get_auction_by_id::GetAuctionByIdInput,
                 get_pending_bids::GetLiveBidsInput,
                 update_bid_status::UpdateBidStatusInput,
                 Service as AuctionService,
@@ -41,7 +39,6 @@ use {
     },
     axum_prometheus::metrics,
     express_relay_api_types::opportunity::ProgramSvm,
-    futures::future::join_all,
     solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
     std::{
@@ -446,10 +443,39 @@ impl Service<ChainTypeSvm> {
         self.remove_quote_opportunity(opportunity.clone()).await;
 
         let signature = winner_bid.chain_data.transaction.signatures[0];
-        join_all(auction.bids.iter().map(|bid| {
-            auction_service.update_bid_status(UpdateBidStatusInput {
+        // Update the status of all bids in the auction except the winner bid
+        let auction_bids = auction.bids.clone();
+        auction_bids.into_iter().for_each(|bid| {
+            if bid.id != winner_bid.id {
+                self.task_tracker.spawn({
+                    let (auction_service, winner_bid) =
+                        (auction_service.clone(), winner_bid.clone());
+                    async move {
+                        auction_service
+                            .update_bid_status(UpdateBidStatusInput {
+                                new_status: AuctionService::get_new_status(
+                                    &bid,
+                                    &vec![winner_bid],
+                                    BidStatusAuction {
+                                        tx_hash: signature,
+                                        id:      auction.id,
+                                    },
+                                    false,
+                                ),
+                                bid,
+                            })
+                            .await
+                    }
+                });
+            }
+        });
+
+        // We check if the winner bid status is successfully updated.
+        // This is important for the submit_quote function to work correctly.
+        if !auction_service
+            .update_bid_status(UpdateBidStatusInput {
                 new_status: AuctionService::get_new_status(
-                    bid,
+                    winner_bid,
                     &vec![winner_bid.clone()],
                     BidStatusAuction {
                         tx_hash: signature,
@@ -457,36 +483,14 @@ impl Service<ChainTypeSvm> {
                     },
                     false,
                 ),
-                bid:        bid.clone(),
+                bid:        winner_bid.clone(),
             })
-        }))
-        .await;
-
-        // We check if the winner bid status is successfully updated.
-        // This is important for the submit_quote function to work correctly.
-        match auction_service
-            .get_auction_by_id(GetAuctionByIdInput {
-                auction_id: auction.id,
-            })
-            .await
+            .await?
         {
-            Some(auction) => match auction.bids.iter().find(|bid| bid.id == winner_bid.id) {
-                Some(bid) => {
-                    if !bid.status.is_awaiting_signature() {
-                        tracing::error!(winner_bid = ?winner_bid, opportunity = ?opportunity, "Failed to update winner bid status");
-                        return Err(RestError::TemporarilyUnavailable);
-                    }
-                }
-                None => {
-                    tracing::error!(auction = ?auction, winner_bid = ?winner_bid, "Failed to winner bid from auction");
-                    return Err(RestError::TemporarilyUnavailable);
-                }
-            },
-            None => {
-                tracing::error!(auction = ?auction, opportunity = ?opportunity, winner_bid = ?winner_bid, "Failed to get auction by id");
-                return Err(RestError::TemporarilyUnavailable);
-            }
-        };
+            // This can only happen if the bid is already updated by another auction for another get_quote request
+            // TODO We should handle this case more gracefully
+            return Err(RestError::DuplicateOpportunity);
+        }
 
         let metadata = self
             .get_express_relay_metadata(GetExpressRelayMetadata {

@@ -20,7 +20,10 @@ pub struct UpdateBidStatusInput<T: ChainTrait> {
 
 impl<T: ChainTrait> Service<T> {
     #[tracing::instrument(skip_all, fields(bid_id, status))]
-    pub async fn update_bid_status(&self, input: UpdateBidStatusInput<T>) -> Result<(), RestError> {
+    pub async fn update_bid_status(
+        &self,
+        input: UpdateBidStatusInput<T>,
+    ) -> Result<bool, RestError> {
         tracing::Span::current().record("bid_id", input.bid.id.to_string());
         tracing::Span::current().record("status", format!("{:?}", input.new_status));
 
@@ -51,6 +54,6 @@ impl<T: ChainTrait> Service<T> {
                 tracing::error!(error = e.to_string(), "Failed to send update event");
             }
         }
-        Ok(())
+        Ok(is_updated)
     }
 }
