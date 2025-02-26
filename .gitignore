@@ -27,4 +27,4 @@ node_modules
 tsconfig.tsbuildinfo
 
 # Ignore stored SVM keypairs
-keypairs/*.json
+**/keypairs/*.json
