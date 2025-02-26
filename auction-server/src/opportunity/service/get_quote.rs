@@ -489,7 +489,7 @@ impl Service<ChainTypeSvm> {
         {
             // This can only happen if the bid is already updated by another auction for another get_quote request
             // TODO We should handle this case more gracefully
-            return Err(RestError::QuoteNotFound);
+            return Err(RestError::DuplicateOpportunity);
         }
 
         let metadata = self

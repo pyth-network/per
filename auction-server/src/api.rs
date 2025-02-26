@@ -113,6 +113,8 @@ pub enum RestError {
     ProfileNotFound,
     /// The quote was not found.
     QuoteNotFound,
+    /// Duplicate opportunity.
+    DuplicateOpportunity,
 }
 
 impl RestError {
@@ -158,6 +160,10 @@ impl RestError {
             RestError::QuoteNotFound => (
                 StatusCode::NOT_FOUND,
                 "No quote is currently available".to_string(),
+            ),
+            RestError::DuplicateOpportunity => (
+                StatusCode::BAD_REQUEST,
+                "Same opportunity is submitted recently".to_string(),
             ),
         }
     }

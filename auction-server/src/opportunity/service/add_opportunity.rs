@@ -69,9 +69,7 @@ where
         let action = self.assess_action(&opportunity_create).await;
         if let OpportunityAction::Ignore = action {
             tracing::info!("Submitted opportunity ignored: {:?}", opportunity_create);
-            return Err(RestError::BadParameters(
-                "Same opportunity is submitted recently".to_string(),
-            ));
+            return Err(RestError::DuplicateOpportunity);
         }
 
         self.verify_opportunity(VerifyOpportunityInput {
