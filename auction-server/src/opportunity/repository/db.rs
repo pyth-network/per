@@ -176,14 +176,15 @@ impl<T: InMemoryStore> OpportunityTable<T> for DB {
         sqlx::query!("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE removal_time IS NULL AND chain_type = $3",
             PrimitiveDateTime::new(now.date(), now.time()),
             OpportunityRemovalReason::ServerRestart as _,
-            chain_type as _)
-            .execute(self)
-            .instrument(info_span!("db_clear_opportunities_upon_restart"))
-            .await
-            .map_err(|e| {
+            chain_type as _
+        )
+        .execute(self)
+        .instrument(info_span!("db_clear_opportunities_upon_restart"))
+        .await
+        .map_err(|e| {
             tracing::error!("DB: Failed to clear opportunities upon restart: {}", e);
             RestError::TemporarilyUnavailable
-            })?;
+        })?;
         Ok(())
     }
 }
