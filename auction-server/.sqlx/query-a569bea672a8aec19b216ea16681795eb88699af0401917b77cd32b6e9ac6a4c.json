@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE removal_time IS NULL AND chain_type = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamp",
+        {
+          "Custom": {
+            "name": "opportunity_removal_reason",
+            "kind": {
+              "Enum": [
+                "expired",
+                "invalid",
+                "server_restart"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "chain_type",
+            "kind": {
+              "Enum": [
+                "evm",
+                "svm"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a569bea672a8aec19b216ea16681795eb88699af0401917b77cd32b6e9ac6a4c"
+}

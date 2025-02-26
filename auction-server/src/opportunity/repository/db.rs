@@ -50,6 +50,7 @@ pub trait OpportunityTable<T: InMemoryStore> {
         opportunity: &T::Opportunity,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()>;
+    async fn clear_opportunities_upon_restart(&self) -> Result<(), RestError>;
 }
 
 impl<T: InMemoryStore> OpportunityTable<T> for DB {
@@ -165,6 +166,24 @@ impl<T: InMemoryStore> OpportunityTable<T> for DB {
             .execute(self)
             .instrument(info_span!("db_remove_opportunity"))
             .await?;
+        Ok(())
+    }
+
+    async fn clear_opportunities_upon_restart(&self) -> Result<(), RestError> {
+        let now = OffsetDateTime::now_utc();
+        let chain_type =
+            <<T::Opportunity as entities::Opportunity>::ModelMetadata>::get_chain_type();
+        sqlx::query!("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE removal_time IS NULL AND chain_type = $3",
+            PrimitiveDateTime::new(now.date(), now.time()),
+            OpportunityRemovalReason::ServerRestart as _,
+            chain_type as _)
+            .execute(self)
+            .instrument(info_span!("db_clear_opportunities_upon_restart"))
+            .await
+            .map_err(|e| {
+            tracing::error!("DB: Failed to clear opportunities upon restart: {}", e);
+            RestError::TemporarilyUnavailable
+            })?;
         Ok(())
     }
 }

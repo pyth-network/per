@@ -462,9 +462,14 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let store_new = Arc::new(StoreNew::new(
         store.clone(),
         opportunity_service_evm,
-        opportunity_service_svm,
+        opportunity_service_svm.clone(),
         auction_services.clone(),
     ));
+    // For now, we only want to clear the SVM opportunities in the db on restart.
+    opportunity_service_svm
+        .clear_opportunities_upon_restart()
+        .await
+        .map_err(|e| anyhow!("Failed to clear opportunities on restart: {:?}", e))?;
 
     tokio::join!(
         async {

@@ -35,10 +35,11 @@ use {
 };
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
-#[sqlx(type_name = "opportunity_removal_reason", rename_all = "lowercase")]
+#[sqlx(type_name = "opportunity_removal_reason", rename_all = "snake_case")]
 pub enum OpportunityRemovalReason {
     Expired,
     Invalid,
+    ServerRestart,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
