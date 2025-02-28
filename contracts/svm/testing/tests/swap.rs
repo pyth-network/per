@@ -1295,7 +1295,6 @@ fn test_swap_insufficient_balance_searcher() {
     )
     .unwrap_err();
 
-    println!("result: {:?}", result);
     assert_custom_error(
         result.err,
         4,

@@ -102,6 +102,7 @@ impl<'info> Swap<'info> {
             args.amount_searcher,
             ErrorCode::SearcherInsufficientBalance
         );
+        // the user balance check should be the last check we do before the transfer CPIs
         require_gt!(
             self.user_ata_mint_user.amount,
             args.amount_user,
