@@ -1386,7 +1386,7 @@ fn test_swap_exact_balance_user() {
     // user token fee
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_searcher:  token_searcher.get_amount_with_decimals(10.),
         amount_user:      token_user.get_amount_with_decimals(10.), // exact balance of user
         referral_fee_bps: 1500,
         fee_token:        FeeToken::User,
