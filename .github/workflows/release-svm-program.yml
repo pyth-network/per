@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - contracts/svm/**
 
 jobs:
   build:
@@ -23,8 +25,7 @@ jobs:
         run: sha256sum ./target/deploy/express_relay.so
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        working-directory: ./contracts/svm
         with:
           name: express_relay.so
-          path: ./target/deploy/express_relay.so
+          path: ./contracts/svm/target/deploy/express_relay.so
           retention-days: 90
