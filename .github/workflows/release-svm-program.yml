@@ -1,7 +1,11 @@
 name: Release SVM Program
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - contracts/svm/**
 
 jobs:
   build:
@@ -15,3 +19,13 @@ jobs:
       - name: Build
         working-directory: ./contracts/svm
         run: solana-verify build
+      - name: Print Hash
+        working-directory: ./contracts/svm
+        run: sha256sum ./target/deploy/express_relay.so
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        working-directory: ./contracts/svm
+        with:
+          name: express_relay.so
+          path: ./target/deploy/express_relay.so
+          retention-days: 90
