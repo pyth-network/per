@@ -171,11 +171,16 @@ pub mod express_relay {
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
         check_deadline(data.deadline)?;
 
-        let PostFeeSwapArgs {
-            amount_searcher_after_fees,
-            amount_user_after_fees,
-        } = ctx.accounts.transfer_swap_fees(&data)?;
+        let (
+            transfer_swap_fees,
+            PostFeeSwapArgs {
+                amount_searcher_after_fees,
+                amount_user_after_fees,
+            },
+        ) = ctx.accounts.compute_swap_fees(&data)?;
 
+        ctx.accounts.check_enough_balances(&data)?;
+        ctx.accounts.transfer_swap_fees_cpi(&transfer_swap_fees)?;
         // Transfer tokens
         transfer_token_if_needed(
             &ctx.accounts.searcher_ta_mint_searcher,
@@ -398,61 +403,61 @@ pub struct Swap<'info> {
 
     // Searcher accounts
     #[account(
-        mut,
-        token::mint = mint_searcher,
-        token::authority = searcher,
-        token::token_program = token_program_searcher
-    )]
+            mut,
+            token::mint = mint_searcher,
+            token::authority = searcher,
+            token::token_program = token_program_searcher
+        )]
     pub searcher_ta_mint_searcher: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        mut,
-        token::mint = mint_user,
-        token::authority = searcher,
-        token::token_program = token_program_user
-    )]
+            mut,
+            token::mint = mint_user,
+            token::authority = searcher,
+            token::token_program = token_program_user
+        )]
     pub searcher_ta_mint_user: Box<InterfaceAccount<'info, TokenAccount>>,
 
     // User accounts
     #[account(
-        mut,
-        associated_token::mint = mint_searcher,
-        associated_token::authority = user,
-        associated_token::token_program = token_program_searcher
-    )]
+            mut,
+            associated_token::mint = mint_searcher,
+            associated_token::authority = user,
+            associated_token::token_program = token_program_searcher
+        )]
     pub user_ata_mint_searcher: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        mut,
-        associated_token::mint = mint_user,
-        associated_token::authority = user,
-        associated_token::token_program = token_program_user
-    )]
+            mut,
+            associated_token::mint = mint_user,
+            associated_token::authority = user,
+            associated_token::token_program = token_program_user
+        )]
     pub user_ata_mint_user: Box<InterfaceAccount<'info, TokenAccount>>,
 
     // Fee receivers
     /// Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee
     #[account(
-        mut,
-        token::mint = mint_fee,
-        token::token_program = token_program_fee
-    )]
+            mut,
+            token::mint = mint_fee,
+            token::token_program = token_program_fee
+        )]
     pub router_fee_receiver_ta: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        mut,
-        associated_token::mint = mint_fee,
-        associated_token::authority = express_relay_metadata.fee_receiver_relayer,
-        associated_token::token_program = token_program_fee
-    )]
+            mut,
+            associated_token::mint = mint_fee,
+            associated_token::authority = express_relay_metadata.fee_receiver_relayer,
+            associated_token::token_program = token_program_fee
+        )]
     pub relayer_fee_receiver_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        mut,
-        associated_token::mint = mint_fee,
-        associated_token::authority = express_relay_metadata.key(),
-        associated_token::token_program = token_program_fee
-    )]
+            mut,
+            associated_token::mint = mint_fee,
+            associated_token::authority = express_relay_metadata.key(),
+            associated_token::token_program = token_program_fee
+        )]
     pub express_relay_fee_receiver_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
     // Mints
@@ -463,9 +468,9 @@ pub struct Swap<'info> {
     pub mint_user: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
-        mint::token_program = token_program_fee,
-        constraint = mint_fee.key() == if data.fee_token == FeeToken::Searcher { mint_searcher.key() } else { mint_user.key() }
-    )]
+            mint::token_program = token_program_fee,
+            constraint = mint_fee.key() == if data.fee_token == FeeToken::Searcher { mint_searcher.key() } else { mint_user.key() }
+        )]
     pub mint_fee: Box<InterfaceAccount<'info, Mint>>,
 
     // Token programs
@@ -473,8 +478,8 @@ pub struct Swap<'info> {
     pub token_program_user:     Interface<'info, TokenInterface>,
 
     #[account(
-        constraint = token_program_fee.key() == if data.fee_token == FeeToken::Searcher { token_program_searcher.key() } else { token_program_user.key() }
-    )]
+            constraint = token_program_fee.key() == if data.fee_token == FeeToken::Searcher { token_program_searcher.key() } else { token_program_user.key() }
+        )]
     pub token_program_fee: Interface<'info, TokenInterface>,
 
     /// Express relay configuration

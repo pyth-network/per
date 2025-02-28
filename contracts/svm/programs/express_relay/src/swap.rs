@@ -22,8 +22,11 @@ pub struct PostFeeSwapArgs {
 
 
 impl<'info> Swap<'info> {
-    pub fn transfer_swap_fees(&self, args: &SwapArgs) -> Result<PostFeeSwapArgs> {
-        let (post_fee_swap_args, transfer_swap_fees) = match args.fee_token {
+    pub fn compute_swap_fees<'a>(
+        &'a self,
+        args: &SwapArgs,
+    ) -> Result<(TransferSwapFeeArgs<'info, 'a>, PostFeeSwapArgs)> {
+        match args.fee_token {
             FeeToken::Searcher => {
                 let SwapFeesWithRemainingAmount {
                     fees,
@@ -31,17 +34,17 @@ impl<'info> Swap<'info> {
                 } = self
                     .express_relay_metadata
                     .compute_swap_fees(args.referral_fee_bps, args.amount_searcher)?;
-                (
-                    PostFeeSwapArgs {
-                        amount_searcher_after_fees: remaining_amount,
-                        amount_user_after_fees:     args.amount_user,
-                    },
+                Ok((
                     TransferSwapFeeArgs {
                         fees,
                         from: &self.searcher_ta_mint_searcher,
                         authority: &self.searcher,
                     },
-                )
+                    PostFeeSwapArgs {
+                        amount_searcher_after_fees: remaining_amount,
+                        amount_user_after_fees:     args.amount_user,
+                    },
+                ))
             }
             FeeToken::User => {
                 let SwapFeesWithRemainingAmount {
@@ -50,26 +53,22 @@ impl<'info> Swap<'info> {
                 } = self
                     .express_relay_metadata
                     .compute_swap_fees(args.referral_fee_bps, args.amount_user)?;
-                (
-                    PostFeeSwapArgs {
-                        amount_searcher_after_fees: args.amount_searcher,
-                        amount_user_after_fees:     remaining_amount,
-                    },
+                Ok((
                     TransferSwapFeeArgs {
                         fees,
                         from: &self.user_ata_mint_user,
                         authority: &self.user,
                     },
-                )
+                    PostFeeSwapArgs {
+                        amount_searcher_after_fees: args.amount_searcher,
+                        amount_user_after_fees:     remaining_amount,
+                    },
+                ))
             }
-        };
-
-        self.transfer_swap_fees_cpi(&transfer_swap_fees)?;
-
-        Ok(post_fee_swap_args)
+        }
     }
 
-    fn transfer_swap_fees_cpi<'a>(&self, args: &TransferSwapFeeArgs<'info, 'a>) -> Result<()> {
+    pub fn transfer_swap_fees_cpi<'a>(&self, args: &TransferSwapFeeArgs<'info, 'a>) -> Result<()> {
         self.transfer_swap_fee_cpi(args.fees.router_fee, &self.router_fee_receiver_ta, args)?;
         self.transfer_swap_fee_cpi(args.fees.relayer_fee, &self.relayer_fee_receiver_ata, args)?;
         self.transfer_swap_fee_cpi(
@@ -94,6 +93,20 @@ impl<'info> Swap<'info> {
             &self.mint_fee,
             fee,
         )?;
+        Ok(())
+    }
+
+    pub fn check_enough_balances(&self, args: &SwapArgs) -> Result<()> {
+        require_gt!(
+            self.searcher_ta_mint_searcher.amount,
+            args.amount_searcher,
+            ErrorCode::SearcherInsufficientBalance
+        );
+        require_gt!(
+            self.user_ata_mint_user.amount,
+            args.amount_user,
+            ErrorCode::UserInsufficientBalance
+        );
         Ok(())
     }
 }
