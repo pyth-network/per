@@ -1249,7 +1249,7 @@ fn test_swap_insufficient_balance_searcher() {
         searcher,
         token_searcher,
         token_user,
-        router_ta_mint_user,
+        router_ta_mint_searcher,
         relayer_signer,
         ..
     } = setup_swap(SwapSetupParams {
@@ -1262,7 +1262,7 @@ fn test_swap_insufficient_balance_searcher() {
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
-    // user token fee
+    // searcher token fee
     let swap_args = SwapArgs {
         deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
         amount_searcher:  token_searcher.get_amount_with_decimals(11.), // <--- more than searcher has
@@ -1276,7 +1276,7 @@ fn test_swap_insufficient_balance_searcher() {
         user.pubkey(),
         None,
         None,
-        router_ta_mint_user,
+        router_ta_mint_searcher,
         express_relay_metadata.fee_receiver_relayer,
         token_searcher.mint,
         token_user.mint,
@@ -1294,6 +1294,8 @@ fn test_swap_insufficient_balance_searcher() {
         &[&searcher, &user, &relayer_signer],
     )
     .unwrap_err();
+
+    println!("result: {:?}", result);
     assert_custom_error(
         result.err,
         4,
