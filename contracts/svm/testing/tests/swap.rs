@@ -1361,4 +1361,59 @@ fn test_swap_insufficient_balance_both_user_and_searcher() {
         InstructionError::Custom(ErrorCode::SearcherInsufficientBalance.into()),
     );
 }
+
+#[test]
+fn test_swap_exact_balance_user() {
+    let SwapSetupResult {
+        mut svm,
+        user,
+        searcher,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
+        relayer_signer,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    // user token fee
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
+        amount_user:      token_user.get_amount_with_decimals(10.), // exact balance of user
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::User,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        user.pubkey(),
+        None,
+        None,
+        router_ta_mint_user,
+        express_relay_metadata.fee_receiver_relayer,
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
+        swap_args,
+        None,
+        None,
+        relayer_signer.pubkey(),
+    );
+    submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap();
+}
 // TODO Add test for having no relayer signer

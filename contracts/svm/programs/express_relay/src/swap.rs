@@ -97,13 +97,13 @@ impl<'info> Swap<'info> {
     }
 
     pub fn check_enough_balances(&self, args: &SwapArgs) -> Result<()> {
-        require_gt!(
+        require_gte!(
             self.searcher_ta_mint_searcher.amount,
             args.amount_searcher,
             ErrorCode::SearcherInsufficientBalance
         );
-        // the user balance check should be the last check we do before the transfer CPIs
-        require_gt!(
+        // We want this check to be the last
+        require_gte!(
             self.user_ata_mint_user.amount,
             args.amount_user,
             ErrorCode::UserInsufficientBalance
