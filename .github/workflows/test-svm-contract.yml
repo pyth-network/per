@@ -2,8 +2,6 @@ name: Test SVM contracts
 
 on:
   pull_request:
-    paths:
-      - contracts/svm/**
   push:
     branches:
       - main
