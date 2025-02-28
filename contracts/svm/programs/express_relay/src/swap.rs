@@ -102,10 +102,6 @@ impl<'info> Swap<'info> {
             args.amount_searcher,
             ErrorCode::SearcherInsufficientBalance
         );
-        // We want the program to never fail after the check below.
-        // This guarantees auction server than when a simulated transaction fails with this error,
-        // the transaction was correct and executable other than the user having insufficient balance
-        // For example, if the simulation failed with this error below, we know that the searcher had enough funds.
         require_gte!(
             self.user_ata_mint_user.amount,
             args.amount_user,
