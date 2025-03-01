@@ -1,12 +1,18 @@
+#[cfg(test)]
+use crate::opportunity::service::MockService as Service;
+#[cfg(not(test))]
+use crate::opportunity::service::Service;
 use {
     super::service::{
         verification::Verification,
         ChainType,
-        Service,
     },
-    crate::server::{
-        EXIT_CHECK_INTERVAL,
-        SHOULD_EXIT,
+    crate::{
+        kernel::db::DB,
+        server::{
+            EXIT_CHECK_INTERVAL,
+            SHOULD_EXIT,
+        },
     },
     std::{
         sync::{
@@ -17,9 +23,9 @@ use {
     },
 };
 
-pub async fn run_verification_loop<T: ChainType>(service: Arc<Service<T>>) -> anyhow::Result<()>
+pub async fn run_verification_loop<T: ChainType>(service: Arc<Service<T, DB>>) -> anyhow::Result<()>
 where
-    Service<T>: Verification<T>,
+    Service<T, DB>: Verification<T>,
 {
     tracing::info!(
         chain_type = ?T::get_type(),

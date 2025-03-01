@@ -1,3 +1,7 @@
+#[cfg(test)]
+use crate::opportunity::service::MockService as OpportunityService;
+#[cfg(not(test))]
+use crate::opportunity::service::Service as OpportunityService;
 use {
     super::{
         entities,
@@ -228,7 +232,7 @@ impl ChainTrait for Svm {
 }
 
 pub struct ServiceInner<T: ChainTrait> {
-    opportunity_service: Arc<opportunity_service::Service<T::OpportunityServiceType>>,
+    opportunity_service: Arc<OpportunityService<T::OpportunityServiceType, DB>>,
     config:              Config<T::ConfigType>,
     repo:                Arc<Repository<T>>,
     task_tracker:        TaskTracker,
@@ -248,7 +252,7 @@ impl<T: ChainTrait> Service<T> {
     pub fn new(
         db: DB,
         config: Config<T::ConfigType>,
-        opportunity_service: Arc<opportunity_service::Service<T::OpportunityServiceType>>,
+        opportunity_service: Arc<OpportunityService<T::OpportunityServiceType, DB>>,
         task_tracker: TaskTracker,
         event_sender: broadcast::Sender<UpdateEvent>,
     ) -> Self {
@@ -266,4 +270,109 @@ impl<T: ChainTrait> Service<T> {
 pub enum ServiceEnum {
     Evm(Service<Evm>),
     Svm(Service<Svm>),
+}
+
+
+#[cfg(test)]
+pub mod tests {
+    use {
+        super::{
+            simulator::Simulator,
+            Config,
+            ConfigSvm,
+            ExpressRelaySvm,
+            Service,
+            ServiceInner,
+            SubmitBidInstructionAccountPositions,
+            SwapInstructionAccountPositions,
+        },
+        crate::{
+            auction::repository::Repository,
+            kernel::{
+                db::DB,
+                entities::{
+                    ChainId,
+                    Svm,
+                },
+                traced_sender_svm::{
+                    tests::MockRpcClient,
+                    TracedSenderSvm,
+                },
+            },
+            opportunity::service::{
+                ChainTypeSvm,
+                MockService as MockOpportunityService,
+            },
+        },
+        solana_client::{
+            nonblocking::rpc_client::RpcClient,
+            rpc_client::RpcClientConfig,
+        },
+        solana_sdk::{
+            pubkey::Pubkey,
+            signature::Keypair,
+        },
+        std::sync::Arc,
+        tokio::sync::broadcast,
+        tokio_util::task::TaskTracker,
+    };
+
+    impl Service<Svm> {
+        pub fn new_with_mocks_svm(
+            opportunity_service: MockOpportunityService<ChainTypeSvm, DB>,
+            chain_id: ChainId,
+            rpc_client: MockRpcClient,
+            broadcaster_client: MockRpcClient,
+        ) -> Self {
+            Service::<Svm>(Arc::new(ServiceInner::<Svm> {
+                opportunity_service: Arc::new(opportunity_service),
+                config:              Config {
+                    chain_id:     chain_id.clone(),
+                    chain_config: ConfigSvm {
+                        client:                        RpcClient::new_sender(
+                            rpc_client,
+                            RpcClientConfig::default(),
+                        ),
+                        express_relay:                 ExpressRelaySvm {
+                            program_id:                               Pubkey::new_unique(),
+                            relayer:                                  Keypair::new(),
+                            submit_bid_instruction_account_positions:
+                                SubmitBidInstructionAccountPositions {
+                                    permission_account: 0,
+                                    router_account:     1,
+                                },
+                            swap_instruction_account_positions:
+                                SwapInstructionAccountPositions {
+                                    router_token_account:   0,
+                                    user_wallet_account:    1,
+                                    mint_searcher_account:  2,
+                                    mint_user_account:      3,
+                                    token_program_searcher: 4,
+                                    token_program_user:     5,
+                                },
+                        },
+                        simulator:                     Simulator::new(TracedSenderSvm::new_client(
+                            chain_id.clone(),
+                            "https://test",
+                            2,
+                            RpcClientConfig::default(),
+                        )),
+                        ws_address:                    "ws://test".to_string(),
+                        tx_broadcaster_clients:        vec![RpcClient::new_sender(
+                            broadcaster_client,
+                            RpcClientConfig::default(),
+                        )],
+                        log_sender:                    broadcast::channel(1).0,
+                        prioritization_fee_percentile: None,
+                    },
+                },
+                repo:                Arc::new(Repository::new(
+                    DB::connect_lazy("https://test").unwrap(),
+                    chain_id.clone(),
+                )),
+                task_tracker:        TaskTracker::new(),
+                event_sender:        broadcast::channel(1).0,
+            }))
+        }
+    }
 }

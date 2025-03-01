@@ -1,3 +1,7 @@
+#[cfg(test)]
+use crate::opportunity::service::MockService as OpportunityService;
+#[cfg(not(test))]
+use crate::opportunity::service::Service as OpportunityService;
 use {
     crate::{
         api::{
@@ -17,7 +21,10 @@ use {
             MigrateOptions,
             RunOptions,
         },
-        kernel::traced_sender_svm::TracedSenderSvm,
+        kernel::{
+            db::DB,
+            traced_sender_svm::TracedSenderSvm,
+        },
         models,
         opportunity::{
             service as opportunity_service,
@@ -327,16 +334,18 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         metrics_recorder: setup_metrics_recorder()?,
     });
 
-    let opportunity_service_evm = Arc::new(opportunity_service::Service::<
+    let opportunity_service_evm = Arc::new(OpportunityService::<
         opportunity_service::ChainTypeEvm,
+        DB,
     >::new(
         store.clone(),
         task_tracker.clone(),
         pool.clone(),
         config_opportunity_service_evm,
     ));
-    let opportunity_service_svm = Arc::new(opportunity_service::Service::<
+    let opportunity_service_svm = Arc::new(OpportunityService::<
         opportunity_service::ChainTypeSvm,
+        DB,
     >::new(
         store.clone(),
         task_tracker.clone(),

@@ -1,3 +1,7 @@
+#[cfg(test)]
+use crate::opportunity::service::MockService as OpportunityService;
+#[cfg(not(test))]
+use crate::opportunity::service::Service as OpportunityService;
 use {
     crate::{
         api::{
@@ -10,7 +14,10 @@ use {
             ConfigEvm,
             ConfigSvm,
         },
-        kernel::traced_client::TracedClient,
+        kernel::{
+            db::DB,
+            traced_client::TracedClient,
+        },
         models,
         opportunity::service as opportunity_service,
     },
@@ -136,10 +143,8 @@ pub struct Store {
 }
 
 pub struct StoreNew {
-    pub opportunity_service_evm:
-        Arc<opportunity_service::Service<opportunity_service::ChainTypeEvm>>,
-    pub opportunity_service_svm:
-        Arc<opportunity_service::Service<opportunity_service::ChainTypeSvm>>,
+    pub opportunity_service_evm: Arc<OpportunityService<opportunity_service::ChainTypeEvm, DB>>,
+    pub opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm, DB>>,
     pub store:                   Arc<Store>,
 
     auction_services: HashMap<ChainId, auction_service::ServiceEnum>,
@@ -148,12 +153,8 @@ pub struct StoreNew {
 impl StoreNew {
     pub fn new(
         store: Arc<Store>,
-        opportunity_service_evm: Arc<
-            opportunity_service::Service<opportunity_service::ChainTypeEvm>,
-        >,
-        opportunity_service_svm: Arc<
-            opportunity_service::Service<opportunity_service::ChainTypeSvm>,
-        >,
+        opportunity_service_evm: Arc<OpportunityService<opportunity_service::ChainTypeEvm, DB>>,
+        opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm, DB>>,
         auction_services: HashMap<ChainId, auction_service::ServiceEnum>,
     ) -> Self {
         Self {

@@ -1428,3 +1428,78 @@ impl Verification<Svm> for Service<Svm> {
         Ok((bid_chain_data, bid_data.amount))
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use {
+        crate::{
+            auction::{
+                entities::{
+                    BidChainDataCreateSvm,
+                    BidChainDataSwapCreateSvm,
+                    BidCreate,
+                },
+                service::verification::Verification,
+            },
+            kernel::{
+                db::DB,
+                entities::Svm,
+                traced_sender_svm::tests::MockRpcClient,
+            },
+            opportunity::service::{
+                ChainTypeSvm,
+                MockService,
+            },
+        },
+        solana_sdk::{
+            hash::Hash,
+            pubkey::Pubkey,
+            signature::Keypair,
+            system_transaction,
+        },
+        time::OffsetDateTime,
+        uuid::Uuid,
+    };
+
+    #[tokio::test]
+    async fn test_verify_bid() {
+        let chain_id = "solana".to_string();
+        let rpc_client = MockRpcClient::default();
+        let broadcaster_client = MockRpcClient::default();
+
+        let searcher = Keypair::new();
+        let user = Pubkey::new_unique();
+        let transaction = system_transaction::transfer(&searcher, &user, 10, Hash::default());
+
+        let mut opportunity_service = MockService::<ChainTypeSvm, DB>::default();
+        opportunity_service
+            .expect_get_live_opportunities()
+            .returning(|_| vec![]);
+        opportunity_service
+            .expect_get_live_opportunity_by_id()
+            .returning(|_| None);
+
+        let service = super::Service::new_with_mocks_svm(
+            opportunity_service,
+            chain_id.clone(),
+            rpc_client,
+            broadcaster_client,
+        );
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id,
+            initiation_time: OffsetDateTime::now_utc(),
+            profile: None,
+            chain_data: BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: Uuid::new_v4(),
+                transaction:    transaction.into(),
+            }),
+        };
+
+        service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await
+            .unwrap();
+    }
+}
