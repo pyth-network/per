@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::opportunity::service::MockService as OpportunityService;
+use crate::opportunity::service::tests::MockService as OpportunityService;
 #[cfg(not(test))]
 use crate::opportunity::service::Service as OpportunityService;
 use {
@@ -300,8 +300,8 @@ pub mod tests {
                 },
             },
             opportunity::service::{
+                tests::MockService as MockOpportunityService,
                 ChainTypeSvm,
-                MockService as MockOpportunityService,
             },
         },
         solana_client::{

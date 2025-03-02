@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::opportunity::service::MockService as Service;
+use crate::opportunity::service::tests::MockService as Service;
 #[cfg(not(test))]
 use crate::opportunity::service::Service;
 use {

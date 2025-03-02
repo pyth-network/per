@@ -1448,8 +1448,8 @@ mod tests {
                 traced_sender_svm::tests::MockRpcClient,
             },
             opportunity::service::{
+                tests::MockService,
                 ChainTypeSvm,
-                MockService,
             },
         },
         solana_sdk::{
