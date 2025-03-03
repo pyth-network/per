@@ -1,7 +1,5 @@
-#[cfg(test)]
-use crate::opportunity::service::tests::MockService as Service;
-#[cfg(not(test))]
-use crate::opportunity::service::Service;
+#[double]
+use super::service::Service;
 use {
     super::service::{
         verification::Verification,
@@ -14,6 +12,7 @@ use {
             SHOULD_EXIT,
         },
     },
+    mockall_double::double,
     std::{
         sync::{
             atomic::Ordering,

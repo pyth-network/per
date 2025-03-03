@@ -1,6 +1,4 @@
-#[cfg(test)]
-use crate::opportunity::service::tests::MockService as OpportunityService;
-#[cfg(not(test))]
+#[double]
 use crate::opportunity::service::Service as OpportunityService;
 use {
     crate::{
@@ -57,6 +55,7 @@ use {
         future::join_all,
         Future,
     },
+    mockall_double::double,
     solana_client::{
         nonblocking::rpc_client::RpcClient,
         rpc_client::RpcClientConfig,

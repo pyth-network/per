@@ -87,12 +87,12 @@ impl<T: ChainTrait> Default for InMemoryStore<T> {
 #[derive(Debug)]
 pub struct Repository<T: ChainTrait> {
     pub in_memory_store: InMemoryStore<T>,
-    pub db:              Box<dyn models::DBTrait<T>>,
+    pub db:              Box<dyn models::Database<T>>,
     pub chain_id:        ChainId,
 }
 
 impl<T: ChainTrait> Repository<T> {
-    pub fn new(db: impl models::DBTrait<T>, chain_id: ChainId) -> Self {
+    pub fn new(db: impl models::Database<T>, chain_id: ChainId) -> Self {
         Self {
             in_memory_store: InMemoryStore::default(),
             db: Box::new(db),

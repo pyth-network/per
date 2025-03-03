@@ -617,7 +617,7 @@ impl<T: ChainTrait + ModelTrait<T>> Bid<T> {
 
 #[cfg_attr(test, automock)]
 #[async_trait]
-pub trait DBTrait<T: ChainTrait>: Debug + Send + Sync + 'static {
+pub trait Database<T: ChainTrait>: Debug + Send + Sync + 'static {
     async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()>;
     async fn add_bid(&self, bid: &Bid<T>) -> Result<(), RestError>;
     async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()>;
@@ -647,7 +647,7 @@ pub trait DBTrait<T: ChainTrait>: Debug + Send + Sync + 'static {
 }
 
 #[async_trait]
-impl<T: ChainTrait> DBTrait<T> for DB {
+impl<T: ChainTrait> Database<T> for DB {
     async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()> {
         sqlx::query!(
             "INSERT INTO auction (id, creation_time, permission_key, chain_id, chain_type, bid_collection_time, tx_hash) VALUES ($1, $2, $3, $4, $5, $6, $7)",

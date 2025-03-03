@@ -1,6 +1,4 @@
-#[cfg(test)]
-use crate::opportunity::service::tests::MockService as OpportunityService;
-#[cfg(not(test))]
+#[double]
 use crate::opportunity::service::Service as OpportunityService;
 use {
     crate::{
@@ -33,6 +31,7 @@ use {
         providers::Provider,
         types::U256,
     },
+    mockall_double::double,
     rand::Rng,
     solana_client::rpc_response::{
         Response,

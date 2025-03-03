@@ -1439,7 +1439,7 @@ mod tests {
                     BidChainDataSwapCreateSvm,
                     BidCreate,
                 },
-                repository::MockDBTrait,
+                repository::MockDatabase,
                 service::verification::Verification,
             },
             kernel::{
@@ -1448,8 +1448,8 @@ mod tests {
                 traced_sender_svm::tests::MockRpcClient,
             },
             opportunity::service::{
-                tests::MockService,
                 ChainTypeSvm,
+                MockService,
             },
         },
         solana_sdk::{
@@ -1480,7 +1480,7 @@ mod tests {
             .expect_get_live_opportunity_by_id()
             .returning(|_| None);
 
-        let db = MockDBTrait::<Svm>::default();
+        let db = MockDatabase::<Svm>::default();
         let service = super::Service::new_with_mocks_svm(
             chain_id.clone(),
             db,

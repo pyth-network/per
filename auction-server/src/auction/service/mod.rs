@@ -1,6 +1,4 @@
-#[cfg(test)]
-use crate::opportunity::service::tests::MockService as OpportunityService;
-#[cfg(not(test))]
+#[double]
 use crate::opportunity::service::Service as OpportunityService;
 use {
     super::{
@@ -48,6 +46,7 @@ use {
         },
     },
     gas_oracle::EthProviderOracle,
+    mockall_double::double,
     solana_client::{
         nonblocking::rpc_client::RpcClient,
         rpc_response::{
@@ -288,7 +287,7 @@ pub mod tests {
         },
         crate::{
             auction::repository::{
-                DBTrait,
+                Database,
                 Repository,
             },
             kernel::{
@@ -303,8 +302,8 @@ pub mod tests {
                 },
             },
             opportunity::service::{
-                tests::MockService as MockOpportunityService,
                 ChainTypeSvm,
+                MockService as MockOpportunityService,
             },
         },
         solana_client::{
@@ -323,7 +322,7 @@ pub mod tests {
     impl Service<Svm> {
         pub fn new_with_mocks_svm(
             chain_id: ChainId,
-            db: impl DBTrait<Svm>,
+            db: impl Database<Svm>,
             opportunity_service: MockOpportunityService<ChainTypeSvm, DB>,
             rpc_client: MockRpcClient,
             broadcaster_client: MockRpcClient,
