@@ -1067,9 +1067,7 @@ impl Service<Svm> {
                         opportunity_id: bid_data.opportunity_id,
                     })
                     .await
-                    .ok_or(RestError::BadParameters(
-                        "No swap opportunity with the given id found".to_string(),
-                    ))?;
+                    .ok_or(RestError::SwapOpportunityNotFound)?;
                 self.validate_swap_transaction_instructions(
                     bid_chain_data_create_svm.get_transaction(),
                 )?;
@@ -1426,5 +1424,84 @@ impl Verification<Svm> for Service<Svm> {
         }
 
         Ok((bid_chain_data, bid_data.amount))
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use {
+        crate::{
+            api::RestError,
+            auction::{
+                entities::{
+                    BidChainDataCreateSvm,
+                    BidChainDataSwapCreateSvm,
+                    BidCreate,
+                },
+                repository::MockDatabase,
+                service::verification::Verification,
+            },
+            kernel::{
+                entities::Svm,
+                traced_sender_svm::tests::MockRpcClient,
+            },
+            opportunity::service::{
+                ChainTypeSvm,
+                MockService,
+            },
+        },
+        solana_sdk::{
+            hash::Hash,
+            pubkey::Pubkey,
+            signature::Keypair,
+            system_transaction,
+        },
+        time::OffsetDateTime,
+        uuid::Uuid,
+    };
+
+    #[tokio::test]
+    async fn test_verify_bid_when_opportunity_not_found() {
+        let chain_id = "solana".to_string();
+        let rpc_client = MockRpcClient::default();
+        let broadcaster_client = MockRpcClient::default();
+
+        let searcher = Keypair::new();
+        let user = Pubkey::new_unique();
+        let transaction = system_transaction::transfer(&searcher, &user, 10, Hash::default());
+
+        let mut opportunity_service = MockService::<ChainTypeSvm>::default();
+        opportunity_service
+            .expect_get_live_opportunities()
+            .returning(|_| vec![]);
+        opportunity_service
+            .expect_get_live_opportunity_by_id()
+            .returning(|_| None);
+
+        let db = MockDatabase::<Svm>::default();
+        let service = super::Service::new_with_mocks_svm(
+            chain_id.clone(),
+            db,
+            opportunity_service,
+            rpc_client,
+            broadcaster_client,
+        );
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id,
+            initiation_time: OffsetDateTime::now_utc(),
+            profile: None,
+            chain_data: BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: Uuid::new_v4(),
+                transaction:    transaction.into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+
+        assert_eq!(result.unwrap_err(), RestError::SwapOpportunityNotFound);
     }
 }

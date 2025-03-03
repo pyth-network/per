@@ -1,3 +1,5 @@
+#[double]
+use crate::opportunity::service::Service as OpportunityService;
 use {
     crate::{
         api::{
@@ -26,6 +28,7 @@ use {
         providers::Provider,
         types::U256,
     },
+    mockall_double::double,
     rand::Rng,
     solana_client::rpc_response::{
         Response,
@@ -137,10 +140,8 @@ pub struct Store {
 }
 
 pub struct StoreNew {
-    pub opportunity_service_evm:
-        Arc<opportunity_service::Service<opportunity_service::ChainTypeEvm>>,
-    pub opportunity_service_svm:
-        Arc<opportunity_service::Service<opportunity_service::ChainTypeSvm>>,
+    pub opportunity_service_evm: Arc<OpportunityService<opportunity_service::ChainTypeEvm>>,
+    pub opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm>>,
     pub store:                   Arc<Store>,
     pub task_tracker:            TaskTracker,
 
@@ -150,12 +151,8 @@ pub struct StoreNew {
 impl StoreNew {
     pub fn new(
         store: Arc<Store>,
-        opportunity_service_evm: Arc<
-            opportunity_service::Service<opportunity_service::ChainTypeEvm>,
-        >,
-        opportunity_service_svm: Arc<
-            opportunity_service::Service<opportunity_service::ChainTypeSvm>,
-        >,
+        opportunity_service_evm: Arc<OpportunityService<opportunity_service::ChainTypeEvm>>,
+        opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm>>,
         auction_services: HashMap<ChainId, auction_service::ServiceEnum>,
         task_tracker: TaskTracker,
     ) -> Self {

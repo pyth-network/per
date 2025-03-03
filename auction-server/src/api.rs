@@ -87,7 +87,7 @@ async fn root() -> String {
 pub mod profile;
 pub(crate) mod ws;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RestError {
     /// The request contained invalid parameters.
     BadParameters(String),
@@ -115,6 +115,8 @@ pub enum RestError {
     QuoteNotFound,
     /// Duplicate opportunity.
     DuplicateOpportunity,
+    /// Swap opportunity is not found.
+    SwapOpportunityNotFound,
 }
 
 impl RestError {
@@ -164,6 +166,10 @@ impl RestError {
             RestError::DuplicateOpportunity => (
                 StatusCode::BAD_REQUEST,
                 "Same opportunity is submitted recently".to_string(),
+            ),
+            RestError::SwapOpportunityNotFound => (
+                StatusCode::BAD_REQUEST,
+                "No swap opportunity with the given id found".to_string(),
             ),
         }
     }

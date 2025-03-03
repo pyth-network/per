@@ -1,17 +1,26 @@
+#[cfg(test)]
+use mockall::automock;
 use {
     super::entities::{
         self,
         BidChainData,
+        BidStatus as _,
     },
     crate::{
+        api::RestError,
         auction::service::ChainTrait,
-        kernel::entities::{
-            Evm,
-            PermissionKeySvm,
-            Svm,
+        kernel::{
+            db::DB,
+            entities::{
+                ChainId,
+                Evm,
+                PermissionKeySvm,
+                Svm,
+            },
         },
         models::ProfileId,
     },
+    axum::async_trait,
     ethers::types::{
         Address,
         Bytes,
@@ -37,6 +46,7 @@ use {
         },
         FromRow,
         Postgres,
+        QueryBuilder,
     },
     std::{
         fmt::Debug,
@@ -48,6 +58,10 @@ use {
         OffsetDateTime,
         PrimitiveDateTime,
         UtcOffset,
+    },
+    tracing::{
+        info_span,
+        Instrument,
     },
 };
 
@@ -597,5 +611,202 @@ impl<T: ChainTrait + ModelTrait<T>> Bid<T> {
             status:     T::get_bid_status_entity(self, auction)?,
             chain_data: T::get_chain_data_entity(self)?,
         })
+    }
+}
+
+
+#[cfg_attr(test, automock)]
+#[async_trait]
+pub trait Database<T: ChainTrait>: Debug + Send + Sync + 'static {
+    async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()>;
+    async fn add_bid(&self, bid: &Bid<T>) -> Result<(), RestError>;
+    async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()>;
+    async fn get_bid(
+        &self,
+        bid_id: entities::BidId,
+        chain_id: ChainId,
+    ) -> Result<Bid<T>, RestError>;
+    async fn get_auction(&self, auction_id: entities::AuctionId) -> Result<Auction, RestError>;
+    async fn get_auctions_by_bids(&self, bids: &[Bid<T>]) -> Result<Vec<Auction>, RestError>;
+    async fn get_bids(
+        &self,
+        chain_id: ChainId,
+        profile_id: ProfileId,
+        from_time: Option<OffsetDateTime>,
+    ) -> Result<Vec<Bid<T>>, RestError>;
+    async fn submit_auction(
+        &self,
+        auction: &entities::Auction<T>,
+        transaction_hash: &entities::TxHash<T>,
+    ) -> anyhow::Result<entities::Auction<T>>;
+    async fn update_bid_status(
+        &self,
+        bid: &entities::Bid<T>,
+        new_status: &T::BidStatusType,
+    ) -> anyhow::Result<bool>;
+}
+
+#[async_trait]
+impl<T: ChainTrait> Database<T> for DB {
+    async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()> {
+        sqlx::query!(
+            "INSERT INTO auction (id, creation_time, permission_key, chain_id, chain_type, bid_collection_time, tx_hash) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            auction.id,
+            PrimitiveDateTime::new(auction.creation_time.date(), auction.creation_time.time()),
+            T::convert_permission_key(&auction.permission_key),
+            auction.chain_id,
+            T::get_chain_type() as _,
+            PrimitiveDateTime::new(auction.bid_collection_time.date(), auction.bid_collection_time.time()),
+            auction.tx_hash.clone().map(|tx_hash| T::BidStatusType::convert_tx_hash(&tx_hash)),
+        )
+        .execute(self)
+            .instrument(info_span!("db_add_auction"))
+        .await?;
+        Ok(())
+    }
+
+    async fn add_bid(&self, bid: &Bid<T>) -> Result<(), RestError> {
+        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+            bid.id,
+            bid.creation_time,
+            bid.permission_key,
+            bid.chain_id,
+            bid.chain_type as _,
+            bid.bid_amount,
+            bid.status as _,
+            bid.initiation_time,
+            bid.profile_id,
+            serde_json::to_value(bid.metadata.clone()).expect("Failed to serialize metadata"),
+        ).execute(self)
+            .instrument(info_span!("db_add_bid"))
+            .await.map_err(|e| {
+            tracing::error!(error = e.to_string(), bid = ?bid, "DB: Failed to insert bid");
+            RestError::TemporarilyUnavailable
+        })?;
+        Ok(())
+    }
+
+    async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()> {
+        let now = OffsetDateTime::now_utc();
+        sqlx::query!(
+            "UPDATE auction SET conclusion_time = $1 WHERE id = $2 AND conclusion_time IS NULL",
+            PrimitiveDateTime::new(now.date(), now.time()),
+            auction_id,
+        )
+        .execute(self)
+        .instrument(info_span!("db_conclude_auction"))
+        .await?;
+        Ok(())
+    }
+
+    async fn get_bid(
+        &self,
+        bid_id: entities::BidId,
+        chain_id: ChainId,
+    ) -> Result<Bid<T>, RestError> {
+        sqlx::query_as("SELECT * FROM bid WHERE id = $1 AND chain_id = $2")
+            .bind(bid_id)
+            .bind(chain_id)
+            .fetch_one(self)
+            .instrument(info_span!("db_get_bid"))
+            .await
+            .map_err(|e| match e {
+                sqlx::Error::RowNotFound => RestError::BidNotFound,
+                _ => {
+                    tracing::error!(
+                        error = e.to_string(),
+                        bid_id = bid_id.to_string(),
+                        "Failed to get bid from db"
+                    );
+                    RestError::TemporarilyUnavailable
+                }
+            })
+    }
+
+    async fn get_auction(&self, auction_id: entities::AuctionId) -> Result<Auction, RestError> {
+        sqlx::query_as("SELECT * FROM auction WHERE id = $1")
+            .bind(auction_id)
+            .fetch_one(self)
+            .instrument(info_span!("db_get_auction"))
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = e.to_string(),
+                    auction_id = auction_id.to_string(),
+                    "Failed to get auction from db"
+                );
+                RestError::TemporarilyUnavailable
+            })
+    }
+
+    async fn get_auctions_by_bids(&self, bids: &[Bid<T>]) -> Result<Vec<Auction>, RestError> {
+        let auction_ids: Vec<entities::AuctionId> =
+            bids.iter().filter_map(|bid| bid.auction_id).collect();
+        sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
+            .bind(auction_ids)
+            .fetch_all(self)
+            .instrument(info_span!("db_get_auctions_by_bids"))
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch auctions: {}", e);
+                RestError::TemporarilyUnavailable
+            })
+    }
+
+    async fn get_bids(
+        &self,
+        chain_id: ChainId,
+        profile_id: ProfileId,
+        from_time: Option<OffsetDateTime>,
+    ) -> Result<Vec<Bid<T>>, RestError> {
+        let mut query = QueryBuilder::new("SELECT * from bid where profile_id = ");
+        query
+            .push_bind(profile_id)
+            .push(" AND chain_id = ")
+            .push_bind(chain_id);
+        if let Some(from_time) = from_time {
+            query.push(" AND initiation_time >= ");
+            query.push_bind(from_time);
+        }
+        query.push(" ORDER BY initiation_time ASC LIMIT 20");
+        query
+            .build_query_as()
+            .fetch_all(self)
+            .instrument(info_span!("db_get_bids"))
+            .await
+            .map_err(|e| {
+                tracing::error!("DB: Failed to fetch bids: {}", e);
+                RestError::TemporarilyUnavailable
+            })
+    }
+
+    async fn submit_auction(
+        &self,
+        auction: &entities::Auction<T>,
+        transaction_hash: &entities::TxHash<T>,
+    ) -> anyhow::Result<entities::Auction<T>> {
+        let mut auction = auction.clone();
+        let now = OffsetDateTime::now_utc();
+        auction.tx_hash = Some(transaction_hash.clone());
+        auction.submission_time = Some(now);
+        sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
+            PrimitiveDateTime::new(now.date(), now.time()),
+            T::BidStatusType::convert_tx_hash(transaction_hash),
+            auction.id,
+        ).execute(self).instrument(info_span!("db_update_auction")).await?;
+        Ok(auction)
+    }
+
+    async fn update_bid_status(
+        &self,
+        bid: &entities::Bid<T>,
+        new_status: &T::BidStatusType,
+    ) -> anyhow::Result<bool> {
+        let update_query = T::get_update_bid_query(bid, new_status.clone())?;
+        let query_result = update_query
+            .execute(self)
+            .instrument(info_span!("db_update_bid_status"))
+            .await?;
+        Ok(query_result.rows_affected() > 0)
     }
 }

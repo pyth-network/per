@@ -1,3 +1,5 @@
+#[cfg(test)]
+use mockall::mock;
 use {
     super::repository::{
         InMemoryStore,
@@ -302,7 +304,6 @@ pub mod tests {
         tokio::sync::broadcast::Receiver,
     };
 
-
     impl Service<ChainTypeSvm> {
         pub fn new_with_mocks_svm(
             chain_id: ChainId,
@@ -344,5 +345,45 @@ pub mod tests {
 
             (service, ws_receiver)
         }
+    }
+}
+
+#[cfg(test)]
+mock! {
+    pub Service<T: ChainType + 'static> {
+        pub fn new(
+            store: Arc<Store>,
+            task_tracker: TaskTracker,
+            db: DB,
+            config: HashMap<ChainId, T::Config>,
+        ) -> Self;
+        pub fn get_config(&self, chain_id: &ChainId) -> Result<T::Config, crate::api::RestError>;
+        pub async fn get_live_opportunities(&self, input: get_live_opportunities::GetLiveOpportunitiesInput) -> Vec<<T::InMemoryStore as InMemoryStore>::Opportunity>;
+        pub async fn get_live_opportunity_by_id(&self, input: get_opportunities::GetLiveOpportunityByIdInput) -> Option<<T::InMemoryStore as InMemoryStore>::Opportunity>;
+        pub async fn remove_invalid_or_expired_opportunities(&self);
+        pub async fn update_metrics(&self);
+        pub async fn remove_opportunities(
+            &self,
+            input: remove_opportunities::RemoveOpportunitiesInput,
+        ) -> Result<(), crate::api::RestError>;
+        pub async fn add_opportunity(
+            &self,
+            input: add_opportunity::AddOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as crate::opportunity::entities::Opportunity>::OpportunityCreate>,
+        ) -> Result<<T::InMemoryStore as InMemoryStore>::Opportunity, crate::api::RestError>;
+        pub async fn get_opportunities(
+            &self,
+            input: get_opportunities::GetOpportunitiesInput,
+        ) -> Result<Vec<<T::InMemoryStore as InMemoryStore>::Opportunity>, crate::api::RestError>;
+        pub async fn get_quote(&self, input: get_quote::GetQuoteInput) -> Result<crate::opportunity::entities::Quote, crate::api::RestError>;
+        pub async fn handle_opportunity_bid(
+            &self,
+            input: handle_opportunity_bid::HandleOpportunityBidInput,
+        ) -> Result<uuid::Uuid, crate::api::RestError>;
+    }
+    impl<T: ChainType + 'static> verification::Verification<T> for Service<T> {
+        async fn verify_opportunity(
+            &self,
+            input: verification::VerifyOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as crate::opportunity::entities::Opportunity>::OpportunityCreate>,
+        ) -> Result<crate::opportunity::entities::OpportunityVerificationResult, crate::api::RestError>;
     }
 }

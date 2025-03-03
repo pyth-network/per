@@ -1,3 +1,5 @@
+#[double]
+use crate::opportunity::service::Service as OpportunityService;
 use {
     crate::{
         api::{
@@ -50,6 +52,7 @@ use {
         future::join_all,
         Future,
     },
+    mockall_double::double,
     solana_client::{
         nonblocking::rpc_client::RpcClient,
         rpc_client::RpcClientConfig,
@@ -327,22 +330,22 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         metrics_recorder: setup_metrics_recorder()?,
     });
 
-    let opportunity_service_evm = Arc::new(opportunity_service::Service::<
-        opportunity_service::ChainTypeEvm,
-    >::new(
-        store.clone(),
-        task_tracker.clone(),
-        pool.clone(),
-        config_opportunity_service_evm,
-    ));
-    let opportunity_service_svm = Arc::new(opportunity_service::Service::<
-        opportunity_service::ChainTypeSvm,
-    >::new(
-        store.clone(),
-        task_tracker.clone(),
-        pool.clone(),
-        config_opportunity_service_svm,
-    ));
+    let opportunity_service_evm = Arc::new(
+        OpportunityService::<opportunity_service::ChainTypeEvm>::new(
+            store.clone(),
+            task_tracker.clone(),
+            pool.clone(),
+            config_opportunity_service_evm,
+        ),
+    );
+    let opportunity_service_svm = Arc::new(
+        OpportunityService::<opportunity_service::ChainTypeSvm>::new(
+            store.clone(),
+            task_tracker.clone(),
+            pool.clone(),
+            config_opportunity_service_svm,
+        ),
+    );
     #[allow(clippy::iter_kv_map)]
     let mut auction_services: HashMap<ChainId, auction_service::ServiceEnum> = chains_evm
         .iter()

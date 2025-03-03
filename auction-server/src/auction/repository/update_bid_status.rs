@@ -7,10 +7,6 @@ use {
         },
         service::ChainTrait,
     },
-    tracing::{
-        info_span,
-        Instrument,
-    },
 };
 
 impl<T: ChainTrait> Repository<T> {
@@ -37,17 +33,11 @@ impl<T: ChainTrait> Repository<T> {
         bid: entities::Bid<T>,
         new_status: T::BidStatusType,
     ) -> anyhow::Result<bool> {
-        let update_query = T::get_update_bid_query(&bid, new_status.clone())?;
-        let query_result = update_query
-            .execute(&self.db)
-            .instrument(info_span!("db_update_bid_status"))
-            .await?;
-
-        if query_result.rows_affected() > 0 && !new_status.is_pending() {
+        let is_updated = self.db.update_bid_status(&bid, &new_status).await?;
+        if is_updated && !new_status.is_pending() {
             self.remove_in_memory_pending_bids(&[bid.clone()]).await;
             self.update_in_memory_auction_bid(&bid, new_status).await;
         }
-
-        Ok(query_result.rows_affected() > 0)
+        Ok(is_updated)
     }
 }

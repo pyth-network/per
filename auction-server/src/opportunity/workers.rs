@@ -1,13 +1,15 @@
+#[double]
+use super::service::Service;
 use {
     super::service::{
         verification::Verification,
         ChainType,
-        Service,
     },
     crate::server::{
         EXIT_CHECK_INTERVAL,
         SHOULD_EXIT,
     },
+    mockall_double::double,
     std::{
         sync::{
             atomic::Ordering,
