@@ -19,7 +19,9 @@ use {
         },
         opportunity::entities::Opportunity,
     },
+    axum::async_trait,
     sqlx::QueryBuilder,
+    std::fmt::Debug,
     time::{
         OffsetDateTime,
         PrimitiveDateTime,
@@ -31,7 +33,8 @@ use {
 };
 
 #[cfg_attr(test, automock)]
-pub trait OpportunityTable<T: InMemoryStore> {
+#[async_trait]
+pub trait OpportunityTable<T: InMemoryStore>: Debug + Send + Sync + 'static {
     async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError>;
     async fn get_opportunities(
         &self,
@@ -51,7 +54,7 @@ pub trait OpportunityTable<T: InMemoryStore> {
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()>;
 }
-
+#[async_trait]
 impl<T: InMemoryStore> OpportunityTable<T> for DB {
     async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError> {
         let metadata = opportunity.get_models_metadata();

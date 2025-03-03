@@ -15,10 +15,7 @@ use {
                 Opportunity,
                 OpportunityCreate,
             },
-            repository::{
-                InMemoryStore,
-                OpportunityTable,
-            },
+            repository::InMemoryStore,
             service::verification::VerifyOpportunityInput,
         },
     },
@@ -38,9 +35,9 @@ enum OpportunityAction<T: entities::Opportunity> {
     Ignore,
 }
 
-impl<T: ChainType, U: OpportunityTable<T::InMemoryStore>> Service<T, U>
+impl<T: ChainType> Service<T>
 where
-    Service<T, U>: Verification<T>,
+    Service<T>: Verification<T>,
 {
     async fn assess_action(
         &self,
@@ -134,10 +131,7 @@ mod tests {
                     OpportunitySvmProgramLimo,
                     TokenAmountSvm,
                 },
-                repository::{
-                    InMemoryStoreSvm,
-                    MockOpportunityTable,
-                },
+                repository::MockOpportunityTable,
                 service::{
                     add_opportunity::AddOpportunityInput,
                     ChainTypeSvm,
@@ -161,12 +155,8 @@ mod tests {
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
 
 
-        let (service, mut ws_receiver) = Service::<
-            ChainTypeSvm,
-            MockOpportunityTable<InMemoryStoreSvm>,
-        >::new_with_mocks_svm(
-            chain_id.clone(), mock_db, rpc_client
-        );
+        let (service, mut ws_receiver) =
+            Service::<ChainTypeSvm>::new_with_mocks_svm(chain_id.clone(), mock_db, rpc_client);
 
         let permission_account = Pubkey::new_unique();
         let router = Pubkey::new_unique();

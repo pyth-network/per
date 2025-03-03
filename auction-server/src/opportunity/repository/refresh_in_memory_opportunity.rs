@@ -1,14 +1,13 @@
 use {
     super::{
         InMemoryStore,
-        OpportunityTable,
         Repository,
     },
     crate::opportunity::entities::Opportunity,
     std::collections::hash_map::Entry,
 };
 
-impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn refresh_in_memory_opportunity(
         &self,
         opportunity: T::Opportunity,

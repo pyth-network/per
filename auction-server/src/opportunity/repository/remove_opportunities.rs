@@ -1,6 +1,5 @@
 use {
     super::{
-        db::OpportunityTable,
         models::OpportunityRemovalReason,
         InMemoryStore,
         Repository,
@@ -14,7 +13,7 @@ use {
     },
 };
 
-impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn remove_opportunities(
         &self,
         permission_key: PermissionKey,

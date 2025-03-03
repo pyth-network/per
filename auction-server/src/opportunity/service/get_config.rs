@@ -6,11 +6,10 @@ use {
     crate::{
         api::RestError,
         kernel::entities::ChainId,
-        opportunity::repository::OpportunityTable,
     },
 };
 
-impl<T: ChainType, U: OpportunityTable<T::InMemoryStore>> Service<T, U> {
+impl<T: ChainType> Service<T> {
     pub fn get_config(&self, chain_id: &ChainId) -> Result<&T::Config, RestError> {
         self.config
             .get(chain_id)
