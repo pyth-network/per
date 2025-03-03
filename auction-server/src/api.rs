@@ -115,7 +115,7 @@ pub enum RestError {
     QuoteNotFound,
     /// Duplicate opportunity.
     DuplicateOpportunity,
-    /// Swao opportunity is not found.
+    /// Swap opportunity is not found.
     SwapOpportunityNotFound,
 }
 
