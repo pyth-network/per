@@ -1237,7 +1237,7 @@ fn test_swap_insufficient_balance_user() {
     assert_custom_error(
         result.err,
         4,
-        InstructionError::Custom(ErrorCode::UserInsufficientBalance.into()),
+        InstructionError::Custom(ErrorCode::InsufficientUserFunds.into()),
     );
 }
 
@@ -1298,7 +1298,7 @@ fn test_swap_insufficient_balance_searcher() {
     assert_custom_error(
         result.err,
         4,
-        InstructionError::Custom(ErrorCode::SearcherInsufficientBalance.into()),
+        InstructionError::Custom(ErrorCode::InsufficientSearcherFunds.into()),
     );
 }
 
@@ -1358,7 +1358,7 @@ fn test_swap_insufficient_balance_both_user_and_searcher() {
     assert_custom_error(
         result.err,
         4,
-        InstructionError::Custom(ErrorCode::SearcherInsufficientBalance.into()),
+        InstructionError::Custom(ErrorCode::InsufficientSearcherFunds.into()),
     );
 }
 

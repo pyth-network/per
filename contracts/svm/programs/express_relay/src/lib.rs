@@ -180,7 +180,7 @@ pub mod express_relay {
         ) = ctx.accounts.compute_swap_fees(&data)?;
 
         // We want the program to never fail in the CPI transfers after `check_enough_balances`.
-        // This guarantees auction server than when a simulated transaction fails with the UserInsufficientBalance error,
+        // This guarantees auction server than when a simulated transaction fails with the InsufficientUserFunds error,
         // the transaction was correct and executable other than the user having insufficient balance.
         // The checks above this line combined with `check_enough_balances` should guarantee that the CPIs will never fail
         // and `check_enough_balances` should be the last check.

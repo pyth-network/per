@@ -100,12 +100,12 @@ impl<'info> Swap<'info> {
         require_gte!(
             self.searcher_ta_mint_searcher.amount,
             args.amount_searcher,
-            ErrorCode::SearcherInsufficientBalance
+            ErrorCode::InsufficientSearcherFunds
         );
         require_gte!(
             self.user_ata_mint_user.amount,
             args.amount_user,
-            ErrorCode::UserInsufficientBalance
+            ErrorCode::InsufficientUserFunds
         );
         Ok(())
     }
