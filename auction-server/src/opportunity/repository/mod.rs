@@ -13,7 +13,6 @@ use {
 
 mod add_opportunity;
 mod add_spoof_info;
-mod db;
 mod get_express_relay_metadata;
 mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
@@ -26,17 +25,14 @@ mod refresh_in_memory_opportunity;
 mod remove_opportunities;
 mod remove_opportunity;
 
-pub use {
-    db::*,
-    models::*,
-};
+pub use models::*;
 
 pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 
 #[derive(Debug)]
 pub struct Repository<T: InMemoryStore> {
     pub in_memory_store: T,
-    pub db:              Box<dyn OpportunityTable<T>>,
+    pub db:              Box<dyn Database<T>>,
 }
 
 pub trait InMemoryStore:
@@ -109,7 +105,7 @@ impl Deref for InMemoryStoreSvm {
 }
 
 impl<T: InMemoryStore> Repository<T> {
-    pub fn new(db: impl OpportunityTable<T>) -> Self {
+    pub fn new(db: impl Database<T>) -> Self {
         Self {
             in_memory_store: T::new(),
             db:              Box::new(db),

@@ -131,7 +131,7 @@ mod tests {
                     OpportunitySvmProgramLimo,
                     TokenAmountSvm,
                 },
-                repository::MockOpportunityTable,
+                repository::MockDatabase,
                 service::{
                     add_opportunity::AddOpportunityInput,
                     ChainTypeSvm,
@@ -150,7 +150,7 @@ mod tests {
     async fn test_add_opportunity() {
         let chain_id = "solana".to_string();
         let rpc_client = MockRpcClient::default();
-        let mut mock_db = MockOpportunityTable::default();
+        let mut mock_db = MockDatabase::default();
 
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
 

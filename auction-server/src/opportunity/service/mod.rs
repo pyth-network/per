@@ -1,11 +1,9 @@
-#[cfg(test)]
-use mockall::mock;
 use {
     super::repository::{
+        Database,
         InMemoryStore,
         InMemoryStoreEvm,
         InMemoryStoreSvm,
-        OpportunityTable,
         Repository,
     },
     crate::{
@@ -14,7 +12,6 @@ use {
         },
         kernel::{
             contracts::AdapterFactory,
-            db::DB,
             entities::{
                 ChainId,
                 ChainType as ChainTypeEnum,
@@ -49,6 +46,11 @@ use {
     },
     tokio::sync::RwLock,
     tokio_util::task::TaskTracker,
+};
+#[cfg(test)]
+use {
+    crate::kernel::db::DB,
+    mockall::mock,
 };
 
 pub mod add_opportunity;
@@ -272,7 +274,7 @@ impl<T: ChainType> Service<T> {
     pub fn new(
         store: Arc<Store>,
         task_tracker: TaskTracker,
-        db: impl OpportunityTable<T::InMemoryStore>,
+        db: impl Database<T::InMemoryStore>,
         config: HashMap<ChainId, T::Config>,
     ) -> Self {
         Self {
@@ -297,7 +299,7 @@ pub mod tests {
                 UpdateEvent,
             },
             kernel::traced_sender_svm::tests::MockRpcClient,
-            opportunity::repository::MockOpportunityTable,
+            opportunity::repository::MockDatabase,
             server::setup_metrics_recorder,
         },
         std::sync::atomic::AtomicUsize,
@@ -307,7 +309,7 @@ pub mod tests {
     impl Service<ChainTypeSvm> {
         pub fn new_with_mocks_svm(
             chain_id: ChainId,
-            db: MockOpportunityTable<InMemoryStoreSvm>,
+            db: MockDatabase<InMemoryStoreSvm>,
             rpc_client: MockRpcClient,
         ) -> (Self, Receiver<UpdateEvent>) {
             let config_svm = crate::opportunity::service::ConfigSvm {
