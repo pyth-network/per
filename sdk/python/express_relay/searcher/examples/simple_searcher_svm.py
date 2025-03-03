@@ -151,6 +151,8 @@ class SimpleSearcherSvm:
             return await self.generate_bid_swap(opp)
 
     def generate_compute_budget_instructions(self) -> List[Instruction]:
+        # This limit assumes no other custom instructions exist in the transaction, you may need to adjust
+        # this limit depending on your integration
         compute_limit_instruction = set_compute_unit_limit(300_000)
         fee_instruction = set_compute_unit_price(
             self.latest_chain_update[self.chain_id].latest_prioritization_fee

@@ -106,6 +106,8 @@ export class SimpleSearcherSvm {
   }
 
   generateComputeBudgetInstructions(): TransactionInstruction[] {
+    // This limit assumes no other custom instructions exist in the transaction, you may need to adjust
+    // this limit depending on your integration
     const computeLimitInstruction = ComputeBudgetProgram.setComputeUnitLimit({
       units: 300000,
     });
