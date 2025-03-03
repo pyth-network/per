@@ -35,13 +35,13 @@ pub use {
 pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 
 #[derive(Debug)]
-pub struct Repository<T: InMemoryStore, U: OpportunityTable<T> = DB> {
+pub struct Repository<T: InMemoryStore> {
     pub in_memory_store: T,
-    pub db:              U,
+    pub db:              Box<dyn OpportunityTable<T>>,
 }
 
 pub trait InMemoryStore:
-    Deref<Target = InMemoryStoreCoreFields<Self::Opportunity>> + Send + Sync
+    Deref<Target = InMemoryStoreCoreFields<Self::Opportunity>> + Send + Sync + 'static
 {
     type Opportunity: entities::Opportunity;
 
@@ -109,11 +109,11 @@ impl Deref for InMemoryStoreSvm {
     }
 }
 
-impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
-    pub fn new(db: U) -> Self {
+impl<T: InMemoryStore> Repository<T> {
+    pub fn new(db: impl OpportunityTable<T>) -> Self {
         Self {
             in_memory_store: T::new(),
-            db,
+            db:              Box::new(db),
         }
     }
     pub(super) async fn update_metrics(&self) {

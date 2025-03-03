@@ -13,7 +13,7 @@ use {
     },
 };
 
-impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn add_opportunity(
         &self,
         opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreate,

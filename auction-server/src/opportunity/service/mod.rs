@@ -258,19 +258,19 @@ impl ChainType for ChainTypeSvm {
 }
 
 // TODO maybe just create a service per chain_id?
-pub struct Service<T: ChainType, U: OpportunityTable<T::InMemoryStore> = DB> {
+pub struct Service<T: ChainType> {
     store:        Arc<Store>,
     // TODO maybe after adding state for opportunity we can remove the arc
-    repo:         Arc<Repository<T::InMemoryStore, U>>,
+    repo:         Arc<Repository<T::InMemoryStore>>,
     config:       HashMap<ChainId, T::Config>,
     task_tracker: TaskTracker,
 }
 
-impl<T: ChainType, U: OpportunityTable<T::InMemoryStore>> Service<T, U> {
+impl<T: ChainType> Service<T> {
     pub fn new(
         store: Arc<Store>,
         task_tracker: TaskTracker,
-        db: U,
+        db: impl OpportunityTable<T::InMemoryStore>,
         config: HashMap<ChainId, T::Config>,
     ) -> Self {
         Self {
@@ -303,7 +303,7 @@ pub mod tests {
     };
 
 
-    impl Service<ChainTypeSvm, MockOpportunityTable<InMemoryStoreSvm>> {
+    impl Service<ChainTypeSvm> {
         pub fn new_with_mocks_svm(
             chain_id: ChainId,
             db: MockOpportunityTable<InMemoryStoreSvm>,
@@ -339,12 +339,8 @@ pub mod tests {
 
             let ws_receiver = store.ws.broadcast_receiver.resubscribe();
 
-            let service = Service::<ChainTypeSvm, MockOpportunityTable<InMemoryStoreSvm>>::new(
-                store.clone(),
-                TaskTracker::new(),
-                db,
-                chains_svm,
-            );
+            let service =
+                Service::<ChainTypeSvm>::new(store.clone(), TaskTracker::new(), db, chains_svm);
 
             (service, ws_receiver)
         }

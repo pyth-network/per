@@ -14,7 +14,7 @@ use {
     time::OffsetDateTime,
 };
 
-impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn get_opportunities(
         &self,
         chain_id: ChainId,

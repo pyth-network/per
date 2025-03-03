@@ -10,7 +10,7 @@ use {
     },
 };
 
-impl<T: InMemoryStore, U: OpportunityTable<T>> Repository<T, U> {
+impl<T: InMemoryStore> Repository<T> {
     pub async fn remove_opportunity(
         &self,
         opportunity: &T::Opportunity,
