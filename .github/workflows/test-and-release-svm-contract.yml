@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: contracts/svm
+        working-directory: ./contracts/svm
     steps:
       - uses: actions/checkout@v2
       - name: Install Solana Verify CLI
