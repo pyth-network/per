@@ -13,10 +13,6 @@ use {
             service::ChainTrait,
         },
     },
-    tracing::{
-        info_span,
-        Instrument,
-    },
 };
 
 impl<T: ChainTrait> Repository<T> {
@@ -31,24 +27,7 @@ impl<T: ChainTrait> Repository<T> {
             tracing::error!(error = e.to_string(), bid_create = ?bid_create, "Failed to convert bid to entity");
             RestError::TemporarilyUnavailable
         })?;
-
-        sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-            bid_model.id,
-            bid_model.creation_time,
-            bid_model.permission_key,
-            bid_model.chain_id,
-            bid_model.chain_type as _,
-            bid_model.bid_amount,
-            bid_model.status as _,
-            bid_model.initiation_time,
-            bid_model.profile_id,
-            serde_json::to_value(bid_model.metadata).expect("Failed to serialize metadata"),
-        ).execute(&self.db)
-            .instrument(info_span!("db_add_bid"))
-            .await.map_err(|e| {
-            tracing::error!(error = e.to_string(), bid_create = ?bid_create, "DB: Failed to insert bid");
-            RestError::TemporarilyUnavailable
-        })?;
+        self.db.add_bid(&bid_model).await?;
 
         self.in_memory_store
             .pending_bids

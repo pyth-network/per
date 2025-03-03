@@ -3,10 +3,7 @@ use {
         entities,
         service::ChainTrait,
     },
-    crate::kernel::{
-        db::DB,
-        entities::ChainId,
-    },
+    crate::kernel::entities::ChainId,
     axum_prometheus::metrics,
     solana_sdk::pubkey::Pubkey,
     std::collections::{
@@ -90,15 +87,15 @@ impl<T: ChainTrait> Default for InMemoryStore<T> {
 #[derive(Debug)]
 pub struct Repository<T: ChainTrait> {
     pub in_memory_store: InMemoryStore<T>,
-    pub db:              DB,
+    pub db:              Box<dyn models::DBTrait<T>>,
     pub chain_id:        ChainId,
 }
 
 impl<T: ChainTrait> Repository<T> {
-    pub fn new(db: DB, chain_id: ChainId) -> Self {
+    pub fn new(db: impl models::DBTrait<T>, chain_id: ChainId) -> Self {
         Self {
             in_memory_store: InMemoryStore::default(),
-            db,
+            db: Box::new(db),
             chain_id,
         }
     }

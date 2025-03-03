@@ -1,19 +1,8 @@
 use {
     super::Repository,
     crate::auction::{
-        entities::{
-            self,
-            BidStatus,
-        },
+        entities,
         service::ChainTrait,
-    },
-    time::{
-        OffsetDateTime,
-        PrimitiveDateTime,
-    },
-    tracing::{
-        info_span,
-        Instrument,
     },
 };
 
@@ -27,15 +16,7 @@ impl<T: ChainTrait> Repository<T> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
         tracing::Span::current().record("tx_hash", format!("{:?}", transaction_hash));
 
-        let mut auction = auction.clone();
-        let now = OffsetDateTime::now_utc();
-        auction.tx_hash = Some(transaction_hash.clone());
-        auction.submission_time = Some(now);
-        sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
-            PrimitiveDateTime::new(now.date(), now.time()),
-            T::BidStatusType::convert_tx_hash(&transaction_hash),
-            auction.id,
-        ).execute(&self.db).instrument(info_span!("db_update_auction")).await?;
+        let auction = self.db.submit_auction(&auction, &transaction_hash).await?;
         self.update_in_memory_auction(auction.clone()).await;
         Ok(auction)
     }
