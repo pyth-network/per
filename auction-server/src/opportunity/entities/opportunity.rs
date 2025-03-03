@@ -102,6 +102,7 @@ pub enum OpportunityRemovalReason {
     // TODO use internal errors instead of RestError
     #[allow(dead_code)]
     Invalid(RestError),
+    ServerRestart,
 }
 
 pub enum OpportunityVerificationResult {
@@ -114,6 +115,9 @@ impl From<OpportunityRemovalReason> for repository::OpportunityRemovalReason {
         match reason {
             OpportunityRemovalReason::Expired => repository::OpportunityRemovalReason::Expired,
             OpportunityRemovalReason::Invalid(_) => repository::OpportunityRemovalReason::Invalid,
+            OpportunityRemovalReason::ServerRestart => {
+                repository::OpportunityRemovalReason::ServerRestart
+            }
         }
     }
 }

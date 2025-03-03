@@ -50,6 +50,7 @@ use {
 };
 
 pub mod add_opportunity;
+pub mod clear_opportunities_upon_restart;
 pub mod get_config;
 pub mod get_live_opportunities;
 pub mod get_opportunities;
