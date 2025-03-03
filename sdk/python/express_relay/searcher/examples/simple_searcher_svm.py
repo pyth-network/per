@@ -28,7 +28,7 @@ from express_relay.svm.generated.express_relay.program_id import (
 from express_relay.svm.limo_client import LimoClient, OrderStateAndAddress
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Finalized
-from solders.compute_budget import set_compute_unit_price
+from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
 from solders.instruction import Instruction
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
@@ -150,6 +150,15 @@ class SimpleSearcherSvm:
         if opp.program == "swap":
             return await self.generate_bid_swap(opp)
 
+    def generate_compute_budget_instructions(self) -> List[Instruction]:
+        # This limit assumes no other custom instructions exist in the transaction, you may need to adjust
+        # this limit depending on your integration
+        compute_limit_instruction = set_compute_unit_limit(300_000)
+        fee_instruction = set_compute_unit_price(
+            self.latest_chain_update[self.chain_id].latest_prioritization_fee
+        )
+        return [compute_limit_instruction, fee_instruction]
+
     async def generate_bid_limo(self, opp: LimoOpportunitySvm) -> OnChainBidSvm:
         """
         Generates a bid for a given opportunity.
@@ -179,11 +188,11 @@ class SimpleSearcherSvm:
             relayer_signer=(await self.get_metadata()).relayer_signer,
         )
         latest_chain_update = self.latest_chain_update[self.chain_id]
-        fee_instruction = set_compute_unit_price(
-            latest_chain_update.latest_prioritization_fee
-        )
         transaction = Transaction.new_with_payer(
-            [fee_instruction, submit_bid_ix] + ixs_take_order, self.private_key.pubkey()
+            self.generate_compute_budget_instructions()
+            + [submit_bid_ix]
+            + ixs_take_order,
+            self.private_key.pubkey(),
         )
         transaction.partial_sign(
             [self.private_key], recent_blockhash=latest_chain_update.blockhash
@@ -207,11 +216,9 @@ class SimpleSearcherSvm:
             relayer_signer=metadata.relayer_signer,
         )
         latest_chain_update = self.latest_chain_update[self.chain_id]
-        fee_instruction = set_compute_unit_price(
-            latest_chain_update.latest_prioritization_fee
-        )
         transaction = Transaction.new_with_payer(
-            [fee_instruction] + swap_ixs, self.private_key.pubkey()
+            self.generate_compute_budget_instructions() + swap_ixs,
+            self.private_key.pubkey(),
         )
         transaction.partial_sign(
             [self.private_key], recent_blockhash=latest_chain_update.blockhash

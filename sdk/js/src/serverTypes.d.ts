@@ -3,109 +3,221 @@
  * Do not make direct changes to the file.
  */
 
-/** OneOf type helpers */
-type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never };
-type XOR<T, U> = T | U extends object
-  ? (Without<T, U> & U) | (Without<U, T> & T)
-  : T | U;
-type OneOf<T extends any[]> = T extends [infer Only]
-  ? Only
-  : T extends [infer A, infer B, ...infer Rest]
-    ? OneOf<[XOR<A, B>, ...Rest]>
-    : never;
-
 export interface paths {
   "/v1/bids": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
     /**
      * Returns at most 20 bids which were submitted after a specific time.
      * @deprecated
      * @description If no time is provided, the server will return the first bids.
-     * This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids instead.
+     *     This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids instead.
      */
     get: operations["get_bids_by_time_deprecated"];
+    put?: never;
     /**
      * Bid on a specific permission key for a specific chain.
      * @description Your bid will be verified by the server. Depending on the outcome of the auction, a transaction
-     * containing your bid will be sent to the blockchain expecting the bid amount to be paid in the transaction.
+     *     containing your bid will be sent to the blockchain expecting the bid amount to be paid in the transaction.
      */
     post: operations["post_bid"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
   "/v1/bids/{bid_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
     /**
      * Query the status of a specific bid.
      * @deprecated
      * @description This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids/{bid_id} instead.
      */
     get: operations["get_bid_status_deprecated"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
   "/v1/opportunities": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
     /**
      * Fetch opportunities ready for execution or historical opportunities
-     * depending on the mode.
+     *     depending on the mode.
      * @description You need to provide `chain_id` for historical mode.
-     * Opportunities are sorted by creation time in ascending order.
-     * Total number of opportunities returned is capped by the server to preserve bandwidth.
+     *     Opportunities are sorted by creation time in ascending order.
+     *     Total number of opportunities returned is capped by the server to preserve bandwidth.
      */
     get: operations["get_opportunities"];
+    put?: never;
     /**
      * Submit an opportunity ready to be executed.
      * @description The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
-     * and will be available for bidding.
+     *     and will be available for bidding.
      */
     post: operations["post_opportunity"];
     /** Delete all opportunities for specified data. */
     delete: operations["delete_opportunities"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
   "/v1/opportunities/quote": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
     /**
      * Submit a quote request.
      * @description The server will create an opportunity and receive searcher bids
-     * After a certain time, the winning bid will be returned as the response.
+     *     After a certain time, the winning bid will be returned as the response.
      */
     post: operations["post_quote"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
   "/v1/opportunities/{opportunity_id}/bids": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
     /** Bid on opportunity. */
     post: operations["opportunity_bid"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
   "/v1/profiles/access_tokens": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
     /**
      * Revoke the authenticated profile access token.
      * @description Returns empty response.
      */
     delete: operations["delete_profile_access_token"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
   "/v1/{chain_id}/bids": {
-    /**
-     * Returns at most 20 bids which were submitted after a specific time and chain.
-     * If no time is provided, the server will return the first bids.
-     */
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Returns at most 20 bids which were submitted after a specific time and chain.
+     *     If no time is provided, the server will return the first bids. */
     get: operations["get_bids_by_time"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
   "/v1/{chain_id}/bids/{bid_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
     /** Query the status of a specific bid. */
     get: operations["get_bid_status"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
   "/v1/{chain_id}/bids/{bid_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
     /**
      * Cancel a specific bid.
      * @description Bids can only be cancelled if they are in the awaiting signature state.
-     * Only the user who created the bid can cancel it.
+     *     Only the user who created the bid can cancel it.
      */
     post: operations["post_cancel_bid"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
   "/v1/{chain_id}/quotes/submit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
     /**
      * Signs and submits the transaction for the specified quote.
      * @description Server will verify the quote and checks if the quote is still valid.
-     * If the quote is valid, the server will submit the transaction to the blockchain.
+     *     If the quote is valid, the server will submit the transaction to the blockchain.
      */
     post: operations["post_submit_quote"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
   };
 }
-
 export type webhooks = Record<string, never>;
-
 export interface components {
   schemas: {
     APIResponse: components["schemas"]["BidResult"];
@@ -162,7 +274,7 @@ export interface components {
       /**
        * Format: int64
        * @description The minimum slot required for the bid to be executed successfully
-       * None if the bid can be executed at any recent slot
+       *     None if the bid can be executed at any recent slot
        * @example 293106477
        */
       slot?: number | null;
@@ -261,13 +373,12 @@ export interface components {
     BidStatus:
       | components["schemas"]["BidStatusSvm"]
       | components["schemas"]["BidStatusEvm"];
-    BidStatusEvm: OneOf<
-      [
-        {
+    BidStatusEvm:
+      | {
           /** @enum {string} */
           type: "pending";
-        },
-        {
+        }
+      | {
           /**
            * Format: int32
            * @example 1
@@ -277,8 +388,8 @@ export interface components {
           result: string;
           /** @enum {string} */
           type: "submitted";
-        },
-        {
+        }
+      | {
           /**
            * Format: int32
            * @example 1
@@ -288,8 +399,8 @@ export interface components {
           result?: string | null;
           /** @enum {string} */
           type: "lost";
-        },
-        {
+        }
+      | {
           /**
            * Format: int32
            * @example 1
@@ -299,9 +410,7 @@ export interface components {
           result: string;
           /** @enum {string} */
           type: "won";
-        },
-      ]
-    >;
+        };
     BidStatusSvm:
       | {
           /** @enum {string} */
@@ -383,7 +492,7 @@ export interface components {
       bid_amount: number;
       /**
        * @description The permission key for bid in base64 format.
-       * This is the concatenation of the opportunity type, the router, and the permission account.
+       *     This is the concatenation of the opportunity type, the router, and the permission account.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
        */
       permission_key: string;
@@ -398,46 +507,43 @@ export interface components {
     Bids: {
       items: components["schemas"]["Bid"][];
     };
-    ClientMessage: OneOf<
-      [
-        {
+    ClientMessage:
+      | {
           /** @enum {string} */
           method: "subscribe";
           params: {
             chain_ids: string[];
           };
-        },
-        {
+        }
+      | {
           /** @enum {string} */
           method: "unsubscribe";
           params: {
             chain_ids: string[];
           };
-        },
-        {
+        }
+      | {
           /** @enum {string} */
           method: "post_bid";
           params: {
             bid: components["schemas"]["BidCreate"];
           };
-        },
-        {
+        }
+      | {
           /** @enum {string} */
           method: "post_opportunity_bid";
           params: {
             opportunity_bid: components["schemas"]["OpportunityBidEvm"];
             opportunity_id: string;
           };
-        },
-        {
+        }
+      | {
           /** @enum {string} */
           method: "cancel_bid";
           params: {
             data: components["schemas"]["BidCancel"];
           };
-        },
-      ]
-    >;
+        };
     ClientRequest: components["schemas"]["ClientMessage"] & {
       id: string;
     };
@@ -514,12 +620,10 @@ export interface components {
       /** @enum {string} */
       version: "v1";
     };
-    /**
-     * @description Opportunity parameters needed for on-chain execution.
-     * If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
-     * by calling this target contract with the given target calldata and structures, they will
-     * send the tokens specified in the `sell_tokens` field and receive the tokens specified in the `buy_tokens` field.
-     */
+    /** @description Opportunity parameters needed for on-chain execution.
+     *     If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
+     *     by calling this target contract with the given target calldata and structures, they will
+     *     send the tokens specified in the `sell_tokens` field and receive the tokens specified in the `buy_tokens` field. */
     OpportunityCreateV1Evm: {
       buy_tokens: components["schemas"]["TokenAmountEvm"][];
       /**
@@ -549,10 +653,8 @@ export interface components {
        */
       target_contract: string;
     };
-    /**
-     * @description Opportunity parameters needed for on-chain execution.
-     * Parameters may differ for each program.
-     */
+    /** @description Opportunity parameters needed for on-chain execution.
+     *     Parameters may differ for each program. */
     OpportunityCreateV1Svm: {
       /**
        * @description The Limo order to be executed, encoded in base64.
@@ -592,18 +694,15 @@ export interface components {
       slot: number;
     };
     /** @description The input type for deleting opportunities. */
-    OpportunityDelete: OneOf<
-      [
-        components["schemas"]["OpportunityDeleteSvm"] & {
+    OpportunityDelete:
+      | (components["schemas"]["OpportunityDeleteSvm"] & {
           /** @enum {string} */
           chain_type: "svm";
-        },
-        components["schemas"]["OpportunityDeleteEvm"] & {
+        })
+      | (components["schemas"]["OpportunityDeleteEvm"] & {
           /** @enum {string} */
           chain_type: "evm";
-        },
-      ]
-    >;
+        });
     OpportunityDeleteEvm: components["schemas"]["OpportunityDeleteV1Evm"] & {
       /** @enum {string} */
       version: "v1";
@@ -671,13 +770,10 @@ export interface components {
       version: "v1";
     };
     OpportunityParamsV1Evm: components["schemas"]["OpportunityCreateV1Evm"];
-    /**
-     * @description Opportunity parameters needed for on-chain execution.
-     * Parameters may differ for each program.
-     */
-    OpportunityParamsV1Svm: OneOf<
-      [
-        {
+    /** @description Opportunity parameters needed for on-chain execution.
+     *     Parameters may differ for each program. */
+    OpportunityParamsV1Svm: (
+      | {
           /**
            * @description The Limo order to be executed, encoded in base64.
            * @example UxMUbQAsjrfQUp5stVwMJ6Mucq7VWTvt4ICe69BJ8lVXqwM+0sysV8OqZTdM0W4p...
@@ -696,8 +792,8 @@ export interface components {
            * @example 293106477
            */
           slot: number;
-        },
-        {
+        }
+      | {
           /** @description Specifies whether the fees are to be paid in the searcher or user token. */
           fee_token: components["schemas"]["FeeToken"];
           /**
@@ -742,9 +838,8 @@ export interface components {
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           user_wallet_address: string;
-        },
-      ]
-    > & {
+        }
+    ) & {
       /** @example solana */
       chain_id: string;
     };
@@ -789,28 +884,22 @@ export interface components {
        */
       output_token_mint: string;
       /** @description Information about the referral fee and the router to send the fee to. If not provided, referral fee will be set to 0. */
-      referral_fee_info?: OneOf<
-        [
-          null,
-          {
-            /**
-             * Format: int32
-             * @description The referral fee in basis points.
-             * @example 10
-             */
-            referral_fee_bps: number;
-            /**
-             * @description The router account to send referral fees to.
-             * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
-             */
-            router: string;
-          },
-        ]
-      >;
+      referral_fee_info?: null | {
+        /**
+         * Format: int32
+         * @description The referral fee in basis points.
+         * @example 10
+         */
+        referral_fee_bps: number;
+        /**
+         * @description The router account to send referral fees to.
+         * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
+         */
+        router: string;
+      };
       /** @description The token amount that the user wants to swap out of/into. */
-      specified_token_amount: OneOf<
-        [
-          {
+      specified_token_amount:
+        | {
             /**
              * Format: int64
              * @example 100
@@ -818,8 +907,8 @@ export interface components {
             amount: number;
             /** @enum {string} */
             side: "input";
-          },
-          {
+          }
+        | {
             /**
              * Format: int64
              * @example 50
@@ -827,9 +916,7 @@ export interface components {
             amount: number;
             /** @enum {string} */
             side: "output";
-          },
-        ]
-      >;
+          };
       /**
        * @description The user wallet address which requested the quote from the wallet. If not provided, an indicative price without a transaction will be returned.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -840,9 +927,8 @@ export interface components {
       /** @enum {string} */
       version: "v1";
     };
-    QuoteTokens: OneOf<
-      [
-        {
+    QuoteTokens:
+      | {
           /**
            * Format: int64
            * @description The exact amount that the searcher will provide
@@ -860,8 +946,8 @@ export interface components {
            * @example So11111111111111111111111111111111111111112
            */
           user_token: string;
-        },
-        {
+        }
+      | {
           /**
            * @description The token that the searcher will provide
            * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
@@ -884,9 +970,7 @@ export interface components {
            * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
            */
           user_token: string;
-        },
-      ]
-    >;
+        };
     QuoteV1Svm: {
       /**
        * @description The chain id for the quote.
@@ -931,55 +1015,46 @@ export interface components {
        */
       router: string;
     };
-    ServerResultMessage: OneOf<
-      [
-        {
+    ServerResultMessage:
+      | {
           result: null | components["schemas"]["APIResponse"];
           /** @enum {string} */
           status: "success";
-        },
-        {
+        }
+      | {
           result: string;
           /** @enum {string} */
           status: "error";
-        },
-      ]
-    >;
-    /**
-     * @description This enum is used to send the result for a specific client request with the same id.
-     * Id is only None when the client message is invalid.
-     */
+        };
+    /** @description This enum is used to send the result for a specific client request with the same id.
+     *     Id is only None when the client message is invalid. */
     ServerResultResponse: components["schemas"]["ServerResultMessage"] & {
       id?: string | null;
     };
     /** @description This enum is used to send an update to the client for any subscriptions made. */
-    ServerUpdateResponse: OneOf<
-      [
-        {
+    ServerUpdateResponse:
+      | {
           opportunity: components["schemas"]["Opportunity"];
           /** @enum {string} */
           type: "new_opportunity";
-        },
-        {
+        }
+      | {
           status: components["schemas"]["BidStatusWithId"];
           /** @enum {string} */
           type: "bid_status_update";
-        },
-        {
+        }
+      | {
           /** @enum {string} */
           type: "svm_chain_update";
           update: components["schemas"]["SvmChainUpdate"];
-        },
-        {
+        }
+      | {
           opportunity_delete: components["schemas"]["OpportunityDelete"];
           /** @enum {string} */
           type: "remove_opportunities";
-        },
-      ]
-    >;
-    SpecifiedTokenAmount: OneOf<
-      [
-        {
+        };
+    SpecifiedTokenAmount:
+      | {
           /**
            * Format: int64
            * @example 100
@@ -987,8 +1062,8 @@ export interface components {
           amount: number;
           /** @enum {string} */
           side: "input";
-        },
-        {
+        }
+      | {
           /**
            * Format: int64
            * @example 50
@@ -996,9 +1071,7 @@ export interface components {
           amount: number;
           /** @enum {string} */
           side: "output";
-        },
-      ]
-    >;
+        };
     /** @description Parameters needed to submit a quote from server. */
     SubmitQuote: {
       /**
@@ -1016,7 +1089,7 @@ export interface components {
     SubmitQuoteResponse: {
       /**
        * @description The fully signed versioned transaction that was submitted.
-       * The transaction is encoded in base64.
+       *     The transaction is encoded in base64.
        * @example SGVsbG8sIFdvcmxkIQ==
        */
       transaction: string;
@@ -1049,7 +1122,7 @@ export interface components {
       /**
        * Format: int64
        * @description The token amount, represented in the smallest denomination of that token
-       * (e.g. lamports for SOL).
+       *     (e.g. lamports for SOL).
        * @example 1000
        */
       amount: number;
@@ -1062,6 +1135,9 @@ export interface components {
   };
   responses: {
     BidResult: {
+      headers: {
+        [name: string]: unknown;
+      };
       content: {
         "application/json": {
           /**
@@ -1078,6 +1154,9 @@ export interface components {
       };
     };
     Bids: {
+      headers: {
+        [name: string]: unknown;
+      };
       content: {
         "application/json": {
           items: components["schemas"]["Bid"][];
@@ -1086,6 +1165,9 @@ export interface components {
     };
     /** @description An error occurred processing the request */
     ErrorBodyResponse: {
+      headers: {
+        [name: string]: unknown;
+      };
       content: {
         "application/json": {
           error: string;
@@ -1093,6 +1175,9 @@ export interface components {
       };
     };
     Opportunity: {
+      headers: {
+        [name: string]: unknown;
+      };
       content: {
         "application/json":
           | components["schemas"]["OpportunityEvm"]
@@ -1105,28 +1190,25 @@ export interface components {
   headers: never;
   pathItems: never;
 }
-
 export type $defs = Record<string, never>;
-
-export type external = Record<string, never>;
-
 export interface operations {
-  /**
-   * Returns at most 20 bids which were submitted after a specific time.
-   * @deprecated
-   * @description If no time is provided, the server will return the first bids.
-   * This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids instead.
-   */
   get_bids_by_time_deprecated: {
     parameters: {
       query?: {
         /** @example 2024-05-23T21:26:57.329954Z */
         from_time?: string | null;
       };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    requestBody?: never;
     responses: {
       /** @description Paginated list of bids for the specified query */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["Bids"];
         };
@@ -1134,12 +1216,13 @@ export interface operations {
       400: components["responses"]["ErrorBodyResponse"];
     };
   };
-  /**
-   * Bid on a specific permission key for a specific chain.
-   * @description Your bid will be verified by the server. Depending on the outcome of the auction, a transaction
-   * containing your bid will be sent to the blockchain expecting the bid amount to be paid in the transaction.
-   */
   post_bid: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
     requestBody: {
       content: {
         "application/json": components["schemas"]["BidCreate"];
@@ -1148,6 +1231,9 @@ export interface operations {
     responses: {
       /** @description Bid was placed successfully */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["BidResult"];
         };
@@ -1155,26 +1241,31 @@ export interface operations {
       400: components["responses"]["ErrorBodyResponse"];
       /** @description Chain id was not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
     };
   };
-  /**
-   * Query the status of a specific bid.
-   * @deprecated
-   * @description This api is deprecated and will be removed soon. Use /v1/{chain_id}/bids/{bid_id} instead.
-   */
   get_bid_status_deprecated: {
     parameters: {
+      query?: never;
+      header?: never;
       path: {
         /** @description Bid id to query for */
         bid_id: string;
       };
+      cookie?: never;
     };
+    requestBody?: never;
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["BidStatus"];
         };
@@ -1182,19 +1273,15 @@ export interface operations {
       400: components["responses"]["ErrorBodyResponse"];
       /** @description Bid was not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
     };
   };
-  /**
-   * Fetch opportunities ready for execution or historical opportunities
-   * depending on the mode.
-   * @description You need to provide `chain_id` for historical mode.
-   * Opportunities are sorted by creation time in ascending order.
-   * Total number of opportunities returned is capped by the server to preserve bandwidth.
-   */
   get_opportunities: {
     parameters: {
       query?: {
@@ -1218,10 +1305,17 @@ export interface operations {
          */
         limit?: number;
       };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    requestBody?: never;
     responses: {
       /** @description Array of opportunities ready for bidding */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["Opportunity"][];
         };
@@ -1229,18 +1323,22 @@ export interface operations {
       400: components["responses"]["ErrorBodyResponse"];
       /** @description Chain id was not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
     };
   };
-  /**
-   * Submit an opportunity ready to be executed.
-   * @description The opportunity will be verified by the server. If the opportunity is valid, it will be stored in the database
-   * and will be available for bidding.
-   */
   post_opportunity: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
     requestBody: {
       content: {
         "application/json": components["schemas"]["OpportunityCreate"];
@@ -1249,6 +1347,9 @@ export interface operations {
     responses: {
       /** @description The created opportunity */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["Opportunity"];
         };
@@ -1256,14 +1357,22 @@ export interface operations {
       400: components["responses"]["ErrorBodyResponse"];
       /** @description Chain id was not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
     };
   };
-  /** Delete all opportunities for specified data. */
   delete_opportunities: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
     requestBody: {
       content: {
         "application/json": components["schemas"]["OpportunityDelete"];
@@ -1272,23 +1381,30 @@ export interface operations {
     responses: {
       /** @description Opportunities deleted successfully */
       204: {
-        content: never;
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       400: components["responses"]["ErrorBodyResponse"];
       /** @description Chain id was not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
     };
   };
-  /**
-   * Submit a quote request.
-   * @description The server will create an opportunity and receive searcher bids
-   * After a certain time, the winning bid will be returned as the response.
-   */
   post_quote: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
     requestBody: {
       content: {
         "application/json": components["schemas"]["QuoteCreate"];
@@ -1297,6 +1413,9 @@ export interface operations {
     responses: {
       /** @description The created quote */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["Quote"];
         };
@@ -1304,19 +1423,24 @@ export interface operations {
       400: components["responses"]["ErrorBodyResponse"];
       /** @description No quote available right now */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
     };
   };
-  /** Bid on opportunity. */
   opportunity_bid: {
     parameters: {
+      query?: never;
+      header?: never;
       path: {
         /** @description Opportunity id to bid on */
         opportunity_id: string;
       };
+      cookie?: never;
     };
     requestBody: {
       content: {
@@ -1326,6 +1450,9 @@ export interface operations {
     responses: {
       /** @description Bid Result */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["OpportunityBidResult"];
         };
@@ -1333,35 +1460,41 @@ export interface operations {
       400: components["responses"]["ErrorBodyResponse"];
       /** @description Opportunity or chain id was not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
     };
   };
-  /**
-   * Revoke the authenticated profile access token.
-   * @description Returns empty response.
-   */
   delete_profile_access_token: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       /** @description The token successfully revoked */
       200: {
-        content: never;
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       400: components["responses"]["ErrorBodyResponse"];
     };
   };
-  /**
-   * Returns at most 20 bids which were submitted after a specific time and chain.
-   * If no time is provided, the server will return the first bids.
-   */
   get_bids_by_time: {
     parameters: {
       query?: {
         /** @example 2024-05-23T21:26:57.329954Z */
         from_time?: string | null;
       };
+      header?: never;
       path: {
         /**
          * @description The chain id to query for
@@ -1369,10 +1502,15 @@ export interface operations {
          */
         chain_id: string;
       };
+      cookie?: never;
     };
+    requestBody?: never;
     responses: {
       /** @description Paginated list of bids for the specified query */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["Bids"];
         };
@@ -1380,18 +1518,24 @@ export interface operations {
       400: components["responses"]["ErrorBodyResponse"];
     };
   };
-  /** Query the status of a specific bid. */
   get_bid_status: {
     parameters: {
+      query?: never;
+      header?: never;
       path: {
         /** @example op_sepolia */
         chain_id: string;
         /** @example obo3ee3e-58cc-4372-a567-0e02b2c3d479 */
         bid_id: string;
       };
+      cookie?: never;
     };
+    requestBody?: never;
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["BidStatus"];
         };
@@ -1399,19 +1543,19 @@ export interface operations {
       400: components["responses"]["ErrorBodyResponse"];
       /** @description Bid was not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
     };
   };
-  /**
-   * Cancel a specific bid.
-   * @description Bids can only be cancelled if they are in the awaiting signature state.
-   * Only the user who created the bid can cancel it.
-   */
   post_cancel_bid: {
     parameters: {
+      query?: never;
+      header?: never;
       path: {
         /**
          * @description The chain id of the bid to cancel.
@@ -1424,28 +1568,33 @@ export interface operations {
          */
         bid_id: string;
       };
+      cookie?: never;
     };
+    requestBody?: never;
     responses: {
       /** @description Bid was cancelled successfully */
       200: {
-        content: never;
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       400: components["responses"]["ErrorBodyResponse"];
       /** @description Chain id was not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["ErrorBodyResponse"];
         };
       };
     };
   };
-  /**
-   * Signs and submits the transaction for the specified quote.
-   * @description Server will verify the quote and checks if the quote is still valid.
-   * If the quote is valid, the server will submit the transaction to the blockchain.
-   */
   post_submit_quote: {
     parameters: {
+      query?: never;
+      header?: never;
       path: {
         /**
          * @description The chain id to submit the quote for
@@ -1453,6 +1602,7 @@ export interface operations {
          */
         chain_id: string;
       };
+      cookie?: never;
     };
     requestBody: {
       content: {
@@ -1461,6 +1611,9 @@ export interface operations {
     };
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
         content: {
           "application/json": components["schemas"]["SubmitQuoteResponse"];
         };

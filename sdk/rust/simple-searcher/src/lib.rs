@@ -182,6 +182,9 @@ impl SimpleSearcher {
                     .cloned()
                     .ok_or(anyhow!("Block hash not found"))?;
                 let payer = Keypair::from_base58_string(private_key.as_str());
+                // This limit assumes no other custom instructions exist in the transaction, you may need to adjust
+                // this limit depending on your integration
+                let compute_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(300_000);
                 let fee_ix = ComputeBudgetInstruction::set_compute_unit_price(
                     svm_update.latest_prioritization_fee,
                 );
@@ -212,7 +215,7 @@ impl SimpleSearcher {
                         //             amount: SVM_BID_AMOUNT,
                         //             deadline,
                         //             block_hash: svm_update.blockhash,
-                        //             instructions: vec![fee_ix],
+                        //             instructions: vec![compute_limit_ix, fee_ix],
                         //             payer: payer.pubkey(),
                         //             slot: Some(slot),
                         //             searcher: payer.pubkey(),
@@ -263,7 +266,7 @@ impl SimpleSearcher {
                                     amount: SVM_BID_AMOUNT,
                                     deadline,
                                     block_hash: svm_update.blockhash,
-                                    instructions: vec![fee_ix, create_ata_ix],
+                                    instructions: vec![compute_limit_ix, fee_ix, create_ata_ix],
                                     payer: payer.pubkey(),
                                     slot: None,
                                     searcher: payer.pubkey(),

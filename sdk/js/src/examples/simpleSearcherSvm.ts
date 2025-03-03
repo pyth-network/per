@@ -33,7 +33,7 @@ import {
   getPdaAuthority,
   OrderStateAndAddress,
 } from "@kamino-finance/limo-sdk/dist/utils";
-import { constructSwapBid } from "../svm";
+import { constructSubmitBidInstruction, constructSwapBid } from "../svm";
 
 const DAY_IN_SECONDS = 60 * 60 * 24;
 
@@ -105,6 +105,19 @@ export class SimpleSearcherSvm {
     return decimals;
   }
 
+  generateComputeBudgetInstructions(): TransactionInstruction[] {
+    // This limit assumes no other custom instructions exist in the transaction, you may need to adjust
+    // this limit depending on your integration
+    const computeLimitInstruction = ComputeBudgetProgram.setComputeUnitLimit({
+      units: 300000,
+    });
+    const feeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports:
+        this.latestChainUpdate[this.chainId].latestPrioritizationFee,
+    });
+    return [computeLimitInstruction, feeInstruction];
+  }
+
   /**
    * Generates a bid for a given limo opportunity.
    * The transaction in this bid transfers assets from the searcher's wallet to fulfill the limit order.
@@ -119,20 +132,12 @@ export class SimpleSearcherSvm {
     );
 
     const ixsTakeOrder = await this.generateTakeOrderIxs(limoClient, order);
-    const feeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
-      microLamports:
-        this.latestChainUpdate[this.chainId].latestPrioritizationFee,
-    });
-    const txRaw = new anchor.web3.Transaction().add(
-      feeInstruction,
-      ...ixsTakeOrder,
-    );
 
     const bidAmount = await this.getBidAmount(opportunity);
 
     const config = await this.getExpressRelayConfig();
-    const bid = await this.client.constructSvmBid(
-      txRaw,
+
+    const ixSubmitBid = await constructSubmitBidInstruction(
       this.searcher.publicKey,
       getPdaAuthority(limoClient.getProgramID(), order.state.globalConfig),
       order.address,
@@ -142,12 +147,20 @@ export class SimpleSearcherSvm {
       config.relayerSigner,
       config.feeReceiverRelayer,
     );
-    bid.slot = opportunity.slot;
-
-    bid.transaction.recentBlockhash =
-      this.latestChainUpdate[this.chainId].blockhash;
-    bid.transaction.sign(this.searcher);
-    return bid;
+    const tx = new anchor.web3.Transaction().add(
+      ...this.generateComputeBudgetInstructions(),
+      ixSubmitBid,
+      ...ixsTakeOrder,
+    );
+    tx.recentBlockhash = this.latestChainUpdate[this.chainId].blockhash;
+    tx.sign(this.searcher);
+    return {
+      transaction: tx,
+      chainId: this.chainId,
+      type: "onchain",
+      env: "svm",
+      slot: opportunity.slot,
+    };
   }
 
   /**
@@ -157,12 +170,10 @@ export class SimpleSearcherSvm {
    * @returns The generated bid object.
    */
   async generateBidSwap(opportunity: OpportunitySvmSwap): Promise<BidSvm> {
-    const feeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
-      microLamports:
-        this.latestChainUpdate[this.chainId].latestPrioritizationFee,
-    });
     const bidAmount = await this.getBidAmount(opportunity);
-    const txRaw = new anchor.web3.Transaction().add(feeInstruction);
+    const txRaw = new anchor.web3.Transaction().add(
+      ...this.generateComputeBudgetInstructions(),
+    );
     const config = await this.getExpressRelayConfig();
     const bid = await constructSwapBid(
       txRaw,
