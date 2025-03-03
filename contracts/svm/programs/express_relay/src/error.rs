@@ -20,4 +20,6 @@ pub enum ErrorCode {
     InsufficientRent,
     #[msg("Invalid referral fee")]
     InvalidReferralFee,
+    #[msg("Insufficient user funds")]
+    InsufficientUserFunds,
 }
