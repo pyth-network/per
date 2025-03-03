@@ -6,7 +6,6 @@ use {
     crate::{
         api::RestError,
         kernel::entities::ChainId,
-        opportunity::repository::OpportunityTable,
     },
 };
 

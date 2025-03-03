@@ -17,11 +17,7 @@ use {
         },
         opportunity::{
             entities,
-            repository::{
-                InMemoryStore,
-                OpportunityTable,
-            },
-            service::InMemoryStoreSvm,
+            repository::InMemoryStore,
             token_spoof,
         },
     },

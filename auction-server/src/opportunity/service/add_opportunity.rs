@@ -15,10 +15,7 @@ use {
                 Opportunity,
                 OpportunityCreate,
             },
-            repository::{
-                InMemoryStore,
-                OpportunityTable,
-            },
+            repository::InMemoryStore,
             service::verification::VerifyOpportunityInput,
         },
     },
@@ -134,10 +131,7 @@ mod tests {
                     OpportunitySvmProgramLimo,
                     TokenAmountSvm,
                 },
-                repository::{
-                    InMemoryStoreSvm,
-                    MockOpportunityTable,
-                },
+                repository::MockOpportunityTable,
                 service::{
                     add_opportunity::AddOpportunityInput,
                     ChainTypeSvm,

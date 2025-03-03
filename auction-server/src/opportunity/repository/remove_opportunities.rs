@@ -1,6 +1,5 @@
 use {
     super::{
-        db::OpportunityTable,
         models::OpportunityRemovalReason,
         InMemoryStore,
         Repository,

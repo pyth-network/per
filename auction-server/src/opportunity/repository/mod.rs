@@ -1,6 +1,5 @@
 use {
     super::entities,
-    crate::kernel::db::DB,
     axum_prometheus::metrics,
     ethers::types::Address,
     express_relay::state::ExpressRelayMetadata,

@@ -1,6 +1,5 @@
 use {
     super::{
-        db::OpportunityTable,
         InMemoryStore,
         Repository,
     },

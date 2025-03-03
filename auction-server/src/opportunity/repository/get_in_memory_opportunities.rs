@@ -1,7 +1,6 @@
 use {
     super::{
         InMemoryStore,
-        OpportunityTable,
         Repository,
     },
     crate::opportunity::entities,
