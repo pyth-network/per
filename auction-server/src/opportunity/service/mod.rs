@@ -350,11 +350,11 @@ pub mod tests {
 
 #[cfg(test)]
 mock! {
-    pub Service<T: ChainType + 'static, U: OpportunityTable<T::InMemoryStore> + 'static> {
+    pub Service<T: ChainType + 'static> {
         pub fn new(
             store: Arc<Store>,
             task_tracker: TaskTracker,
-            db: U,
+            db: DB,
             config: HashMap<ChainId, T::Config>,
         ) -> Self;
         pub fn get_config(&self, chain_id: &ChainId) -> Result<T::Config, crate::api::RestError>;
@@ -380,7 +380,7 @@ mock! {
             input: handle_opportunity_bid::HandleOpportunityBidInput,
         ) -> Result<uuid::Uuid, crate::api::RestError>;
     }
-    impl<T: ChainType + 'static, U: OpportunityTable<T::InMemoryStore> + 'static> verification::Verification<T> for Service<T, U> {
+    impl<T: ChainType + 'static> verification::Verification<T> for Service<T> {
         async fn verify_opportunity(
             &self,
             input: verification::VerifyOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as crate::opportunity::entities::Opportunity>::OpportunityCreate>,

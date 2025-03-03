@@ -1443,7 +1443,6 @@ mod tests {
                 service::verification::Verification,
             },
             kernel::{
-                db::DB,
                 entities::Svm,
                 traced_sender_svm::tests::MockRpcClient,
             },
@@ -1472,7 +1471,7 @@ mod tests {
         let user = Pubkey::new_unique();
         let transaction = system_transaction::transfer(&searcher, &user, 10, Hash::default());
 
-        let mut opportunity_service = MockService::<ChainTypeSvm, DB>::default();
+        let mut opportunity_service = MockService::<ChainTypeSvm>::default();
         opportunity_service
             .expect_get_live_opportunities()
             .returning(|_| vec![]);

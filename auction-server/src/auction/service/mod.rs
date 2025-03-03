@@ -231,7 +231,7 @@ impl ChainTrait for Svm {
 }
 
 pub struct ServiceInner<T: ChainTrait> {
-    opportunity_service: Arc<OpportunityService<T::OpportunityServiceType, DB>>,
+    opportunity_service: Arc<OpportunityService<T::OpportunityServiceType>>,
     config:              Config<T::ConfigType>,
     repo:                Arc<Repository<T>>,
     task_tracker:        TaskTracker,
@@ -251,7 +251,7 @@ impl<T: ChainTrait> Service<T> {
     pub fn new(
         db: DB,
         config: Config<T::ConfigType>,
-        opportunity_service: Arc<OpportunityService<T::OpportunityServiceType, DB>>,
+        opportunity_service: Arc<OpportunityService<T::OpportunityServiceType>>,
         task_tracker: TaskTracker,
         event_sender: broadcast::Sender<UpdateEvent>,
     ) -> Self {
@@ -291,7 +291,6 @@ pub mod tests {
                 Repository,
             },
             kernel::{
-                db::DB,
                 entities::{
                     ChainId,
                     Svm,
@@ -323,7 +322,7 @@ pub mod tests {
         pub fn new_with_mocks_svm(
             chain_id: ChainId,
             db: impl Database<Svm>,
-            opportunity_service: MockOpportunityService<ChainTypeSvm, DB>,
+            opportunity_service: MockOpportunityService<ChainTypeSvm>,
             rpc_client: MockRpcClient,
             broadcaster_client: MockRpcClient,
         ) -> Self {

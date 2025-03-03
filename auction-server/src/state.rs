@@ -12,10 +12,7 @@ use {
             ConfigEvm,
             ConfigSvm,
         },
-        kernel::{
-            db::DB,
-            traced_client::TracedClient,
-        },
+        kernel::traced_client::TracedClient,
         models,
         opportunity::service as opportunity_service,
     },
@@ -142,8 +139,8 @@ pub struct Store {
 }
 
 pub struct StoreNew {
-    pub opportunity_service_evm: Arc<OpportunityService<opportunity_service::ChainTypeEvm, DB>>,
-    pub opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm, DB>>,
+    pub opportunity_service_evm: Arc<OpportunityService<opportunity_service::ChainTypeEvm>>,
+    pub opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm>>,
     pub store:                   Arc<Store>,
 
     auction_services: HashMap<ChainId, auction_service::ServiceEnum>,
@@ -152,8 +149,8 @@ pub struct StoreNew {
 impl StoreNew {
     pub fn new(
         store: Arc<Store>,
-        opportunity_service_evm: Arc<OpportunityService<opportunity_service::ChainTypeEvm, DB>>,
-        opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm, DB>>,
+        opportunity_service_evm: Arc<OpportunityService<opportunity_service::ChainTypeEvm>>,
+        opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm>>,
         auction_services: HashMap<ChainId, auction_service::ServiceEnum>,
     ) -> Self {
         Self {

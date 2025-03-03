@@ -5,12 +5,9 @@ use {
         verification::Verification,
         ChainType,
     },
-    crate::{
-        kernel::db::DB,
-        server::{
-            EXIT_CHECK_INTERVAL,
-            SHOULD_EXIT,
-        },
+    crate::server::{
+        EXIT_CHECK_INTERVAL,
+        SHOULD_EXIT,
     },
     mockall_double::double,
     std::{
@@ -22,9 +19,9 @@ use {
     },
 };
 
-pub async fn run_verification_loop<T: ChainType>(service: Arc<Service<T, DB>>) -> anyhow::Result<()>
+pub async fn run_verification_loop<T: ChainType>(service: Arc<Service<T>>) -> anyhow::Result<()>
 where
-    Service<T, DB>: Verification<T>,
+    Service<T>: Verification<T>,
 {
     tracing::info!(
         chain_type = ?T::get_type(),
