@@ -26,12 +26,10 @@ jobs:
           cargo install solana-verify --git https://github.com/Ellipsis-Labs/solana-verifiable-build --rev 121568e
       - name: Build
         run: solana-verify build
-      - name: Update permissions
-        run: chmod -R 777 ./target && chmod -R 555 ./target/deploy
       - name: Run tests
         env:
           SBF_OUT_DIR: ${{ github.workspace }}/contracts/svm/target/deploy
-        run: cargo test
+        run: cargo test --target-dir ./target-tests
       - name: Print Hash
         run: sha256sum ./target/deploy/express_relay.so
       - name: Upload artifact
