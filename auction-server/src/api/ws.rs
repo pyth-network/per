@@ -159,7 +159,7 @@ fn ok_response(id: String) -> ServerResultResponse {
     }
 }
 
-const MAX_ACTIVE_REQUESTS: usize = 10;
+const MAX_ACTIVE_REQUESTS: usize = 50;
 
 impl Subscriber {
     pub fn new(
@@ -203,7 +203,6 @@ impl Subscriber {
         tokio::select! {
             maybe_update_event = self.notify_receiver.recv() => {
                 match maybe_update_event {
-
                     Ok(event) => self.handle_update(event).await,
                     Err(e) => Err(anyhow!("Error receiving update event: {:?}", e)),
                 }
@@ -214,18 +213,21 @@ impl Subscriber {
                 ).await
             },
             response_received = self.response_receiver.recv() => {
-                match response_received{
-                    Ok(DeferredResponse{response, bid_id_to_add}) =>{
-                            if let Some(bid_id) = bid_id_to_add {
-                                self.bid_ids.insert(bid_id);
-                            }
-                            self.sender.send(serde_json::to_string(&response)?.into()).await?
-
-                        },
-                    Err(e) => {
-                        tracing::warn!(subscriber = self.id, error = ?e, "Error Handling Subscriber Response Message.");
+                match response_received {
+                    Ok(DeferredResponse { response, bid_id_to_add }) => {
+                        if let Some(bid_id) = bid_id_to_add {
+                            self.bid_ids.insert(bid_id);
+                        }
+                        self.sender.send(serde_json::to_string(&response)?.into()).await?;
                     }
-                };
+                    Err(e) => {
+                        tracing::warn!(
+                            subscriber = self.id,
+                            error = ?e,
+                            "Error Handling Subscriber Response Message."
+                        );
+                    }
+                }
                 Ok(())
             },
             _  = self.ping_interval.tick() => {
