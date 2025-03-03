@@ -1067,9 +1067,7 @@ impl Service<Svm> {
                         opportunity_id: bid_data.opportunity_id,
                     })
                     .await
-                    .ok_or(RestError::BadParameters(
-                        "No swap opportunity with the given id found".to_string(),
-                    ))?;
+                    .ok_or(RestError::SwapOpportunityNotFound)?;
                 self.validate_swap_transaction_instructions(
                     bid_chain_data_create_svm.get_transaction(),
                 )?;
@@ -1434,12 +1432,14 @@ impl Verification<Svm> for Service<Svm> {
 mod tests {
     use {
         crate::{
+            api::RestError,
             auction::{
                 entities::{
                     BidChainDataCreateSvm,
                     BidChainDataSwapCreateSvm,
                     BidCreate,
                 },
+                repository::MockDBTrait,
                 service::verification::Verification,
             },
             kernel::{
@@ -1463,7 +1463,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_verify_bid() {
+    async fn test_verify_bid_when_opportunity_not_found() {
         let chain_id = "solana".to_string();
         let rpc_client = MockRpcClient::default();
         let broadcaster_client = MockRpcClient::default();
@@ -1480,9 +1480,11 @@ mod tests {
             .expect_get_live_opportunity_by_id()
             .returning(|_| None);
 
+        let db = MockDBTrait::<Svm>::default();
         let service = super::Service::new_with_mocks_svm(
-            opportunity_service,
             chain_id.clone(),
+            db,
+            opportunity_service,
             rpc_client,
             broadcaster_client,
         );
@@ -1497,9 +1499,10 @@ mod tests {
             }),
         };
 
-        service
+        let result = service
             .verify_bid(super::VerifyBidInput { bid_create })
-            .await
-            .unwrap();
+            .await;
+
+        assert_eq!(result.unwrap_err(), RestError::SwapOpportunityNotFound);
     }
 }

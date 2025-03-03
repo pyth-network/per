@@ -287,7 +287,10 @@ pub mod tests {
             SwapInstructionAccountPositions,
         },
         crate::{
-            auction::repository::Repository,
+            auction::repository::{
+                DBTrait,
+                Repository,
+            },
             kernel::{
                 db::DB,
                 entities::{
@@ -319,8 +322,9 @@ pub mod tests {
 
     impl Service<Svm> {
         pub fn new_with_mocks_svm(
-            opportunity_service: MockOpportunityService<ChainTypeSvm, DB>,
             chain_id: ChainId,
+            db: impl DBTrait<Svm>,
+            opportunity_service: MockOpportunityService<ChainTypeSvm, DB>,
             rpc_client: MockRpcClient,
             broadcaster_client: MockRpcClient,
         ) -> Self {
@@ -366,10 +370,7 @@ pub mod tests {
                         prioritization_fee_percentile: None,
                     },
                 },
-                repo:                Arc::new(Repository::new(
-                    DB::connect_lazy("https://test").unwrap(),
-                    chain_id.clone(),
-                )),
+                repo:                Arc::new(Repository::new(db, chain_id.clone())),
                 task_tracker:        TaskTracker::new(),
                 event_sender:        broadcast::channel(1).0,
             }))
