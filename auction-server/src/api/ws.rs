@@ -80,12 +80,9 @@ use {
         time::Duration,
     },
     time::OffsetDateTime,
-    tokio::{
-        spawn,
-        sync::{
-            broadcast,
-            Semaphore,
-        },
+    tokio::sync::{
+        broadcast,
+        Semaphore,
     },
     tracing::{
         instrument,
@@ -162,6 +159,8 @@ fn ok_response(id: String) -> ServerResultResponse {
     }
 }
 
+const MAX_ACTIVE_REQUESTS: usize = 10;
+
 impl Subscriber {
     pub fn new(
         id: SubscriberId,
@@ -185,7 +184,7 @@ impl Subscriber {
             exit_check_interval: tokio::time::interval(EXIT_CHECK_INTERVAL),
             responded_to_ping: true, // We start with true so we don't close the connection immediately
             auth,
-            active_requests: Arc::new(Semaphore::new(5)),
+            active_requests: Arc::new(Semaphore::new(MAX_ACTIVE_REQUESTS)),
             response_receiver,
             response_sender,
         }
@@ -216,18 +215,17 @@ impl Subscriber {
             },
             response_received = self.response_receiver.recv() => {
                 match response_received{
-                Ok(DeferredResponse{response, bid_id_to_add}) =>{
-                        if let Some(bid_id) = bid_id_to_add {
-                            self.bid_ids.insert(bid_id);
-                        }
-                        self.sender.send(serde_json::to_string(&response)?.into()).await?
+                    Ok(DeferredResponse{response, bid_id_to_add}) =>{
+                            if let Some(bid_id) = bid_id_to_add {
+                                self.bid_ids.insert(bid_id);
+                            }
+                            self.sender.send(serde_json::to_string(&response)?.into()).await?
 
-                    },
-                Err(e) => {
-                    tracing::warn!(subscriber = self.id, error = ?e, "Error Handling Subscriber Response Message.");
-                }
-                    };
-
+                        },
+                    Err(e) => {
+                        tracing::warn!(subscriber = self.id, error = ?e, "Error Handling Subscriber Response Message.");
+                    }
+                };
                 Ok(())
             },
             _  = self.ping_interval.tick() => {
@@ -405,7 +403,7 @@ impl Subscriber {
             .await
             .expect("Semaphore should not be closed");
         let response_sender = self.response_sender.clone();
-        spawn(
+        self.store.task_tracker.spawn(
             async move {
                 let resp = fut.await;
                 Self::send_response(&response_sender, resp);

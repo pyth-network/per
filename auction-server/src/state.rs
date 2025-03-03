@@ -44,6 +44,7 @@ use {
         },
         RwLock,
     },
+    tokio_util::task::TaskTracker,
     tracing::{
         info_span,
         Instrument,
@@ -141,6 +142,7 @@ pub struct StoreNew {
     pub opportunity_service_svm:
         Arc<opportunity_service::Service<opportunity_service::ChainTypeSvm>>,
     pub store:                   Arc<Store>,
+    pub task_tracker:            TaskTracker,
 
     auction_services: HashMap<ChainId, auction_service::ServiceEnum>,
 }
@@ -155,12 +157,14 @@ impl StoreNew {
             opportunity_service::Service<opportunity_service::ChainTypeSvm>,
         >,
         auction_services: HashMap<ChainId, auction_service::ServiceEnum>,
+        task_tracker: TaskTracker,
     ) -> Self {
         Self {
             opportunity_service_evm,
             opportunity_service_svm,
             store,
             auction_services,
+            task_tracker,
         }
     }
 
