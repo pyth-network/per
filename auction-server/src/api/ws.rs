@@ -69,6 +69,7 @@ use {
     },
     std::{
         collections::HashSet,
+        future::Future,
         sync::{
             atomic::{
                 AtomicUsize,
@@ -79,7 +80,10 @@ use {
         time::Duration,
     },
     time::OffsetDateTime,
-    tokio::sync::broadcast,
+    tokio::sync::{
+        broadcast,
+        Semaphore,
+    },
     tracing::{
         instrument,
         Instrument,
@@ -119,6 +123,13 @@ pub enum UpdateEvent {
 
 pub type SubscriberId = usize;
 
+
+#[derive(Debug, Clone)]
+struct DeferredResponse {
+    response:      ServerResultResponse,
+    bid_id_to_add: Option<BidId>,
+}
+
 /// Subscriber is an actor that handles a single websocket connection.
 /// It listens to the store for updates and sends them to the client.
 pub struct Subscriber {
@@ -134,6 +145,9 @@ pub struct Subscriber {
     exit_check_interval: tokio::time::Interval,
     responded_to_ping:   bool,
     auth:                Auth,
+    active_requests:     Arc<Semaphore>,
+    response_sender:     broadcast::Sender<DeferredResponse>,
+    response_receiver:   broadcast::Receiver<DeferredResponse>,
 }
 
 const PING_INTERVAL_DURATION: Duration = Duration::from_secs(30);
@@ -145,6 +159,8 @@ fn ok_response(id: String) -> ServerResultResponse {
     }
 }
 
+const MAX_ACTIVE_REQUESTS: usize = 50;
+
 impl Subscriber {
     pub fn new(
         id: SubscriberId,
@@ -154,6 +170,7 @@ impl Subscriber {
         sender: SplitSink<WebSocket, Message>,
         auth: Auth,
     ) -> Self {
+        let (response_sender, response_receiver) = broadcast::channel(100);
         Self {
             id,
             closed: false,
@@ -167,6 +184,9 @@ impl Subscriber {
             exit_check_interval: tokio::time::interval(EXIT_CHECK_INTERVAL),
             responded_to_ping: true, // We start with true so we don't close the connection immediately
             auth,
+            active_requests: Arc::new(Semaphore::new(MAX_ACTIVE_REQUESTS)),
+            response_receiver,
+            response_sender,
         }
     }
 
@@ -183,7 +203,6 @@ impl Subscriber {
         tokio::select! {
             maybe_update_event = self.notify_receiver.recv() => {
                 match maybe_update_event {
-
                     Ok(event) => self.handle_update(event).await,
                     Err(e) => Err(anyhow!("Error receiving update event: {:?}", e)),
                 }
@@ -192,6 +211,24 @@ impl Subscriber {
                 self.handle_client_message(
                     maybe_message_or_err.ok_or(anyhow!("Client channel is closed"))??
                 ).await
+            },
+            response_received = self.response_receiver.recv() => {
+                match response_received {
+                    Ok(DeferredResponse { response, bid_id_to_add }) => {
+                        if let Some(bid_id) = bid_id_to_add {
+                            self.bid_ids.insert(bid_id);
+                        }
+                        self.sender.send(serde_json::to_string(&response)?.into()).await?;
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            subscriber = self.id,
+                            error = ?e,
+                            "Error Handling Subscriber Response Message."
+                        );
+                    }
+                }
+                Ok(())
             },
             _  = self.ping_interval.tick() => {
                 if let Auth::Authorized(token, _) = self.auth.clone() {
@@ -294,11 +331,7 @@ impl Subscriber {
         result
     }
 
-    async fn handle_subscribe(
-        &mut self,
-        message_id: String,
-        chain_ids: Vec<String>,
-    ) -> Result<ServerResultResponse, ServerResultResponse> {
+    async fn handle_subscribe(&mut self, message_id: String, chain_ids: Vec<String>) {
         let available_chain_ids: Vec<&ChainId> = self
             .store
             .store
@@ -312,64 +345,117 @@ impl Subscriber {
             .collect();
         // If there is a single chain id that is not found, we don't subscribe to any of the
         // asked correct chain ids and return an error to be more explicit and clear.
-        if !not_found_chain_ids.is_empty() {
-            Err(ServerResultResponse {
+        let resp = if !not_found_chain_ids.is_empty() {
+            ServerResultResponse {
                 id:     Some(message_id),
                 result: ServerResultMessage::Err(format!(
                     "Chain id(s) with id(s) {:?} not found",
                     not_found_chain_ids
                 )),
-            })
+            }
         } else {
             self.chain_ids.extend(chain_ids);
-            Ok(ok_response(message_id))
-        }
+            ok_response(message_id)
+        };
+        Self::send_response(
+            &self.response_sender,
+            DeferredResponse {
+                response:      resp,
+                bid_id_to_add: None,
+            },
+        );
     }
 
-    async fn handle_unsubscribe(
-        &mut self,
-        message_id: String,
-        chain_ids: Vec<String>,
-    ) -> Result<ServerResultResponse, ServerResultResponse> {
+    async fn handle_unsubscribe(&mut self, message_id: String, chain_ids: Vec<String>) {
         self.chain_ids
             .retain(|chain_id| !chain_ids.contains(chain_id));
-        Ok(ok_response(message_id))
+        let resp = ok_response(message_id);
+        Self::send_response(
+            &self.response_sender,
+            DeferredResponse {
+                response:      resp,
+                bid_id_to_add: None,
+            },
+        );
     }
 
-    async fn handle_post_bid(
+    fn send_response(
+        response_sender: &broadcast::Sender<DeferredResponse>,
+        deferred_response: DeferredResponse,
+    ) {
+        if matches!(
+            deferred_response.response.result,
+            ServerResultMessage::Err(_)
+        ) {
+            tracing::Span::current().record("result", "error");
+        }
+        if let Err(e) = response_sender.send(deferred_response) {
+            tracing::warn!(error = ?e, "Error sending response to subscriber");
+        }
+    }
+
+    async fn spawn_deferred(
         &mut self,
-        message_id: String,
-        bid: BidCreate,
-    ) -> Result<ServerResultResponse, ServerResultResponse> {
-        match process_bid(self.auth.clone(), self.store.clone(), bid).await {
-            Ok(bid_result) => {
-                self.bid_ids.insert(bid_result.id);
-                Ok(ServerResultResponse {
-                    id:     Some(message_id.clone()),
-                    result: ServerResultMessage::Success(Some(APIResponse::BidResult(
-                        bid_result.0,
-                    ))),
-                })
+        fut: impl Future<Output = DeferredResponse> + Send + 'static,
+    ) {
+        let permit = self
+            .active_requests
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Semaphore should not be closed");
+        let response_sender = self.response_sender.clone();
+        self.store.task_tracker.spawn(
+            async move {
+                let resp = fut.await;
+                Self::send_response(&response_sender, resp);
+                drop(permit);
             }
-            Err(e) => Err(ServerResultResponse {
-                id:     Some(message_id),
-                result: ServerResultMessage::Err(e.to_status_and_message().1),
-            }),
-        }
+            .in_current_span(),
+        );
     }
 
-    async fn handle_cancel_bid(
-        &mut self,
-        message_id: String,
-        bid_cancel: BidCancel,
-    ) -> Result<ServerResultResponse, ServerResultResponse> {
-        match cancel_bid(self.auth.clone(), self.store.clone(), bid_cancel).await {
-            Ok(_) => Ok(ok_response(message_id)),
-            Err(e) => Err(ServerResultResponse {
-                id:     Some(message_id),
-                result: ServerResultMessage::Err(e.to_status_and_message().1),
-            }),
-        }
+    async fn handle_post_bid(&mut self, message_id: String, bid: BidCreate) {
+        let (auth, store) = (self.auth.clone(), self.store.clone());
+        self.spawn_deferred(async move {
+            match process_bid(auth, store, bid).await {
+                Ok(bid_result) => DeferredResponse {
+                    bid_id_to_add: Some(bid_result.id),
+                    response:      ServerResultResponse {
+                        id:     Some(message_id.clone()),
+                        result: ServerResultMessage::Success(Some(APIResponse::BidResult(
+                            bid_result.0,
+                        ))),
+                    },
+                },
+                Err(e) => DeferredResponse {
+                    response:      ServerResultResponse {
+                        id:     Some(message_id),
+                        result: ServerResultMessage::Err(e.to_status_and_message().1),
+                    },
+                    bid_id_to_add: None,
+                },
+            }
+        })
+        .await;
+    }
+
+    async fn handle_cancel_bid(&mut self, message_id: String, bid_cancel: BidCancel) {
+        let (auth, store) = (self.auth.clone(), self.store.clone());
+        self.spawn_deferred(async move {
+            let resp = match cancel_bid(auth, store, bid_cancel).await {
+                Ok(_) => ok_response(message_id),
+                Err(e) => ServerResultResponse {
+                    id:     Some(message_id),
+                    result: ServerResultMessage::Err(e.to_status_and_message().1),
+                },
+            };
+            DeferredResponse {
+                response:      resp,
+                bid_id_to_add: None,
+            }
+        })
+        .await;
     }
 
     #[instrument(skip_all)]
@@ -378,33 +464,42 @@ impl Subscriber {
         message_id: String,
         opportunity_bid: OpportunityBidEvm,
         opportunity_id: OpportunityId,
-    ) -> Result<ServerResultResponse, ServerResultResponse> {
-        match self
-            .store
-            .opportunity_service_evm
-            .handle_opportunity_bid(HandleOpportunityBidInput {
-                opportunity_id,
-                opportunity_bid,
-                initiation_time: OffsetDateTime::now_utc(),
-                auth: self.auth.clone(),
-            })
-            .await
-        {
-            Ok(bid_result) => {
-                self.bid_ids.insert(bid_result);
-                Ok(ServerResultResponse {
-                    id:     Some(message_id.clone()),
-                    result: ServerResultMessage::Success(Some(APIResponse::BidResult(BidResult {
-                        status: "OK".to_string(),
-                        id:     bid_result,
-                    }))),
+    ) {
+        let store = self.store.clone();
+        let auth = self.auth.clone();
+        self.spawn_deferred(async move {
+            match store
+                .opportunity_service_evm
+                .handle_opportunity_bid(HandleOpportunityBidInput {
+                    opportunity_id,
+                    opportunity_bid,
+                    initiation_time: OffsetDateTime::now_utc(),
+                    auth,
                 })
+                .await
+            {
+                Ok(bid_result) => DeferredResponse {
+                    response:      ServerResultResponse {
+                        id:     Some(message_id.clone()),
+                        result: ServerResultMessage::Success(Some(APIResponse::BidResult(
+                            BidResult {
+                                status: "OK".to_string(),
+                                id:     bid_result,
+                            },
+                        ))),
+                    },
+                    bid_id_to_add: Some(bid_result),
+                },
+                Err(e) => DeferredResponse {
+                    response:      ServerResultResponse {
+                        id:     Some(message_id),
+                        result: ServerResultMessage::Err(e.to_status_and_message().1),
+                    },
+                    bid_id_to_add: None,
+                },
             }
-            Err(e) => Err(ServerResultResponse {
-                id:     Some(message_id),
-                result: ServerResultMessage::Err(e.to_status_and_message().1),
-            }),
-        }
+        })
+        .await;
     }
 
     #[instrument(
@@ -444,11 +539,17 @@ impl Subscriber {
             }
         };
 
-        let response = match maybe_client_message {
-            Err(e) => Err(ServerResultResponse {
-                id:     None,
-                result: ServerResultMessage::Err(e.to_string()),
-            }),
+        match maybe_client_message {
+            Err(e) => {
+                let resp = DeferredResponse {
+                    response:      ServerResultResponse {
+                        id:     None,
+                        result: ServerResultMessage::Err(e.to_string()),
+                    },
+                    bid_id_to_add: None,
+                };
+                Self::send_response(&self.response_sender, resp);
+            }
             Ok(ClientRequest { msg, id }) => match msg {
                 ClientMessage::Subscribe { chain_ids } => {
                     tracing::Span::current().record("name", "subscribe");
@@ -477,14 +578,6 @@ impl Subscriber {
                 }
             },
         };
-
-        if response.is_err() {
-            tracing::Span::current().record("result", "error");
-        }
-
-        self.sender
-            .send(serde_json::to_string(&response.unwrap_or_else(|e| e))?.into())
-            .await?;
 
         Ok(())
     }

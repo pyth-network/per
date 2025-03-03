@@ -151,7 +151,7 @@ pub enum BidStatus {
     Evm(BidStatusEvm),
 }
 
-#[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone)]
+#[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone, Debug)]
 pub struct BidResult {
     /// The status of the request. If the bid was placed successfully, the status will be "OK".
     #[schema(example = "OK")]

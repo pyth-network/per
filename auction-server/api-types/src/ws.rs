@@ -76,12 +76,12 @@ pub enum ServerUpdateResponse {
     },
 }
 
-#[derive(Serialize, Clone, ToSchema, Deserialize)]
+#[derive(Serialize, Clone, ToSchema, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum APIResponse {
     BidResult(BidResult),
 }
-#[derive(Serialize, Clone, ToSchema, Deserialize)]
+#[derive(Serialize, Clone, ToSchema, Deserialize, Debug)]
 #[serde(tag = "status", content = "result")]
 pub enum ServerResultMessage {
     #[serde(rename = "success")]
@@ -92,7 +92,7 @@ pub enum ServerResultMessage {
 
 /// This enum is used to send the result for a specific client request with the same id.
 /// Id is only None when the client message is invalid.
-#[derive(Serialize, ToSchema, Deserialize)]
+#[derive(Serialize, ToSchema, Deserialize, Clone, Debug)]
 pub struct ServerResultResponse {
     pub id:     Option<String>,
     #[serde(flatten)]

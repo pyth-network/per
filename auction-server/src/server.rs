@@ -464,6 +464,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         opportunity_service_evm,
         opportunity_service_svm,
         auction_services.clone(),
+        task_tracker.clone(),
     ));
 
     tokio::join!(
