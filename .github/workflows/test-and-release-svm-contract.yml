@@ -1,30 +1,41 @@
-name: Release SVM Program
+name: Test and release SVM contracts
 
 on:
+  pull_request:
+    paths:
+      - contracts/svm/**
   push:
     branches:
       - main
     paths:
       - contracts/svm/**
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: ./contracts/svm
     steps:
       - uses: actions/checkout@v2
       - name: Install Solana Verify CLI
         run: |
           cargo install solana-verify --git https://github.com/Ellipsis-Labs/solana-verifiable-build --rev 121568e
       - name: Build
-        working-directory: ./contracts/svm
         run: solana-verify build
+      - name: Run tests
+        env:
+          SBF_OUT_DIR: ${{ github.workspace }}/contracts/svm/target/deploy
+        run: cargo test --target-dir ./target-tests
       - name: Print Hash
-        working-directory: ./contracts/svm
         run: sha256sum ./target/deploy/express_relay.so
       - name: Upload artifact
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: express_relay.so
-          path: ./contracts/svm/target/deploy/express_relay.so
+          path: ./target/deploy/express_relay.so
           retention-days: 90
