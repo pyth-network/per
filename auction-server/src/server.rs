@@ -250,7 +250,7 @@ macro_rules! read_svm_position_env {
     }};
 }
 
-fn get_swap_instruction_account_positions() -> SwapInstructionAccountPositions {
+pub fn get_swap_instruction_account_positions() -> SwapInstructionAccountPositions {
     SwapInstructionAccountPositions {
         router_token_account:   read_svm_position_env!("SWAP_ROUTER_TOKEN_ACCOUNT_POSITION"),
         user_wallet_account:    read_svm_position_env!("SWAP_USER_WALLET_ACCOUNT_POSITION"),
@@ -261,7 +261,7 @@ fn get_swap_instruction_account_positions() -> SwapInstructionAccountPositions {
     }
 }
 
-fn get_submit_bid_instruction_account_positions() -> SubmitBidInstructionAccountPositions {
+pub fn get_submit_bid_instruction_account_positions() -> SubmitBidInstructionAccountPositions {
     SubmitBidInstructionAccountPositions {
         permission_account: read_svm_position_env!("SUBMIT_BID_PERMISSION_ACCOUNT_POSITION"),
         router_account:     read_svm_position_env!("SUBMIT_BID_ROUTER_ACCOUNT_POSITION"),

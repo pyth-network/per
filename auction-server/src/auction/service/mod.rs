@@ -90,6 +90,7 @@ pub mod update_recent_prioritization_fee;
 pub mod verification;
 pub mod workers;
 
+#[derive(Debug, Clone)]
 pub struct SwapInstructionAccountPositions {
     pub router_token_account:   usize,
     pub user_wallet_account:    usize,
@@ -282,8 +283,6 @@ pub mod tests {
             ExpressRelaySvm,
             Service,
             ServiceInner,
-            SubmitBidInstructionAccountPositions,
-            SwapInstructionAccountPositions,
         },
         crate::{
             auction::repository::{
@@ -304,6 +303,10 @@ pub mod tests {
                 ChainTypeSvm,
                 MockService as MockOpportunityService,
             },
+            server::{
+                get_submit_bid_instruction_account_positions,
+                get_swap_instruction_account_positions,
+            },
         },
         solana_client::{
             nonblocking::rpc_client::RpcClient,
@@ -313,7 +316,10 @@ pub mod tests {
             pubkey::Pubkey,
             signature::Keypair,
         },
-        std::sync::Arc,
+        std::{
+            str::FromStr,
+            sync::Arc,
+        },
         tokio::sync::broadcast,
         tokio_util::task::TaskTracker,
     };
@@ -336,22 +342,15 @@ pub mod tests {
                             RpcClientConfig::default(),
                         ),
                         express_relay:                 ExpressRelaySvm {
-                            program_id:                               Pubkey::new_unique(),
+                            program_id:                               Pubkey::from_str(
+                                "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou",
+                            )
+                            .unwrap(),
                             relayer:                                  Keypair::new(),
                             submit_bid_instruction_account_positions:
-                                SubmitBidInstructionAccountPositions {
-                                    permission_account: 0,
-                                    router_account:     1,
-                                },
+                                get_submit_bid_instruction_account_positions(),
                             swap_instruction_account_positions:
-                                SwapInstructionAccountPositions {
-                                    router_token_account:   0,
-                                    user_wallet_account:    1,
-                                    mint_searcher_account:  2,
-                                    mint_user_account:      3,
-                                    token_program_searcher: 4,
-                                    token_program_user:     5,
-                                },
+                                get_swap_instruction_account_positions(),
                         },
                         simulator:                     Simulator::new(TracedSenderSvm::new_client(
                             chain_id.clone(),

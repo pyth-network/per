@@ -737,7 +737,6 @@ impl Service<Svm> {
             .express_relay
             .swap_instruction_account_positions;
 
-
         let user_wallet = self
             .extract_account(tx, swap_instruction, positions.user_wallet_account)
             .await?;
@@ -1436,30 +1435,230 @@ mod tests {
             auction::{
                 entities::{
                     BidChainDataCreateSvm,
+                    BidChainDataSvm,
                     BidChainDataSwapCreateSvm,
                     BidCreate,
+                    BidPaymentInstructionType,
                 },
                 repository::MockDatabase,
                 service::verification::Verification,
             },
             kernel::{
-                entities::Svm,
+                entities::{
+                    ChainId,
+                    Svm,
+                },
                 traced_sender_svm::tests::MockRpcClient,
             },
-            opportunity::service::{
-                ChainTypeSvm,
-                MockService,
+            opportunity::{
+                entities::{
+                    FeeToken,
+                    OpportunityCoreFields,
+                    OpportunitySvm,
+                    OpportunitySvmProgram,
+                    OpportunitySvmProgramSwap,
+                    QuoteTokens,
+                    TokenAmountSvm,
+                },
+                service::{
+                    get_quote::get_quote_virtual_permission_account,
+                    ChainTypeSvm,
+                    MockService,
+                },
             },
+        },
+        express_relay_api_types::opportunity as opportunity_api,
+        express_relay_client::svm::{
+            self,
+            GetSwapInstructionParams,
         },
         solana_sdk::{
             hash::Hash,
             pubkey::Pubkey,
             signature::Keypair,
+            signer::Signer,
             system_transaction,
+            transaction::Transaction,
         },
-        time::OffsetDateTime,
+        spl_associated_token_account::get_associated_token_address_with_program_id,
+        time::{
+            Duration,
+            OffsetDateTime,
+        },
         uuid::Uuid,
     };
+
+    fn get_opportunity_service(
+        chain_id: ChainId,
+    ) -> (MockService<ChainTypeSvm>, Vec<OpportunitySvm>) {
+        let mut opportunity_service = MockService::<ChainTypeSvm>::default();
+        let now = OffsetDateTime::now_utc();
+        let router = Pubkey::new_unique();
+        let user_wallet_address = Pubkey::new_unique();
+        let user_token = TokenAmountSvm {
+            token:  Pubkey::new_unique(),
+            amount: 100,
+        };
+        let searcher_token = TokenAmountSvm {
+            token:  Pubkey::new_unique(),
+            amount: 0,
+        };
+
+        let tokens = QuoteTokens::UserTokenSpecified {
+            user_token:     user_token.clone(),
+            searcher_token: searcher_token.token,
+        };
+        let referral_fee_bps = 10;
+
+        let fee_token = FeeToken::UserToken;
+        let router_token_account = get_associated_token_address_with_program_id(
+            &router,
+            &user_token.token,
+            &spl_token::id(),
+        );
+
+        let permission_account = get_quote_virtual_permission_account(
+            &tokens,
+            &user_wallet_address,
+            &router_token_account,
+            referral_fee_bps,
+        );
+
+        let opp = OpportunitySvm {
+            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+                id: Uuid::new_v4(),
+                permission_key: OpportunitySvm::get_permission_key(
+                    BidPaymentInstructionType::Swap,
+                    router,
+                    permission_account,
+                ),
+                chain_id,
+                sell_tokens: vec![searcher_token],
+                buy_tokens: vec![user_token],
+                creation_time: now,
+                refresh_time: now,
+            },
+            router,
+            permission_account,
+            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
+                user_wallet_address,
+                platform_fee_bps: 0,
+                token_program_user: spl_token::id(),
+                token_program_searcher: spl_token::id(),
+                fee_token,
+                referral_fee_bps,
+            }),
+        };
+        let opps = vec![opp.clone()];
+        let opps_cloned = opps.clone();
+
+        opportunity_service
+            .expect_get_live_opportunities()
+            .returning(move |input| {
+                opps.iter()
+                    .filter(|opp| {
+                        opp.chain_id == input.key.0 && opp.core_fields.permission_key == input.key.1
+                    })
+                    .cloned()
+                    .collect()
+            });
+        opportunity_service
+            .expect_get_live_opportunity_by_id()
+            .returning(move |input| {
+                opps_cloned
+                    .iter()
+                    .find(|opp| opp.core_fields.id == input.opportunity_id)
+                    .cloned()
+            });
+
+        (opportunity_service, vec![opp])
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid() {
+        let chain_id = "solana".to_string();
+        let mut rpc_client = MockRpcClient::default();
+        rpc_client.expect_send().returning(|_, _| {
+            Ok(serde_json::json!({
+                "context": { "slot": 1 },
+                "value": {
+                    "err": null,
+                    "accounts": null,
+                    "logs": [],
+                    "returnData": {
+                        "data": ["", "base64"],
+                        "programId": "11111111111111111111111111111111",
+                    },
+                    "unitsConsumed": 0
+                }
+            }))
+        });
+
+        let broadcaster_client = MockRpcClient::default();
+        let (opportunity_service, opportunities) = get_opportunity_service(chain_id.clone());
+        let db = MockDatabase::<Svm>::default();
+        let service = super::Service::new_with_mocks_svm(
+            chain_id.clone(),
+            db,
+            opportunity_service,
+            rpc_client,
+            broadcaster_client,
+        );
+
+        let api_opportunity: opportunity_api::Opportunity = opportunities[0].clone().into();
+        let opportunity_svm = match api_opportunity {
+            opportunity_api::Opportunity::Svm(opportunity_svm) => opportunity_svm,
+            _ => panic!("Expected Svm opportunity"),
+        };
+        let searcher = Keypair::new();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   opportunity_svm.params.clone(),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id,
+            initiation_time: OffsetDateTime::now_utc(),
+            profile: None,
+            chain_data: BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await
+            .unwrap();
+
+        let opportunity_api::OpportunityParamsSvm::V1(params) = opportunity_svm.params;
+        let (permission_account, router) = match params.program {
+            opportunity_api::OpportunityParamsV1ProgramSvm::Swap {
+                permission_account,
+                router_account,
+                ..
+            } => (permission_account, router_account),
+            _ => panic!("Expected swap program"),
+        };
+        assert_eq!(
+            result.0,
+            BidChainDataSvm {
+                transaction: transaction.into(),
+                permission_account,
+                router,
+                bid_payment_instruction_type: BidPaymentInstructionType::Swap,
+            }
+        );
+        assert_eq!(result.1, 1);
+    }
 
     #[tokio::test]
     async fn test_verify_bid_when_opportunity_not_found() {
@@ -1469,15 +1668,10 @@ mod tests {
 
         let searcher = Keypair::new();
         let user = Pubkey::new_unique();
-        let transaction = system_transaction::transfer(&searcher, &user, 10, Hash::default());
+        let transaction: solana_sdk::transaction::Transaction =
+            system_transaction::transfer(&searcher, &user, 10, Hash::default());
 
-        let mut opportunity_service = MockService::<ChainTypeSvm>::default();
-        opportunity_service
-            .expect_get_live_opportunities()
-            .returning(|_| vec![]);
-        opportunity_service
-            .expect_get_live_opportunity_by_id()
-            .returning(|_| None);
+        let opportunity_service = get_opportunity_service(chain_id.clone()).0;
 
         let db = MockDatabase::<Svm>::default();
         let service = super::Service::new_with_mocks_svm(

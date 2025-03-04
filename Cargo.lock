@@ -738,6 +738,7 @@ dependencies = [
  "ethers",
  "express-relay",
  "express-relay-api-types",
+ "express-relay-client",
  "futures",
  "gas-oracle",
  "litesvm",
