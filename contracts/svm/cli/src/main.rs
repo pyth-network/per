@@ -29,6 +29,7 @@ use {
         InitializeArgs,
         SetRouterSplitArgs,
         SetSplitsArgs,
+        SetSwapPlatformFeeArgs,
     },
     std::str::FromStr,
 };
@@ -130,6 +131,16 @@ enum Commands {
         #[arg(long)]
         /// The split to use for this specific router, in bps.
         split_router: u64,
+    },
+    SetSwapPlatformFee {
+        #[arg(long)]
+        /// Path to the private key json file for the admin.
+        /// This account will be used as the transaction payer as well.
+        admin: String,
+
+        #[arg(long)]
+        /// The portion of the bid that goes to the platform, in bps.
+        fee_bps: u64,
     },
     WithdrawFees {
         #[arg(long)]
@@ -289,6 +300,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Set router {:?} split to {:?} bps", router, split_router);
             println!("Transaction signature {:?}", result);
         }
+        Commands::SetSwapPlatformFee { admin, fee_bps } => {
+            let payer = read_keypair_file(admin)?;
+            let client = Client::new_with_options(cluster, &payer, CommitmentConfig::confirmed());
+            let program = client.program(program_id)?;
+
+            let result = program
+                .request()
+                .accounts(accounts::SetSplits {
+                    admin: payer.pubkey(),
+                    express_relay_metadata,
+                })
+                .args(instruction::SetSwapPlatformFee {
+                    data: SetSwapPlatformFeeArgs {
+                        swap_platform_fee_bps: fee_bps,
+                    },
+                })
+                .signer(&payer)
+                .send()?;
+            println!("Set swap platform fee to {:?} bps", fee_bps);
+            println!("Transaction signature {:?}", result);
+        }
         Commands::WithdrawFees {
             admin,
             fee_receiver,
@@ -320,6 +352,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Fee receiver relayer {:?}", metadata.fee_receiver_relayer);
             println!("Split router default {:?}", metadata.split_router_default);
             println!("Split relayer {:?}", metadata.split_relayer);
+            println!("Swap platform fee {:?}", metadata.swap_platform_fee_bps);
         }
         Commands::GetRouterSplit { router } => {
             let keypair = Keypair::new();
