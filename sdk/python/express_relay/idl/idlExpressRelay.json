@@ -621,6 +621,11 @@
       "code": 6008,
       "name": "InvalidReferralFee",
       "msg": "Invalid referral fee"
+    },
+    {
+      "code": 6009,
+      "name": "InsufficientUserFunds",
+      "msg": "Insufficient user funds"
     }
   ]
 }
