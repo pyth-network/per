@@ -1474,9 +1474,11 @@ mod tests {
         },
         solana_sdk::{
             hash::Hash,
+            packet::PACKET_DATA_SIZE,
             pubkey::Pubkey,
             signature::Keypair,
             signer::Signer,
+            system_instruction,
             system_transaction,
             transaction::Transaction,
         },
@@ -1574,25 +1576,26 @@ mod tests {
         (opportunity_service, vec![opp])
     }
 
-    #[tokio::test]
-    async fn test_verify_bid() {
+    fn get_service(fail_simulation: bool) -> (super::Service<Svm>, Vec<OpportunitySvm>) {
         let chain_id = "solana".to_string();
         let mut rpc_client = MockRpcClient::default();
-        rpc_client.expect_send().returning(|_, _| {
-            Ok(serde_json::json!({
-                "context": { "slot": 1 },
-                "value": {
-                    "err": null,
-                    "accounts": null,
-                    "logs": [],
-                    "returnData": {
-                        "data": ["", "base64"],
-                        "programId": "11111111111111111111111111111111",
-                    },
-                    "unitsConsumed": 0
-                }
-            }))
-        });
+        if !fail_simulation {
+            rpc_client.expect_send().returning(|_, _| {
+                Ok(serde_json::json!({
+                    "context": { "slot": 1 },
+                    "value": {
+                        "err": null,
+                        "accounts": null,
+                        "logs": [],
+                        "returnData": {
+                            "data": ["", "base64"],
+                            "programId": "11111111111111111111111111111111",
+                        },
+                        "unitsConsumed": 0
+                    }
+                }))
+            });
+        }
 
         let broadcaster_client = MockRpcClient::default();
         let (opportunity_service, opportunities) = get_opportunity_service(chain_id.clone());
@@ -1605,30 +1608,100 @@ mod tests {
             broadcaster_client,
         );
 
-        let api_opportunity: opportunity_api::Opportunity = opportunities[0].clone().into();
-        let opportunity_svm = match api_opportunity {
-            opportunity_api::Opportunity::Svm(opportunity_svm) => opportunity_svm,
+        (service, opportunities)
+    }
+
+    fn get_opportunity_params(
+        opportunity: OpportunitySvm,
+    ) -> opportunity_api::OpportunityParamsSvm {
+        let api_opportunity: opportunity_api::Opportunity = opportunity.into();
+        match api_opportunity {
+            opportunity_api::Opportunity::Svm(opportunity_svm) => opportunity_svm.params,
             _ => panic!("Expected Svm opportunity"),
+        }
+    }
+
+    struct SwapParams {
+        user_wallet_address: Pubkey,
+        router_account:      Pubkey,
+        permission_account:  Pubkey,
+    }
+
+    fn get_opportunity_swap_params(opportunity: OpportunitySvm) -> SwapParams {
+        let opportunity_params = get_opportunity_params(opportunity);
+        let opportunity_api::OpportunityParamsSvm::V1(opportunity_params) = opportunity_params;
+        match opportunity_params.program {
+            opportunity_api::OpportunityParamsV1ProgramSvm::Swap {
+                user_wallet_address,
+                router_account,
+                permission_account,
+                ..
+            } => SwapParams {
+                user_wallet_address,
+                router_account,
+                permission_account,
+            },
+            _ => panic!("Expected swap program"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_transaction_exceed_size_limit() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut instructions = Vec::new();
+        let swap_params = get_opportunity_swap_params(opportunities[0].clone());
+        for _ in 0..61 {
+            // Adjust number to exceed limit
+            let transfer_instruction = system_instruction::transfer(
+                &searcher.pubkey(),
+                &swap_params.user_wallet_address,
+                100,
+            );
+            instructions.push(transfer_instruction);
+        }
+        let transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.into(),
+            }),
         };
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::TransactionSizeTooLarge(1235, PACKET_DATA_SIZE)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid() {
+        let (service, opportunities) = get_service(false);
+
+        let bid_amount = 1;
         let searcher = Keypair::new();
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   opportunity_svm.params.clone(),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
-                .unix_timestamp(),
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
 
         let bid_create = BidCreate::<Svm> {
-            chain_id,
+            chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
-            profile: None,
-            chain_data: BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
                 opportunity_id: opportunities[0].core_fields.id,
                 transaction:    transaction.clone().into(),
             }),
@@ -1638,55 +1711,35 @@ mod tests {
             .verify_bid(super::VerifyBidInput { bid_create })
             .await
             .unwrap();
-
-        let opportunity_api::OpportunityParamsSvm::V1(params) = opportunity_svm.params;
-        let (permission_account, router) = match params.program {
-            opportunity_api::OpportunityParamsV1ProgramSvm::Swap {
-                permission_account,
-                router_account,
-                ..
-            } => (permission_account, router_account),
-            _ => panic!("Expected swap program"),
-        };
+        let swap_params = get_opportunity_swap_params(opportunities[0].clone());
         assert_eq!(
             result.0,
             BidChainDataSvm {
-                transaction: transaction.into(),
-                permission_account,
-                router,
+                transaction:                  transaction.into(),
+                permission_account:           swap_params.permission_account,
+                router:                       swap_params.router_account,
                 bid_payment_instruction_type: BidPaymentInstructionType::Swap,
             }
         );
-        assert_eq!(result.1, 1);
+        assert_eq!(result.1, bid_amount);
     }
 
     #[tokio::test]
     async fn test_verify_bid_when_opportunity_not_found() {
-        let chain_id = "solana".to_string();
-        let rpc_client = MockRpcClient::default();
-        let broadcaster_client = MockRpcClient::default();
-
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
-        let user = Pubkey::new_unique();
-        let transaction: solana_sdk::transaction::Transaction =
-            system_transaction::transfer(&searcher, &user, 10, Hash::default());
-
-        let opportunity_service = get_opportunity_service(chain_id.clone()).0;
-
-        let db = MockDatabase::<Svm>::default();
-        let service = super::Service::new_with_mocks_svm(
-            chain_id.clone(),
-            db,
-            opportunity_service,
-            rpc_client,
-            broadcaster_client,
+        let transaction: solana_sdk::transaction::Transaction = system_transaction::transfer(
+            &searcher,
+            &get_opportunity_swap_params(opportunities[0].clone()).user_wallet_address,
+            10,
+            Hash::default(),
         );
 
         let bid_create = BidCreate::<Svm> {
-            chain_id,
+            chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
-            profile: None,
-            chain_data: BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
                 opportunity_id: Uuid::new_v4(),
                 transaction:    transaction.into(),
             }),
