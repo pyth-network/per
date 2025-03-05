@@ -117,6 +117,8 @@ pub enum RestError {
     DuplicateOpportunity,
     /// Swap opportunity is not found.
     SwapOpportunityNotFound,
+    /// Transaction size is too large.
+    TransactionSizeTooLarge(u64, usize),
 }
 
 impl RestError {
@@ -170,6 +172,10 @@ impl RestError {
             RestError::SwapOpportunityNotFound => (
                 StatusCode::BAD_REQUEST,
                 "No swap opportunity with the given id found".to_string(),
+            ),
+            RestError::TransactionSizeTooLarge(size, limit) => (
+                StatusCode::BAD_REQUEST,
+                format!("Transaction size is too large: {} > {}", size, limit),
             ),
         }
     }
