@@ -3,7 +3,8 @@ use {
         get_token_program::GetTokenProgramInput,
         ChainTypeSvm,
         Service,
-    }, crate::{
+    },
+    crate::{
         api::RestError,
         auction::{
             entities::{
@@ -27,16 +28,26 @@ use {
                 TokenAmountSvm,
             },
             service::{
-                add_opportunity::AddOpportunityInput, check_user_token_account_balance::CheckUserBalanceInput, get_express_relay_metadata::GetExpressRelayMetadata
+                add_opportunity::AddOpportunityInput,
+                check_user_token_account_balance::CheckUserTokenBalanceInput,
+                get_express_relay_metadata::GetExpressRelayMetadata,
             },
         },
-    }, axum_prometheus::metrics, ::express_relay::{
+    },
+    ::express_relay::{
         state::FEE_SPLIT_PRECISION,
         FeeToken,
-    }, express_relay_api_types::opportunity::ProgramSvm, solana_sdk::pubkey::Pubkey, spl_associated_token_account::get_associated_token_address_with_program_id, std::{
+    },
+    axum_prometheus::metrics,
+    express_relay_api_types::opportunity::ProgramSvm,
+    solana_sdk::pubkey::Pubkey,
+    spl_associated_token_account::get_associated_token_address_with_program_id,
+    std::{
         str::FromStr,
         time::Duration,
-    }, time::OffsetDateTime, tokio::time::sleep
+    },
+    time::OffsetDateTime,
+    tokio::time::sleep,
 };
 
 // FeeToken and TokenSpecified combinations possible and how they are handled:
@@ -516,19 +527,24 @@ impl Service<ChainTypeSvm> {
             ),
         };
 
-        let user_has_enough_balance = if let Some(user_wallet_address) = input.quote_create.user_wallet_address {
-            self.check_user_token_balance(CheckUserBalanceInput {
-                chain_id: input.quote_create.chain_id.clone(),
-                user: user_wallet_address,
-                mint_user: user_token.token,
-                amount_user: swap_data.amount_user,
-            }).await?
-        } else {
-            false
-        };
+        let user_has_enough_balance =
+            if let Some(user_wallet_address) = input.quote_create.user_wallet_address {
+                self.check_user_token_balance(CheckUserTokenBalanceInput {
+                    chain_id:    input.quote_create.chain_id.clone(),
+                    user:        user_wallet_address,
+                    mint_user:   user_token.token,
+                    amount_user: swap_data.amount_user,
+                })
+                .await?
+            } else {
+                false
+            };
 
         let (transaction, expiration_time) = if user_has_enough_balance {
-            (Some(winner_bid.chain_data.transaction.clone()), Some(deadline))
+            (
+                Some(winner_bid.chain_data.transaction.clone()),
+                Some(deadline),
+            )
         } else {
             (None, None)
         };
