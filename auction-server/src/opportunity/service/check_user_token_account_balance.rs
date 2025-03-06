@@ -31,6 +31,24 @@ impl Service<ChainTypeSvm> {
         &self,
         input: CheckUserTokenBalanceInput,
     ) -> Result<bool, RestError> {
+        let config = self.get_config(&input.chain_id)?;
+
+        let native_amount_user = if input.mint_user == spl_token::native_mint::id() {
+            config
+                .rpc_client
+                .get_account_with_commitment(&input.user, CommitmentConfig::processed())
+                .await
+                .map_err(|err| {
+                    tracing::error!(error = ?err, "Failed to get user wallet");
+                    RestError::TemporarilyUnavailable
+                })?
+                .value
+                .map(|account| account.lamports)
+                .unwrap_or_default()
+        } else {
+            0
+        };
+
         let user_ata_mint_user = get_associated_token_address_with_program_id(
             &input.user,
             &input.mint_user,
@@ -41,8 +59,7 @@ impl Service<ChainTypeSvm> {
                 })
                 .await?,
         );
-        let config = self.get_config(&input.chain_id)?;
-        let amount_user: Option<u64> = config
+        let amount_user: u64 = config
             .rpc_client
             .get_account_with_commitment(&user_ata_mint_user, CommitmentConfig::processed())
             .await
@@ -59,8 +76,9 @@ impl Service<ChainTypeSvm> {
                     })
                     .map(|token_account_with_extensions| token_account_with_extensions.base.amount)
             })
-            .transpose()?;
+            .transpose()?
+            .unwrap_or_default();
 
-        Ok(amount_user.unwrap_or(0) >= input.amount_user)
+        Ok(input.amount_user.saturating_sub(native_amount_user) <= amount_user)
     }
 }
