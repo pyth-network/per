@@ -52,7 +52,7 @@ impl Service<ChainTypeSvm> {
             })?
             .value
             .map(|account| {
-                TokenAccountWithExtensions::<TokenAccount>::unpack(&mut account.data.as_slice())
+                TokenAccountWithExtensions::<TokenAccount>::unpack(account.data.as_slice())
                     .map_err(|err| {
                         tracing::error!(error = ?err, "Failed to deserialize user token account");
                         RestError::TemporarilyUnavailable
@@ -61,6 +61,6 @@ impl Service<ChainTypeSvm> {
             })
             .transpose()?;
 
-        return Ok(amount_user.unwrap_or(0) >= input.amount_user);
+        Ok(amount_user.unwrap_or(0) >= input.amount_user)
     }
 }
