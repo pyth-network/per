@@ -1407,6 +1407,7 @@ impl Verification<Svm> for Service<Svm> {
 #[cfg(test)]
 mod tests {
     use {
+        super::VerificationResult,
         crate::{
             api::{
                 InstructionError,
@@ -1421,7 +1422,10 @@ mod tests {
                     BidPaymentInstructionType,
                 },
                 repository::MockDatabase,
-                service::verification::Verification,
+                service::{
+                    verification::Verification,
+                    Service,
+                },
             },
             kernel::{
                 entities::{
@@ -1463,7 +1467,6 @@ mod tests {
             signature::Keypair,
             signer::Signer,
             system_instruction,
-            system_transaction,
             transaction::Transaction,
         },
         spl_associated_token_account::{
@@ -1636,6 +1639,28 @@ mod tests {
         }
     }
 
+    async fn get_verify_bid_result(
+        service: Service<Svm>,
+        searcher: Keypair,
+        instructions: Vec<Instruction>,
+        opps: Vec<OpportunitySvm>,
+    ) -> Result<VerificationResult<Svm>, RestError> {
+        let mut transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opps[0].core_fields.id,
+                transaction:    transaction.into(),
+            }),
+        };
+        service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await
+    }
+
     #[tokio::test]
     async fn test_verify_bid() {
         let (service, opportunities) = get_service(false);
@@ -1686,20 +1711,13 @@ mod tests {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let instruction = compute_budget::ComputeBudgetInstruction::set_compute_unit_price(1);
-        let instructions = vec![instruction.clone(), instruction];
-        let transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
-        let bid_create = BidCreate::<Svm> {
-            chain_id:        service.config.chain_id.clone(),
-            initiation_time: OffsetDateTime::now_utc(),
-            profile:         None,
-            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunities[0].core_fields.id,
-                transaction:    transaction.into(),
-            }),
-        };
-        let result = service
-            .verify_bid(super::VerifyBidInput { bid_create })
-            .await;
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![instruction.clone(), instruction],
+            opportunities,
+        )
+        .await;
         assert_eq!(
             result.unwrap_err(),
             RestError::MultipleSetComputeUnitInstructions,
@@ -1710,24 +1728,12 @@ mod tests {
     async fn test_verify_bid_when_no_compute_budget_price_instructions() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
-        let transaction = Transaction::new_with_payer(&[], Some(&searcher.pubkey()));
         let minimum_budget = 10;
         service
             .repo
             .add_recent_priotization_fee(minimum_budget)
             .await;
-        let bid_create = BidCreate::<Svm> {
-            chain_id:        service.config.chain_id.clone(),
-            initiation_time: OffsetDateTime::now_utc(),
-            profile:         None,
-            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunities[0].core_fields.id,
-                transaction:    transaction.into(),
-            }),
-        };
-        let result = service
-            .verify_bid(super::VerifyBidInput { bid_create })
-            .await;
+        let result = get_verify_bid_result(service, searcher, vec![], opportunities).await;
         assert_eq!(
             result.unwrap_err(),
             RestError::SetComputeUnitInstructionNotFound(minimum_budget),
@@ -1741,23 +1747,12 @@ mod tests {
         let minimum_budget = 10;
         let instruction =
             compute_budget::ComputeBudgetInstruction::set_compute_unit_price(minimum_budget - 1);
-        let transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
         service
             .repo
             .add_recent_priotization_fee(minimum_budget)
             .await;
-        let bid_create = BidCreate::<Svm> {
-            chain_id:        service.config.chain_id.clone(),
-            initiation_time: OffsetDateTime::now_utc(),
-            profile:         None,
-            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunities[0].core_fields.id,
-                transaction:    transaction.into(),
-            }),
-        };
-        let result = service
-            .verify_bid(super::VerifyBidInput { bid_create })
-            .await;
+        let result =
+            get_verify_bid_result(service, searcher, vec![instruction], opportunities).await;
         assert_eq!(
             result.unwrap_err(),
             RestError::LowComputeBudget(minimum_budget),
@@ -1779,19 +1774,7 @@ mod tests {
             );
             instructions.push(transfer_instruction);
         }
-        let transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
-        let bid_create = BidCreate::<Svm> {
-            chain_id:        service.config.chain_id.clone(),
-            initiation_time: OffsetDateTime::now_utc(),
-            profile:         None,
-            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunities[0].core_fields.id,
-                transaction:    transaction.into(),
-            }),
-        };
-        let result = service
-            .verify_bid(super::VerifyBidInput { bid_create })
-            .await;
+        let result = get_verify_bid_result(service, searcher, instructions, opportunities).await;
         assert_eq!(
             result.unwrap_err(),
             RestError::TransactionSizeTooLarge(1235, PACKET_DATA_SIZE)
@@ -1802,27 +1785,9 @@ mod tests {
     async fn test_verify_bid_when_opportunity_not_found() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
-        let transaction: solana_sdk::transaction::Transaction = system_transaction::transfer(
-            &searcher,
-            &get_opportunity_swap_params(opportunities[0].clone()).user_wallet_address,
-            10,
-            Hash::default(),
-        );
-
-        let bid_create = BidCreate::<Svm> {
-            chain_id:        service.config.chain_id.clone(),
-            initiation_time: OffsetDateTime::now_utc(),
-            profile:         None,
-            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: Uuid::new_v4(),
-                transaction:    transaction.into(),
-            }),
-        };
-
-        let result = service
-            .verify_bid(super::VerifyBidInput { bid_create })
-            .await;
-
+        let mut opportunity = opportunities[0].clone();
+        opportunity.core_fields.id = Uuid::new_v4();
+        let result = get_verify_bid_result(service, searcher, vec![], vec![opportunity]).await;
         assert_eq!(result.unwrap_err(), RestError::SwapOpportunityNotFound);
     }
 
@@ -1852,21 +1817,13 @@ mod tests {
         ];
         for instruction in instructions.into_iter() {
             let searcher = Keypair::new();
-            let mut transaction =
-                Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
-            transaction.partial_sign(&[searcher], Hash::default());
-            let bid_create = BidCreate::<Svm> {
-                chain_id:        service.config.chain_id.clone(),
-                initiation_time: OffsetDateTime::now_utc(),
-                profile:         None,
-                chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                    opportunity_id: opportunities[0].core_fields.id,
-                    transaction:    transaction.clone().into(),
-                }),
-            };
-            let result = service
-                .verify_bid(super::VerifyBidInput { bid_create })
-                .await;
+            let result = get_verify_bid_result(
+                service.clone(),
+                searcher,
+                vec![instruction],
+                opportunities.clone(),
+            )
+            .await;
             assert_eq!(
                 result.unwrap_err(),
                 RestError::InvalidInstruction(
@@ -1975,21 +1932,13 @@ mod tests {
             let data = instruction.data.clone();
             let ix_parsed = TokenInstruction::unpack(&data).unwrap();
             let searcher = Keypair::new();
-            let mut transaction =
-                Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
-            transaction.partial_sign(&[searcher], Hash::default());
-            let bid_create = BidCreate::<Svm> {
-                chain_id:        service.config.chain_id.clone(),
-                initiation_time: OffsetDateTime::now_utc(),
-                profile:         None,
-                chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                    opportunity_id: opportunities[0].core_fields.id,
-                    transaction:    transaction.clone().into(),
-                }),
-            };
-            let result = service
-                .verify_bid(super::VerifyBidInput { bid_create })
-                .await;
+            let result = get_verify_bid_result(
+                service.clone(),
+                searcher,
+                vec![instruction],
+                opportunities.clone(),
+            )
+            .await;
             assert_eq!(
                 result.unwrap_err(),
                 RestError::InvalidInstruction(
@@ -2017,21 +1966,13 @@ mod tests {
                 })
                 .unwrap();
             let searcher = Keypair::new();
-            let mut transaction =
-                Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
-            transaction.partial_sign(&[searcher], Hash::default());
-            let bid_create = BidCreate::<Svm> {
-                chain_id:        service.config.chain_id.clone(),
-                initiation_time: OffsetDateTime::now_utc(),
-                profile:         None,
-                chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                    opportunity_id: opportunities[0].core_fields.id,
-                    transaction:    transaction.clone().into(),
-                }),
-            };
-            let result = service
-                .verify_bid(super::VerifyBidInput { bid_create })
-                .await;
+            let result = get_verify_bid_result(
+                service.clone(),
+                searcher,
+                vec![instruction],
+                opportunities.clone(),
+            )
+            .await;
             assert_eq!(
                 result.unwrap_err(),
                 RestError::InvalidInstruction(
@@ -2049,24 +1990,16 @@ mod tests {
         let instructions = vec![Instruction::new_with_bincode(program_id, &"", vec![])];
         for instruction in instructions.into_iter() {
             let searcher = Keypair::new();
-            let mut transaction =
-                Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
-            transaction.partial_sign(&[searcher], Hash::default());
-            let bid_create = BidCreate::<Svm> {
-                chain_id:        service.config.chain_id.clone(),
-                initiation_time: OffsetDateTime::now_utc(),
-                profile:         None,
-                chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                    opportunity_id: opportunities[0].core_fields.id,
-                    transaction:    transaction.clone().into(),
-                }),
-            };
-            let result = service
-                .verify_bid(super::VerifyBidInput { bid_create })
-                .await;
+            let result = get_verify_bid_result(
+                service.clone(),
+                searcher,
+                vec![instruction],
+                opportunities.clone(),
+            )
+            .await;
             assert_eq!(
                 result.unwrap_err(),
-                RestError::InvalidInstruction(0, InstructionError::UnsupportedProgram(program_id),)
+                RestError::InvalidInstruction(0, InstructionError::UnsupportedProgram(program_id))
             );
         }
     }
@@ -2098,21 +2031,13 @@ mod tests {
                 fee_receiver_relayer: Pubkey::new_unique(),
             })
             .unwrap();
-        let instructions = vec![swap_instruction, submit_bid_instruction];
-        let mut transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
-        transaction.partial_sign(&[searcher], Hash::default());
-        let bid_create = BidCreate::<Svm> {
-            chain_id:        service.config.chain_id.clone(),
-            initiation_time: OffsetDateTime::now_utc(),
-            profile:         None,
-            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunities[0].core_fields.id,
-                transaction:    transaction.clone().into(),
-            }),
-        };
-        let result = service
-            .verify_bid(super::VerifyBidInput { bid_create })
-            .await;
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction, submit_bid_instruction],
+            opportunities,
+        )
+        .await;
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidExpressRelayInstructionCount(2),
@@ -2123,21 +2048,7 @@ mod tests {
     async fn test_verify_bid_when_no_express_relay_instructions() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
-        let instructions = vec![];
-        let mut transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
-        transaction.partial_sign(&[searcher], Hash::default());
-        let bid_create = BidCreate::<Svm> {
-            chain_id:        service.config.chain_id.clone(),
-            initiation_time: OffsetDateTime::now_utc(),
-            profile:         None,
-            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunities[0].core_fields.id,
-                transaction:    transaction.clone().into(),
-            }),
-        };
-        let result = service
-            .verify_bid(super::VerifyBidInput { bid_create })
-            .await;
+        let result = get_verify_bid_result(service, searcher, vec![], opportunities).await;
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidExpressRelayInstructionCount(0),
