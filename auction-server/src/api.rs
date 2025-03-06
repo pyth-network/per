@@ -171,6 +171,8 @@ pub enum RestError {
     LowComputeBudget(u64),
     /// Invalid instruction
     InvalidInstruction(usize, InstructionError),
+    /// Invalid express relay instruction count
+    InvalidExpressRelayInstructionCount(usize),
 }
 
 
@@ -251,6 +253,10 @@ impl RestError {
             RestError::InvalidInstruction(index, message) => (
                 StatusCode::BAD_REQUEST,
                 format!("Invalid instruction at index {}: {}", index, message),
+            ),
+            RestError::InvalidExpressRelayInstructionCount(count) => (
+                StatusCode::BAD_REQUEST,
+                format!("Bid must include exactly one instruction to Express Relay program but found {} instructions", count),
             ),
         }
     }

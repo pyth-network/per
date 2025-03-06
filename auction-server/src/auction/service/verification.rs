@@ -467,7 +467,9 @@ impl Service<Svm> {
 
         let instruction = match instructions.len() {
             1 => Ok(instructions[0].clone()),
-            _ => Err(RestError::BadParameters(format!("Bid must include exactly one instruction to Express Relay program but found {} instructions", instructions.len()))),
+            _ => Err(RestError::InvalidExpressRelayInstructionCount(
+                instructions.len(),
+            )),
         }?;
         if !instruction.data.starts_with(&discriminator) {
             return Err(RestError::BadParameters(
@@ -1449,6 +1451,7 @@ mod tests {
         express_relay_api_types::opportunity as opportunity_api,
         express_relay_client::svm::{
             self,
+            GetSubmitBidInstructionParams,
             GetSwapInstructionParams,
         },
         solana_sdk::{
@@ -2066,5 +2069,78 @@ mod tests {
                 RestError::InvalidInstruction(0, InstructionError::UnsupportedProgram(program_id),)
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_multiple_express_relay_instructions() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunities[0].clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let submit_bid_instruction =
+            svm::Svm::get_submit_bid_instruction(GetSubmitBidInstructionParams {
+                chain_id:             service.config.chain_id.clone(),
+                amount:               1,
+                deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                    .unix_timestamp(),
+                searcher:             searcher.pubkey(),
+                permission:           Pubkey::new_unique(),
+                router:               Pubkey::new_unique(),
+                relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+                fee_receiver_relayer: Pubkey::new_unique(),
+            })
+            .unwrap();
+        let instructions = vec![swap_instruction, submit_bid_instruction];
+        let mut transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidExpressRelayInstructionCount(2),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_no_express_relay_instructions() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let instructions = vec![];
+        let mut transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidExpressRelayInstructionCount(0),
+        );
     }
 }
