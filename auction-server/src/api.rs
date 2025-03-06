@@ -60,6 +60,11 @@ use {
         Routable,
         Route,
     },
+    solana_sdk::{
+        program_error::ProgramError,
+        pubkey::Pubkey,
+    },
+    spl_associated_token_account::instruction::AssociatedTokenAccountInstruction,
     std::sync::{
         atomic::Ordering,
         Arc,
@@ -86,6 +91,45 @@ async fn root() -> String {
 
 pub mod profile;
 pub(crate) mod ws;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum InstructionError {
+    InvalidProgramIdIndex,
+    UnsupportedSystemProgramInstruction,
+    InvalidSplTokenInstruction(ProgramError),
+    UnsupportedSplTokenInstruction(String),
+    InvalidAssociatedTokenAccountInstruction(String),
+    UnsupportedAssociatedTokenAccountInstruction(AssociatedTokenAccountInstruction),
+    UnsupportedProgram(Pubkey),
+}
+
+impl std::fmt::Display for InstructionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InstructionError::UnsupportedSystemProgramInstruction => {
+                write!(f, "Unsupported system program instruction")
+            }
+            InstructionError::InvalidProgramIdIndex => write!(f, "Invalid program id index"),
+            InstructionError::InvalidSplTokenInstruction(error) => {
+                write!(f, "Invalid spl token instruction {:?}", error)
+            }
+            InstructionError::UnsupportedSplTokenInstruction(instruction) => {
+                write!(f, "Unsupported spl token instruction {}", instruction)
+            }
+            InstructionError::InvalidAssociatedTokenAccountInstruction(error) => {
+                write!(f, "Invalid associated token account instruction {}", error)
+            }
+            InstructionError::UnsupportedAssociatedTokenAccountInstruction(instruction) => write!(
+                f,
+                "Unsupported associated token account instruction {:?}",
+                instruction
+            ),
+            InstructionError::UnsupportedProgram(program) => {
+                write!(f, "Unsupported program {}", program)
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RestError {
@@ -125,6 +169,8 @@ pub enum RestError {
     SetComputeUnitInstructionNotFound(u64),
     /// Compute unit price is low.
     LowComputeBudget(u64),
+    /// Invalid instruction
+    InvalidInstruction(usize, InstructionError),
 }
 
 
@@ -201,6 +247,10 @@ impl RestError {
                     "Compute budget is too low. Minimum compute budget is {}",
                     minimum
                 ),
+            ),
+            RestError::InvalidInstruction(index, message) => (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid instruction at index {}: {}", index, message),
             ),
         }
     }
