@@ -1259,8 +1259,8 @@ impl Service<Svm> {
                         if instruction_error
                             == InstructionError::Custom(ErrorCode::InsufficientUserFunds.into())
                         {
-                            // This path only works as long as none of the other accepted programs use this error number, which is currently true
-                            // TODO: Also check the instruction index here
+                            // This path only works as long as none of the other accepted programs use this error number, which is currently true since express relay is the only program in the whitelist that uses anchor error codes
+                            // TODO: Also check the instruction index here so we are sure it's coming from the swap instruction
                             return Ok(());
                         }
                     }
