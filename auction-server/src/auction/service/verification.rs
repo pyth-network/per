@@ -1355,22 +1355,14 @@ impl Service<Svm> {
             })
             .collect();
         if budgets.len() > 1 {
-            return Err(RestError::BadParameters(
-                "Multiple SetComputeUnitPrice instructions".to_string(),
-            ));
+            return Err(RestError::MultipleSetComputeUnitInstructions);
         }
         if budgets.is_empty() && compute_budget > 0 {
-            return Err(RestError::BadParameters(format!(
-                "No SetComputeUnitPrice instruction. Minimum compute budget is {}",
-                compute_budget
-            )));
+            return Err(RestError::SetComputeUnitInstructionNotFound(compute_budget));
         }
         if let Some(budget) = budgets.first() {
             if *budget < compute_budget {
-                return Err(RestError::BadParameters(format!(
-                    "Compute budget is too low. Minimum compute budget is {}",
-                    compute_budget
-                )));
+                return Err(RestError::LowComputeBudget(compute_budget));
             }
         }
         Ok(())
@@ -1473,6 +1465,7 @@ mod tests {
             GetSwapInstructionParams,
         },
         solana_sdk::{
+            compute_budget,
             hash::Hash,
             packet::PACKET_DATA_SIZE,
             pubkey::Pubkey,
@@ -1643,6 +1636,89 @@ mod tests {
             },
             _ => panic!("Expected swap program"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_multiple_compute_budget_price_instructions() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let instruction = compute_budget::ComputeBudgetInstruction::set_compute_unit_price(1);
+        let instructions = vec![instruction.clone(), instruction];
+        let transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.into(),
+            }),
+        };
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::MultipleSetComputeUnitInstructions,
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_no_compute_budget_price_instructions() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let transaction = Transaction::new_with_payer(&[], Some(&searcher.pubkey()));
+        let minimum_budget = 10;
+        service
+            .repo
+            .add_recent_priotization_fee(minimum_budget)
+            .await;
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.into(),
+            }),
+        };
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::SetComputeUnitInstructionNotFound(minimum_budget),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_no_compute_budget_is_low() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let minimum_budget = 10;
+        let instruction =
+            compute_budget::ComputeBudgetInstruction::set_compute_unit_price(minimum_budget - 1);
+        let transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+        service
+            .repo
+            .add_recent_priotization_fee(minimum_budget)
+            .await;
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.into(),
+            }),
+        };
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::LowComputeBudget(minimum_budget),
+        );
     }
 
     #[tokio::test]

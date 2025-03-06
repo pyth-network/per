@@ -119,7 +119,14 @@ pub enum RestError {
     SwapOpportunityNotFound,
     /// Transaction size is too large.
     TransactionSizeTooLarge(u64, usize),
+    /// Multiple set compute unit instructions.
+    MultipleSetComputeUnitInstructions,
+    /// Set compute unit instruction not found.
+    SetComputeUnitInstructionNotFound(u64),
+    /// Compute unit price is low.
+    LowComputeBudget(u64),
 }
+
 
 impl RestError {
     pub fn to_status_and_message(&self) -> (StatusCode, String) {
@@ -176,6 +183,24 @@ impl RestError {
             RestError::TransactionSizeTooLarge(size, limit) => (
                 StatusCode::BAD_REQUEST,
                 format!("Transaction size is too large: {} > {}", size, limit),
+            ),
+            RestError::MultipleSetComputeUnitInstructions => (
+                StatusCode::BAD_REQUEST,
+                "Multiple SetComputeUnitPrice instructions".to_string(),
+            ),
+            RestError::SetComputeUnitInstructionNotFound(minimum) => (
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "No SetComputeUnitPrice instruction. Minimum compute budget is {}",
+                    minimum
+                ),
+            ),
+            RestError::LowComputeBudget(minimum) => (
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "Compute budget is too low. Minimum compute budget is {}",
+                    minimum
+                ),
             ),
         }
     }
