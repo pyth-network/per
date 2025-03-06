@@ -79,6 +79,6 @@ impl Service<ChainTypeSvm> {
             .transpose()?
             .unwrap_or_default();
 
-        Ok(input.amount_user.saturating_sub(native_amount_user) <= amount_user)
+        Ok(input.amount_user <= amount_user.saturating_add(native_amount_user))
     }
 }
