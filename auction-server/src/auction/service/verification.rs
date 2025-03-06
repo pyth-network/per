@@ -70,19 +70,26 @@ use {
             U256,
         },
     },
+    express_relay::error::ErrorCode,
     litesvm::types::FailedTransactionMetadata,
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
         clock::Slot,
         commitment_config::CommitmentConfig,
         compute_budget,
-        instruction::CompiledInstruction,
+        instruction::{
+            CompiledInstruction,
+            InstructionError,
+        },
         pubkey::Pubkey,
         signature::Signature,
         signer::Signer as _,
         system_instruction::SystemInstruction,
         system_program,
-        transaction::VersionedTransaction,
+        transaction::{
+            TransactionError,
+            VersionedTransaction,
+        },
     },
     spl_associated_token_account::{
         get_associated_token_address,
@@ -1245,7 +1252,17 @@ impl Service<Svm> {
             .await;
         match simulation {
             Ok(simulation) => {
-                if simulation.value.err.is_some() {
+                if let Some(transaction_error) = simulation.value.err {
+                    if let TransactionError::InstructionError(_, instruction_error) =
+                        transaction_error
+                    {
+                        if instruction_error
+                            == InstructionError::Custom(ErrorCode::InsufficientUserFunds.into())
+                        {
+                            return Ok(());
+                        }
+                    }
+
                     let msgs = simulation.value.logs.unwrap_or_default();
                     Err(RestError::SimulationError {
                         result: Default::default(),
@@ -1255,6 +1272,7 @@ impl Service<Svm> {
                     Ok(())
                 }
             }
+
             Err(e) => {
                 tracing::error!("Error while simulating swap bid: {:?}", e);
                 Err(RestError::TemporarilyUnavailable)
