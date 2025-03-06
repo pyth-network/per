@@ -34,6 +34,13 @@ repos:
         pass_filenames: false
         types_or: ["rust", "cargo", "cargo-lock"]
         files: .
+      - id: cargo-test-workspace
+        name: Cargo test for workspace
+        language: "rust"
+        entry: cargo +1.83.0 test --manifest-path ./Cargo.toml
+        pass_filenames: false
+        types_or: ["rust", "cargo", "cargo-lock"]
+        files: .
       # Hooks for contracts-svm
       - id: cargo-fmt-contracts-svm
         name: Cargo format for svm contracts
