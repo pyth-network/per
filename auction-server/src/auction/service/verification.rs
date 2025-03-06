@@ -1462,6 +1462,7 @@ mod tests {
             transaction::Transaction,
         },
         spl_associated_token_account::get_associated_token_address_with_program_id,
+        spl_token::instruction::TokenInstruction,
         time::{
             Duration,
             OffsetDateTime,
@@ -1814,7 +1815,6 @@ mod tests {
         assert_eq!(result.unwrap_err(), RestError::SwapOpportunityNotFound);
     }
 
-
     #[tokio::test]
     async fn test_verify_bid_when_invalid_system_program_instruction() {
         let (service, opportunities) = get_service(false);
@@ -1861,6 +1861,129 @@ mod tests {
                 RestError::InvalidInstruction(
                     0,
                     InstructionError::UnsupportedSystemProgramInstruction
+                )
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_token_instruction() {
+        let (service, opportunities) = get_service(false);
+        let instructions = vec![
+            spl_token::instruction::initialize_account(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+            )
+            .unwrap(),
+            spl_token::instruction::initialize_account2(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+            )
+            .unwrap(),
+            spl_token::instruction::initialize_account3(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+            )
+            .unwrap(),
+            spl_token::instruction::initialize_mint(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                None,
+                0,
+            )
+            .unwrap(),
+            spl_token::instruction::initialize_mint2(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                None,
+                0,
+            )
+            .unwrap(),
+            spl_token::instruction::transfer(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+            spl_token::instruction::approve(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+            spl_token::instruction::revoke(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+            )
+            .unwrap(),
+            spl_token::instruction::set_authority(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                None,
+                spl_token::instruction::AuthorityType::AccountOwner,
+                &Pubkey::new_unique(),
+                &[],
+            )
+            .unwrap(),
+            spl_token::instruction::mint_to(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+            spl_token::instruction::burn(
+                &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+        ];
+        for instruction in instructions.into_iter() {
+            let data = instruction.data.clone();
+            let ix_parsed = TokenInstruction::unpack(&data).unwrap();
+            let searcher = Keypair::new();
+            let mut transaction =
+                Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+            transaction.partial_sign(&[searcher], Hash::default());
+            let bid_create = BidCreate::<Svm> {
+                chain_id:        service.config.chain_id.clone(),
+                initiation_time: OffsetDateTime::now_utc(),
+                profile:         None,
+                chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                    opportunity_id: opportunities[0].core_fields.id,
+                    transaction:    transaction.clone().into(),
+                }),
+            };
+            let result = service
+                .verify_bid(super::VerifyBidInput { bid_create })
+                .await;
+            assert_eq!(
+                result.unwrap_err(),
+                RestError::InvalidInstruction(
+                    0,
+                    InstructionError::UnsupportedSplTokenInstruction(format!("{:?}", ix_parsed)),
                 )
             );
         }
