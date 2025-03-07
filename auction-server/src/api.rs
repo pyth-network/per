@@ -3,7 +3,10 @@ use {
         auction::api as bid,
         config::RunOptions,
         models,
-        opportunity::api as opportunity,
+        opportunity::{
+            api as opportunity,
+            entities::FeeToken,
+        },
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -60,10 +63,19 @@ use {
         Routable,
         Route,
     },
-    std::sync::{
-        atomic::Ordering,
-        Arc,
+    solana_sdk::{
+        program_error::ProgramError,
+        pubkey::Pubkey,
     },
+    spl_associated_token_account::instruction::AssociatedTokenAccountInstruction,
+    std::{
+        sync::{
+            atomic::Ordering,
+            Arc,
+        },
+        time::Duration,
+    },
+    time::OffsetDateTime,
     tower_http::cors::CorsLayer,
     utoipa::{
         openapi::security::{
@@ -86,6 +98,211 @@ async fn root() -> String {
 
 pub mod profile;
 pub(crate) mod ws;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum InstructionError {
+    InvalidProgramIdIndex,
+    UnsupportedSystemProgramInstruction,
+    InvalidSplTokenInstruction(ProgramError),
+    UnsupportedSplTokenInstruction(String),
+    InvalidAssociatedTokenAccountInstruction(String),
+    UnsupportedAssociatedTokenAccountInstruction(AssociatedTokenAccountInstruction),
+    UnsupportedProgram(Pubkey),
+    TransferInstructionNotAllowed,
+    CloseAccountInstructionNotAllowed,
+    InvalidTransferInstructionsCount,
+    InvalidFromAccountTransferInstruction { expected: Pubkey, founded: Pubkey },
+    InvalidToAccountTransferInstruction { expected: Pubkey, founded: Pubkey },
+    InvalidAmountTransferInstruction { expected: u64, founded: u64 },
+    InvalidSyncNativeInstructionCount(Pubkey),
+    InvalidCloseAccountInstructionsCount,
+    InvalidCloseAccountAccountToClose { expected: Pubkey, founded: Pubkey },
+    InvalidCloseAccountDestination { expected: Pubkey, founded: Pubkey },
+}
+
+impl std::fmt::Display for InstructionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InstructionError::UnsupportedSystemProgramInstruction => {
+                write!(f, "Unsupported system program instruction")
+            }
+            InstructionError::InvalidProgramIdIndex => write!(f, "Invalid program id index"),
+            InstructionError::InvalidSplTokenInstruction(error) => {
+                write!(f, "Invalid spl token instruction {:?}", error)
+            }
+            InstructionError::UnsupportedSplTokenInstruction(instruction) => {
+                write!(f, "Unsupported spl token instruction {}", instruction)
+            }
+            InstructionError::InvalidAssociatedTokenAccountInstruction(error) => {
+                write!(f, "Invalid associated token account instruction {}", error)
+            }
+            InstructionError::UnsupportedAssociatedTokenAccountInstruction(instruction) => write!(
+                f,
+                "Unsupported associated token account instruction {:?}",
+                instruction
+            ),
+            InstructionError::UnsupportedProgram(program) => {
+                write!(f, "Unsupported program {}", program)
+            }
+            InstructionError::TransferInstructionNotAllowed => {
+                write!(f, "Transfer instruction is not allowed")
+            }
+            InstructionError::CloseAccountInstructionNotAllowed => {
+                write!(f, "Close account instruction is not allowed")
+            }
+            InstructionError::InvalidTransferInstructionsCount => {
+                write!(f, "Exactly one sol transfer instruction is required")
+            }
+            InstructionError::InvalidFromAccountTransferInstruction { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid from account in sol transfer instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
+            }
+            InstructionError::InvalidToAccountTransferInstruction { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid to account in sol transfer instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
+            }
+            InstructionError::InvalidAmountTransferInstruction { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid amount in sol transfer instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
+            }
+            InstructionError::InvalidSyncNativeInstructionCount(address) => {
+                write!(
+                    f,
+                    "Exactly one sync native instruction is required for associated token account: {:?}",
+                    address
+                )
+            }
+            InstructionError::InvalidCloseAccountInstructionsCount => {
+                write!(f, "Exactly one close account instruction is required")
+            }
+            InstructionError::InvalidCloseAccountAccountToClose { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid account to close in close account instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
+            }
+            InstructionError::InvalidCloseAccountDestination { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid destination account in close account instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
+            }
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SwapInstructionError {
+    UserWalletAddress {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    MintSearcher {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    MintUser {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    TokenProgramSearcher {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    TokenProgramUser {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    AmountSearcher {
+        expected: u64,
+        founded:  u64,
+    },
+    AmountUser {
+        expected: u64,
+        founded:  u64,
+    },
+    FeeToken {
+        expected: FeeToken,
+        founded:  express_relay::FeeToken,
+    },
+    ReferralFee {
+        expected: u16,
+        founded:  u16,
+    },
+    AssociatedRouterTokenAccount {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+}
+
+impl std::fmt::Display for SwapInstructionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SwapInstructionError::UserWalletAddress { expected, founded } => write!(
+                f,
+                "Invalid wallet address {} in swap instruction accounts. Value does not match the wallet address in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::MintSearcher { expected, founded } => write!(
+                f,
+                "Invalid searcher mint {} in swap instruction accounts. Value does not match the searcher mint in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::MintUser { expected, founded } => write!(
+                f,
+                "Invalid user mint {} in swap instruction accounts. Value does not match the user mint in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::TokenProgramSearcher { expected, founded } => write!(
+                f,
+                "Invalid searcher token program {} in swap instruction accounts. Value does not match the searcher token program in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::TokenProgramUser { expected, founded } => write!(
+                f,
+                "Invalid user token program {} in swap instruction accounts. Value does not match the user token program in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::AmountSearcher { expected, founded } => write!(
+                f,
+                "Invalid searcher amount {} in swap instruction data. Value does not match the searcher amount in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::AmountUser { expected, founded } => write!(
+                f,
+                "Invalid user amount {} in swap instruction data. Value does not match the user amount in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::FeeToken { expected, founded } => write!(
+                f,
+                "Invalid fee token {:?} in swap instruction data. Value does not match the fee token in swap opportunity {:?}",
+                founded, expected
+            ),
+            SwapInstructionError::ReferralFee { expected, founded } => write!(
+                f,
+                "Invalid referral fee bps {} in swap instruction data. Value does not match the referral fee bps in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::AssociatedRouterTokenAccount { expected, founded } => write!(
+                f,
+                "Associated token account for router does not match. Expected: {:?} found: {:?}",
+                expected, founded
+            ),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RestError {
@@ -117,7 +334,35 @@ pub enum RestError {
     DuplicateOpportunity,
     /// Swap opportunity is not found.
     SwapOpportunityNotFound,
+    /// Transaction size is too large.
+    TransactionSizeTooLarge(u64, usize),
+    /// Multiple set compute unit instructions.
+    MultipleSetComputeUnitInstructions,
+    /// Set compute unit instruction not found.
+    SetComputeUnitInstructionNotFound(u64),
+    /// Compute unit price is low.
+    LowComputeBudget(u64),
+    /// Invalid instruction
+    InvalidInstruction(Option<usize>, InstructionError),
+    /// Invalid express relay instruction count
+    InvalidExpressRelayInstructionCount(usize),
+    /// Invalid user wallet address
+    InvalidSwapInstruction(SwapInstructionError),
+    /// Invalid deadline
+    InvalidDeadline {
+        deadline: OffsetDateTime,
+        minimum:  Duration,
+    },
+    /// Invalid Signature
+    InvalidSignature(Pubkey),
+    /// Relayer is not a signer
+    RelayerNotSigner(Pubkey),
+    /// Invalid first signer
+    InvalidFirstSigner(String),
+    /// Duplicate bid
+    DuplicateBid,
 }
+
 
 impl RestError {
     pub fn to_status_and_message(&self) -> (StatusCode, String) {
@@ -170,6 +415,64 @@ impl RestError {
             RestError::SwapOpportunityNotFound => (
                 StatusCode::BAD_REQUEST,
                 "No swap opportunity with the given id found".to_string(),
+            ),
+            RestError::TransactionSizeTooLarge(size, limit) => (
+                StatusCode::BAD_REQUEST,
+                format!("Transaction size is too large: {} > {}", size, limit),
+            ),
+            RestError::MultipleSetComputeUnitInstructions => (
+                StatusCode::BAD_REQUEST,
+                "Multiple SetComputeUnitPrice instructions".to_string(),
+            ),
+            RestError::SetComputeUnitInstructionNotFound(minimum) => (
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "No SetComputeUnitPrice instruction. Minimum compute budget is {}",
+                    minimum
+                ),
+            ),
+            RestError::LowComputeBudget(minimum) => (
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "Compute budget is too low. Minimum compute budget is {}",
+                    minimum
+                ),
+            ),
+            RestError::InvalidInstruction(index, message) => {
+                let status = StatusCode::BAD_REQUEST;
+                let message = match index {
+                    Some(index) => format!("Invalid instruction at index {}: {}", index, message),
+                    None => message.to_string(),
+                };
+                (status, message)
+            },
+            RestError::InvalidExpressRelayInstructionCount(count) => (
+                StatusCode::BAD_REQUEST,
+                format!("Bid must include exactly one instruction to Express Relay program but found {} instructions", count),
+            ),
+            RestError::InvalidSwapInstruction(message) => (
+                StatusCode::BAD_REQUEST,
+                message.to_string(),
+            ),
+            RestError::InvalidDeadline { deadline, minimum } => (
+                StatusCode::BAD_REQUEST,
+                format!("Bid deadline of {:?} is too short, bid must be valid for at least {:?} seconds", deadline, minimum),
+            ),
+            RestError::InvalidSignature(pubkey) => (
+                StatusCode::BAD_REQUEST,
+                format!("Signature for account {} is invalid", pubkey),
+            ),
+            RestError::RelayerNotSigner(pubkey) => (
+                StatusCode::BAD_REQUEST,
+                format!("Relayer account {} is not a signer in the transaction", pubkey),
+            ),
+            RestError::InvalidFirstSigner(message) => (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid first signer: {}", message),
+            ),
+            RestError::DuplicateBid => (
+                StatusCode::BAD_REQUEST,
+                "Duplicate bid".to_string(),
             ),
         }
     }

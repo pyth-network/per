@@ -43,10 +43,7 @@ impl Svm {
             RestError::BadParameters(format!("Error serializing transaction: {:?}", e))
         })?;
         if size > PACKET_DATA_SIZE as u64 {
-            return Err(RestError::BadParameters(format!(
-                "Transaction size is too large: {} > {}",
-                size, PACKET_DATA_SIZE
-            )));
+            return Err(RestError::TransactionSizeTooLarge(size, PACKET_DATA_SIZE));
         }
         Ok(())
     }
