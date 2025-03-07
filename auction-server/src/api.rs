@@ -68,10 +68,14 @@ use {
         pubkey::Pubkey,
     },
     spl_associated_token_account::instruction::AssociatedTokenAccountInstruction,
-    std::sync::{
-        atomic::Ordering,
-        Arc,
+    std::{
+        sync::{
+            atomic::Ordering,
+            Arc,
+        },
+        time::Duration,
     },
+    time::OffsetDateTime,
     tower_http::cors::CorsLayer,
     utoipa::{
         openapi::security::{
@@ -111,6 +115,9 @@ pub enum InstructionError {
     InvalidToAccountTransferInstruction { expected: Pubkey, founded: Pubkey },
     InvalidAmountTransferInstruction { expected: u64, founded: u64 },
     InvalidSyncNativeInstructionCount(Pubkey),
+    InvalidCloseAccountInstructionsCount,
+    InvalidCloseAccountAccountToClose { expected: Pubkey, founded: Pubkey },
+    InvalidCloseAccountDestination { expected: Pubkey, founded: Pubkey },
 }
 
 impl std::fmt::Display for InstructionError {
@@ -174,6 +181,23 @@ impl std::fmt::Display for InstructionError {
                     address
                 )
             }
+            InstructionError::InvalidCloseAccountInstructionsCount => {
+                write!(f, "Exactly one close account instruction is required")
+            }
+            InstructionError::InvalidCloseAccountAccountToClose { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid account to close in close account instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
+            }
+            InstructionError::InvalidCloseAccountDestination { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid destination account in close account instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
+            }
         }
     }
 }
@@ -216,6 +240,10 @@ pub enum SwapInstructionError {
     ReferralFee {
         expected: u16,
         founded:  u16,
+    },
+    AssociatedRouterTokenAccount {
+        expected: Pubkey,
+        founded:  Pubkey,
     },
 }
 
@@ -267,6 +295,11 @@ impl std::fmt::Display for SwapInstructionError {
                 "Invalid referral fee bps {} in swap instruction data. Value does not match the referral fee bps in swap opportunity {}",
                 founded, expected
             ),
+            SwapInstructionError::AssociatedRouterTokenAccount { expected, founded } => write!(
+                f,
+                "Associated token account for router does not match. Expected: {:?} found: {:?}",
+                expected, founded
+            ),
         }
     }
 }
@@ -315,6 +348,19 @@ pub enum RestError {
     InvalidExpressRelayInstructionCount(usize),
     /// Invalid user wallet address
     InvalidSwapInstruction(SwapInstructionError),
+    /// Invalid deadline
+    InvalidDeadline {
+        deadline: OffsetDateTime,
+        minimum:  Duration,
+    },
+    /// Invalid Signature
+    InvalidSignature(Pubkey),
+    /// Relayer is not a signer
+    RelayerNotSigner(Pubkey),
+    /// Invalid first signer
+    InvalidFirstSigner(String),
+    /// Duplicate bid
+    DuplicateBid,
 }
 
 
@@ -407,6 +453,26 @@ impl RestError {
             RestError::InvalidSwapInstruction(message) => (
                 StatusCode::BAD_REQUEST,
                 message.to_string(),
+            ),
+            RestError::InvalidDeadline { deadline, minimum } => (
+                StatusCode::BAD_REQUEST,
+                format!("Bid deadline of {:?} is too short, bid must be valid for at least {:?} seconds", deadline, minimum),
+            ),
+            RestError::InvalidSignature(pubkey) => (
+                StatusCode::BAD_REQUEST,
+                format!("Signature for account {} is invalid", pubkey),
+            ),
+            RestError::RelayerNotSigner(pubkey) => (
+                StatusCode::BAD_REQUEST,
+                format!("Relayer account {} is not a signer in the transaction", pubkey),
+            ),
+            RestError::InvalidFirstSigner(message) => (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid first signer: {}", message),
+            ),
+            RestError::DuplicateBid => (
+                StatusCode::BAD_REQUEST,
+                "Duplicate bid".to_string(),
             ),
         }
     }

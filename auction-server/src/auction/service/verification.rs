@@ -498,10 +498,10 @@ impl Service<Svm> {
                 // using the time at the server is not ideal, but the alternative is to make an RPC call to get the Solana block time
                 // we should make this more robust, possibly by polling the current block time in the background
                 if deadline < minimum_deadline {
-                    return Err(RestError::BadParameters(format!(
-                        "Bid deadline of {:?} is too short, bid must be valid for at least {:?} seconds",
-                        deadline, min_life_time
-                    )));
+                    return Err(RestError::InvalidDeadline {
+                        deadline,
+                        minimum: min_life_time,
+                    });
                 }
 
                 Ok(())
@@ -930,8 +930,9 @@ impl Service<Svm> {
     ) -> Result<(), RestError> {
         let close_account_instructions = Self::extract_close_account_instructions(tx);
         if close_account_instructions.len() != 1 {
-            return Err(RestError::BadParameters(
-                "Exactly one close account instruction is required".to_string(),
+            return Err(RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidCloseAccountInstructionsCount,
             ));
         }
 
@@ -960,18 +961,22 @@ impl Service<Svm> {
         let ata =
             get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
         if *account_to_close != ata {
-            return Err(RestError::BadParameters(format!(
-                "Invalid account to close in close account instruction. Expected: {:?} found: {:?}",
-                ata, account_to_close
-            )));
+            return Err(RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidCloseAccountAccountToClose {
+                    expected: ata,
+                    founded:  *account_to_close,
+                },
+            ));
         }
 
         if *destination != swap_accounts.user_wallet {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid destination account in close account instruction. Expected: {:?} found: {:?}",
-                    swap_accounts.user_wallet, destination
-                ),
+            return Err(RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidCloseAccountDestination {
+                    expected: swap_accounts.user_wallet,
+                    founded:  *destination,
+                },
             ));
         }
 
@@ -1110,8 +1115,11 @@ impl Service<Svm> {
                 );
 
                 if router_token_account != expected_router_token_account {
-                    return Err(RestError::BadParameters(
-                        format!("Associated token account for router does not match. Expected: {:?} found: {:?}", expected_router_token_account, router_token_account),
+                    return Err(RestError::InvalidSwapInstruction(
+                        SwapInstructionError::AssociatedRouterTokenAccount {
+                            expected: expected_router_token_account,
+                            founded:  router_token_account,
+                        },
                     ));
                 }
 
@@ -1151,10 +1159,7 @@ impl Service<Svm> {
             .any(|account| account.eq(&relayer_pubkey));
 
         if !relayer_exists {
-            return Err(RestError::BadParameters(format!(
-                "Relayer account {} is not a signer in the transaction",
-                relayer_pubkey
-            )));
+            return Err(RestError::RelayerNotSigner(relayer_pubkey));
         }
         Ok(())
     }
@@ -1171,10 +1176,7 @@ impl Service<Svm> {
                 continue;
             }
             if !signature.verify(pubkey.as_ref(), message_bytes) {
-                return Err(RestError::BadParameters(format!(
-                    "Signature for account {} is invalid",
-                    pubkey
-                )));
+                return Err(RestError::InvalidSignature(*pubkey));
             }
         }
         Ok(())
@@ -1212,9 +1214,9 @@ impl Service<Svm> {
                 let opportunity = opportunities
                     .first()
                     .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
-                opportunity.check_fee_payer(accounts).map_err(|e| {
-                    RestError::BadParameters(format!("Invalid first signer: {:?}", e))
-                })?;
+                opportunity
+                    .check_fee_payer(accounts)
+                    .map_err(|e| RestError::InvalidFirstSigner(e.to_string()))?;
                 let mut missing_signers = opportunity.get_missing_signers();
                 missing_signers.push(self.config.chain_config.express_relay.relayer.pubkey());
                 self.relayer_signer_exists(accounts, &signatures)?;
@@ -1409,7 +1411,7 @@ impl Verification<Svm> for Service<Svm> {
             .get_pending_bids(GetLiveBidsInput { permission_key })
             .await;
         if pending_bids.iter().any(|b| bid == *b) {
-            return Err(RestError::BadParameters("Duplicate bid".to_string()));
+            return Err(RestError::DuplicateBid);
         }
 
         Ok((bid_chain_data, bid_data.amount))
@@ -1435,9 +1437,15 @@ mod tests {
                     BidCreate,
                     BidPaymentInstructionType,
                 },
-                repository::MockDatabase,
+                repository::{
+                    MockDatabase,
+                    Repository,
+                },
                 service::{
-                    verification::Verification,
+                    verification::{
+                        Verification,
+                        BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+                    },
                     Service,
                 },
             },
@@ -1466,16 +1474,24 @@ mod tests {
             },
         },
         borsh::BorshDeserialize,
+        ethers::types::Bytes,
         express_relay_api_types::opportunity as opportunity_api,
         express_relay_client::svm::{
             self,
             GetSubmitBidInstructionParams,
             GetSwapInstructionParams,
         },
+        solana_client::{
+            nonblocking::rpc_client::RpcClient,
+            rpc_client::RpcClientConfig,
+        },
         solana_sdk::{
             compute_budget,
             hash::Hash,
-            instruction::Instruction,
+            instruction::{
+                AccountMeta,
+                Instruction,
+            },
             packet::PACKET_DATA_SIZE,
             pubkey::Pubkey,
             signature::Keypair,
@@ -1492,6 +1508,7 @@ mod tests {
             },
         },
         spl_token::instruction::TokenInstruction,
+        std::sync::Arc,
         time::{
             Duration,
             OffsetDateTime,
@@ -1547,6 +1564,11 @@ mod tests {
             &user_token_address,
             &spl_token::id(),
         );
+        let router_token_account_wsol = get_associated_token_address_with_program_id(
+            &router,
+            &spl_token::native_mint::id(),
+            &spl_token::id(),
+        );
 
         let permission_account_user_token_specified = get_quote_virtual_permission_account(
             &tokens_user_specified,
@@ -1563,7 +1585,7 @@ mod tests {
         let permission_account_user_token_wsol = get_quote_virtual_permission_account(
             &tokens_user_wsol,
             &user_wallet_address,
-            &router_token_account,
+            &router_token_account_wsol,
             referral_fee_bps,
         );
         let permission_account_searcher_token_wsol = get_quote_virtual_permission_account(
@@ -2885,5 +2907,633 @@ mod tests {
                 InstructionError::InvalidSyncNativeInstructionCount(*ata)
             )
         );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_user_wsol() {
+        let (service, opportunities) = get_service(false);
+        let opportunity = opportunities[2].clone(); // User token wsol
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let ata = &get_associated_token_address(
+            &program.user_wallet_address,
+            &spl_token::native_mint::id(),
+        );
+        let transfer_instruction = system_instruction::transfer(
+            &program.user_wallet_address,
+            &get_associated_token_address(
+                &program.user_wallet_address,
+                &spl_token::native_mint::id(),
+            ),
+            opportunity.buy_tokens[0].amount,
+        );
+        let sync_native_instruction =
+            spl_token::instruction::sync_native(&spl_token::id(), ata).unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                swap_instruction,
+                transfer_instruction,
+                sync_native_instruction,
+            ],
+            Some(&searcher.pubkey()),
+        );
+        transaction.partial_sign(&[searcher], Hash::default());
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunity.core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await
+            .unwrap();
+        let swap_params = get_opportunity_swap_params(opportunity);
+        assert_eq!(
+            result.0,
+            BidChainDataSvm {
+                transaction:                  transaction.into(),
+                permission_account:           swap_params.permission_account,
+                router:                       swap_params.router_account,
+                bid_payment_instruction_type: BidPaymentInstructionType::Swap,
+            }
+        );
+        assert_eq!(result.1, bid_amount);
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_multiple_close_account_instructions() {
+        let (service, opportunities) = get_service(true);
+        let searcher = Keypair::new();
+        let opportunity = opportunities[3].clone(); // Searcher token wsol
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let ata = &get_associated_token_address(
+            &program.user_wallet_address,
+            &spl_token::native_mint::id(),
+        );
+        let close_account_instruction = spl_token::instruction::close_account(
+            &spl_token::id(),
+            ata,
+            &program.user_wallet_address,
+            &program.user_wallet_address,
+            &[],
+        )
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![
+                swap_instruction,
+                close_account_instruction.clone(),
+                close_account_instruction,
+            ],
+            opportunity,
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidCloseAccountInstructionsCount,
+            )
+        );
+    }
+
+
+    #[tokio::test]
+    async fn test_verify_bid_when_no_close_account_instructions() {
+        let (service, opportunities) = get_service(true);
+        let searcher = Keypair::new();
+        let opportunity = opportunities[3].clone(); // Searcher token wsol
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result =
+            get_verify_bid_result(service, searcher, vec![swap_instruction], opportunity).await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidCloseAccountInstructionsCount,
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_account_to_close() {
+        let (service, opportunities) = get_service(true);
+        let searcher = Keypair::new();
+        let opportunity = opportunities[3].clone(); // Searcher token wsol
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let expected = &get_associated_token_address(
+            &program.user_wallet_address,
+            &spl_token::native_mint::id(),
+        );
+        let founded = Pubkey::new_unique();
+        let close_account_instruction = spl_token::instruction::close_account(
+            &spl_token::id(),
+            &founded,
+            &program.user_wallet_address,
+            &program.user_wallet_address,
+            &[],
+        )
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction, close_account_instruction],
+            opportunity,
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidCloseAccountAccountToClose {
+                    expected: *expected,
+                    founded
+                }
+            )
+        );
+    }
+
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_close_account_destination() {
+        let (service, opportunities) = get_service(true);
+        let searcher = Keypair::new();
+        let opportunity = opportunities[3].clone(); // Searcher token wsol
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let ata = &get_associated_token_address(
+            &program.user_wallet_address,
+            &spl_token::native_mint::id(),
+        );
+        let founded = Pubkey::new_unique();
+        let close_account_instruction = spl_token::instruction::close_account(
+            &spl_token::id(),
+            ata,
+            &founded,
+            &program.user_wallet_address,
+            &[],
+        )
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction, close_account_instruction],
+            opportunity,
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidCloseAccountDestination {
+                    expected: program.user_wallet_address,
+                    founded
+                }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_searcher_wsol() {
+        let (service, opportunities) = get_service(false);
+        let opportunity = opportunities[3].clone(); // Searcher token wsol
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let ata = &get_associated_token_address(
+            &program.user_wallet_address,
+            &spl_token::native_mint::id(),
+        );
+        let close_account_instruction = spl_token::instruction::close_account(
+            &spl_token::id(),
+            ata,
+            &program.user_wallet_address,
+            &program.user_wallet_address,
+            &[],
+        )
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[swap_instruction, close_account_instruction],
+            Some(&searcher.pubkey()),
+        );
+        transaction.partial_sign(&[searcher], Hash::default());
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunity.core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await
+            .unwrap();
+        let swap_params = get_opportunity_swap_params(opportunity);
+        assert_eq!(
+            result.0,
+            BidChainDataSvm {
+                transaction:                  transaction.into(),
+                permission_account:           swap_params.permission_account,
+                router:                       swap_params.router_account,
+                bid_payment_instruction_type: BidPaymentInstructionType::Swap,
+            }
+        );
+        assert_eq!(result.1, bid_amount);
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_associated_router_token_account() {
+        let (service, opportunities) = get_service(false);
+        let mut opportunity = opportunities[0].clone();
+        let expected = get_associated_token_address(
+            &opportunity.router,
+            &opportunity.core_fields.buy_tokens[0].token,
+        );
+        opportunity.router = Pubkey::new_unique();
+        let founded = get_associated_token_address(
+            &opportunity.router,
+            &opportunity.core_fields.buy_tokens[0].token,
+        );
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[0].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::AssociatedRouterTokenAccount {
+                expected,
+                founded,
+            },),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_deadline() {
+        let (service, opportunities) = get_service(false);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let deadline = (OffsetDateTime::now_utc() + BID_MINIMUM_LIFE_TIME_SVM_OTHER
+            - Duration::seconds(1))
+        .unix_timestamp();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+            bid_amount,
+            deadline,
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidDeadline {
+                deadline: OffsetDateTime::from_unix_timestamp(deadline).unwrap(),
+                minimum:  BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+            },
+        )
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_searcher_signature() {
+        let (service, opportunities) = get_service(false);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSignature(searcher.pubkey())
+        )
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_no_relayer_signer() {
+        let (service, opportunities) = get_service(false);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let mut instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        for index in 0..instruction.accounts.len() {
+            if instruction.accounts[index].pubkey
+                == service.config.chain_config.express_relay.relayer.pubkey()
+            {
+                instruction.accounts[index] = AccountMeta {
+                    is_signer: false,
+                    ..instruction.accounts[index]
+                };
+            }
+        }
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::RelayerNotSigner(service.config.chain_config.express_relay.relayer.pubkey())
+        )
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_fee_payer_is_user() {
+        let (service, opportunities) = get_service(false);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunities[0].program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let mut transaction =
+            Transaction::new_with_payer(&[instruction], Some(&program.user_wallet_address));
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidFirstSigner("Fee payer should not be user".to_string())
+        )
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_simulation_fails() {
+        let (mut service, opportunities) = get_service(false);
+        let mut rpc_client = MockRpcClient::new();
+        rpc_client.expect_send().returning(|_, _| {
+            Ok(serde_json::json!({
+                "context": { "slot": 1 },
+                "value": {
+                    "err": "AccountInUse",
+                    "accounts": null,
+                    "logs": [],
+                    "returnData": {
+                        "data": ["", "base64"],
+                        "programId": "11111111111111111111111111111111",
+                    },
+                    "unitsConsumed": 0
+                }
+            }))
+        });
+        let service_inner = Arc::get_mut(&mut service.0).unwrap();
+        service_inner.config.chain_config.client =
+            RpcClient::new_sender(rpc_client, RpcClientConfig::default());
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::SimulationError {
+                result: Bytes::default(),
+                reason: "".to_string(),
+            }
+        )
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_duplicate() {
+        let (mut service, opportunities) = get_service(false);
+        let mut db = MockDatabase::<Svm>::default();
+        db.expect_add_bid().returning(|_| Ok(()));
+        let service_inner = Arc::get_mut(&mut service.0).unwrap();
+        service_inner.repo = Arc::new(Repository::new(db, service_inner.config.chain_id.clone()));
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+        let result = service
+            .verify_bid(super::VerifyBidInput {
+                bid_create: bid_create.clone(),
+            })
+            .await
+            .unwrap();
+        service
+            .repo
+            .add_bid(bid_create.clone(), &result.0, &result.1)
+            .await
+            .unwrap();
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(result.unwrap_err(), RestError::DuplicateBid,);
     }
 }
