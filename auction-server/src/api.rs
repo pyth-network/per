@@ -110,6 +110,7 @@ pub enum InstructionError {
     InvalidFromAccountTransferInstruction { expected: Pubkey, founded: Pubkey },
     InvalidToAccountTransferInstruction { expected: Pubkey, founded: Pubkey },
     InvalidAmountTransferInstruction { expected: u64, founded: u64 },
+    InvalidSyncNativeInstructionCount(Pubkey),
 }
 
 impl std::fmt::Display for InstructionError {
@@ -164,6 +165,13 @@ impl std::fmt::Display for InstructionError {
                     f,
                     "Invalid amount in sol transfer instruction. Expected: {:?} found: {:?}",
                     founded, expected
+                )
+            }
+            InstructionError::InvalidSyncNativeInstructionCount(address) => {
+                write!(
+                    f,
+                    "Exactly one sync native instruction is required for associated token account: {:?}",
+                    address
                 )
             }
         }

@@ -904,8 +904,9 @@ impl Service<Svm> {
             .count()
             != 1
         {
-            return Err(RestError::BadParameters(
-                format!("Exactly one sync native instruction is required for associated token account: {:?}", ata)
+            return Err(RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidSyncNativeInstructionCount(ata),
             ));
         }
 
@@ -2780,6 +2781,108 @@ mod tests {
             RestError::InvalidInstruction(
                 None,
                 InstructionError::InvalidAmountTransferInstruction { expected, founded }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_multiple_sync_native_instructions() {
+        let (service, opportunities) = get_service(true);
+        let searcher = Keypair::new();
+        let opportunity = opportunities[2].clone(); // User token wsol
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let ata = &get_associated_token_address(
+            &program.user_wallet_address,
+            &spl_token::native_mint::id(),
+        );
+        let transfer_instruction = system_instruction::transfer(
+            &program.user_wallet_address,
+            &get_associated_token_address(
+                &program.user_wallet_address,
+                &spl_token::native_mint::id(),
+            ),
+            opportunity.buy_tokens[0].amount,
+        );
+        let sync_native_instruction =
+            spl_token::instruction::sync_native(&spl_token::id(), ata).unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![
+                swap_instruction,
+                transfer_instruction,
+                sync_native_instruction.clone(),
+                sync_native_instruction,
+            ],
+            opportunity,
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidSyncNativeInstructionCount(*ata)
+            )
+        );
+    }
+
+
+    #[tokio::test]
+    async fn test_verify_bid_when_no_sync_native_instructions() {
+        let (service, opportunities) = get_service(true);
+        let searcher = Keypair::new();
+        let opportunity = opportunities[2].clone(); // User token wsol
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let ata = &get_associated_token_address(
+            &program.user_wallet_address,
+            &spl_token::native_mint::id(),
+        );
+        let transfer_instruction = system_instruction::transfer(
+            &program.user_wallet_address,
+            &get_associated_token_address(
+                &program.user_wallet_address,
+                &spl_token::native_mint::id(),
+            ),
+            opportunity.buy_tokens[0].amount,
+        );
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction, transfer_instruction],
+            opportunity,
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidSyncNativeInstructionCount(*ata)
             )
         );
     }
