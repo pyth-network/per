@@ -8,6 +8,7 @@ use {
         api::{
             InstructionError,
             RestError,
+            SwapInstructionError,
         },
         auction::{
             entities::{
@@ -628,84 +629,83 @@ impl Service<Svm> {
             ),
         };
         if user_wallet != opp_swap_data.user_wallet_address {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid wallet address {} in swap instruction accounts. Value does not match the wallet address in swap opportunity {}",
-                    user_wallet, opp_swap_data.user_wallet_address
-                ),
+            return Err(RestError::InvalidSwapInstruction(
+                SwapInstructionError::UserWalletAddress {
+                    expected: opp_swap_data.user_wallet_address,
+                    founded:  user_wallet,
+                },
             ));
         }
         if expected_mint_searcher != mint_searcher {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid searcher mint {} in swap instruction accounts. Value does not match the searcher mint in swap opportunity {}",
-                    mint_searcher, expected_mint_searcher
-                ),
+            return Err(RestError::InvalidSwapInstruction(
+                SwapInstructionError::MintSearcher {
+                    expected: expected_mint_searcher,
+                    founded:  mint_searcher,
+                },
             ));
         }
         if expected_mint_user != mint_user {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid user mint {} in swap instruction accounts. Value does not match the user mint in swap opportunity {}",
-                    mint_user, expected_mint_user
-                ),
+            return Err(RestError::InvalidSwapInstruction(
+                SwapInstructionError::MintUser {
+                    expected: expected_mint_user,
+                    founded:  mint_user,
+                },
             ));
         }
 
         if token_program_searcher != opp_swap_data.token_program_searcher {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid searcher token program {} in swap instruction accounts. Value does not match the searcher token program in swap opportunity {}",
-                    token_program_searcher, opp_swap_data.token_program_searcher
-                ),
+            return Err(RestError::InvalidSwapInstruction(
+                SwapInstructionError::TokenProgramSearcher {
+                    expected: opp_swap_data.token_program_searcher,
+                    founded:  token_program_searcher,
+                },
             ));
         }
 
         if token_program_user != opp_swap_data.token_program_user {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid user token program {} in swap instruction accounts. Value does not match the user token program in swap opportunity {}",
-                    token_program_user, opp_swap_data.token_program_user
-                ),
+            return Err(RestError::InvalidSwapInstruction(
+                SwapInstructionError::TokenProgramUser {
+                    expected: opp_swap_data.token_program_user,
+                    founded:  token_program_user,
+                },
             ));
         }
 
-
         if let Some(expected_amount_searcher) = expected_amount_searcher {
             if expected_amount_searcher != swap_data.amount_searcher {
-                return Err(RestError::BadParameters(
-                    format!(
-                        "Invalid searcher amount {} in swap instruction data. Value does not match the searcher amount in swap opportunity {}",
-                        swap_data.amount_searcher, expected_amount_searcher
-                    ),
+                return Err(RestError::InvalidSwapInstruction(
+                    SwapInstructionError::AmountSearcher {
+                        expected: expected_amount_searcher,
+                        founded:  swap_data.amount_searcher,
+                    },
                 ));
             }
         }
         if let Some(expected_amount_user) = expected_amount_user {
             if expected_amount_user != swap_data.amount_user {
-                return Err(RestError::BadParameters(
-                    format!(
-                        "Invalid user amount {} in swap instruction data. Value does not match the user amount in swap opportunity {}",
-                        swap_data.amount_user, expected_amount_user
-                    ),
+                return Err(RestError::InvalidSwapInstruction(
+                    SwapInstructionError::AmountUser {
+                        expected: expected_amount_user,
+                        founded:  swap_data.amount_user,
+                    },
                 ));
             }
         }
         if opp_swap_data.fee_token != swap_data.fee_token {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid fee token {:?} in swap instruction data. Value does not match the fee token in swap opportunity {:?}",
-                    swap_data.fee_token, opp_swap_data.fee_token
-                ),
+            return Err(RestError::InvalidSwapInstruction(
+                SwapInstructionError::FeeToken {
+                    expected: opp_swap_data.fee_token.clone(),
+                    founded:  swap_data.fee_token,
+                },
             ));
         }
 
         if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
-            return Err(RestError::BadParameters(
-                format!(
-                    "Invalid referral fee bps {} in swap instruction data. Value does not match the referral fee bps in swap opportunity {}",
-                    swap_data.referral_fee_bps, opp_swap_data.referral_fee_bps
-                ),
+            return Err(RestError::InvalidSwapInstruction(
+                SwapInstructionError::ReferralFee {
+                    expected: opp_swap_data.referral_fee_bps,
+                    founded:  swap_data.referral_fee_bps,
+                },
             ));
         }
         Ok(())
@@ -1412,6 +1412,7 @@ mod tests {
             api::{
                 InstructionError,
                 RestError,
+                SwapInstructionError,
             },
             auction::{
                 entities::{
@@ -1491,51 +1492,101 @@ mod tests {
         let now = OffsetDateTime::now_utc();
         let router = Pubkey::new_unique();
         let user_wallet_address = Pubkey::new_unique();
-        let user_token = TokenAmountSvm {
-            token:  Pubkey::new_unique(),
-            amount: 100,
-        };
-        let searcher_token = TokenAmountSvm {
-            token:  Pubkey::new_unique(),
-            amount: 0,
-        };
 
-        let tokens = QuoteTokens::UserTokenSpecified {
-            user_token:     user_token.clone(),
-            searcher_token: searcher_token.token,
+        let user_token_address = Pubkey::new_unique();
+        let searcher_token_address = Pubkey::new_unique();
+        let amount = 100;
+
+        let tokens_user_specified = QuoteTokens::UserTokenSpecified {
+            user_token:     TokenAmountSvm {
+                token: user_token_address,
+                amount,
+            },
+            searcher_token: searcher_token_address,
+        };
+        let tokens_searcher_specified = QuoteTokens::SearcherTokenSpecified {
+            searcher_token: TokenAmountSvm {
+                token: searcher_token_address,
+                amount,
+            },
+            user_token:     user_token_address,
         };
         let referral_fee_bps = 10;
 
         let fee_token = FeeToken::UserToken;
         let router_token_account = get_associated_token_address_with_program_id(
             &router,
-            &user_token.token,
+            &user_token_address,
             &spl_token::id(),
         );
 
-        let permission_account = get_quote_virtual_permission_account(
-            &tokens,
+        let permission_account_user_token_specified = get_quote_virtual_permission_account(
+            &tokens_user_specified,
+            &user_wallet_address,
+            &router_token_account,
+            referral_fee_bps,
+        );
+        let permission_account_searcher_token_specified = get_quote_virtual_permission_account(
+            &tokens_searcher_specified,
             &user_wallet_address,
             &router_token_account,
             referral_fee_bps,
         );
 
-        let opp = OpportunitySvm {
+        let opp_user_token_specified = OpportunitySvm {
+            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+                id:             Uuid::new_v4(),
+                permission_key: OpportunitySvm::get_permission_key(
+                    BidPaymentInstructionType::Swap,
+                    router,
+                    permission_account_user_token_specified,
+                ),
+                chain_id:       chain_id.clone(),
+                sell_tokens:    vec![TokenAmountSvm {
+                    token:  searcher_token_address,
+                    amount: 0,
+                }],
+                buy_tokens:     vec![TokenAmountSvm {
+                    token: user_token_address,
+                    amount,
+                }],
+                creation_time:  now,
+                refresh_time:   now,
+            },
+            router,
+            permission_account: permission_account_user_token_specified,
+            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
+                user_wallet_address,
+                platform_fee_bps: 0,
+                token_program_user: spl_token::id(),
+                token_program_searcher: spl_token::id(),
+                fee_token: fee_token.clone(),
+                referral_fee_bps,
+            }),
+        };
+
+        let opp_searcher_token_specified = OpportunitySvm {
             core_fields: OpportunityCoreFields::<TokenAmountSvm> {
                 id: Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
                     router,
-                    permission_account,
+                    permission_account_searcher_token_specified,
                 ),
                 chain_id,
-                sell_tokens: vec![searcher_token],
-                buy_tokens: vec![user_token],
+                sell_tokens: vec![TokenAmountSvm {
+                    token: searcher_token_address,
+                    amount,
+                }],
+                buy_tokens: vec![TokenAmountSvm {
+                    token:  user_token_address,
+                    amount: 0,
+                }],
                 creation_time: now,
                 refresh_time: now,
             },
             router,
-            permission_account,
+            permission_account: permission_account_searcher_token_specified,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
                 user_wallet_address,
                 platform_fee_bps: 0,
@@ -1545,7 +1596,11 @@ mod tests {
                 referral_fee_bps,
             }),
         };
-        let opps = vec![opp.clone()];
+
+        let opps = vec![
+            opp_user_token_specified.clone(),
+            opp_searcher_token_specified.clone(),
+        ];
         let opps_cloned = opps.clone();
 
         opportunity_service
@@ -1567,7 +1622,10 @@ mod tests {
                     .cloned()
             });
 
-        (opportunity_service, vec![opp])
+        (
+            opportunity_service,
+            vec![opp_user_token_specified, opp_searcher_token_specified],
+        )
     }
 
     fn get_service(fail_simulation: bool) -> (super::Service<Svm>, Vec<OpportunitySvm>) {
@@ -1643,7 +1701,7 @@ mod tests {
         service: Service<Svm>,
         searcher: Keypair,
         instructions: Vec<Instruction>,
-        opps: Vec<OpportunitySvm>,
+        opportunity: OpportunitySvm,
     ) -> Result<VerificationResult<Svm>, RestError> {
         let mut transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
@@ -1652,7 +1710,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opps[0].core_fields.id,
+                opportunity_id: opportunity.core_fields.id,
                 transaction:    transaction.into(),
             }),
         };
@@ -1715,7 +1773,7 @@ mod tests {
             service,
             searcher,
             vec![instruction.clone(), instruction],
-            opportunities,
+            opportunities[0].clone(),
         )
         .await;
         assert_eq!(
@@ -1733,7 +1791,8 @@ mod tests {
             .repo
             .add_recent_priotization_fee(minimum_budget)
             .await;
-        let result = get_verify_bid_result(service, searcher, vec![], opportunities).await;
+        let result =
+            get_verify_bid_result(service, searcher, vec![], opportunities[0].clone()).await;
         assert_eq!(
             result.unwrap_err(),
             RestError::SetComputeUnitInstructionNotFound(minimum_budget),
@@ -1751,8 +1810,13 @@ mod tests {
             .repo
             .add_recent_priotization_fee(minimum_budget)
             .await;
-        let result =
-            get_verify_bid_result(service, searcher, vec![instruction], opportunities).await;
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![instruction],
+            opportunities[0].clone(),
+        )
+        .await;
         assert_eq!(
             result.unwrap_err(),
             RestError::LowComputeBudget(minimum_budget),
@@ -1774,7 +1838,8 @@ mod tests {
             );
             instructions.push(transfer_instruction);
         }
-        let result = get_verify_bid_result(service, searcher, instructions, opportunities).await;
+        let result =
+            get_verify_bid_result(service, searcher, instructions, opportunities[0].clone()).await;
         assert_eq!(
             result.unwrap_err(),
             RestError::TransactionSizeTooLarge(1235, PACKET_DATA_SIZE)
@@ -1787,7 +1852,7 @@ mod tests {
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         opportunity.core_fields.id = Uuid::new_v4();
-        let result = get_verify_bid_result(service, searcher, vec![], vec![opportunity]).await;
+        let result = get_verify_bid_result(service, searcher, vec![], opportunity).await;
         assert_eq!(result.unwrap_err(), RestError::SwapOpportunityNotFound);
     }
 
@@ -1821,7 +1886,7 @@ mod tests {
                 service.clone(),
                 searcher,
                 vec![instruction],
-                opportunities.clone(),
+                opportunities[0].clone(),
             )
             .await;
             assert_eq!(
@@ -1936,7 +2001,7 @@ mod tests {
                 service.clone(),
                 searcher,
                 vec![instruction],
-                opportunities.clone(),
+                opportunities[0].clone(),
             )
             .await;
             assert_eq!(
@@ -1970,7 +2035,7 @@ mod tests {
                 service.clone(),
                 searcher,
                 vec![instruction],
-                opportunities.clone(),
+                opportunities[0].clone(),
             )
             .await;
             assert_eq!(
@@ -1994,7 +2059,7 @@ mod tests {
                 service.clone(),
                 searcher,
                 vec![instruction],
-                opportunities.clone(),
+                opportunities[0].clone(),
             )
             .await;
             assert_eq!(
@@ -2035,7 +2100,7 @@ mod tests {
             service,
             searcher,
             vec![swap_instruction, submit_bid_instruction],
-            opportunities,
+            opportunities[0].clone(),
         )
         .await;
         assert_eq!(
@@ -2048,10 +2113,335 @@ mod tests {
     async fn test_verify_bid_when_no_express_relay_instructions() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
-        let result = get_verify_bid_result(service, searcher, vec![], opportunities).await;
+        let result =
+            get_verify_bid_result(service, searcher, vec![], opportunities[0].clone()).await;
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidExpressRelayInstructionCount(0),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_user_wallet_address() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut opportunity = opportunities[0].clone();
+        let mut program = match opportunity.program {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let expected = program.user_wallet_address;
+        program.user_wallet_address = Pubkey::new_unique();
+        let founded = program.user_wallet_address;
+        opportunity.program = OpportunitySvmProgram::Swap(program);
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[0].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::UserWalletAddress {
+                expected,
+                founded
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_mint_searcher() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut opportunity = opportunities[0].clone();
+        let expected = opportunity.core_fields.sell_tokens[0].token;
+        opportunity.core_fields.sell_tokens[0].token = Pubkey::new_unique();
+        let founded = opportunity.core_fields.sell_tokens[0].token;
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[0].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::MintSearcher {
+                expected,
+                founded
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_mint_user() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut opportunity = opportunities[0].clone();
+        let expected = opportunity.core_fields.buy_tokens[0].token;
+        opportunity.core_fields.buy_tokens[0].token = Pubkey::new_unique();
+        let founded = opportunity.core_fields.buy_tokens[0].token;
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[0].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::MintUser { expected, founded })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_token_program_searcher() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut opportunity = opportunities[0].clone();
+        let mut program = match opportunity.program {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let expected = program.token_program_searcher;
+        program.token_program_searcher = Pubkey::new_unique();
+        let founded = program.token_program_searcher;
+        opportunity.program = OpportunitySvmProgram::Swap(program);
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[0].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::TokenProgramSearcher {
+                expected,
+                founded
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_token_program_user() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut opportunity = opportunities[0].clone();
+        let mut program = match opportunity.program {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let expected = program.token_program_user;
+        program.token_program_user = Pubkey::new_unique();
+        let founded = program.token_program_user;
+        opportunity.program = OpportunitySvmProgram::Swap(program);
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[0].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::TokenProgramUser {
+                expected,
+                founded
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_token_amount_searcher() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut opportunity = opportunities[1].clone();
+        let mut token = opportunity.core_fields.sell_tokens[0].clone();
+        token.amount += 1;
+        opportunity.core_fields.sell_tokens[0] = token.clone();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[1].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::AmountSearcher {
+                expected: token.amount - 1,
+                founded:  token.amount,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_token_amount_user() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut opportunity = opportunities[0].clone();
+        let mut token = opportunity.core_fields.buy_tokens[0].clone();
+        token.amount += 1;
+        opportunity.core_fields.buy_tokens[0] = token.clone();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[0].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::AmountUser {
+                expected: token.amount - 1,
+                founded:  token.amount,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_fee_token() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut opportunity = opportunities[0].clone();
+        let mut program = match opportunity.program {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        program.fee_token = FeeToken::SearcherToken;
+        opportunity.program = OpportunitySvmProgram::Swap(program);
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[0].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::FeeToken {
+                expected: FeeToken::UserToken,
+                founded:  express_relay::FeeToken::Searcher,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_referral_fee_bps() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let mut opportunity = opportunities[0].clone();
+        let mut program = match opportunity.program {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        program.referral_fee_bps += 1;
+        opportunity.program = OpportunitySvmProgram::Swap(program.clone());
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunities[0].clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidSwapInstruction(SwapInstructionError::ReferralFee {
+                expected: program.referral_fee_bps - 1,
+                founded:  program.referral_fee_bps,
+            })
         );
     }
 }

@@ -3,7 +3,10 @@ use {
         auction::api as bid,
         config::RunOptions,
         models,
-        opportunity::api as opportunity,
+        opportunity::{
+            api as opportunity,
+            entities::FeeToken,
+        },
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -131,6 +134,99 @@ impl std::fmt::Display for InstructionError {
     }
 }
 
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SwapInstructionError {
+    UserWalletAddress {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    MintSearcher {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    MintUser {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    TokenProgramSearcher {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    TokenProgramUser {
+        expected: Pubkey,
+        founded:  Pubkey,
+    },
+    AmountSearcher {
+        expected: u64,
+        founded:  u64,
+    },
+    AmountUser {
+        expected: u64,
+        founded:  u64,
+    },
+    FeeToken {
+        expected: FeeToken,
+        founded:  express_relay::FeeToken,
+    },
+    ReferralFee {
+        expected: u16,
+        founded:  u16,
+    },
+}
+
+impl std::fmt::Display for SwapInstructionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SwapInstructionError::UserWalletAddress { expected, founded } => write!(
+                f,
+                "Invalid wallet address {} in swap instruction accounts. Value does not match the wallet address in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::MintSearcher { expected, founded } => write!(
+                f,
+                "Invalid searcher mint {} in swap instruction accounts. Value does not match the searcher mint in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::MintUser { expected, founded } => write!(
+                f,
+                "Invalid user mint {} in swap instruction accounts. Value does not match the user mint in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::TokenProgramSearcher { expected, founded } => write!(
+                f,
+                "Invalid searcher token program {} in swap instruction accounts. Value does not match the searcher token program in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::TokenProgramUser { expected, founded } => write!(
+                f,
+                "Invalid user token program {} in swap instruction accounts. Value does not match the user token program in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::AmountSearcher { expected, founded } => write!(
+                f,
+                "Invalid searcher amount {} in swap instruction data. Value does not match the searcher amount in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::AmountUser { expected, founded } => write!(
+                f,
+                "Invalid user amount {} in swap instruction data. Value does not match the user amount in swap opportunity {}",
+                founded, expected
+            ),
+            SwapInstructionError::FeeToken { expected, founded } => write!(
+                f,
+                "Invalid fee token {:?} in swap instruction data. Value does not match the fee token in swap opportunity {:?}",
+                founded, expected
+            ),
+            SwapInstructionError::ReferralFee { expected, founded } => write!(
+                f,
+                "Invalid referral fee bps {} in swap instruction data. Value does not match the referral fee bps in swap opportunity {}",
+                founded, expected
+            ),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum RestError {
     /// The request contained invalid parameters.
@@ -173,6 +269,8 @@ pub enum RestError {
     InvalidInstruction(usize, InstructionError),
     /// Invalid express relay instruction count
     InvalidExpressRelayInstructionCount(usize),
+    /// Invalid user wallet address
+    InvalidSwapInstruction(SwapInstructionError),
 }
 
 
@@ -257,6 +355,10 @@ impl RestError {
             RestError::InvalidExpressRelayInstructionCount(count) => (
                 StatusCode::BAD_REQUEST,
                 format!("Bid must include exactly one instruction to Express Relay program but found {} instructions", count),
+            ),
+            RestError::InvalidSwapInstruction(message) => (
+                StatusCode::BAD_REQUEST,
+                message.to_string(),
             ),
         }
     }
