@@ -104,6 +104,12 @@ pub enum InstructionError {
     InvalidAssociatedTokenAccountInstruction(String),
     UnsupportedAssociatedTokenAccountInstruction(AssociatedTokenAccountInstruction),
     UnsupportedProgram(Pubkey),
+    TransferInstructionNotAllowed,
+    CloseAccountInstructionNotAllowed,
+    InvalidTransferInstructionsCount,
+    InvalidFromAccountTransferInstruction { expected: Pubkey, founded: Pubkey },
+    InvalidToAccountTransferInstruction { expected: Pubkey, founded: Pubkey },
+    InvalidAmountTransferInstruction { expected: u64, founded: u64 },
 }
 
 impl std::fmt::Display for InstructionError {
@@ -129,6 +135,36 @@ impl std::fmt::Display for InstructionError {
             ),
             InstructionError::UnsupportedProgram(program) => {
                 write!(f, "Unsupported program {}", program)
+            }
+            InstructionError::TransferInstructionNotAllowed => {
+                write!(f, "Transfer instruction is not allowed")
+            }
+            InstructionError::CloseAccountInstructionNotAllowed => {
+                write!(f, "Close account instruction is not allowed")
+            }
+            InstructionError::InvalidTransferInstructionsCount => {
+                write!(f, "Exactly one sol transfer instruction is required")
+            }
+            InstructionError::InvalidFromAccountTransferInstruction { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid from account in sol transfer instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
+            }
+            InstructionError::InvalidToAccountTransferInstruction { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid to account in sol transfer instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
+            }
+            InstructionError::InvalidAmountTransferInstruction { expected, founded } => {
+                write!(
+                    f,
+                    "Invalid amount in sol transfer instruction. Expected: {:?} found: {:?}",
+                    founded, expected
+                )
             }
         }
     }
@@ -266,7 +302,7 @@ pub enum RestError {
     /// Compute unit price is low.
     LowComputeBudget(u64),
     /// Invalid instruction
-    InvalidInstruction(usize, InstructionError),
+    InvalidInstruction(Option<usize>, InstructionError),
     /// Invalid express relay instruction count
     InvalidExpressRelayInstructionCount(usize),
     /// Invalid user wallet address
@@ -348,10 +384,14 @@ impl RestError {
                     minimum
                 ),
             ),
-            RestError::InvalidInstruction(index, message) => (
-                StatusCode::BAD_REQUEST,
-                format!("Invalid instruction at index {}: {}", index, message),
-            ),
+            RestError::InvalidInstruction(index, message) => {
+                let status = StatusCode::BAD_REQUEST;
+                let message = match index {
+                    Some(index) => format!("Invalid instruction at index {}: {}", index, message),
+                    None => message.to_string(),
+                };
+                (status, message)
+            },
             RestError::InvalidExpressRelayInstructionCount(count) => (
                 StatusCode::BAD_REQUEST,
                 format!("Bid must include exactly one instruction to Express Relay program but found {} instructions", count),
