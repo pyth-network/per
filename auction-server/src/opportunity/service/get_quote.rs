@@ -29,6 +29,7 @@ use {
             },
             service::{
                 add_opportunity::AddOpportunityInput,
+                check_user_token_account_balance::CheckUserTokenBalanceInput,
                 get_express_relay_metadata::GetExpressRelayMetadata,
             },
         },
@@ -526,12 +527,26 @@ impl Service<ChainTypeSvm> {
             ),
         };
 
-        let (transaction, expiration_time) = match input.quote_create.user_wallet_address {
-            None => (None, None),
-            Some(_) => (
+        let user_has_enough_balance =
+            if let Some(user_wallet_address) = input.quote_create.user_wallet_address {
+                self.check_user_token_balance(CheckUserTokenBalanceInput {
+                    chain_id:    input.quote_create.chain_id.clone(),
+                    user:        user_wallet_address,
+                    mint_user:   user_token.token,
+                    amount_user: swap_data.amount_user,
+                })
+                .await?
+            } else {
+                false
+            };
+
+        let (transaction, expiration_time) = if user_has_enough_balance {
+            (
                 Some(winner_bid.chain_data.transaction.clone()),
                 Some(deadline),
-            ),
+            )
+        } else {
+            (None, None)
         };
 
         Ok(entities::Quote {
