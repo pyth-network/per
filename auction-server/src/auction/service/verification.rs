@@ -1763,10 +1763,10 @@ mod tests {
         )
     }
 
-    fn get_service(fail_simulation: bool) -> (super::Service<Svm>, Vec<OpportunitySvm>) {
+    fn get_service(mock_simulation: bool) -> (super::Service<Svm>, Vec<OpportunitySvm>) {
         let chain_id = "solana".to_string();
         let mut rpc_client = MockRpcClient::default();
-        if !fail_simulation {
+        if mock_simulation {
             rpc_client.expect_send().returning(|_, _| {
                 Ok(serde_json::json!({
                     "context": { "slot": 1 },
@@ -1856,7 +1856,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
 
         let bid_amount = 1;
         let searcher = Keypair::new();
@@ -1901,7 +1901,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_multiple_compute_unit_price_instructions() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let instruction = compute_budget::ComputeBudgetInstruction::set_compute_unit_price(1);
         let result = get_verify_bid_result(
@@ -1919,7 +1919,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_no_compute_unit_price_instructions() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let minimum_budget = 10;
         service
@@ -1936,7 +1936,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_compute_budget_is_low() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let minimum_budget = 10;
         let instruction =
@@ -1960,7 +1960,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_transaction_exceeds_size_limit() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut instructions = Vec::new();
         let swap_params = get_opportunity_swap_params(opportunities[0].clone());
@@ -1983,7 +1983,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_opportunity_not_found() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         opportunity.core_fields.id = Uuid::new_v4();
@@ -1993,7 +1993,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_unsupported_system_program_instruction() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let instructions = vec![
             system_instruction::advance_nonce_account(&Pubkey::new_unique(), &Pubkey::new_unique()),
             system_instruction::create_account(
@@ -2036,7 +2036,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_unsupported_token_instruction() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let instructions = vec![
             spl_token::instruction::initialize_account(
                 &spl_token::id(),
@@ -2151,7 +2151,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_unsupported_associated_token_account_instruction() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let instructions = vec![recover_nested(
             &Pubkey::new_unique(),
             &Pubkey::new_unique(),
@@ -2185,7 +2185,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_unsupported_program() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let program_id = Pubkey::new_unique();
         let instructions = vec![Instruction::new_with_bincode(program_id, &"", vec![])];
         for instruction in instructions.into_iter() {
@@ -2209,7 +2209,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_multiple_express_relay_instructions() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
@@ -2249,7 +2249,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_no_express_relay_instructions() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let result =
             get_verify_bid_result(service, searcher, vec![], opportunities[0].clone()).await;
@@ -2261,7 +2261,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_user_wallet_address() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         let mut program = match opportunity.program {
@@ -2300,7 +2300,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_mint_searcher() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         let expected = opportunity.core_fields.sell_tokens[0].token;
@@ -2334,7 +2334,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_mint_user() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         let expected = opportunity.core_fields.buy_tokens[0].token;
@@ -2365,7 +2365,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_token_program_searcher() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         let mut program = match opportunity.program {
@@ -2404,7 +2404,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_token_program_user() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         let mut program = match opportunity.program {
@@ -2443,7 +2443,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_token_amount_searcher() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[1].clone();
         let mut token = opportunity.core_fields.sell_tokens[0].clone();
@@ -2477,7 +2477,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_token_amount_user() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         let mut token = opportunity.core_fields.buy_tokens[0].clone();
@@ -2511,7 +2511,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_fee_token() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         let mut program = match opportunity.program {
@@ -2548,7 +2548,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_referral_fee_bps() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities[0].clone();
         let mut program = match opportunity.program {
@@ -2585,7 +2585,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_no_transfer_instruction_is_allowed() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
@@ -2614,7 +2614,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_no_close_account_instruction_is_allowed() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
@@ -2652,7 +2652,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_multiple_transfer_instructions() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -2686,7 +2686,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_from_account_transfer_instruction() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -2724,7 +2724,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_to_account_transfer_instruction() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -2766,7 +2766,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_amount_transfer_instruction() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -2811,7 +2811,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_multiple_sync_native_instructions() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -2866,7 +2866,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_no_sync_native_instructions() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -2913,7 +2913,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_user_wsol() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let opportunity = opportunities[2].clone(); // User token wsol
         let bid_amount = 1;
         let searcher = Keypair::new();
@@ -2982,7 +2982,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_multiple_close_account_instructions() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -3034,7 +3034,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_no_close_account_instructions() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -3060,7 +3060,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_account_to_close() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -3112,7 +3112,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_close_account_destination() {
-        let (service, opportunities) = get_service(true);
+        let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -3163,7 +3163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_searcher_wsol() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let bid_amount = 1;
         let searcher = Keypair::new();
@@ -3226,7 +3226,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_associated_router_token_account() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
         let mut opportunity = opportunities[0].clone();
         let expected = get_associated_token_address(
             &opportunity.router,
@@ -3266,7 +3266,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_deadline() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
 
         let bid_amount = 1;
         let searcher = Keypair::new();
@@ -3309,7 +3309,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_searcher_signature() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
 
         let bid_amount = 1;
         let searcher = Keypair::new();
@@ -3345,7 +3345,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_no_relayer_signer() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
 
         let bid_amount = 1;
         let searcher = Keypair::new();
@@ -3392,7 +3392,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_fee_payer_is_user() {
-        let (service, opportunities) = get_service(false);
+        let (service, opportunities) = get_service(true);
 
         let bid_amount = 1;
         let searcher = Keypair::new();
@@ -3434,7 +3434,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_simulation_fails() {
-        let (mut service, opportunities) = get_service(false);
+        let (mut service, opportunities) = get_service(true);
         let mut rpc_client = MockRpcClient::new();
         rpc_client.expect_send().returning(|_, _| {
             Ok(serde_json::json!({
@@ -3493,7 +3493,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_bid_when_duplicate() {
-        let (mut service, opportunities) = get_service(false);
+        let (mut service, opportunities) = get_service(true);
         let mut db = MockDatabase::<Svm>::default();
         db.expect_add_bid().returning(|_| Ok(()));
         let service_inner = Arc::get_mut(&mut service.0).unwrap();
