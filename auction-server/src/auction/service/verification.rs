@@ -533,7 +533,7 @@ impl Service<Svm> {
     ) -> Result<(), InstructionError> {
         let program_id = accounts
             .get(ix.program_id_index as usize)
-            .ok_or(InstructionError::InvalidProgramIdIndex)?;
+            .ok_or(InstructionError::ProgramIdIndexOutOfBounds)?;
 
         if *program_id == system_program::id() {
             if Self::is_system_program_transfer_instruction(ix, accounts) {
@@ -632,7 +632,7 @@ impl Service<Svm> {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::UserWalletAddress {
                     expected: opp_swap_data.user_wallet_address,
-                    founded:  user_wallet,
+                    found:    user_wallet,
                 },
             ));
         }
@@ -640,7 +640,7 @@ impl Service<Svm> {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::MintSearcher {
                     expected: expected_mint_searcher,
-                    founded:  mint_searcher,
+                    found:    mint_searcher,
                 },
             ));
         }
@@ -648,7 +648,7 @@ impl Service<Svm> {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::MintUser {
                     expected: expected_mint_user,
-                    founded:  mint_user,
+                    found:    mint_user,
                 },
             ));
         }
@@ -657,7 +657,7 @@ impl Service<Svm> {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::TokenProgramSearcher {
                     expected: opp_swap_data.token_program_searcher,
-                    founded:  token_program_searcher,
+                    found:    token_program_searcher,
                 },
             ));
         }
@@ -666,7 +666,7 @@ impl Service<Svm> {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::TokenProgramUser {
                     expected: opp_swap_data.token_program_user,
-                    founded:  token_program_user,
+                    found:    token_program_user,
                 },
             ));
         }
@@ -676,7 +676,7 @@ impl Service<Svm> {
                 return Err(RestError::InvalidSwapInstruction(
                     SwapInstructionError::AmountSearcher {
                         expected: expected_amount_searcher,
-                        founded:  swap_data.amount_searcher,
+                        found:    swap_data.amount_searcher,
                     },
                 ));
             }
@@ -686,7 +686,7 @@ impl Service<Svm> {
                 return Err(RestError::InvalidSwapInstruction(
                     SwapInstructionError::AmountUser {
                         expected: expected_amount_user,
-                        founded:  swap_data.amount_user,
+                        found:    swap_data.amount_user,
                     },
                 ));
             }
@@ -695,7 +695,7 @@ impl Service<Svm> {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::FeeToken {
                     expected: opp_swap_data.fee_token.clone(),
-                    founded:  swap_data.fee_token,
+                    found:    swap_data.fee_token,
                 },
             ));
         }
@@ -704,7 +704,7 @@ impl Service<Svm> {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::ReferralFee {
                     expected: opp_swap_data.referral_fee_bps,
-                    founded:  swap_data.referral_fee_bps,
+                    found:    swap_data.referral_fee_bps,
                 },
             ));
         }
@@ -830,7 +830,7 @@ impl Service<Svm> {
                 None,
                 InstructionError::InvalidFromAccountTransferInstruction {
                     expected: swap_accounts.user_wallet,
-                    founded:  *from,
+                    found:    *from,
                 },
             ));
         }
@@ -839,7 +839,7 @@ impl Service<Svm> {
                 None,
                 InstructionError::InvalidToAccountTransferInstruction {
                     expected: user_ata,
-                    founded:  *to,
+                    found:    *to,
                 },
             ));
         }
@@ -848,7 +848,7 @@ impl Service<Svm> {
                 None,
                 InstructionError::InvalidAmountTransferInstruction {
                     expected: swap_data.amount_user,
-                    founded:  lamports,
+                    found:    lamports,
                 },
             ));
         }
@@ -963,9 +963,9 @@ impl Service<Svm> {
         if *account_to_close != ata {
             return Err(RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidCloseAccountAccountToClose {
+                InstructionError::InvalidAccountToCloseCloseAccountInstruction {
                     expected: ata,
-                    founded:  *account_to_close,
+                    found:    *account_to_close,
                 },
             ));
         }
@@ -973,9 +973,9 @@ impl Service<Svm> {
         if *destination != swap_accounts.user_wallet {
             return Err(RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidCloseAccountDestination {
+                InstructionError::InvalidDestinationCloseAccountInstruction {
                     expected: swap_accounts.user_wallet,
-                    founded:  *destination,
+                    found:    *destination,
                 },
             ));
         }
@@ -1118,7 +1118,7 @@ impl Service<Svm> {
                     return Err(RestError::InvalidSwapInstruction(
                         SwapInstructionError::AssociatedRouterTokenAccount {
                             expected: expected_router_token_account,
-                            founded:  router_token_account,
+                            found:    router_token_account,
                         },
                     ));
                 }
@@ -1324,7 +1324,7 @@ impl Service<Svm> {
         &self,
         transaction: &VersionedTransaction,
     ) -> Result<(), RestError> {
-        let compute_budget = self
+        let compute_unit_price = self
             .repo
             .get_priority_fees(OffsetDateTime::now_utc() - Duration::from_secs(15))
             .await
@@ -1355,14 +1355,16 @@ impl Service<Svm> {
             })
             .collect();
         if budgets.len() > 1 {
-            return Err(RestError::MultipleSetComputeUnitInstructions);
+            return Err(RestError::MultipleSetComputeUnitPriceInstructions);
         }
-        if budgets.is_empty() && compute_budget > 0 {
-            return Err(RestError::SetComputeUnitInstructionNotFound(compute_budget));
+        if budgets.is_empty() && compute_unit_price > 0 {
+            return Err(RestError::SetComputeUnitPriceInstructionNotFound(
+                compute_unit_price,
+            ));
         }
         if let Some(budget) = budgets.first() {
-            if *budget < compute_budget {
-                return Err(RestError::LowComputeBudget(compute_budget));
+            if *budget < compute_unit_price {
+                return Err(RestError::LowComputeUnitPrice(compute_unit_price));
             }
         }
         Ok(())
@@ -1898,7 +1900,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_multiple_compute_budget_price_instructions() {
+    async fn test_verify_bid_when_multiple_compute_unit_price_instructions() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let instruction = compute_budget::ComputeBudgetInstruction::set_compute_unit_price(1);
@@ -1911,12 +1913,12 @@ mod tests {
         .await;
         assert_eq!(
             result.unwrap_err(),
-            RestError::MultipleSetComputeUnitInstructions,
+            RestError::MultipleSetComputeUnitPriceInstructions,
         );
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_no_compute_budget_price_instructions() {
+    async fn test_verify_bid_when_no_compute_unit_price_instructions() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let minimum_budget = 10;
@@ -1928,12 +1930,12 @@ mod tests {
             get_verify_bid_result(service, searcher, vec![], opportunities[0].clone()).await;
         assert_eq!(
             result.unwrap_err(),
-            RestError::SetComputeUnitInstructionNotFound(minimum_budget),
+            RestError::SetComputeUnitPriceInstructionNotFound(minimum_budget),
         );
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_no_compute_budget_is_low() {
+    async fn test_verify_bid_when_compute_budget_is_low() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let minimum_budget = 10;
@@ -1952,12 +1954,12 @@ mod tests {
         .await;
         assert_eq!(
             result.unwrap_err(),
-            RestError::LowComputeBudget(minimum_budget),
+            RestError::LowComputeUnitPrice(minimum_budget),
         );
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_transaction_exceed_size_limit() {
+    async fn test_verify_bid_when_transaction_exceeds_size_limit() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let mut instructions = Vec::new();
@@ -1990,7 +1992,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_invalid_system_program_instruction() {
+    async fn test_verify_bid_when_unsupported_system_program_instruction() {
         let (service, opportunities) = get_service(false);
         let instructions = vec![
             system_instruction::advance_nonce_account(&Pubkey::new_unique(), &Pubkey::new_unique()),
@@ -2148,7 +2150,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_token_account_instruction() {
+    async fn test_verify_bid_when_unsupported_associated_token_account_instruction() {
         let (service, opportunities) = get_service(false);
         let instructions = vec![recover_nested(
             &Pubkey::new_unique(),
@@ -2182,7 +2184,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_program_instruction() {
+    async fn test_verify_bid_when_unsupported_program() {
         let (service, opportunities) = get_service(false);
         let program_id = Pubkey::new_unique();
         let instructions = vec![Instruction::new_with_bincode(program_id, &"", vec![])];
@@ -2268,7 +2270,7 @@ mod tests {
         };
         let expected = program.user_wallet_address;
         program.user_wallet_address = Pubkey::new_unique();
-        let founded = program.user_wallet_address;
+        let found = program.user_wallet_address;
         opportunity.program = OpportunitySvmProgram::Swap(program);
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
@@ -2291,7 +2293,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::UserWalletAddress {
                 expected,
-                founded
+                found
             })
         );
     }
@@ -2303,7 +2305,7 @@ mod tests {
         let mut opportunity = opportunities[0].clone();
         let expected = opportunity.core_fields.sell_tokens[0].token;
         opportunity.core_fields.sell_tokens[0].token = Pubkey::new_unique();
-        let founded = opportunity.core_fields.sell_tokens[0].token;
+        let found = opportunity.core_fields.sell_tokens[0].token;
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity),
@@ -2325,7 +2327,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::MintSearcher {
                 expected,
-                founded
+                found
             })
         );
     }
@@ -2337,7 +2339,7 @@ mod tests {
         let mut opportunity = opportunities[0].clone();
         let expected = opportunity.core_fields.buy_tokens[0].token;
         opportunity.core_fields.buy_tokens[0].token = Pubkey::new_unique();
-        let founded = opportunity.core_fields.buy_tokens[0].token;
+        let found = opportunity.core_fields.buy_tokens[0].token;
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity),
@@ -2357,7 +2359,7 @@ mod tests {
         .await;
         assert_eq!(
             result.unwrap_err(),
-            RestError::InvalidSwapInstruction(SwapInstructionError::MintUser { expected, founded })
+            RestError::InvalidSwapInstruction(SwapInstructionError::MintUser { expected, found })
         );
     }
 
@@ -2372,7 +2374,7 @@ mod tests {
         };
         let expected = program.token_program_searcher;
         program.token_program_searcher = Pubkey::new_unique();
-        let founded = program.token_program_searcher;
+        let found = program.token_program_searcher;
         opportunity.program = OpportunitySvmProgram::Swap(program);
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
@@ -2395,7 +2397,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::TokenProgramSearcher {
                 expected,
-                founded
+                found
             })
         );
     }
@@ -2411,7 +2413,7 @@ mod tests {
         };
         let expected = program.token_program_user;
         program.token_program_user = Pubkey::new_unique();
-        let founded = program.token_program_user;
+        let found = program.token_program_user;
         opportunity.program = OpportunitySvmProgram::Swap(program);
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
@@ -2434,7 +2436,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::TokenProgramUser {
                 expected,
-                founded
+                found
             })
         );
     }
@@ -2468,7 +2470,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::AmountSearcher {
                 expected: token.amount - 1,
-                founded:  token.amount,
+                found:    token.amount,
             })
         );
     }
@@ -2502,7 +2504,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::AmountUser {
                 expected: token.amount - 1,
-                founded:  token.amount,
+                found:    token.amount,
             })
         );
     }
@@ -2539,7 +2541,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::FeeToken {
                 expected: FeeToken::UserToken,
-                founded:  express_relay::FeeToken::Searcher,
+                found:    express_relay::FeeToken::Searcher,
             })
         );
     }
@@ -2576,7 +2578,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::ReferralFee {
                 expected: program.referral_fee_bps - 1,
-                founded:  program.referral_fee_bps,
+                found:    program.referral_fee_bps,
             })
         );
     }
@@ -2702,8 +2704,8 @@ mod tests {
             _ => panic!("Expected swap program"),
         };
         let expected = program.user_wallet_address;
-        let founded = Pubkey::new_unique();
-        let transfer_instruction = system_instruction::transfer(&founded, &Pubkey::new_unique(), 1);
+        let found = Pubkey::new_unique();
+        let transfer_instruction = system_instruction::transfer(&found, &Pubkey::new_unique(), 1);
         let result = get_verify_bid_result(
             service,
             searcher,
@@ -2715,7 +2717,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidFromAccountTransferInstruction { expected, founded }
+                InstructionError::InvalidFromAccountTransferInstruction { expected, found }
             )
         );
     }
@@ -2743,9 +2745,9 @@ mod tests {
             &program.user_wallet_address,
             &spl_token::native_mint::id(),
         );
-        let founded = Pubkey::new_unique();
+        let found = Pubkey::new_unique();
         let transfer_instruction =
-            system_instruction::transfer(&program.user_wallet_address, &founded, 1);
+            system_instruction::transfer(&program.user_wallet_address, &found, 1);
         let result = get_verify_bid_result(
             service,
             searcher,
@@ -2757,7 +2759,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidToAccountTransferInstruction { expected, founded }
+                InstructionError::InvalidToAccountTransferInstruction { expected, found }
             )
         );
     }
@@ -2782,14 +2784,14 @@ mod tests {
             _ => panic!("Expected swap program"),
         };
         let expected = opportunity.buy_tokens[0].amount;
-        let founded = opportunity.buy_tokens[0].amount + 1;
+        let found = opportunity.buy_tokens[0].amount + 1;
         let transfer_instruction = system_instruction::transfer(
             &program.user_wallet_address,
             &get_associated_token_address(
                 &program.user_wallet_address,
                 &spl_token::native_mint::id(),
             ),
-            founded,
+            found,
         );
         let result = get_verify_bid_result(
             service,
@@ -2802,7 +2804,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidAmountTransferInstruction { expected, founded }
+                InstructionError::InvalidAmountTransferInstruction { expected, found }
             )
         );
     }
@@ -3079,10 +3081,10 @@ mod tests {
             &program.user_wallet_address,
             &spl_token::native_mint::id(),
         );
-        let founded = Pubkey::new_unique();
+        let found = Pubkey::new_unique();
         let close_account_instruction = spl_token::instruction::close_account(
             &spl_token::id(),
-            &founded,
+            &found,
             &program.user_wallet_address,
             &program.user_wallet_address,
             &[],
@@ -3099,9 +3101,9 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidCloseAccountAccountToClose {
+                InstructionError::InvalidAccountToCloseCloseAccountInstruction {
                     expected: *expected,
-                    founded
+                    found
                 }
             )
         );
@@ -3131,11 +3133,11 @@ mod tests {
             &program.user_wallet_address,
             &spl_token::native_mint::id(),
         );
-        let founded = Pubkey::new_unique();
+        let found = Pubkey::new_unique();
         let close_account_instruction = spl_token::instruction::close_account(
             &spl_token::id(),
             ata,
-            &founded,
+            &found,
             &program.user_wallet_address,
             &[],
         )
@@ -3151,9 +3153,9 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidCloseAccountDestination {
+                InstructionError::InvalidDestinationCloseAccountInstruction {
                     expected: program.user_wallet_address,
-                    founded
+                    found
                 }
             )
         );
@@ -3231,7 +3233,7 @@ mod tests {
             &opportunity.core_fields.buy_tokens[0].token,
         );
         opportunity.router = Pubkey::new_unique();
-        let founded = get_associated_token_address(
+        let found = get_associated_token_address(
             &opportunity.router,
             &opportunity.core_fields.buy_tokens[0].token,
         );
@@ -3257,7 +3259,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::AssociatedRouterTokenAccount {
                 expected,
-                founded,
+                found,
             },),
         );
     }

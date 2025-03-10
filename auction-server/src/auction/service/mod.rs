@@ -90,7 +90,6 @@ pub mod update_recent_prioritization_fee;
 pub mod verification;
 pub mod workers;
 
-#[derive(Debug, Clone)]
 pub struct SwapInstructionAccountPositions {
     pub router_token_account:   usize,
     pub user_wallet_account:    usize,
@@ -316,10 +315,7 @@ pub mod tests {
             pubkey::Pubkey,
             signature::Keypair,
         },
-        std::{
-            str::FromStr,
-            sync::Arc,
-        },
+        std::sync::Arc,
         tokio::sync::broadcast,
         tokio_util::task::TaskTracker,
     };
@@ -342,10 +338,9 @@ pub mod tests {
                             RpcClientConfig::default(),
                         ),
                         express_relay:                 ExpressRelaySvm {
-                            program_id:                               Pubkey::from_str(
-                                "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou",
-                            )
-                            .unwrap(),
+                            program_id:                               Pubkey::from(
+                                express_relay::id().to_bytes(),
+                            ),
                             relayer:                                  Keypair::new(),
                             submit_bid_instruction_account_positions:
                                 get_submit_bid_instruction_account_positions(),

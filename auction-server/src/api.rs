@@ -101,7 +101,7 @@ pub(crate) mod ws;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InstructionError {
-    InvalidProgramIdIndex,
+    ProgramIdIndexOutOfBounds,
     UnsupportedSystemProgramInstruction,
     InvalidSplTokenInstruction(ProgramError),
     UnsupportedSplTokenInstruction(String),
@@ -111,13 +111,13 @@ pub enum InstructionError {
     TransferInstructionNotAllowed,
     CloseAccountInstructionNotAllowed,
     InvalidTransferInstructionsCount,
-    InvalidFromAccountTransferInstruction { expected: Pubkey, founded: Pubkey },
-    InvalidToAccountTransferInstruction { expected: Pubkey, founded: Pubkey },
-    InvalidAmountTransferInstruction { expected: u64, founded: u64 },
+    InvalidFromAccountTransferInstruction { expected: Pubkey, found: Pubkey },
+    InvalidToAccountTransferInstruction { expected: Pubkey, found: Pubkey },
+    InvalidAmountTransferInstruction { expected: u64, found: u64 },
     InvalidSyncNativeInstructionCount(Pubkey),
     InvalidCloseAccountInstructionsCount,
-    InvalidCloseAccountAccountToClose { expected: Pubkey, founded: Pubkey },
-    InvalidCloseAccountDestination { expected: Pubkey, founded: Pubkey },
+    InvalidAccountToCloseCloseAccountInstruction { expected: Pubkey, found: Pubkey },
+    InvalidDestinationCloseAccountInstruction { expected: Pubkey, found: Pubkey },
 }
 
 impl std::fmt::Display for InstructionError {
@@ -126,7 +126,7 @@ impl std::fmt::Display for InstructionError {
             InstructionError::UnsupportedSystemProgramInstruction => {
                 write!(f, "Unsupported system program instruction")
             }
-            InstructionError::InvalidProgramIdIndex => write!(f, "Invalid program id index"),
+            InstructionError::ProgramIdIndexOutOfBounds => write!(f, "Invalid program id index"),
             InstructionError::InvalidSplTokenInstruction(error) => {
                 write!(f, "Invalid spl token instruction {:?}", error)
             }
@@ -153,25 +153,25 @@ impl std::fmt::Display for InstructionError {
             InstructionError::InvalidTransferInstructionsCount => {
                 write!(f, "Exactly one sol transfer instruction is required")
             }
-            InstructionError::InvalidFromAccountTransferInstruction { expected, founded } => {
+            InstructionError::InvalidFromAccountTransferInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid from account in sol transfer instruction. Expected: {:?} found: {:?}",
-                    founded, expected
+                    found, expected
                 )
             }
-            InstructionError::InvalidToAccountTransferInstruction { expected, founded } => {
+            InstructionError::InvalidToAccountTransferInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid to account in sol transfer instruction. Expected: {:?} found: {:?}",
-                    founded, expected
+                    found, expected
                 )
             }
-            InstructionError::InvalidAmountTransferInstruction { expected, founded } => {
+            InstructionError::InvalidAmountTransferInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid amount in sol transfer instruction. Expected: {:?} found: {:?}",
-                    founded, expected
+                    found, expected
                 )
             }
             InstructionError::InvalidSyncNativeInstructionCount(address) => {
@@ -184,18 +184,18 @@ impl std::fmt::Display for InstructionError {
             InstructionError::InvalidCloseAccountInstructionsCount => {
                 write!(f, "Exactly one close account instruction is required")
             }
-            InstructionError::InvalidCloseAccountAccountToClose { expected, founded } => {
+            InstructionError::InvalidAccountToCloseCloseAccountInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid account to close in close account instruction. Expected: {:?} found: {:?}",
-                    founded, expected
+                    found, expected
                 )
             }
-            InstructionError::InvalidCloseAccountDestination { expected, founded } => {
+            InstructionError::InvalidDestinationCloseAccountInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid destination account in close account instruction. Expected: {:?} found: {:?}",
-                    founded, expected
+                    found, expected
                 )
             }
         }
@@ -207,98 +207,98 @@ impl std::fmt::Display for InstructionError {
 pub enum SwapInstructionError {
     UserWalletAddress {
         expected: Pubkey,
-        founded:  Pubkey,
+        found:    Pubkey,
     },
     MintSearcher {
         expected: Pubkey,
-        founded:  Pubkey,
+        found:    Pubkey,
     },
     MintUser {
         expected: Pubkey,
-        founded:  Pubkey,
+        found:    Pubkey,
     },
     TokenProgramSearcher {
         expected: Pubkey,
-        founded:  Pubkey,
+        found:    Pubkey,
     },
     TokenProgramUser {
         expected: Pubkey,
-        founded:  Pubkey,
+        found:    Pubkey,
     },
     AmountSearcher {
         expected: u64,
-        founded:  u64,
+        found:    u64,
     },
     AmountUser {
         expected: u64,
-        founded:  u64,
+        found:    u64,
     },
     FeeToken {
         expected: FeeToken,
-        founded:  express_relay::FeeToken,
+        found:    express_relay::FeeToken,
     },
     ReferralFee {
         expected: u16,
-        founded:  u16,
+        found:    u16,
     },
     AssociatedRouterTokenAccount {
         expected: Pubkey,
-        founded:  Pubkey,
+        found:    Pubkey,
     },
 }
 
 impl std::fmt::Display for SwapInstructionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SwapInstructionError::UserWalletAddress { expected, founded } => write!(
+            SwapInstructionError::UserWalletAddress { expected, found } => write!(
                 f,
                 "Invalid wallet address {} in swap instruction accounts. Value does not match the wallet address in swap opportunity {}",
-                founded, expected
+                found, expected
             ),
-            SwapInstructionError::MintSearcher { expected, founded } => write!(
+            SwapInstructionError::MintSearcher { expected, found } => write!(
                 f,
                 "Invalid searcher mint {} in swap instruction accounts. Value does not match the searcher mint in swap opportunity {}",
-                founded, expected
+                found, expected
             ),
-            SwapInstructionError::MintUser { expected, founded } => write!(
+            SwapInstructionError::MintUser { expected, found } => write!(
                 f,
                 "Invalid user mint {} in swap instruction accounts. Value does not match the user mint in swap opportunity {}",
-                founded, expected
+                found, expected
             ),
-            SwapInstructionError::TokenProgramSearcher { expected, founded } => write!(
+            SwapInstructionError::TokenProgramSearcher { expected, found } => write!(
                 f,
                 "Invalid searcher token program {} in swap instruction accounts. Value does not match the searcher token program in swap opportunity {}",
-                founded, expected
+                found, expected
             ),
-            SwapInstructionError::TokenProgramUser { expected, founded } => write!(
+            SwapInstructionError::TokenProgramUser { expected, found } => write!(
                 f,
                 "Invalid user token program {} in swap instruction accounts. Value does not match the user token program in swap opportunity {}",
-                founded, expected
+                found, expected
             ),
-            SwapInstructionError::AmountSearcher { expected, founded } => write!(
+            SwapInstructionError::AmountSearcher { expected, found } => write!(
                 f,
                 "Invalid searcher amount {} in swap instruction data. Value does not match the searcher amount in swap opportunity {}",
-                founded, expected
+                found, expected
             ),
-            SwapInstructionError::AmountUser { expected, founded } => write!(
+            SwapInstructionError::AmountUser { expected, found } => write!(
                 f,
                 "Invalid user amount {} in swap instruction data. Value does not match the user amount in swap opportunity {}",
-                founded, expected
+                found, expected
             ),
-            SwapInstructionError::FeeToken { expected, founded } => write!(
+            SwapInstructionError::FeeToken { expected, found } => write!(
                 f,
                 "Invalid fee token {:?} in swap instruction data. Value does not match the fee token in swap opportunity {:?}",
-                founded, expected
+                found, expected
             ),
-            SwapInstructionError::ReferralFee { expected, founded } => write!(
+            SwapInstructionError::ReferralFee { expected, found } => write!(
                 f,
                 "Invalid referral fee bps {} in swap instruction data. Value does not match the referral fee bps in swap opportunity {}",
-                founded, expected
+                found, expected
             ),
-            SwapInstructionError::AssociatedRouterTokenAccount { expected, founded } => write!(
+            SwapInstructionError::AssociatedRouterTokenAccount { expected, found } => write!(
                 f,
                 "Associated token account for router does not match. Expected: {:?} found: {:?}",
-                expected, founded
+                expected, found
             ),
         }
     }
@@ -337,11 +337,11 @@ pub enum RestError {
     /// Transaction size is too large.
     TransactionSizeTooLarge(u64, usize),
     /// Multiple set compute unit instructions.
-    MultipleSetComputeUnitInstructions,
+    MultipleSetComputeUnitPriceInstructions,
     /// Set compute unit instruction not found.
-    SetComputeUnitInstructionNotFound(u64),
+    SetComputeUnitPriceInstructionNotFound(u64),
     /// Compute unit price is low.
-    LowComputeBudget(u64),
+    LowComputeUnitPrice(u64),
     /// Invalid instruction
     InvalidInstruction(Option<usize>, InstructionError),
     /// Invalid express relay instruction count
@@ -420,18 +420,18 @@ impl RestError {
                 StatusCode::BAD_REQUEST,
                 format!("Transaction size is too large: {} > {}", size, limit),
             ),
-            RestError::MultipleSetComputeUnitInstructions => (
+            RestError::MultipleSetComputeUnitPriceInstructions => (
                 StatusCode::BAD_REQUEST,
                 "Multiple SetComputeUnitPrice instructions".to_string(),
             ),
-            RestError::SetComputeUnitInstructionNotFound(minimum) => (
+            RestError::SetComputeUnitPriceInstructionNotFound(minimum) => (
                 StatusCode::BAD_REQUEST,
                 format!(
                     "No SetComputeUnitPrice instruction. Minimum compute budget is {}",
                     minimum
                 ),
             ),
-            RestError::LowComputeBudget(minimum) => (
+            RestError::LowComputeUnitPrice(minimum) => (
                 StatusCode::BAD_REQUEST,
                 format!(
                     "Compute budget is too low. Minimum compute budget is {}",
