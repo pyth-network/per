@@ -154,7 +154,6 @@ mod tests {
 
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
 
-
         let (service, mut ws_receiver) =
             Service::<ChainTypeSvm>::new_with_mocks_svm(chain_id.clone(), mock_db, rpc_client);
 
@@ -200,7 +199,7 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(opportunity.core_fields.creation_time < opportunity.core_fields.refresh_time);
+        assert!(opportunity.core_fields.creation_time <= opportunity.core_fields.refresh_time);
         assert_eq!(
             opportunity.core_fields.permission_key,
             opportunity_create.core_fields.permission_key

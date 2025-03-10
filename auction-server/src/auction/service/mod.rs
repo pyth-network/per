@@ -282,8 +282,6 @@ pub mod tests {
             ExpressRelaySvm,
             Service,
             ServiceInner,
-            SubmitBidInstructionAccountPositions,
-            SwapInstructionAccountPositions,
         },
         crate::{
             auction::repository::{
@@ -303,6 +301,10 @@ pub mod tests {
             opportunity::service::{
                 ChainTypeSvm,
                 MockService as MockOpportunityService,
+            },
+            server::{
+                get_submit_bid_instruction_account_positions,
+                get_swap_instruction_account_positions,
             },
         },
         solana_client::{
@@ -336,22 +338,14 @@ pub mod tests {
                             RpcClientConfig::default(),
                         ),
                         express_relay:                 ExpressRelaySvm {
-                            program_id:                               Pubkey::new_unique(),
+                            program_id:                               Pubkey::from(
+                                express_relay::id().to_bytes(),
+                            ),
                             relayer:                                  Keypair::new(),
                             submit_bid_instruction_account_positions:
-                                SubmitBidInstructionAccountPositions {
-                                    permission_account: 0,
-                                    router_account:     1,
-                                },
+                                get_submit_bid_instruction_account_positions(),
                             swap_instruction_account_positions:
-                                SwapInstructionAccountPositions {
-                                    router_token_account:   0,
-                                    user_wallet_account:    1,
-                                    mint_searcher_account:  2,
-                                    mint_user_account:      3,
-                                    token_program_searcher: 4,
-                                    token_program_user:     5,
-                                },
+                                get_swap_instruction_account_positions(),
                         },
                         simulator:                     Simulator::new(TracedSenderSvm::new_client(
                             chain_id.clone(),

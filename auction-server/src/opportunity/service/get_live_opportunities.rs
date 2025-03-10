@@ -9,6 +9,7 @@ use {
     },
 };
 
+#[derive(Debug)]
 pub struct GetLiveOpportunitiesInput {
     pub key: entities::OpportunityKey,
 }
