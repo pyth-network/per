@@ -355,14 +355,18 @@ pub enum FeeToken {
     UserToken,
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+#[serde(rename_all = "snake_case")]
 pub enum TokenAccountInitializer {
     Initialized,
     SearcherPayer,
     UserPayer,
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+#[serde(rename_all = "snake_case")]
 pub struct TokenAccountInitializationConfig {
     pub user_ata_mint_searcher: TokenAccountInitializer,
     pub user_ata_mint_user: Option<TokenAccountInitializer>, 
