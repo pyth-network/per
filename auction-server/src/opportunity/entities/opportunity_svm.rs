@@ -61,15 +61,49 @@ impl PartialEq<ProgramFeeToken> for FeeToken {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TokenAccountInitializer {
+    Initialized,
+    SearcherPayer,
+    UserPayer,
+}
+
+impl TokenAccountInitializer {
+    pub fn from_balance(balance : Option<u64>, user_payer : bool) -> Self {
+        match balance {
+            Some(_) => Self::Initialized,
+            None => {
+                if user_payer {
+                    Self::UserPayer
+                } else {
+                    Self::SearcherPayer
+                }
+            }
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TokenAccountInitializationConfig {
+    pub user_ata_mint_searcher: TokenAccountInitializer,
+    pub user_ata_mint_user: Option<TokenAccountInitializer>, 
+    pub router_fee_receiver_ta: TokenAccountInitializer,
+    pub relayer_fee_receiver_ata: TokenAccountInitializer,
+    pub express_relay_fee_receiver_ata: TokenAccountInitializer,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramSwap {
     pub user_wallet_address:    Pubkey,
+    pub user_mint_user_balance : u64,
     pub fee_token:              FeeToken,
     pub referral_fee_bps:       u16,
     pub platform_fee_bps:       u64,
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
     pub token_program_user:     Pubkey,
     pub token_program_searcher: Pubkey,
+    pub token_account_initialization_config: TokenAccountInitializationConfig,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -135,6 +169,8 @@ impl Opportunity for OpportunitySvm {
                         platform_fee_bps:       program.platform_fee_bps,
                         token_program_user:     program.token_program_user,
                         token_program_searcher: program.token_program_searcher,
+                        token_account_initialization_config: program.token_account_initialization_config,
+                        user_mint_user_balance: program.user_mint_user_balance,
                     },
                 )
             }
@@ -345,6 +381,8 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     platform_fee_bps:       program.platform_fee_bps,
                     token_program_user:     program.token_program_user,
                     token_program_searcher: program.token_program_searcher,
+                    token_account_initialization_config: program.token_account_initialization_config,
+                    user_mint_user_balance: program.user_mint_user_balance,
                 })
             }
         };

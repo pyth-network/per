@@ -1,5 +1,7 @@
 #[cfg(test)]
 use mockall::automock;
+use crate::opportunity::entities::TokenAccountInitializationConfig;
+
 use {
     super::{
         entities,
@@ -98,6 +100,8 @@ pub struct OpportunityMetadataSvmProgramSwap {
     pub token_program_user:     Pubkey,
     #[serde_as(as = "DisplayFromStr")]
     pub token_program_searcher: Pubkey,
+    pub token_account_initialization_config: TokenAccountInitializationConfig,
+    pub user_mint_user_balance: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
