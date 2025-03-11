@@ -17,19 +17,22 @@ use {
     },
 };
 
-pub struct GetQuoteRequestAssociatedTokenAccountsInput {
+pub struct QuoteRequestAccountBalancesInput {
+    pub chain_id:               ChainId,
+    pub fee_token:              FeeToken,
     pub user_wallet_address:    Pubkey,
+    pub router:                 Pubkey,
     pub mint_searcher:          Pubkey,
     pub mint_user:              Pubkey,
-    pub router:                 Pubkey,
-    pub fee_token:              FeeToken,
     pub token_program_searcher: Pubkey,
     pub token_program_user:     Pubkey,
-    pub chain_id:               ChainId,
 }
 
-pub struct GetQuoteRequestAssociatedTokenAccountsOutput {
-    pub user_wallet_address:            Option<u64>,
+/// The balances of some of the accounts that will be used in the swap
+/// - If a token account doesn't exist, the balance is `None`
+/// - If a token account exists but has no balance, the balance is `Some(0)`
+pub struct QuoteRequestAccountBalances {
+    pub user_wallet:                    u64,
     pub user_ata_mint_searcher:         Option<u64>,
     pub user_ata_mint_user:             Option<u64>,
     pub router_fee_receiver_ta:         Option<u64>,
@@ -39,10 +42,10 @@ pub struct GetQuoteRequestAssociatedTokenAccountsOutput {
 
 
 impl Service<ChainTypeSvm> {
-    pub async fn get_quote_request_associated_token_accounts(
+    pub async fn get_quote_request_account_balances(
         &self,
-        input: GetQuoteRequestAssociatedTokenAccountsInput,
-    ) -> Result<GetQuoteRequestAssociatedTokenAccountsOutput, RestError> {
+        input: QuoteRequestAccountBalancesInput,
+    ) -> Result<QuoteRequestAccountBalances, RestError> {
         let (mint_fee, token_program_fee) = if input.fee_token == FeeToken::SearcherToken {
             (input.mint_searcher, input.token_program_searcher)
         } else {
@@ -93,7 +96,10 @@ impl Service<ChainTypeSvm> {
             RestError::TemporarilyUnavailable
         })?;
 
-        let user_balance = accounts[0].as_ref().map(|account| account.lamports);
+        let user_wallet = accounts[0]
+            .as_ref()
+            .map(|account| account.lamports)
+            .unwrap_or_default();
 
         let token_balances: Vec<Option<u64>> = accounts[1..].iter()
             .map(|account| {
@@ -111,12 +117,12 @@ impl Service<ChainTypeSvm> {
             })
             .collect::<Result<Vec<Option<u64>>, RestError>>()?;
 
-        Ok(GetQuoteRequestAssociatedTokenAccountsOutput {
-            user_wallet_address:            user_balance,
-            user_ata_mint_user:             token_balances[0],
-            user_ata_mint_searcher:         token_balances[1],
-            router_fee_receiver_ta:         token_balances[2],
-            relayer_fee_receiver_ata:       token_balances[3],
+        Ok(QuoteRequestAccountBalances {
+            user_wallet,
+            user_ata_mint_user: token_balances[0],
+            user_ata_mint_searcher: token_balances[1],
+            router_fee_receiver_ta: token_balances[2],
+            relayer_fee_receiver_ata: token_balances[3],
             express_relay_fee_receiver_ata: token_balances[4],
         })
     }

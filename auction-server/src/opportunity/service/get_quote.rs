@@ -1,8 +1,8 @@
 use {
     super::{
-        get_quote_request_associated_token_accounts::{
-            GetQuoteRequestAssociatedTokenAccountsInput,
-            GetQuoteRequestAssociatedTokenAccountsOutput,
+        get_quote_request_account_balances::{
+            QuoteRequestAccountBalances,
+            QuoteRequestAccountBalancesInput,
         },
         get_token_program::GetTokenProgramInput,
         ChainTypeSvm,
@@ -152,20 +152,17 @@ fn get_fee_token(user_mint: Pubkey, _searcher_mint: Pubkey) -> entities::FeeToke
 
 fn get_user_mint_user_balance_and_token_account_initialization_config(
     mint_user: Pubkey,
-    balances: GetQuoteRequestAssociatedTokenAccountsOutput,
+    balances: QuoteRequestAccountBalances,
 ) -> (u64, entities::TokenAccountInitializationConfigs) {
     let rent = Rent::default();
 
     let user_mint_user_balance = if mint_user == native_mint::id() {
-        balances.user_wallet_address.unwrap_or_default()
+        balances.user_wallet
     } else {
         balances.user_ata_mint_user.unwrap_or_default()
     };
 
-    let user_payer = balances
-        .user_wallet_address
-        .unwrap_or_default()
-        .saturating_sub(rent.minimum_balance(0))
+    let user_payer = balances.user_wallet.saturating_sub(rent.minimum_balance(0))
         >= rent.minimum_balance(2 * Account::LEN);
 
     (
@@ -341,18 +338,16 @@ impl Service<ChainTypeSvm> {
         };
 
         let balances = self
-            .get_quote_request_associated_token_accounts(
-                GetQuoteRequestAssociatedTokenAccountsInput {
-                    user_wallet_address,
-                    mint_searcher: searcher_mint,
-                    mint_user: user_mint,
-                    router: referral_fee_info.router,
-                    fee_token: fee_token.clone(),
-                    token_program_searcher,
-                    token_program_user,
-                    chain_id: quote_create.chain_id.clone(),
-                },
-            )
+            .get_quote_request_account_balances(QuoteRequestAccountBalancesInput {
+                user_wallet_address,
+                mint_searcher: searcher_mint,
+                mint_user: user_mint,
+                router: referral_fee_info.router,
+                fee_token: fee_token.clone(),
+                token_program_searcher,
+                token_program_user,
+                chain_id: quote_create.chain_id.clone(),
+            })
             .await?;
 
         let (user_mint_user_balance, token_account_initialization_config) =

@@ -64,7 +64,7 @@ pub mod remove_opportunities;
 pub mod verification;
 
 mod get_express_relay_metadata;
-mod get_quote_request_associated_token_accounts;
+mod get_quote_request_account_balances;
 mod get_spoof_info;
 mod get_token_program;
 mod make_adapter_calldata;
