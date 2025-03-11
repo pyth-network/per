@@ -118,6 +118,7 @@ pub enum InstructionError {
     InvalidCloseAccountInstructionsCount,
     InvalidAccountToCloseCloseAccountInstruction { expected: Pubkey, found: Pubkey },
     InvalidDestinationCloseAccountInstruction { expected: Pubkey, found: Pubkey },
+    InvalidOwnerCloseAccountInstruction { expected: Pubkey, found: Pubkey },
 }
 
 impl std::fmt::Display for InstructionError {
@@ -195,6 +196,13 @@ impl std::fmt::Display for InstructionError {
                 write!(
                     f,
                     "Invalid destination account in close account instruction. Expected: {:?} found: {:?}",
+                    found, expected
+                )
+            }
+            InstructionError::InvalidOwnerCloseAccountInstruction { expected, found } => {
+                write!(
+                    f,
+                    "Invalid owner in close account instruction. Expected: {:?} found: {:?}",
                     found, expected
                 )
             }
