@@ -369,7 +369,7 @@ pub enum TokenAccountInitializer {
 #[serde(rename_all = "snake_case")]
 pub struct TokenAccountInitializationConfig {
     pub user_ata_mint_searcher: TokenAccountInitializer,
-    pub user_ata_mint_user: Option<TokenAccountInitializer>, 
+    pub user_ata_mint_user: Option<TokenAccountInitializer>,
     pub router_fee_receiver_ta: TokenAccountInitializer,
     pub relayer_fee_receiver_ata: TokenAccountInitializer,
     pub express_relay_fee_receiver_ata: TokenAccountInitializer,
