@@ -268,19 +268,19 @@ pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
     }
 }
 
-impl From<TokenAccountInitializer> for api::TokenAccountInitializer {
+impl From<TokenAccountInitializer> for api::TokenAccountInitializationConfig {
     fn from(val: TokenAccountInitializer) -> Self {
         match val {
-            TokenAccountInitializer::Initialized => api::TokenAccountInitializer::Initialized,
-            TokenAccountInitializer::SearcherPayer => api::TokenAccountInitializer::SearcherPayer,
-            TokenAccountInitializer::UserPayer => api::TokenAccountInitializer::UserPayer,
+            TokenAccountInitializer::Initialized => api::TokenAccountInitializationConfig::Initialized,
+            TokenAccountInitializer::SearcherPayer => api::TokenAccountInitializationConfig::SearcherPayer,
+            TokenAccountInitializer::UserPayer => api::TokenAccountInitializationConfig::UserPayer,
         }
     }
 }
 
-impl From<TokenAccountInitializationConfig> for api::TokenAccountInitializationConfig {
+impl From<TokenAccountInitializationConfig> for api::TokenAccountInitializationConfigs {
     fn from(val: TokenAccountInitializationConfig) -> Self {
-        api::TokenAccountInitializationConfig {
+        api::TokenAccountInitializationConfigs {
             user_ata_mint_searcher: val.user_ata_mint_searcher.into(),
             user_ata_mint_user: val.user_ata_mint_user.map(|v| v.into()),
             router_fee_receiver_ta: val.router_fee_receiver_ta.into(),

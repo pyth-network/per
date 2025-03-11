@@ -313,7 +313,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         user_wallet_address: Pubkey,
 
         /// The user's current balance of the user token
-        #[schema(example = 1000)]
+        #[schema(example = 10)]
         user_mint_user_balance: u64,
 
         /// The permission account that serves as an identifier for the swap opportunity.
@@ -344,7 +344,7 @@ pub enum OpportunityParamsV1ProgramSvm {
 
         /// Details about which token accounts need to be initialized an by whom
         #[schema(inline)]
-        token_account_initialization_config: TokenAccountInitializationConfig,
+        token_account_initialization_configs: TokenAccountInitializationConfigs,
     },
 }
 
@@ -355,24 +355,21 @@ pub enum FeeToken {
     UserToken,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 #[serde(rename_all = "snake_case")]
-pub enum TokenAccountInitializer {
+pub enum TokenAccountInitializationConfig {
     Initialized,
     SearcherPayer,
     UserPayer,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-#[serde(rename_all = "snake_case")]
-pub struct TokenAccountInitializationConfig {
-    pub user_ata_mint_searcher: TokenAccountInitializer,
-    pub user_ata_mint_user: Option<TokenAccountInitializer>,
-    pub router_fee_receiver_ta: TokenAccountInitializer,
-    pub relayer_fee_receiver_ata: TokenAccountInitializer,
-    pub express_relay_fee_receiver_ata: TokenAccountInitializer,
+pub struct TokenAccountInitializationConfigs {
+    pub user_ata_mint_searcher: TokenAccountInitializationConfig,
+    pub user_ata_mint_user: Option<TokenAccountInitializationConfig>,
+    pub router_fee_receiver_ta: TokenAccountInitializationConfig,
+    pub relayer_fee_receiver_ata: TokenAccountInitializationConfig,
+    pub express_relay_fee_receiver_ata: TokenAccountInitializationConfig,
 }
 
 
