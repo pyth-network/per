@@ -40,7 +40,7 @@ serde_yaml = "0.9.25"
 url = "2.5.4"
 rand = "0.8.5"
 anchor-lang = "0.30.1"
-litesvm = "0.3.0"
+litesvm = "0.6.0"
 borsh = "1.5.1"
 spl-associated-token-account = "4.0.0"
 spl-token = "6.0.0"
@@ -63,3 +63,9 @@ rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464"
 [patch.crates-io.aes-gcm-siv]
 git = "https://github.com/RustCrypto/AEADs"
 rev = "e1e35e0c4f4943da0a99ceb8477c421dcfae2c33"
+
+# This patch disables debugging features in litesvm runtime_environments
+# which allows more programs to be loaded in the runtime
+[patch.crates-io.litesvm]
+git = "https://github.com/m30m/litesvm"
+rev = "4414b42c957304b24c1984a7d5f66296cb40c677"
