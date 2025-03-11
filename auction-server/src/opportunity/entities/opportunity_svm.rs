@@ -61,6 +61,13 @@ impl PartialEq<ProgramFeeToken> for FeeToken {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TokenAccountInitializationConfig {
+    Initialized,
+    SearcherPayer,
+    UserPayer,
+}
+
 impl TokenAccountInitializationConfig {
     pub fn from_optional_balance(balance: Option<u64>, user_payer: bool) -> Self {
         match balance {
@@ -76,12 +83,6 @@ impl TokenAccountInitializationConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum TokenAccountInitializationConfig {
-    Initialized,
-    SearcherPayer,
-    UserPayer,
-}
 
 impl Default for TokenAccountInitializationConfig {
     fn default() -> Self {
