@@ -1,9 +1,6 @@
 use {
     super::{
-        get_quote_request_account_balances::{
-            QuoteRequestAccountBalances,
-            QuoteRequestAccountBalancesInput,
-        },
+        get_quote_request_account_balances::QuoteRequestAccountBalancesInput,
         get_token_program::GetTokenProgramInput,
         ChainTypeSvm,
         Service,
@@ -43,14 +40,9 @@ use {
     },
     axum_prometheus::metrics,
     express_relay_api_types::opportunity::ProgramSvm,
-    solana_sdk::{
-        program_pack::Pack,
-        pubkey::Pubkey,
-        rent::Rent,
-    },
+    solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
     spl_token::native_mint,
-    spl_token_2022::state::Account,
     std::{
         str::FromStr,
         time::Duration,
@@ -148,56 +140,6 @@ fn get_fee_token(user_mint: Pubkey, _searcher_mint: Pubkey) -> entities::FeeToke
     } else {
         entities::FeeToken::SearcherToken
     }
-}
-
-fn get_user_mint_user_balance_and_token_account_initialization_config(
-    mint_user: Pubkey,
-    balances: QuoteRequestAccountBalances,
-) -> (u64, entities::TokenAccountInitializationConfigs) {
-    let rent = Rent::default();
-
-    let user_mint_user_balance = if mint_user == native_mint::id() {
-        balances.user_wallet
-    } else {
-        balances.user_ata_mint_user.unwrap_or_default()
-    };
-
-    let user_payer = balances.user_wallet.saturating_sub(rent.minimum_balance(0))
-        >= rent.minimum_balance(2 * Account::LEN);
-
-    (
-        user_mint_user_balance,
-        entities::TokenAccountInitializationConfigs {
-            user_ata_mint_user:             if mint_user == native_mint::id() {
-                Some(entities::TokenAccountInitializationConfig::from_balance(
-                    balances.user_ata_mint_user,
-                    false,
-                ))
-            } else {
-                None
-            },
-            user_ata_mint_searcher:
-                entities::TokenAccountInitializationConfig::from_balance(
-                    balances.user_ata_mint_searcher,
-                    user_payer,
-                ),
-            router_fee_receiver_ta:
-                entities::TokenAccountInitializationConfig::from_balance(
-                    balances.router_fee_receiver_ta,
-                    false,
-                ),
-            relayer_fee_receiver_ata:
-                entities::TokenAccountInitializationConfig::from_balance(
-                    balances.relayer_fee_receiver_ata,
-                    false,
-                ),
-            express_relay_fee_receiver_ata:
-                entities::TokenAccountInitializationConfig::from_balance(
-                    balances.express_relay_fee_receiver_ata,
-                    false,
-                ),
-        },
-    )
 }
 
 impl Service<ChainTypeSvm> {
@@ -350,8 +292,11 @@ impl Service<ChainTypeSvm> {
             })
             .await?;
 
-        let (user_mint_user_balance, token_account_initialization_config) =
-            get_user_mint_user_balance_and_token_account_initialization_config(user_mint, balances);
+        let mint_user_is_wrapped_sol = user_mint == native_mint::id();
+        let token_account_initialization_config =
+            balances.get_token_account_initialization_configs(mint_user_is_wrapped_sol);
+        let user_mint_user_balance =
+            balances.get_user_ata_mint_user_balance(mint_user_is_wrapped_sol);
 
         let program_opportunity = match program {
             ProgramSvm::Swap => {

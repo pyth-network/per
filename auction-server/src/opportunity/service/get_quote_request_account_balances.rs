@@ -7,9 +7,17 @@ use {
     crate::{
         api::RestError,
         kernel::entities::ChainId,
-        opportunity::entities::FeeToken,
+        opportunity::entities::{
+            FeeToken,
+            TokenAccountInitializationConfig,
+            TokenAccountInitializationConfigs,
+        },
     },
-    solana_sdk::pubkey::Pubkey,
+    solana_sdk::{
+        program_pack::Pack,
+        pubkey::Pubkey,
+        rent::Rent,
+    },
     spl_associated_token_account::get_associated_token_address_with_program_id,
     spl_token_2022::{
         extension::StateWithExtensions as TokenAccountWithExtensions,
@@ -38,6 +46,54 @@ pub struct QuoteRequestAccountBalances {
     pub router_fee_receiver_ta:         Option<u64>,
     pub relayer_fee_receiver_ata:       Option<u64>,
     pub express_relay_fee_receiver_ata: Option<u64>,
+}
+
+impl QuoteRequestAccountBalances {
+    pub fn get_user_ata_mint_user_balance(&self, mint_user_is_wrapped_sol: bool) -> u64 {
+        if mint_user_is_wrapped_sol {
+            self.user_wallet
+                .saturating_add(self.user_ata_mint_user.unwrap_or_default())
+        } else {
+            self.user_ata_mint_user.unwrap_or_default()
+        }
+    }
+
+    pub fn get_token_account_initialization_configs(
+        &self,
+        mint_user_is_wrapped_sol: bool,
+    ) -> TokenAccountInitializationConfigs {
+        let rent = Rent::default();
+
+        let user_payer = self.user_wallet.saturating_sub(rent.minimum_balance(0))
+            >= rent.minimum_balance(2 * TokenAccount::LEN);
+
+        TokenAccountInitializationConfigs {
+            user_ata_mint_user:             if mint_user_is_wrapped_sol {
+                Some(TokenAccountInitializationConfig::from_optional_balance(
+                    self.user_ata_mint_user,
+                    false,
+                ))
+            } else {
+                None
+            },
+            user_ata_mint_searcher:         TokenAccountInitializationConfig::from_optional_balance(
+                self.user_ata_mint_searcher,
+                user_payer,
+            ),
+            router_fee_receiver_ta:         TokenAccountInitializationConfig::from_optional_balance(
+                self.router_fee_receiver_ta,
+                false,
+            ),
+            relayer_fee_receiver_ata:       TokenAccountInitializationConfig::from_optional_balance(
+                self.relayer_fee_receiver_ata,
+                false,
+            ),
+            express_relay_fee_receiver_ata: TokenAccountInitializationConfig::from_optional_balance(
+                self.express_relay_fee_receiver_ata,
+                false,
+            ),
+        }
+    }
 }
 
 

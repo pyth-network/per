@@ -62,7 +62,7 @@ impl PartialEq<ProgramFeeToken> for FeeToken {
 }
 
 impl TokenAccountInitializationConfig {
-    pub fn from_balance(balance: Option<u64>, user_payer: bool) -> Self {
+    pub fn from_optional_balance(balance: Option<u64>, user_payer: bool) -> Self {
         match balance {
             Some(_) => Self::Initialized,
             None => {
