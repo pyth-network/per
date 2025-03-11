@@ -61,13 +61,6 @@ impl PartialEq<ProgramFeeToken> for FeeToken {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum TokenAccountInitializer {
-    Initialized,
-    SearcherPayer,
-    UserPayer,
-}
-
 impl TokenAccountInitializer {
     pub fn from_balance(balance : Option<u64>, user_payer : bool) -> Self {
         match balance {
@@ -83,6 +76,12 @@ impl TokenAccountInitializer {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TokenAccountInitializer {
+    Initialized,
+    SearcherPayer,
+    UserPayer,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TokenAccountInitializationConfig {
@@ -268,6 +267,29 @@ pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
         }
     }
 }
+
+impl From<TokenAccountInitializer> for api::TokenAccountInitializer {
+    fn from(val: TokenAccountInitializer) -> Self {
+        match val {
+            TokenAccountInitializer::Initialized => api::TokenAccountInitializer::Initialized,
+            TokenAccountInitializer::SearcherPayer => api::TokenAccountInitializer::SearcherPayer,
+            TokenAccountInitializer::UserPayer => api::TokenAccountInitializer::UserPayer,
+        }
+    }
+}
+
+impl From<TokenAccountInitializationConfig> for api::TokenAccountInitializationConfig {
+    fn from(val: TokenAccountInitializationConfig) -> Self {
+        api::TokenAccountInitializationConfig {
+            user_ata_mint_searcher: val.user_ata_mint_searcher.into(),
+            user_ata_mint_user: val.user_ata_mint_user.map(|v| v.into()),
+            router_fee_receiver_ta: val.router_fee_receiver_ta.into(),
+            relayer_fee_receiver_ata: val.relayer_fee_receiver_ata.into(),
+            express_relay_fee_receiver_ata: val.express_relay_fee_receiver_ata.into(),
+        }
+    }
+}
+
 impl From<OpportunitySvm> for api::OpportunitySvm {
     fn from(val: OpportunitySvm) -> Self {
         let program = match val.program.clone() {
@@ -319,6 +341,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                 };
                 api::OpportunityParamsV1ProgramSvm::Swap {
                     user_wallet_address: program.user_wallet_address,
+                    user_mint_user_balance: program.user_mint_user_balance,
                     permission_account: val.permission_account,
                     router_account: val.router,
                     fee_token,
@@ -329,6 +352,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         token_program_user: program.token_program_user,
                         token_program_searcher: program.token_program_searcher,
                     },
+                    token_account_initialization_config: program.token_account_initialization_config.into(),
                 }
             }
         };

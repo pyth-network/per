@@ -312,6 +312,10 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
 
+        /// The user's current balance of the user token
+        #[schema(example = 1000)]
+        user_mint_user_balance: u64,
+
         /// The permission account that serves as an identifier for the swap opportunity.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
@@ -337,6 +341,10 @@ pub enum OpportunityParamsV1ProgramSvm {
         /// Details about the tokens to be swapped. Either the searcher token amount or the user token amount must be specified.
         #[schema(inline)]
         tokens: QuoteTokensWithTokenPrograms,
+
+        /// Details about which token accounts need to be initialized an by whom
+        #[schema(inline)]
+        token_account_initialization_config: TokenAccountInitializationConfig,
     },
 }
 
@@ -346,6 +354,23 @@ pub enum FeeToken {
     SearcherToken,
     UserToken,
 }
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+pub enum TokenAccountInitializer {
+    Initialized,
+    SearcherPayer,
+    UserPayer,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+pub struct TokenAccountInitializationConfig {
+    pub user_ata_mint_searcher: TokenAccountInitializer,
+    pub user_ata_mint_user: Option<TokenAccountInitializer>, 
+    pub router_fee_receiver_ta: TokenAccountInitializer,
+    pub relayer_fee_receiver_ata: TokenAccountInitializer,
+    pub express_relay_fee_receiver_ata: TokenAccountInitializer,
+}
+
 
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
