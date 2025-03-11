@@ -70,6 +70,7 @@ mod make_adapter_calldata;
 mod make_opportunity_execution_params;
 mod make_permitted_tokens;
 mod unwrap_referral_fee_info;
+mod get_quote_request_associated_token_accounts;
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigEvm {
