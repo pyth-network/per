@@ -62,7 +62,7 @@ impl PartialEq<ProgramFeeToken> for FeeToken {
 }
 
 impl TokenAccountInitializer {
-    pub fn from_balance(balance : Option<u64>, user_payer : bool) -> Self {
+    pub fn from_balance(balance: Option<u64>, user_payer: bool) -> Self {
         match balance {
             Some(_) => Self::Initialized,
             None => {
@@ -85,23 +85,23 @@ pub enum TokenAccountInitializer {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TokenAccountInitializationConfig {
-    pub user_ata_mint_searcher: TokenAccountInitializer,
-    pub user_ata_mint_user: Option<TokenAccountInitializer>, 
-    pub router_fee_receiver_ta: TokenAccountInitializer,
-    pub relayer_fee_receiver_ata: TokenAccountInitializer,
+    pub user_ata_mint_searcher:         TokenAccountInitializer,
+    pub user_ata_mint_user:             Option<TokenAccountInitializer>,
+    pub router_fee_receiver_ta:         TokenAccountInitializer,
+    pub relayer_fee_receiver_ata:       TokenAccountInitializer,
     pub express_relay_fee_receiver_ata: TokenAccountInitializer,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramSwap {
-    pub user_wallet_address:    Pubkey,
-    pub user_mint_user_balance : u64,
-    pub fee_token:              FeeToken,
-    pub referral_fee_bps:       u16,
-    pub platform_fee_bps:       u64,
+    pub user_wallet_address:                 Pubkey,
+    pub user_mint_user_balance:              u64,
+    pub fee_token:                           FeeToken,
+    pub referral_fee_bps:                    u16,
+    pub platform_fee_bps:                    u64,
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
-    pub token_program_user:     Pubkey,
-    pub token_program_searcher: Pubkey,
+    pub token_program_user:                  Pubkey,
+    pub token_program_searcher:              Pubkey,
     pub token_account_initialization_config: TokenAccountInitializationConfig,
 }
 
@@ -162,14 +162,15 @@ impl Opportunity for OpportunitySvm {
             OpportunitySvmProgram::Swap(program) => {
                 repository::OpportunityMetadataSvmProgram::Swap(
                     repository::OpportunityMetadataSvmProgramSwap {
-                        user_wallet_address:    program.user_wallet_address,
-                        fee_token:              program.fee_token,
-                        referral_fee_bps:       program.referral_fee_bps,
-                        platform_fee_bps:       program.platform_fee_bps,
-                        token_program_user:     program.token_program_user,
-                        token_program_searcher: program.token_program_searcher,
-                        token_account_initialization_config: program.token_account_initialization_config,
-                        user_mint_user_balance: program.user_mint_user_balance,
+                        user_wallet_address:                 program.user_wallet_address,
+                        fee_token:                           program.fee_token,
+                        referral_fee_bps:                    program.referral_fee_bps,
+                        platform_fee_bps:                    program.platform_fee_bps,
+                        token_program_user:                  program.token_program_user,
+                        token_program_searcher:              program.token_program_searcher,
+                        token_account_initialization_config: program
+                            .token_account_initialization_config,
+                        user_mint_user_balance:              program.user_mint_user_balance,
                     },
                 )
             }
@@ -271,8 +272,12 @@ pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
 impl From<TokenAccountInitializer> for api::TokenAccountInitializationConfig {
     fn from(val: TokenAccountInitializer) -> Self {
         match val {
-            TokenAccountInitializer::Initialized => api::TokenAccountInitializationConfig::Initialized,
-            TokenAccountInitializer::SearcherPayer => api::TokenAccountInitializationConfig::SearcherPayer,
+            TokenAccountInitializer::Initialized => {
+                api::TokenAccountInitializationConfig::Initialized
+            }
+            TokenAccountInitializer::SearcherPayer => {
+                api::TokenAccountInitializationConfig::SearcherPayer
+            }
             TokenAccountInitializer::UserPayer => api::TokenAccountInitializationConfig::UserPayer,
         }
     }
@@ -281,10 +286,10 @@ impl From<TokenAccountInitializer> for api::TokenAccountInitializationConfig {
 impl From<TokenAccountInitializationConfig> for api::TokenAccountInitializationConfigs {
     fn from(val: TokenAccountInitializationConfig) -> Self {
         api::TokenAccountInitializationConfigs {
-            user_ata_mint_searcher: val.user_ata_mint_searcher.into(),
-            user_ata_mint_user: val.user_ata_mint_user.map(|v| v.into()),
-            router_fee_receiver_ta: val.router_fee_receiver_ta.into(),
-            relayer_fee_receiver_ata: val.relayer_fee_receiver_ata.into(),
+            user_ata_mint_searcher:         val.user_ata_mint_searcher.into(),
+            user_ata_mint_user:             val.user_ata_mint_user.map(|v| v.into()),
+            router_fee_receiver_ta:         val.router_fee_receiver_ta.into(),
+            relayer_fee_receiver_ata:       val.relayer_fee_receiver_ata.into(),
             express_relay_fee_receiver_ata: val.express_relay_fee_receiver_ata.into(),
         }
     }
@@ -352,7 +357,9 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         token_program_user: program.token_program_user,
                         token_program_searcher: program.token_program_searcher,
                     },
-                    token_account_initialization_config: program.token_account_initialization_config.into(),
+                    token_account_initialization_configs: program
+                        .token_account_initialization_config
+                        .into(),
                 }
             }
         };
@@ -399,14 +406,15 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             }
             repository::OpportunityMetadataSvmProgram::Swap(program) => {
                 OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                    user_wallet_address:    program.user_wallet_address,
-                    fee_token:              program.fee_token,
-                    referral_fee_bps:       program.referral_fee_bps,
-                    platform_fee_bps:       program.platform_fee_bps,
-                    token_program_user:     program.token_program_user,
-                    token_program_searcher: program.token_program_searcher,
-                    token_account_initialization_config: program.token_account_initialization_config,
-                    user_mint_user_balance: program.user_mint_user_balance,
+                    user_wallet_address:                 program.user_wallet_address,
+                    fee_token:                           program.fee_token,
+                    referral_fee_bps:                    program.referral_fee_bps,
+                    platform_fee_bps:                    program.platform_fee_bps,
+                    token_program_user:                  program.token_program_user,
+                    token_program_searcher:              program.token_program_searcher,
+                    token_account_initialization_config: program
+                        .token_account_initialization_config,
+                    user_mint_user_balance:              program.user_mint_user_balance,
                 })
             }
         };

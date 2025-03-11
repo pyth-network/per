@@ -365,10 +365,10 @@ pub enum TokenAccountInitializationConfig {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct TokenAccountInitializationConfigs {
-    pub user_ata_mint_searcher: TokenAccountInitializationConfig,
-    pub user_ata_mint_user: Option<TokenAccountInitializationConfig>,
-    pub router_fee_receiver_ta: TokenAccountInitializationConfig,
-    pub relayer_fee_receiver_ata: TokenAccountInitializationConfig,
+    pub user_ata_mint_searcher:         TokenAccountInitializationConfig,
+    pub user_ata_mint_user:             Option<TokenAccountInitializationConfig>,
+    pub router_fee_receiver_ta:         TokenAccountInitializationConfig,
+    pub relayer_fee_receiver_ata:       TokenAccountInitializationConfig,
     pub express_relay_fee_receiver_ata: TokenAccountInitializationConfig,
 }
 
