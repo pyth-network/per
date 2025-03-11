@@ -937,26 +937,28 @@ impl Service<Svm> {
         }
 
         let close_account_instruction = close_account_instructions[0];
-        if close_account_instruction.accounts.len() < 2 {
+        if close_account_instruction.accounts.len() < 3 {
             return Err(RestError::BadParameters(
                 "Invalid close account instruction accounts".to_string(),
             ));
         }
 
+        let invalid_account_message = "Invalid account in close account instruction".to_string();
         let account_to_close = tx
             .message
             .static_account_keys()
             .get(close_account_instruction.accounts[0] as usize)
-            .ok_or(RestError::BadParameters(
-                "Invalid account in close account instruction".to_string(),
-            ))?;
+            .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
         let destination = tx
             .message
             .static_account_keys()
             .get(close_account_instruction.accounts[1] as usize)
-            .ok_or(RestError::BadParameters(
-                "Invalid account in close account instruction".to_string(),
-            ))?;
+            .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
+        let owner = tx
+            .message
+            .static_account_keys()
+            .get(close_account_instruction.accounts[2] as usize)
+            .ok_or(RestError::BadParameters(invalid_account_message))?;
 
         let ata =
             get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
@@ -976,6 +978,16 @@ impl Service<Svm> {
                 InstructionError::InvalidDestinationCloseAccountInstruction {
                     expected: swap_accounts.user_wallet,
                     found:    *destination,
+                },
+            ));
+        }
+
+        if *owner != swap_accounts.user_wallet {
+            return Err(RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidOwnerCloseAccountInstruction {
+                    expected: swap_accounts.user_wallet,
+                    found:    *owner,
                 },
             ));
         }
@@ -3109,7 +3121,6 @@ mod tests {
         );
     }
 
-
     #[tokio::test]
     async fn test_verify_bid_when_invalid_close_account_destination() {
         let (service, opportunities) = get_service(false);
@@ -3537,5 +3548,56 @@ mod tests {
             .verify_bid(super::VerifyBidInput { bid_create })
             .await;
         assert_eq!(result.unwrap_err(), RestError::DuplicateBid,);
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_close_account_owner() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let opportunity = opportunities[3].clone(); // Searcher token wsol
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let ata = &get_associated_token_address(
+            &program.user_wallet_address,
+            &spl_token::native_mint::id(),
+        );
+        let found = Pubkey::new_unique();
+        let close_account_instruction = spl_token::instruction::close_account(
+            &spl_token::id(),
+            ata,
+            &program.user_wallet_address,
+            &found,
+            &[],
+        )
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction, close_account_instruction],
+            opportunity,
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidOwnerCloseAccountInstruction {
+                    expected: program.user_wallet_address,
+                    found
+                }
+            )
+        );
     }
 }
