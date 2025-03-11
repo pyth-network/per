@@ -99,8 +99,8 @@ pub struct OpportunityMetadataSvmProgramSwap {
     pub token_program_user:                  Pubkey,
     #[serde_as(as = "DisplayFromStr")]
     pub token_program_searcher:              Pubkey,
-    pub token_account_initialization_config: TokenAccountInitializationConfigs,
     pub user_mint_user_balance:              u64,
+    pub token_account_initialization_config: TokenAccountInitializationConfigs,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
