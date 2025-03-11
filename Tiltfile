@@ -233,7 +233,7 @@ local_resource(
 rust_searcher_command = (
     "source tilt-resources.env;"
     + "export SVM_PRIVATE_KEY_FILE=keypairs/searcher_rust.json;"
-    + "cargo run -p testing-searcher -- --api-key $(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name rust_sdk --email rust_sdk@dourolabs.com --role searcher)"
+    + "cargo run -p testing-searcher -- --api-key=$(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name rust_sdk --email rust_sdk@dourolabs.com --role searcher)"
 )
 local_resource(
     "rust-searcher",
