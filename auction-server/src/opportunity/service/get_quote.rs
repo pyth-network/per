@@ -29,7 +29,6 @@ use {
             api::INDICATIVE_PRICE_TAKER,
             entities::{
                 self,
-                TokenAccountInitializationConfigs,
                 TokenAmountSvm,
             },
             service::{
@@ -169,7 +168,7 @@ fn get_user_mint_user_balance_and_token_account_initialization_config(
         .saturating_sub(rent.minimum_balance(0))
         >= rent.minimum_balance(2 * Account::LEN);
 
-    return (
+    (
         user_mint_user_balance,
         entities::TokenAccountInitializationConfigs {
             user_ata_mint_user:             if mint_user == native_mint::id() {
@@ -201,7 +200,7 @@ fn get_user_mint_user_balance_and_token_account_initialization_config(
                     false,
                 ),
         },
-    );
+    )
 }
 
 impl Service<ChainTypeSvm> {

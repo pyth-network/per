@@ -56,7 +56,7 @@ impl Service<ChainTypeSvm> {
             .await?;
 
         let config = self.get_config(&input.chain_id)?;
-        let express_relay_metadata_address = Self::calculate_metadata_address(&config).await;
+        let express_relay_metadata_address = Self::calculate_metadata_address(config).await;
 
         let user_ata_mint_user = get_associated_token_address_with_program_id(
             &input.user_wallet_address,
@@ -88,7 +88,7 @@ impl Service<ChainTypeSvm> {
             &token_program_fee,
         );
 
-        let accounts = config.rpc_client.get_multiple_accounts(&vec![input.user_wallet_address, user_ata_mint_user, user_ata_mint_searcher, router_fee_receiver_ta, relayer_fee_receiver_ata, express_relay_fee_receiver_ata]).await.map_err(|err| {
+        let accounts = config.rpc_client.get_multiple_accounts(&[input.user_wallet_address, user_ata_mint_user, user_ata_mint_searcher, router_fee_receiver_ta, relayer_fee_receiver_ata, express_relay_fee_receiver_ata]).await.map_err(|err| {
             tracing::error!(error = ?err, "Failed to get quote request associated token accounts");
             RestError::TemporarilyUnavailable
         })?;
@@ -111,13 +111,13 @@ impl Service<ChainTypeSvm> {
             })
             .collect::<Result<Vec<Option<u64>>, RestError>>()?;
 
-        return Ok(GetQuoteRequestAssociatedTokenAccountsOutput {
+        Ok(GetQuoteRequestAssociatedTokenAccountsOutput {
             user_wallet_address:            user_balance,
             user_ata_mint_user:             token_balances[0],
             user_ata_mint_searcher:         token_balances[1],
             router_fee_receiver_ta:         token_balances[2],
             relayer_fee_receiver_ata:       token_balances[3],
             express_relay_fee_receiver_ata: token_balances[4],
-        });
+        })
     }
 }
