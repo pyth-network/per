@@ -19,7 +19,7 @@ use {
         opportunity::entities::{
             FeeToken,
             Opportunity as OpportunityTrait,
-            TokenAccountInitializationConfig,
+            TokenAccountInitializationConfigs,
         },
     },
     axum::async_trait,
@@ -99,7 +99,7 @@ pub struct OpportunityMetadataSvmProgramSwap {
     pub token_program_user:                  Pubkey,
     #[serde_as(as = "DisplayFromStr")]
     pub token_program_searcher:              Pubkey,
-    pub token_account_initialization_config: TokenAccountInitializationConfig,
+    pub token_account_initialization_config: TokenAccountInitializationConfigs,
     pub user_mint_user_balance:              u64,
 }
 

@@ -61,7 +61,7 @@ impl PartialEq<ProgramFeeToken> for FeeToken {
     }
 }
 
-impl TokenAccountInitializer {
+impl TokenAccountInitializationConfig {
     pub fn from_balance(balance: Option<u64>, user_payer: bool) -> Self {
         match balance {
             Some(_) => Self::Initialized,
@@ -77,19 +77,37 @@ impl TokenAccountInitializer {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum TokenAccountInitializer {
+pub enum TokenAccountInitializationConfig {
     Initialized,
     SearcherPayer,
     UserPayer,
 }
 
+impl Default for TokenAccountInitializationConfig {
+    fn default() -> Self {
+        Self::SearcherPayer
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TokenAccountInitializationConfig {
-    pub user_ata_mint_searcher:         TokenAccountInitializer,
-    pub user_ata_mint_user:             Option<TokenAccountInitializer>,
-    pub router_fee_receiver_ta:         TokenAccountInitializer,
-    pub relayer_fee_receiver_ata:       TokenAccountInitializer,
-    pub express_relay_fee_receiver_ata: TokenAccountInitializer,
+pub struct TokenAccountInitializationConfigs {
+    pub user_ata_mint_searcher:         TokenAccountInitializationConfig,
+    pub user_ata_mint_user:             Option<TokenAccountInitializationConfig>,
+    pub router_fee_receiver_ta:         TokenAccountInitializationConfig,
+    pub relayer_fee_receiver_ata:       TokenAccountInitializationConfig,
+    pub express_relay_fee_receiver_ata: TokenAccountInitializationConfig,
+}
+
+impl Default for TokenAccountInitializationConfigs {
+    fn default() -> Self {
+        Self {
+            user_ata_mint_searcher:         TokenAccountInitializationConfig::SearcherPayer,
+            user_ata_mint_user:             None,
+            router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
+            relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
+            express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -102,7 +120,7 @@ pub struct OpportunitySvmProgramSwap {
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
     pub token_program_user:                  Pubkey,
     pub token_program_searcher:              Pubkey,
-    pub token_account_initialization_config: TokenAccountInitializationConfig,
+    pub token_account_initialization_config: TokenAccountInitializationConfigs,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -269,22 +287,24 @@ pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
     }
 }
 
-impl From<TokenAccountInitializer> for api::TokenAccountInitializationConfig {
-    fn from(val: TokenAccountInitializer) -> Self {
+impl From<TokenAccountInitializationConfig> for api::TokenAccountInitializationConfig {
+    fn from(val: TokenAccountInitializationConfig) -> Self {
         match val {
-            TokenAccountInitializer::Initialized => {
+            TokenAccountInitializationConfig::Initialized => {
                 api::TokenAccountInitializationConfig::Initialized
             }
-            TokenAccountInitializer::SearcherPayer => {
+            TokenAccountInitializationConfig::SearcherPayer => {
                 api::TokenAccountInitializationConfig::SearcherPayer
             }
-            TokenAccountInitializer::UserPayer => api::TokenAccountInitializationConfig::UserPayer,
+            TokenAccountInitializationConfig::UserPayer => {
+                api::TokenAccountInitializationConfig::UserPayer
+            }
         }
     }
 }
 
-impl From<TokenAccountInitializationConfig> for api::TokenAccountInitializationConfigs {
-    fn from(val: TokenAccountInitializationConfig) -> Self {
+impl From<TokenAccountInitializationConfigs> for api::TokenAccountInitializationConfigs {
+    fn from(val: TokenAccountInitializationConfigs) -> Self {
         api::TokenAccountInitializationConfigs {
             user_ata_mint_searcher:         val.user_ata_mint_searcher.into(),
             user_ata_mint_user:             val.user_ata_mint_user.map(|v| v.into()),

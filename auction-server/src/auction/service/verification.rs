@@ -1466,6 +1466,8 @@ mod tests {
                     OpportunitySvmProgram,
                     OpportunitySvmProgramSwap,
                     QuoteTokens,
+                    TokenAccountInitializationConfig,
+                    TokenAccountInitializationConfigs,
                     TokenAmountSvm,
                 },
                 service::{
@@ -1626,6 +1628,8 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config: TokenAccountInitializationConfigs::default(),
             }),
         };
 
@@ -1658,6 +1662,8 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config: TokenAccountInitializationConfigs::default(),
             }),
         };
 
@@ -1690,6 +1696,11 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config: TokenAccountInitializationConfigs {
+                    user_ata_mint_user: Some(TokenAccountInitializationConfig::SearcherPayer),
+                    ..Default::default()
+                },
             }),
         };
 
@@ -1722,6 +1733,8 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token,
                 referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config: TokenAccountInitializationConfigs::default(),
             }),
         };
 

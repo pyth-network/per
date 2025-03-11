@@ -29,7 +29,7 @@ use {
             api::INDICATIVE_PRICE_TAKER,
             entities::{
                 self,
-                TokenAccountInitializationConfig,
+                TokenAccountInitializationConfigs,
                 TokenAmountSvm,
             },
             service::{
@@ -154,7 +154,7 @@ fn get_fee_token(user_mint: Pubkey, _searcher_mint: Pubkey) -> entities::FeeToke
 fn get_user_mint_user_balance_and_token_account_initialization_config(
     mint_user: Pubkey,
     balances: GetQuoteRequestAssociatedTokenAccountsOutput,
-) -> (u64, entities::TokenAccountInitializationConfig) {
+) -> (u64, entities::TokenAccountInitializationConfigs) {
     let rent = Rent::default();
 
     let user_mint_user_balance = if mint_user == native_mint::id() {
@@ -171,31 +171,35 @@ fn get_user_mint_user_balance_and_token_account_initialization_config(
 
     return (
         user_mint_user_balance,
-        entities::TokenAccountInitializationConfig {
+        entities::TokenAccountInitializationConfigs {
             user_ata_mint_user:             if mint_user == native_mint::id() {
-                Some(entities::TokenAccountInitializer::from_balance(
+                Some(entities::TokenAccountInitializationConfig::from_balance(
                     balances.user_ata_mint_user,
                     false,
                 ))
             } else {
                 None
             },
-            user_ata_mint_searcher:         entities::TokenAccountInitializer::from_balance(
-                balances.user_ata_mint_searcher,
-                user_payer,
-            ),
-            router_fee_receiver_ta:         entities::TokenAccountInitializer::from_balance(
-                balances.router_fee_receiver_ta,
-                false,
-            ),
-            relayer_fee_receiver_ata:       entities::TokenAccountInitializer::from_balance(
-                balances.relayer_fee_receiver_ata,
-                false,
-            ),
-            express_relay_fee_receiver_ata: entities::TokenAccountInitializer::from_balance(
-                balances.express_relay_fee_receiver_ata,
-                false,
-            ),
+            user_ata_mint_searcher:
+                entities::TokenAccountInitializationConfig::from_balance(
+                    balances.user_ata_mint_searcher,
+                    user_payer,
+                ),
+            router_fee_receiver_ta:
+                entities::TokenAccountInitializationConfig::from_balance(
+                    balances.router_fee_receiver_ta,
+                    false,
+                ),
+            relayer_fee_receiver_ata:
+                entities::TokenAccountInitializationConfig::from_balance(
+                    balances.relayer_fee_receiver_ata,
+                    false,
+                ),
+            express_relay_fee_receiver_ata:
+                entities::TokenAccountInitializationConfig::from_balance(
+                    balances.express_relay_fee_receiver_ata,
+                    false,
+                ),
         },
     );
 }
