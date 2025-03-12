@@ -1579,6 +1579,8 @@ mod tests {
                     OpportunitySvmProgram,
                     OpportunitySvmProgramSwap,
                     QuoteTokens,
+                    TokenAccountInitializationConfig,
+                    TokenAccountInitializationConfigs,
                     TokenAmountSvm,
                 },
                 service::{
@@ -1630,6 +1632,18 @@ mod tests {
         },
         uuid::Uuid,
     };
+
+    impl TokenAccountInitializationConfigs {
+        pub fn searcher_payer() -> Self {
+            Self {
+                user_ata_mint_searcher:         TokenAccountInitializationConfig::SearcherPayer,
+                user_ata_mint_user:             TokenAccountInitializationConfig::Unneeded,
+                router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
+                relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
+                express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
+            }
+        }
+    }
 
     fn get_opportunity_service(
         chain_id: ChainId,
@@ -1739,6 +1753,9 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config:
+                    TokenAccountInitializationConfigs::searcher_payer(),
             }),
         };
 
@@ -1771,6 +1788,9 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config:
+                    TokenAccountInitializationConfigs::searcher_payer(),
             }),
         };
 
@@ -1803,6 +1823,11 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config: TokenAccountInitializationConfigs {
+                    user_ata_mint_user: TokenAccountInitializationConfig::SearcherPayer,
+                    ..TokenAccountInitializationConfigs::searcher_payer()
+                },
             }),
         };
 
@@ -1835,6 +1860,9 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token,
                 referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config:
+                    TokenAccountInitializationConfigs::searcher_payer(),
             }),
         };
 

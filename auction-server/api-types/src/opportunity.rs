@@ -312,6 +312,10 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
 
+        /// The user's current balance of the user-provided token
+        #[schema(example = 10)]
+        user_mint_user_balance: u64,
+
         /// The permission account that serves as an identifier for the swap opportunity.
         #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
@@ -337,6 +341,9 @@ pub enum OpportunityParamsV1ProgramSvm {
         /// Details about the tokens to be swapped. Either the searcher token amount or the user token amount must be specified.
         #[schema(inline)]
         tokens: QuoteTokensWithTokenPrograms,
+
+        /// Details about which token accounts need to be initialized and by whom
+        token_account_initialization_configs: TokenAccountInitializationConfigs,
     },
 }
 
@@ -346,6 +353,29 @@ pub enum FeeToken {
     SearcherToken,
     UserToken,
 }
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+#[serde(rename_all = "snake_case")]
+pub enum TokenAccountInitializationConfig {
+    Unneeded,
+    SearcherPayer,
+    UserPayer,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
+pub struct TokenAccountInitializationConfigs {
+    /// The user token account for the searcher-provided token
+    pub user_ata_mint_searcher:         TokenAccountInitializationConfig,
+    /// The user token account for the user-provided token
+    pub user_ata_mint_user:             TokenAccountInitializationConfig,
+    /// The router fee receiver token account
+    pub router_fee_receiver_ta:         TokenAccountInitializationConfig,
+    /// The relayer fee receiver token account
+    pub relayer_fee_receiver_ata:       TokenAccountInitializationConfig,
+    /// The express relay fee receiver token account
+    pub express_relay_fee_receiver_ata: TokenAccountInitializationConfig,
+}
+
 
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
