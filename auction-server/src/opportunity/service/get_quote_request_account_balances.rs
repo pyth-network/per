@@ -160,7 +160,7 @@ impl Service<ChainTypeSvm> {
         );
 
         let relayer_fee_receiver_ata = get_associated_token_address_with_program_id(
-            &metadata.fee_receiver_relayer.to_bytes().into(),
+            &metadata.fee_receiver_relayer,
             &mint_fee,
             &token_program_fee,
         );
