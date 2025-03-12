@@ -59,7 +59,7 @@ jobs:
         working-directory: contracts/evm
         run: forge install nomad-xyz/ExcessivelySafeCall@be417ab0c26233578b8d8f3a37b87bd1fcb4e286 --no-git --no-commit
       - name: Install Anchor CLI
-        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.0 anchor-cli --locked
       - uses: pre-commit/action@v3.0.0
         if: ${{ github.event_name == 'pull_request' }}
         with:
