@@ -312,7 +312,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         user_wallet_address: Pubkey,
 
-        /// The user's current balance of the user token
+        /// The user's current balance of the user-provided token
         #[schema(example = 10)]
         user_mint_user_balance: u64,
 
