@@ -252,6 +252,7 @@ macro_rules! read_svm_position_env {
 
 pub fn get_swap_instruction_account_positions() -> SwapInstructionAccountPositions {
     SwapInstructionAccountPositions {
+        searcher_account:       read_svm_position_env!("SWAP_SEARCHER_ACCOUNT_POSITION"),
         router_token_account:   read_svm_position_env!("SWAP_ROUTER_TOKEN_ACCOUNT_POSITION"),
         user_wallet_account:    read_svm_position_env!("SWAP_USER_WALLET_ACCOUNT_POSITION"),
         mint_searcher_account:  read_svm_position_env!("SWAP_MINT_SEARCHER_ACCOUNT_POSITION"),
