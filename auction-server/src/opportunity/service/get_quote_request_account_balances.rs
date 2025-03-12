@@ -33,6 +33,7 @@ pub struct QuoteRequestAccountBalancesInput {
     pub token_program_user:     Pubkey,
 }
 
+#[derive(Debug)]
 pub enum TokenAccountBalance {
     Uninitialized,
     Initialized(u64),
@@ -180,7 +181,7 @@ impl Service<ChainTypeSvm> {
             .map(|account| account.lamports)
             .unwrap_or_default();
 
-        let token_balances: Vec<Option<u64>> = accounts[1..].iter()
+        let token_balances: Vec<TokenAccountBalance> = accounts[1..].iter()
             .map(|account| {
                 account
                     .as_ref()
@@ -193,16 +194,20 @@ impl Service<ChainTypeSvm> {
                             .map(|token_account| token_account.amount)
                     })
                     .transpose()
+                    .map(|balance| balance.into())
             })
-            .collect::<Result<Vec<Option<u64>>, RestError>>()?;
+            .collect::<Result<Vec<TokenAccountBalance>, RestError>>()?;
+
+        let [user_ata_mint_user, user_ata_mint_searcher, router_fee_receiver_ta, relayer_fee_receiver_ata, express_relay_fee_receiver_ata] =
+            token_balances.try_into().unwrap(); // This won't panic because we know the length of the vector is 5
 
         Ok(QuoteRequestAccountBalances {
             user_sol_balance,
-            user_ata_mint_user: token_balances[0].into(),
-            user_ata_mint_searcher: token_balances[1].into(),
-            router_fee_receiver_ta: token_balances[2].into(),
-            relayer_fee_receiver_ata: token_balances[3].into(),
-            express_relay_fee_receiver_ata: token_balances[4].into(),
+            user_ata_mint_user,
+            user_ata_mint_searcher,
+            router_fee_receiver_ta,
+            relayer_fee_receiver_ata,
+            express_relay_fee_receiver_ata,
         })
     }
 }
