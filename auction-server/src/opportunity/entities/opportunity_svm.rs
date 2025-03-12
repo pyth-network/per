@@ -63,7 +63,7 @@ impl PartialEq<ProgramFeeToken> for FeeToken {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TokenAccountInitializationConfig {
-    Initialized,
+    Unneeded,
     SearcherPayer,
     UserPayer,
 }
@@ -71,7 +71,7 @@ pub enum TokenAccountInitializationConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TokenAccountInitializationConfigs {
     pub user_ata_mint_searcher:         TokenAccountInitializationConfig,
-    pub user_ata_mint_user:             Option<TokenAccountInitializationConfig>,
+    pub user_ata_mint_user:             TokenAccountInitializationConfig,
     pub router_fee_receiver_ta:         TokenAccountInitializationConfig,
     pub relayer_fee_receiver_ata:       TokenAccountInitializationConfig,
     pub express_relay_fee_receiver_ata: TokenAccountInitializationConfig,
@@ -257,8 +257,8 @@ pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
 impl From<TokenAccountInitializationConfig> for api::TokenAccountInitializationConfig {
     fn from(val: TokenAccountInitializationConfig) -> Self {
         match val {
-            TokenAccountInitializationConfig::Initialized => {
-                api::TokenAccountInitializationConfig::Initialized
+            TokenAccountInitializationConfig::Unneeded => {
+                api::TokenAccountInitializationConfig::Unneeded
             }
             TokenAccountInitializationConfig::SearcherPayer => {
                 api::TokenAccountInitializationConfig::SearcherPayer
@@ -274,7 +274,7 @@ impl From<TokenAccountInitializationConfigs> for api::TokenAccountInitialization
     fn from(val: TokenAccountInitializationConfigs) -> Self {
         api::TokenAccountInitializationConfigs {
             user_ata_mint_searcher:         val.user_ata_mint_searcher.into(),
-            user_ata_mint_user:             val.user_ata_mint_user.map(|v| v.into()),
+            user_ata_mint_user:             val.user_ata_mint_user.into(),
             router_fee_receiver_ta:         val.router_fee_receiver_ta.into(),
             relayer_fee_receiver_ata:       val.relayer_fee_receiver_ata.into(),
             express_relay_fee_receiver_ata: val.express_relay_fee_receiver_ata.into(),

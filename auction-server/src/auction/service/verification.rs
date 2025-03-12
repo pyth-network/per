@@ -1524,7 +1524,7 @@ mod tests {
         pub fn searcher_payer() -> Self {
             Self {
                 user_ata_mint_searcher:         TokenAccountInitializationConfig::SearcherPayer,
-                user_ata_mint_user:             None,
+                user_ata_mint_user:             TokenAccountInitializationConfig::Unneeded,
                 router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
                 relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
                 express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
@@ -1712,7 +1712,7 @@ mod tests {
                 referral_fee_bps,
                 user_mint_user_balance: 0,
                 token_account_initialization_config: TokenAccountInitializationConfigs {
-                    user_ata_mint_user: Some(TokenAccountInitializationConfig::SearcherPayer),
+                    user_ata_mint_user: TokenAccountInitializationConfig::SearcherPayer,
                     ..TokenAccountInitializationConfigs::searcher_payer()
                 },
             }),

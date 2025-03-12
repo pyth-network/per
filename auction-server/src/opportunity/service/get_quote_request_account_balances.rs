@@ -55,7 +55,7 @@ impl TokenAccountBalance {
                     TokenAccountInitializationConfig::SearcherPayer
                 }
             }
-            TokenAccountBalance::Initialized(_) => TokenAccountInitializationConfig::Initialized,
+            TokenAccountBalance::Initialized(_) => TokenAccountInitializationConfig::Unneeded,
         }
     }
 }
@@ -100,9 +100,9 @@ impl QuoteRequestAccountBalances {
 
         TokenAccountInitializationConfigs {
             user_ata_mint_user:             if mint_user_is_wrapped_sol {
-                Some(self.user_ata_mint_user.get_initialization_config(false))
+                self.user_ata_mint_user.get_initialization_config(false)
             } else {
-                None
+                TokenAccountInitializationConfig::Unneeded
             },
             user_ata_mint_searcher:         self
                 .user_ata_mint_searcher
