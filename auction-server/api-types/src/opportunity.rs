@@ -343,7 +343,6 @@ pub enum OpportunityParamsV1ProgramSvm {
         tokens: QuoteTokensWithTokenPrograms,
 
         /// Details about which token accounts need to be initialized and by whom
-        #[schema(inline)]
         token_account_initialization_configs: TokenAccountInitializationConfigs,
     },
 }
