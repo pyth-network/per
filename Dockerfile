@@ -9,6 +9,10 @@ RUN npm install
 
 FROM rust:${RUST_VERSION} AS build
 
+# Set default toolchain
+RUN rustup default nightly-2024-04-10
+RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.0 anchor-cli --locked
+
 # Install protobuf (modify version as needed)
 ARG PROTOC_VERSION=28.3
 RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip && \
@@ -17,9 +21,6 @@ RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v${PR
 
 # Add /usr/local/bin to PATH if not already present
 ENV PATH="/usr/local/bin:$PATH"
-
-# Set default toolchain
-RUN rustup default nightly-2024-04-10
 
 # Install dependencies
 RUN curl -L https://foundry.paradigm.xyz | bash
