@@ -44,28 +44,3 @@ litesvm = "0.6.0"
 borsh = "1.5.1"
 spl-associated-token-account = "6.0.0"
 spl-token = "7.0.0"
-
-# The curve25519-dalek crate is a dependency of solana-sdk.
-# This crate relies on a specific version of zeroize that is incompatible with many other packages.
-# You can find more details in this issue https://github.com/solana-labs/solana/issues/26688
-# Solana Labs has provided a solution for some of these package incompatibilities, which can be found here https://github.com/solana-labs/solana/blob/27eff8408b7223bb3c4ab70523f8a8dca3ca6645/Cargo.toml#L514
-# We will be able to remove this patch once the only version of solana that we use is 2 or later.
-[patch.crates-io.curve25519-dalek]
-git = "https://github.com/solana-labs/curve25519-dalek.git"
-rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464"
-
-# Analoguous to the zeroize issue above, the aes-gcm-siv crate,
-# a transitive dependency via solana-sdk,
-# has dependencies on the crates zeroize and subtle that are too strict.
-# They later updated the crate to loosen the dependencies
-# in the commit we are using for this patch.
-# We will be able to remove this patch once the only version of solana that we use is 2 or later.
-[patch.crates-io.aes-gcm-siv]
-git = "https://github.com/RustCrypto/AEADs"
-rev = "e1e35e0c4f4943da0a99ceb8477c421dcfae2c33"
-
-# This patch disables debugging features in litesvm runtime_environments
-# which allows more programs to be loaded in the runtime
-[patch.crates-io.litesvm]
-git = "https://github.com/m30m/litesvm"
-rev = "edf3915e1bff5878dc41aedf64936bc750b3d4ed"
