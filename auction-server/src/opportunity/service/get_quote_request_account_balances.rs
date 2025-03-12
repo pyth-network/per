@@ -71,7 +71,7 @@ impl From<Option<u64>> for TokenAccountBalance {
 
 /// The balances of some of the accounts that will be used in the swap
 pub struct QuoteRequestAccountBalances {
-    pub user_wallet:                    u64,
+    pub user_sol_balance:               u64,
     pub user_ata_mint_searcher:         TokenAccountBalance,
     pub user_ata_mint_user:             TokenAccountBalance,
     pub router_fee_receiver_ta:         TokenAccountBalance,
@@ -82,7 +82,7 @@ pub struct QuoteRequestAccountBalances {
 impl QuoteRequestAccountBalances {
     pub fn get_user_ata_mint_user_balance(&self, mint_user_is_wrapped_sol: bool) -> u64 {
         if mint_user_is_wrapped_sol {
-            self.user_wallet
+            self.user_sol_balance
                 .saturating_add(self.user_ata_mint_user.get_balance())
         } else {
             self.user_ata_mint_user.get_balance()
@@ -95,7 +95,7 @@ impl QuoteRequestAccountBalances {
     ) -> TokenAccountInitializationConfigs {
         let rent = Rent::default();
 
-        let user_payer = self.user_wallet >= 2 * rent.minimum_balance(TokenAccount::LEN);
+        let user_payer = self.user_sol_balance >= 2 * rent.minimum_balance(TokenAccount::LEN);
 
         TokenAccountInitializationConfigs {
             user_ata_mint_user:             if mint_user_is_wrapped_sol {
@@ -175,7 +175,7 @@ impl Service<ChainTypeSvm> {
             RestError::TemporarilyUnavailable
         })?;
 
-        let user_wallet = accounts[0]
+        let user_sol_balance = accounts[0]
             .as_ref()
             .map(|account| account.lamports)
             .unwrap_or_default();
@@ -197,7 +197,7 @@ impl Service<ChainTypeSvm> {
             .collect::<Result<Vec<Option<u64>>, RestError>>()?;
 
         Ok(QuoteRequestAccountBalances {
-            user_wallet,
+            user_sol_balance,
             user_ata_mint_user: token_balances[0].into(),
             user_ata_mint_searcher: token_balances[1].into(),
             router_fee_receiver_ta: token_balances[2].into(),
