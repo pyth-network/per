@@ -83,7 +83,6 @@ impl QuoteRequestAccountBalances {
     pub fn get_user_ata_mint_user_balance(&self, mint_user_is_wrapped_sol: bool) -> u64 {
         if mint_user_is_wrapped_sol {
             self.user_sol_balance
-                .saturating_add(self.user_ata_mint_user.get_balance())
         } else {
             self.user_ata_mint_user.get_balance()
         }
