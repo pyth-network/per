@@ -291,13 +291,13 @@ impl Simulator {
         let program_datas = self
             .get_multiple_accounts_with_cache(&program_data_addresses)
             .await?;
-        for (programdata_address, program_data_account) in
+        for (program_data_address, program_data_account) in
             program_data_addresses.iter().zip(program_datas.iter())
         {
             if let Some(program_data_account) = program_data_account {
                 accounts_config
                     .programs_data
-                    .insert(*programdata_address, program_data_account.clone());
+                    .insert(*program_data_address, program_data_account.clone());
             }
         }
 
