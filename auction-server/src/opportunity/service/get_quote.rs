@@ -159,7 +159,7 @@ impl Service<ChainTypeSvm> {
                 chain_id: quote_create.chain_id.clone(),
             })
             .await?;
-        let (user_mint, searcher_mint) = match quote_create.tokens.clone() {
+        let (mint_user, mint_searcher) = match quote_create.tokens.clone() {
             entities::QuoteTokens::UserTokenSpecified {
                 user_token,
                 searcher_token,
@@ -169,7 +169,7 @@ impl Service<ChainTypeSvm> {
                 searcher_token,
             } => (user_token, searcher_token.token),
         };
-        let fee_token = get_fee_token(user_mint, searcher_mint);
+        let fee_token = get_fee_token(mint_user, mint_searcher);
         let (searcher_amount, user_amount) = match (quote_create.tokens.clone(), fee_token.clone())
         {
             (
@@ -196,7 +196,7 @@ impl Service<ChainTypeSvm> {
         let token_program_searcher = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
-                mint:     searcher_mint,
+                mint:     mint_searcher,
             })
             .await
             .map_err(|err| {
@@ -206,7 +206,7 @@ impl Service<ChainTypeSvm> {
         let token_program_user = self
             .get_token_program(GetTokenProgramInput {
                 chain_id: quote_create.chain_id.clone(),
-                mint:     user_mint,
+                mint:     mint_user,
             })
             .await
             .map_err(|err| {
@@ -217,12 +217,12 @@ impl Service<ChainTypeSvm> {
         let router_token_account = match fee_token {
             entities::FeeToken::SearcherToken => get_associated_token_address_with_program_id(
                 &referral_fee_info.router.to_bytes().into(),
-                &searcher_mint.to_bytes().into(),
+                &mint_searcher.to_bytes().into(),
                 &token_program_searcher.to_bytes().into(),
             ),
             entities::FeeToken::UserToken => get_associated_token_address_with_program_id(
                 &referral_fee_info.router.to_bytes().into(),
-                &user_mint.to_bytes().into(),
+                &mint_user.to_bytes().into(),
                 &token_program_user.to_bytes().into(),
             ),
         }
@@ -270,11 +270,11 @@ impl Service<ChainTypeSvm> {
             ),
             chain_id:       quote_create.chain_id.clone(),
             sell_tokens:    vec![entities::TokenAmountSvm {
-                token:  searcher_mint,
+                token:  mint_searcher,
                 amount: searcher_amount,
             }],
             buy_tokens:     vec![entities::TokenAmountSvm {
-                token:  user_mint,
+                token:  mint_user,
                 amount: user_amount,
             }],
         };
@@ -282,8 +282,8 @@ impl Service<ChainTypeSvm> {
         let balances = self
             .get_quote_request_account_balances(QuoteRequestAccountBalancesInput {
                 user_wallet_address,
-                mint_searcher: searcher_mint,
-                mint_user: user_mint,
+                mint_searcher,
+                mint_user,
                 router: referral_fee_info.router,
                 fee_token: fee_token.clone(),
                 token_program_searcher,
@@ -292,7 +292,7 @@ impl Service<ChainTypeSvm> {
             })
             .await?;
 
-        let mint_user_is_wrapped_sol = user_mint == native_mint::id();
+        let mint_user_is_wrapped_sol = mint_user == native_mint::id();
         let token_account_initialization_config =
             balances.get_token_account_initialization_configs(mint_user_is_wrapped_sol);
         let user_mint_user_balance =
