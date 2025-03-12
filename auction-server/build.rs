@@ -159,7 +159,7 @@ fn build_svm_contracts() {
         pwd
         mkdir -p ../../target/idl
         pwd
-        anchor idl build > ../../target/idl/express_relay.json
+        anchor idl build -p express_relay > ../../target/idl/express_relay.json
     "#;
     println!("cargo:rerun-if-changed=../contracts/svm");
     // Build the svm contract and generate the IDLs.
