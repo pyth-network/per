@@ -1042,7 +1042,7 @@ impl Service<Svm> {
             ));
         }
 
-        // User have to unwrap Sol
+        // User has to unwrap Sol
         if swap_accounts.mint_searcher == spl_token::native_mint::id() {
             if close_account_instructions.len() != 1 {
                 return Err(RestError::InvalidInstruction(
@@ -2714,7 +2714,7 @@ mod tests {
             service,
             searcher,
             vec![swap_instruction],
-            opportunities[2].clone(),
+            opportunities[2].clone(), // User token wsol
         )
         .await;
         assert_eq!(
@@ -3086,9 +3086,9 @@ mod tests {
             spl_token::instruction::sync_native(&spl_token::id(), ata).unwrap();
         let mut transaction = Transaction::new_with_payer(
             &[
-                swap_instruction,
                 transfer_instruction,
                 sync_native_instruction,
+                swap_instruction,
             ],
             Some(&searcher.pubkey()),
         );
@@ -3772,9 +3772,9 @@ mod tests {
         .unwrap();
         let mut transaction = Transaction::new_with_payer(
             &[
-                swap_instruction,
                 transfer_instruction,
                 sync_native_instruction,
+                swap_instruction,
                 searcher_close_account_instruction,
             ],
             Some(&searcher.pubkey()),
@@ -3856,9 +3856,9 @@ mod tests {
             service,
             searcher,
             vec![
-                swap_instruction,
                 transfer_instruction,
                 sync_native_instruction,
+                swap_instruction,
                 searcher_close_account_instruction,
             ],
             opportunity,
@@ -3915,10 +3915,10 @@ mod tests {
             spl_token::instruction::sync_native(&spl_token::id(), &searcher_ata).unwrap();
         let mut transaction = Transaction::new_with_payer(
             &[
-                swap_instruction,
-                close_account_instruction,
                 transfer_instruction_searcher,
                 sync_native_instruction_searcher,
+                swap_instruction,
+                close_account_instruction,
             ],
             Some(&searcher.pubkey()),
         );
@@ -3993,10 +3993,10 @@ mod tests {
             service,
             searcher,
             vec![
-                swap_instruction,
-                close_account_instruction,
                 transfer_instruction_searcher,
                 sync_native_instruction_searcher,
+                swap_instruction,
+                close_account_instruction,
             ],
             opportunity,
         )
@@ -4055,10 +4055,10 @@ mod tests {
             service,
             searcher,
             vec![
-                swap_instruction,
-                close_account_instruction,
                 transfer_instruction_searcher,
                 sync_native_instruction_searcher,
+                swap_instruction,
+                close_account_instruction,
             ],
             opportunity,
         )
