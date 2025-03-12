@@ -9,10 +9,6 @@ RUN npm install
 
 FROM rust:${RUST_VERSION} AS build
 
-# Latest version supporting anchor
-RUN rustup default nightly-2024-02-04
-RUN cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
-
 # Install protobuf (modify version as needed)
 ARG PROTOC_VERSION=28.3
 RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip && \
