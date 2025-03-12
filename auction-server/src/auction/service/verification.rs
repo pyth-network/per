@@ -1520,6 +1520,18 @@ mod tests {
         uuid::Uuid,
     };
 
+    impl TokenAccountInitializationConfigs {
+        pub fn searcher_payer() -> Self {
+            Self {
+                user_ata_mint_searcher:         TokenAccountInitializationConfig::SearcherPayer,
+                user_ata_mint_user:             None,
+                router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
+                relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
+                express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
+            }
+        }
+    }
+
     fn get_opportunity_service(
         chain_id: ChainId,
     ) -> (MockService<ChainTypeSvm>, Vec<OpportunitySvm>) {
@@ -1629,7 +1641,8 @@ mod tests {
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config: TokenAccountInitializationConfigs::default(),
+                token_account_initialization_config:
+                    TokenAccountInitializationConfigs::searcher_payer(),
             }),
         };
 
@@ -1663,7 +1676,8 @@ mod tests {
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config: TokenAccountInitializationConfigs::default(),
+                token_account_initialization_config:
+                    TokenAccountInitializationConfigs::searcher_payer(),
             }),
         };
 
@@ -1699,7 +1713,7 @@ mod tests {
                 user_mint_user_balance: 0,
                 token_account_initialization_config: TokenAccountInitializationConfigs {
                     user_ata_mint_user: Some(TokenAccountInitializationConfig::SearcherPayer),
-                    ..Default::default()
+                    ..TokenAccountInitializationConfigs::searcher_payer()
                 },
             }),
         };
@@ -1734,7 +1748,8 @@ mod tests {
                 fee_token,
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config: TokenAccountInitializationConfigs::default(),
+                token_account_initialization_config:
+                    TokenAccountInitializationConfigs::searcher_payer(),
             }),
         };
 

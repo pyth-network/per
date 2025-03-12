@@ -83,13 +83,6 @@ impl TokenAccountInitializationConfig {
     }
 }
 
-
-impl Default for TokenAccountInitializationConfig {
-    fn default() -> Self {
-        Self::SearcherPayer
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TokenAccountInitializationConfigs {
     pub user_ata_mint_searcher:         TokenAccountInitializationConfig,
@@ -97,18 +90,6 @@ pub struct TokenAccountInitializationConfigs {
     pub router_fee_receiver_ta:         TokenAccountInitializationConfig,
     pub relayer_fee_receiver_ata:       TokenAccountInitializationConfig,
     pub express_relay_fee_receiver_ata: TokenAccountInitializationConfig,
-}
-
-impl Default for TokenAccountInitializationConfigs {
-    fn default() -> Self {
-        Self {
-            user_ata_mint_searcher:         TokenAccountInitializationConfig::SearcherPayer,
-            user_ata_mint_user:             None,
-            router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
-            relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
-            express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

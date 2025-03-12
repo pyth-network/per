@@ -342,7 +342,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(inline)]
         tokens: QuoteTokensWithTokenPrograms,
 
-        /// Details about which token accounts need to be initialized an by whom
+        /// Details about which token accounts need to be initialized and by whom
         #[schema(inline)]
         token_account_initialization_configs: TokenAccountInitializationConfigs,
     },
@@ -366,6 +366,7 @@ pub enum TokenAccountInitializationConfig {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
 pub struct TokenAccountInitializationConfigs {
     pub user_ata_mint_searcher:         TokenAccountInitializationConfig,
+    /// This will be None unless the mint user is wrapped SOL, the only case in which the user ata needs to be initialized during the swap
     pub user_ata_mint_user:             Option<TokenAccountInitializationConfig>,
     pub router_fee_receiver_ta:         TokenAccountInitializationConfig,
     pub relayer_fee_receiver_ata:       TokenAccountInitializationConfig,
