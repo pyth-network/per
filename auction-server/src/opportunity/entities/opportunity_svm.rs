@@ -61,49 +61,11 @@ impl PartialEq<ProgramFeeToken> for FeeToken {
     }
 }
 
-pub enum TokenAccountBalance {
-    Uninitialized,
-    Initialized(u64),
-}
-
-impl TokenAccountBalance {
-    pub fn get_balance(&self) -> u64 {
-        match self {
-            TokenAccountBalance::Uninitialized => 0,
-            TokenAccountBalance::Initialized(balance) => *balance,
-        }
-    }
-}
-
-impl From<Option<u64>> for TokenAccountBalance {
-    fn from(balance: Option<u64>) -> Self {
-        match balance {
-            Some(balance) => TokenAccountBalance::Initialized(balance),
-            None => TokenAccountBalance::Uninitialized,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TokenAccountInitializationConfig {
     Initialized,
     SearcherPayer,
     UserPayer,
-}
-
-impl TokenAccountInitializationConfig {
-    pub fn from_token_account_balance(balance: &TokenAccountBalance, user_payer: bool) -> Self {
-        match balance {
-            TokenAccountBalance::Initialized(_) => Self::Initialized,
-            TokenAccountBalance::Uninitialized => {
-                if user_payer {
-                    Self::UserPayer
-                } else {
-                    Self::SearcherPayer
-                }
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

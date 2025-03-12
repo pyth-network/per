@@ -9,7 +9,6 @@ use {
         kernel::entities::ChainId,
         opportunity::entities::{
             FeeToken,
-            TokenAccountBalance,
             TokenAccountInitializationConfig,
             TokenAccountInitializationConfigs,
         },
@@ -32,6 +31,42 @@ pub struct QuoteRequestAccountBalancesInput {
     pub mint_user:              Pubkey,
     pub token_program_searcher: Pubkey,
     pub token_program_user:     Pubkey,
+}
+
+pub enum TokenAccountBalance {
+    Uninitialized,
+    Initialized(u64),
+}
+
+impl TokenAccountBalance {
+    pub fn get_balance(&self) -> u64 {
+        match self {
+            TokenAccountBalance::Uninitialized => 0,
+            TokenAccountBalance::Initialized(balance) => *balance,
+        }
+    }
+
+    pub fn get_initialization_config(&self, user_payer: bool) -> TokenAccountInitializationConfig {
+        match self {
+            TokenAccountBalance::Uninitialized => {
+                if user_payer {
+                    TokenAccountInitializationConfig::UserPayer
+                } else {
+                    TokenAccountInitializationConfig::SearcherPayer
+                }
+            }
+            TokenAccountBalance::Initialized(_) => TokenAccountInitializationConfig::Initialized,
+        }
+    }
+}
+
+impl From<Option<u64>> for TokenAccountBalance {
+    fn from(balance: Option<u64>) -> Self {
+        match balance {
+            Some(balance) => TokenAccountBalance::Initialized(balance),
+            None => TokenAccountBalance::Uninitialized,
+        }
+    }
 }
 
 /// The balances of some of the accounts that will be used in the swap
@@ -64,35 +99,22 @@ impl QuoteRequestAccountBalances {
 
         TokenAccountInitializationConfigs {
             user_ata_mint_user:             if mint_user_is_wrapped_sol {
-                Some(
-                    TokenAccountInitializationConfig::from_token_account_balance(
-                        &self.user_ata_mint_user,
-                        false,
-                    ),
-                )
+                Some(self.user_ata_mint_user.get_initialization_config(false))
             } else {
                 None
             },
-            user_ata_mint_searcher:
-                TokenAccountInitializationConfig::from_token_account_balance(
-                    &self.user_ata_mint_searcher,
-                    user_payer,
-                ),
-            router_fee_receiver_ta:
-                TokenAccountInitializationConfig::from_token_account_balance(
-                    &self.router_fee_receiver_ta,
-                    false,
-                ),
-            relayer_fee_receiver_ata:
-                TokenAccountInitializationConfig::from_token_account_balance(
-                    &self.relayer_fee_receiver_ata,
-                    false,
-                ),
-            express_relay_fee_receiver_ata:
-                TokenAccountInitializationConfig::from_token_account_balance(
-                    &self.express_relay_fee_receiver_ata,
-                    false,
-                ),
+            user_ata_mint_searcher:         self
+                .user_ata_mint_searcher
+                .get_initialization_config(user_payer),
+            router_fee_receiver_ta:         self
+                .router_fee_receiver_ta
+                .get_initialization_config(false),
+            relayer_fee_receiver_ata:       self
+                .relayer_fee_receiver_ata
+                .get_initialization_config(false),
+            express_relay_fee_receiver_ata: self
+                .express_relay_fee_receiver_ata
+                .get_initialization_config(false),
         }
     }
 }
