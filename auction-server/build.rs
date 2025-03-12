@@ -42,6 +42,7 @@ const SUBMIT_BID_ROUTER_ACCOUNT_SVM: &str = "router";
 
 const SWAP_INSTRUCTION_SVM: &str = "swap";
 const SWAP_ROUTER_TOKEN_ACCOUNT_SVM: &str = "router_fee_receiver_ta";
+const SWAP_SEARCHER_ACCOUNT_SVM: &str = "searcher";
 const SWAP_USER_WALLET_ACCOUNT_SVM: &str = "user";
 const SWAP_MINT_SEARCHER_ACCOUNT_SVM: &str = "mint_searcher";
 const SWAP_MINT_USER_ACCOUNT_SVM: &str = "mint_user";
@@ -104,6 +105,14 @@ fn verify_and_extract_idl_data() {
             express_relay_idl.clone(),
             SWAP_INSTRUCTION_SVM,
             SWAP_USER_WALLET_ACCOUNT_SVM,
+        )
+    );
+    println!(
+        "cargo::rustc-env=SWAP_SEARCHER_ACCOUNT_POSITION={}",
+        extract_account_position(
+            express_relay_idl.clone(),
+            SWAP_INSTRUCTION_SVM,
+            SWAP_SEARCHER_ACCOUNT_SVM,
         )
     );
     println!(

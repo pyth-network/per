@@ -63,3 +63,9 @@ rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464"
 [patch.crates-io.aes-gcm-siv]
 git = "https://github.com/RustCrypto/AEADs"
 rev = "e1e35e0c4f4943da0a99ceb8477c421dcfae2c33"
+
+# This patch disables debugging features in litesvm runtime_environments
+# which allows more programs to be loaded in the runtime
+[patch.crates-io.litesvm]
+git = "https://github.com/m30m/litesvm"
+rev = "edf3915e1bff5878dc41aedf64936bc750b3d4ed"

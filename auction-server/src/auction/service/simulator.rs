@@ -56,35 +56,30 @@ pub struct Simulator {
 }
 
 struct AccountsConfig {
-    accounts:            HashMap<Pubkey, Account>,
-    programs:            HashMap<Pubkey, Account>,
-    upgradable_programs: HashMap<Pubkey, Account>,
+    accounts:      HashMap<Pubkey, Account>,
+    programs_data: HashMap<Pubkey, Account>,
 }
 
 impl AccountsConfig {
     fn new() -> Self {
         Self {
-            accounts:            Default::default(),
-            programs:            Default::default(),
-            upgradable_programs: Default::default(),
+            accounts:      Default::default(),
+            programs_data: Default::default(),
         }
     }
 
     /// Adds all the accounts to the LiteSVM instance according to their type
     fn apply(&self, svm: &mut LiteSVM) {
+        // Need to set the program executable data before the program accounts
+        for (key, account) in self.programs_data.iter() {
+            if let Err(e) = svm.set_account(*key, account.clone()) {
+                tracing::error!("Failed to set program data for key {:?} {:?}", key, e);
+            }
+        }
         for (key, account) in self.accounts.iter() {
             if let Err(e) = svm.set_account(*key, account.clone()) {
                 tracing::error!("Failed to set account for key {:?} {:?}", key, e);
             }
-        }
-        for (key, account) in self.upgradable_programs.iter() {
-            svm.add_program(
-                *key,
-                &(account.data()[UpgradeableLoaderState::size_of_programdata_metadata()..]),
-            );
-        }
-        for (key, account) in self.programs.iter() {
-            svm.add_program(*key, &account.data);
         }
     }
 }
@@ -274,7 +269,7 @@ impl Simulator {
         tracing::Span::current().record("slot", accounts_with_context.context.slot);
         let accounts = accounts_with_context.value;
         let mut accounts_config = AccountsConfig::new();
-        let mut programs_to_fetch = vec![];
+        let mut program_data_addresses = vec![];
 
         for (account_key, account) in keys.iter().zip(accounts.iter()) {
             // it's ok to not have an account (this account is created by the transaction)
@@ -284,36 +279,25 @@ impl Simulator {
                         programdata_address,
                     }) = account.state()
                     {
-                        programs_to_fetch.push((*account_key, programdata_address));
+                        program_data_addresses.push(programdata_address);
                     }
-                } else if account.executable {
-                    if account.owner == solana_sdk::bpf_loader::id() {
-                        accounts_config
-                            .programs
-                            .insert(*account_key, account.clone());
-                    }
-                } else {
-                    accounts_config
-                        .accounts
-                        .insert(*account_key, account.clone());
                 }
+                accounts_config
+                    .accounts
+                    .insert(*account_key, account.clone());
             }
         }
 
-        let indirect_keys = programs_to_fetch
-            .iter()
-            .map(|(_, programdata_address)| *programdata_address)
-            .collect::<Vec<_>>();
-        let indirect_accounts = self
-            .get_multiple_accounts_with_cache(&indirect_keys)
+        let program_datas = self
+            .get_multiple_accounts_with_cache(&program_data_addresses)
             .await?;
-        for ((program_key, _), program_account) in
-            programs_to_fetch.iter().zip(indirect_accounts.iter())
+        for (program_data_address, program_data_account) in
+            program_data_addresses.iter().zip(program_datas.iter())
         {
-            if let Some(program_account) = program_account {
+            if let Some(program_data_account) = program_data_account {
                 accounts_config
-                    .upgradable_programs
-                    .insert(*program_key, program_account.clone());
+                    .programs_data
+                    .insert(*program_data_address, program_data_account.clone());
             }
         }
 

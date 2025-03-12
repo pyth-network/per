@@ -91,6 +91,7 @@ pub mod verification;
 pub mod workers;
 
 pub struct SwapInstructionAccountPositions {
+    pub searcher_account:       usize,
     pub router_token_account:   usize,
     pub user_wallet_account:    usize,
     pub mint_searcher_account:  usize,
