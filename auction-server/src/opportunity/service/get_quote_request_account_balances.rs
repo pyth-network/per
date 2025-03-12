@@ -82,7 +82,7 @@ pub struct QuoteRequestAccountBalances {
 impl QuoteRequestAccountBalances {
     pub fn get_user_ata_mint_user_balance(&self, mint_user_is_wrapped_sol: bool) -> u64 {
         if mint_user_is_wrapped_sol {
-            self.user_sol_balance
+            self.user_sol_balance // we assume the user doesn't have any balance in their wrapped sol account
         } else {
             self.user_ata_mint_user.get_balance()
         }
