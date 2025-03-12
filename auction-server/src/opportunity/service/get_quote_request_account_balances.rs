@@ -61,8 +61,7 @@ impl QuoteRequestAccountBalances {
     ) -> TokenAccountInitializationConfigs {
         let rent = Rent::default();
 
-        let user_payer = self.user_wallet.saturating_sub(rent.minimum_balance(0))
-            >= rent.minimum_balance(2 * TokenAccount::LEN);
+        let user_payer = self.user_wallet >= 2 * rent.minimum_balance(TokenAccount::LEN);
 
         TokenAccountInitializationConfigs {
             user_ata_mint_user:             if mint_user_is_wrapped_sol {
