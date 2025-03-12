@@ -151,6 +151,7 @@ fn verify_and_extract_idl_data() {
 
 fn build_svm_contracts() {
     let contract_setup_svm = r#"
+        anchor --version
         cd ../contracts/svm
         mkdir -p target/idl
         anchor idl build -p express_relay > target/idl/express_relay.json
