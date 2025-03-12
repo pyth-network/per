@@ -19,6 +19,7 @@ use {
         opportunity::entities::{
             FeeToken,
             Opportunity as OpportunityTrait,
+            TokenAccountInitializationConfigs,
         },
     },
     axum::async_trait,
@@ -90,14 +91,16 @@ pub struct OpportunityMetadataSvmProgramLimo {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OpportunityMetadataSvmProgramSwap {
     #[serde_as(as = "DisplayFromStr")]
-    pub user_wallet_address:    Pubkey,
-    pub fee_token:              FeeToken,
-    pub referral_fee_bps:       u16,
-    pub platform_fee_bps:       u64,
+    pub user_wallet_address:                 Pubkey,
+    pub fee_token:                           FeeToken,
+    pub referral_fee_bps:                    u16,
+    pub platform_fee_bps:                    u64,
     #[serde_as(as = "DisplayFromStr")]
-    pub token_program_user:     Pubkey,
+    pub token_program_user:                  Pubkey,
     #[serde_as(as = "DisplayFromStr")]
-    pub token_program_searcher: Pubkey,
+    pub token_program_searcher:              Pubkey,
+    pub user_mint_user_balance:              u64,
+    pub token_account_initialization_config: TokenAccountInitializationConfigs,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
