@@ -185,7 +185,7 @@ impl Service<ChainTypeSvm> {
                 account
                     .as_ref()
                     .map(|acc| {
-                        TokenAccount::unpack(acc.data.as_slice()) // This will also work for token2022 accounts since the first TokenAccount::LEN bytes have the same layout
+                        TokenAccount::unpack(&acc.data[..TokenAccount::LEN]) // This will also work for token2022 accounts since the first TokenAccount::LEN bytes have the same layout
                             .map_err(|err| {
                                 tracing::error!(error = ?err, "Failed to deserialize a token account");
                                 RestError::TemporarilyUnavailable
