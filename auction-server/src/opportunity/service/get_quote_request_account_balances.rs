@@ -95,6 +95,7 @@ impl QuoteRequestAccountBalances {
     ) -> TokenAccountInitializationConfigs {
         let rent = Rent::default();
 
+        // This is just a heuristic, we want users to pay for their token account if they have enough SOL, but still have some SOL left after the swap.
         let user_payer = self.user_sol_balance >= 2 * rent.minimum_balance(TokenAccount::LEN);
 
         TokenAccountInitializationConfigs {
