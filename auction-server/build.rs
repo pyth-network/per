@@ -8,7 +8,7 @@ use {
     },
     std::{
         fs,
-        process::Command,
+        process::{Command, Stdio},
     },
 };
 
@@ -157,9 +157,12 @@ fn build_svm_contracts() {
         anchor idl build -p express_relay > target/idl/express_relay.json
     "#;
     println!("cargo:rerun-if-changed=../contracts/svm");
+
     // Build the svm contract and generate the IDLs.
     let output = Command::new("sh")
         .args(["-c", contract_setup_svm])
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
         .output()
         .expect("Failed to run build svm contracts command");
     if !output.status.success() {
