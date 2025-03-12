@@ -93,7 +93,7 @@ impl QuoteRequestAccountBalances {
         &self,
         mint_user_is_wrapped_sol: bool,
     ) -> TokenAccountInitializationConfigs {
-        let rent = Rent::default();
+        let rent = Rent::default(); // TODO: this is not correct, we should use the rent of the chain, but probably fine for Solana mainnet
 
         // This is just a heuristic, we want users to pay for their token account if they have enough SOL, but still have some SOL left after the swap.
         let user_payer = self.user_sol_balance >= 2 * rent.minimum_balance(TokenAccount::LEN);
