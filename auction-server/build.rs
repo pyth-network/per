@@ -151,9 +151,9 @@ fn verify_and_extract_idl_data() {
 
 fn build_svm_contracts() {
     let contract_setup_svm = r#"
-        cd ../contracts/svm/programs/express_relay
-        mkdir -p ../../target/idl
-        anchor idl build > ../../target/idl/express_relay.json
+        cd ../contracts/svm
+        mkdir -p target/idl
+        anchor idl build -p express_relay > target/idl/express_relay.json
     "#;
     println!("cargo:rerun-if-changed=../contracts/svm");
     // Build the svm contract and generate the IDLs.
@@ -168,8 +168,12 @@ fn build_svm_contracts() {
         );
     } else {
         println!(
-            "Built all svm contracts  {}",
+            "Built all svm contracts  stdout: {}",
             String::from_utf8_lossy(&output.stdout)
+        );
+        println!(
+            "Built all svm contracts  stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
         );
     }
 }
