@@ -9,6 +9,7 @@ use {
         kernel::entities::ChainId,
         opportunity::entities::{
             FeeToken,
+            TokenAccountBalance,
             TokenAccountInitializationConfig,
             TokenAccountInitializationConfigs,
         },
@@ -34,24 +35,22 @@ pub struct QuoteRequestAccountBalancesInput {
 }
 
 /// The balances of some of the accounts that will be used in the swap
-/// - If a token account doesn't exist, the balance is `None`
-/// - If a token account exists but has no balance, the balance is `Some(0)`
 pub struct QuoteRequestAccountBalances {
     pub user_wallet:                    u64,
-    pub user_ata_mint_searcher:         Option<u64>,
-    pub user_ata_mint_user:             Option<u64>,
-    pub router_fee_receiver_ta:         Option<u64>,
-    pub relayer_fee_receiver_ata:       Option<u64>,
-    pub express_relay_fee_receiver_ata: Option<u64>,
+    pub user_ata_mint_searcher:         TokenAccountBalance,
+    pub user_ata_mint_user:             TokenAccountBalance,
+    pub router_fee_receiver_ta:         TokenAccountBalance,
+    pub relayer_fee_receiver_ata:       TokenAccountBalance,
+    pub express_relay_fee_receiver_ata: TokenAccountBalance,
 }
 
 impl QuoteRequestAccountBalances {
     pub fn get_user_ata_mint_user_balance(&self, mint_user_is_wrapped_sol: bool) -> u64 {
         if mint_user_is_wrapped_sol {
             self.user_wallet
-                .saturating_add(self.user_ata_mint_user.unwrap_or_default())
+                .saturating_add(self.user_ata_mint_user.get_balance())
         } else {
-            self.user_ata_mint_user.unwrap_or_default()
+            self.user_ata_mint_user.get_balance()
         }
     }
 
@@ -65,29 +64,35 @@ impl QuoteRequestAccountBalances {
 
         TokenAccountInitializationConfigs {
             user_ata_mint_user:             if mint_user_is_wrapped_sol {
-                Some(TokenAccountInitializationConfig::from_optional_balance(
-                    self.user_ata_mint_user,
-                    false,
-                ))
+                Some(
+                    TokenAccountInitializationConfig::from_token_account_balance(
+                        &self.user_ata_mint_user,
+                        false,
+                    ),
+                )
             } else {
                 None
             },
-            user_ata_mint_searcher:         TokenAccountInitializationConfig::from_optional_balance(
-                self.user_ata_mint_searcher,
-                user_payer,
-            ),
-            router_fee_receiver_ta:         TokenAccountInitializationConfig::from_optional_balance(
-                self.router_fee_receiver_ta,
-                false,
-            ),
-            relayer_fee_receiver_ata:       TokenAccountInitializationConfig::from_optional_balance(
-                self.relayer_fee_receiver_ata,
-                false,
-            ),
-            express_relay_fee_receiver_ata: TokenAccountInitializationConfig::from_optional_balance(
-                self.express_relay_fee_receiver_ata,
-                false,
-            ),
+            user_ata_mint_searcher:
+                TokenAccountInitializationConfig::from_token_account_balance(
+                    &self.user_ata_mint_searcher,
+                    user_payer,
+                ),
+            router_fee_receiver_ta:
+                TokenAccountInitializationConfig::from_token_account_balance(
+                    &self.router_fee_receiver_ta,
+                    false,
+                ),
+            relayer_fee_receiver_ata:
+                TokenAccountInitializationConfig::from_token_account_balance(
+                    &self.relayer_fee_receiver_ata,
+                    false,
+                ),
+            express_relay_fee_receiver_ata:
+                TokenAccountInitializationConfig::from_token_account_balance(
+                    &self.express_relay_fee_receiver_ata,
+                    false,
+                ),
         }
     }
 }
@@ -171,11 +176,11 @@ impl Service<ChainTypeSvm> {
 
         Ok(QuoteRequestAccountBalances {
             user_wallet,
-            user_ata_mint_user: token_balances[0],
-            user_ata_mint_searcher: token_balances[1],
-            router_fee_receiver_ta: token_balances[2],
-            relayer_fee_receiver_ata: token_balances[3],
-            express_relay_fee_receiver_ata: token_balances[4],
+            user_ata_mint_user: token_balances[0].into(),
+            user_ata_mint_searcher: token_balances[1].into(),
+            router_fee_receiver_ta: token_balances[2].into(),
+            relayer_fee_receiver_ata: token_balances[3].into(),
+            express_relay_fee_receiver_ata: token_balances[4].into(),
         })
     }
 }
