@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install Solana Verify CLI
         run: |
-          cargo install solana-verify --git https://github.com/Ellipsis-Labs/solana-verifiable-build --rev 121568e
+          cargo install solana-verify --git https://github.com/Ellipsis-Labs/solana-verifiable-build --rev 5ff03e0
       - name: Build
         run: solana-verify build
       - name: Run tests
