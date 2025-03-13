@@ -8,10 +8,7 @@ use {
     },
     std::{
         fs,
-        process::{
-            Command,
-            Stdio,
-        },
+        process::Command,
     },
 };
 
@@ -154,18 +151,14 @@ fn verify_and_extract_idl_data() {
 
 fn build_svm_contracts() {
     let contract_setup_svm = r#"
-        pwd
         cd ../contracts/svm/programs/express_relay
-        pwd
         mkdir -p ../../target/idl
-        pwd
-        RUST_BACKTRACE=1 anchor idl build -p express_relay > ../../target/idl/express_relay.json
+        anchor idl build > ../../target/idl/express_relay.json
     "#;
     println!("cargo:rerun-if-changed=../contracts/svm");
     // Build the svm contract and generate the IDLs.
     let output = Command::new("sh")
         .args(["-c", contract_setup_svm])
-        .stdout(Stdio::inherit())
         .output()
         .expect("Failed to run build svm contracts command");
     if !output.status.success() {
