@@ -61,3 +61,9 @@ mockall_double = "0.3.1"
 [dev-dependencies]
 mockall = "0.13.1"
 express-relay-client = { path = "../sdk/rust" }
+
+# This patch disables debugging features in litesvm runtime_environments
+# which allows more programs to be loaded in the runtime
+[patch.crates-io.litesvm]
+git = "https://github.com/guibescos/litesvm"
+rev = "52f822f88de8c32a217778087e797b40576e6e41"
