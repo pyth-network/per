@@ -820,6 +820,8 @@ export interface components {
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
           router_account: string;
+          /** @description Details about which token accounts need to be initialized and by whom */
+          token_account_initialization_configs: components["schemas"]["TokenAccountInitializationConfigs"];
           /** @description Details about the tokens to be swapped. Either the searcher token amount or the user token amount must be specified. */
           tokens: components["schemas"]["QuoteTokens"] & {
             /**
@@ -833,6 +835,12 @@ export interface components {
              */
             token_program_user: string;
           };
+          /**
+           * Format: int64
+           * @description The user's current balance of the user-provided token
+           * @example 10
+           */
+          user_mint_user_balance: number;
           /**
            * @description The user wallet address which requested the quote from the wallet.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -1105,6 +1113,23 @@ export interface components {
        * @example 1000
        */
       latest_prioritization_fee: number;
+    };
+    /** @enum {string} */
+    TokenAccountInitializationConfig:
+      | "unneeded"
+      | "searcher_payer"
+      | "user_payer";
+    TokenAccountInitializationConfigs: {
+      /** @description The express relay fee receiver token account */
+      express_relay_fee_receiver_ata: components["schemas"]["TokenAccountInitializationConfig"];
+      /** @description The relayer fee receiver token account */
+      relayer_fee_receiver_ata: components["schemas"]["TokenAccountInitializationConfig"];
+      /** @description The router fee receiver token account */
+      router_fee_receiver_ta: components["schemas"]["TokenAccountInitializationConfig"];
+      /** @description The user token account for the searcher-provided token */
+      user_ata_mint_searcher: components["schemas"]["TokenAccountInitializationConfig"];
+      /** @description The user token account for the user-provided token */
+      user_ata_mint_user: components["schemas"]["TokenAccountInitializationConfig"];
     };
     TokenAmountEvm: {
       /**
