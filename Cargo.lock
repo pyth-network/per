@@ -3975,8 +3975,7 @@ checksum = "4ee93343901ab17bd981295f2cf0026d4ad018c7c31ba84549a4ddbb47a45104"
 [[package]]
 name = "litesvm"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7f51b2a1fa1d4d48c1103514cc20d3d15552fc89468c71726449c0c489b7aa1"
+source = "git+https://github.com/guibescos/litesvm?rev=52f822f88de8c32a217778087e797b40576e6e41#52f822f88de8c32a217778087e797b40576e6e41"
 dependencies = [
  "ansi_term",
  "bincode",
