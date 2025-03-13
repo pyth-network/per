@@ -12,6 +12,8 @@ import {
   BidSvmSwap,
   ExpressRelaySvmConfig,
   OpportunitySvmSwap,
+  TokenAccountInitializationConfig,
+  TokenAccountInitializationConfigs,
 } from "./types";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -255,6 +257,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
   router: PublicKey;
   searcherToken: PublicKey;
   tokenProgramSearcher: PublicKey;
+  tokenInitializationConfigs: TokenAccountInitializationConfigs;
 } {
   const tokenProgramSearcher = swapOpportunity.tokens.tokenProgramSearcher;
   const tokenProgramUser = swapOpportunity.tokens.tokenProgramUser;
@@ -266,6 +269,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
       ? [searcherToken, tokenProgramSearcher]
       : [userToken, tokenProgramUser];
   const router = swapOpportunity.routerAccount;
+  const tokenInitializationConfigs = swapOpportunity.tokenInitializationConfigs;
   return {
     searcherToken,
     tokenProgramSearcher,
@@ -275,7 +279,128 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
     mintFee,
     feeTokenProgram,
     router,
+    tokenInitializationConfigs,
   };
+}
+
+function getTokenAccountToCreate(
+  config: TokenAccountInitializationConfig,
+  {
+    searcher,
+    user,
+    owner,
+    mint,
+    program,
+  }: {
+    searcher: PublicKey;
+    user: PublicKey;
+    owner: PublicKey;
+    mint: PublicKey;
+    program: PublicKey;
+  },
+):
+  | { payer: PublicKey; owner: PublicKey; mint: PublicKey; program: PublicKey }
+  | undefined {
+  if (config === "searcher_payer") {
+    return { payer: searcher, owner, mint, program };
+  } else if (config === "user_payer") {
+    return { payer: user, owner, mint, program };
+  } else if (config === "unneeded") {
+    return undefined;
+  }
+}
+
+function getTokenAccountsToCreate(
+  tokenInitializationConfigs: TokenAccountInitializationConfigs,
+  {
+    searcher,
+    user,
+    router,
+    feeReceiverRelayer,
+    expressRelayMetadata,
+    mintSearcher,
+    tokenProgramSearcher,
+    mintFee,
+    feeTokenProgram,
+  }: {
+    searcher: PublicKey;
+    user: PublicKey;
+    router: PublicKey;
+    feeReceiverRelayer: PublicKey;
+    expressRelayMetadata: PublicKey;
+    mintSearcher: PublicKey;
+    tokenProgramSearcher: PublicKey;
+    mintFee: PublicKey;
+    feeTokenProgram: PublicKey;
+  },
+): { owner: PublicKey; mint: PublicKey; program: PublicKey }[] {
+  const tokenAccountsToCreate = [];
+
+  const relayerFeeReceiverAta = getTokenAccountToCreate(
+    tokenInitializationConfigs.relayer_fee_receiver_ata,
+    {
+      searcher,
+      user,
+      owner: feeReceiverRelayer,
+      mint: mintFee,
+      program: feeTokenProgram,
+    },
+  );
+  if (relayerFeeReceiverAta) {
+    tokenAccountsToCreate.push(relayerFeeReceiverAta);
+  }
+
+  const expressRelayFeeReceiverAta = getTokenAccountToCreate(
+    tokenInitializationConfigs.express_relay_fee_receiver_ata,
+    {
+      searcher,
+      user,
+      owner: expressRelayMetadata,
+      mint: mintFee,
+      program: feeTokenProgram,
+    },
+  );
+  if (expressRelayFeeReceiverAta) {
+    tokenAccountsToCreate.push(expressRelayFeeReceiverAta);
+  }
+
+  const userAtaMintSearcher = getTokenAccountToCreate(
+    tokenInitializationConfigs.user_ata_mint_searcher,
+    {
+      searcher,
+      user,
+      owner: user,
+      mint: mintSearcher,
+      program: tokenProgramSearcher,
+    },
+  );
+  if (userAtaMintSearcher) {
+    tokenAccountsToCreate.push(userAtaMintSearcher);
+  }
+
+  const routerFeeReceiverAta = getTokenAccountToCreate(
+    tokenInitializationConfigs.router_fee_receiver_ta,
+    { searcher, user, owner: router, mint: mintFee, program: feeTokenProgram },
+  );
+  if (routerFeeReceiverAta) {
+    tokenAccountsToCreate.push(routerFeeReceiverAta);
+  }
+
+  const userAtaMintUser = getTokenAccountToCreate(
+    tokenInitializationConfigs.user_ata_mint_user,
+    {
+      searcher,
+      user,
+      owner: user,
+      mint: NATIVE_MINT,
+      program: TOKEN_PROGRAM_ID,
+    },
+  );
+  if (userAtaMintUser) {
+    tokenAccountsToCreate.push(userAtaMintUser);
+  }
+
+  return tokenAccountsToCreate;
 }
 
 export function getWrapSolInstructions(
@@ -284,13 +409,8 @@ export function getWrapSolInstructions(
   amount: anchor.BN,
 ): TransactionInstruction[] {
   const instructions = [];
-  const [ata, instruction] = createAtaIdempotentInstruction(
-    owner,
-    NATIVE_MINT,
-    payer,
-    TOKEN_PROGRAM_ID,
-  );
-  instructions.push(instruction);
+  // The ata account intialization section already handles this
+  const ata = getAssociatedTokenAddress(owner, NATIVE_MINT, TOKEN_PROGRAM_ID);
   instructions.push(
     SystemProgram.transfer({
       fromPubkey: owner,
@@ -328,19 +448,24 @@ export async function constructSwapBid(
     mintFee,
     feeTokenProgram,
     router,
+    tokenInitializationConfigs,
   } = extractSwapInfo(swapOpportunity);
-  const tokenAccountsToCreate = [
-    { owner: feeReceiverRelayer, mint: mintFee, program: feeTokenProgram },
-    { owner: expressRelayMetadata, mint: mintFee, program: feeTokenProgram },
-    { owner: user, mint: searcherToken, program: tokenProgramSearcher },
-  ];
-  if (swapOpportunity.referralFeeBps > 0) {
-    tokenAccountsToCreate.push({
-      owner: router,
-      mint: mintFee,
-      program: feeTokenProgram,
-    });
-  }
+
+  const tokenAccountsToCreate = getTokenAccountsToCreate(
+    tokenInitializationConfigs,
+    {
+      searcher,
+      user,
+      router,
+      feeReceiverRelayer,
+      expressRelayMetadata,
+      mintSearcher: searcherToken,
+      tokenProgramSearcher,
+      mintFee,
+      feeTokenProgram,
+    },
+  );
+
   for (const account of tokenAccountsToCreate) {
     tx.instructions.push(
       createAtaIdempotentInstruction(

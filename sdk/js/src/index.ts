@@ -709,6 +709,8 @@ export class Client {
         routerAccount: new PublicKey(opportunity.router_account),
         userWalletAddress: new PublicKey(opportunity.user_wallet_address),
         tokens,
+        tokenInitializationConfigs:
+          opportunity.token_account_initialization_configs,
       };
     } else {
       console.warn("Unsupported opportunity", opportunity);
