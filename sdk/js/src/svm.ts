@@ -28,6 +28,8 @@ import expressRelayIdl from "./idl/idlExpressRelay.json";
 import { SVM_CONSTANTS } from "./const";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 
+type SwapArgs = anchor.IdlTypes<ExpressRelay>; // TODO: This type doesn't actually work and defaults to any right now
+
 function getExpressRelayProgram(chain: string): PublicKey {
   if (!SVM_CONSTANTS[chain]) {
     throw new Error(`Chain ${chain} not supported`);
@@ -132,11 +134,50 @@ export function createAtaIdempotentInstruction(
   return [ataAddress, createUserTokenAccountIx];
 }
 
-export async function constructSwapInstruction(
-  searcher: PublicKey,
+export function getSwapArgs(
   swapOpportunity: OpportunitySvmSwap,
   bidAmount: anchor.BN,
   deadline: anchor.BN,
+): SwapArgs {
+  if (
+    swapOpportunity.tokens.type === "searcher_specified" &&
+    swapOpportunity.feeToken === "user_token"
+  ) {
+    // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
+    const denominator = FEE_SPLIT_PRECISION.sub(
+      new anchor.BN(
+        swapOpportunity.platformFeeBps + swapOpportunity.referralFeeBps,
+      ),
+    );
+    const numerator = bidAmount.mul(FEE_SPLIT_PRECISION);
+    // add denominator - 1 to round up
+    bidAmount = numerator
+      .add(denominator.sub(new anchor.BN(1)))
+      .div(denominator);
+  }
+
+  return {
+    amountSearcher:
+      swapOpportunity.tokens.type === "searcher_specified"
+        ? new anchor.BN(swapOpportunity.tokens.searcherAmount)
+        : bidAmount,
+    amountUser:
+      swapOpportunity.tokens.type === "user_specified"
+        ? new anchor.BN(swapOpportunity.tokens.userTokenAmountIncludingFees)
+        : bidAmount,
+    referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
+    deadline,
+    feeToken:
+      swapOpportunity.feeToken === "searcher_token"
+        ? { searcher: {} }
+        : { user: {} },
+  };
+}
+
+export async function constructSwapInstruction(
+  searcher: PublicKey,
+  swapOpportunity: OpportunitySvmSwap,
+  swapArgs: SwapArgs,
   chainId: string,
   feeReceiverRelayer: PublicKey,
   relayerSigner: PublicKey,
@@ -159,39 +200,6 @@ export async function constructSwapInstruction(
     router,
   } = extractSwapInfo(swapOpportunity);
 
-  if (
-    swapOpportunity.tokens.type === "searcher_specified" &&
-    swapOpportunity.feeToken === "user_token"
-  ) {
-    // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
-    const denominator = FEE_SPLIT_PRECISION.sub(
-      new anchor.BN(
-        swapOpportunity.platformFeeBps + swapOpportunity.referralFeeBps,
-      ),
-    );
-    const numerator = bidAmount.mul(FEE_SPLIT_PRECISION);
-    // add denominator - 1 to round up
-    bidAmount = numerator
-      .add(denominator.sub(new anchor.BN(1)))
-      .div(denominator);
-  }
-
-  const swapArgs = {
-    amountSearcher:
-      swapOpportunity.tokens.type === "searcher_specified"
-        ? new anchor.BN(swapOpportunity.tokens.searcherAmount)
-        : bidAmount,
-    amountUser:
-      swapOpportunity.tokens.type === "user_specified"
-        ? new anchor.BN(swapOpportunity.tokens.userTokenAmountIncludingFees)
-        : bidAmount,
-    referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
-    deadline,
-    feeToken:
-      swapOpportunity.feeToken === "searcher_token"
-        ? { searcher: {} }
-        : { user: {} },
-  };
   const ixSwap = await expressRelay.methods
     .swap(swapArgs)
     .accountsStrict({
@@ -320,6 +328,7 @@ export async function constructSwapBid(
   relayerSigner: PublicKey,
 ): Promise<BidSvmSwap> {
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
+  const swapArgs = getSwapArgs(swapOpportunity, bidAmount, deadline);
   const {
     tokenProgramSearcher,
     userToken,
@@ -352,25 +361,15 @@ export async function constructSwapBid(
     );
   }
   if (userToken.equals(NATIVE_MINT)) {
-    if (swapOpportunity.tokens.type === "searcher_specified") {
-      tx.instructions.push(
-        ...getWrapSolInstructions(searcher, user, bidAmount),
-      );
-    } else {
-      tx.instructions.push(
-        ...getWrapSolInstructions(
-          searcher,
-          user,
-          swapOpportunity.tokens.userTokenAmountIncludingFees,
-        ),
-      );
-    }
+    tx.instructions.push(
+      ...getWrapSolInstructions(searcher, user, swapArgs.amountUser),
+    );
   }
+
   const swapInstruction = await constructSwapInstruction(
     searcher,
     swapOpportunity,
-    bidAmount,
-    deadline,
+    swapArgs,
     chainId,
     feeReceiverRelayer,
     relayerSigner,

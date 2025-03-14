@@ -79,13 +79,18 @@ pub struct GetSubmitBidInstructionParams {
     pub fee_receiver_relayer: Pubkey,
 }
 
+pub struct GetSwapArgsParams {
+    pub opportunity_params: OpportunityParamsSvm,
+    pub bid_amount:         u64,
+    pub deadline:           i64,
+}
+
 pub struct GetSwapInstructionParams {
     pub searcher:             Pubkey,
     pub opportunity_params:   OpportunityParamsSvm,
-    pub bid_amount:           u64,
-    pub deadline:             i64,
     pub fee_receiver_relayer: Pubkey,
     pub relayer_signer:       Pubkey,
+    pub swap_args:            SwapArgs,
 }
 
 struct OpportunitySwapData {
@@ -244,14 +249,8 @@ impl Svm {
         instructions
     }
 
-    pub fn get_swap_instruction(
-        params: GetSwapInstructionParams,
-    ) -> Result<Instruction, ClientError> {
+    pub fn get_swap_args(params: GetSwapArgsParams) -> Result<SwapArgs, ClientError> {
         let swap_data = Self::extract_swap_data(params.opportunity_params.clone())?;
-
-        let OpportunityParamsSvm::V1(opportunity_params) = params.opportunity_params;
-        let chain_id = opportunity_params.chain_id;
-
         let bid_amount = match (&swap_data.tokens.tokens, &swap_data.fee_token) {
             // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
             (QuoteTokens::SearcherTokenSpecified { .. }, ApiFeeToken::UserToken) => {
@@ -264,33 +263,56 @@ impl Svm {
             _ => params.bid_amount,
         };
 
+        let (amount_searcher, amount_user) = match swap_data.tokens.tokens {
+            QuoteTokens::SearcherTokenSpecified {
+                searcher_amount, ..
+            } => (searcher_amount, bid_amount),
+            QuoteTokens::UserTokenSpecified {
+                user_amount_including_fees,
+                ..
+            } => (bid_amount, user_amount_including_fees),
+        };
+
+        let fee_token = match swap_data.fee_token {
+            ApiFeeToken::SearcherToken => FeeToken::Searcher,
+            ApiFeeToken::UserToken => FeeToken::User,
+        };
+
+        Ok(SwapArgs {
+            deadline: params.deadline,
+            amount_searcher,
+            amount_user,
+            referral_fee_bps: swap_data.referral_fee_bps,
+            fee_token,
+        })
+    }
+
+    pub fn get_swap_instruction(
+        params: GetSwapInstructionParams,
+    ) -> Result<Instruction, ClientError> {
+        let swap_data = Self::extract_swap_data(params.opportunity_params.clone())?;
+
+        let OpportunityParamsSvm::V1(opportunity_params) = params.opportunity_params;
+        let chain_id = opportunity_params.chain_id;
+
         let token_program_searcher = swap_data.tokens.token_program_searcher;
         let token_program_user = swap_data.tokens.token_program_user;
-        let (mint_searcher, mint_user, amount_searcher, amount_user) = match swap_data.tokens.tokens
-        {
+        let (mint_searcher, mint_user) = match swap_data.tokens.tokens {
             QuoteTokens::SearcherTokenSpecified {
                 searcher_token,
                 user_token,
-                searcher_amount,
-            } => (searcher_token, user_token, searcher_amount, bid_amount),
+                ..
+            } => (searcher_token, user_token),
             QuoteTokens::UserTokenSpecified {
                 searcher_token,
                 user_token,
-                user_amount: _user_amount, // Only for searcher internal pricing
-                user_amount_including_fees,
-            } => (
-                searcher_token,
-                user_token,
-                bid_amount,
-                user_amount_including_fees,
-            ),
+                ..
+            } => (searcher_token, user_token),
         };
 
-        let (fee_token, fee_token_mint, fee_token_program) = match swap_data.fee_token {
-            ApiFeeToken::SearcherToken => {
-                (FeeToken::Searcher, mint_searcher, token_program_searcher)
-            }
-            ApiFeeToken::UserToken => (FeeToken::User, mint_user, token_program_user),
+        let (fee_token_mint, fee_token_program) = match swap_data.fee_token {
+            ApiFeeToken::SearcherToken => (mint_searcher, token_program_searcher),
+            ApiFeeToken::UserToken => (mint_user, token_program_user),
         };
 
         let router_fee_receiver_ta = get_associated_token_address_with_program_id(
@@ -298,14 +320,6 @@ impl Svm {
             &fee_token_mint,
             &fee_token_program,
         );
-
-        let swap_args = SwapArgs {
-            deadline: params.deadline,
-            amount_searcher,
-            amount_user,
-            referral_fee_bps: swap_data.referral_fee_bps,
-            fee_token,
-        };
 
         Ok(create_swap_instruction(
             Self::get_express_relay_pid(chain_id),
@@ -319,7 +333,7 @@ impl Svm {
             mint_user,
             token_program_searcher,
             token_program_user,
-            swap_args,
+            params.swap_args,
             params.relayer_signer,
         ))
     }

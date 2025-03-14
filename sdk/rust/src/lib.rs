@@ -52,6 +52,7 @@ use {
     },
     svm::{
         GetSubmitBidInstructionParams,
+        GetSwapArgsParams,
         GetSwapInstructionParams,
     },
     tokio::{
@@ -789,18 +790,24 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         "Invalid program params for swap opportunity".to_string(),
                     )),
                 }?;
-                let (searcher_token, user_token, user_amount_including_fees) = match tokens.tokens {
+
+                let swap_args = svm::Svm::get_swap_args(GetSwapArgsParams {
+                    opportunity_params: opportunity.params.clone(),
+                    bid_amount:         params.amount,
+                    deadline:           params.deadline,
+                })?;
+
+                let (searcher_token, user_token) = match tokens.tokens {
                     QuoteTokens::SearcherTokenSpecified {
                         searcher_token,
                         user_token,
                         ..
-                    } => (searcher_token, user_token, params.amount),
+                    } => (searcher_token, user_token),
                     QuoteTokens::UserTokenSpecified {
                         searcher_token,
                         user_token,
-                        user_amount_including_fees,
                         ..
-                    } => (searcher_token, user_token, user_amount_including_fees),
+                    } => (searcher_token, user_token),
                 };
                 let (fee_token, fee_token_program) = match fee_token {
                     FeeToken::SearcherToken => (searcher_token, tokens.token_program_searcher),
@@ -826,17 +833,16 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         svm::GetWrapSolInstructionsParams {
                             payer:  params.payer,
                             owner:  user_wallet_address,
-                            amount: user_amount_including_fees,
+                            amount: swap_args.amount_user,
                         },
                     )?);
                 }
                 instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-                    opportunity_params:   opportunity.params,
-                    bid_amount:           params.amount,
-                    deadline:             params.deadline,
-                    searcher:             params.searcher,
+                    opportunity_params: opportunity.params,
+                    searcher: params.searcher,
                     fee_receiver_relayer: params.fee_receiver_relayer,
-                    relayer_signer:       params.relayer_signer,
+                    relayer_signer: params.relayer_signer,
+                    swap_args,
                 })?);
                 if searcher_token == native_mint::id() {
                     instructions.push(svm::Svm::get_unwrap_sol_instruction(
