@@ -2544,7 +2544,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -2576,6 +2576,7 @@ version = "0.6.2"
 dependencies = [
  "borsh 1.5.5",
  "ethers",
+ "express-relay",
  "express-relay-api-types",
  "futures-util",
  "reqwest 0.12.9",

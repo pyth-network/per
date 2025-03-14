@@ -53,6 +53,7 @@ chains:
     accepted_token_programs:
       - TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
       - TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
+    ordered_fee_tokens: []
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)

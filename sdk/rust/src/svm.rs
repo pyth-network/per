@@ -1,8 +1,18 @@
 use {
     crate::ClientError,
-    borsh::{
-        BorshDeserialize,
-        BorshSerialize,
+    express_relay::{
+        sdk::helpers::{
+            create_submit_bid_instruction,
+            create_swap_instruction,
+            deserialize_metadata,
+        },
+        state::{
+            ExpressRelayMetadata,
+            FEE_SPLIT_PRECISION,
+            SEED_METADATA,
+        },
+        FeeToken,
+        SwapArgs,
     },
     express_relay_api_types::opportunity::{
         FeeToken as ApiFeeToken,
@@ -15,15 +25,10 @@ use {
     solana_sdk::{
         clock::Slot,
         hash::Hash,
-        instruction::{
-            AccountMeta,
-            Instruction,
-        },
+        instruction::Instruction,
         pubkey::Pubkey,
         signature::Keypair,
         system_instruction::transfer,
-        system_program,
-        sysvar,
     },
     spl_associated_token_account::{
         get_associated_token_address,
@@ -119,47 +124,6 @@ pub struct Svm {
     client: RpcClient,
 }
 
-// After anchor releases version 0.31, we can remove all of the following functions
-// And use the ones from the express-relay contract crate
-pub const SEED_METADATA: &[u8] = b"metadata";
-pub const SEED_CONFIG_ROUTER: &[u8] = b"config_router";
-
-pub const FEE_SPLIT_PRECISION: u64 = 10_000;
-
-#[derive(BorshDeserialize, BorshSerialize, Debug)]
-pub struct ExpressRelayMetadata {
-    pub admin:                 Pubkey,
-    pub relayer_signer:        Pubkey,
-    pub fee_receiver_relayer:  Pubkey,
-    // the portion of the bid that goes to the router, in bps
-    pub split_router_default:  u64,
-    // the portion of the remaining bid (after router fees) that goes to the relayer, in bps
-    pub split_relayer:         u64,
-    // the portion of the swap amount that should go to the platform (relayer + express relay), in bps
-    pub swap_platform_fee_bps: u64,
-}
-
-#[derive(BorshSerialize, BorshDeserialize)]
-enum FeeToken {
-    Searcher,
-    User,
-}
-
-#[derive(BorshSerialize, BorshDeserialize)]
-struct SwapArgs {
-    pub deadline:         i64,
-    pub amount_searcher:  u64,
-    pub amount_user:      u64,
-    pub referral_fee_bps: u16,
-    pub fee_token:        FeeToken,
-}
-
-#[derive(BorshSerialize, BorshDeserialize)]
-struct SubmitBidArgs {
-    pub deadline:   i64,
-    pub bid_amount: u64,
-}
-
 impl Svm {
     pub fn new(rpc_url: String) -> Self {
         Self {
@@ -183,8 +147,7 @@ impl Svm {
                 ClientError::SvmError("Failed to fetch express relay metadata".to_string())
             })?;
 
-        let buf = &mut &data[8..];
-        match ExpressRelayMetadata::deserialize(buf) {
+        match deserialize_metadata(data) {
             Ok(metadata) => Ok(metadata),
             Err(e) => Err(ClientError::SvmError(format!(
                 "Failed to deserialize express relay metadata: {:?}",
@@ -198,51 +161,23 @@ impl Svm {
             Pubkey::from_str("stag1NN9voD7436oFvKmy1kvRZYLLW8drKocSCt2W79")
                 .expect("Failed to parse express relay pubkey")
         } else {
-            Pubkey::from_str("PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou")
-                .expect("Failed to parse express relay pubkey")
+            express_relay::id()
         }
     }
 
     pub fn get_submit_bid_instruction(
         params: GetSubmitBidInstructionParams,
     ) -> Result<Instruction, ClientError> {
-        let express_relay_pid = Self::get_express_relay_pid(params.chain_id);
-        let config_router = Pubkey::find_program_address(
-            &[SEED_CONFIG_ROUTER, params.router.as_ref()],
-            &express_relay_pid,
-        )
-        .0;
-        let express_relay_metadata =
-            Pubkey::find_program_address(&[SEED_METADATA], &express_relay_pid).0;
-
-        let accounts = vec![
-            AccountMeta::new(params.searcher, true),
-            AccountMeta::new_readonly(params.relayer_signer, true),
-            AccountMeta::new_readonly(params.permission, false),
-            AccountMeta::new(params.router, false),
-            AccountMeta::new_readonly(config_router, false),
-            AccountMeta::new(express_relay_metadata, false),
-            AccountMeta::new(params.fee_receiver_relayer, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(sysvar::instructions::ID, false),
-        ];
-
-        let submid_bid_args = SubmitBidArgs {
-            deadline:   params.deadline,
-            bid_amount: params.amount,
-        };
-
-        // Submit bid discriminator
-        let mut data = vec![19, 164, 237, 254, 64, 139, 237, 93];
-        submid_bid_args.serialize(&mut data).map_err(|e| {
-            ClientError::SvmError(format!("Failed to serialize submit bid args: {:?}", e))
-        })?;
-
-        Ok(Instruction {
-            program_id: express_relay_pid,
-            accounts,
-            data,
-        })
+        Ok(create_submit_bid_instruction(
+            Self::get_express_relay_pid(params.chain_id),
+            params.searcher,
+            params.relayer_signer,
+            params.fee_receiver_relayer,
+            params.permission,
+            params.router,
+            params.deadline,
+            params.amount,
+        ))
     }
 
     fn extract_swap_data(
@@ -313,6 +248,7 @@ impl Svm {
         params: GetSwapInstructionParams,
     ) -> Result<Instruction, ClientError> {
         let swap_data = Self::extract_swap_data(params.opportunity_params.clone())?;
+
         let OpportunityParamsSvm::V1(opportunity_params) = params.opportunity_params;
         let chain_id = opportunity_params.chain_id;
 
@@ -356,67 +292,12 @@ impl Svm {
             }
             ApiFeeToken::UserToken => (FeeToken::User, mint_user, token_program_user),
         };
-        // the `{X}_ta/ata_mint_{Y}` notation indicates the (associated) token account belonging to X for the mint of the token Y provides in the swap
-        let searcher_ta_mint_searcher = get_associated_token_address_with_program_id(
-            &params.searcher,
-            &mint_searcher,
-            &token_program_searcher,
-        );
-        let searcher_ta_mint_user = get_associated_token_address_with_program_id(
-            &params.searcher,
-            &mint_user,
-            &token_program_user,
-        );
-        let user_ata_mint_searcher = get_associated_token_address_with_program_id(
-            &swap_data.user,
-            &mint_searcher,
-            &token_program_searcher,
-        );
-        let user_ata_mint_user = get_associated_token_address_with_program_id(
-            &swap_data.user,
-            &mint_user,
-            &token_program_user,
-        );
+
         let router_fee_receiver_ta = get_associated_token_address_with_program_id(
             &swap_data.router_account,
             &fee_token_mint,
             &fee_token_program,
         );
-        let relayer_fee_receiver_ata = get_associated_token_address_with_program_id(
-            &params.fee_receiver_relayer,
-            &fee_token_mint,
-            &fee_token_program,
-        );
-        let express_relay_metadata = &Pubkey::find_program_address(
-            &[SEED_METADATA],
-            &Self::get_express_relay_pid(chain_id.clone()),
-        )
-        .0;
-        let express_relay_fee_receiver_ata = get_associated_token_address_with_program_id(
-            express_relay_metadata,
-            &fee_token_mint,
-            &fee_token_program,
-        );
-
-        let accounts = vec![
-            AccountMeta::new_readonly(params.searcher, true),
-            AccountMeta::new_readonly(swap_data.user, true),
-            AccountMeta::new(searcher_ta_mint_searcher, false),
-            AccountMeta::new(searcher_ta_mint_user, false),
-            AccountMeta::new(user_ata_mint_searcher, false),
-            AccountMeta::new(user_ata_mint_user, false),
-            AccountMeta::new(router_fee_receiver_ta, false),
-            AccountMeta::new(relayer_fee_receiver_ata, false),
-            AccountMeta::new(express_relay_fee_receiver_ata, false),
-            AccountMeta::new_readonly(mint_searcher, false),
-            AccountMeta::new_readonly(mint_user, false),
-            AccountMeta::new_readonly(fee_token_mint, false),
-            AccountMeta::new_readonly(token_program_searcher, false),
-            AccountMeta::new_readonly(token_program_user, false),
-            AccountMeta::new_readonly(fee_token_program, false),
-            AccountMeta::new_readonly(*express_relay_metadata, false),
-            AccountMeta::new_readonly(params.relayer_signer, true),
-        ];
 
         let swap_args = SwapArgs {
             deadline: params.deadline,
@@ -426,17 +307,21 @@ impl Svm {
             fee_token,
         };
 
-        // Swap descriminator
-        let mut data = vec![248, 198, 158, 145, 225, 117, 135, 200];
-        swap_args.serialize(&mut data).map_err(|e| {
-            ClientError::SvmError(format!("Failed to serialize swap args: {:?}", e))
-        })?;
-
-        Ok(Instruction {
-            program_id: Self::get_express_relay_pid(chain_id),
-            accounts,
-            data,
-        })
+        Ok(create_swap_instruction(
+            Self::get_express_relay_pid(chain_id),
+            params.searcher,
+            swap_data.user,
+            None,
+            None,
+            router_fee_receiver_ta,
+            params.fee_receiver_relayer,
+            mint_searcher,
+            mint_user,
+            token_program_searcher,
+            token_program_user,
+            swap_args,
+            params.relayer_signer,
+        ))
     }
 
     pub fn get_wrap_sol_instructions(

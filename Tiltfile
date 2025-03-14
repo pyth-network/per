@@ -81,7 +81,7 @@ cmd_button(
 )
 
 local_resource(
-    "create-server-configs", "poetry -C tilt-scripts run python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts","svm-setup-accounts"]
+    "create-server-configs", "poetry -C tilt-scripts run python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts","svm-create-mints"]
 )
 
 local_resource(

@@ -16,9 +16,9 @@ incremental = false
 codegen-units = 1
 
 [workspace.dependencies]
-anchor-lang = "0.31.0"
-anchor-client = "0.31.0"
-anchor-spl = "0.31.0"
-litesvm = "0.6.0"
-solana-program-test = "2.1.0"
-solana-sdk = "2.1.0"
+anchor-lang = ">=0.29.0"
+anchor-client = ">=0.29.0"
+anchor-spl = ">=0.29.0"
+litesvm = ">=0.1.0"
+solana-program-test = ">=1.17.3"
+solana-sdk = ">=1.17.3"
