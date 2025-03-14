@@ -103,6 +103,7 @@ pub struct ConfigSvm {
     pub auction_service:         RwLock<Option<auction_service::Service<Svm>>>,
     pub rpc_client:              RpcClient,
     pub accepted_token_programs: Vec<Pubkey>,
+    pub ordered_fee_tokens:      Vec<Pubkey>,
 }
 
 impl ConfigSvm {
@@ -227,6 +228,7 @@ impl ConfigSvm {
                             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                         ),
                         accepted_token_programs: chain_store.config.accepted_token_programs.clone(),
+                        ordered_fee_tokens:      chain_store.config.ordered_fee_tokens.clone(),
                     },
                 )
             })
@@ -320,6 +322,7 @@ pub mod tests {
                     RpcClientConfig::default(),
                 ),
                 accepted_token_programs: vec![],
+                ordered_fee_tokens:      vec![],
             };
 
             let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);

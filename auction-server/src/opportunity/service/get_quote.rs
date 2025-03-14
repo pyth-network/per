@@ -43,10 +43,7 @@ use {
     solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
     spl_token::native_mint,
-    std::{
-        str::FromStr,
-        time::Duration,
-    },
+    std::time::Duration,
     time::OffsetDateTime,
     tokio::time::sleep,
 };
@@ -129,13 +126,23 @@ pub fn get_quote_virtual_permission_account(
     Pubkey::find_program_address(&seeds, &Pubkey::default()).0
 }
 
-/// Determines if the fee token should be the user token or the searcher token
-fn get_fee_token(user_mint: Pubkey, _searcher_mint: Pubkey) -> entities::FeeToken {
-    // TODO*: we should determine this more intelligently
-    // Prefer USDC and USDT as the fee token
-    if user_mint == Pubkey::from_str("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB").unwrap()
-        || user_mint == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap()
-    {
+/// Determines if the fee token should be the user token or the searcher token.
+/// If the user token is explicitly tiered higher than the searcher token, the fee token will be the user token, and vice versa.
+/// If neither token tier has been specified, the fee token is set to the user token to simplify the logic for searchers.
+fn get_fee_token(
+    user_mint: Pubkey,
+    searcher_mint: Pubkey,
+    ordered_fee_tokens: &[Pubkey],
+) -> entities::FeeToken {
+    let user_token_tier = ordered_fee_tokens
+        .iter()
+        .position(|&x| x == user_mint)
+        .unwrap_or(usize::MAX);
+    let searcher_token_tier = ordered_fee_tokens
+        .iter()
+        .position(|&x| x == searcher_mint)
+        .unwrap_or(usize::MAX);
+    if user_token_tier <= searcher_token_tier {
         entities::FeeToken::UserToken
     } else {
         entities::FeeToken::SearcherToken
@@ -169,7 +176,8 @@ impl Service<ChainTypeSvm> {
                 searcher_token,
             } => (user_token, searcher_token.token),
         };
-        let fee_token = get_fee_token(mint_user, mint_searcher);
+        let config = self.get_config(&quote_create.chain_id)?;
+        let fee_token = get_fee_token(mint_user, mint_searcher, &config.ordered_fee_tokens);
         let (searcher_amount, user_amount) = match (quote_create.tokens.clone(), fee_token.clone())
         {
             (
