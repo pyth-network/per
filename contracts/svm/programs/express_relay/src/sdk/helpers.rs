@@ -1,8 +1,3 @@
-pub use anchor_spl::associated_token::{
-    get_associated_token_address_with_program_id,
-    spl_associated_token_account::instruction::AssociatedTokenAccountInstruction,
-    ID as AssociatedTokenAccountPID,
-};
 use {
     crate::{
         accounts,
@@ -22,6 +17,10 @@ use {
         },
         system_program,
         InstructionData,
+    },
+    anchor_spl::associated_token::{
+        self,
+        get_associated_token_address_with_program_id,
     },
 };
 
@@ -216,7 +215,7 @@ fn build_associated_token_account_instruction(
     // safety check, assert if not a creation instruction, which is only 0 or 1
     assert!(instruction <= 1);
     Instruction {
-        program_id: AssociatedTokenAccountPID,
+        program_id: associated_token::ID,
         accounts:   vec![
             AccountMeta::new(*funding_address, true),
             AccountMeta::new(associated_account_address, false),

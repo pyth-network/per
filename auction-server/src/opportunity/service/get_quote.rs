@@ -224,18 +224,16 @@ impl Service<ChainTypeSvm> {
 
         let router_token_account = match fee_token {
             entities::FeeToken::SearcherToken => get_associated_token_address_with_program_id(
-                &referral_fee_info.router.to_bytes().into(),
-                &mint_searcher.to_bytes().into(),
-                &token_program_searcher.to_bytes().into(),
+                &referral_fee_info.router,
+                &mint_searcher,
+                &token_program_searcher,
             ),
             entities::FeeToken::UserToken => get_associated_token_address_with_program_id(
-                &referral_fee_info.router.to_bytes().into(),
-                &mint_user.to_bytes().into(),
-                &token_program_user.to_bytes().into(),
+                &referral_fee_info.router,
+                &mint_user,
+                &token_program_user,
             ),
-        }
-        .to_bytes()
-        .into();
+        };
         // this uses the fee-adjusted token amounts to correctly calculate the permission account
         let tokens_for_permission = match quote_create.tokens {
             entities::QuoteTokens::UserTokenSpecified {

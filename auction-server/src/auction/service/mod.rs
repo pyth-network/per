@@ -312,10 +312,7 @@ pub mod tests {
             nonblocking::rpc_client::RpcClient,
             rpc_client::RpcClientConfig,
         },
-        solana_sdk::{
-            pubkey::Pubkey,
-            signature::Keypair,
-        },
+        solana_sdk::signature::Keypair,
         std::sync::Arc,
         tokio::sync::broadcast,
         tokio_util::task::TaskTracker,
@@ -339,9 +336,8 @@ pub mod tests {
                             RpcClientConfig::default(),
                         ),
                         express_relay:                 ExpressRelaySvm {
-                            program_id:                               Pubkey::from(
-                                express_relay::id().to_bytes(),
-                            ),
+                            program_id: express_relay::id(),
+
                             relayer:                                  Keypair::new(),
                             submit_bid_instruction_account_positions:
                                 get_submit_bid_instruction_account_positions(),

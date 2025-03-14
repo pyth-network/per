@@ -487,7 +487,7 @@ impl Service<Svm> {
                 instructions.len(),
             )),
         }?;
-        if !instruction.data.starts_with(&discriminator) {
+        if !instruction.data.starts_with(discriminator) {
             return Err(RestError::BadParameters(
                 "Wrong instruction type for Express Relay Program".to_string(),
             ));
