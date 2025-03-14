@@ -1594,9 +1594,7 @@ mod tests {
         ethers::types::Bytes,
         express_relay_api_types::opportunity as opportunity_api,
         express_relay_client::svm::{
-            self,
-            GetSubmitBidInstructionParams,
-            GetSwapInstructionParams,
+            self, GetSubmitBidInstructionParams, GetSwapArgsParams, GetSwapInstructionParams
         },
         solana_client::{
             nonblocking::rpc_client::RpcClient,
@@ -2001,13 +1999,20 @@ mod tests {
 
         let bid_amount = 1;
         let searcher = Keypair::new();
-        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher: searcher.pubkey(),
-            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+        let opportunity_params = get_opportunity_params(opportunities[0].clone());
+        let swap_args = svm::Svm::get_swap_args(GetSwapArgsParams {
+            opportunity_params,
             bid_amount,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+        })
+        .unwrap();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params,
+            swap_args,
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+            swap_args,
         })
         .unwrap();
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
