@@ -838,7 +838,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     fee_receiver_relayer: params.fee_receiver_relayer,
                     relayer_signer:       params.relayer_signer,
                 })?);
-                if searcher_token == native_mint::id() {
+                if searcher_token == native_mint::id() || user_token == native_mint::id() {
                     instructions.push(svm::Svm::get_unwrap_sol_instruction(
                         svm::GetUnwrapSolInstructionParams {
                             owner: user_wallet_address,
