@@ -7,11 +7,11 @@ settings:
 catalogs:
   default:
     "@coral-xyz/anchor":
-      specifier: 0.30.1
-      version: 0.30.1
+      specifier: 0.31.0
+      version: 0.31.0
     "@coral-xyz/anchor-cli":
-      specifier: 0.30.1
-      version: 0.30.1
+      specifier: 0.31.0
+      version: 0.31.0
     "@kamino-finance/limo-sdk":
       specifier: 0.7.1
       version: 0.7.1
@@ -182,7 +182,7 @@ importers:
     dependencies:
       "@coral-xyz/anchor":
         specifier: "catalog:"
-        version: 0.30.1(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+        version: 0.31.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       "@jup-ag/api":
         specifier: ^6.0.29
         version: 6.0.30
@@ -216,10 +216,10 @@ importers:
     dependencies:
       "@coral-xyz/anchor":
         specifier: "catalog:"
-        version: 0.30.1(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+        version: 0.31.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       "@coral-xyz/anchor-cli":
         specifier: "catalog:"
-        version: 0.30.1
+        version: 0.31.0
       "@kamino-finance/limo-sdk":
         specifier: "catalog:"
         version: 0.7.1(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(bufferutil@4.0.8)(chai@5.1.2)(decimal.js@10.4.3)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)(utf-8-validate@5.0.10)
@@ -290,7 +290,7 @@ importers:
     dependencies:
       "@coral-xyz/anchor":
         specifier: "catalog:"
-        version: 0.30.1(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+        version: 0.31.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       "@kamino-finance/limo-sdk":
         specifier: "catalog:"
         version: 0.7.1(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(bufferutil@4.0.8)(chai@5.1.2)(decimal.js@10.4.3)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)(utf-8-validate@5.0.10)
@@ -377,7 +377,7 @@ importers:
     dependencies:
       "@coral-xyz/anchor":
         specifier: "catalog:"
-        version: 0.30.1(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+        version: 0.31.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       "@kamino-finance/limo-sdk":
         specifier: "catalog:"
         version: 0.7.1(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(bufferutil@4.0.8)(chai@5.1.2)(decimal.js@10.4.3)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)(utf-8-validate@5.0.10)
@@ -1573,17 +1573,17 @@ packages:
         integrity: sha512-iM1jFVzBMfk7iokgUVfA2xvGUegixklUISgMARa/VA2mFIjoi32t4xmD8PtWHht81fmg107aYhLnTV1cM7NkAg==,
       }
 
-  "@coral-xyz/anchor-cli@0.30.1":
+  "@coral-xyz/anchor-cli@0.31.0":
     resolution:
       {
-        integrity: sha512-DgRmrFp+qW0bclHNfsSm7XQE1eNfsE2BMtahOClNISXzT5PwbmQsC8laSEaADvU/FJ7Hy/e2buzuPtgMxHs6gw==,
+        integrity: sha512-0S5mzeFCSiKul34sc50BF8litweXI3E7jJ8OtKiXM4QdyHpI5R/ufHGgpu+xV0vzhSYxeGvHQtG7s/fhL4w7Wg==,
       }
     hasBin: true
 
-  "@coral-xyz/anchor-errors@0.30.1":
+  "@coral-xyz/anchor-errors@0.31.0":
     resolution:
       {
-        integrity: sha512-9Mkradf5yS5xiLWrl9WrpjqOrAV+/W2RQHDlbnAZBivoGpOs1ECjoDCkVk4aRG8ZdiFiB8zQEVlxf+8fKkmSfQ==,
+        integrity: sha512-SUERksFSQ+4F11hkROIwHq4mcoSMXJxwVWLoklefi4dU679zVWFVcTq6O7otvjY8wlUaRXeE+iYcQWZTw2ll6w==,
       }
     engines: { node: ">=10" }
 
@@ -1594,12 +1594,12 @@ packages:
       }
     engines: { node: ">=11" }
 
-  "@coral-xyz/anchor@0.30.1":
+  "@coral-xyz/anchor@0.31.0":
     resolution:
       {
-        integrity: sha512-gDXFoF5oHgpriXAaLpxyWBHdCs8Awgf/gLHIo6crv7Aqm937CNdY+x+6hoj7QR5vaJV7MxWSQ0NGFzL3kPbWEQ==,
+        integrity: sha512-Yb1NwP1s4cWhAw7wL7vOLHSWWw3cD5D9pRCVSeJpdqPaI+w7sfRLScnVJL6ViYMZynB7nAG/5HcUPKUnY0L9rw==,
       }
-    engines: { node: ">=11" }
+    engines: { node: ">=17" }
 
   "@coral-xyz/borsh@0.28.0":
     resolution:
@@ -1610,14 +1610,14 @@ packages:
     peerDependencies:
       "@solana/web3.js": ^1.68.0
 
-  "@coral-xyz/borsh@0.30.1":
+  "@coral-xyz/borsh@0.31.0":
     resolution:
       {
-        integrity: sha512-aaxswpPrCFKl8vZTbxLssA2RvwX2zmKLlRCIktJOwW+VpVwYtXRtlWiIP+c2pPRKneiTiWCN2GEMSH9j1zTlWQ==,
+        integrity: sha512-DwdQ5fuj+rGQCTKRnxnW1W2lvcpBaFc9m9M1TcGGlm+bwCcggmDgbLKLgF+LjIrKnc7Nd+bCACx5RA9YTK2I4Q==,
       }
     engines: { node: ">=10" }
     peerDependencies:
-      "@solana/web3.js": ^1.68.0
+      "@solana/web3.js": ^1.69.0
 
   "@cprussin/eslint-config@3.0.0":
     resolution:
@@ -2739,13 +2739,6 @@ packages:
     resolution:
       {
         integrity: sha512-YUULf0Uk4/mAA89w+k3+yUYh6NrEvxZa5T6SY3wlMvE2chHkxFUUIDI8/XW1QSC357iA5pSnqt7XEhvFOqmDyQ==,
-      }
-    engines: { node: ^14.21.3 || >=16 }
-
-  "@noble/hashes@1.6.1":
-    resolution:
-      {
-        integrity: sha512-pq5D8h10hHBjyqX+cfBm0i8JUXJ0UhczFc4r74zbuT9XgewFo2E3J1cOaGtdZynILNmQ685YWGzGE1Zv6io50w==,
       }
     engines: { node: ^14.21.3 || >=16 }
 
@@ -13977,9 +13970,9 @@ snapshots:
       - encoding
       - utf-8-validate
 
-  "@coral-xyz/anchor-cli@0.30.1": {}
+  "@coral-xyz/anchor-cli@0.31.0": {}
 
-  "@coral-xyz/anchor-errors@0.30.1": {}
+  "@coral-xyz/anchor-errors@0.31.0": {}
 
   "@coral-xyz/anchor@0.28.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)":
     dependencies:
@@ -14003,21 +13996,19 @@ snapshots:
       - encoding
       - utf-8-validate
 
-  "@coral-xyz/anchor@0.30.1(bufferutil@4.0.8)(utf-8-validate@5.0.10)":
+  "@coral-xyz/anchor@0.31.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)":
     dependencies:
-      "@coral-xyz/anchor-errors": 0.30.1
-      "@coral-xyz/borsh": 0.30.1(@solana/web3.js@1.92.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))
-      "@noble/hashes": 1.6.1
+      "@coral-xyz/anchor-errors": 0.31.0
+      "@coral-xyz/borsh": 0.31.0(@solana/web3.js@1.92.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))
+      "@noble/hashes": 1.7.0
       "@solana/web3.js": 1.92.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       bn.js: 5.2.1
       bs58: 4.0.1
       buffer-layout: 1.2.2
       camelcase: 6.3.0
       cross-fetch: 3.1.8
-      crypto-hash: 1.3.0
       eventemitter3: 4.0.7
       pako: 2.1.0
-      snake-case: 3.0.4
       superstruct: 0.15.5
       toml: 3.0.0
     transitivePeerDependencies:
@@ -14037,7 +14028,7 @@ snapshots:
       bn.js: 5.2.1
       buffer-layout: 1.2.2
 
-  "@coral-xyz/borsh@0.30.1(@solana/web3.js@1.92.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))":
+  "@coral-xyz/borsh@0.31.0(@solana/web3.js@1.92.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))":
     dependencies:
       "@solana/web3.js": 1.92.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       bn.js: 5.2.1
@@ -15129,8 +15120,6 @@ snapshots:
   "@noble/hashes@1.4.0": {}
 
   "@noble/hashes@1.6.0": {}
-
-  "@noble/hashes@1.6.1": {}
 
   "@noble/hashes@1.7.0": {}
 
