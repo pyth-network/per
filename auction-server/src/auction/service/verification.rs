@@ -1097,43 +1097,33 @@ impl Service<Svm> {
                     },
                 ));
             }
-        } else {
-            if !user_unwrap_sol_instructions.is_empty() {
-                return Err(RestError::InvalidInstruction(
-                    None,
-                    InstructionError::CloseAccountInstructionNotAllowed,
-                ));
-            }
-        }
 
-        // Searcher may want to unwrap Sol
-        // We dont care about destination and owner in this case
-        if swap_accounts.mint_user == spl_token::native_mint::id() // maybe also when searcher token is wsol tbh
-            && other_unwrap_sol_instructions.len() == 1
+            // Searcher may want to unwrap Sol
+            // We dont care about destination and owner in this case
+            if other_unwrap_sol_instructions.len() == 1 {
+                let close_account_instruction = other_unwrap_sol_instructions[0].clone();
+                let ata = get_associated_token_address(
+                    &swap_accounts.searcher,
+                    &spl_token::native_mint::id(),
+                );
+                if close_account_instruction.account != ata {
+                    return Err(RestError::InvalidInstruction(
+                        None,
+                        InstructionError::InvalidAccountToCloseCloseAccountInstruction {
+                            expected: ata,
+                            found:    close_account_instruction.account,
+                        },
+                    ));
+                }
+            }
+        } else if !user_unwrap_sol_instructions.is_empty()
+            || !other_unwrap_sol_instructions.is_empty()
         {
-            let close_account_instruction = other_unwrap_sol_instructions[0].clone();
-            let ata = get_associated_token_address(
-                &swap_accounts.searcher,
-                &spl_token::native_mint::id(),
-            );
-            if close_account_instruction.account != ata {
-                return Err(RestError::InvalidInstruction(
-                    None,
-                    InstructionError::InvalidAccountToCloseCloseAccountInstruction {
-                        expected: ata,
-                        found:    close_account_instruction.account,
-                    },
-                ));
-            }
-        } else {
-            if !other_unwrap_sol_instructions.is_empty() {
-                return Err(RestError::InvalidInstruction(
-                    None,
-                    InstructionError::CloseAccountInstructionNotAllowed,
-                ));
-            }
+            return Err(RestError::InvalidInstruction(
+                None,
+                InstructionError::CloseAccountInstructionNotAllowed,
+            ));
         }
-
 
         Ok(())
     }
