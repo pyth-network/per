@@ -655,9 +655,7 @@ class ExpressRelayClient:
                 lambda x: x is not None,
                 [
                     ExpressRelayClient.get_token_account_to_create(
-                        params.config,
-                        searcher,
-                        user,
+                        searcher=searcher, user=user, params=params
                     )
                     for params in token_accounts_initialization_params
                 ],
