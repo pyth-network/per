@@ -58,17 +58,21 @@ def wrap_sol(
     payer: Pubkey,
     owner: Pubkey,
     amount: int,
+    create_ata: bool = True,
 ) -> List[Instruction]:
     """Creates transaction instructions to transfer and wrap SOL into an associated token account.
 
     Returns:
         The instructions to wrap SOL into an associated token account.
     """
-    instructions = [
-        create_associated_token_account_idempotent(
-            payer, owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
+    instructions = []
+    if create_ata:
+        instructions.append(
+            create_associated_token_account_idempotent(
+                payer, owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID
+            )
         )
-    ]
+
     ata = get_ata(owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)
     instructions.append(
         transfer(
