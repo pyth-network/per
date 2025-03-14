@@ -140,6 +140,13 @@ class TokenAccountToCreate(TypedDict):
     program: Pubkey
 
 
+class TokenAccountInitializationParams(TypedDict):
+    owner: Pubkey
+    mint: Pubkey
+    program: Pubkey
+    config: TokenAccountInitializationConfig
+
+
 class ExpressRelayClient:
     def __init__(
         self,
@@ -576,23 +583,29 @@ class ExpressRelayClient:
 
     @staticmethod
     def get_token_account_to_create(
-        config: TokenAccountInitializationConfig,
         searcher: Pubkey,
         user: Pubkey,
-        owner: Pubkey,
-        mint: Pubkey,
-        program: Pubkey,
+        params: TokenAccountInitializationParams,
     ) -> TokenAccountToCreate | None:
-        if config == "searcher_payer":
-            return {"payer": searcher, "owner": owner, "mint": mint, "program": program}
-        elif config == "user_payer":
-            return {"payer": user, "owner": owner, "mint": mint, "program": program}
+        if params["config"] == "searcher_payer":
+            return {
+                "payer": searcher,
+                "owner": params["owner"],
+                "mint": params["mint"],
+                "program": params["program"],
+            }
+        elif params["config"] == "user_payer":
+            return {
+                "payer": user,
+                "owner": params["owner"],
+                "mint": params["mint"],
+                "program": params["program"],
+            }
         else:
             return None
 
     @staticmethod
     def get_token_accounts_to_create(
-        configs: TokenAccountInitializationConfigs,
         searcher: Pubkey,
         user: Pubkey,
         router: Pubkey,
@@ -602,68 +615,54 @@ class ExpressRelayClient:
         token_program_searcher: Pubkey,
         mint_fee: Pubkey,
         fee_token_program: Pubkey,
+        configs: TokenAccountInitializationConfigs,
     ) -> List[TokenAccountToCreate]:
-        token_accounts_to_create = []
-        relayer_fee_receiver_ata = ExpressRelayClient.get_token_account_to_create(
-            config=configs.relayer_fee_receiver_ata,
-            searcher=searcher,
-            user=user,
-            owner=fee_receiver_relayer,
-            mint=mint_fee,
-            program=fee_token_program,
+        token_accounts_initialization_params: List[TokenAccountInitializationParams] = [
+            TokenAccountInitializationParams(
+                owner=user,
+                mint=mint_searcher,
+                program=token_program_searcher,
+                config=configs.user_ata_mint_searcher,
+            ),
+            TokenAccountInitializationParams(
+                owner=user,
+                mint=WRAPPED_SOL_MINT,
+                program=TOKEN_PROGRAM_ID,
+                config=configs.user_ata_mint_user,
+            ),
+            TokenAccountInitializationParams(
+                owner=router,
+                mint=mint_fee,
+                program=fee_token_program,
+                config=configs.router_fee_receiver_ta,
+            ),
+            TokenAccountInitializationParams(
+                owner=fee_receiver_relayer,
+                mint=mint_fee,
+                program=fee_token_program,
+                config=configs.relayer_fee_receiver_ata,
+            ),
+            TokenAccountInitializationParams(
+                owner=express_relay_metadata,
+                mint=mint_fee,
+                program=fee_token_program,
+                config=configs.express_relay_fee_receiver_ata,
+            ),
+        ]
+
+        return list(
+            filter(
+                lambda x: x is not None,
+                [
+                    ExpressRelayClient.get_token_account_to_create(
+                        params.config,
+                        searcher,
+                        user,
+                    )
+                    for params in token_accounts_initialization_params
+                ],
+            )
         )
-        if relayer_fee_receiver_ata is not None:
-            token_accounts_to_create.append(relayer_fee_receiver_ata)
-
-        express_relay_fee_receiver_ata = ExpressRelayClient.get_token_account_to_create(
-            config=configs.express_relay_fee_receiver_ata,
-            searcher=searcher,
-            user=user,
-            owner=express_relay_metadata,
-            mint=mint_fee,
-            program=fee_token_program,
-        )
-
-        if express_relay_fee_receiver_ata is not None:
-            token_accounts_to_create.append(express_relay_fee_receiver_ata)
-
-        user_ata_mint_searcher = ExpressRelayClient.get_token_account_to_create(
-            config=configs.user_ata_mint_searcher,
-            searcher=searcher,
-            user=user,
-            owner=user,
-            mint=mint_searcher,
-            program=token_program_searcher,
-        )
-
-        if user_ata_mint_searcher is not None:
-            token_accounts_to_create.append(user_ata_mint_searcher)
-
-        router_fee_receiver_ata = ExpressRelayClient.get_token_account_to_create(
-            config=configs.router_fee_receiver_ta,
-            searcher=searcher,
-            user=user,
-            owner=router,
-            mint=mint_fee,
-            program=fee_token_program,
-        )
-
-        if router_fee_receiver_ata is not None:
-            token_accounts_to_create.append(router_fee_receiver_ata)
-
-        user_ata_mint_user = ExpressRelayClient.get_token_account_to_create(
-            config=configs.user_ata_mint_user,
-            searcher=searcher,
-            user=user,
-            owner=user,
-            mint=WRAPPED_SOL_MINT,
-            program=TOKEN_PROGRAM_ID,
-        )
-
-        if user_ata_mint_user is not None:
-            token_accounts_to_create.append(user_ata_mint_user)
-
-        return token_accounts_to_create
 
     @staticmethod
     def extract_swap_info(swap_opportunity: SwapOpportunitySvm) -> SwapAccounts:
@@ -736,7 +735,6 @@ class ExpressRelayClient:
         instructions: List[Instruction] = []
 
         token_accounts_to_create = ExpressRelayClient.get_token_accounts_to_create(
-            configs=swap_opportunity.token_account_initialization_configs,
             searcher=searcher,
             user=accs["user"],
             router=accs["router"],
@@ -746,6 +744,7 @@ class ExpressRelayClient:
             token_program_searcher=accs["token_program_searcher"],
             mint_fee=accs["mint_fee"],
             fee_token_program=accs["fee_token_program"],
+            configs=swap_opportunity.token_account_initialization_configs,
         )
 
         for token_account in token_accounts_to_create:
