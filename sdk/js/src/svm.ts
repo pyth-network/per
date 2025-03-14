@@ -283,6 +283,13 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
   };
 }
 
+type TokenAccountToCreate = {
+  payer: PublicKey;
+  owner: PublicKey;
+  mint: PublicKey;
+  program: PublicKey;
+};
+
 function getTokenAccountToCreate(
   config: TokenAccountInitializationConfig,
   {
@@ -298,9 +305,7 @@ function getTokenAccountToCreate(
     mint: PublicKey;
     program: PublicKey;
   },
-):
-  | { payer: PublicKey; owner: PublicKey; mint: PublicKey; program: PublicKey }
-  | undefined {
+): TokenAccountToCreate | undefined {
   if (config === "searcher_payer") {
     return { payer: searcher, owner, mint, program };
   } else if (config === "user_payer") {
@@ -333,7 +338,7 @@ function getTokenAccountsToCreate(
     mintFee: PublicKey;
     feeTokenProgram: PublicKey;
   },
-): { owner: PublicKey; mint: PublicKey; program: PublicKey }[] {
+): TokenAccountToCreate[] {
   const tokenAccountsToCreate = [];
 
   const relayerFeeReceiverAta = getTokenAccountToCreate(
@@ -479,7 +484,7 @@ export async function constructSwapBid(
       createAtaIdempotentInstruction(
         account.owner,
         account.mint,
-        searcher,
+        account.payer,
         account.program,
       )[1],
     );
