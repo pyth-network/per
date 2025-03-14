@@ -10,6 +10,7 @@ use {
         auction::service::{
             self as auction_service,
         },
+        config::FeeTokenScore,
         kernel::{
             contracts::AdapterFactory,
             entities::{
@@ -103,6 +104,7 @@ pub struct ConfigSvm {
     pub auction_service:         RwLock<Option<auction_service::Service<Svm>>>,
     pub rpc_client:              RpcClient,
     pub accepted_token_programs: Vec<Pubkey>,
+    pub fee_token_scores:        Vec<FeeTokenScore>,
 }
 
 impl ConfigSvm {
@@ -227,6 +229,7 @@ impl ConfigSvm {
                             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                         ),
                         accepted_token_programs: chain_store.config.accepted_token_programs.clone(),
+                        fee_token_scores:        chain_store.config.fee_token_scores.clone(),
                     },
                 )
             })
@@ -320,6 +323,7 @@ pub mod tests {
                     RpcClientConfig::default(),
                 ),
                 accepted_token_programs: vec![],
+                fee_token_scores:        vec![],
             };
 
             let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
