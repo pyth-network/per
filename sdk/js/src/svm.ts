@@ -69,7 +69,7 @@ export async function constructSubmitBidInstruction(
   feeReceiverRelayer: PublicKey,
 ): Promise<TransactionInstruction> {
   const expressRelay = new Program<ExpressRelay>(
-    expressRelayIdl as ExpressRelay,
+    expressRelayIdl,
     {} as AnchorProvider,
   );
 
@@ -142,7 +142,7 @@ export async function constructSwapInstruction(
   relayerSigner: PublicKey,
 ): Promise<TransactionInstruction> {
   const expressRelay = new Program<ExpressRelay>(
-    expressRelayIdl as ExpressRelay,
+    expressRelayIdl,
     {} as AnchorProvider,
   );
   const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
@@ -428,10 +428,7 @@ export async function getExpressRelaySvmConfig(
     connection,
     new NodeWallet(new Keypair()),
   );
-  const expressRelay = new Program<ExpressRelay>(
-    expressRelayIdl as ExpressRelay,
-    provider,
-  );
+  const expressRelay = new Program<ExpressRelay>(expressRelayIdl, provider);
   const metadata = await expressRelay.account.expressRelayMetadata.fetch(
     getExpressRelayMetadataPda(chainId),
   );
