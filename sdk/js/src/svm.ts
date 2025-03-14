@@ -348,7 +348,7 @@ function getTokenAccountsToCreate(
   const tokenAccountInitializationParams: TokenAccountInitializationParams[] = [
     {
       config: tokenInitializationConfigs.userAtaMintSearcher,
-      owner: searcher,
+      owner: user,
       mint: mintSearcher,
       program: tokenProgramSearcher,
     },
