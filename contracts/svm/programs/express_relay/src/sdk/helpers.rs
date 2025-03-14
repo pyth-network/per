@@ -17,7 +17,11 @@ use {
         },
         system_program,
         InstructionData,
-    }, anchor_spl::associated_token::{self, get_associated_token_address_with_program_id},
+    },
+    anchor_spl::associated_token::{
+        self,
+        get_associated_token_address_with_program_id,
+    },
 };
 
 /// Creates and adds to the provided instructions a `SubmitBid` instruction.
