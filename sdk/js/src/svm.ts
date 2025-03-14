@@ -290,33 +290,38 @@ type TokenAccountToCreate = {
   program: PublicKey;
 };
 
+type TokenAccountInitializationParams = {
+  owner: PublicKey;
+  mint: PublicKey;
+  program: PublicKey;
+  config: TokenAccountInitializationConfig;
+};
+
 function getTokenAccountToCreate(
-  config: TokenAccountInitializationConfig,
-  {
-    searcher,
-    user,
-    owner,
-    mint,
-    program,
-  }: {
-    searcher: PublicKey;
-    user: PublicKey;
-    owner: PublicKey;
-    mint: PublicKey;
-    program: PublicKey;
-  },
+  searcher: PublicKey,
+  user: PublicKey,
+  params: TokenAccountInitializationParams,
 ): TokenAccountToCreate | undefined {
-  if (config === "searcher_payer") {
-    return { payer: searcher, owner, mint, program };
-  } else if (config === "user_payer") {
-    return { payer: user, owner, mint, program };
-  } else if (config === "unneeded") {
+  if (params.config === "searcher_payer") {
+    return {
+      payer: searcher,
+      owner: params.owner,
+      mint: params.mint,
+      program: params.program,
+    };
+  } else if (params.config === "user_payer") {
+    return {
+      payer: user,
+      owner: params.owner,
+      mint: params.mint,
+      program: params.program,
+    };
+  } else if (params.config === "unneeded") {
     return undefined;
   }
 }
 
 function getTokenAccountsToCreate(
-  tokenInitializationConfigs: TokenAccountInitializationConfigs,
   {
     searcher,
     user,
@@ -338,74 +343,44 @@ function getTokenAccountsToCreate(
     mintFee: PublicKey;
     feeTokenProgram: PublicKey;
   },
+  tokenInitializationConfigs: TokenAccountInitializationConfigs,
 ): TokenAccountToCreate[] {
-  const tokenAccountsToCreate = [];
-
-  const relayerFeeReceiverAta = getTokenAccountToCreate(
-    tokenInitializationConfigs.relayerFeeReceiverAta,
+  const tokenAccountInitializationParams: TokenAccountInitializationParams[] = [
     {
-      searcher,
-      user,
-      owner: feeReceiverRelayer,
-      mint: mintFee,
-      program: feeTokenProgram,
-    },
-  );
-  if (relayerFeeReceiverAta) {
-    tokenAccountsToCreate.push(relayerFeeReceiverAta);
-  }
-
-  const expressRelayFeeReceiverAta = getTokenAccountToCreate(
-    tokenInitializationConfigs.expressRelayFeeReceiverAta,
-    {
-      searcher,
-      user,
-      owner: expressRelayMetadata,
-      mint: mintFee,
-      program: feeTokenProgram,
-    },
-  );
-  if (expressRelayFeeReceiverAta) {
-    tokenAccountsToCreate.push(expressRelayFeeReceiverAta);
-  }
-
-  const userAtaMintSearcher = getTokenAccountToCreate(
-    tokenInitializationConfigs.userAtaMintSearcher,
-    {
-      searcher,
-      user,
-      owner: user,
+      config: tokenInitializationConfigs.userAtaMintSearcher,
+      owner: searcher,
       mint: mintSearcher,
       program: tokenProgramSearcher,
     },
-  );
-  if (userAtaMintSearcher) {
-    tokenAccountsToCreate.push(userAtaMintSearcher);
-  }
-
-  const routerFeeReceiverAta = getTokenAccountToCreate(
-    tokenInitializationConfigs.routerFeeReceiverAta,
-    { searcher, user, owner: router, mint: mintFee, program: feeTokenProgram },
-  );
-  if (routerFeeReceiverAta) {
-    tokenAccountsToCreate.push(routerFeeReceiverAta);
-  }
-
-  const userAtaMintUser = getTokenAccountToCreate(
-    tokenInitializationConfigs.userAtaMintUser,
     {
-      searcher,
-      user,
+      config: tokenInitializationConfigs.userAtaMintUser,
       owner: user,
       mint: NATIVE_MINT,
       program: TOKEN_PROGRAM_ID,
     },
-  );
-  if (userAtaMintUser) {
-    tokenAccountsToCreate.push(userAtaMintUser);
-  }
+    {
+      config: tokenInitializationConfigs.routerFeeReceiverAta,
+      owner: router,
+      mint: mintFee,
+      program: feeTokenProgram,
+    },
+    {
+      config: tokenInitializationConfigs.relayerFeeReceiverAta,
+      owner: feeReceiverRelayer,
+      mint: mintFee,
+      program: feeTokenProgram,
+    },
+    {
+      config: tokenInitializationConfigs.expressRelayFeeReceiverAta,
+      owner: expressRelayMetadata,
+      mint: mintFee,
+      program: feeTokenProgram,
+    },
+  ];
 
-  return tokenAccountsToCreate;
+  return tokenAccountInitializationParams
+    .map((params) => getTokenAccountToCreate(searcher, user, params))
+    .filter((account) => account !== undefined);
 }
 
 export function getWrapSolInstructions(
@@ -465,7 +440,6 @@ export async function constructSwapBid(
   } = extractSwapInfo(swapOpportunity);
 
   const tokenAccountsToCreate = getTokenAccountsToCreate(
-    tokenInitializationConfigs,
     {
       searcher,
       user,
@@ -477,6 +451,7 @@ export async function constructSwapBid(
       mintFee,
       feeTokenProgram,
     },
+    tokenInitializationConfigs,
   );
 
   for (const account of tokenAccountsToCreate) {
