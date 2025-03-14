@@ -337,7 +337,7 @@ function getTokenAccountsToCreate(
   const tokenAccountsToCreate = [];
 
   const relayerFeeReceiverAta = getTokenAccountToCreate(
-    tokenInitializationConfigs.relayer_fee_receiver_ata,
+    tokenInitializationConfigs.relayerFeeReceiverAta,
     {
       searcher,
       user,
@@ -351,7 +351,7 @@ function getTokenAccountsToCreate(
   }
 
   const expressRelayFeeReceiverAta = getTokenAccountToCreate(
-    tokenInitializationConfigs.express_relay_fee_receiver_ata,
+    tokenInitializationConfigs.expressRelayFeeReceiverAta,
     {
       searcher,
       user,
@@ -365,7 +365,7 @@ function getTokenAccountsToCreate(
   }
 
   const userAtaMintSearcher = getTokenAccountToCreate(
-    tokenInitializationConfigs.user_ata_mint_searcher,
+    tokenInitializationConfigs.userAtaMintSearcher,
     {
       searcher,
       user,
@@ -379,7 +379,7 @@ function getTokenAccountsToCreate(
   }
 
   const routerFeeReceiverAta = getTokenAccountToCreate(
-    tokenInitializationConfigs.router_fee_receiver_ta,
+    tokenInitializationConfigs.routerFeeReceiverAta,
     { searcher, user, owner: router, mint: mintFee, program: feeTokenProgram },
   );
   if (routerFeeReceiverAta) {
@@ -387,7 +387,7 @@ function getTokenAccountsToCreate(
   }
 
   const userAtaMintUser = getTokenAccountToCreate(
-    tokenInitializationConfigs.user_ata_mint_user,
+    tokenInitializationConfigs.userAtaMintUser,
     {
       searcher,
       user,
@@ -407,10 +407,18 @@ export function getWrapSolInstructions(
   payer: PublicKey,
   owner: PublicKey,
   amount: anchor.BN,
+  createAta: boolean = true,
 ): TransactionInstruction[] {
   const instructions = [];
-  // The ata account intialization section already handles this
-  const ata = getAssociatedTokenAddress(owner, NATIVE_MINT, TOKEN_PROGRAM_ID);
+  const [ata, instruction] = createAtaIdempotentInstruction(
+    owner,
+    NATIVE_MINT,
+    payer,
+    TOKEN_PROGRAM_ID,
+  );
+  if (createAta) {
+    instructions.push(instruction);
+  }
   instructions.push(
     SystemProgram.transfer({
       fromPubkey: owner,
@@ -479,7 +487,7 @@ export async function constructSwapBid(
   if (userToken.equals(NATIVE_MINT)) {
     if (swapOpportunity.tokens.type === "searcher_specified") {
       tx.instructions.push(
-        ...getWrapSolInstructions(searcher, user, bidAmount),
+        ...getWrapSolInstructions(searcher, user, bidAmount, false), // this account creation is handled in the ata initialization section
       );
     } else {
       tx.instructions.push(
