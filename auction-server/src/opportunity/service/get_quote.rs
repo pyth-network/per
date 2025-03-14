@@ -21,7 +21,6 @@ use {
                 Service as AuctionService,
             },
         },
-        config::FeeTokenScore,
         kernel::entities::PermissionKeySvm,
         opportunity::{
             api::INDICATIVE_PRICE_TAKER,
@@ -127,25 +126,23 @@ pub fn get_quote_virtual_permission_account(
     Pubkey::find_program_address(&seeds, &Pubkey::default()).0
 }
 
-/// Determines if the fee token should be the user token or the searcher token based on the fee token scores.
-/// If the user token has a higher score than the searcher token, the fee token will be the user token, and vice versa.
-/// In case of ties, the fee token is set to the user token to simplify the logic for searchers.
+/// Determines if the fee token should be the user token or the searcher token.
+/// If the user token is explicitly tiered higher than the searcher token, the fee token will be the user token, and vice versa.
+/// If neither token tier has been specified, the fee token is set to the user token to simplify the logic for searchers.
 fn get_fee_token(
     user_mint: Pubkey,
     searcher_mint: Pubkey,
-    fee_token_scores: &[FeeTokenScore],
+    ordered_fee_tokens: &[Pubkey],
 ) -> entities::FeeToken {
-    let user_token_score = fee_token_scores
+    let user_token_tier = ordered_fee_tokens
         .iter()
-        .find(|entry: &&FeeTokenScore| entry.pubkey == user_mint)
-        .map(|entry| entry.score)
-        .unwrap_or_default();
-    let searcher_token_score = fee_token_scores
+        .position(|&x| x == user_mint)
+        .unwrap_or(u64::MAX as usize);
+    let searcher_token_tier = ordered_fee_tokens
         .iter()
-        .find(|entry| entry.pubkey == searcher_mint)
-        .map(|entry| entry.score)
-        .unwrap_or_default();
-    if user_token_score >= searcher_token_score {
+        .position(|&x| x == searcher_mint)
+        .unwrap_or(u64::MAX as usize);
+    if user_token_tier <= searcher_token_tier {
         entities::FeeToken::UserToken
     } else {
         entities::FeeToken::SearcherToken
@@ -180,7 +177,7 @@ impl Service<ChainTypeSvm> {
             } => (user_token, searcher_token.token),
         };
         let config = self.get_config(&quote_create.chain_id)?;
-        let fee_token = get_fee_token(mint_user, mint_searcher, &config.fee_token_scores);
+        let fee_token = get_fee_token(mint_user, mint_searcher, &config.ordered_fee_tokens);
         let (searcher_amount, user_amount) = match (quote_create.tokens.clone(), fee_token.clone())
         {
             (

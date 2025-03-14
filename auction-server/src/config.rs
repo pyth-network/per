@@ -151,14 +151,6 @@ fn default_rpc_timeout_svm() -> u64 {
 
 #[serde_as]
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct FeeTokenScore {
-    #[serde_as(as = "DisplayFromStr")]
-    pub pubkey: Pubkey,
-    pub score:  u64,
-}
-
-#[serde_as]
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ConfigSvm {
     /// Id of the express relay program.
     #[serde_as(as = "DisplayFromStr")]
@@ -180,7 +172,7 @@ pub struct ConfigSvm {
     /// List of accepted token programs for the swap instruction.
     #[serde_as(as = "Vec<DisplayFromStr>")]
     pub accepted_token_programs:       Vec<Pubkey>,
-    /// Scoring for fee tokens
+    /// Ordered list of fee tokens, with first being the most preferred.
     #[serde(default)]
-    pub fee_token_scores:              Vec<FeeTokenScore>,
+    pub ordered_fee_tokens:            Vec<Pubkey>,
 }

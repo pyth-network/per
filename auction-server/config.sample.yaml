@@ -19,10 +19,7 @@ chains:
     accepted_token_programs:
       - TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
       - TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
-    fee_token_scores: # higher scores mean higher preference for using the token for fees
-      - pubkey: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-        score: 100
-      - pubkey: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
-        score: 50
-      - pubkey: So11111111111111111111111111111111111111112
-        score: 1
+    ordered_fee_tokens:
+      - EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+      - Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+      - So11111111111111111111111111111111111111112

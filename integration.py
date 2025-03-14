@@ -55,13 +55,10 @@ chains:
     accepted_token_programs:
       - TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
       - TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
-    fee_token_scores:
-      - pubkey: {str(mint_buy.pubkey())}
-        score: 1
-      - pubkey: {str(mint_sell.pubkey())}
-        score: 1
-      - pubkey: So11111111111111111111111111111111111111112
-        score: 2
+    ordered_fee_tokens:
+      - {str(mint_buy.pubkey())}
+      - {str(mint_sell.pubkey())}
+      - So11111111111111111111111111111111111111112
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)
