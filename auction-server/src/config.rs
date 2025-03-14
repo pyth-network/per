@@ -173,6 +173,6 @@ pub struct ConfigSvm {
     #[serde_as(as = "Vec<DisplayFromStr>")]
     pub accepted_token_programs:       Vec<Pubkey>,
     /// Ordered list of fee tokens, with first being the most preferred.
-    #[serde(default)]
+    #[serde_as(as = "Vec<DisplayFromStr>")]
     pub ordered_fee_tokens:            Vec<Pubkey>,
 }
