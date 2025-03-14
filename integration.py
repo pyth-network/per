@@ -31,8 +31,6 @@ def main():
             f.write(f'export {v}={latest_env[k]}\n')
         f.write('export SECRET_KEY=admin\n')
         f.write(f'export PRIVATE_KEY_SVM={str(relayer_key_svm)}\n')
-    mint_buy = Keypair.from_json(open('keypairs/mint_buy.json').read())
-    mint_sell = Keypair.from_json(open('keypairs/mint_sell.json').read())
     # config_template
     # Added two rpc_tx_submission_urls for test
     template = f'''
@@ -55,10 +53,7 @@ chains:
     accepted_token_programs:
       - TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
       - TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
-    ordered_fee_tokens:
-      - {str(mint_buy.pubkey())}
-      - {str(mint_sell.pubkey())}
-      - So11111111111111111111111111111111111111112
+    ordered_fee_tokens: []
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)

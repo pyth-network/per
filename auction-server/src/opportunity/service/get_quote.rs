@@ -137,11 +137,11 @@ fn get_fee_token(
     let user_token_tier = ordered_fee_tokens
         .iter()
         .position(|&x| x == user_mint)
-        .unwrap_or(u64::MAX as usize);
+        .unwrap_or(usize::MAX);
     let searcher_token_tier = ordered_fee_tokens
         .iter()
         .position(|&x| x == searcher_mint)
-        .unwrap_or(u64::MAX as usize);
+        .unwrap_or(usize::MAX);
     if user_token_tier <= searcher_token_tier {
         entities::FeeToken::UserToken
     } else {
