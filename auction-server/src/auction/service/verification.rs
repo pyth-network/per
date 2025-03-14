@@ -1042,7 +1042,7 @@ impl Service<Svm> {
             ));
         }
 
-        let (user_unwrap_sol_instructions, other_unwrap_sol_instructions): (
+        let (user_unwrap_sol_instructions, searcher_unwrap_sol_instructions): (
             Vec<CloseAccountInstructionData>,
             Vec<CloseAccountInstructionData>,
         ) = close_account_instructions
@@ -1100,8 +1100,8 @@ impl Service<Svm> {
 
             // Searcher may want to unwrap Sol
             // We dont care about destination and owner in this case
-            if other_unwrap_sol_instructions.len() == 1 {
-                let close_account_instruction = other_unwrap_sol_instructions[0].clone();
+            if searcher_unwrap_sol_instructions.len() == 1 {
+                let close_account_instruction = searcher_unwrap_sol_instructions[0].clone();
                 let ata = get_associated_token_address(
                     &swap_accounts.searcher,
                     &spl_token::native_mint::id(),
@@ -1117,7 +1117,7 @@ impl Service<Svm> {
                 }
             }
         } else if !user_unwrap_sol_instructions.is_empty()
-            || !other_unwrap_sol_instructions.is_empty()
+            || !searcher_unwrap_sol_instructions.is_empty()
         {
             return Err(RestError::InvalidInstruction(
                 None,
