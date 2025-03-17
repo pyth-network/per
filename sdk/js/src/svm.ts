@@ -302,23 +302,15 @@ function getTokenAccountToCreate(
   user: PublicKey,
   params: TokenAccountInitializationParams,
 ): TokenAccountToCreate | undefined {
-  if (params.config === "searcher_payer") {
-    return {
-      payer: searcher,
-      owner: params.owner,
-      mint: params.mint,
-      program: params.program,
-    };
-  } else if (params.config === "user_payer") {
-    return {
-      payer: user,
-      owner: params.owner,
-      mint: params.mint,
-      program: params.program,
-    };
-  } else if (params.config === "unneeded") {
+  if (params.config === "unneeded") {
     return undefined;
   }
+  return {
+    payer: params.config === "searcher_payer" ? searcher : user,
+    owner: params.owner,
+    mint: params.mint,
+    program: params.program,
+  };
 }
 
 function getTokenAccountsToCreate(

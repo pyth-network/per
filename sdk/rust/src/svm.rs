@@ -234,21 +234,20 @@ impl Svm {
             mint,
             program,
         } = params;
-        match config {
-            TokenAccountInitializationConfig::SearcherPayer => Some(TokenAccountToCreate {
-                payer: searcher,
-                owner,
-                mint,
-                program,
-            }),
-            TokenAccountInitializationConfig::UserPayer => Some(TokenAccountToCreate {
-                payer: user,
-                owner,
-                mint,
-                program,
-            }),
-            TokenAccountInitializationConfig::Unneeded => None,
+
+        if config == TokenAccountInitializationConfig::Unneeded {
+            return None;
         }
+        Some(TokenAccountToCreate {
+            payer: if config == TokenAccountInitializationConfig::SearcherPayer {
+                searcher
+            } else {
+                user
+            },
+            owner,
+            mint,
+            program,
+        })
     }
 
     fn get_token_accounts_to_create(

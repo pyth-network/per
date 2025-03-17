@@ -587,22 +587,14 @@ class ExpressRelayClient:
         user: Pubkey,
         params: TokenAccountInitializationParams,
     ) -> TokenAccountToCreate | None:
-        if params["config"] == "searcher_payer":
-            return {
-                "payer": searcher,
-                "owner": params["owner"],
-                "mint": params["mint"],
-                "program": params["program"],
-            }
-        elif params["config"] == "user_payer":
-            return {
-                "payer": user,
-                "owner": params["owner"],
-                "mint": params["mint"],
-                "program": params["program"],
-            }
-        else:
+        if params["config"] == "unneeded":
             return None
+        return {
+            "payer": searcher if params["config"] == "searcher_payer" else user,
+            "owner": params["owner"],
+            "mint": params["mint"],
+            "program": params["program"],
+        }
 
     @staticmethod
     def get_token_accounts_to_create(
