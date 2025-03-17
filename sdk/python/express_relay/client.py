@@ -599,45 +599,41 @@ class ExpressRelayClient:
     @staticmethod
     def get_token_accounts_to_create(
         searcher: Pubkey,
-        user: Pubkey,
-        router: Pubkey,
+        swap_opportunity: SwapOpportunitySvm,
         fee_receiver_relayer: Pubkey,
         express_relay_metadata: Pubkey,
-        mint_searcher: Pubkey,
-        token_program_searcher: Pubkey,
-        mint_fee: Pubkey,
-        fee_token_program: Pubkey,
         configs: TokenAccountInitializationConfigs,
     ) -> List[TokenAccountToCreate]:
+        accs = ExpressRelayClient.extract_swap_info(swap_opportunity)
         token_accounts_initialization_params: List[TokenAccountInitializationParams] = [
             TokenAccountInitializationParams(
-                owner=user,
-                mint=mint_searcher,
-                program=token_program_searcher,
+                owner=accs["user"],
+                mint=accs["searcher_token"],
+                program=accs["token_program_searcher"],
                 config=configs.user_ata_mint_searcher,
             ),
             TokenAccountInitializationParams(
-                owner=user,
+                owner=accs["user"],
                 mint=WRAPPED_SOL_MINT,
                 program=TOKEN_PROGRAM_ID,
                 config=configs.user_ata_mint_user,
             ),
             TokenAccountInitializationParams(
-                owner=router,
-                mint=mint_fee,
-                program=fee_token_program,
+                owner=accs["router"],
+                mint=accs["mint_fee"],
+                program=accs["fee_token_program"],
                 config=configs.router_fee_receiver_ta,
             ),
             TokenAccountInitializationParams(
                 owner=fee_receiver_relayer,
-                mint=mint_fee,
-                program=fee_token_program,
+                mint=accs["mint_fee"],
+                program=accs["fee_token_program"],
                 config=configs.relayer_fee_receiver_ata,
             ),
             TokenAccountInitializationParams(
                 owner=express_relay_metadata,
-                mint=mint_fee,
-                program=fee_token_program,
+                mint=accs["mint_fee"],
+                program=accs["fee_token_program"],
                 config=configs.express_relay_fee_receiver_ata,
             ),
         ]
@@ -647,7 +643,7 @@ class ExpressRelayClient:
                 lambda x: x is not None,
                 [
                     ExpressRelayClient.get_token_account_to_create(
-                        searcher=searcher, user=user, params=params
+                        searcher=searcher, user=accs["user"], params=params
                     )
                     for params in token_accounts_initialization_params
                 ],
@@ -726,14 +722,9 @@ class ExpressRelayClient:
 
         token_accounts_to_create = ExpressRelayClient.get_token_accounts_to_create(
             searcher=searcher,
-            user=accs["user"],
-            router=accs["router"],
+            swap_opportunity=swap_opportunity,
             fee_receiver_relayer=fee_receiver_relayer,
             express_relay_metadata=express_relay_metadata,
-            mint_searcher=accs["searcher_token"],
-            token_program_searcher=accs["token_program_searcher"],
-            mint_fee=accs["mint_fee"],
-            fee_token_program=accs["fee_token_program"],
             configs=swap_opportunity.token_account_initialization_configs,
         )
 
