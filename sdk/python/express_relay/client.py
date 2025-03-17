@@ -792,7 +792,10 @@ class ExpressRelayClient:
             svm_config["express_relay_program"],
         )
         instructions.append(swap_ix)
-        if accs["searcher_token"] == WRAPPED_SOL_MINT:
+        if (
+            accs["searcher_token"] == WRAPPED_SOL_MINT
+            or accs["user_token"] == WRAPPED_SOL_MINT
+        ):
             instructions.append(unwrap_sol(accs["user"]))
         return instructions
 

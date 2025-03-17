@@ -1030,88 +1030,105 @@ impl Service<Svm> {
         Ok(result)
     }
 
+
     fn check_close_account_instruction(
         tx: &VersionedTransaction,
         swap_accounts: &SwapAccounts,
     ) -> Result<(), RestError> {
         let close_account_instructions = Self::extract_close_account_instructions(tx)?;
-        if close_account_instructions.len() > 1 {
+
+        let user_ata =
+            get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
+
+        let searcher_ata =
+            get_associated_token_address(&swap_accounts.searcher, &spl_token::native_mint::id());
+
+        let (mut user_unwrap_sol_instructions, other_unwrap_sol_instructions): (
+            Vec<CloseAccountInstructionData>,
+            Vec<CloseAccountInstructionData>,
+        ) = close_account_instructions
+            .into_iter()
+            .partition(|instruction| instruction.account == user_ata);
+
+        let (searcher_unwrap_sol_instructions, mut other_unwrap_sol_instructions): (
+            Vec<CloseAccountInstructionData>,
+            Vec<CloseAccountInstructionData>,
+        ) = other_unwrap_sol_instructions
+            .into_iter()
+            .partition(|instruction| instruction.account == searcher_ata);
+
+        if let Some(close_account_instruction) = other_unwrap_sol_instructions.pop() {
             return Err(RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidCloseAccountInstructionsCount,
+                InstructionError::InvalidAccountToCloseCloseAccountInstruction(
+                    close_account_instruction.account,
+                ),
             ));
         }
 
         // User has to unwrap Sol
-        if swap_accounts.mint_searcher == spl_token::native_mint::id() {
-            if close_account_instructions.len() != 1 {
-                return Err(RestError::InvalidInstruction(
-                    None,
-                    InstructionError::InvalidCloseAccountInstructionsCount,
-                ));
-            }
-            let close_account_instruction = close_account_instructions[0].clone();
-            let ata = get_associated_token_address(
-                &swap_accounts.user_wallet,
-                &spl_token::native_mint::id(),
-            );
-            if close_account_instruction.account != ata {
-                return Err(RestError::InvalidInstruction(
-                    None,
-                    InstructionError::InvalidAccountToCloseCloseAccountInstruction {
-                        expected: ata,
-                        found:    close_account_instruction.account,
-                    },
-                ));
-            }
-            if close_account_instruction.destination != swap_accounts.user_wallet {
-                return Err(RestError::InvalidInstruction(
-                    None,
-                    InstructionError::InvalidDestinationCloseAccountInstruction {
-                        expected: swap_accounts.user_wallet,
-                        found:    close_account_instruction.destination,
-                    },
-                ));
-            }
-            if close_account_instruction.owner != swap_accounts.user_wallet {
-                return Err(RestError::InvalidInstruction(
-                    None,
-                    InstructionError::InvalidOwnerCloseAccountInstruction {
-                        expected: swap_accounts.user_wallet,
-                        found:    close_account_instruction.owner,
-                    },
-                ));
-            }
-        }
-        // Searcher may want to unwrap Sol
-        // We dont care about destination and owner in this case
-        else if swap_accounts.mint_user == spl_token::native_mint::id()
-            && close_account_instructions.len() == 1
+        if swap_accounts.mint_searcher == spl_token::native_mint::id()
+            || swap_accounts.mint_user == spl_token::native_mint::id()
         {
-            let close_account_instruction = close_account_instructions[0].clone();
-            let ata = get_associated_token_address(
-                &swap_accounts.searcher,
-                &spl_token::native_mint::id(),
-            );
-            if close_account_instruction.account != ata {
+            if let Some(close_account_instruction) = user_unwrap_sol_instructions.pop() {
+                if close_account_instruction.destination != swap_accounts.user_wallet {
+                    return Err(RestError::InvalidInstruction(
+                        None,
+                        InstructionError::InvalidDestinationCloseAccountInstruction {
+                            expected: swap_accounts.user_wallet,
+                            found:    close_account_instruction.destination,
+                        },
+                    ));
+                }
+                if close_account_instruction.owner != swap_accounts.user_wallet {
+                    return Err(RestError::InvalidInstruction(
+                        None,
+                        InstructionError::InvalidOwnerCloseAccountInstruction {
+                            expected: swap_accounts.user_wallet,
+                            found:    close_account_instruction.owner,
+                        },
+                    ));
+                }
+            } else if swap_accounts.mint_user != spl_token::native_mint::id()
+            // for backward compatibility we allow not closing the users account when the user token is wsol, we can remove this if statement once searchers have updated their sdk
+            {
                 return Err(RestError::InvalidInstruction(
                     None,
-                    InstructionError::InvalidAccountToCloseCloseAccountInstruction {
-                        expected: ata,
-                        found:    close_account_instruction.account,
-                    },
+                    InstructionError::InvalidCloseAccountInstructionCountUser(0),
                 ));
             }
-        }
-        // No close account instruction is allowed
-        else if !close_account_instructions.is_empty() {
+
+
+            if !user_unwrap_sol_instructions.is_empty() {
+                return Err(RestError::InvalidInstruction(
+                    None,
+                    InstructionError::InvalidCloseAccountInstructionCountUser(
+                        1 + user_unwrap_sol_instructions.len(),
+                    ),
+                ));
+            }
+
+            // Searcher may want to unwrap but at most once
+            if searcher_unwrap_sol_instructions.len() > 1 {
+                return Err(RestError::InvalidInstruction(
+                    None,
+                    InstructionError::InvalidCloseAccountInstructionCountSearcher(
+                        searcher_unwrap_sol_instructions.len(),
+                    ),
+                ));
+            }
+        } else if !user_unwrap_sol_instructions.is_empty()
+            || !searcher_unwrap_sol_instructions.is_empty()
+        {
             return Err(RestError::InvalidInstruction(
                 None,
                 InstructionError::CloseAccountInstructionNotAllowed,
             ));
         }
+
         Ok(())
     }
+
 
     fn check_wrap_unwrap_native_token_instructions(
         &self,
@@ -2794,9 +2811,11 @@ mod tests {
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
+        let searcher_ata =
+            get_associated_token_address(&searcher.pubkey(), &spl_token::native_mint::id());
         let close_account_instruction = spl_token::instruction::close_account(
             &spl_token::id(),
-            &searcher.pubkey(),
+            &searcher_ata,
             &searcher.pubkey(),
             &searcher.pubkey(),
             &[],
@@ -3148,6 +3167,85 @@ mod tests {
         assert_eq!(result.1, bid_amount);
     }
 
+
+    #[tokio::test]
+    async fn test_verify_bid_user_wsol_with_close_account_instruction() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities[2].clone(); // User token wsol
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let ata = &get_associated_token_address(
+            &program.user_wallet_address,
+            &spl_token::native_mint::id(),
+        );
+        let transfer_instruction = system_instruction::transfer(
+            &program.user_wallet_address,
+            &get_associated_token_address(
+                &program.user_wallet_address,
+                &spl_token::native_mint::id(),
+            ),
+            opportunity.buy_tokens[0].amount,
+        );
+        let sync_native_instruction =
+            spl_token::instruction::sync_native(&spl_token::id(), ata).unwrap();
+        let close_account_instruction = spl_token::instruction::close_account(
+            &spl_token::id(),
+            ata,
+            &program.user_wallet_address,
+            &program.user_wallet_address,
+            &[],
+        )
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                transfer_instruction,
+                sync_native_instruction,
+                swap_instruction,
+                close_account_instruction,
+            ],
+            Some(&searcher.pubkey()),
+        );
+        transaction.partial_sign(&[searcher], Hash::default());
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunity.core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await
+            .unwrap();
+        let swap_params = get_opportunity_swap_params(opportunity);
+        assert_eq!(
+            result.0,
+            BidChainDataSvm {
+                transaction:                  transaction.into(),
+                permission_account:           swap_params.permission_account,
+                router:                       swap_params.router_account,
+                bid_payment_instruction_type: BidPaymentInstructionType::Swap,
+            }
+        );
+        assert_eq!(result.1, bid_amount);
+    }
+
     #[tokio::test]
     async fn test_verify_bid_when_multiple_close_account_instructions() {
         let (service, opportunities) = get_service(false);
@@ -3194,7 +3292,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidCloseAccountInstructionsCount,
+                InstructionError::InvalidCloseAccountInstructionCountUser(2),
             )
         );
     }
@@ -3221,7 +3319,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidCloseAccountInstructionsCount,
+                InstructionError::InvalidCloseAccountInstructionCountUser(0),
             )
         );
     }
@@ -3245,10 +3343,6 @@ mod tests {
             OpportunitySvmProgram::Swap(program) => program,
             _ => panic!("Expected swap program"),
         };
-        let expected = &get_associated_token_address(
-            &program.user_wallet_address,
-            &spl_token::native_mint::id(),
-        );
         let found = searcher.pubkey();
         let close_account_instruction = spl_token::instruction::close_account(
             &spl_token::id(),
@@ -3269,10 +3363,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidAccountToCloseCloseAccountInstruction {
-                    expected: *expected,
-                    found
-                }
+                InstructionError::InvalidAccountToCloseCloseAccountInstruction(found)
             )
         );
     }
@@ -3870,8 +3961,6 @@ mod tests {
             spl_token::instruction::sync_native(&spl_token::id(), ata).unwrap();
         let found =
             get_associated_token_address(&Pubkey::new_unique(), &spl_token::native_mint::id());
-        let expected =
-            get_associated_token_address(&searcher.pubkey(), &spl_token::native_mint::id());
         let searcher_close_account_instruction = spl_token::instruction::close_account(
             &spl_token::id(),
             &found,
@@ -3896,7 +3985,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidAccountToCloseCloseAccountInstruction { expected, found }
+                InstructionError::InvalidAccountToCloseCloseAccountInstruction(found)
             )
         );
     }
