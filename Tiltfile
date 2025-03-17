@@ -126,7 +126,7 @@ local_resource(
 )
 
 # setup limo global config and vaults for buy and sell tokens
-RUN_CLI= "ADMIN=../../keypairs/admin.json RPC_ENV=localnet npm exec limo-cli --"
+RUN_CLI= "ADMIN=../../keypairs/admin.json RPC_ENV=localnet pnpm exec limo-cli"
 SET_GLOBAL_CONFIG = "LIMO_GLOBAL_CONFIG=$(solana-keygen pubkey ../../keypairs/limo_global_config.json)"
 MINT_SELL= "$(solana-keygen pubkey %s/keypairs/mint_sell.json)" % config.main_dir
 MINT_BUY= "$(solana-keygen pubkey %s/keypairs/mint_buy.json)" % config.main_dir

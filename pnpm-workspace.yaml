@@ -9,11 +9,12 @@ packages:
   - "scripts/swap-beacon"
   - "apps/swap"
   - "scripts/rfq-stress-test"
+  - "contracts/svm"
 
 catalog:
   "typescript": 5.5.4
   "@coral-xyz/anchor": 0.31.0
-  "@kamino-finance/limo-sdk": 0.7.1
+  "@kamino-finance/limo-sdk": 1.0.8
   "@solana/web3.js": 1.95.3
   "@solana/spl-token": 0.4.9
   "viem": 2.16.2
