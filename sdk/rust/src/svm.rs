@@ -111,10 +111,10 @@ pub struct TokenAccountToCreate {
 }
 
 pub struct TokenAccountInitializationParams {
-    pub config:  TokenAccountInitializationConfig,
     pub owner:   Pubkey,
     pub mint:    Pubkey,
     pub program: Pubkey,
+    pub config:  TokenAccountInitializationConfig,
 }
 
 pub struct GetSwapInstructionParams {

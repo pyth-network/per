@@ -146,7 +146,7 @@ export type TokenAccountInitializationConfig =
   components["schemas"]["TokenAccountInitializationConfig"];
 
 export type TokenAccountInitializationConfigs = Record<
-  // | "expressRelayFeeReceiverAta"
+  | "expressRelayFeeReceiverAta"
   | "relayerFeeReceiverAta"
   | "routerFeeReceiverAta"
   | "userAtaMintSearcher"
