@@ -314,29 +314,22 @@ function getTokenAccountToCreate(
 }
 
 function getTokenAccountsToCreate(
-  {
-    searcher,
-    user,
-    router,
-    feeReceiverRelayer,
-    expressRelayMetadata,
-    mintSearcher,
-    tokenProgramSearcher,
-    mintFee,
-    feeTokenProgram,
-  }: {
-    searcher: PublicKey;
-    user: PublicKey;
-    router: PublicKey;
-    feeReceiverRelayer: PublicKey;
-    expressRelayMetadata: PublicKey;
-    mintSearcher: PublicKey;
-    tokenProgramSearcher: PublicKey;
-    mintFee: PublicKey;
-    feeTokenProgram: PublicKey;
-  },
+  searcher: PublicKey,
+  swapOpportunity: OpportunitySvmSwap,
+  feeReceiverRelayer: PublicKey,
   tokenInitializationConfigs: TokenAccountInitializationConfigs,
 ): TokenAccountToCreate[] {
+  const expressRelayMetadata = getExpressRelayMetadataPda(
+    swapOpportunity.chainId,
+  );
+  const {
+    user,
+    router,
+    mintFee,
+    feeTokenProgram,
+    tokenProgramSearcher,
+    searcherToken: mintSearcher,
+  } = extractSwapInfo(swapOpportunity);
   const tokenAccountInitializationParams: TokenAccountInitializationParams[] = [
     {
       config: tokenInitializationConfigs.userAtaMintSearcher,
@@ -419,30 +412,13 @@ export async function constructSwapBid(
   feeReceiverRelayer: PublicKey,
   relayerSigner: PublicKey,
 ): Promise<BidSvmSwap> {
-  const expressRelayMetadata = getExpressRelayMetadataPda(chainId);
-  const {
-    tokenProgramSearcher,
-    userToken,
-    searcherToken,
-    user,
-    mintFee,
-    feeTokenProgram,
-    router,
-    tokenInitializationConfigs,
-  } = extractSwapInfo(swapOpportunity);
+  const { userToken, searcherToken, user, tokenInitializationConfigs } =
+    extractSwapInfo(swapOpportunity);
 
   const tokenAccountsToCreate = getTokenAccountsToCreate(
-    {
-      searcher,
-      user,
-      router,
-      feeReceiverRelayer,
-      expressRelayMetadata,
-      mintSearcher: searcherToken,
-      tokenProgramSearcher,
-      mintFee,
-      feeTokenProgram,
-    },
+    searcher,
+    swapOpportunity,
+    feeReceiverRelayer,
     tokenInitializationConfigs,
   );
 
