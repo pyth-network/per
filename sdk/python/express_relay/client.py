@@ -43,7 +43,12 @@ from express_relay.models.evm import (
     OpportunityEvm,
     TokenAmount,
 )
-from express_relay.models.svm import SvmChainUpdate, SwapOpportunitySvm
+from express_relay.models.svm import (
+    SvmChainUpdate,
+    SwapOpportunitySvm,
+    TokenAccountInitializationConfig,
+    TokenAccountInitializationConfigs,
+)
 from express_relay.svm.generated.express_relay.instructions.submit_bid import submit_bid
 from express_relay.svm.generated.express_relay.instructions.swap import swap
 from express_relay.svm.generated.express_relay.program_id import (
@@ -64,7 +69,7 @@ from hexbytes import HexBytes
 from solders.instruction import Instruction
 from solders.pubkey import Pubkey
 from solders.sysvar import INSTRUCTIONS
-from spl.token.constants import WRAPPED_SOL_MINT
+from spl.token.constants import TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT
 from websockets.client import WebSocketClientProtocol
 
 
@@ -126,6 +131,20 @@ class SwapAccounts(TypedDict):
 
 
 FEE_SPLIT_PRECISION = 10000
+
+
+class TokenAccountToCreate(TypedDict):
+    payer: Pubkey
+    owner: Pubkey
+    mint: Pubkey
+    program: Pubkey
+
+
+class TokenAccountInitializationParams(TypedDict):
+    owner: Pubkey
+    mint: Pubkey
+    program: Pubkey
+    config: TokenAccountInitializationConfig
 
 
 class ExpressRelayClient:
@@ -563,6 +582,75 @@ class ExpressRelayClient:
         return submit_bid_ix
 
     @staticmethod
+    def get_token_account_to_create(
+        searcher: Pubkey,
+        user: Pubkey,
+        params: TokenAccountInitializationParams,
+    ) -> TokenAccountToCreate | None:
+        if params["config"] == "unneeded":
+            return None
+        return {
+            "payer": searcher if params["config"] == "searcher_payer" else user,
+            "owner": params["owner"],
+            "mint": params["mint"],
+            "program": params["program"],
+        }
+
+    @staticmethod
+    def get_token_accounts_to_create(
+        searcher: Pubkey,
+        swap_opportunity: SwapOpportunitySvm,
+        fee_receiver_relayer: Pubkey,
+        express_relay_metadata: Pubkey,
+        configs: TokenAccountInitializationConfigs,
+    ) -> List[TokenAccountToCreate]:
+        accs = ExpressRelayClient.extract_swap_info(swap_opportunity)
+        token_accounts_initialization_params: List[TokenAccountInitializationParams] = [
+            TokenAccountInitializationParams(
+                owner=accs["user"],
+                mint=accs["searcher_token"],
+                program=accs["token_program_searcher"],
+                config=configs.user_ata_mint_searcher,
+            ),
+            TokenAccountInitializationParams(
+                owner=accs["user"],
+                mint=WRAPPED_SOL_MINT,
+                program=TOKEN_PROGRAM_ID,
+                config=configs.user_ata_mint_user,
+            ),
+            TokenAccountInitializationParams(
+                owner=accs["router"],
+                mint=accs["mint_fee"],
+                program=accs["fee_token_program"],
+                config=configs.router_fee_receiver_ta,
+            ),
+            TokenAccountInitializationParams(
+                owner=fee_receiver_relayer,
+                mint=accs["mint_fee"],
+                program=accs["fee_token_program"],
+                config=configs.relayer_fee_receiver_ata,
+            ),
+            TokenAccountInitializationParams(
+                owner=express_relay_metadata,
+                mint=accs["mint_fee"],
+                program=accs["fee_token_program"],
+                config=configs.express_relay_fee_receiver_ata,
+            ),
+        ]
+
+        return list(
+            filter(
+                lambda x: x is not None,
+                [
+                    ExpressRelayClient.get_token_account_to_create(
+                        searcher=searcher, user=accs["user"], params=params
+                    )
+                    for params in token_accounts_initialization_params
+                ],
+            )
+        )
+
+    @staticmethod
     def extract_swap_info(swap_opportunity: SwapOpportunitySvm) -> SwapAccounts:
         token_program_searcher = swap_opportunity.tokens.token_program_searcher
         token_program_user = swap_opportunity.tokens.token_program_user
@@ -632,36 +720,18 @@ class ExpressRelayClient:
 
         instructions: List[Instruction] = []
 
-        token_accounts_to_create = [
-            {
-                "owner": fee_receiver_relayer,
-                "mint": accs["mint_fee"],
-                "program": accs["fee_token_program"],
-            },
-            {
-                "owner": express_relay_metadata,
-                "mint": accs["mint_fee"],
-                "program": accs["fee_token_program"],
-            },
-            {
-                "owner": accs["user"],
-                "mint": accs["searcher_token"],
-                "program": accs["token_program_searcher"],
-            },
-        ]
-        if swap_opportunity.referral_fee_bps > 0:
-            token_accounts_to_create.append(
-                {
-                    "owner": accs["router"],
-                    "mint": accs["mint_fee"],
-                    "program": accs["fee_token_program"],
-                }
-            )
+        token_accounts_to_create = ExpressRelayClient.get_token_accounts_to_create(
+            searcher=searcher,
+            swap_opportunity=swap_opportunity,
+            fee_receiver_relayer=fee_receiver_relayer,
+            express_relay_metadata=express_relay_metadata,
+            configs=swap_opportunity.token_account_initialization_configs,
+        )
 
         for token_account in token_accounts_to_create:
             instructions.append(
                 create_associated_token_account_idempotent(
-                    payer=searcher,
+                    payer=token_account["payer"],
                     owner=token_account["owner"],
                     mint=token_account["mint"],
                     token_program_id=token_account["program"],
@@ -669,7 +739,9 @@ class ExpressRelayClient:
             )
 
         if accs["user_token"] == WRAPPED_SOL_MINT:
-            instructions.extend(wrap_sol(searcher, accs["user"], amount_user))
+            instructions.extend(
+                wrap_sol(searcher, accs["user"], amount_user, create_ata=False)
+            )
         swap_ix = swap(
             {
                 "data": SwapArgs(

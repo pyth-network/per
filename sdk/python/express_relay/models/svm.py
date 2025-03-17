@@ -335,6 +335,17 @@ class SwapTokensUserSpecified(SwapTokensBase):
     user_amount_including_fees: int
 
 
+TokenAccountInitializationConfig = Literal["searcher_payer", "user_payer", "unneeded"]
+
+
+class TokenAccountInitializationConfigs(BaseModel):
+    express_relay_fee_receiver_ata: TokenAccountInitializationConfig
+    relayer_fee_receiver_ata: TokenAccountInitializationConfig
+    router_fee_receiver_ta: TokenAccountInitializationConfig
+    user_ata_mint_searcher: TokenAccountInitializationConfig
+    user_ata_mint_user: TokenAccountInitializationConfig
+
+
 class SwapOpportunitySvm(BaseOpportunitySvm):
     """
     Attributes:
@@ -350,6 +361,7 @@ class SwapOpportunitySvm(BaseOpportunitySvm):
     router_account: SvmAddress
     user_wallet_address: SvmAddress
     tokens: SwapTokensSearcherSpecified | SwapTokensUserSpecified
+    token_account_initialization_configs: TokenAccountInitializationConfigs
 
 
 OpportunitySvm = SwapOpportunitySvm | LimoOpportunitySvm

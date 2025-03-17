@@ -781,6 +781,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                 fee_token,
                 router_account,
                 referral_fee_bps,
+                token_account_initialization_configs,
                 ..
             } => {
                 let _ = match params.program_params {
@@ -809,7 +810,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                 let mut instructions = params.instructions;
                 instructions.extend(svm::Svm::get_swap_create_accounts_idempotent_instructions(
                     svm::GetSwapCreateAccountsIdempotentInstructionsParams {
-                        payer: params.payer,
+                        searcher: params.searcher,
                         user: user_wallet_address,
                         searcher_token,
                         token_program_searcher: tokens.token_program_searcher,
@@ -819,14 +820,16 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         fee_receiver_relayer: params.fee_receiver_relayer,
                         referral_fee_bps,
                         chain_id: opportunity_params.chain_id.clone(),
+                        configs: token_account_initialization_configs,
                     },
                 ));
                 if user_token == native_mint::id() {
                     instructions.extend(svm::Svm::get_wrap_sol_instructions(
                         svm::GetWrapSolInstructionsParams {
-                            payer:  params.payer,
-                            owner:  user_wallet_address,
-                            amount: user_amount_including_fees,
+                            payer:      params.payer,
+                            owner:      user_wallet_address,
+                            amount:     user_amount_including_fees,
+                            create_ata: false,
                         },
                     )?);
                 }

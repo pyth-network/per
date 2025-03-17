@@ -141,6 +141,19 @@ export type SvmSwapTokens = (
   searcherToken: PublicKey;
   userToken: PublicKey;
 };
+
+export type TokenAccountInitializationConfig =
+  components["schemas"]["TokenAccountInitializationConfig"];
+
+export type TokenAccountInitializationConfigs = Record<
+  | "expressRelayFeeReceiverAta"
+  | "relayerFeeReceiverAta"
+  | "routerFeeReceiverAta"
+  | "userAtaMintSearcher"
+  | "userAtaMintUser",
+  TokenAccountInitializationConfig
+>;
+
 export type OpportunitySvmSwap = {
   permissionAccount: PublicKey;
   routerAccount: PublicKey;
@@ -150,6 +163,7 @@ export type OpportunitySvmSwap = {
   platformFeeBps: number;
   tokens: SvmSwapTokens;
   program: "swap";
+  tokenInitializationConfigs: TokenAccountInitializationConfigs;
 } & OpportunitySvmMetadata;
 
 export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;

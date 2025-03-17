@@ -709,6 +709,22 @@ export class Client {
         routerAccount: new PublicKey(opportunity.router_account),
         userWalletAddress: new PublicKey(opportunity.user_wallet_address),
         tokens,
+        tokenInitializationConfigs: {
+          expressRelayFeeReceiverAta:
+            opportunity.token_account_initialization_configs
+              .express_relay_fee_receiver_ata,
+          relayerFeeReceiverAta:
+            opportunity.token_account_initialization_configs
+              .relayer_fee_receiver_ata,
+          routerFeeReceiverAta:
+            opportunity.token_account_initialization_configs
+              .router_fee_receiver_ta,
+          userAtaMintSearcher:
+            opportunity.token_account_initialization_configs
+              .user_ata_mint_searcher,
+          userAtaMintUser:
+            opportunity.token_account_initialization_configs.user_ata_mint_user,
+        },
       };
     } else {
       console.warn("Unsupported opportunity", opportunity);
