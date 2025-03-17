@@ -9,7 +9,6 @@ packages:
   - "scripts/swap-beacon"
   - "apps/swap"
   - "scripts/rfq-stress-test"
-  - "contracts/svm"
 
 catalog:
   "typescript": 5.5.4
@@ -24,3 +23,4 @@ catalog:
   "jest": 27.5.1
   "@coral-xyz/anchor-cli": 0.31.0
   "bs58": 6.0.0
+  "ts-node": 10.9.1

@@ -126,18 +126,18 @@ local_resource(
 )
 
 # setup limo global config and vaults for buy and sell tokens
-RUN_CLI= "ADMIN=../../keypairs/admin.json RPC_ENV=localnet pnpm exec limo-cli"
-SET_GLOBAL_CONFIG = "LIMO_GLOBAL_CONFIG=$(solana-keygen pubkey ../../keypairs/limo_global_config.json)"
+RUN_CLI= "ADMIN=keypairs/admin.json RPC_ENV=localnet pnpm exec limo-cli"
+SET_GLOBAL_CONFIG = "LIMO_GLOBAL_CONFIG=$(solana-keygen pubkey keypairs/limo_global_config.json)"
 MINT_SELL= "$(solana-keygen pubkey %s/keypairs/mint_sell.json)" % config.main_dir
 MINT_BUY= "$(solana-keygen pubkey %s/keypairs/mint_buy.json)" % config.main_dir
 local_resource(
     "svm-limo-setup",
-        """solana-keygen new -o ../../keypairs/limo_global_config.json -f --no-bip39-passphrase \
-        && {RUN_CLI} init-global-config --global-config-file-path ../../keypairs/limo_global_config.json \
+        """solana-keygen new -o ./keypairs/limo_global_config.json -f --no-bip39-passphrase \
+        && {RUN_CLI} init-global-config --global-config-file-path ./keypairs/limo_global_config.json \
         && {SET_GLOBAL_CONFIG} {RUN_CLI} init-vault --mint {MINT_SELL} --mode execute \
         && {SET_GLOBAL_CONFIG} {RUN_CLI} init-vault --mint {MINT_BUY} --mode execute"""
         .format(RUN_CLI=RUN_CLI, SET_GLOBAL_CONFIG=SET_GLOBAL_CONFIG, MINT_SELL=MINT_SELL, MINT_BUY=MINT_BUY),
-    resource_deps=["svm-create-mints"], dir="contracts/svm",
+    resource_deps=["svm-create-mints"]
 )
 
 # create a single limo order for the searcher to bid on
@@ -145,7 +145,7 @@ local_resource(
     "svm-limo-create-order",
         "{SET_GLOBAL_CONFIG} {RUN_CLI} place-ask --quote {MINT_SELL} --base {MINT_BUY} --price 10000 --quote-amount 20"
         .format(RUN_CLI=RUN_CLI, SET_GLOBAL_CONFIG=SET_GLOBAL_CONFIG, MINT_SELL=MINT_SELL, MINT_BUY=MINT_BUY),
-    resource_deps=["svm-limo-setup"], dir="contracts/svm",
+    resource_deps=["svm-limo-setup"],
 )
 
 local_resource(
