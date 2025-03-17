@@ -120,7 +120,7 @@ pub struct TokenAccountInitializationParams {
 pub struct GetSwapInstructionParams {
     pub searcher:             Pubkey,
     pub opportunity_params:   OpportunityParamsSvm,
-    pub bid_amount:           u64,
+    pub bid_amount_including_fees:           u64,
     pub deadline:             i64,
     pub fee_receiver_relayer: Pubkey,
     pub relayer_signer:       Pubkey,
@@ -366,18 +366,6 @@ impl Svm {
         let OpportunityParamsSvm::V1(opportunity_params) = params.opportunity_params;
         let chain_id = opportunity_params.chain_id;
 
-        let bid_amount = match (&swap_data.tokens.tokens, &swap_data.fee_token) {
-            // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
-            (QuoteTokens::SearcherTokenSpecified { .. }, ApiFeeToken::UserToken) => {
-                let denominator = FEE_SPLIT_PRECISION
-                    - <u16 as Into<u64>>::into(swap_data.referral_fee_bps)
-                    - swap_data.platform_fee_bps;
-                let numerator = params.bid_amount * FEE_SPLIT_PRECISION;
-                numerator.div_ceil(denominator)
-            }
-            _ => params.bid_amount,
-        };
-
         let token_program_searcher = swap_data.tokens.token_program_searcher;
         let token_program_user = swap_data.tokens.token_program_user;
         let (mint_searcher, mint_user, amount_searcher, amount_user) = match swap_data.tokens.tokens
@@ -386,7 +374,7 @@ impl Svm {
                 searcher_token,
                 user_token,
                 searcher_amount,
-            } => (searcher_token, user_token, searcher_amount, bid_amount),
+            } => (searcher_token, user_token, searcher_amount, params.bid_amount_including_fees),
             QuoteTokens::UserTokenSpecified {
                 searcher_token,
                 user_token,
@@ -395,7 +383,7 @@ impl Svm {
             } => (
                 searcher_token,
                 user_token,
-                bid_amount,
+                params.bid_amount_including_fees,
                 user_amount_including_fees,
             ),
         };
@@ -468,5 +456,27 @@ impl Svm {
                 e
             ))
         })
+    }
+
+    /// Adjusts the bid amount in the case where the amount that needs to be provided by the searcher is specified and the fees are in the user token.
+    /// In this case, searchers' bids represent how many tokens they would like to receive.
+    /// However, for the searcher to receive `bidAmount`, the user needs to provide `bidAmount * (FEE_SPLIT_PRECISION / (FEE_SPLIT_PRECISION - fees))`
+    /// This function handles this adjustment.
+    pub fn get_bid_amount_including_fees(
+        opportunity: OpportunityParamsSvm,
+        bid_amount: u64,
+    ) -> Result<u64, ClientError> {
+        let swap_data= Self::extract_swap_data(opportunity)?;
+        Ok(match (&swap_data.tokens.tokens, &swap_data.fee_token) {
+        // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
+                      (QuoteTokens::SearcherTokenSpecified { .. }, ApiFeeToken::UserToken) => {
+                        let denominator = FEE_SPLIT_PRECISION
+                                 - <u16 as Into<u64>>::into(swap_data.referral_fee_bps)
+                             - swap_data.platform_fee_bps;
+                          let numerator =bid_amount * FEE_SPLIT_PRECISION;
+                           numerator.div_ceil(denominator)
+                    }
+                  _ => bid_amount,
+               })
     }
 }
