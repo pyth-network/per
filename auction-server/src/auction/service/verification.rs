@@ -1999,12 +1999,12 @@ mod tests {
     async fn test_verify_bid() {
         let (service, opportunities) = get_service(true);
 
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunities[0].clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2037,7 +2037,7 @@ mod tests {
                 bid_payment_instruction_type: BidPaymentInstructionType::Swap,
             }
         );
-        assert_eq!(result.1, bid_amount);
+        assert_eq!(result.1, bid_amount_including_fees);
     }
 
     #[tokio::test]
@@ -2353,13 +2353,13 @@ mod tests {
         let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunities[0].clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunities[0].clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let submit_bid_instruction =
@@ -2414,13 +2414,13 @@ mod tests {
         let found = program.user_wallet_address;
         opportunity.program = OpportunitySvmProgram::Swap(program);
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2448,13 +2448,13 @@ mod tests {
         opportunity.core_fields.sell_tokens[0].token = Pubkey::new_unique();
         let found = opportunity.core_fields.sell_tokens[0].token;
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2482,13 +2482,13 @@ mod tests {
         opportunity.core_fields.buy_tokens[0].token = Pubkey::new_unique();
         let found = opportunity.core_fields.buy_tokens[0].token;
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2518,13 +2518,13 @@ mod tests {
         let found = program.token_program_searcher;
         opportunity.program = OpportunitySvmProgram::Swap(program);
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2557,13 +2557,13 @@ mod tests {
         let found = program.token_program_user;
         opportunity.program = OpportunitySvmProgram::Swap(program);
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2591,13 +2591,13 @@ mod tests {
         token.amount += 1;
         opportunity.core_fields.sell_tokens[0] = token.clone();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2625,13 +2625,13 @@ mod tests {
         token.amount += 1;
         opportunity.core_fields.buy_tokens[0] = token.clone();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2662,13 +2662,13 @@ mod tests {
         program.fee_token = FeeToken::SearcherToken;
         opportunity.program = OpportunitySvmProgram::Swap(program);
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2699,13 +2699,13 @@ mod tests {
         program.referral_fee_bps += 1;
         opportunity.program = OpportunitySvmProgram::Swap(program.clone());
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2729,13 +2729,13 @@ mod tests {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunities[2].clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunities[2].clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result = get_verify_bid_result(
@@ -2756,13 +2756,13 @@ mod tests {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunities[0].clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunities[0].clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let transfer_instruction =
@@ -2785,13 +2785,13 @@ mod tests {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunities[0].clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunities[0].clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let close_account_instruction = spl_token::instruction::close_account(
@@ -2824,13 +2824,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let transfer_instruction =
@@ -2858,13 +2858,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let program = match opportunity.program.clone() {
@@ -2896,13 +2896,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let program = match opportunity.program.clone() {
@@ -2938,13 +2938,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let program = match opportunity.program.clone() {
@@ -2983,13 +2983,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let program = match opportunity.program.clone() {
@@ -3038,13 +3038,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[2].clone(); // User token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let program = match opportunity.program.clone() {
@@ -3083,12 +3083,12 @@ mod tests {
     async fn test_verify_bid_user_wsol() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities[2].clone(); // User token wsol
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3145,7 +3145,7 @@ mod tests {
                 bid_payment_instruction_type: BidPaymentInstructionType::Swap,
             }
         );
-        assert_eq!(result.1, bid_amount);
+        assert_eq!(result.1, bid_amount_including_fees);
     }
 
     #[tokio::test]
@@ -3154,13 +3154,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let program = match opportunity.program.clone() {
@@ -3206,13 +3206,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let result =
@@ -3232,13 +3232,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let program = match opportunity.program.clone() {
@@ -3283,13 +3283,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let program = match opportunity.program.clone() {
@@ -3332,12 +3332,12 @@ mod tests {
     async fn test_verify_bid_searcher_wsol() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities[3].clone(); // Searcher token wsol
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3388,7 +3388,7 @@ mod tests {
                 bid_payment_instruction_type: BidPaymentInstructionType::Swap,
             }
         );
-        assert_eq!(result.1, bid_amount);
+        assert_eq!(result.1, bid_amount_including_fees);
     }
 
     #[tokio::test]
@@ -3404,12 +3404,12 @@ mod tests {
             &opportunity.router,
             &opportunity.core_fields.buy_tokens[0].token,
         );
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3435,7 +3435,7 @@ mod tests {
     async fn test_verify_bid_when_invalid_deadline() {
         let (service, opportunities) = get_service(true);
 
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let deadline = (OffsetDateTime::now_utc() + BID_MINIMUM_LIFE_TIME_SVM_OTHER
             - Duration::seconds(1))
@@ -3443,7 +3443,7 @@ mod tests {
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunities[0].clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline,
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3478,12 +3478,12 @@ mod tests {
     async fn test_verify_bid_when_invalid_searcher_signature() {
         let (service, opportunities) = get_service(true);
 
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunities[0].clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3514,12 +3514,12 @@ mod tests {
     async fn test_verify_bid_when_no_relayer_signer() {
         let (service, opportunities) = get_service(true);
 
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let mut instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunities[0].clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3561,12 +3561,12 @@ mod tests {
     async fn test_verify_bid_when_fee_payer_is_user() {
         let (service, opportunities) = get_service(true);
 
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunities[0].clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3622,12 +3622,12 @@ mod tests {
         service_inner.config.chain_config.client =
             RpcClient::new_sender(rpc_client, RpcClientConfig::default());
 
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunities[0].clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3666,12 +3666,12 @@ mod tests {
         let service_inner = Arc::get_mut(&mut service.0).unwrap();
         service_inner.repo = Arc::new(Repository::new(db, service_inner.config.chain_id.clone()));
 
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunities[0].clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3712,13 +3712,13 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities[3].clone(); // Searcher token wsol
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            searcher:                  searcher.pubkey(),
+            opportunity_params:        get_opportunity_params(opportunity.clone()),
+            bid_amount_including_fees: 1,
+            deadline:                  (OffsetDateTime::now_utc() + Duration::minutes(1))
                 .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+            fee_receiver_relayer:      Pubkey::new_unique(),
+            relayer_signer:            service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
         let program = match opportunity.program.clone() {
@@ -3761,12 +3761,12 @@ mod tests {
     async fn test_verify_bid_user_wsol_searcher_unwrap() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities[2].clone(); // User token wsol
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3832,19 +3832,19 @@ mod tests {
                 bid_payment_instruction_type: BidPaymentInstructionType::Swap,
             }
         );
-        assert_eq!(result.1, bid_amount);
+        assert_eq!(result.1, bid_amount_including_fees);
     }
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_searcher_account_to_close() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities[2].clone(); // User token wsol
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3905,12 +3905,12 @@ mod tests {
     async fn test_verify_bid_searcher_wsol_searcher_wrap() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities[3].clone(); // Searcher token wsol
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3975,19 +3975,19 @@ mod tests {
                 bid_payment_instruction_type: BidPaymentInstructionType::Swap,
             }
         );
-        assert_eq!(result.1, bid_amount);
+        assert_eq!(result.1, bid_amount_including_fees);
     }
 
     #[tokio::test]
     async fn test_verify_bid_when_invalid_searcher_account_from_transfer() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities[3].clone(); // Searcher token wsol
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
@@ -4042,12 +4042,12 @@ mod tests {
     async fn test_verify_bid_when_invalid_searcher_account_to_transfer() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities[3].clone(); // Searcher token wsol
-        let bid_amount = 1;
+        let bid_amount_including_fees = 1;
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
+            bid_amount_including_fees,
             deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),

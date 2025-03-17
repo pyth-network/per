@@ -790,7 +790,10 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         "Invalid program params for swap opportunity".to_string(),
                     )),
                 }?;
-                let bid_amount_including_fees = svm::Svm::get_bid_amount_including_fees(opportunity.params.clone(), params.amount)?;
+                let bid_amount_including_fees = svm::Svm::get_bid_amount_including_fees(
+                    opportunity.params.clone(),
+                    params.amount,
+                )?;
                 let (searcher_token, user_token, user_amount_including_fees) = match tokens.tokens {
                     QuoteTokens::SearcherTokenSpecified {
                         searcher_token,
@@ -824,7 +827,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         configs: token_account_initialization_configs,
                     },
                 ));
-                
+
                 if user_token == native_mint::id() {
                     instructions.extend(svm::Svm::get_wrap_sol_instructions(
                         svm::GetWrapSolInstructionsParams {
@@ -836,12 +839,12 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     )?);
                 }
                 instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-                    opportunity_params:   opportunity.params,
+                    opportunity_params: opportunity.params,
                     bid_amount_including_fees,
-                    deadline:             params.deadline,
-                    searcher:             params.searcher,
+                    deadline: params.deadline,
+                    searcher: params.searcher,
                     fee_receiver_relayer: params.fee_receiver_relayer,
-                    relayer_signer:       params.relayer_signer,
+                    relayer_signer: params.relayer_signer,
                 })?);
                 if searcher_token == native_mint::id() {
                     instructions.push(svm::Svm::get_unwrap_sol_instruction(

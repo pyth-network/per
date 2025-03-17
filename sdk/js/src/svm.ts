@@ -391,7 +391,10 @@ export function getUnwrapSolInstruction(
  * However, for the searcher to receive `bidAmount`, the user needs to provide `bidAmount * (FEE_SPLIT_PRECISION / (FEE_SPLIT_PRECISION - fees))`
  * This function handles this adjustment.
  */
-function getBidAmountIncludingFees(swapOpportunity: OpportunitySvmSwap, bidAmount: anchor.BN): anchor.BN {
+function getBidAmountIncludingFees(
+  swapOpportunity: OpportunitySvmSwap,
+  bidAmount: anchor.BN,
+): anchor.BN {
   if (
     swapOpportunity.tokens.type === "searcher_specified" &&
     swapOpportunity.feeToken === "user_token"
@@ -404,9 +407,7 @@ function getBidAmountIncludingFees(swapOpportunity: OpportunitySvmSwap, bidAmoun
     );
     const numerator = bidAmount.mul(FEE_SPLIT_PRECISION);
     // add denominator - 1 to round up
-    return numerator
-      .add(denominator.sub(new anchor.BN(1)))
-      .div(denominator);
+    return numerator.add(denominator.sub(new anchor.BN(1))).div(denominator);
   }
 
   return bidAmount;
@@ -443,12 +444,20 @@ export async function constructSwapBid(
     );
   }
 
-  const bidAmountIncludingFees = getBidAmountIncludingFees(swapOpportunity, bidAmount);
+  const bidAmountIncludingFees = getBidAmountIncludingFees(
+    swapOpportunity,
+    bidAmount,
+  );
 
   if (userToken.equals(NATIVE_MINT)) {
     if (swapOpportunity.tokens.type === "searcher_specified") {
       tx.instructions.push(
-        ...getWrapSolInstructions(searcher, user, bidAmountIncludingFees, false), // this account creation is handled in the ata initialization section
+        ...getWrapSolInstructions(
+          searcher,
+          user,
+          bidAmountIncludingFees,
+          false,
+        ), // this account creation is handled in the ata initialization section
       );
     } else {
       tx.instructions.push(
