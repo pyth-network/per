@@ -145,13 +145,14 @@ export type SvmSwapTokens = (
 export type TokenAccountInitializationConfig =
   components["schemas"]["TokenAccountInitializationConfig"];
 
-export type TokenAccountInitializationConfigs = {
-  expressRelayFeeReceiverAta: TokenAccountInitializationConfig;
-  relayerFeeReceiverAta: TokenAccountInitializationConfig;
-  routerFeeReceiverAta: TokenAccountInitializationConfig;
-  userAtaMintSearcher: TokenAccountInitializationConfig;
-  userAtaMintUser: TokenAccountInitializationConfig;
-};
+export type TokenAccountInitializationConfigs = Record<
+  // | "expressRelayFeeReceiverAta"
+  | "relayerFeeReceiverAta"
+  | "routerFeeReceiverAta"
+  | "userAtaMintSearcher"
+  | "userAtaMintUser",
+  TokenAccountInitializationConfig
+>;
 
 export type OpportunitySvmSwap = {
   permissionAccount: PublicKey;
