@@ -1066,10 +1066,10 @@ impl Service<Svm> {
             ));
         }
 
-        // User has to unwrap Sol
         if swap_accounts.mint_searcher == spl_token::native_mint::id()
             || swap_accounts.mint_user == spl_token::native_mint::id()
         {
+            // User has to unwrap Sol
             if let Some(close_account_instruction) = user_unwrap_sol_instructions.pop() {
                 if close_account_instruction.destination != swap_accounts.user_wallet {
                     return Err(RestError::InvalidInstruction(
@@ -1108,7 +1108,7 @@ impl Service<Svm> {
                 ));
             }
 
-            // Searcher may want to unwrap but at most once
+            // Searcher may want to unwrap but at most once. We don't care about destination and owner
             if searcher_unwrap_sol_instructions.len() > 1 {
                 return Err(RestError::InvalidInstruction(
                     None,
@@ -3214,7 +3214,7 @@ mod tests {
                 transfer_instruction,
                 sync_native_instruction,
                 swap_instruction,
-                close_account_instruction,
+                close_account_instruction, // <--- this is the only difference from the previous test
             ],
             Some(&searcher.pubkey()),
         );
