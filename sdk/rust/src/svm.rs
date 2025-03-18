@@ -120,19 +120,19 @@ pub struct TokenAccountInitializationParams {
 pub struct GetSwapInstructionParams {
     pub searcher:                  Pubkey,
     pub opportunity_params:        OpportunityParamsSvm,
-    pub bid_amount_including_fees: u64,
+    pub bid_amount:                u64,
     pub deadline:                  i64,
     pub fee_receiver_relayer:      Pubkey,
     pub relayer_signer:            Pubkey,
 }
 
-struct OpportunitySwapData {
-    user:             Pubkey,
-    tokens:           QuoteTokensWithTokenPrograms,
-    fee_token:        ApiFeeToken,
-    router_account:   Pubkey,
-    referral_fee_bps: u16,
-    platform_fee_bps: u64,
+struct OpportunitySwapData<'a> {
+    user:             &'a Pubkey,
+    tokens:           &'a QuoteTokensWithTokenPrograms,
+    fee_token:        &'a ApiFeeToken,
+    router_account:   &'a Pubkey,
+    referral_fee_bps: &'a u16,
+    platform_fee_bps: &'a u64,
 }
 
 pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
@@ -297,11 +297,11 @@ impl Svm {
             .collect()
     }
 
-    fn extract_swap_data(
-        opportunity_params: OpportunityParamsSvm,
-    ) -> Result<OpportunitySwapData, ClientError> {
+    fn extract_swap_data<'a>(
+        opportunity_params: &'a OpportunityParamsSvm,
+    ) -> Result<OpportunitySwapData<'a>, ClientError> {
         let OpportunityParamsSvm::V1(opportunity_params) = opportunity_params;
-        match opportunity_params.program {
+        match &opportunity_params.program {
             OpportunityParamsV1ProgramSvm::Swap {
                 user_wallet_address,
                 tokens,
@@ -311,10 +311,10 @@ impl Svm {
                 platform_fee_bps,
                 ..
             } => Ok(OpportunitySwapData {
-                user: user_wallet_address,
-                tokens,
-                fee_token,
-                router_account,
+                user: &user_wallet_address,
+                tokens: &tokens,
+                fee_token: &fee_token,
+                router_account: &router_account,
                 referral_fee_bps,
                 platform_fee_bps,
             }),
@@ -361,10 +361,15 @@ impl Svm {
     pub fn get_swap_instruction(
         params: GetSwapInstructionParams,
     ) -> Result<Instruction, ClientError> {
-        let swap_data = Self::extract_swap_data(params.opportunity_params.clone())?;
+        let swap_data = Self::extract_swap_data(&params.opportunity_params)?;
 
-        let OpportunityParamsSvm::V1(opportunity_params) = params.opportunity_params;
-        let chain_id = opportunity_params.chain_id;
+        let OpportunityParamsSvm::V1(opportunity_params) = &params.opportunity_params;
+        let chain_id = opportunity_params.chain_id.clone();
+
+        let bid_amount_including_fees = Self::get_bid_amount_including_fees(
+            &params.opportunity_params,
+            params.bid_amount,
+        )?;
 
         let token_program_searcher = swap_data.tokens.token_program_searcher;
         let token_program_user = swap_data.tokens.token_program_user;
@@ -378,7 +383,7 @@ impl Svm {
                 searcher_token,
                 user_token,
                 searcher_amount,
-                params.bid_amount_including_fees,
+                bid_amount_including_fees,
             ),
             QuoteTokens::UserTokenSpecified {
                 searcher_token,
@@ -388,7 +393,7 @@ impl Svm {
             } => (
                 searcher_token,
                 user_token,
-                params.bid_amount_including_fees,
+                bid_amount_including_fees,
                 user_amount_including_fees,
             ),
         };
@@ -410,14 +415,14 @@ impl Svm {
             deadline: params.deadline,
             amount_searcher,
             amount_user,
-            referral_fee_bps: swap_data.referral_fee_bps,
+            referral_fee_bps: *swap_data.referral_fee_bps,
             fee_token,
         };
 
         Ok(create_swap_instruction(
             Self::get_express_relay_pid(chain_id),
             params.searcher,
-            swap_data.user,
+            *swap_data.user,
             None,
             None,
             router_fee_receiver_ta,
@@ -468,7 +473,7 @@ impl Svm {
     /// However, for the searcher to receive `bidAmount`, the user needs to provide `bidAmount * (FEE_SPLIT_PRECISION / (FEE_SPLIT_PRECISION - fees))`
     /// This function handles this adjustment.
     pub fn get_bid_amount_including_fees(
-        opportunity: OpportunityParamsSvm,
+        opportunity: &OpportunityParamsSvm,
         bid_amount: u64,
     ) -> Result<u64, ClientError> {
         let swap_data = Self::extract_swap_data(opportunity)?;
@@ -476,8 +481,8 @@ impl Svm {
             // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
             (QuoteTokens::SearcherTokenSpecified { .. }, ApiFeeToken::UserToken) => {
                 let denominator = FEE_SPLIT_PRECISION
-                    - <u16 as Into<u64>>::into(swap_data.referral_fee_bps)
-                    - swap_data.platform_fee_bps;
+                    - <u16 as Into<u64>>::into(*swap_data.referral_fee_bps)
+                    - *swap_data.platform_fee_bps;
                 let numerator = bid_amount * FEE_SPLIT_PRECISION;
                 numerator.div_ceil(denominator)
             }

@@ -791,7 +791,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     )),
                 }?;
                 let bid_amount_including_fees = svm::Svm::get_bid_amount_including_fees(
-                    opportunity.params.clone(),
+                    &opportunity.params,
                     params.amount,
                 )?;
                 let (searcher_token, user_token, user_amount_including_fees) = match tokens.tokens {
@@ -840,7 +840,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                 }
                 instructions.push(svm::Svm::get_swap_instruction(GetSwapInstructionParams {
                     opportunity_params: opportunity.params,
-                    bid_amount_including_fees,
+                    bid_amount: params.amount,
                     deadline: params.deadline,
                     searcher: params.searcher,
                     fee_receiver_relayer: params.fee_receiver_relayer,
