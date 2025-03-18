@@ -935,7 +935,7 @@ impl Service<Svm> {
         else if !transfer_instructions.is_empty() {
             return Err(RestError::InvalidInstruction(
                 transfer_instructions
-                    .get(0)
+                    .first()
                     .map(|instruction| instruction.index),
                 InstructionError::TransferInstructionNotAllowed,
             ));
@@ -1117,7 +1117,7 @@ impl Service<Svm> {
             if !user_unwrap_sol_instructions.is_empty() {
                 return Err(RestError::InvalidInstruction(
                     user_unwrap_sol_instructions
-                        .get(0)
+                        .front()
                         .map(|instruction| instruction.index),
                     InstructionError::InvalidCloseAccountInstructionCountUser(
                         1 + user_unwrap_sol_instructions.len(),
@@ -1141,8 +1141,8 @@ impl Service<Svm> {
         {
             return Err(RestError::InvalidInstruction(
                 user_unwrap_sol_instructions
-                    .get(0)
-                    .or(searcher_unwrap_sol_instructions.get(0))
+                    .front()
+                    .or(searcher_unwrap_sol_instructions.front())
                     .map(|instruction| instruction.index),
                 InstructionError::CloseAccountInstructionNotAllowed,
             ));
