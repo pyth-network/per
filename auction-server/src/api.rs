@@ -369,6 +369,8 @@ pub enum RestError {
     InvalidFirstSigner(String),
     /// Duplicate bid
     DuplicateBid,
+    /// Too many open websocket connections
+    TooManyOpenWebsocketConnections,
 }
 
 
@@ -481,6 +483,10 @@ impl RestError {
             RestError::DuplicateBid => (
                 StatusCode::BAD_REQUEST,
                 "Duplicate bid".to_string(),
+            ),
+            RestError::TooManyOpenWebsocketConnections => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Too many open websocket connections".to_string(),
             ),
         }
     }

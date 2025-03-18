@@ -71,7 +71,6 @@ use {
         sync::{
             atomic::{
                 AtomicBool,
-                AtomicUsize,
                 Ordering,
             },
             Arc,
@@ -292,9 +291,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     let chains_svm = setup_chain_store_svm(config_map)?;
 
-    let (broadcast_sender, broadcast_receiver) =
-        tokio::sync::broadcast::channel(NOTIFICATIONS_CHAN_LEN);
-
     let pool = create_pg_pool(
         &run_options.server.database_url,
         run_options.server.database_max_connections,
@@ -321,11 +317,10 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         db:               pool.clone(),
         chains_evm:       chains_evm.clone(),
         chains_svm:       chains_svm.clone(),
-        ws:               ws::WsState {
-            subscriber_counter: AtomicUsize::new(0),
-            broadcast_sender,
-            broadcast_receiver,
-        },
+        ws:               ws::WsState::new(
+            run_options.server.requester_ip_header_name.clone(),
+            NOTIFICATIONS_CHAN_LEN,
+        ),
         secret_key:       run_options.secret_key.clone(),
         access_tokens:    RwLock::new(access_tokens),
         metrics_recorder: setup_metrics_recorder()?,

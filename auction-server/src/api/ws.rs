@@ -1,6 +1,7 @@
 use {
     super::{
         Auth,
+        RestError,
         WrappedRouter,
     },
     crate::{
@@ -32,6 +33,7 @@ use {
             State,
             WebSocketUpgrade,
         },
+        http::HeaderMap,
         response::IntoResponse,
         Router,
     },
@@ -68,8 +70,12 @@ use {
         StreamExt,
     },
     std::{
-        collections::HashSet,
+        collections::{
+            HashMap,
+            HashSet,
+        },
         future::Future,
+        net::IpAddr,
         sync::{
             atomic::{
                 AtomicUsize,
@@ -82,6 +88,7 @@ use {
     time::OffsetDateTime,
     tokio::sync::{
         broadcast,
+        RwLock,
         Semaphore,
     },
     tracing::{
@@ -91,26 +98,102 @@ use {
 };
 
 pub struct WsState {
-    pub subscriber_counter: AtomicUsize,
-    pub broadcast_sender:   broadcast::Sender<UpdateEvent>,
-    pub broadcast_receiver: broadcast::Receiver<UpdateEvent>,
+    pub requester_ip_header_name: String,
+    subscriber_counter:           AtomicUsize,
+    subscriber_per_ip:            RwLock<HashMap<IpAddr, HashSet<SubscriberId>>>,
+    pub broadcast_sender:         broadcast::Sender<UpdateEvent>,
+    pub broadcast_receiver:       broadcast::Receiver<UpdateEvent>,
+}
+
+const MAXIMUM_SUBSCRIBERS_PER_IP: usize = 10;
+
+impl WsState {
+    pub fn new(requester_ip_header_name: String, broadcast_channel_size: usize) -> Self {
+        let (broadcast_sender, broadcast_receiver) = broadcast::channel(broadcast_channel_size);
+        Self {
+            requester_ip_header_name,
+            subscriber_counter: AtomicUsize::new(0),
+            subscriber_per_ip: RwLock::new(HashMap::new()),
+            broadcast_sender,
+            broadcast_receiver,
+        }
+    }
+
+    /// If the specified IP address has too many open websocket connections, this function will
+    /// return none. Otherwise, it will return the new subscriber id.
+    pub async fn get_new_subscriber_id(&self, ip: Option<IpAddr>) -> Option<SubscriberId> {
+        let id = self.subscriber_counter.fetch_add(1, Ordering::SeqCst);
+        if let Some(ip) = ip {
+            let mut write_gaurd = self.subscriber_per_ip.write().await;
+            let ids = write_gaurd.entry(ip).or_insert_with(HashSet::new);
+            if ids.len() >= MAXIMUM_SUBSCRIBERS_PER_IP {
+                return None;
+            }
+            ids.insert(id);
+        }
+        Some(id)
+    }
+
+    pub async fn remove_subscriber(&self, id: SubscriberId, ip: Option<IpAddr>) {
+        if let Some(ip) = ip {
+            let mut write_gaurd = self.subscriber_per_ip.write().await;
+            if let Some(ids) = write_gaurd.get_mut(&ip) {
+                ids.remove(&id);
+                if ids.is_empty() {
+                    write_gaurd.remove(&ip);
+                }
+            }
+        }
+    }
 }
 
 pub async fn ws_route_handler(
     auth: Auth,
     ws: WebSocketUpgrade,
     State(store): State<Arc<StoreNew>>,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| websocket_handler(socket, store, auth))
+    let ws_state = &store.store.ws;
+    let requester_ip = headers
+        .get(ws_state.requester_ip_header_name.as_str())
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(',').next()) // Only take the first ip if there are multiple
+        .and_then(|value| value.parse().ok());
+
+    if requester_ip.is_none() {
+        tracing::warn!("Failed to get requester IP address");
+    }
+
+    match ws_state.get_new_subscriber_id(requester_ip).await {
+        Some(subscriber_id) => ws.on_upgrade(move |socket| {
+            websocket_handler(socket, store, subscriber_id, auth, requester_ip)
+        }),
+        None => RestError::TooManyOpenWebsocketConnections.into_response(),
+    }
 }
 
-async fn websocket_handler(stream: WebSocket, state: Arc<StoreNew>, auth: Auth) {
+async fn websocket_handler(
+    stream: WebSocket,
+    state: Arc<StoreNew>,
+    subscriber_id: SubscriberId,
+    auth: Auth,
+    requester_ip: Option<IpAddr>,
+) {
     let ws_state = &state.store.ws;
-    let id = ws_state.subscriber_counter.fetch_add(1, Ordering::SeqCst);
     let (sender, receiver) = stream.split();
     let new_receiver = ws_state.broadcast_receiver.resubscribe();
-    let mut subscriber = Subscriber::new(id, state, new_receiver, receiver, sender, auth);
+    let mut subscriber = Subscriber::new(
+        subscriber_id,
+        state.clone(),
+        new_receiver,
+        receiver,
+        sender,
+        auth,
+    );
     subscriber.run().await;
+    ws_state
+        .remove_subscriber(subscriber_id, requester_ip)
+        .await;
 }
 
 #[derive(Clone, PartialEq, Debug)]
