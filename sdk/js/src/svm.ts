@@ -161,34 +161,22 @@ export async function constructSwapInstruction(
     router,
   } = extractSwapInfo(swapOpportunity);
 
-  if (
-    swapOpportunity.tokens.type === "searcher_specified" &&
-    swapOpportunity.feeToken === "user_token"
-  ) {
-    // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
-    const denominator = FEE_SPLIT_PRECISION.sub(
-      new anchor.BN(
-        swapOpportunity.platformFeeBps + swapOpportunity.referralFeeBps,
-      ),
-    );
-    const numerator = bidAmount.mul(FEE_SPLIT_PRECISION);
-    // add denominator - 1 to round up
-    bidAmount = numerator
-      .add(denominator.sub(new anchor.BN(1)))
-      .div(denominator);
-  }
+  const bidAmountIncludingFees = getBidAmountIncludingFees(
+    swapOpportunity,
+    bidAmount,
+  );
 
   const swapArgs = {
     amountSearcher:
       swapOpportunity.tokens.type === "searcher_specified"
         ? new anchor.BN(swapOpportunity.tokens.searcherAmount.toString())
-        : bidAmount,
+        : bidAmountIncludingFees,
     amountUser:
       swapOpportunity.tokens.type === "user_specified"
         ? new anchor.BN(
             swapOpportunity.tokens.userTokenAmountIncludingFees.toString(),
           )
-        : bidAmount,
+        : bidAmountIncludingFees,
     referralFeeBps: swapOpportunity.referralFeeBps,
     deadline,
     feeToken:
@@ -404,6 +392,34 @@ export function getUnwrapSolInstruction(
   return createCloseAccountInstruction(ata, owner, owner);
 }
 
+/**
+ * Adjusts the bid amount in the case where the amount that needs to be provided by the searcher is specified and the fees are in the user token.
+ * In this case, searchers' bids represent how many tokens they would like to receive.
+ * However, for the searcher to receive `bidAmount`, the user needs to provide `bidAmount * (FEE_SPLIT_PRECISION / (FEE_SPLIT_PRECISION - fees))`
+ * This function handles this adjustment.
+ */
+function getBidAmountIncludingFees(
+  swapOpportunity: OpportunitySvmSwap,
+  bidAmount: anchor.BN,
+): anchor.BN {
+  if (
+    swapOpportunity.tokens.type === "searcher_specified" &&
+    swapOpportunity.feeToken === "user_token"
+  ) {
+    // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
+    const denominator = FEE_SPLIT_PRECISION.sub(
+      new anchor.BN(
+        swapOpportunity.platformFeeBps + swapOpportunity.referralFeeBps,
+      ),
+    );
+    const numerator = bidAmount.mul(FEE_SPLIT_PRECISION);
+    // add denominator - 1 to round up
+    return numerator.add(denominator.sub(new anchor.BN(1))).div(denominator);
+  }
+
+  return bidAmount;
+}
+
 export async function constructSwapBid(
   tx: Transaction,
   searcher: PublicKey,
@@ -434,10 +450,16 @@ export async function constructSwapBid(
       )[1],
     );
   }
+
   if (userToken.equals(NATIVE_MINT)) {
     if (swapOpportunity.tokens.type === "searcher_specified") {
       tx.instructions.push(
-        ...getWrapSolInstructions(searcher, user, bidAmount, false), // this account creation is handled in the ata initialization section
+        ...getWrapSolInstructions(
+          searcher,
+          user,
+          getBidAmountIncludingFees(swapOpportunity, bidAmount),
+          false,
+        ), // this account creation is handled in the ata initialization section
       );
     } else {
       tx.instructions.push(
