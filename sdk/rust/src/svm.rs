@@ -366,7 +366,7 @@ impl Svm {
         let OpportunityParamsSvm::V1(opportunity_params) = &params.opportunity_params;
         let chain_id = opportunity_params.chain_id.clone();
 
-        let bid_amount_including_fees =
+        let bid_amount =
             Self::get_bid_amount_including_fees(&params.opportunity_params, params.bid_amount)?;
 
         let token_program_searcher = swap_data.tokens.token_program_searcher;
@@ -377,12 +377,7 @@ impl Svm {
                 searcher_token,
                 user_token,
                 searcher_amount,
-            } => (
-                searcher_token,
-                user_token,
-                searcher_amount,
-                bid_amount_including_fees,
-            ),
+            } => (searcher_token, user_token, searcher_amount, bid_amount),
             QuoteTokens::UserTokenSpecified {
                 searcher_token,
                 user_token,
@@ -391,7 +386,7 @@ impl Svm {
             } => (
                 searcher_token,
                 user_token,
-                bid_amount_including_fees,
+                bid_amount,
                 user_amount_including_fees,
             ),
         };
