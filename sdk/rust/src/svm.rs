@@ -37,12 +37,9 @@ use {
         get_associated_token_address_with_program_id,
         instruction::create_associated_token_account_idempotent,
     },
-    spl_token::{
-        instruction::{
-            close_account,
-            sync_native,
-        },
-        native_mint,
+    spl_token::instruction::{
+        close_account,
+        sync_native,
     },
     std::str::FromStr,
 };
@@ -98,6 +95,8 @@ pub struct GetTokenAccountsToCreateParams {
     pub express_relay_metadata: Pubkey,
     pub mint_searcher:          Pubkey,
     pub token_program_searcher: Pubkey,
+    pub mint_user:              Pubkey,
+    pub token_program_user:     Pubkey,
     pub mint_fee:               Pubkey,
     pub fee_token_program:      Pubkey,
     pub configs:                TokenAccountInitializationConfigs,
@@ -140,6 +139,8 @@ pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
     pub user:                   Pubkey,
     pub searcher_token:         Pubkey,
     pub token_program_searcher: Pubkey,
+    pub mint_user:              Pubkey,
+    pub token_program_user:     Pubkey,
     pub fee_token:              Pubkey,
     pub fee_token_program:      Pubkey,
     pub router_account:         Pubkey,
@@ -263,8 +264,8 @@ impl Svm {
             TokenAccountInitializationParams {
                 config:  params.configs.user_ata_mint_user,
                 owner:   params.user,
-                mint:    native_mint::id(),
-                program: spl_token::id(),
+                mint:    params.mint_user,
+                program: params.token_program_user,
             },
             TokenAccountInitializationParams {
                 config:  params.configs.router_fee_receiver_ta,
@@ -341,6 +342,8 @@ impl Svm {
                 express_relay_metadata,
                 mint_searcher: params.searcher_token,
                 token_program_searcher: params.token_program_searcher,
+                mint_user: params.mint_user,
+                token_program_user: params.token_program_user,
                 mint_fee: params.fee_token,
                 fee_token_program: params.fee_token_program,
                 configs: params.configs,

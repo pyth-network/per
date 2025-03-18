@@ -822,6 +822,8 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         user: user_wallet_address,
                         searcher_token,
                         token_program_searcher: tokens.token_program_searcher,
+                        mint_user: user_token,
+                        token_program_user: tokens.token_program_user,
                         fee_token,
                         fee_token_program,
                         router_account,

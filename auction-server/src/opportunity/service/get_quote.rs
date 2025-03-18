@@ -296,7 +296,7 @@ impl Service<ChainTypeSvm> {
 
         let mint_user_is_wrapped_sol = mint_user == native_mint::id();
         let token_account_initialization_config =
-            balances.get_token_account_initialization_configs(mint_user_is_wrapped_sol);
+            balances.get_token_account_initialization_configs();
         let user_mint_user_balance =
             balances.get_user_ata_mint_user_balance(mint_user_is_wrapped_sol);
 
