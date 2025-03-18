@@ -5,7 +5,6 @@ use {
         service::{
             add_opportunity::AddOpportunityInput,
             get_opportunities::GetOpportunitiesInput,
-            get_quote::GetQuoteInput,
             handle_opportunity_bid::HandleOpportunityBidInput,
             remove_opportunities::RemoveOpportunitiesInput,
         },
@@ -228,7 +227,7 @@ pub async fn post_quote(
 
     let quote = store
         .opportunity_service_svm
-        .get_quote(GetQuoteInput { quote_create })
+        .get_quote(quote_create)
         .await?;
 
     Ok(Json(quote.into()))
