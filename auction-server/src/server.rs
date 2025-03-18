@@ -322,6 +322,8 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         chains_evm:       chains_evm.clone(),
         chains_svm:       chains_svm.clone(),
         ws:               ws::WsState {
+            subscriber_per_ip: RwLock::new(HashMap::new()),
+            requester_ip_header_name: run_options.server.requester_ip_header_name.clone(),
             subscriber_counter: AtomicUsize::new(0),
             broadcast_sender,
             broadcast_receiver,

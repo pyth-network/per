@@ -1,6 +1,7 @@
 use {
     super::{
         Auth,
+        RestError,
         WrappedRouter,
     },
     crate::{
@@ -32,6 +33,7 @@ use {
             State,
             WebSocketUpgrade,
         },
+        http::HeaderMap,
         response::IntoResponse,
         Router,
     },
@@ -68,8 +70,12 @@ use {
         StreamExt,
     },
     std::{
-        collections::HashSet,
+        collections::{
+            HashMap,
+            HashSet,
+        },
         future::Future,
+        net::IpAddr,
         sync::{
             atomic::{
                 AtomicUsize,
@@ -82,6 +88,7 @@ use {
     time::OffsetDateTime,
     tokio::sync::{
         broadcast,
+        RwLock,
         Semaphore,
     },
     tracing::{
@@ -91,26 +98,72 @@ use {
 };
 
 pub struct WsState {
-    pub subscriber_counter: AtomicUsize,
-    pub broadcast_sender:   broadcast::Sender<UpdateEvent>,
-    pub broadcast_receiver: broadcast::Receiver<UpdateEvent>,
+    pub subscriber_per_ip:        RwLock<HashMap<IpAddr, HashSet<SubscriberId>>>,
+    pub requester_ip_header_name: String,
+    pub subscriber_counter:       AtomicUsize,
+    pub broadcast_sender:         broadcast::Sender<UpdateEvent>,
+    pub broadcast_receiver:       broadcast::Receiver<UpdateEvent>,
 }
+
+const MAXIMUM_SUBSCRIBERS_PER_IP: usize = 10;
 
 pub async fn ws_route_handler(
     auth: Auth,
     ws: WebSocketUpgrade,
     State(store): State<Arc<StoreNew>>,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| websocket_handler(socket, store, auth))
+    let ws_state = &store.store.ws;
+    let requester_ip = headers
+        .get(ws_state.requester_ip_header_name.as_str())
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(',').next()) // Only take the first ip if there are multiple
+        .and_then(|value| value.parse().ok());
+
+    match requester_ip {
+        Some(ip) => {
+            if let Some(ids) = ws_state.subscriber_per_ip.read().await.get(&ip) {
+                if ids.len() >= MAXIMUM_SUBSCRIBERS_PER_IP {
+                    return RestError::TooManyOpenWebsocketConnections.into_response();
+                }
+            }
+        }
+        None => tracing::warn!("No requester ip found in headers"),
+    }
+
+    ws.on_upgrade(move |socket| websocket_handler(socket, store, auth, requester_ip))
 }
 
-async fn websocket_handler(stream: WebSocket, state: Arc<StoreNew>, auth: Auth) {
+async fn websocket_handler(
+    stream: WebSocket,
+    state: Arc<StoreNew>,
+    auth: Auth,
+    requester_ip: Option<IpAddr>,
+) {
     let ws_state = &state.store.ws;
     let id = ws_state.subscriber_counter.fetch_add(1, Ordering::SeqCst);
+
+    if let Some(ip) = requester_ip {
+        let mut write_gaurd = state.store.ws.subscriber_per_ip.write().await;
+        let ids = write_gaurd.entry(ip).or_insert_with(HashSet::new);
+        if ids.len() >= MAXIMUM_SUBSCRIBERS_PER_IP {
+            return;
+        }
+        ids.insert(id);
+        drop(write_gaurd);
+    }
+
     let (sender, receiver) = stream.split();
     let new_receiver = ws_state.broadcast_receiver.resubscribe();
-    let mut subscriber = Subscriber::new(id, state, new_receiver, receiver, sender, auth);
+    let mut subscriber = Subscriber::new(id, state.clone(), new_receiver, receiver, sender, auth);
     subscriber.run().await;
+
+    if let Some(ip) = requester_ip {
+        let mut write_gaurd = state.store.ws.subscriber_per_ip.write().await;
+        let ids = write_gaurd.entry(ip).or_insert_with(HashSet::new);
+        ids.remove(&id);
+        drop(write_gaurd);
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]

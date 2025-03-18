@@ -335,6 +335,8 @@ pub mod tests {
                 chains_evm:       HashMap::new(),
                 chains_svm:       HashMap::new(),
                 ws:               ws::WsState {
+                    requester_ip_header_name: "X-Forwarded-For".to_string(),
+                    subscriber_per_ip: RwLock::new(HashMap::new()),
                     subscriber_counter: AtomicUsize::new(0),
                     broadcast_sender,
                     broadcast_receiver,

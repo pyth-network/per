@@ -6,6 +6,7 @@ use {
 const DEFAULT_LISTEN_ADDR: &str = "127.0.0.1:9000";
 const DEFAULT_METRICS_ADDR: &str = "127.0.0.1:9001";
 const DEFAULT_DATABASE_MAX_CONNECTIONS: &str = "10";
+const DEAFULT_REQUESTER_IP_HEADER_NAME: &str = "X-Forwarded-For";
 
 #[derive(Args, Clone, Debug)]
 #[command(next_help_heading = "Server Options")]
@@ -30,4 +31,9 @@ pub struct Options {
     #[arg(default_value = DEFAULT_METRICS_ADDR)]
     #[arg(env = "METRICS_ADDR")]
     pub metrics_addr:             SocketAddr,
+    /// The header name to use for the requester IP address.
+    #[arg(long = "requester-ip-header-name")]
+    #[arg(default_value = DEAFULT_REQUESTER_IP_HEADER_NAME)]
+    #[arg(env = "REQUESTER_IP_HEADER_NAME")]
+    pub requester_ip_header_name: String,
 }
