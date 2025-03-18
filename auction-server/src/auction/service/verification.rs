@@ -3,7 +3,8 @@ use {
         auction_manager::TOTAL_BIDS_PER_AUCTION_EVM,
         ChainTrait,
         Service,
-    }, crate::{
+    },
+    crate::{
         api::{
             InstructionError,
             RestError,
@@ -48,10 +49,18 @@ use {
                 get_quote::get_quote_virtual_permission_account,
             },
         },
-    }, anchor_lang::{
+    },
+    ::express_relay::{
+        self as express_relay_svm,
+        FeeToken,
+    },
+    anchor_lang::{
         AnchorDeserialize,
         Discriminator,
-    }, axum::async_trait, borsh::de::BorshDeserialize, ethers::{
+    },
+    axum::async_trait,
+    borsh::de::BorshDeserialize,
+    ethers::{
         contract::{
             ContractError,
             ContractRevert,
@@ -64,10 +73,9 @@ use {
             BlockNumber,
             U256,
         },
-    }, ::express_relay::{
-        self as express_relay_svm,
-        FeeToken,
-    }, litesvm::types::FailedTransactionMetadata, solana_sdk::{
+    },
+    litesvm::types::FailedTransactionMetadata,
+    solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
         clock::Slot,
         commitment_config::CommitmentConfig,
@@ -79,13 +87,20 @@ use {
         system_instruction::SystemInstruction,
         system_program,
         transaction::VersionedTransaction,
-    }, spl_associated_token_account::{
+    },
+    spl_associated_token_account::{
         get_associated_token_address,
         get_associated_token_address_with_program_id,
         instruction::AssociatedTokenAccountInstruction,
-    }, spl_token::instruction::TokenInstruction, std::{
-        collections::VecDeque, sync::Arc, time::Duration
-    }, time::OffsetDateTime, uuid::Uuid
+    },
+    spl_token::instruction::TokenInstruction,
+    std::{
+        collections::VecDeque,
+        sync::Arc,
+        time::Duration,
+    },
+    time::OffsetDateTime,
+    uuid::Uuid,
 };
 
 pub struct VerifyBidInput<T: ChainTrait> {
@@ -119,7 +134,7 @@ pub struct SwapAccounts {
 
 #[derive(Debug, Clone)]
 struct TransferInstructionData {
-    index:  usize,
+    index:    usize,
     from:     Pubkey,
     to:       Pubkey,
     lamports: u64,
@@ -127,7 +142,7 @@ struct TransferInstructionData {
 
 #[derive(Debug, Clone)]
 struct CloseAccountInstructionData {
-    index:     usize,
+    index:       usize,
     account:     Pubkey,
     destination: Pubkey,
     owner:       Pubkey,
@@ -839,7 +854,9 @@ impl Service<Svm> {
         let transfer_instructions = Self::extract_transfer_instructions(tx)?;
         if transfer_instructions.len() > 1 {
             return Err(RestError::InvalidInstruction(
-                transfer_instructions.get(1).map(|instruction| instruction.index),
+                transfer_instructions
+                    .get(1)
+                    .map(|instruction| instruction.index),
                 InstructionError::InvalidTransferInstructionsCount,
             ));
         }
@@ -917,7 +934,9 @@ impl Service<Svm> {
         // No transfer instruction is allowed
         else if !transfer_instructions.is_empty() {
             return Err(RestError::InvalidInstruction(
-                transfer_instructions.get(0).map(|instruction| instruction.index),
+                transfer_instructions
+                    .get(0)
+                    .map(|instruction| instruction.index),
                 InstructionError::TransferInstructionNotAllowed,
             ));
         }
@@ -944,7 +963,7 @@ impl Service<Svm> {
         let token_instructions = Self::extract_token_instructions(tx);
         token_instructions
             .into_iter()
-            .filter_map(|(_,instruction)| {
+            .filter_map(|(_, instruction)| {
                 let ix_parsed = TokenInstruction::unpack(&instruction.data).ok();
                 if matches!(ix_parsed, Some(TokenInstruction::SyncNative)) {
                     Some(instruction)
@@ -1017,9 +1036,9 @@ impl Service<Svm> {
                     .ok_or(RestError::BadParameters(invalid_account_message))?;
                 result.push(CloseAccountInstructionData {
                     index,
-                    account:     *account_to_close,
+                    account: *account_to_close,
                     destination: *destination,
-                    owner:       *owner,
+                    owner: *owner,
                 });
             }
         }
@@ -1097,7 +1116,9 @@ impl Service<Svm> {
 
             if !user_unwrap_sol_instructions.is_empty() {
                 return Err(RestError::InvalidInstruction(
-                    user_unwrap_sol_instructions.get(0).map(|instruction| instruction.index),
+                    user_unwrap_sol_instructions
+                        .get(0)
+                        .map(|instruction| instruction.index),
                     InstructionError::InvalidCloseAccountInstructionCountUser(
                         1 + user_unwrap_sol_instructions.len(),
                     ),
@@ -1107,7 +1128,9 @@ impl Service<Svm> {
             // Searcher may want to unwrap but at most once. We don't care about destination and owner
             if searcher_unwrap_sol_instructions.len() > 1 {
                 return Err(RestError::InvalidInstruction(
-                    searcher_unwrap_sol_instructions.get(1).map(|instruction| instruction.index),
+                    searcher_unwrap_sol_instructions
+                        .get(1)
+                        .map(|instruction| instruction.index),
                     InstructionError::InvalidCloseAccountInstructionCountSearcher(
                         searcher_unwrap_sol_instructions.len(),
                     ),
@@ -1117,7 +1140,10 @@ impl Service<Svm> {
             || !searcher_unwrap_sol_instructions.is_empty()
         {
             return Err(RestError::InvalidInstruction(
-                user_unwrap_sol_instructions.get(0).or(searcher_unwrap_sol_instructions.get(0)).map(|instruction| instruction.index),
+                user_unwrap_sol_instructions
+                    .get(0)
+                    .or(searcher_unwrap_sol_instructions.get(0))
+                    .map(|instruction| instruction.index),
                 InstructionError::CloseAccountInstructionNotAllowed,
             ));
         }
@@ -2863,7 +2889,10 @@ mod tests {
         .await;
         assert_eq!(
             result.unwrap_err(),
-            RestError::InvalidInstruction(Some(2), InstructionError::InvalidTransferInstructionsCount)
+            RestError::InvalidInstruction(
+                Some(2),
+                InstructionError::InvalidTransferInstructionsCount
+            )
         );
     }
 
