@@ -122,20 +122,16 @@ impl WsState {
     /// If the specified IP address has too many open websocket connections, this function will
     /// return none. Otherwise, it will return the new subscriber id.
     pub async fn get_new_subscriber_id(&self, ip: Option<IpAddr>) -> Option<SubscriberId> {
-        match ip {
-            Some(ip) => {
-                let mut write_gaurd = self.subscriber_per_ip.write().await;
-                let ids = write_gaurd.entry(ip).or_insert_with(HashSet::new);
-                if ids.len() >= MAXIMUM_SUBSCRIBERS_PER_IP {
-                    None
-                } else {
-                    let id = self.subscriber_counter.fetch_add(1, Ordering::SeqCst);
-                    ids.insert(id);
-                    Some(id)
-                }
+        let id = self.subscriber_counter.fetch_add(1, Ordering::SeqCst);
+        if let Some(ip) = ip {
+            let mut write_gaurd = self.subscriber_per_ip.write().await;
+            let ids = write_gaurd.entry(ip).or_insert_with(HashSet::new);
+            if ids.len() >= MAXIMUM_SUBSCRIBERS_PER_IP {
+                return None;
             }
-            None => Some(self.subscriber_counter.fetch_add(1, Ordering::SeqCst)),
+            ids.insert(id);
         }
+        Some(id)
     }
 
     pub async fn remove_subscriber(&self, id: SubscriberId, ip: Option<IpAddr>) {
