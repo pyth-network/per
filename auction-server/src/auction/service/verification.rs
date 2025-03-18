@@ -1030,7 +1030,6 @@ impl Service<Svm> {
         Ok(result)
     }
 
-
     fn check_close_account_instruction(
         tx: &VersionedTransaction,
         swap_accounts: &SwapAccounts,
@@ -1091,6 +1090,7 @@ impl Service<Svm> {
                 }
             } else if swap_accounts.mint_user != spl_token::native_mint::id()
             // for backward compatibility we allow not closing the users account when the user token is wsol, we can remove this if statement once searchers have updated their sdk
+            // at that point we will also update `test_verify_bid_user_wsol` which will fail
             {
                 return Err(RestError::InvalidInstruction(
                     None,
