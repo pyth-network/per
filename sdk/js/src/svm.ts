@@ -451,18 +451,13 @@ export async function constructSwapBid(
     );
   }
 
-  const bidAmountIncludingFees = getBidAmountIncludingFees(
-    swapOpportunity,
-    bidAmount,
-  );
-
   if (userToken.equals(NATIVE_MINT)) {
     if (swapOpportunity.tokens.type === "searcher_specified") {
       tx.instructions.push(
         ...getWrapSolInstructions(
           searcher,
           user,
-          bidAmountIncludingFees,
+          getBidAmountIncludingFees(swapOpportunity, bidAmount),
           false,
         ), // this account creation is handled in the ata initialization section
       );
