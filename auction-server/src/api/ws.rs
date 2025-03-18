@@ -159,7 +159,7 @@ fn ok_response(id: String) -> ServerResultResponse {
     }
 }
 
-const MAX_ACTIVE_REQUESTS: usize = 50;
+const MAX_ACTIVE_REQUESTS: usize = 150;
 
 impl Subscriber {
     pub fn new(
