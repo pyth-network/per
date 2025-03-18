@@ -790,7 +790,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         "Invalid program params for swap opportunity".to_string(),
                     )),
                 }?;
-                let bid_amount_including_fees = svm::Svm::get_bid_amount_including_fees(
+                let bid_amount = svm::Svm::get_bid_amount_including_fees(
                     &opportunity.params,
                     params.amount,
                 )?;
@@ -799,7 +799,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         searcher_token,
                         user_token,
                         ..
-                    } => (searcher_token, user_token, bid_amount_including_fees),
+                    } => (searcher_token, user_token, bid_amount),
                     QuoteTokens::UserTokenSpecified {
                         searcher_token,
                         user_token,
