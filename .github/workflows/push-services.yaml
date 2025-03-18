@@ -1,5 +1,6 @@
 name: Build and Push Services Images
 on:
+  pull_request:
   push:
     tags:
       - v*
@@ -41,7 +42,7 @@ jobs:
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
         with:
           context: .
-          push: true
+          push: false
           tags: ${{ steps.meta_server.outputs.tags }}
           labels: ${{ steps.meta_server.outputs.labels }}
   vault-monitor:
@@ -67,7 +68,7 @@ jobs:
         with:
           context: .
           file: ./tilt-scripts/Dockerfile
-          push: true
+          push: false
           tags: ${{ steps.meta_monitor.outputs.tags }}
           labels: ${{ steps.meta_monitor.outputs.labels }}
   node-services:
@@ -75,7 +76,6 @@ jobs:
     strategy:
       matrix:
         service:
-          - opportunity-provider-limo
           - dex-router
           - limonade
           - swap-beacon
@@ -102,6 +102,6 @@ jobs:
           file: ./Dockerfile.node
           build-args: |
             package=${{ matrix.service }}
-          push: true
+          push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -5,7 +5,6 @@ packages:
   - "scripts/dex-router"
   - "scripts/limonade"
   - "scripts/opportunity-provider"
-  - "scripts/opportunity-provider-limo"
   - "scripts/swap-beacon"
   - "apps/swap"
   - "scripts/rfq-stress-test"
