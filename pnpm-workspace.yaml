@@ -13,7 +13,7 @@ packages:
 catalog:
   "typescript": 5.5.4
   "@coral-xyz/anchor": 0.31.0
-  "@kamino-finance/limo-sdk": 0.7.1
+  "@kamino-finance/limo-sdk": 1.0.8
   "@solana/web3.js": 1.95.3
   "@solana/spl-token": 0.4.9
   "viem": 2.16.2
@@ -23,3 +23,4 @@ catalog:
   "jest": 27.5.1
   "@coral-xyz/anchor-cli": 0.31.0
   "bs58": 6.0.0
+  "ts-node": 10.9.1

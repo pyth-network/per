@@ -7,7 +7,9 @@
     "prettier": "^3.1.1",
     "eslint": "^8.57.1",
     "@typescript-eslint/eslint-plugin": "^8.16.0",
-    "@typescript-eslint/parser": "^8.16.0"
+    "@typescript-eslint/parser": "^8.16.0",
+    "ts-node": "catalog:",
+    "@kamino-finance/limo-sdk": "catalog:"
   },
   "packageManager": "pnpm@9.14.3"
 }
