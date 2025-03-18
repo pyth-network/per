@@ -118,12 +118,12 @@ pub struct TokenAccountInitializationParams {
 }
 
 pub struct GetSwapInstructionParams {
-    pub searcher:                  Pubkey,
-    pub opportunity_params:        OpportunityParamsSvm,
-    pub bid_amount:                u64,
-    pub deadline:                  i64,
-    pub fee_receiver_relayer:      Pubkey,
-    pub relayer_signer:            Pubkey,
+    pub searcher:             Pubkey,
+    pub opportunity_params:   OpportunityParamsSvm,
+    pub bid_amount:           u64,
+    pub deadline:             i64,
+    pub fee_receiver_relayer: Pubkey,
+    pub relayer_signer:       Pubkey,
 }
 
 struct OpportunitySwapData<'a> {
@@ -297,9 +297,9 @@ impl Svm {
             .collect()
     }
 
-    fn extract_swap_data<'a>(
-        opportunity_params: &'a OpportunityParamsSvm,
-    ) -> Result<OpportunitySwapData<'a>, ClientError> {
+    fn extract_swap_data(
+        opportunity_params: &OpportunityParamsSvm,
+    ) -> Result<OpportunitySwapData, ClientError> {
         let OpportunityParamsSvm::V1(opportunity_params) = opportunity_params;
         match &opportunity_params.program {
             OpportunityParamsV1ProgramSvm::Swap {
@@ -311,10 +311,10 @@ impl Svm {
                 platform_fee_bps,
                 ..
             } => Ok(OpportunitySwapData {
-                user: &user_wallet_address,
-                tokens: &tokens,
-                fee_token: &fee_token,
-                router_account: &router_account,
+                user: user_wallet_address,
+                tokens,
+                fee_token,
+                router_account,
                 referral_fee_bps,
                 platform_fee_bps,
             }),
@@ -366,10 +366,8 @@ impl Svm {
         let OpportunityParamsSvm::V1(opportunity_params) = &params.opportunity_params;
         let chain_id = opportunity_params.chain_id.clone();
 
-        let bid_amount_including_fees = Self::get_bid_amount_including_fees(
-            &params.opportunity_params,
-            params.bid_amount,
-        )?;
+        let bid_amount_including_fees =
+            Self::get_bid_amount_including_fees(&params.opportunity_params, params.bid_amount)?;
 
         let token_program_searcher = swap_data.tokens.token_program_searcher;
         let token_program_user = swap_data.tokens.token_program_user;
@@ -406,7 +404,7 @@ impl Svm {
         };
 
         let router_fee_receiver_ta = get_associated_token_address_with_program_id(
-            &swap_data.router_account,
+            swap_data.router_account,
             &fee_token_mint,
             &fee_token_program,
         );
