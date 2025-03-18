@@ -74,19 +74,26 @@ use {
             U256,
         },
     },
+    express_relay::error::ErrorCode,
     litesvm::types::FailedTransactionMetadata,
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
         clock::Slot,
         commitment_config::CommitmentConfig,
         compute_budget,
-        instruction::CompiledInstruction,
+        instruction::{
+            CompiledInstruction,
+            InstructionError as SolanaInstructionError,
+        },
         pubkey::Pubkey,
         signature::Signature,
         signer::Signer as _,
         system_instruction::SystemInstruction,
         system_program,
-        transaction::VersionedTransaction,
+        transaction::{
+            TransactionError,
+            VersionedTransaction,
+        },
     },
     spl_associated_token_account::{
         get_associated_token_address,
@@ -315,11 +322,12 @@ impl Verification<Evm> for Service<Evm> {
 }
 
 pub struct BidDataSvm {
-    pub amount:             u64,
-    pub router:             Pubkey,
-    pub permission_account: Pubkey,
-    pub deadline:           OffsetDateTime,
-    pub submit_type:        SubmitType,
+    pub amount:                          u64,
+    pub router:                          Pubkey,
+    pub permission_account:              Pubkey,
+    pub deadline:                        OffsetDateTime,
+    pub submit_type:                     SubmitType,
+    pub express_relay_instruction_index: usize,
 }
 
 const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
@@ -460,7 +468,7 @@ impl Service<Svm> {
         &self,
         transaction: VersionedTransaction,
         instruction_type: BidPaymentInstructionType,
-    ) -> Result<CompiledInstruction, RestError> {
+    ) -> Result<(usize, CompiledInstruction), RestError> {
         let discriminator = match instruction_type {
             BidPaymentInstructionType::SubmitBid => {
                 express_relay_svm::instruction::SubmitBid::DISCRIMINATOR
@@ -471,18 +479,19 @@ impl Service<Svm> {
             .message
             .instructions()
             .iter()
-            .filter(|instruction| {
+            .enumerate()
+            .filter(|(_, instruction)| {
                 let program_id = transaction
                     .message
                     .static_account_keys()
                     .get(instruction.program_id_index as usize);
                 program_id == Some(&self.config.chain_config.express_relay.program_id)
             })
-            .cloned()
-            .collect::<Vec<CompiledInstruction>>();
+            .map(|(index, instruction)| (index, instruction.clone()))
+            .collect::<Vec<(usize, CompiledInstruction)>>();
 
-        let instruction = match instructions.len() {
-            1 => Ok(instructions[0].clone()),
+        let (instruction_index, instruction) = match instructions.len() {
+            1 => Ok(instructions.into_iter().next().unwrap()),
             _ => Err(RestError::InvalidExpressRelayInstructionCount(
                 instructions.len(),
             )),
@@ -492,7 +501,7 @@ impl Service<Svm> {
                 "Wrong instruction type for Express Relay Program".to_string(),
             ));
         }
-        Ok(instruction)
+        Ok((instruction_index, instruction))
     }
 
     async fn check_deadline(
@@ -591,7 +600,7 @@ impl Service<Svm> {
         bid_data: &BidChainDataSwapCreateSvm,
         opp: &OpportunitySvm,
     ) -> Result<(), RestError> {
-        let swap_instruction = self.extract_express_relay_instruction(
+        let (_, swap_instruction) = self.extract_express_relay_instruction(
             bid_data.transaction.clone(),
             BidPaymentInstructionType::Swap,
         )?;
@@ -1153,10 +1162,11 @@ impl Service<Svm> {
         let svm_config = &self.config.chain_config.express_relay;
         match bid_chain_data_create_svm {
             BidChainDataCreateSvm::OnChain(bid_data) => {
-                let submit_bid_instruction = self.extract_express_relay_instruction(
-                    bid_data.transaction.clone(),
-                    BidPaymentInstructionType::SubmitBid,
-                )?;
+                let (instruction_index, submit_bid_instruction) = self
+                    .extract_express_relay_instruction(
+                        bid_data.transaction.clone(),
+                        BidPaymentInstructionType::SubmitBid,
+                    )?;
                 let submit_bid_data = Self::extract_submit_bid_data(&submit_bid_instruction)?;
 
                 let permission_account = self
@@ -1178,6 +1188,7 @@ impl Service<Svm> {
                     )
                     .await?;
                 Ok(BidDataSvm {
+                    express_relay_instruction_index: instruction_index,
                     amount: submit_bid_data.bid_amount,
                     permission_account,
                     router,
@@ -1204,10 +1215,11 @@ impl Service<Svm> {
                 )?;
                 self.check_svm_swap_bid_fields(bid_data, &opp).await?;
 
-                let swap_instruction = self.extract_express_relay_instruction(
-                    bid_data.transaction.clone(),
-                    BidPaymentInstructionType::Swap,
-                )?;
+                let (instruction_index, swap_instruction) = self
+                    .extract_express_relay_instruction(
+                        bid_data.transaction.clone(),
+                        BidPaymentInstructionType::Swap,
+                    )?;
                 let swap_data = Self::extract_swap_data(&swap_instruction)?;
                 let swap_accounts = self
                     .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
@@ -1261,6 +1273,7 @@ impl Service<Svm> {
                 );
 
                 Ok(BidDataSvm {
+                    express_relay_instruction_index: instruction_index,
                     amount: bid_amount,
                     permission_account,
                     router: opp.router,
@@ -1364,7 +1377,11 @@ impl Service<Svm> {
         }
     }
 
-    pub async fn simulate_swap_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
+    pub async fn simulate_swap_bid(
+        &self,
+        bid: &entities::BidCreate<Svm>,
+        express_relay_instruction_index: usize,
+    ) -> Result<(), RestError> {
         let tx = bid.chain_data.get_transaction();
         let simulation = self
             .config
@@ -1374,7 +1391,22 @@ impl Service<Svm> {
             .await;
         match simulation {
             Ok(simulation) => {
-                if simulation.value.err.is_some() {
+                if let Some(transaction_error) = simulation.value.err {
+                    if let TransactionError::InstructionError(
+                        instruction_index,
+                        instruction_error,
+                    ) = transaction_error
+                    {
+                        if usize::from(instruction_index) == express_relay_instruction_index
+                            && instruction_error
+                                == SolanaInstructionError::Custom(
+                                    ErrorCode::InsufficientUserFunds.into(),
+                                )
+                        {
+                            return Ok(());
+                        }
+                    }
+
                     let msgs = simulation.value.logs.unwrap_or_default();
                     Err(RestError::SimulationError {
                         result: Default::default(),
@@ -1384,6 +1416,7 @@ impl Service<Svm> {
                     Ok(())
                 }
             }
+
             Err(e) => {
                 tracing::error!("Error while simulating swap bid: {:?}", e);
                 Err(RestError::TemporarilyUnavailable)
@@ -1534,7 +1567,10 @@ impl Verification<Svm> for Service<Svm> {
         self.verify_signatures(&bid, &bid_chain_data, &bid_data.submit_type)
             .await?;
         match bid_payment_instruction_type {
-            BidPaymentInstructionType::Swap => self.simulate_swap_bid(&bid).await?,
+            BidPaymentInstructionType::Swap => {
+                self.simulate_swap_bid(&bid, bid_data.express_relay_instruction_index)
+                    .await?
+            }
             BidPaymentInstructionType::SubmitBid => self.simulate_bid(&bid).await?,
         }
 
