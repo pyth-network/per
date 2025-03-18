@@ -115,8 +115,9 @@ pub enum InstructionError {
     InvalidToAccountTransferInstruction { expected: Pubkey, found: Pubkey },
     InvalidAmountTransferInstruction { expected: u64, found: u64 },
     InvalidSyncNativeInstructionCount(Pubkey),
-    InvalidCloseAccountInstructionsCount,
-    InvalidAccountToCloseCloseAccountInstruction { expected: Pubkey, found: Pubkey },
+    InvalidCloseAccountInstructionCountUser(usize),
+    InvalidCloseAccountInstructionCountSearcher(usize),
+    InvalidAccountToCloseInCloseAccountInstruction(Pubkey),
     InvalidDestinationCloseAccountInstruction { expected: Pubkey, found: Pubkey },
     InvalidOwnerCloseAccountInstruction { expected: Pubkey, found: Pubkey },
 }
@@ -182,14 +183,17 @@ impl std::fmt::Display for InstructionError {
                     address
                 )
             }
-            InstructionError::InvalidCloseAccountInstructionsCount => {
-                write!(f, "Exactly one close account instruction is required")
+            InstructionError::InvalidCloseAccountInstructionCountUser(found) => {
+                write!(f, "Exactly one close account instruction for the user account was expected, found: {:?}", found)
             }
-            InstructionError::InvalidAccountToCloseCloseAccountInstruction { expected, found } => {
+            InstructionError::InvalidCloseAccountInstructionCountSearcher(found) => {
+                write!(f, "One or less close account instructions for the searcher account were expected, found: {:?}", found)
+            }
+            InstructionError::InvalidAccountToCloseInCloseAccountInstruction(ata) => {
                 write!(
                     f,
-                    "Invalid account to close in close account instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    "Invalid account to close in close account instruction. Tried to close {:?} which doesn't belong to the user nor the searcher",
+                    ata
                 )
             }
             InstructionError::InvalidDestinationCloseAccountInstruction { expected, found } => {

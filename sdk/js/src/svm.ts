@@ -483,7 +483,7 @@ export async function constructSwapBid(
     relayerSigner,
   );
   tx.instructions.push(swapInstruction);
-  if (searcherToken.equals(NATIVE_MINT)) {
+  if (searcherToken.equals(NATIVE_MINT) || userToken.equals(NATIVE_MINT)) {
     tx.instructions.push(getUnwrapSolInstruction(user));
   }
   return {
