@@ -228,10 +228,7 @@ pub async fn post_quote(
 
     let quote = store
         .opportunity_service_svm
-        .get_quote(GetQuoteInput {
-            quote_create,
-            program: ProgramSvm::Swap,
-        })
+        .get_quote(GetQuoteInput { quote_create })
         .await?;
 
     Ok(Json(quote.into()))
