@@ -481,7 +481,7 @@ export async function constructSwapBid(
   const swapInstruction = await constructSwapInstruction(
     searcher,
     swapOpportunity,
-    bidAmountIncludingFees,
+    bidAmount,
     deadline,
     chainId,
     feeReceiverRelayer,
