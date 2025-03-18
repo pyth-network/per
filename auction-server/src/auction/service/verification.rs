@@ -3,8 +3,7 @@ use {
         auction_manager::TOTAL_BIDS_PER_AUCTION_EVM,
         ChainTrait,
         Service,
-    },
-    crate::{
+    }, crate::{
         api::{
             InstructionError,
             RestError,
@@ -49,18 +48,10 @@ use {
                 get_quote::get_quote_virtual_permission_account,
             },
         },
-    },
-    ::express_relay::{
-        self as express_relay_svm,
-        FeeToken,
-    },
-    anchor_lang::{
+    }, anchor_lang::{
         AnchorDeserialize,
         Discriminator,
-    },
-    axum::async_trait,
-    borsh::de::BorshDeserialize,
-    ethers::{
+    }, axum::async_trait, borsh::de::BorshDeserialize, ethers::{
         contract::{
             ContractError,
             ContractRevert,
@@ -73,9 +64,10 @@ use {
             BlockNumber,
             U256,
         },
-    },
-    litesvm::types::FailedTransactionMetadata,
-    solana_sdk::{
+    }, ::express_relay::{
+        self as express_relay_svm,
+        FeeToken,
+    }, litesvm::types::FailedTransactionMetadata, solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
         clock::Slot,
         commitment_config::CommitmentConfig,
@@ -87,19 +79,13 @@ use {
         system_instruction::SystemInstruction,
         system_program,
         transaction::VersionedTransaction,
-    },
-    spl_associated_token_account::{
+    }, spl_associated_token_account::{
         get_associated_token_address,
         get_associated_token_address_with_program_id,
         instruction::AssociatedTokenAccountInstruction,
-    },
-    spl_token::instruction::TokenInstruction,
-    std::{
-        sync::Arc,
-        time::Duration,
-    },
-    time::OffsetDateTime,
-    uuid::Uuid,
+    }, spl_token::instruction::TokenInstruction, std::{
+        collections::VecDeque, sync::Arc, time::Duration
+    }, time::OffsetDateTime, uuid::Uuid
 };
 
 pub struct VerifyBidInput<T: ChainTrait> {
@@ -1053,20 +1039,20 @@ impl Service<Svm> {
             get_associated_token_address(&swap_accounts.searcher, &spl_token::native_mint::id());
 
         let (mut user_unwrap_sol_instructions, other_unwrap_sol_instructions): (
-            Vec<CloseAccountInstructionData>,
-            Vec<CloseAccountInstructionData>,
+            VecDeque<CloseAccountInstructionData>,
+            VecDeque<CloseAccountInstructionData>,
         ) = close_account_instructions
             .into_iter()
             .partition(|instruction| instruction.account == user_ata);
 
         let (searcher_unwrap_sol_instructions, mut other_unwrap_sol_instructions): (
-            Vec<CloseAccountInstructionData>,
-            Vec<CloseAccountInstructionData>,
+            VecDeque<CloseAccountInstructionData>,
+            VecDeque<CloseAccountInstructionData>,
         ) = other_unwrap_sol_instructions
             .into_iter()
             .partition(|instruction| instruction.account == searcher_ata);
 
-        if let Some(close_account_instruction) = other_unwrap_sol_instructions.pop() {
+        if let Some(close_account_instruction) = other_unwrap_sol_instructions.pop_front() {
             return Err(RestError::InvalidInstruction(
                 Some(close_account_instruction.index),
                 InstructionError::InvalidAccountToCloseInCloseAccountInstruction(
@@ -1079,7 +1065,7 @@ impl Service<Svm> {
             || swap_accounts.mint_user == spl_token::native_mint::id()
         {
             // User has to unwrap Sol
-            if let Some(close_account_instruction) = user_unwrap_sol_instructions.pop() {
+            if let Some(close_account_instruction) = user_unwrap_sol_instructions.pop_front() {
                 if close_account_instruction.destination != swap_accounts.user_wallet {
                     return Err(RestError::InvalidInstruction(
                         Some(close_account_instruction.index),
@@ -2803,7 +2789,7 @@ mod tests {
         .await;
         assert_eq!(
             result.unwrap_err(),
-            RestError::InvalidInstruction(None, InstructionError::TransferInstructionNotAllowed)
+            RestError::InvalidInstruction(Some(1), InstructionError::TransferInstructionNotAllowed)
         );
     }
 
@@ -2841,7 +2827,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(1),
                 InstructionError::CloseAccountInstructionNotAllowed
             )
         );
@@ -2877,7 +2863,7 @@ mod tests {
         .await;
         assert_eq!(
             result.unwrap_err(),
-            RestError::InvalidInstruction(None, InstructionError::InvalidTransferInstructionsCount)
+            RestError::InvalidInstruction(Some(2), InstructionError::InvalidTransferInstructionsCount)
         );
     }
 
@@ -2913,7 +2899,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(1),
                 InstructionError::InvalidFromAccountTransferInstruction { expected, found }
             )
         );
@@ -2955,7 +2941,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(1),
                 InstructionError::InvalidToAccountTransferInstruction { expected, found }
             )
         );
@@ -3000,7 +2986,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(1),
                 InstructionError::InvalidAmountTransferInstruction { expected, found }
             )
         );
@@ -3301,7 +3287,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(2),
                 InstructionError::InvalidCloseAccountInstructionCountUser(2),
             )
         );
@@ -3372,7 +3358,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(1),
                 InstructionError::InvalidAccountToCloseInCloseAccountInstruction(found)
             )
         );
@@ -3420,7 +3406,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(1),
                 InstructionError::InvalidDestinationCloseAccountInstruction {
                     expected: program.user_wallet_address,
                     found
@@ -3849,7 +3835,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(1),
                 InstructionError::InvalidOwnerCloseAccountInstruction {
                     expected: program.user_wallet_address,
                     found
@@ -3994,7 +3980,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(3),
                 InstructionError::InvalidAccountToCloseInCloseAccountInstruction(found)
             )
         );
@@ -4131,7 +4117,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(0),
                 InstructionError::InvalidFromAccountTransferInstruction { expected, found }
             )
         );
@@ -4193,7 +4179,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                None,
+                Some(0),
                 InstructionError::InvalidToAccountTransferInstruction { expected, found }
             )
         );
