@@ -41,7 +41,7 @@ use {
         FeeToken,
     },
     axum_prometheus::metrics,
-    express_relay_api_types::opportunity::ProgramSvm,
+    express_relay_api_types::opportunity,
     solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
     spl_token::native_mint,
@@ -407,7 +407,7 @@ impl Service<ChainTypeSvm> {
         // Add metrics
         let labels = [
             ("chain_id", input.quote_create.chain_id.to_string()),
-            ("program", ProgramSvm::Swap.to_string()),
+            ("program", opportunity::ProgramSvm::Swap.to_string()),
             ("total_bids", total_bids),
         ];
         metrics::counter!("get_quote_total_bids", &labels).increment(1);
