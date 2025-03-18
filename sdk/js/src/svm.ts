@@ -164,11 +164,13 @@ export async function constructSwapInstruction(
   const swapArgs = {
     amountSearcher:
       swapOpportunity.tokens.type === "searcher_specified"
-        ? new anchor.BN(swapOpportunity.tokens.searcherAmount)
+        ? new anchor.BN(swapOpportunity.tokens.searcherAmount.toString())
         : bidAmountIncludingFees,
     amountUser:
       swapOpportunity.tokens.type === "user_specified"
-        ? new anchor.BN(swapOpportunity.tokens.userTokenAmountIncludingFees)
+        ? new anchor.BN(
+            swapOpportunity.tokens.userTokenAmountIncludingFees.toString(),
+          )
         : bidAmountIncludingFees,
     referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
     deadline,
@@ -464,7 +466,9 @@ export async function constructSwapBid(
         ...getWrapSolInstructions(
           searcher,
           user,
-          swapOpportunity.tokens.userTokenAmountIncludingFees,
+          new anchor.BN(
+            swapOpportunity.tokens.userTokenAmountIncludingFees.toString(),
+          ),
         ),
       );
     }
