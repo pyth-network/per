@@ -137,7 +137,7 @@ export function createAtaIdempotentInstruction(
 export async function constructSwapInstruction(
   searcher: PublicKey,
   swapOpportunity: OpportunitySvmSwap,
-  bidAmountIncludingFees: anchor.BN,
+  bidAmount: anchor.BN,
   deadline: anchor.BN,
   chainId: string,
   feeReceiverRelayer: PublicKey,
@@ -161,6 +161,11 @@ export async function constructSwapInstruction(
     router,
   } = extractSwapInfo(swapOpportunity);
 
+  const bidAmountIncludingFees = getBidAmountIncludingFees(
+    swapOpportunity,
+    bidAmount,
+  );
+
   const swapArgs = {
     amountSearcher:
       swapOpportunity.tokens.type === "searcher_specified"
@@ -172,7 +177,7 @@ export async function constructSwapInstruction(
             swapOpportunity.tokens.userTokenAmountIncludingFees.toString(),
           )
         : bidAmountIncludingFees,
-    referralFeeBps: new anchor.BN(swapOpportunity.referralFeeBps),
+    referralFeeBps: swapOpportunity.referralFeeBps,
     deadline,
     feeToken:
       swapOpportunity.feeToken === "searcher_token"
