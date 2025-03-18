@@ -1162,7 +1162,7 @@ impl Service<Svm> {
         let svm_config = &self.config.chain_config.express_relay;
         match bid_chain_data_create_svm {
             BidChainDataCreateSvm::OnChain(bid_data) => {
-                let (instruction_index, submit_bid_instruction) = self
+                let (express_relay_instruction_index, submit_bid_instruction) = self
                     .extract_express_relay_instruction(
                         bid_data.transaction.clone(),
                         BidPaymentInstructionType::SubmitBid,
@@ -1188,7 +1188,7 @@ impl Service<Svm> {
                     )
                     .await?;
                 Ok(BidDataSvm {
-                    express_relay_instruction_index: instruction_index,
+                    express_relay_instruction_index,
                     amount: submit_bid_data.bid_amount,
                     permission_account,
                     router,
@@ -1215,7 +1215,7 @@ impl Service<Svm> {
                 )?;
                 self.check_svm_swap_bid_fields(bid_data, &opp).await?;
 
-                let (instruction_index, swap_instruction) = self
+                let (express_relay_instruction_index, swap_instruction) = self
                     .extract_express_relay_instruction(
                         bid_data.transaction.clone(),
                         BidPaymentInstructionType::Swap,
@@ -1273,7 +1273,7 @@ impl Service<Svm> {
                 );
 
                 Ok(BidDataSvm {
-                    express_relay_instruction_index: instruction_index,
+                    express_relay_instruction_index,
                     amount: bid_amount,
                     permission_account,
                     router: opp.router,
@@ -1392,13 +1392,9 @@ impl Service<Svm> {
         match simulation {
             Ok(simulation) => {
                 if let Some(transaction_error) = simulation.value.err {
-                    if let TransactionError::InstructionError(
-                        instruction_index,
-                        instruction_error,
-                    ) = transaction_error
-                    {
-                        if usize::from(instruction_index) == express_relay_instruction_index
-                            && instruction_error
+                    if let TransactionError::InstructionError(index, error) = transaction_error {
+                        if usize::from(index) == express_relay_instruction_index
+                            && error
                                 == SolanaInstructionError::Custom(
                                     ErrorCode::InsufficientUserFunds.into(),
                                 )
