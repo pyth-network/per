@@ -117,7 +117,7 @@ pub enum InstructionError {
     InvalidSyncNativeInstructionCount(Pubkey),
     InvalidCloseAccountInstructionCountUser(usize),
     InvalidCloseAccountInstructionCountSearcher(usize),
-    InvalidAccountToCloseCloseAccountInstruction(Pubkey),
+    InvalidAccountToCloseInCloseAccountInstruction(Pubkey),
     InvalidDestinationCloseAccountInstruction { expected: Pubkey, found: Pubkey },
     InvalidOwnerCloseAccountInstruction { expected: Pubkey, found: Pubkey },
 }
@@ -189,7 +189,7 @@ impl std::fmt::Display for InstructionError {
             InstructionError::InvalidCloseAccountInstructionCountSearcher(found) => {
                 write!(f, "One or less close account instructions for the searcher account were expected, found: {:?}", found)
             }
-            InstructionError::InvalidAccountToCloseCloseAccountInstruction(ata) => {
+            InstructionError::InvalidAccountToCloseInCloseAccountInstruction(ata) => {
                 write!(
                     f,
                     "Invalid account to close in close account instruction. Tried to close {:?} which doesn't belong to the user nor the searcher",

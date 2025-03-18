@@ -1059,7 +1059,7 @@ impl Service<Svm> {
         if let Some(close_account_instruction) = other_unwrap_sol_instructions.pop() {
             return Err(RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidAccountToCloseCloseAccountInstruction(
+                InstructionError::InvalidAccountToCloseInCloseAccountInstruction(
                     close_account_instruction.account,
                 ),
             ));
@@ -3363,7 +3363,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidAccountToCloseCloseAccountInstruction(found)
+                InstructionError::InvalidAccountToCloseInCloseAccountInstruction(found)
             )
         );
     }
@@ -3985,7 +3985,7 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidInstruction(
                 None,
-                InstructionError::InvalidAccountToCloseCloseAccountInstruction(found)
+                InstructionError::InvalidAccountToCloseInCloseAccountInstruction(found)
             )
         );
     }
