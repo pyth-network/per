@@ -305,7 +305,6 @@ pub mod tests {
             opportunity::repository::MockDatabase,
             server::setup_metrics_recorder,
         },
-        std::sync::atomic::AtomicUsize,
         tokio::sync::broadcast::Receiver,
     };
 
@@ -325,8 +324,6 @@ pub mod tests {
                 ordered_fee_tokens:      vec![],
             };
 
-            let (broadcast_sender, broadcast_receiver) = tokio::sync::broadcast::channel(100);
-
             let mut chains_svm = HashMap::new();
             chains_svm.insert(chain_id.clone(), config_svm);
 
@@ -334,13 +331,7 @@ pub mod tests {
                 db:               DB::connect_lazy("https://test").unwrap(),
                 chains_evm:       HashMap::new(),
                 chains_svm:       HashMap::new(),
-                ws:               ws::WsState {
-                    requester_ip_header_name: "X-Forwarded-For".to_string(),
-                    subscriber_per_ip: RwLock::new(HashMap::new()),
-                    subscriber_counter: AtomicUsize::new(0),
-                    broadcast_sender,
-                    broadcast_receiver,
-                },
+                ws:               ws::WsState::new("X-Forwarded-For".to_string(), 100),
                 secret_key:       "test".to_string(),
                 access_tokens:    RwLock::new(HashMap::new()),
                 metrics_recorder: setup_metrics_recorder().unwrap(),
