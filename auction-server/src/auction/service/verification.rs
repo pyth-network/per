@@ -1380,7 +1380,7 @@ impl Service<Svm> {
     pub async fn simulate_swap_bid(
         &self,
         bid: &entities::BidCreate<Svm>,
-        express_relay_instruction_index: usize,
+        swap_instruction_index: usize,
     ) -> Result<(), RestError> {
         let tx = bid.chain_data.get_transaction();
         let simulation = self
@@ -1393,7 +1393,7 @@ impl Service<Svm> {
             Ok(simulation) => {
                 if let Some(transaction_error) = simulation.value.err {
                     if let TransactionError::InstructionError(index, error) = transaction_error {
-                        if usize::from(index) == express_relay_instruction_index
+                        if usize::from(index) == swap_instruction_index
                             && error
                                 == SolanaInstructionError::Custom(
                                     ErrorCode::InsufficientUserFunds.into(),
