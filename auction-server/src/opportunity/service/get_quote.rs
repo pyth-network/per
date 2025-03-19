@@ -72,6 +72,10 @@ use {
 /// Time to wait for searchers to submit bids.
 const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
 
+pub struct GetQuoteInput {
+    pub quote_create: entities::QuoteCreate,
+}
+
 /// Get a pubkey based on router_token_account, user_wallet_address, referral_fee_bps, mints, and token amounts
 /// This pubkey is never mentioned on-chain and is only used internally
 /// to distinguish between different swap bids
@@ -339,14 +343,11 @@ impl Service<ChainTypeSvm> {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn get_quote(
-        &self,
-        quote_create: entities::QuoteCreate,
-    ) -> Result<entities::Quote, RestError> {
+    pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
         let referral_fee_info = self
             .unwrap_referral_fee_info(
-                quote_create.referral_fee_info.clone(),
-                &quote_create.chain_id,
+                input.quote_create.referral_fee_info.clone(),
+                &input.quote_create.chain_id,
             )
             .await?;
 
@@ -358,13 +359,13 @@ impl Service<ChainTypeSvm> {
             )));
         }
 
-        let config = self.get_config(&quote_create.chain_id)?;
+        let config = self.get_config(&input.quote_create.chain_id)?;
         let auction_service = config.get_auction_service().await;
 
-        tracing::info!(quote_create = ?quote_create, "Received request to get quote");
+        tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");
 
         let opportunity_create = self
-            .get_opportunity_create_for_quote(quote_create.clone())
+            .get_opportunity_create_for_quote(input.quote_create.clone())
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {
@@ -405,7 +406,7 @@ impl Service<ChainTypeSvm> {
         };
         // Add metrics
         let labels = [
-            ("chain_id", quote_create.chain_id.to_string()),
+            ("chain_id", input.quote_create.chain_id.to_string()),
             ("program", ProgramSvm::Swap.to_string()),
             ("total_bids", total_bids),
         ];
@@ -421,7 +422,7 @@ impl Service<ChainTypeSvm> {
         }
 
         // Find winner bid:
-        match quote_create.tokens {
+        match input.quote_create.tokens {
             entities::QuoteTokens::UserTokenSpecified { .. } => {
                 // highest bid = best (most searcher token returned)
                 bids.sort_by(|a, b| b.amount.cmp(&a.amount));
@@ -517,7 +518,7 @@ impl Service<ChainTypeSvm> {
 
         let metadata = self
             .get_express_relay_metadata(GetExpressRelayMetadata {
-                chain_id: quote_create.chain_id.clone(),
+                chain_id: input.quote_create.chain_id.clone(),
             })
             .await?;
 
@@ -586,7 +587,7 @@ impl Service<ChainTypeSvm> {
                 token:  fee_token,
                 amount: fees.express_relay_fee + fees.relayer_fee,
             },
-            chain_id: quote_create.chain_id,
+            chain_id: input.quote_create.chain_id,
             reference_id: auction.id,
         })
     }

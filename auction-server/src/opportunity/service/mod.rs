@@ -373,7 +373,7 @@ mock! {
             &self,
             input: get_opportunities::GetOpportunitiesInput,
         ) -> Result<Vec<<T::InMemoryStore as InMemoryStore>::Opportunity>, crate::api::RestError>;
-        pub async fn get_quote(&self, quote_create: crate::opportunity::entities::QuoteCreate) -> Result<crate::opportunity::entities::Quote, crate::api::RestError>;
+        pub async fn get_quote(&self, input: get_quote::GetQuoteInput) -> Result<crate::opportunity::entities::Quote, crate::api::RestError>;
         pub async fn handle_opportunity_bid(
             &self,
             input: handle_opportunity_bid::HandleOpportunityBidInput,
