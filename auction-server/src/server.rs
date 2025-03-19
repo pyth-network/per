@@ -37,12 +37,9 @@ use {
         anyhow,
         Result,
     },
-    axum_prometheus::{
-        metrics_exporter_prometheus::{
-            PrometheusBuilder,
-            PrometheusHandle,
-        },
-        utils::SECONDS_DURATION_BUCKETS,
+    axum_prometheus::metrics_exporter_prometheus::{
+        PrometheusBuilder,
+        PrometheusHandle,
     },
     ethers::{
         prelude::LocalWallet,
@@ -161,6 +158,11 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
         .collect()
 }
 
+pub const DEFAULT_METRICS_BUCKET: &[f64; 20] = &[
+    0.005, 0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.25, 1.5, 2.0,
+    3.0, 5.0, 10.0,
+];
+
 pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
     PrometheusBuilder::new()
         .set_buckets_for_metric(
@@ -170,7 +172,7 @@ pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
             per_metrics::TRANSACTION_LANDING_TIME_SVM_BUCKETS,
         )
         .unwrap()
-        .set_buckets(SECONDS_DURATION_BUCKETS)
+        .set_buckets(DEFAULT_METRICS_BUCKET)
         .unwrap()
         .install_recorder()
         .map_err(|err| anyhow!("Failed to set up metrics recorder: {:?}", err))
