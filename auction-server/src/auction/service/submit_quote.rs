@@ -99,7 +99,7 @@ impl Service<Svm> {
         let (auction, winner_bid) = self.get_bid_to_submit(input.auction_id).await?;
 
         let mut bid = winner_bid.clone();
-        let swap_instruction = self
+        let (_, swap_instruction) = self
             .extract_express_relay_instruction(
                 bid.chain_data.transaction.clone(),
                 entities::BidPaymentInstructionType::Swap,

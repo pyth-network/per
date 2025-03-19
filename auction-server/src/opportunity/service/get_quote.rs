@@ -26,6 +26,8 @@ use {
             api::INDICATIVE_PRICE_TAKER,
             entities::{
                 self,
+                OpportunitySvmProgram,
+                OpportunitySvmProgramSwap,
                 TokenAmountSvm,
             },
             service::{
@@ -72,7 +74,6 @@ const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
 
 pub struct GetQuoteInput {
     pub quote_create: entities::QuoteCreate,
-    pub program:      ProgramSvm,
 }
 
 /// Get a pubkey based on router_token_account, user_wallet_address, referral_fee_bps, mints, and token amounts
@@ -153,7 +154,6 @@ impl Service<ChainTypeSvm> {
     async fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
-        program: &ProgramSvm,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
         let referral_fee_info = self
             .unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)
@@ -300,27 +300,21 @@ impl Service<ChainTypeSvm> {
 
         let mint_user_is_wrapped_sol = mint_user == native_mint::id();
         let token_account_initialization_config =
-            balances.get_token_account_initialization_configs(mint_user_is_wrapped_sol);
+            balances.get_token_account_initialization_configs();
         let user_mint_user_balance =
             balances.get_user_ata_mint_user_balance(mint_user_is_wrapped_sol);
 
-        let program_opportunity = match program {
-            ProgramSvm::Swap => {
-                entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
-                    user_wallet_address,
-                    fee_token,
-                    referral_fee_bps: referral_fee_info.referral_fee_bps,
-                    platform_fee_bps: metadata.swap_platform_fee_bps,
-                    token_program_user,
-                    user_mint_user_balance,
-                    token_account_initialization_config,
-                    token_program_searcher,
-                })
-            }
-            _ => {
-                return Err(RestError::Forbidden);
-            }
-        };
+        let program_opportunity =
+            entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
+                user_wallet_address,
+                fee_token,
+                referral_fee_bps: referral_fee_info.referral_fee_bps,
+                platform_fee_bps: metadata.swap_platform_fee_bps,
+                token_program_user,
+                user_mint_user_balance,
+                token_account_initialization_config,
+                token_program_searcher,
+            });
 
         Ok(entities::OpportunityCreateSvm {
             core_fields,
@@ -371,7 +365,7 @@ impl Service<ChainTypeSvm> {
         tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");
 
         let opportunity_create = self
-            .get_opportunity_create_for_quote(input.quote_create.clone(), &input.program)
+            .get_opportunity_create_for_quote(input.quote_create.clone())
             .await?;
         let opportunity = self
             .add_opportunity(AddOpportunityInput {
@@ -412,7 +406,7 @@ impl Service<ChainTypeSvm> {
         // Add metrics
         let labels = [
             ("chain_id", input.quote_create.chain_id.to_string()),
-            ("program", input.program.to_string()),
+            ("program", ProgramSvm::Swap.to_string()),
             ("total_bids", total_bids),
         ];
         metrics::counter!("get_quote_total_bids", &labels).increment(1);
@@ -439,7 +433,7 @@ impl Service<ChainTypeSvm> {
         }
         let winner_bid = bids.first().expect("failed to get first bid");
 
-        let swap_instruction = auction_service
+        let (_, swap_instruction) = auction_service
             .extract_express_relay_instruction(
                 winner_bid.chain_data.transaction.clone(),
                 BidPaymentInstructionType::Swap,
@@ -555,12 +549,21 @@ impl Service<ChainTypeSvm> {
             ),
         };
 
-        let (transaction, expiration_time) = match input.quote_create.user_wallet_address {
-            None => (None, None),
-            Some(_) => (
+        let OpportunitySvmProgramSwap {
+            user_mint_user_balance,
+            ..
+        } = match &opportunity.program {
+            OpportunitySvmProgram::Swap(swap) => swap,
+            _ => return Err(RestError::TemporarilyUnavailable), // This should be unreachable
+        };
+
+        let (transaction, expiration_time) = if *user_mint_user_balance >= swap_data.amount_user {
+            (
                 Some(winner_bid.chain_data.transaction.clone()),
                 Some(deadline),
-            ),
+            )
+        } else {
+            (None, None)
         };
 
         Ok(entities::Quote {

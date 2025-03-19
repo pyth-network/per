@@ -69,7 +69,7 @@ from hexbytes import HexBytes
 from solders.instruction import Instruction
 from solders.pubkey import Pubkey
 from solders.sysvar import INSTRUCTIONS
-from spl.token.constants import TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT
+from spl.token.constants import WRAPPED_SOL_MINT
 from websockets.client import WebSocketClientProtocol
 
 
@@ -614,8 +614,8 @@ class ExpressRelayClient:
             ),
             TokenAccountInitializationParams(
                 owner=accs["user"],
-                mint=WRAPPED_SOL_MINT,
-                program=TOKEN_PROGRAM_ID,
+                mint=accs["user_token"],
+                program=accs["token_program_user"],
                 config=configs.user_ata_mint_user,
             ),
             TokenAccountInitializationParams(

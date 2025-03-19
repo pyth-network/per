@@ -319,6 +319,8 @@ function getTokenAccountsToCreate(
     feeTokenProgram,
     tokenProgramSearcher,
     searcherToken: mintSearcher,
+    tokenProgramUser,
+    userToken: mintUser,
   } = extractSwapInfo(swapOpportunity);
   const tokenAccountInitializationParams: TokenAccountInitializationParams[] = [
     {
@@ -330,8 +332,8 @@ function getTokenAccountsToCreate(
     {
       config: tokenInitializationConfigs.userAtaMintUser,
       owner: user,
-      mint: NATIVE_MINT,
-      program: TOKEN_PROGRAM_ID,
+      mint: mintUser,
+      program: tokenProgramUser,
     },
     {
       config: tokenInitializationConfigs.routerFeeReceiverAta,
