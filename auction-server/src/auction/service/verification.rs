@@ -1396,12 +1396,13 @@ impl Service<Svm> {
             Ok(simulation) => {
                 if let Some(transaction_error) = simulation.value.err {
                     if let TransactionError::InstructionError(index, error) = transaction_error {
-                        if usize::from(index) == swap_instruction_index
+                        let is_insufficient_funds_error = usize::from(index)
+                            == swap_instruction_index
                             && error
                                 == SolanaInstructionError::Custom(
                                     ErrorCode::InsufficientUserFunds.into(),
-                                )
-                        {
+                                );
+                        if is_insufficient_funds_error {
                             return Ok(());
                         }
                     }
