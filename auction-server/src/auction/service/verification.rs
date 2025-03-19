@@ -491,7 +491,10 @@ impl Service<Svm> {
             .collect::<Vec<(usize, CompiledInstruction)>>();
 
         let (instruction_index, instruction) = match instructions.len() {
-            1 => Ok(instructions.into_iter().next().unwrap()),
+            1 => Ok(instructions
+                .into_iter()
+                .next()
+                .expect("This can't happen because we just only go here if the length is 1")),
             _ => Err(RestError::InvalidExpressRelayInstructionCount(
                 instructions.len(),
             )),
