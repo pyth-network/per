@@ -33,7 +33,7 @@ pub struct QuoteRequestAccountBalancesInput {
     pub token_program_user:     Pubkey,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TokenAccountBalance {
     Uninitialized,
     Initialized(u64),
@@ -93,16 +93,28 @@ impl QuoteRequestAccountBalances {
         let rent = Rent::default(); // TODO: this is not correct, we should use the rent of the chain, but probably fine for Solana mainnet
 
         // This is just a heuristic, we want users to pay for their token account if they have enough SOL, but still have some SOL left after the swap.
-        let user_payer = self.user_sol_balance >= 2 * rent.minimum_balance(TokenAccount::LEN);
+        // The user should have enough SOL for the rent of two token accounts, after the swap.
+        let mut remaining_sol_balance = self.user_sol_balance;
+        let user_payer_ata_mint_user = remaining_sol_balance
+            >= 3 * rent.minimum_balance(TokenAccount::LEN)
+            && self.user_ata_mint_user == TokenAccountBalance::Uninitialized;
+        if user_payer_ata_mint_user {
+            remaining_sol_balance =
+                remaining_sol_balance.saturating_sub(rent.minimum_balance(TokenAccount::LEN));
+        };
+
+        let user_payer_ata_mint_searcher = remaining_sol_balance
+            >= 3 * rent.minimum_balance(TokenAccount::LEN)
+            && self.user_ata_mint_searcher == TokenAccountBalance::Uninitialized;
 
         TokenAccountInitializationConfigs {
             user_ata_mint_user:             self
                 .user_ata_mint_user
-                .get_initialization_config(false), // This is useful for wrapped SOL, where the user balance is in their native wallet and their wrapped SOL account needs to be initialized before the swap.
+                .get_initialization_config(user_payer_ata_mint_user), // This is useful for wrapped SOL, where the user balance is in their native wallet and their wrapped SOL account needs to be initialized before the swap.
             // Additionally, in (indicative) quotes for a user that has 0 funds in the user token account, we need searchers to initialize this account in their bids so the simulation fails with the `InsufficientUserFunds` error.
             user_ata_mint_searcher:         self
                 .user_ata_mint_searcher
-                .get_initialization_config(user_payer),
+                .get_initialization_config(user_payer_ata_mint_searcher),
             router_fee_receiver_ta:         self
                 .router_fee_receiver_ta
                 .get_initialization_config(false),
