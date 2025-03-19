@@ -75,7 +75,6 @@ jobs:
     strategy:
       matrix:
         service:
-          - opportunity-provider-limo
           - dex-router
           - limonade
           - swap-beacon

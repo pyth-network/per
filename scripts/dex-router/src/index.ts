@@ -132,7 +132,7 @@ export class DexRouter {
     const remainingOutput = order.state.expectedOutputAmount.sub(
       order.state.filledOutputAmount,
     );
-    if (routeBest.output.amountOut < remainingOutput) {
+    if (routeBest.output.amountOut < BigInt(remainingOutput.toString())) {
       throw new Error(
         `Route output amount is less than remaining output amount: ${routeBest.output.amountOut.toString(
           10,
@@ -165,7 +165,7 @@ export class DexRouter {
       this.executor.publicKey,
       order,
       order.state.remainingInputAmount,
-      route.amountOut,
+      new anchor.BN(route.amountOut.toString()),
       SVM_CONSTANTS[this.chainId].expressRelayProgram,
     );
 
@@ -208,7 +208,7 @@ export class DexRouter {
             const routerOutput = await router.route(
               order.state.inputMint,
               order.state.outputMint,
-              order.state.remainingInputAmount,
+              BigInt(order.state.remainingInputAmount.toString()),
             );
             const routerTx = await this.createRouterTransaction(
               routerOutput,
