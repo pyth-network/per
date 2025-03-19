@@ -98,7 +98,8 @@ impl QuoteRequestAccountBalances {
         TokenAccountInitializationConfigs {
             user_ata_mint_user:             self
                 .user_ata_mint_user
-                .get_initialization_config(false),
+                .get_initialization_config(false), // This is useful for wrapped SOL, where the user balance is in their native wallet and their wrapped SOL account needs to be initialized before the swap.
+            // Additionally, in (indicative) quotes for a user that has 0 funds in the user token account, we need searchers to initialize this account in their bids so the simulation fails with the `InsufficientUserFunds` error.
             user_ata_mint_searcher:         self
                 .user_ata_mint_searcher
                 .get_initialization_config(user_payer),
