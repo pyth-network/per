@@ -372,7 +372,6 @@ impl Service<ChainTypeSvm> {
                 opportunity: opportunity_create,
             })
             .await?;
-
         let searcher_token = opportunity.sell_tokens[0].clone();
         let user_token = opportunity.buy_tokens[0].clone();
         if searcher_token.amount == 0 && user_token.amount == 0 {
