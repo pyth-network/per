@@ -423,7 +423,7 @@ class SvmChainUpdate(BaseModel):
 
 class ProgramSvm(Enum):
     LIMO = "limo"
-    PHANTOM = "phantom"
+    SWAP = "swap"
 
 
 class OpportunityDeleteSvm(BaseModel):
