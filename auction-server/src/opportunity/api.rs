@@ -5,7 +5,10 @@ use {
         service::{
             add_opportunity::AddOpportunityInput,
             get_opportunities::GetOpportunitiesInput,
-            get_quote::GetQuoteInput,
+            get_quote::{
+                is_indicative_price_taker,
+                GetQuoteInput,
+            },
             handle_opportunity_bid::HandleOpportunityBidInput,
             remove_opportunities::RemoveOpportunitiesInput,
         },
@@ -46,7 +49,6 @@ use {
         },
         ErrorBodyResponse,
     },
-    solana_sdk::pubkey::Pubkey,
     std::sync::Arc,
     time::OffsetDateTime,
 };
@@ -200,30 +202,6 @@ pub async fn get_opportunities(
     }
 }
 
-/// Base bytes for the indicative price taker key
-/// The first 24 bytes of "Price11111111111111111111111111111111111112"
-const INDICATIVE_PRICE_TAKER_BASE: [u8; 24] = [
-    0x05, 0xda, 0xfe, 0x58, 0xfc, 0xc9, 0x54, 0xbe, 0x96, 0xc9, 0x32, 0xae, 0x8e, 0x9a, 0x17, 0x68,
-    0x9d, 0x10, 0x17, 0xf8, 0xc9, 0xe1, 0xb0, 0x7c,
-];
-
-/// Generate a new key for indicative price taker with the first 24 bytes
-/// the same as the original INDICATIVE_PRICE_TAKER but the last 8 bytes random.
-pub fn generate_indicative_price_taker() -> Pubkey {
-    use rand::Rng;
-    let mut key_bytes = [0u8; 32];
-
-    // Copy the first 24 bytes from the base
-    key_bytes[0..24].copy_from_slice(&INDICATIVE_PRICE_TAKER_BASE);
-
-    // Generate 8 random bytes for the last part of the key
-    let mut rng = rand::thread_rng();
-    key_bytes[24..32].iter_mut().for_each(|byte| {
-        *byte = rng.gen();
-    });
-
-    Pubkey::new_from_array(key_bytes)
-}
 
 /// Submit a quote request.
 ///
@@ -238,10 +216,12 @@ pub async fn post_quote(
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
 ) -> Result<Json<Quote>, RestError> {
-    if params.get_user_wallet_address() == Some(generate_indicative_price_taker()) {
-        return Err(RestError::BadParameters(
-            "Invalid user wallet address".to_string(),
-        ));
+    if let Some(address) = params.get_user_wallet_address() {
+        if is_indicative_price_taker(&address) {
+            return Err(RestError::BadParameters(
+                "Invalid user wallet address".to_string(),
+            ));
+        }
     }
     let quote_create: QuoteCreateEntity = params.into();
 
