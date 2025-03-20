@@ -103,9 +103,8 @@ impl QuoteRequestAccountBalances {
                 remaining_sol_balance.saturating_sub(rent.minimum_balance(TokenAccount::LEN));
         };
 
-        let user_payer_ata_mint_searcher = remaining_sol_balance
-            >= 3 * rent.minimum_balance(TokenAccount::LEN)
-            && self.user_ata_mint_searcher == TokenAccountBalance::Uninitialized;
+        let user_payer_ata_mint_searcher =
+            remaining_sol_balance >= 3 * rent.minimum_balance(TokenAccount::LEN);
 
         TokenAccountInitializationConfigs {
             user_ata_mint_user:             self
