@@ -23,7 +23,7 @@ use {
         },
         kernel::entities::PermissionKeySvm,
         opportunity::{
-            api::INDICATIVE_PRICE_TAKER,
+            api::generate_indicative_price_taker,
             entities::{
                 self,
                 OpportunitySvmProgram,
@@ -259,7 +259,7 @@ impl Service<ChainTypeSvm> {
         };
         let user_wallet_address = match quote_create.user_wallet_address {
             Some(address) => address,
-            None => INDICATIVE_PRICE_TAKER,
+            None => generate_indicative_price_taker(),
         };
         let permission_account = get_quote_virtual_permission_account(
             &tokens_for_permission,
