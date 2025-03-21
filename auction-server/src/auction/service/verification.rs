@@ -3,8 +3,7 @@ use {
         auction_manager::TOTAL_BIDS_PER_AUCTION_EVM,
         ChainTrait,
         Service,
-    },
-    crate::{
+    }, crate::{
         api::{
             InstructionError,
             RestError,
@@ -38,10 +37,7 @@ use {
         opportunity::{
             self as opportunity,
             entities::{
-                get_swap_quote_tokens,
-                OpportunitySvm,
-                OpportunitySvmProgram::Swap,
-                QuoteTokens,
+                get_swap_quote_tokens, OpportunitySvm, OpportunitySvmProgram::Swap, QuoteTokens, TokenAccountInitializationConfig, TokenAccountInitializationConfigs
             },
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
@@ -52,18 +48,10 @@ use {
                 },
             },
         },
-    },
-    ::express_relay::{
-        self as express_relay_svm,
-        FeeToken,
-    },
-    anchor_lang::{
+    }, anchor_lang::{
         AnchorDeserialize,
         Discriminator,
-    },
-    axum::async_trait,
-    borsh::de::BorshDeserialize,
-    ethers::{
+    }, axum::async_trait, borsh::de::BorshDeserialize, ethers::{
         contract::{
             ContractError,
             ContractRevert,
@@ -76,10 +64,10 @@ use {
             BlockNumber,
             U256,
         },
-    },
-    express_relay::error::ErrorCode,
-    litesvm::types::FailedTransactionMetadata,
-    solana_sdk::{
+    }, ::express_relay::{
+        self as express_relay_svm,
+        FeeToken,
+    }, express_relay::error::ErrorCode, litesvm::types::FailedTransactionMetadata, solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
         clock::Slot,
         commitment_config::CommitmentConfig,
@@ -97,20 +85,15 @@ use {
             TransactionError,
             VersionedTransaction,
         },
-    },
-    spl_associated_token_account::{
+    }, spl_associated_token_account::{
         get_associated_token_address,
         get_associated_token_address_with_program_id,
         instruction::AssociatedTokenAccountInstruction,
-    },
-    spl_token::instruction::TokenInstruction,
-    std::{
+    }, spl_token::instruction::TokenInstruction, std::{
         collections::VecDeque,
         sync::Arc,
         time::Duration,
-    },
-    time::OffsetDateTime,
-    uuid::Uuid,
+    }, time::OffsetDateTime, uuid::Uuid
 };
 
 pub struct VerifyBidInput<T: ChainTrait> {
@@ -156,6 +139,15 @@ struct CloseAccountInstructionData {
     account:     Pubkey,
     destination: Pubkey,
     owner:       Pubkey,
+}
+
+#[derive(Debug, Clone)]
+struct CreateAtaInstructionData {
+    index: usize,
+    payer: Pubkey,
+    ata: Pubkey,
+    owner: Pubkey,
+    mint: Pubkey,
 }
 
 impl Service<Evm> {
@@ -975,6 +967,21 @@ impl Service<Svm> {
             .collect()
     }
 
+    fn extract_associated_token_account_instructions(tx: &VersionedTransaction) -> Vec<(usize, &CompiledInstruction)> {
+        tx.message
+            .instructions()
+            .iter()
+            .enumerate()
+            .filter(|(_, instruction)| {
+                let program_id = tx
+                    .message
+                    .static_account_keys()
+                    .get(instruction.program_id_index as usize);
+                program_id == Some(&spl_associated_token_account::id())
+            })
+            .collect()
+    }
+
     fn extract_sync_native_instructions(tx: &VersionedTransaction) -> Vec<&CompiledInstruction> {
         let token_instructions = Self::extract_token_instructions(tx);
         token_instructions
@@ -1054,6 +1061,74 @@ impl Service<Svm> {
                     index,
                     account: *account_to_close,
                     destination: *destination,
+                    owner: *owner,
+                });
+            }
+        }
+        Ok(result)
+    }
+
+    fn extract_create_ata_idempotent_instructions(
+        tx: &VersionedTransaction,
+    ) -> Result<Vec<CreateAtaInstructionData>, RestError> {
+        let mut result = vec![];
+        for (index, instruction) in Self::extract_token_instructions(tx) {
+            let ix_parsed = AssociatedTokenAccountInstruction::try_from_slice(&instruction.data).ok();
+            if matches!(ix_parsed, Some(AssociatedTokenAccountInstruction::Create | AssociatedTokenAccountInstruction::CreateIdempotent)) {
+                if instruction.accounts.len() < 6 {
+                    return Err(RestError::BadParameters(
+                        "Invalid close account instruction accounts".to_string(),
+                    ));
+                }
+                let invalid_account_message =
+                    "Invalid account in close account instruction".to_string();
+                let payer = tx
+                    .message
+                    .static_account_keys()
+                    .get(instruction.accounts[0] as usize)
+                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
+                let ata = tx
+                    .message
+                    .static_account_keys()
+                    .get(instruction.accounts[1] as usize)
+                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
+                let owner = tx
+                    .message
+                    .static_account_keys()
+                    .get(instruction.accounts[2] as usize)
+                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
+                let mint = tx
+                    .message
+                    .static_account_keys()
+                    .get(instruction.accounts[3] as usize)
+                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
+                let system_program = tx
+                    .message
+                    .static_account_keys()
+                    .get(instruction.accounts[4] as usize)
+                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
+                let token_program = tx
+                    .message
+                    .static_account_keys()
+                    .get(instruction.accounts[5] as usize) // todo support lookup table
+                    .ok_or(RestError::BadParameters(invalid_account_message))?;
+
+
+                if system_program != &system_program::id() {
+                    return Err(RestError::BadParameters(
+                        "Invalid system program".to_string(), // todo better message
+                    ));
+                }
+                if token_program != &spl_token::id() && token_program != &spl_token_2022::id() {
+                    return Err(RestError::BadParameters(
+                        "Invalid token program".to_string(), // todo better message
+                    ));
+                }
+                result.push(CreateAtaInstructionData {
+                    index,
+                    payer: *payer,
+                    ata: *ata,
+                    mint: *mint,
                     owner: *owner,
                 });
             }
@@ -1168,6 +1243,95 @@ impl Service<Svm> {
     }
 
 
+    fn check_create_ata_instructions(
+        tx: &VersionedTransaction,
+        swap_accounts: &SwapAccounts,
+        opp: &OpportunitySvm,
+    ) -> Result<(), RestError> {
+        let token_account_initialization_configs = match &opp.program {
+            Swap(opp_swap_data) => &opp_swap_data.token_account_initialization_config,
+            _ => {
+                return Err(RestError::BadParameters(format!(
+                    "Opportunity with id {} is not a swap opportunity",
+                    opp.id
+                )));
+            }
+        };
+
+        let mut create_ata_instructions = Self::extract_create_ata_idempotent_instructions(tx)?;
+
+        let user_ata_mint_user = get_associated_token_address_with_program_id(
+            &swap_accounts.user_wallet,
+            &swap_accounts.mint_user,
+            &swap_accounts.token_program_user,
+        );
+
+        let user_ata_mint_searcher = get_associated_token_address_with_program_id(
+            &swap_accounts.user_wallet,
+            &swap_accounts.mint_searcher,
+            &swap_accounts.token_program_searcher,
+        );
+
+        if token_account_initialization_configs.user_ata_mint_user != TokenAccountInitializationConfig::Unneeded {
+            if let Some(index) = create_ata_instructions.iter().position(|instruction| instruction.ata == user_ata_mint_user) {
+                let matching_element = create_ata_instructions.swap_remove(index);
+
+                if matching_element.mint != swap_accounts.mint_user {
+                    panic!("User ATA mint user not found");
+                }
+                if matching_element.owner != swap_accounts.user_wallet {
+                    panic!("User ATA owner not found");
+                }
+                let payer = if token_account_initialization_configs.user_ata_mint_user == TokenAccountInitializationConfig::SearcherPayer {
+                    swap_accounts.searcher
+                } else {
+                    swap_accounts.user_wallet
+                };
+
+                if matching_element.payer != payer {
+                    panic!("User ATA payer not found");
+                }
+            }
+            else {
+                panic!("User ATA mint user not found");
+            }
+        }
+
+        if token_account_initialization_configs.user_ata_mint_searcher != TokenAccountInitializationConfig::Unneeded {
+            if let Some(index) = create_ata_instructions.iter().position(|instruction| instruction.ata == user_ata_mint_searcher) {
+                let matching_element = create_ata_instructions.swap_remove(index);
+
+                if matching_element.mint != swap_accounts.mint_searcher {
+                    panic!("User ATA mint searcher not found");
+                }
+                if matching_element.owner != swap_accounts.user_wallet {
+                    panic!("User ATA owner not found");
+                }
+                let payer = if token_account_initialization_configs.user_ata_mint_searcher == TokenAccountInitializationConfig::SearcherPayer {
+                    swap_accounts.searcher
+                } else {
+                    swap_accounts.user_wallet
+                };
+                
+                if matching_element.payer != payer {
+                    panic!("User ATA payer not found");
+                }
+            }
+            else {
+                panic!("User ATA mint searcher not found");
+            }
+        }
+
+        // we don't care about the others but searcher must pay
+        for account in create_ata_instructions {
+            if account.payer != swap_accounts.searcher {
+                panic!("Searcher ATA payer not found");
+            }
+        }
+
+        Ok(())
+    }
+
     fn check_wrap_unwrap_native_token_instructions(
         &self,
         tx: &VersionedTransaction,
@@ -1264,6 +1428,11 @@ impl Service<Svm> {
                     ..
                 } = swap_accounts.clone();
 
+                Self::check_create_ata_instructions(
+                    &bid_data.transaction,
+                    &swap_accounts,
+                    &opp,
+                )?;
                 self.check_wrap_unwrap_native_token_instructions(
                     &bid_data.transaction,
                     &swap_data,
