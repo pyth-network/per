@@ -314,6 +314,15 @@ impl<T: InMemoryStore> Database<T> for DB {
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "remove_opportunity"
+        ),
+        skip_all
+    )]
     async fn remove_opportunity(
         &self,
         opportunity: &T::Opportunity,
