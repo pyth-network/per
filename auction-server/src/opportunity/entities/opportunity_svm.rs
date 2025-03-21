@@ -77,6 +77,18 @@ pub struct TokenAccountInitializationConfigs {
     pub express_relay_fee_receiver_ata: TokenAccountInitializationConfig,
 }
 
+impl TokenAccountInitializationConfigs {
+    pub fn none_needed() -> Self {
+        Self {
+            user_ata_mint_searcher:         TokenAccountInitializationConfig::Unneeded,
+            user_ata_mint_user:             TokenAccountInitializationConfig::Unneeded,
+            router_fee_receiver_ta:         TokenAccountInitializationConfig::Unneeded,
+            relayer_fee_receiver_ata:       TokenAccountInitializationConfig::Unneeded,
+            express_relay_fee_receiver_ata: TokenAccountInitializationConfig::Unneeded,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramSwap {
     pub user_wallet_address:                 Pubkey,

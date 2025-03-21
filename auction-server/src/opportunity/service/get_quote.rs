@@ -27,6 +27,7 @@ use {
                 self,
                 OpportunitySvmProgram,
                 OpportunitySvmProgramSwap,
+                TokenAccountInitializationConfigs,
                 TokenAmountSvm,
             },
             service::{
@@ -283,10 +284,36 @@ impl Service<ChainTypeSvm> {
                 },
             },
         };
-        let user_wallet_address = match quote_create.user_wallet_address {
-            Some(address) => address,
-            None => generate_indicative_price_taker(),
-        };
+        let (user_wallet_address, user_mint_user_balance, token_account_initialization_config) =
+            match quote_create.user_wallet_address {
+                Some(address) => {
+                    let balances = self
+                        .get_quote_request_account_balances(QuoteRequestAccountBalancesInput {
+                            user_wallet_address: address,
+                            mint_searcher,
+                            mint_user,
+                            router: referral_fee_info.router,
+                            fee_token: fee_token.clone(),
+                            token_program_searcher,
+                            token_program_user,
+                            chain_id: quote_create.chain_id.clone(),
+                        })
+                        .await?;
+
+                    let mint_user_is_wrapped_sol = mint_user == native_mint::id();
+                    (
+                        address,
+                        balances.get_user_ata_mint_user_balance(mint_user_is_wrapped_sol),
+                        balances.get_token_account_initialization_configs(),
+                    )
+                }
+                None => (
+                    generate_indicative_price_taker(),
+                    0,
+                    TokenAccountInitializationConfigs::none_needed(),
+                ), // For indicative quotes, we don't need to initialize any token accounts as the transaction will never be simulated nor broadcasted
+            };
+
         let permission_account = get_quote_virtual_permission_account(
             &tokens_for_permission,
             &user_wallet_address,
@@ -310,25 +337,6 @@ impl Service<ChainTypeSvm> {
                 amount: user_amount,
             }],
         };
-
-        let balances = self
-            .get_quote_request_account_balances(QuoteRequestAccountBalancesInput {
-                user_wallet_address,
-                mint_searcher,
-                mint_user,
-                router: referral_fee_info.router,
-                fee_token: fee_token.clone(),
-                token_program_searcher,
-                token_program_user,
-                chain_id: quote_create.chain_id.clone(),
-            })
-            .await?;
-
-        let mint_user_is_wrapped_sol = mint_user == native_mint::id();
-        let token_account_initialization_config =
-            balances.get_token_account_initialization_configs();
-        let user_mint_user_balance =
-            balances.get_user_ata_mint_user_balance(mint_user_is_wrapped_sol);
 
         let program_opportunity =
             entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
