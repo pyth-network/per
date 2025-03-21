@@ -46,7 +46,10 @@ use {
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
                 get_opportunities::GetLiveOpportunityByIdInput,
-                get_quote::get_quote_virtual_permission_account,
+                get_quote::{
+                    get_quote_virtual_permission_account,
+                    is_indicative_price_taker,
+                },
             },
         },
     },
@@ -331,6 +334,7 @@ pub struct BidDataSvm {
     pub deadline:                        OffsetDateTime,
     pub submit_type:                     SubmitType,
     pub express_relay_instruction_index: usize,
+    pub user_wallet_address:             Option<Pubkey>,
 }
 
 const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
@@ -1225,6 +1229,7 @@ impl Service<Svm> {
                             ))
                         })?,
                     submit_type: SubmitType::ByServer,
+                    user_wallet_address: None,
                 })
             }
             BidChainDataCreateSvm::Swap(bid_data) => {
@@ -1311,6 +1316,7 @@ impl Service<Svm> {
                         },
                     )?,
                     submit_type: SubmitType::ByOther,
+                    user_wallet_address: Some(user_wallet),
                 })
             }
         }
@@ -1590,8 +1596,15 @@ impl Verification<Svm> for Service<Svm> {
             .await?;
         match bid_payment_instruction_type {
             BidPaymentInstructionType::Swap => {
-                self.simulate_swap_bid(&bid, bid_data.express_relay_instruction_index)
-                    .await?
+                let is_indicative_quote = bid_data
+                    .user_wallet_address
+                    .map_or(false, |user_wallet_address| {
+                        is_indicative_price_taker(&user_wallet_address)
+                    });
+                if !is_indicative_quote {
+                    self.simulate_swap_bid(&bid, bid_data.express_relay_instruction_index)
+                        .await?
+                }
             }
             BidPaymentInstructionType::SubmitBid => self.simulate_bid(&bid).await?,
         }
@@ -1659,7 +1672,10 @@ mod tests {
                     TokenAmountSvm,
                 },
                 service::{
-                    get_quote::get_quote_virtual_permission_account,
+                    get_quote::{
+                        generate_indicative_price_taker,
+                        get_quote_virtual_permission_account,
+                    },
                     ChainTypeSvm,
                     MockService,
                 },
@@ -1908,23 +1924,23 @@ mod tests {
 
         let opp_searcher_token_wsol = OpportunitySvm {
             core_fields: OpportunityCoreFields::<TokenAmountSvm> {
-                id: Uuid::new_v4(),
+                id:             Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
                     router,
                     permission_account_searcher_token_wsol,
                 ),
-                chain_id,
-                sell_tokens: vec![TokenAmountSvm {
+                chain_id:       chain_id.clone(),
+                sell_tokens:    vec![TokenAmountSvm {
                     token:  spl_token::native_mint::id(),
                     amount: 0,
                 }],
-                buy_tokens: vec![TokenAmountSvm {
+                buy_tokens:     vec![TokenAmountSvm {
                     token: user_token_address,
                     amount,
                 }],
-                creation_time: now,
-                refresh_time: now,
+                creation_time:  now,
+                refresh_time:   now,
             },
             router,
             permission_account: permission_account_searcher_token_wsol,
@@ -1933,7 +1949,50 @@ mod tests {
                 platform_fee_bps: 0,
                 token_program_user: spl_token::id(),
                 token_program_searcher: spl_token::id(),
-                fee_token,
+                fee_token: fee_token.clone(),
+                referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config:
+                    TokenAccountInitializationConfigs::searcher_payer(),
+            }),
+        };
+
+        let indicative_price_taker = generate_indicative_price_taker();
+        let permission_account_indicative_price_taker = get_quote_virtual_permission_account(
+            &tokens_user_specified,
+            &indicative_price_taker,
+            &router_token_account,
+            referral_fee_bps,
+        );
+
+        let opp_indicative_price_taker = OpportunitySvm {
+            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+                id:             Uuid::new_v4(),
+                permission_key: OpportunitySvm::get_permission_key(
+                    BidPaymentInstructionType::Swap,
+                    router,
+                    permission_account_indicative_price_taker,
+                ),
+                chain_id:       chain_id,
+                sell_tokens:    vec![TokenAmountSvm {
+                    token:  searcher_token_address,
+                    amount: 0,
+                }],
+                buy_tokens:     vec![TokenAmountSvm {
+                    token: user_token_address,
+                    amount,
+                }],
+                creation_time:  now,
+                refresh_time:   now,
+            },
+            router,
+            permission_account: permission_account_indicative_price_taker,
+            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
+                user_wallet_address: indicative_price_taker,
+                platform_fee_bps: 0,
+                token_program_user: spl_token::id(),
+                token_program_searcher: spl_token::id(),
+                fee_token: fee_token,
                 referral_fee_bps,
                 user_mint_user_balance: 0,
                 token_account_initialization_config:
@@ -1946,6 +2005,7 @@ mod tests {
             opp_searcher_token_specified.clone(),
             opp_user_token_wsol.clone(),
             opp_searcher_token_wsol.clone(),
+            opp_indicative_price_taker.clone(),
         ];
         let opps_cloned = opps.clone();
 
@@ -1975,6 +2035,7 @@ mod tests {
                 opp_searcher_token_specified,
                 opp_user_token_wsol,
                 opp_searcher_token_wsol,
+                opp_indicative_price_taker,
             ],
         )
     }
@@ -2103,6 +2164,51 @@ mod tests {
             .await
             .unwrap();
         let swap_params = get_opportunity_swap_params(opportunities[0].clone());
+        assert_eq!(
+            result.0,
+            BidChainDataSvm {
+                transaction:                  transaction.into(),
+                permission_account:           swap_params.permission_account,
+                router:                       swap_params.router_account,
+                bid_payment_instruction_type: BidPaymentInstructionType::Swap,
+            }
+        );
+        assert_eq!(result.1, bid_amount);
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_indicative_price_taker_skip_simulation() {
+        let (service, opportunities) = get_service(false); // don't mock simulation
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[4].clone()), // use the indicative price taker opportunity
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[4].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await
+            .unwrap();
+        let swap_params = get_opportunity_swap_params(opportunities[4].clone());
         assert_eq!(
             result.0,
             BidChainDataSvm {
