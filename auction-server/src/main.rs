@@ -74,9 +74,9 @@ async fn main() -> Result<()> {
     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
     let registry = tracing_subscriber::registry()
-        .with(MetricsLayer.with_filter(filter::filter_fn(is_metrics)))
+        .with(MetricsLayer.with_filter(filter::filter_fn(|metadata| is_metrics(metadata, false))))
         .with(telemetry.with_filter(filter::filter_fn(|metadata| {
-            !is_metrics(metadata) && is_internal(metadata)
+            is_internal(metadata) || is_metrics(metadata, true)
         })));
 
     if std::io::stderr().is_terminal() {
@@ -86,7 +86,7 @@ async fn main() -> Result<()> {
                     .compact()
                     .with_filter(LevelFilter::INFO)
                     .with_filter(filter::filter_fn(|metadata| {
-                        !is_metrics(metadata) && is_internal(metadata)
+                        is_internal(metadata) || is_metrics(metadata, true)
                     })),
             )
             .init();
@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
                     .json()
                     .with_filter(LevelFilter::INFO)
                     .with_filter(filter::filter_fn(|metadata| {
-                        !is_metrics(metadata) && is_internal(metadata)
+                        is_internal(metadata) || is_metrics(metadata, true)
                     })),
             )
             .init();

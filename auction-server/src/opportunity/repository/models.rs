@@ -55,10 +55,7 @@ use {
         OffsetDateTime,
         PrimitiveDateTime,
     },
-    tracing::{
-        info_span,
-        Instrument,
-    },
+    tracing::instrument,
     uuid::Uuid,
 };
 
@@ -178,10 +175,20 @@ pub trait Database<T: InMemoryStore>: Debug + Send + Sync + 'static {
 }
 #[async_trait]
 impl<T: InMemoryStore> Database<T> for DB {
+    #[instrument(
+        target = "metrics",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "add_opportunity",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError> {
         let metadata = opportunity.get_models_metadata();
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
-        sqlx::query!("INSERT INTO opportunity (id,
+        if let Err(e) = sqlx::query!("INSERT INTO opportunity (id,
                                                         creation_time,
                                                         permission_key,
                                                         chain_id,
@@ -198,15 +205,24 @@ impl<T: InMemoryStore> Database<T> for DB {
         serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
         serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
             .execute(self)
-            .instrument(info_span!("db_add_opportunity"))
-            .await
-            .map_err(|e| {
+            .await {
+                tracing::Span::current().record("result", "error");
                 tracing::error!("DB: Failed to insert opportunity: {}", e);
-                RestError::TemporarilyUnavailable
-            })?;
+                return Err(RestError::TemporarilyUnavailable);
+            }
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_opportunities",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn get_opportunities(
         &self,
         chain_id: ChainId,
@@ -229,10 +245,9 @@ impl<T: InMemoryStore> Database<T> for DB {
         }
         query.push(" ORDER BY creation_time ASC LIMIT ");
         query.push_bind(super::OPPORTUNITY_PAGE_SIZE_CAP as i64);
-        let opps: Vec<models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>> = query
+        let result = query
             .build_query_as()
             .fetch_all(self)
-            .instrument(info_span!("db_get_opportunities"))
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -243,7 +258,16 @@ impl<T: InMemoryStore> Database<T> for DB {
                     from_time,
                 );
                 RestError::TemporarilyUnavailable
-            })?;
+            });
+
+        if let Err(e) = result {
+            tracing::Span::current().record("result", "error");
+            return Err(e);
+        }
+
+        let opps: Vec<
+            models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>,
+        > = result?;
 
         opps.into_iter().map(|opp| opp.clone().try_into().map_err(
             |_| {
@@ -259,6 +283,16 @@ impl<T: InMemoryStore> Database<T> for DB {
         )).collect()
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "remove_opportunities",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn remove_opportunities(
         &self,
         permission_key: PermissionKey,
@@ -266,30 +300,45 @@ impl<T: InMemoryStore> Database<T> for DB {
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();
-        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE permission_key = $3 AND chain_id = $4 and removal_time IS NULL")
+        if let Err(e) = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE permission_key = $3 AND chain_id = $4 and removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(permission_key.as_ref())
-            .bind(chain_id)
+            .bind(&chain_id)
             .execute(self)
-            .instrument(info_span!("db_remove_opportunities"))
-            .await?;
+            .await {
+                tracing::Span::current().record("result", "error");
+                return Err(e.into());
+            };
+
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "remove_opportunity",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn remove_opportunity(
         &self,
         opportunity: &T::Opportunity,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();
-        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
+        if let Err(e) = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(opportunity.id)
             .execute(self)
-            .instrument(info_span!("db_remove_opportunity"))
-            .await?;
+            .await {
+                tracing::Span::current().record("result", "error");
+                return Err(e.into());
+            };
         Ok(())
     }
 }
