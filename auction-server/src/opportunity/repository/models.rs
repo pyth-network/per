@@ -205,17 +205,23 @@ impl<T: InMemoryStore> Database<T> for DB {
         serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
             .execute(self)
             .instrument(info_span!("db_add_opportunity"))
-            .await
-            .map_err(|e| {
-                tracing::error!("DB: Failed to insert opportunity: {}", e);
-                RestError::TemporarilyUnavailable
-            }) {
+            .await {
                 tracing::Span::current().record("result", "error");
-                return Err(e);
+                tracing::error!("DB: Failed to insert opportunity: {}", e);
+                return Err(RestError::TemporarilyUnavailable);
             }
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_opportunities"
+        ),
+        skip_all
+    )]
     async fn get_opportunities(
         &self,
         chain_id: ChainId,
@@ -238,7 +244,7 @@ impl<T: InMemoryStore> Database<T> for DB {
         }
         query.push(" ORDER BY creation_time ASC LIMIT ");
         query.push_bind(super::OPPORTUNITY_PAGE_SIZE_CAP as i64);
-        let opps: Vec<models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>> = query
+        let result = query
             .build_query_as()
             .fetch_all(self)
             .instrument(info_span!("db_get_opportunities"))
@@ -252,7 +258,16 @@ impl<T: InMemoryStore> Database<T> for DB {
                     from_time,
                 );
                 RestError::TemporarilyUnavailable
-            })?;
+            });
+
+        if let Err(e) = result {
+            tracing::Span::current().record("result", "error");
+            return Err(e);
+        }
+
+        let opps: Vec<
+            models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>,
+        > = result?;
 
         opps.into_iter().map(|opp| opp.clone().try_into().map_err(
             |_| {

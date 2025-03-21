@@ -708,13 +708,11 @@ impl<T: ChainTrait> Database<T> for DB {
             serde_json::to_value(bid.metadata.clone()).expect("Failed to serialize metadata"),
         ).execute(self)
             .instrument(info_span!("db_add_bid"))
-            .await.map_err(|e| {
-            tracing::error!(error = e.to_string(), bid = ?bid, "DB: Failed to insert bid");
-            RestError::TemporarilyUnavailable
-        }) {
-            tracing::Span::current().record("result", "error");
-            return Err(e);
-        };
+            .await {
+                tracing::Span::current().record("result", "error");
+                tracing::error!(error = e.to_string(), bid = ?bid, "DB: Failed to insert bid");
+                return Err(RestError::TemporarilyUnavailable);
+            };
         Ok(())
     }
 
@@ -829,6 +827,11 @@ impl<T: ChainTrait> Database<T> for DB {
         result
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(category = "db_queries", result = "success", name = "get_bids"),
+        skip_all
+    )]
     async fn get_bids(
         &self,
         chain_id: ChainId,
@@ -845,7 +848,7 @@ impl<T: ChainTrait> Database<T> for DB {
             query.push_bind(from_time);
         }
         query.push(" ORDER BY initiation_time ASC LIMIT 20");
-        query
+        let result = query
             .build_query_as()
             .fetch_all(self)
             .instrument(info_span!("db_get_bids"))
@@ -853,7 +856,13 @@ impl<T: ChainTrait> Database<T> for DB {
             .map_err(|e| {
                 tracing::error!("DB: Failed to fetch bids: {}", e);
                 RestError::TemporarilyUnavailable
-            })
+            });
+        if let Err(e) = result {
+            tracing::Span::current().record("result", "error");
+            return Err(e);
+        };
+        let bids: Vec<Bid<T>> = result?;
+        Ok(bids)
     }
 
     #[instrument(
