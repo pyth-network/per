@@ -1967,23 +1967,23 @@ mod tests {
 
         let opp_indicative_price_taker = OpportunitySvm {
             core_fields: OpportunityCoreFields::<TokenAmountSvm> {
-                id:             Uuid::new_v4(),
+                id: Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
                     router,
                     permission_account_indicative_price_taker,
                 ),
-                chain_id:       chain_id,
-                sell_tokens:    vec![TokenAmountSvm {
+                chain_id,
+                sell_tokens: vec![TokenAmountSvm {
                     token:  searcher_token_address,
                     amount: 0,
                 }],
-                buy_tokens:     vec![TokenAmountSvm {
+                buy_tokens: vec![TokenAmountSvm {
                     token: user_token_address,
                     amount,
                 }],
-                creation_time:  now,
-                refresh_time:   now,
+                creation_time: now,
+                refresh_time: now,
             },
             router,
             permission_account: permission_account_indicative_price_taker,
@@ -1992,7 +1992,7 @@ mod tests {
                 platform_fee_bps: 0,
                 token_program_user: spl_token::id(),
                 token_program_searcher: spl_token::id(),
-                fee_token: fee_token,
+                fee_token,
                 referral_fee_bps,
                 user_mint_user_balance: 0,
                 token_account_initialization_config:
