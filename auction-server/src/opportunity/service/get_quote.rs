@@ -83,9 +83,8 @@ pub fn generate_indicative_price_taker() -> Pubkey {
     key_bytes[0..28].copy_from_slice(&INDICATIVE_PRICE_TAKER_BASE);
 
     let mut rng = rand::thread_rng();
-    key_bytes[28..32].iter_mut().for_each(|byte| {
-        *byte = rng.gen();
-    });
+    let rand_bytes: [u8; 4] = rng.gen(); // Generate all four bytes at once
+    key_bytes[28..32].copy_from_slice(&rand_bytes);
 
     Pubkey::new_from_array(key_bytes)
 }
@@ -307,11 +306,14 @@ impl Service<ChainTypeSvm> {
                         balances.get_token_account_initialization_configs(),
                     )
                 }
-                None => (
-                    generate_indicative_price_taker(),
-                    0,
-                    TokenAccountInitializationConfigs::none_needed(),
-                ), // For indicative quotes, we don't need to initialize any token accounts as the transaction will never be simulated nor broadcasted
+                None => {
+                    // For indicative quotes, we don't need to initialize any token accounts as the transaction will never be simulated nor broadcasted
+                    (
+                        generate_indicative_price_taker(),
+                        0,
+                        TokenAccountInitializationConfigs::none_needed(),
+                    )
+                }
             };
 
         let permission_account = get_quote_virtual_permission_account(
