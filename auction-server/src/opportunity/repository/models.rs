@@ -55,11 +55,7 @@ use {
         OffsetDateTime,
         PrimitiveDateTime,
     },
-    tracing::{
-        info_span,
-        instrument,
-        Instrument,
-    },
+    tracing::instrument,
     uuid::Uuid,
 };
 
@@ -181,7 +177,12 @@ pub trait Database<T: InMemoryStore>: Debug + Send + Sync + 'static {
 impl<T: InMemoryStore> Database<T> for DB {
     #[instrument(
         target = "metrics",
-        fields(category = "db_queries", result = "success", name = "add_opportunity"),
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "add_opportunity",
+            tracing_enabled
+        ),
         skip_all
     )]
     async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError> {
@@ -204,7 +205,6 @@ impl<T: InMemoryStore> Database<T> for DB {
         serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
         serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
             .execute(self)
-            .instrument(info_span!("db_add_opportunity"))
             .await {
                 tracing::Span::current().record("result", "error");
                 tracing::error!("DB: Failed to insert opportunity: {}", e);
@@ -218,7 +218,8 @@ impl<T: InMemoryStore> Database<T> for DB {
         fields(
             category = "db_queries",
             result = "success",
-            name = "get_opportunities"
+            name = "get_opportunities",
+            tracing_enabled
         ),
         skip_all
     )]
@@ -247,7 +248,6 @@ impl<T: InMemoryStore> Database<T> for DB {
         let result = query
             .build_query_as()
             .fetch_all(self)
-            .instrument(info_span!("db_get_opportunities"))
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -288,7 +288,8 @@ impl<T: InMemoryStore> Database<T> for DB {
         fields(
             category = "db_queries",
             result = "success",
-            name = "remove_opportunities"
+            name = "remove_opportunities",
+            tracing_enabled
         ),
         skip_all
     )]
@@ -305,7 +306,6 @@ impl<T: InMemoryStore> Database<T> for DB {
             .bind(permission_key.as_ref())
             .bind(&chain_id)
             .execute(self)
-            .instrument(info_span!("db_remove_opportunities"))
             .await {
                 tracing::Span::current().record("result", "error");
                 return Err(e.into());
@@ -319,7 +319,8 @@ impl<T: InMemoryStore> Database<T> for DB {
         fields(
             category = "db_queries",
             result = "success",
-            name = "remove_opportunity"
+            name = "remove_opportunity",
+            tracing_enabled
         ),
         skip_all
     )]
@@ -334,7 +335,6 @@ impl<T: InMemoryStore> Database<T> for DB {
             .bind(reason)
             .bind(opportunity.id)
             .execute(self)
-            .instrument(info_span!("db_remove_opportunity"))
             .await {
                 tracing::Span::current().record("result", "error");
                 return Err(e.into());

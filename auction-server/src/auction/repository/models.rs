@@ -59,11 +59,7 @@ use {
         PrimitiveDateTime,
         UtcOffset,
     },
-    tracing::{
-        info_span,
-        instrument,
-        Instrument,
-    },
+    tracing::instrument,
 };
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
@@ -666,7 +662,12 @@ pub trait Database<T: ChainTrait>: Debug + Send + Sync + 'static {
 impl<T: ChainTrait> Database<T> for DB {
     #[instrument(
         target = "metrics",
-        fields(category = "db_queries", result = "success", name = "add_auction"),
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "add_auction",
+            tracing_enabled
+        ),
         skip_all
     )]
     async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()> {
@@ -681,7 +682,6 @@ impl<T: ChainTrait> Database<T> for DB {
             auction.tx_hash.clone().map(|tx_hash| T::BidStatusType::convert_tx_hash(&tx_hash)),
         )
         .execute(self)
-            .instrument(info_span!("db_add_auction"))
         .await {
             tracing::Span::current().record("result", "error");
             return Err(e.into());
@@ -691,7 +691,12 @@ impl<T: ChainTrait> Database<T> for DB {
 
     #[instrument(
         target = "metrics",
-        fields(category = "db_queries", result = "success", name = "add_bid"),
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "add_bid",
+            tracing_enabled
+        ),
         skip_all
     )]
     async fn add_bid(&self, bid: &Bid<T>) -> Result<(), RestError> {
@@ -707,18 +712,22 @@ impl<T: ChainTrait> Database<T> for DB {
             bid.profile_id,
             serde_json::to_value(bid.metadata.clone()).expect("Failed to serialize metadata"),
         ).execute(self)
-            .instrument(info_span!("db_add_bid"))
-            .await {
-                tracing::Span::current().record("result", "error");
-                tracing::error!(error = e.to_string(), bid = ?bid, "DB: Failed to insert bid");
-                return Err(RestError::TemporarilyUnavailable);
-            };
+        .await {
+            tracing::Span::current().record("result", "error");
+            tracing::error!(error = e.to_string(), bid = ?bid, "DB: Failed to insert bid");
+            return Err(RestError::TemporarilyUnavailable);
+        };
         Ok(())
     }
 
     #[instrument(
         target = "metrics",
-        fields(category = "db_queries", result = "success", name = "conclude_auction"),
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "conclude_auction",
+            tracing_enabled
+        ),
         skip_all
     )]
     async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()> {
@@ -729,7 +738,6 @@ impl<T: ChainTrait> Database<T> for DB {
             auction_id,
         )
         .execute(self)
-        .instrument(info_span!("db_conclude_auction"))
         .await
         {
             tracing::Span::current().record("result", "error");
@@ -740,7 +748,12 @@ impl<T: ChainTrait> Database<T> for DB {
 
     #[instrument(
         target = "metrics",
-        fields(category = "db_queries", result = "success", name = "get_bid"),
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_bid",
+            tracing_enabled
+        ),
         skip_all
     )]
     async fn get_bid(
@@ -752,7 +765,6 @@ impl<T: ChainTrait> Database<T> for DB {
             .bind(bid_id)
             .bind(&chain_id)
             .fetch_one(self)
-            .instrument(info_span!("db_get_bid"))
             .await
             .map_err(|e| match e {
                 sqlx::Error::RowNotFound => RestError::BidNotFound,
@@ -775,14 +787,18 @@ impl<T: ChainTrait> Database<T> for DB {
 
     #[instrument(
         target = "metrics",
-        fields(category = "db_queries", result = "success", name = "get_auction"),
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_auction",
+            tracing_enabled
+        ),
         skip_all
     )]
     async fn get_auction(&self, auction_id: entities::AuctionId) -> Result<Auction, RestError> {
         let result = sqlx::query_as("SELECT * FROM auction WHERE id = $1")
             .bind(auction_id)
             .fetch_one(self)
-            .instrument(info_span!("db_get_auction"))
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -804,7 +820,8 @@ impl<T: ChainTrait> Database<T> for DB {
         fields(
             category = "db_queries",
             result = "success",
-            name = "get_auctions_by_bids"
+            name = "get_auctions_by_bids",
+            tracing_enabled
         ),
         skip_all
     )]
@@ -814,7 +831,6 @@ impl<T: ChainTrait> Database<T> for DB {
         let result = sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
             .bind(auction_ids)
             .fetch_all(self)
-            .instrument(info_span!("db_get_auctions_by_bids"))
             .await
             .map_err(|e| {
                 tracing::error!("DB: Failed to fetch auctions: {}", e);
@@ -829,7 +845,12 @@ impl<T: ChainTrait> Database<T> for DB {
 
     #[instrument(
         target = "metrics",
-        fields(category = "db_queries", result = "success", name = "get_bids"),
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_bids",
+            tracing_enabled
+        ),
         skip_all
     )]
     async fn get_bids(
@@ -848,15 +869,10 @@ impl<T: ChainTrait> Database<T> for DB {
             query.push_bind(from_time);
         }
         query.push(" ORDER BY initiation_time ASC LIMIT 20");
-        let result = query
-            .build_query_as()
-            .fetch_all(self)
-            .instrument(info_span!("db_get_bids"))
-            .await
-            .map_err(|e| {
-                tracing::error!("DB: Failed to fetch bids: {}", e);
-                RestError::TemporarilyUnavailable
-            });
+        let result = query.build_query_as().fetch_all(self).await.map_err(|e| {
+            tracing::error!("DB: Failed to fetch bids: {}", e);
+            RestError::TemporarilyUnavailable
+        });
         if let Err(e) = result {
             tracing::Span::current().record("result", "error");
             return Err(e);
@@ -867,7 +883,12 @@ impl<T: ChainTrait> Database<T> for DB {
 
     #[instrument(
         target = "metrics",
-        fields(category = "db_queries", result = "success", name = "submit_auction"),
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "submit_auction",
+            tracing_enabled
+        ),
         skip_all
     )]
     async fn submit_auction(
@@ -883,7 +904,7 @@ impl<T: ChainTrait> Database<T> for DB {
             PrimitiveDateTime::new(now.date(), now.time()),
             T::BidStatusType::convert_tx_hash(transaction_hash),
             auction.id,
-        ).execute(self).instrument(info_span!("db_update_auction")).await {
+        ).execute(self).await {
             tracing::Span::current().record("result", "error");
             return Err(e.into());
         };
@@ -895,7 +916,8 @@ impl<T: ChainTrait> Database<T> for DB {
         fields(
             category = "db_queries",
             result = "success",
-            name = "update_bid_status"
+            name = "update_bid_status",
+            tracing_enabled
         ),
         skip_all
     )]
@@ -905,10 +927,7 @@ impl<T: ChainTrait> Database<T> for DB {
         new_status: &T::BidStatusType,
     ) -> anyhow::Result<bool> {
         let update_query = T::get_update_bid_query(bid, new_status.clone())?;
-        let result = update_query
-            .execute(self)
-            .instrument(info_span!("db_update_bid_status"))
-            .await;
+        let result = update_query.execute(self).await;
         if let Err(e) = result {
             tracing::Span::current().record("result", "error");
             return Err(e.into());

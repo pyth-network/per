@@ -91,8 +91,15 @@ impl MetricsLayerData {
     }
 }
 
-pub fn is_metrics(metadata: &Metadata) -> bool {
-    metadata.target().starts_with("metrics")
+pub fn is_metrics(metadata: &Metadata, check_tracing_enabled: bool) -> bool {
+    let tracing_check = match check_tracing_enabled {
+        true => metadata
+            .fields()
+            .iter()
+            .any(|f| f.name() == "tracing_enabled"),
+        false => true,
+    };
+    tracing_check && (metadata.target().starts_with("metrics"))
 }
 
 impl<S> Layer<S> for MetricsLayer
