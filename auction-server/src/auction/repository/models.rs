@@ -21,7 +21,6 @@ use {
         models::ProfileId,
     },
     axum::async_trait,
-    axum_prometheus::metrics,
     ethers::types::{
         Address,
         Bytes,
@@ -54,7 +53,6 @@ use {
         num::ParseIntError,
         ops::Deref,
         str::FromStr,
-        time::Instant,
     },
     time::{
         OffsetDateTime,
@@ -63,6 +61,7 @@ use {
     },
     tracing::{
         info_span,
+        instrument,
         Instrument,
     },
 };
@@ -637,26 +636,14 @@ impl<T: ChainTrait + ModelTrait<T>> Bid<T> {
 pub trait Database<T: ChainTrait>: Debug + Send + Sync + 'static {
     async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()>;
     async fn add_bid(&self, bid: &Bid<T>) -> Result<(), RestError>;
-    async fn conclude_auction(
-        &self,
-        auction_id: entities::AuctionId,
-        chain_id: &ChainId,
-    ) -> anyhow::Result<()>;
+    async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()>;
     async fn get_bid(
         &self,
         bid_id: entities::BidId,
         chain_id: ChainId,
     ) -> Result<Bid<T>, RestError>;
-    async fn get_auction(
-        &self,
-        auction_id: entities::AuctionId,
-        chain_id: &ChainId,
-    ) -> Result<Auction, RestError>;
-    async fn get_auctions_by_bids(
-        &self,
-        bids: &[Bid<T>],
-        chain_id: &ChainId,
-    ) -> Result<Vec<Auction>, RestError>;
+    async fn get_auction(&self, auction_id: entities::AuctionId) -> Result<Auction, RestError>;
+    async fn get_auctions_by_bids(&self, bids: &[Bid<T>]) -> Result<Vec<Auction>, RestError>;
     async fn get_bids(
         &self,
         chain_id: ChainId,
@@ -677,9 +664,13 @@ pub trait Database<T: ChainTrait>: Debug + Send + Sync + 'static {
 
 #[async_trait]
 impl<T: ChainTrait> Database<T> for DB {
+    #[instrument(
+        target = "metrics",
+        fields(category = "db_queries", result = "success", name = "add_auction"),
+        skip_all
+    )]
     async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()> {
-        let start = Instant::now();
-        let query_result = sqlx::query!(
+        if let Err(e) = sqlx::query!(
             "INSERT INTO auction (id, creation_time, permission_key, chain_id, chain_type, bid_collection_time, tx_hash) VALUES ($1, $2, $3, $4, $5, $6, $7)",
             auction.id,
             PrimitiveDateTime::new(auction.creation_time.date(), auction.creation_time.time()),
@@ -691,24 +682,20 @@ impl<T: ChainTrait> Database<T> for DB {
         )
         .execute(self)
             .instrument(info_span!("db_add_auction"))
-        .await?;
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", auction.chain_id.to_string()),
-            ("db_query", "add_auction".to_string()),
-            (
-                "made_change",
-                (query_result.rows_affected() > 0).to_string(),
-            ),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_latency_seconds", &labels).record(latency);
+        .await {
+            tracing::Span::current().record("result", "error");
+            return Err(e.into());
+        };
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(category = "db_queries", result = "success", name = "add_bid"),
+        skip_all
+    )]
     async fn add_bid(&self, bid: &Bid<T>) -> Result<(), RestError> {
-        let start = Instant::now();
-        let query_result = sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        if let Err(e) = sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
             bid.id,
             bid.creation_time,
             bid.permission_key,
@@ -724,56 +711,45 @@ impl<T: ChainTrait> Database<T> for DB {
             .await.map_err(|e| {
             tracing::error!(error = e.to_string(), bid = ?bid, "DB: Failed to insert bid");
             RestError::TemporarilyUnavailable
-        })?;
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", bid.chain_id.to_string()),
-            ("db_query", "add_bid".to_string()),
-            (
-                "made_change",
-                (query_result.rows_affected() > 0).to_string(),
-            ),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_latency_seconds", &labels).record(latency);
+        }) {
+            tracing::Span::current().record("result", "error");
+            return Err(e);
+        };
         Ok(())
     }
 
-    async fn conclude_auction(
-        &self,
-        auction_id: entities::AuctionId,
-        chain_id: &ChainId,
-    ) -> anyhow::Result<()> {
-        let start = Instant::now();
+    #[instrument(
+        target = "metrics",
+        fields(category = "db_queries", result = "success", name = "conclude_auction"),
+        skip_all
+    )]
+    async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();
-        let query_result = sqlx::query!(
+        if let Err(e) = sqlx::query!(
             "UPDATE auction SET conclusion_time = $1 WHERE id = $2 AND conclusion_time IS NULL",
             PrimitiveDateTime::new(now.date(), now.time()),
             auction_id,
         )
         .execute(self)
         .instrument(info_span!("db_conclude_auction"))
-        .await?;
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", chain_id.to_string()),
-            ("db_query", "conclude_auction".to_string()),
-            (
-                "made_change",
-                (query_result.rows_affected() > 0).to_string(),
-            ),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_latency_seconds", &labels).record(latency);
+        .await
+        {
+            tracing::Span::current().record("result", "error");
+            return Err(e.into());
+        };
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(category = "db_queries", result = "success", name = "get_bid"),
+        skip_all
+    )]
     async fn get_bid(
         &self,
         bid_id: entities::BidId,
         chain_id: ChainId,
     ) -> Result<Bid<T>, RestError> {
-        let start = Instant::now();
         let result = sqlx::query_as("SELECT * FROM bid WHERE id = $1 AND chain_id = $2")
             .bind(bid_id)
             .bind(&chain_id)
@@ -791,22 +767,20 @@ impl<T: ChainTrait> Database<T> for DB {
                     RestError::TemporarilyUnavailable
                 }
             });
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", chain_id.to_string()),
-            ("db_query", "get_bid".to_string()),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_latency_seconds", &labels).record(latency);
+
+        if let Err(e) = result {
+            tracing::Span::current().record("result", "error");
+            return Err(e);
+        };
         result
     }
 
-    async fn get_auction(
-        &self,
-        auction_id: entities::AuctionId,
-        chain_id: &ChainId,
-    ) -> Result<Auction, RestError> {
-        let start = Instant::now();
+    #[instrument(
+        target = "metrics",
+        fields(category = "db_queries", result = "success", name = "get_auction"),
+        skip_all
+    )]
+    async fn get_auction(&self, auction_id: entities::AuctionId) -> Result<Auction, RestError> {
         let result = sqlx::query_as("SELECT * FROM auction WHERE id = $1")
             .bind(auction_id)
             .fetch_one(self)
@@ -820,24 +794,25 @@ impl<T: ChainTrait> Database<T> for DB {
                 );
                 RestError::TemporarilyUnavailable
             });
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", chain_id.to_string()),
-            ("db_query", "get_auction".to_string()),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_latency_seconds", &labels).record(latency);
+        if let Err(e) = result {
+            tracing::Span::current().record("result", "error");
+            return Err(e);
+        };
         result
     }
 
-    async fn get_auctions_by_bids(
-        &self,
-        bids: &[Bid<T>],
-        chain_id: &ChainId,
-    ) -> Result<Vec<Auction>, RestError> {
+    #[instrument(
+        target = "metrics",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_auctions_by_bids"
+        ),
+        skip_all
+    )]
+    async fn get_auctions_by_bids(&self, bids: &[Bid<T>]) -> Result<Vec<Auction>, RestError> {
         let auction_ids: Vec<entities::AuctionId> =
             bids.iter().filter_map(|bid| bid.auction_id).collect();
-        let start = Instant::now();
         let result = sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
             .bind(auction_ids)
             .fetch_all(self)
@@ -847,13 +822,10 @@ impl<T: ChainTrait> Database<T> for DB {
                 tracing::error!("DB: Failed to fetch auctions: {}", e);
                 RestError::TemporarilyUnavailable
             });
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", chain_id.to_string()),
-            ("db_query", "get_auctions_by_bids".to_string()),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_latency_seconds", &labels).record(latency);
+        if let Err(e) = result {
+            tracing::Span::current().record("result", "error");
+            return Err(e);
+        }
         result
     }
 
@@ -884,6 +856,11 @@ impl<T: ChainTrait> Database<T> for DB {
             })
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(category = "db_queries", result = "success", name = "submit_auction"),
+        skip_all
+    )]
     async fn submit_auction(
         &self,
         auction: &entities::Auction<T>,
@@ -893,47 +870,40 @@ impl<T: ChainTrait> Database<T> for DB {
         let now = OffsetDateTime::now_utc();
         auction.tx_hash = Some(transaction_hash.clone());
         auction.submission_time = Some(now);
-        let start = Instant::now();
-        let query_result = sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
+        if let Err(e) = sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
             PrimitiveDateTime::new(now.date(), now.time()),
             T::BidStatusType::convert_tx_hash(transaction_hash),
             auction.id,
-        ).execute(self).instrument(info_span!("db_update_auction")).await?;
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", auction.chain_id.to_string()),
-            ("db_query", "submit_auction".to_string()),
-            (
-                "made_change",
-                (query_result.rows_affected() > 0).to_string(),
-            ),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_latency_seconds", &labels).record(latency);
+        ).execute(self).instrument(info_span!("db_update_auction")).await {
+            tracing::Span::current().record("result", "error");
+            return Err(e.into());
+        };
         Ok(auction)
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "update_bid_status"
+        ),
+        skip_all
+    )]
     async fn update_bid_status(
         &self,
         bid: &entities::Bid<T>,
         new_status: &T::BidStatusType,
     ) -> anyhow::Result<bool> {
         let update_query = T::get_update_bid_query(bid, new_status.clone())?;
-        let start = Instant::now();
-        let query_result = update_query
+        let result = update_query
             .execute(self)
             .instrument(info_span!("db_update_bid_status"))
-            .await?;
-        let latency = start.elapsed().as_secs_f64();
-        let made_change = query_result.rows_affected() > 0;
-        let labels: [(&str, String); 4] = [
-            ("chain_id", bid.chain_id.to_string()),
-            ("db_query", "update_bid_status".to_string()),
-            ("status", T::convert_bid_status(new_status).to_string()),
-            ("made_change", made_change.to_string()),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_latency_seconds", &labels).record(latency);
-        Ok(query_result.rows_affected() > 0)
+            .await;
+        if let Err(e) = result {
+            tracing::Span::current().record("result", "error");
+            return Err(e.into());
+        }
+        Ok(result?.rows_affected() > 0)
     }
 }

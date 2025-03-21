@@ -23,7 +23,6 @@ use {
         },
     },
     axum::async_trait,
-    axum_prometheus::metrics,
     ethers::types::{
         Address,
         Bytes,
@@ -51,16 +50,14 @@ use {
         },
         QueryBuilder,
     },
-    std::{
-        fmt::Debug,
-        time::Instant,
-    },
+    std::fmt::Debug,
     time::{
         OffsetDateTime,
         PrimitiveDateTime,
     },
     tracing::{
         info_span,
+        instrument,
         Instrument,
     },
     uuid::Uuid,
@@ -182,11 +179,15 @@ pub trait Database<T: InMemoryStore>: Debug + Send + Sync + 'static {
 }
 #[async_trait]
 impl<T: InMemoryStore> Database<T> for DB {
+    #[instrument(
+        target = "metrics",
+        fields(category = "db_queries", result = "success", name = "add_opportunity"),
+        skip_all
+    )]
     async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError> {
         let metadata = opportunity.get_models_metadata();
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
-        let start = Instant::now();
-        let query_result = sqlx::query!("INSERT INTO opportunity (id,
+        if let Err(e) = sqlx::query!("INSERT INTO opportunity (id,
                                                         creation_time,
                                                         permission_key,
                                                         chain_id,
@@ -208,18 +209,10 @@ impl<T: InMemoryStore> Database<T> for DB {
             .map_err(|e| {
                 tracing::error!("DB: Failed to insert opportunity: {}", e);
                 RestError::TemporarilyUnavailable
-            })?;
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", opportunity.chain_id.to_string()),
-            ("db_query", "add_opportunity".to_string()),
-            (
-                "made_change",
-                (query_result.rows_affected() > 0).to_string(),
-            ),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_duration_seconds", &labels).record(latency);
+            }) {
+                tracing::Span::current().record("result", "error");
+                return Err(e);
+            }
         Ok(())
     }
 
@@ -275,33 +268,34 @@ impl<T: InMemoryStore> Database<T> for DB {
         )).collect()
     }
 
+    #[instrument(
+        target = "metrics",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "remove_opportunities"
+        ),
+        skip_all
+    )]
     async fn remove_opportunities(
         &self,
         permission_key: PermissionKey,
         chain_id: ChainId,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
-        let start = Instant::now();
         let now = OffsetDateTime::now_utc();
-        let query_result = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE permission_key = $3 AND chain_id = $4 and removal_time IS NULL")
+        if let Err(e) = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE permission_key = $3 AND chain_id = $4 and removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(permission_key.as_ref())
             .bind(&chain_id)
             .execute(self)
             .instrument(info_span!("db_remove_opportunities"))
-            .await?;
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", chain_id.to_string()),
-            ("db_query", "remove_opportunities".to_string()),
-            (
-                "made_change",
-                (query_result.rows_affected() > 0).to_string(),
-            ),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_duration_seconds", &labels).record(latency);
+            .await {
+                tracing::Span::current().record("result", "error");
+                return Err(e.into());
+            };
+
         Ok(())
     }
 
@@ -310,26 +304,17 @@ impl<T: InMemoryStore> Database<T> for DB {
         opportunity: &T::Opportunity,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
-        let start = Instant::now();
         let now = OffsetDateTime::now_utc();
-        let query_result = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
+        if let Err(e) = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(opportunity.id)
             .execute(self)
             .instrument(info_span!("db_remove_opportunity"))
-            .await?;
-        let latency = start.elapsed().as_secs_f64();
-        let labels = [
-            ("chain_id", opportunity.chain_id.to_string()),
-            ("db_query", "remove_opportunity".to_string()),
-            (
-                "made_change",
-                (query_result.rows_affected() > 0).to_string(),
-            ),
-        ];
-        metrics::counter!("db_queries_total", &labels).increment(1);
-        metrics::histogram!("db_queries_duration_seconds", &labels).record(latency);
+            .await {
+                tracing::Span::current().record("result", "error");
+                return Err(e.into());
+            };
         Ok(())
     }
 }

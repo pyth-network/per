@@ -21,7 +21,7 @@ impl<T: ChainTrait> Repository<T> {
             .db
             .get_bids(self.chain_id.clone(), profile_id, from_time)
             .await?;
-        let auctions = self.db.get_auctions_by_bids(&bids, &self.chain_id).await?;
+        let auctions = self.db.get_auctions_by_bids(&bids).await?;
 
         Ok(bids
             .into_iter()
