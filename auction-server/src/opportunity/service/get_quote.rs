@@ -23,11 +23,11 @@ use {
         },
         kernel::entities::PermissionKeySvm,
         opportunity::{
-            api::INDICATIVE_PRICE_TAKER,
             entities::{
                 self,
                 OpportunitySvmProgram,
                 OpportunitySvmProgramSwap,
+                TokenAccountInitializationConfigs,
                 TokenAmountSvm,
             },
             service::{
@@ -42,6 +42,7 @@ use {
     },
     axum_prometheus::metrics,
     express_relay_api_types::opportunity::ProgramSvm,
+    rand::Rng,
     solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
     spl_token::native_mint,
@@ -68,6 +69,31 @@ use {
 // while keeping the original amount (before fees) in the bid
 // --------------------------------------------------------------------------------------------
 
+/// Prefix for indicative price taker keys
+/// The first 28 bytes of "Price11111111111111111111111111111111111112"
+pub const INDICATIVE_PRICE_TAKER_BASE: [u8; 28] = [
+    0x05, 0xda, 0xfe, 0x58, 0xfc, 0xc9, 0x54, 0xbe, 0x96, 0xc9, 0x32, 0xae, 0x8e, 0x9a, 0x17, 0x68,
+    0x9d, 0x10, 0x17, 0xf8, 0xc9, 0xe1, 0xb0, 0x7c, 0x86, 0x32, 0x71, 0xc0,
+];
+
+/// For users that don't provide a wallet we assign them a random public key prefixed by INDICATIVE_PRICE_TAKER_BASE
+pub fn generate_indicative_price_taker() -> Pubkey {
+    let mut key_bytes = [0u8; 32];
+
+    key_bytes[0..28].copy_from_slice(&INDICATIVE_PRICE_TAKER_BASE);
+
+    let mut rng = rand::thread_rng();
+    let rand_bytes: [u8; 4] = rng.gen(); // Generate all four bytes at once
+    key_bytes[28..32].copy_from_slice(&rand_bytes);
+
+    Pubkey::new_from_array(key_bytes)
+}
+
+/// Checks if a wallet address has the indicative price taker prefix (first 28 bytes).
+pub fn is_indicative_price_taker(wallet_address: &Pubkey) -> bool {
+    let wallet_bytes = wallet_address.as_ref();
+    wallet_bytes[0..28] == INDICATIVE_PRICE_TAKER_BASE
+}
 
 /// Time to wait for searchers to submit bids.
 const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
@@ -257,10 +283,39 @@ impl Service<ChainTypeSvm> {
                 },
             },
         };
-        let user_wallet_address = match quote_create.user_wallet_address {
-            Some(address) => address,
-            None => INDICATIVE_PRICE_TAKER,
-        };
+        let (user_wallet_address, user_mint_user_balance, token_account_initialization_config) =
+            match quote_create.user_wallet_address {
+                Some(address) => {
+                    let balances = self
+                        .get_quote_request_account_balances(QuoteRequestAccountBalancesInput {
+                            user_wallet_address: address,
+                            mint_searcher,
+                            mint_user,
+                            router: referral_fee_info.router,
+                            fee_token: fee_token.clone(),
+                            token_program_searcher,
+                            token_program_user,
+                            chain_id: quote_create.chain_id.clone(),
+                        })
+                        .await?;
+
+                    let mint_user_is_wrapped_sol = mint_user == native_mint::id();
+                    (
+                        address,
+                        balances.get_user_ata_mint_user_balance(mint_user_is_wrapped_sol),
+                        balances.get_token_account_initialization_configs(),
+                    )
+                }
+                None => {
+                    // For indicative quotes, we don't need to initialize any token accounts as the transaction will never be simulated nor broadcasted
+                    (
+                        generate_indicative_price_taker(),
+                        0,
+                        TokenAccountInitializationConfigs::none_needed(),
+                    )
+                }
+            };
+
         let permission_account = get_quote_virtual_permission_account(
             &tokens_for_permission,
             &user_wallet_address,
@@ -284,25 +339,6 @@ impl Service<ChainTypeSvm> {
                 amount: user_amount,
             }],
         };
-
-        let balances = self
-            .get_quote_request_account_balances(QuoteRequestAccountBalancesInput {
-                user_wallet_address,
-                mint_searcher,
-                mint_user,
-                router: referral_fee_info.router,
-                fee_token: fee_token.clone(),
-                token_program_searcher,
-                token_program_user,
-                chain_id: quote_create.chain_id.clone(),
-            })
-            .await?;
-
-        let mint_user_is_wrapped_sol = mint_user == native_mint::id();
-        let token_account_initialization_config =
-            balances.get_token_account_initialization_configs();
-        let user_mint_user_balance =
-            balances.get_user_ata_mint_user_balance(mint_user_is_wrapped_sol);
 
         let program_opportunity =
             entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
@@ -589,5 +625,19 @@ impl Service<ChainTypeSvm> {
             chain_id: input.quote_create.chain_id,
             reference_id: auction.id,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    #[test]
+    fn test_indicative_price_taker() {
+        let x = generate_indicative_price_taker();
+        let formatted_key = x.to_string();
+        assert_eq!(&formatted_key[0..5], "Price");
+        assert!(is_indicative_price_taker(&x));
     }
 }
