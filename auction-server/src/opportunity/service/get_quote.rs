@@ -68,34 +68,31 @@ use {
 // while keeping the original amount (before fees) in the bid
 // --------------------------------------------------------------------------------------------
 
-/// Base bytes for the indicative price taker key
-/// The first 24 bytes of "Price11111111111111111111111111111111111112"
-pub const INDICATIVE_PRICE_TAKER_BASE: [u8; 24] = [
+/// Prefix for indicative price taker keys
+/// The first 28 bytes of "Price11111111111111111111111111111111111112"
+pub const INDICATIVE_PRICE_TAKER_BASE: [u8; 28] = [
     0x05, 0xda, 0xfe, 0x58, 0xfc, 0xc9, 0x54, 0xbe, 0x96, 0xc9, 0x32, 0xae, 0x8e, 0x9a, 0x17, 0x68,
-    0x9d, 0x10, 0x17, 0xf8, 0xc9, 0xe1, 0xb0, 0x7c,
+    0x9d, 0x10, 0x17, 0xf8, 0xc9, 0xe1, 0xb0, 0x7c, 0x86, 0x32, 0x71, 0xc0,
 ];
 
-/// Generate a new key for indicative price taker with the first 24 bytes
-/// the same as the original INDICATIVE_PRICE_TAKER but the last 8 bytes random.
+/// For users that don't provide a wallet we assign them a random public key prefixed by INDICATIVE_PRICE_TAKER_BASE
 pub fn generate_indicative_price_taker() -> Pubkey {
     let mut key_bytes = [0u8; 32];
 
-    // Copy the first 24 bytes from the base
-    key_bytes[0..24].copy_from_slice(&INDICATIVE_PRICE_TAKER_BASE);
+    key_bytes[0..28].copy_from_slice(&INDICATIVE_PRICE_TAKER_BASE);
 
-    // Generate 8 random bytes for the last part of the key
     let mut rng = rand::thread_rng();
-    key_bytes[24..32].iter_mut().for_each(|byte| {
+    key_bytes[28..32].iter_mut().for_each(|byte| {
         *byte = rng.gen();
     });
 
     Pubkey::new_from_array(key_bytes)
 }
 
-/// Checks if a wallet address has the indicative price taker prefix (first 24 bytes).
+/// Checks if a wallet address has the indicative price taker prefix (first 28 bytes).
 pub fn is_indicative_price_taker(wallet_address: &Pubkey) -> bool {
     let wallet_bytes = wallet_address.as_ref();
-    wallet_bytes[0..24] == INDICATIVE_PRICE_TAKER_BASE
+    wallet_bytes[0..28] == INDICATIVE_PRICE_TAKER_BASE
 }
 
 /// Time to wait for searchers to submit bids.
@@ -618,5 +615,19 @@ impl Service<ChainTypeSvm> {
             chain_id: input.quote_create.chain_id,
             reference_id: auction.id,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    #[test]
+    fn test_indicative_price_taker() {
+        let x = generate_indicative_price_taker();
+        let formatted_key = x.to_string();
+        assert_eq!(&formatted_key[0..5], "Price");
+        assert!(is_indicative_price_taker(&x));
     }
 }
