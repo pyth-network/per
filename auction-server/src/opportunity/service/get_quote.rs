@@ -70,21 +70,19 @@ use {
 // --------------------------------------------------------------------------------------------
 
 /// Prefix for indicative price taker keys
-/// The first 28 bytes of "Price11111111111111111111111111111111111112"
-pub const INDICATIVE_PRICE_TAKER_BASE: [u8; 28] = [
-    0x05, 0xda, 0xfe, 0x58, 0xfc, 0xc9, 0x54, 0xbe, 0x96, 0xc9, 0x32, 0xae, 0x8e, 0x9a, 0x17, 0x68,
-    0x9d, 0x10, 0x17, 0xf8, 0xc9, 0xe1, 0xb0, 0x7c, 0x86, 0x32, 0x71, 0xc0,
-];
+/// We use the first 24 bytes of "Price11111111111111111111111111111111111112"
+pub const INDICATIVE_PRICE_TAKER_BASE: Pubkey =
+    Pubkey::from_str_const("Price11111111111111111111111111111111111112");
 
 /// For users that don't provide a wallet we assign them a random public key prefixed by INDICATIVE_PRICE_TAKER_BASE
 pub fn generate_indicative_price_taker() -> Pubkey {
     let mut key_bytes = [0u8; 32];
 
-    key_bytes[0..28].copy_from_slice(&INDICATIVE_PRICE_TAKER_BASE);
+    key_bytes[0..24].copy_from_slice(&INDICATIVE_PRICE_TAKER_BASE.as_array()[0..24]);
 
     let mut rng = rand::thread_rng();
-    let rand_bytes: [u8; 4] = rng.gen(); // Generate all four bytes at once
-    key_bytes[28..32].copy_from_slice(&rand_bytes);
+    let rand_bytes: [u8; 8] = rng.gen();
+    key_bytes[24..32].copy_from_slice(&rand_bytes);
 
     Pubkey::new_from_array(key_bytes)
 }
@@ -92,7 +90,7 @@ pub fn generate_indicative_price_taker() -> Pubkey {
 /// Checks if a wallet address has the indicative price taker prefix (first 28 bytes).
 pub fn is_indicative_price_taker(wallet_address: &Pubkey) -> bool {
     let wallet_bytes = wallet_address.as_ref();
-    wallet_bytes[0..28] == INDICATIVE_PRICE_TAKER_BASE
+    wallet_bytes[0..24] == INDICATIVE_PRICE_TAKER_BASE.as_array()[0..24]
 }
 
 /// Time to wait for searchers to submit bids.
@@ -637,7 +635,7 @@ mod tests {
     fn test_indicative_price_taker() {
         let x = generate_indicative_price_taker();
         let formatted_key = x.to_string();
-        assert_eq!(&formatted_key[0..5], "Price");
+        assert_eq!(&formatted_key[0..4], "Pric");
         assert!(is_indicative_price_taker(&x));
     }
 }
