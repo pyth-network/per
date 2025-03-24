@@ -3,7 +3,8 @@ use {
         auction_manager::TOTAL_BIDS_PER_AUCTION_EVM,
         ChainTrait,
         Service,
-    }, crate::{
+    },
+    crate::{
         api::{
             InstructionError,
             RestError,
@@ -37,7 +38,11 @@ use {
         opportunity::{
             self as opportunity,
             entities::{
-                get_swap_quote_tokens, OpportunitySvm, OpportunitySvmProgram::Swap, QuoteTokens, TokenAccountInitializationConfig, TokenAccountInitializationConfigs
+                get_swap_quote_tokens,
+                OpportunitySvm,
+                OpportunitySvmProgram::Swap,
+                QuoteTokens,
+                TokenAccountInitializationConfig,
             },
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
@@ -48,10 +53,18 @@ use {
                 },
             },
         },
-    }, anchor_lang::{
+    },
+    ::express_relay::{
+        self as express_relay_svm,
+        FeeToken,
+    },
+    anchor_lang::{
         AnchorDeserialize,
         Discriminator,
-    }, axum::async_trait, borsh::de::BorshDeserialize, ethers::{
+    },
+    axum::async_trait,
+    borsh::de::BorshDeserialize,
+    ethers::{
         contract::{
             ContractError,
             ContractRevert,
@@ -64,10 +77,10 @@ use {
             BlockNumber,
             U256,
         },
-    }, ::express_relay::{
-        self as express_relay_svm,
-        FeeToken,
-    }, express_relay::error::ErrorCode, litesvm::types::FailedTransactionMetadata, solana_sdk::{
+    },
+    express_relay::error::ErrorCode,
+    litesvm::types::FailedTransactionMetadata,
+    solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
         clock::Slot,
         commitment_config::CommitmentConfig,
@@ -85,15 +98,20 @@ use {
             TransactionError,
             VersionedTransaction,
         },
-    }, spl_associated_token_account::{
+    },
+    spl_associated_token_account::{
         get_associated_token_address,
         get_associated_token_address_with_program_id,
         instruction::AssociatedTokenAccountInstruction,
-    }, spl_token::instruction::TokenInstruction, std::{
+    },
+    spl_token::instruction::TokenInstruction,
+    std::{
         collections::VecDeque,
         sync::Arc,
         time::Duration,
-    }, time::OffsetDateTime, uuid::Uuid
+    },
+    time::OffsetDateTime,
+    uuid::Uuid,
 };
 
 pub struct VerifyBidInput<T: ChainTrait> {
@@ -145,9 +163,9 @@ struct CloseAccountInstructionData {
 struct CreateAtaInstructionData {
     index: usize,
     payer: Pubkey,
-    ata: Pubkey,
+    ata:   Pubkey,
     owner: Pubkey,
-    mint: Pubkey,
+    mint:  Pubkey,
 }
 
 impl Service<Evm> {
@@ -967,7 +985,9 @@ impl Service<Svm> {
             .collect()
     }
 
-    fn extract_associated_token_account_instructions(tx: &VersionedTransaction) -> Vec<(usize, &CompiledInstruction)> {
+    fn extract_associated_token_account_instructions(
+        tx: &VersionedTransaction,
+    ) -> Vec<(usize, &CompiledInstruction)> {
         tx.message
             .instructions()
             .iter()
@@ -1068,20 +1088,27 @@ impl Service<Svm> {
         Ok(result)
     }
 
-    fn extract_create_ata_idempotent_instructions(
+    fn extract_create_ata_instructions(
         tx: &VersionedTransaction,
     ) -> Result<Vec<CreateAtaInstructionData>, RestError> {
         let mut result = vec![];
         for (index, instruction) in Self::extract_token_instructions(tx) {
-            let ix_parsed = AssociatedTokenAccountInstruction::try_from_slice(&instruction.data).ok();
-            if matches!(ix_parsed, Some(AssociatedTokenAccountInstruction::Create | AssociatedTokenAccountInstruction::CreateIdempotent)) {
+            let ix_parsed =
+                AssociatedTokenAccountInstruction::try_from_slice(&instruction.data).ok();
+            if matches!(
+                ix_parsed,
+                Some(
+                    AssociatedTokenAccountInstruction::Create
+                        | AssociatedTokenAccountInstruction::CreateIdempotent
+                )
+            ) {
                 if instruction.accounts.len() < 6 {
                     return Err(RestError::BadParameters(
-                        "Invalid close account instruction accounts".to_string(),
+                        "Invalid create ata instruction accounts".to_string(),
                     ));
                 }
                 let invalid_account_message =
-                    "Invalid account in close account instruction".to_string();
+                    "Invalid account in create ata instruction".to_string();
                 let payer = tx
                     .message
                     .static_account_keys()
@@ -1258,7 +1285,7 @@ impl Service<Svm> {
             }
         };
 
-        let mut create_ata_instructions = Self::extract_create_ata_idempotent_instructions(tx)?;
+        let mut create_ata_instructions = Self::extract_create_ata_instructions(tx)?;
 
         let user_ata_mint_user = get_associated_token_address_with_program_id(
             &swap_accounts.user_wallet,
@@ -1272,60 +1299,111 @@ impl Service<Svm> {
             &swap_accounts.token_program_searcher,
         );
 
-        if token_account_initialization_configs.user_ata_mint_user != TokenAccountInitializationConfig::Unneeded {
-            if let Some(index) = create_ata_instructions.iter().position(|instruction| instruction.ata == user_ata_mint_user) {
-                let matching_element = create_ata_instructions.swap_remove(index);
+        if token_account_initialization_configs.user_ata_mint_user
+            == TokenAccountInitializationConfig::UserPayer
+        {
+            if let Some(index) = create_ata_instructions
+                .iter()
+                .position(|instruction| instruction.ata == user_ata_mint_user)
+            {
+                let matching_instruction = create_ata_instructions.swap_remove(index);
 
-                if matching_element.mint != swap_accounts.mint_user {
-                    panic!("User ATA mint user not found");
+                if matching_instruction.mint != swap_accounts.mint_user {
+                    return Err(RestError::InvalidInstruction(
+                        Some(matching_instruction.index),
+                        InstructionError::InvalidMintInCreateAtaInstruction {
+                            expected: swap_accounts.mint_user,
+                            found:    matching_instruction.mint,
+                        },
+                    ));
                 }
-                if matching_element.owner != swap_accounts.user_wallet {
-                    panic!("User ATA owner not found");
+                if matching_instruction.owner != swap_accounts.user_wallet {
+                    return Err(RestError::InvalidInstruction(
+                        Some(matching_instruction.index),
+                        InstructionError::InvalidOwnerInCreateAtaInstruction {
+                            expected: swap_accounts.user_wallet,
+                            found:    matching_instruction.owner,
+                        },
+                    ));
                 }
-                let payer = if token_account_initialization_configs.user_ata_mint_user == TokenAccountInitializationConfig::SearcherPayer {
-                    swap_accounts.searcher
-                } else {
-                    swap_accounts.user_wallet
-                };
 
-                if matching_element.payer != payer {
-                    panic!("User ATA payer not found");
+                // We allow searcher to pay for backward compatibility
+                if matching_instruction.payer != swap_accounts.searcher
+                    && matching_instruction.payer != swap_accounts.user_wallet
+                {
+                    return Err(RestError::InvalidInstruction(
+                        Some(matching_instruction.index),
+                        InstructionError::InvalidPayerInCreateAtaInstruction {
+                            expected: swap_accounts.user_wallet,
+                            found:    matching_instruction.payer,
+                        },
+                    ));
                 }
-            }
-            else {
-                panic!("User ATA mint user not found");
-            }
-        }
-
-        if token_account_initialization_configs.user_ata_mint_searcher != TokenAccountInitializationConfig::Unneeded {
-            if let Some(index) = create_ata_instructions.iter().position(|instruction| instruction.ata == user_ata_mint_searcher) {
-                let matching_element = create_ata_instructions.swap_remove(index);
-
-                if matching_element.mint != swap_accounts.mint_searcher {
-                    panic!("User ATA mint searcher not found");
-                }
-                if matching_element.owner != swap_accounts.user_wallet {
-                    panic!("User ATA owner not found");
-                }
-                let payer = if token_account_initialization_configs.user_ata_mint_searcher == TokenAccountInitializationConfig::SearcherPayer {
-                    swap_accounts.searcher
-                } else {
-                    swap_accounts.user_wallet
-                };
-                
-                if matching_element.payer != payer {
-                    panic!("User ATA payer not found");
-                }
-            }
-            else {
-                panic!("User ATA mint searcher not found");
+            } else {
+                return Err(RestError::InvalidInstruction(
+                    None,
+                    InstructionError::MissingCreateAtaInstruction(user_ata_mint_user),
+                ));
             }
         }
 
-        // we don't care about the others but searcher must pay
+        if token_account_initialization_configs.user_ata_mint_searcher
+            == TokenAccountInitializationConfig::UserPayer
+        {
+            if let Some(index) = create_ata_instructions
+                .iter()
+                .position(|instruction| instruction.ata == user_ata_mint_searcher)
+            {
+                let matching_instruction = create_ata_instructions.swap_remove(index);
+
+                if matching_instruction.mint != swap_accounts.mint_searcher {
+                    return Err(RestError::InvalidInstruction(
+                        Some(matching_instruction.index),
+                        InstructionError::InvalidMintInCreateAtaInstruction {
+                            expected: swap_accounts.mint_searcher,
+                            found:    matching_instruction.mint,
+                        },
+                    ));
+                }
+                if matching_instruction.owner != swap_accounts.user_wallet {
+                    return Err(RestError::InvalidInstruction(
+                        Some(matching_instruction.index),
+                        InstructionError::InvalidOwnerInCreateAtaInstruction {
+                            expected: swap_accounts.user_wallet,
+                            found:    matching_instruction.owner,
+                        },
+                    ));
+                }
+                // We allow searcher to pay for backward compatibility
+                if matching_instruction.payer != swap_accounts.searcher
+                    && matching_instruction.payer != swap_accounts.user_wallet
+                {
+                    return Err(RestError::InvalidInstruction(
+                        Some(matching_instruction.index),
+                        InstructionError::InvalidPayerInCreateAtaInstruction {
+                            expected: swap_accounts.user_wallet,
+                            found:    matching_instruction.payer,
+                        },
+                    ));
+                }
+            } else {
+                return Err(RestError::InvalidInstruction(
+                    None,
+                    InstructionError::MissingCreateAtaInstruction(user_ata_mint_searcher),
+                ));
+            }
+        }
+
+        // we don't care about the other ata creation instructions but searcher must pay
         for account in create_ata_instructions {
             if account.payer != swap_accounts.searcher {
-                panic!("Searcher ATA payer not found");
+                return Err(RestError::InvalidInstruction(
+                    Some(account.index),
+                    InstructionError::InvalidPayerInCreateAtaInstruction {
+                        expected: swap_accounts.searcher,
+                        found:    account.payer,
+                    },
+                ));
             }
         }
 
@@ -1333,7 +1411,6 @@ impl Service<Svm> {
     }
 
     fn check_wrap_unwrap_native_token_instructions(
-        &self,
         tx: &VersionedTransaction,
         swap_data: &express_relay_svm::SwapArgs,
         swap_accounts: &SwapAccounts,
@@ -1428,12 +1505,8 @@ impl Service<Svm> {
                     ..
                 } = swap_accounts.clone();
 
-                Self::check_create_ata_instructions(
-                    &bid_data.transaction,
-                    &swap_accounts,
-                    &opp,
-                )?;
-                self.check_wrap_unwrap_native_token_instructions(
+                Self::check_create_ata_instructions(&bid_data.transaction, &swap_accounts, &opp)?;
+                Self::check_wrap_unwrap_native_token_instructions(
                     &bid_data.transaction,
                     &swap_data,
                     &swap_accounts,

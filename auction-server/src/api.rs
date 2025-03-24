@@ -120,6 +120,10 @@ pub enum InstructionError {
     InvalidAccountToCloseInCloseAccountInstruction(Pubkey),
     InvalidDestinationCloseAccountInstruction { expected: Pubkey, found: Pubkey },
     InvalidOwnerCloseAccountInstruction { expected: Pubkey, found: Pubkey },
+    InvalidMintInCreateAtaInstruction { expected: Pubkey, found: Pubkey },
+    InvalidOwnerInCreateAtaInstruction { expected: Pubkey, found: Pubkey },
+    InvalidPayerInCreateAtaInstruction { expected: Pubkey, found: Pubkey },
+    MissingCreateAtaInstruction(Pubkey),
 }
 
 impl std::fmt::Display for InstructionError {
@@ -208,6 +212,34 @@ impl std::fmt::Display for InstructionError {
                     f,
                     "Invalid owner in close account instruction. Expected: {:?} found: {:?}",
                     found, expected
+                )
+            }
+            InstructionError::InvalidMintInCreateAtaInstruction { expected, found } => {
+                write!(
+                    f,
+                    "Invalid mint in create associated token account instruction. Expected: {:?} found: {:?}",
+                    found, expected
+                )
+            }
+            InstructionError::InvalidOwnerInCreateAtaInstruction { expected, found } => {
+                write!(
+                    f,
+                    "Invalid owner in create associated token account instruction. Expected: {:?} found: {:?}",
+                    found, expected
+                )
+            }
+            InstructionError::InvalidPayerInCreateAtaInstruction { expected, found } => {
+                write!(
+                    f,
+                    "Invalid payer in create associated token account instruction. Expected: {:?} found: {:?}",
+                    found, expected
+                )
+            }
+            InstructionError::MissingCreateAtaInstruction(ata) => {
+                write!(
+                    f,
+                    "Missing create associated token account instruction for account: {:?}",
+                    ata
                 )
             }
         }
