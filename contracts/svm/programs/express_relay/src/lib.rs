@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)] // https://github.com/coral-xyz/anchor/issues/3401
+
 pub mod clock;
 pub mod error;
 pub mod sdk;
