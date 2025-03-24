@@ -1093,7 +1093,7 @@ impl Service<Svm> {
         tx: &VersionedTransaction,
     ) -> Result<Vec<CreateAtaInstructionData>, RestError> {
         let mut result = vec![];
-        for (index, instruction) in Self::extract_token_instructions(tx) {
+        for (index, instruction) in Self::extract_associated_token_account_instructions(tx) {
             let ix_parsed =
                 AssociatedTokenAccountInstruction::try_from_slice(&instruction.data).ok();
             if matches!(
@@ -2217,6 +2217,7 @@ mod tests {
             }),
         };
 
+
         let indicative_price_taker = generate_indicative_price_taker();
         let permission_account_indicative_price_taker = get_quote_virtual_permission_account(
             &tokens_user_specified,
@@ -2233,7 +2234,7 @@ mod tests {
                     router,
                     permission_account_indicative_price_taker,
                 ),
-                chain_id,
+                chain_id: chain_id.clone(),
                 sell_tokens: vec![TokenAmountSvm {
                     token:  searcher_token_address,
                     amount: 0,
@@ -2252,7 +2253,7 @@ mod tests {
                 platform_fee_bps: 0,
                 token_program_user: spl_token::id(),
                 token_program_searcher: spl_token::id(),
-                fee_token,
+                fee_token: fee_token.clone(),
                 referral_fee_bps,
                 user_mint_user_balance: 0,
                 token_account_initialization_config:
@@ -2260,12 +2261,54 @@ mod tests {
             }),
         };
 
+
+        let opp_with_user_payer = OpportunitySvm {
+            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+                id: Uuid::new_v4(),
+                permission_key: OpportunitySvm::get_permission_key(
+                    BidPaymentInstructionType::Swap,
+                    router,
+                    permission_account_user_token_specified,
+                ),
+                chain_id,
+                sell_tokens: vec![TokenAmountSvm {
+                    token:  searcher_token_address,
+                    amount: 0,
+                }],
+                buy_tokens: vec![TokenAmountSvm {
+                    token: user_token_address,
+                    amount,
+                }],
+                creation_time: now,
+                refresh_time: now,
+            },
+            router,
+            permission_account: permission_account_user_token_specified,
+            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
+                user_wallet_address,
+                platform_fee_bps: 0,
+                token_program_user: spl_token::id(),
+                token_program_searcher: spl_token::id(),
+                fee_token,
+                referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config: TokenAccountInitializationConfigs {
+                    user_ata_mint_user:             TokenAccountInitializationConfig::UserPayer,
+                    user_ata_mint_searcher:         TokenAccountInitializationConfig::UserPayer,
+                    router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
+                    relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
+                    express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
+                },
+            }),
+        };
+
         let opps = vec![
             opp_user_token_specified.clone(),
             opp_searcher_token_specified.clone(),
             opp_user_token_wsol.clone(),
-            opp_searcher_token_wsol.clone(),
-            opp_indicative_price_taker.clone(),
+            opp_searcher_token_wsol.clone(),            opp_indicative_price_taker.clone(),
+            opp_with_user_payer.clone(),
+
         ];
         let opps_cloned = opps.clone();
 
@@ -2296,6 +2339,7 @@ mod tests {
                 opp_user_token_wsol,
                 opp_searcher_token_wsol,
                 opp_indicative_price_taker,
+                opp_with_user_payer,
             ],
         )
     }
@@ -4612,6 +4656,522 @@ mod tests {
             RestError::InvalidInstruction(
                 Some(0),
                 InstructionError::InvalidToAccountTransferInstruction { expected, found }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_user_payer_missing_user_mint_ata_creation() {
+        let (service, opportunities) = get_service(false);
+        let opportunity = opportunities[5].clone(); // User payer
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction],
+            opportunity.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::MissingCreateAtaInstruction(get_associated_token_address(
+                    &program.user_wallet_address,
+                    &opportunity.buy_tokens[0].token,
+                ))
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_user_payer_missing_searcher_mint_ata_creation() {
+        let (service, opportunities) = get_service(false);
+        let opportunity = opportunities[5].clone(); // User payer
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+
+        let create_ata_instruction_user_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction, create_ata_instruction_user_mint],
+            opportunity.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::MissingCreateAtaInstruction(get_associated_token_address(
+                    &program.user_wallet_address,
+                    &opportunity.sell_tokens[0].token,
+                ))
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_user_payer() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities[5].clone(); // User payer
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+
+        let create_ata_instruction_user_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+
+        let create_ata_instruction_searcher_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.sell_tokens[0].token,
+                &program.token_program_searcher,
+            );
+        get_verify_bid_result(
+            service,
+            searcher,
+            vec![
+                create_ata_instruction_user_mint,
+                create_ata_instruction_searcher_mint,
+                swap_instruction,
+            ],
+            opportunity.clone(),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_user_payer_backward_compatible() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities[5].clone(); // User payer
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+
+        let create_ata_instruction_user_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &searcher.pubkey(),
+                &program.user_wallet_address,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+
+        let create_ata_instruction_searcher_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &searcher.pubkey(),
+                &program.user_wallet_address,
+                &opportunity.sell_tokens[0].token,
+                &program.token_program_searcher,
+            );
+        get_verify_bid_result(
+            service,
+            searcher,
+            vec![
+                create_ata_instruction_user_mint,
+                create_ata_instruction_searcher_mint,
+                swap_instruction,
+            ],
+            opportunity.clone(),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_user_payer_invalid_payer() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities[5].clone(); // User payer
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+
+        let found = Pubkey::new_unique();
+        let create_ata_instruction_user_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &found,
+                &program.user_wallet_address,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+
+        let create_ata_instruction_searcher_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.sell_tokens[0].token,
+                &program.token_program_searcher,
+            );
+
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![
+                create_ata_instruction_user_mint,
+                create_ata_instruction_searcher_mint,
+                swap_instruction,
+            ],
+            opportunity.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(0),
+                InstructionError::InvalidPayerInCreateAtaInstruction {
+                    expected: program.user_wallet_address,
+                    found
+                }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_user_payer_invalid_mint() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities[5].clone(); // User payer
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+
+        let found = Pubkey::new_unique();
+
+        let create_ata_instruction_user_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+
+        let user_ata_searcher_mint = get_associated_token_address(
+            &program.user_wallet_address,
+            &opportunity.sell_tokens[0].token,
+        );
+        let mut create_ata_instruction_searcher_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &found,
+                &program.token_program_searcher,
+            );
+        create_ata_instruction_searcher_mint.accounts[1].pubkey = user_ata_searcher_mint;
+
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![
+                create_ata_instruction_user_mint,
+                create_ata_instruction_searcher_mint,
+                swap_instruction,
+            ],
+            opportunity.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(1),
+                InstructionError::InvalidMintInCreateAtaInstruction {
+                    expected: opportunity.sell_tokens[0].token,
+                    found
+                }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_user_payer_invalid_owner() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities[5].clone(); // User payer
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+
+        let found = Pubkey::new_unique();
+        let user_ata_user_mint = get_associated_token_address(
+            &program.user_wallet_address,
+            &opportunity.buy_tokens[0].token,
+        );
+        let mut create_ata_instruction_user_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &found,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+        create_ata_instruction_user_mint.accounts[1].pubkey = user_ata_user_mint;
+
+        let create_ata_instruction_searcher_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.sell_tokens[0].token,
+                &program.token_program_searcher,
+            );
+
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![
+                create_ata_instruction_user_mint,
+                create_ata_instruction_searcher_mint,
+                swap_instruction,
+            ],
+            opportunity.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(0),
+                InstructionError::InvalidOwnerInCreateAtaInstruction {
+                    expected: program.user_wallet_address,
+                    found
+                }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_user_payer_invalid_token_program() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities[5].clone(); // User payer
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+
+        let found = Pubkey::new_unique();
+        let create_ata_instruction_user_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+
+        let user_ata_searcher_mint = get_associated_token_address(
+            &program.user_wallet_address,
+            &opportunity.sell_tokens[0].token,
+        );
+        let mut create_ata_instruction_searcher_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.sell_tokens[0].token,
+                &found,
+            );
+        create_ata_instruction_searcher_mint.accounts[1].pubkey = user_ata_searcher_mint;
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![
+                create_ata_instruction_user_mint,
+                create_ata_instruction_searcher_mint,
+                swap_instruction,
+            ],
+            opportunity.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(1),
+                InstructionError::InvalidTokenProgramInCreateAtaInstruction {
+                    expected: program.token_program_searcher,
+                    found
+                }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_user_payer_invalid_payer_extra_account_creation() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities[5].clone(); // User payer
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+
+        let create_ata_instruction_user_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+
+        let create_ata_instruction_searcher_mint =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &program.user_wallet_address,
+                &opportunity.sell_tokens[0].token,
+                &program.token_program_searcher,
+            );
+
+        let create_searcher_ata =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &program.user_wallet_address,
+                &searcher.pubkey(),
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+
+        let result = get_verify_bid_result(
+            service,
+            searcher.insecure_clone(),
+            vec![
+                create_ata_instruction_user_mint,
+                create_ata_instruction_searcher_mint,
+                create_searcher_ata,
+                swap_instruction,
+            ],
+            opportunity.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(2),
+                InstructionError::InvalidPayerInCreateAtaInstruction {
+                    expected: searcher.pubkey(),
+                    found:    program.user_wallet_address,
+                }
             )
         );
     }
