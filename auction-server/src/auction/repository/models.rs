@@ -59,10 +59,7 @@ use {
         PrimitiveDateTime,
         UtcOffset,
     },
-    tracing::{
-        info_span,
-        Instrument,
-    },
+    tracing::instrument,
 };
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
@@ -648,6 +645,17 @@ pub trait Database<T: ChainTrait>: Debug + Send + Sync + 'static {
 
 #[async_trait]
 impl<T: ChainTrait> Database<T> for DB {
+    #[instrument(
+        target = "metrics",
+        name = "db_add_auction",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "add_auction",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()> {
         sqlx::query!(
             "INSERT INTO auction (id, creation_time, permission_key, chain_id, chain_type, bid_collection_time, tx_hash) VALUES ($1, $2, $3, $4, $5, $6, $7)",
@@ -660,11 +668,24 @@ impl<T: ChainTrait> Database<T> for DB {
             auction.tx_hash.clone().map(|tx_hash| T::BidStatusType::convert_tx_hash(&tx_hash)),
         )
         .execute(self)
-            .instrument(info_span!("db_add_auction"))
-        .await?;
+        .await
+        .inspect_err(|_| {
+            tracing::Span::current().record("result", "error");
+        })?;
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_add_bid",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "add_bid",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn add_bid(&self, bid: &Bid<T>) -> Result<(), RestError> {
         sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
             bid.id,
@@ -678,14 +699,26 @@ impl<T: ChainTrait> Database<T> for DB {
             bid.profile_id,
             serde_json::to_value(bid.metadata.clone()).expect("Failed to serialize metadata"),
         ).execute(self)
-            .instrument(info_span!("db_add_bid"))
-            .await.map_err(|e| {
+        .await
+        .map_err(|e| {
+            tracing::Span::current().record("result", "error");
             tracing::error!(error = e.to_string(), bid = ?bid, "DB: Failed to insert bid");
             RestError::TemporarilyUnavailable
         })?;
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_conclude_auction",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "conclude_auction",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();
         sqlx::query!(
@@ -694,11 +727,24 @@ impl<T: ChainTrait> Database<T> for DB {
             auction_id,
         )
         .execute(self)
-        .instrument(info_span!("db_conclude_auction"))
-        .await?;
+        .await
+        .inspect_err(|_| {
+            tracing::Span::current().record("result", "error");
+        })?;
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_get_bid",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_bid",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn get_bid(
         &self,
         bid_id: entities::BidId,
@@ -706,13 +752,13 @@ impl<T: ChainTrait> Database<T> for DB {
     ) -> Result<Bid<T>, RestError> {
         sqlx::query_as("SELECT * FROM bid WHERE id = $1 AND chain_id = $2")
             .bind(bid_id)
-            .bind(chain_id)
+            .bind(&chain_id)
             .fetch_one(self)
-            .instrument(info_span!("db_get_bid"))
             .await
             .map_err(|e| match e {
                 sqlx::Error::RowNotFound => RestError::BidNotFound,
                 _ => {
+                    tracing::Span::current().record("result", "error");
                     tracing::error!(
                         error = e.to_string(),
                         bid_id = bid_id.to_string(),
@@ -723,13 +769,24 @@ impl<T: ChainTrait> Database<T> for DB {
             })
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_get_auction",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_auction",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn get_auction(&self, auction_id: entities::AuctionId) -> Result<Auction, RestError> {
         sqlx::query_as("SELECT * FROM auction WHERE id = $1")
             .bind(auction_id)
             .fetch_one(self)
-            .instrument(info_span!("db_get_auction"))
             .await
             .map_err(|e| {
+                tracing::Span::current().record("result", "error");
                 tracing::error!(
                     error = e.to_string(),
                     auction_id = auction_id.to_string(),
@@ -739,20 +796,42 @@ impl<T: ChainTrait> Database<T> for DB {
             })
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_get_auctions_by_bids",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_auctions_by_bids",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn get_auctions_by_bids(&self, bids: &[Bid<T>]) -> Result<Vec<Auction>, RestError> {
         let auction_ids: Vec<entities::AuctionId> =
             bids.iter().filter_map(|bid| bid.auction_id).collect();
         sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
             .bind(auction_ids)
             .fetch_all(self)
-            .instrument(info_span!("db_get_auctions_by_bids"))
             .await
             .map_err(|e| {
+                tracing::Span::current().record("result", "error");
                 tracing::error!("DB: Failed to fetch auctions: {}", e);
                 RestError::TemporarilyUnavailable
             })
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_get_bids",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_bids",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn get_bids(
         &self,
         chain_id: ChainId,
@@ -769,17 +848,24 @@ impl<T: ChainTrait> Database<T> for DB {
             query.push_bind(from_time);
         }
         query.push(" ORDER BY initiation_time ASC LIMIT 20");
-        query
-            .build_query_as()
-            .fetch_all(self)
-            .instrument(info_span!("db_get_bids"))
-            .await
-            .map_err(|e| {
-                tracing::error!("DB: Failed to fetch bids: {}", e);
-                RestError::TemporarilyUnavailable
-            })
+        query.build_query_as().fetch_all(self).await.map_err(|e| {
+            tracing::Span::current().record("result", "error");
+            tracing::error!("DB: Failed to fetch bids: {}", e);
+            RestError::TemporarilyUnavailable
+        })
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_submit_auction",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "submit_auction",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn submit_auction(
         &self,
         auction: &entities::Auction<T>,
@@ -793,20 +879,32 @@ impl<T: ChainTrait> Database<T> for DB {
             PrimitiveDateTime::new(now.date(), now.time()),
             T::BidStatusType::convert_tx_hash(transaction_hash),
             auction.id,
-        ).execute(self).instrument(info_span!("db_update_auction")).await?;
+        ).execute(self).await.inspect_err(|_| {
+            tracing::Span::current().record("result", "error");
+        })?;
         Ok(auction)
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_update_bid_status",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "update_bid_status",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn update_bid_status(
         &self,
         bid: &entities::Bid<T>,
         new_status: &T::BidStatusType,
     ) -> anyhow::Result<bool> {
         let update_query = T::get_update_bid_query(bid, new_status.clone())?;
-        let query_result = update_query
-            .execute(self)
-            .instrument(info_span!("db_update_bid_status"))
-            .await?;
-        Ok(query_result.rows_affected() > 0)
+        let result = update_query.execute(self).await.inspect_err(|_| {
+            tracing::Span::current().record("result", "error");
+        })?;
+        Ok(result.rows_affected() > 0)
     }
 }

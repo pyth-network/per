@@ -55,10 +55,7 @@ use {
         OffsetDateTime,
         PrimitiveDateTime,
     },
-    tracing::{
-        info_span,
-        Instrument,
-    },
+    tracing::instrument,
     uuid::Uuid,
 };
 
@@ -178,6 +175,17 @@ pub trait Database<T: InMemoryStore>: Debug + Send + Sync + 'static {
 }
 #[async_trait]
 impl<T: InMemoryStore> Database<T> for DB {
+    #[instrument(
+        target = "metrics",
+        name = "db_add_opportunity",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "add_opportunity",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError> {
         let metadata = opportunity.get_models_metadata();
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
@@ -198,15 +206,25 @@ impl<T: InMemoryStore> Database<T> for DB {
         serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
         serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
             .execute(self)
-            .instrument(info_span!("db_add_opportunity"))
-            .await
-            .map_err(|e| {
+            .await.map_err(|e| {
+                tracing::Span::current().record("result", "error");
                 tracing::error!("DB: Failed to insert opportunity: {}", e);
                 RestError::TemporarilyUnavailable
             })?;
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_get_opportunities",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "get_opportunities",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn get_opportunities(
         &self,
         chain_id: ChainId,
@@ -232,9 +250,9 @@ impl<T: InMemoryStore> Database<T> for DB {
         let opps: Vec<models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>> = query
             .build_query_as()
             .fetch_all(self)
-            .instrument(info_span!("db_get_opportunities"))
             .await
             .map_err(|e| {
+                tracing::Span::current().record("result", "error");
                 tracing::error!(
                     "DB: Failed to fetch opportunities: {} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
                     e,
@@ -259,6 +277,17 @@ impl<T: InMemoryStore> Database<T> for DB {
         )).collect()
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_remove_opportunities",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "remove_opportunities",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn remove_opportunities(
         &self,
         permission_key: PermissionKey,
@@ -270,13 +299,26 @@ impl<T: InMemoryStore> Database<T> for DB {
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(permission_key.as_ref())
-            .bind(chain_id)
+            .bind(&chain_id)
             .execute(self)
-            .instrument(info_span!("db_remove_opportunities"))
-            .await?;
+            .await
+            .inspect_err(|_| {
+                tracing::Span::current().record("result", "error");
+            })?;
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_remove_opportunity",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "remove_opportunity",
+            tracing_enabled
+        ),
+        skip_all
+    )]
     async fn remove_opportunity(
         &self,
         opportunity: &T::Opportunity,
@@ -288,8 +330,10 @@ impl<T: InMemoryStore> Database<T> for DB {
             .bind(reason)
             .bind(opportunity.id)
             .execute(self)
-            .instrument(info_span!("db_remove_opportunity"))
-            .await?;
+            .await
+            .inspect_err(|_| {
+                tracing::Span::current().record("result", "error");
+            })?;
         Ok(())
     }
 }
