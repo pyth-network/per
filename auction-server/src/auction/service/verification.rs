@@ -2244,11 +2244,9 @@ mod tests {
                 referral_fee_bps,
                 user_mint_user_balance: 0,
                 token_account_initialization_config: TokenAccountInitializationConfigs {
-                    user_ata_mint_user:             TokenAccountInitializationConfig::UserPayer,
-                    user_ata_mint_searcher:         TokenAccountInitializationConfig::UserPayer,
-                    router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
-                    relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
-                    express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
+                    user_ata_mint_user: TokenAccountInitializationConfig::UserPayer,
+                    user_ata_mint_searcher: TokenAccountInitializationConfig::UserPayer,
+                    ..TokenAccountInitializationConfigs::searcher_payer()
                 },
             }),
         };
