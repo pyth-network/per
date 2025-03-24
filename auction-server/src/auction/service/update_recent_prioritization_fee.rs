@@ -10,7 +10,7 @@ use {
 pub const RECENT_FEES_SLOT_WINDOW: usize = 12;
 
 impl Service<Svm> {
-    /// Returns an estimate of recent priotization fees.
+    /// Returns an estimate of recent prioritization fees.
     /// For each of the last 150 slots, client returns the `config.prioritization_fee_percentile`th percentile
     /// of prioritization fees for transactions that landed in that slot.
     /// The median of such values for the `RECENT_FEES_SLOT_WINDOW` most recent slots is returned.
@@ -53,7 +53,7 @@ impl Service<Svm> {
                 RestError::TemporarilyUnavailable
             })?;
 
-        self.repo.add_recent_priotization_fee(fee).await;
+        self.repo.add_recent_prioritization_fee(fee).await;
         Ok(fee)
     }
 }

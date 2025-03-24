@@ -31,7 +31,7 @@ where
     async fn submit_auction<'a>(
         &self,
         auction: entities::Auction<T>,
-        _auction_mutex_gaurd: MutexGuard<'a, ()>,
+        _auction_mutex_guard: MutexGuard<'a, ()>,
     ) -> anyhow::Result<()> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
         tracing::Span::current().record(

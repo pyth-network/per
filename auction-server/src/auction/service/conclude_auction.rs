@@ -105,7 +105,7 @@ where
             })
             .await?;
         } else if Self::is_auction_expired(&auction) {
-            // This only happens if auction submission to chain failes
+            // This only happens if auction submission to chain fails
             // This is a very rare case and should not happen
             tracing::warn!("Auction has no transaction hash and is expired");
             let lost_status = T::BidStatusType::new_lost();

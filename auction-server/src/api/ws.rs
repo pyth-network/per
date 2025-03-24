@@ -124,8 +124,8 @@ impl WsState {
     pub async fn get_new_subscriber_id(&self, ip: Option<IpAddr>) -> Option<SubscriberId> {
         let id = self.subscriber_counter.fetch_add(1, Ordering::SeqCst);
         if let Some(ip) = ip {
-            let mut write_gaurd = self.subscriber_per_ip.write().await;
-            let ids = write_gaurd.entry(ip).or_insert_with(HashSet::new);
+            let mut write_guard = self.subscriber_per_ip.write().await;
+            let ids = write_guard.entry(ip).or_insert_with(HashSet::new);
             if ids.len() >= MAXIMUM_SUBSCRIBERS_PER_IP {
                 return None;
             }
@@ -136,11 +136,11 @@ impl WsState {
 
     pub async fn remove_subscriber(&self, id: SubscriberId, ip: Option<IpAddr>) {
         if let Some(ip) = ip {
-            let mut write_gaurd = self.subscriber_per_ip.write().await;
-            if let Some(ids) = write_gaurd.get_mut(&ip) {
+            let mut write_guard = self.subscriber_per_ip.write().await;
+            if let Some(ids) = write_guard.get_mut(&ip) {
                 ids.remove(&id);
                 if ids.is_empty() {
-                    write_gaurd.remove(&ip);
+                    write_guard.remove(&ip);
                 }
             }
         }

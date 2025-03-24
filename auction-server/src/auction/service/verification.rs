@@ -2246,7 +2246,7 @@ mod tests {
         let minimum_budget = 10;
         service
             .repo
-            .add_recent_priotization_fee(minimum_budget)
+            .add_recent_prioritization_fee(minimum_budget)
             .await;
         let result =
             get_verify_bid_result(service, searcher, vec![], opportunities[0].clone()).await;
@@ -2265,7 +2265,7 @@ mod tests {
             compute_budget::ComputeBudgetInstruction::set_compute_unit_price(minimum_budget - 1);
         service
             .repo
-            .add_recent_priotization_fee(minimum_budget)
+            .add_recent_prioritization_fee(minimum_budget)
             .await;
         let result = get_verify_bid_result(
             service,
