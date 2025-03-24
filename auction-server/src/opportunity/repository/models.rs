@@ -247,7 +247,7 @@ impl<T: InMemoryStore> Database<T> for DB {
         }
         query.push(" ORDER BY creation_time ASC LIMIT ");
         query.push_bind(super::OPPORTUNITY_PAGE_SIZE_CAP as i64);
-        let opps: Vec<models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>,> = query
+        let opps: Vec<models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>> = query
             .build_query_as()
             .fetch_all(self)
             .await
