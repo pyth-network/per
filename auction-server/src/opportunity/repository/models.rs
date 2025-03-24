@@ -177,6 +177,7 @@ pub trait Database<T: InMemoryStore>: Debug + Send + Sync + 'static {
 impl<T: InMemoryStore> Database<T> for DB {
     #[instrument(
         target = "metrics",
+        name = "db_add_opportunity",
         fields(
             category = "db_queries",
             result = "success",
@@ -188,7 +189,7 @@ impl<T: InMemoryStore> Database<T> for DB {
     async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError> {
         let metadata = opportunity.get_models_metadata();
         let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
-        if let Err(e) = sqlx::query!("INSERT INTO opportunity (id,
+        sqlx::query!("INSERT INTO opportunity (id,
                                                         creation_time,
                                                         permission_key,
                                                         chain_id,
@@ -205,16 +206,17 @@ impl<T: InMemoryStore> Database<T> for DB {
         serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
         serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
             .execute(self)
-            .await {
+            .await.map_err(|e| {
                 tracing::Span::current().record("result", "error");
                 tracing::error!("DB: Failed to insert opportunity: {}", e);
-                return Err(RestError::TemporarilyUnavailable);
-            }
+                RestError::TemporarilyUnavailable
+            })?;
         Ok(())
     }
 
     #[instrument(
         target = "metrics",
+        name = "db_get_opportunities",
         fields(
             category = "db_queries",
             result = "success",
@@ -245,11 +247,12 @@ impl<T: InMemoryStore> Database<T> for DB {
         }
         query.push(" ORDER BY creation_time ASC LIMIT ");
         query.push_bind(super::OPPORTUNITY_PAGE_SIZE_CAP as i64);
-        let result = query
+        let opps: Vec<models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>,> = query
             .build_query_as()
             .fetch_all(self)
             .await
             .map_err(|e| {
+                tracing::Span::current().record("result", "error");
                 tracing::error!(
                     "DB: Failed to fetch opportunities: {} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
                     e,
@@ -258,16 +261,7 @@ impl<T: InMemoryStore> Database<T> for DB {
                     from_time,
                 );
                 RestError::TemporarilyUnavailable
-            });
-
-        if let Err(e) = result {
-            tracing::Span::current().record("result", "error");
-            return Err(e);
-        }
-
-        let opps: Vec<
-            models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>,
-        > = result?;
+            })?;
 
         opps.into_iter().map(|opp| opp.clone().try_into().map_err(
             |_| {
@@ -285,6 +279,7 @@ impl<T: InMemoryStore> Database<T> for DB {
 
     #[instrument(
         target = "metrics",
+        name = "db_remove_opportunities",
         fields(
             category = "db_queries",
             result = "success",
@@ -300,22 +295,22 @@ impl<T: InMemoryStore> Database<T> for DB {
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();
-        if let Err(e) = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE permission_key = $3 AND chain_id = $4 and removal_time IS NULL")
+        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE permission_key = $3 AND chain_id = $4 and removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(permission_key.as_ref())
             .bind(&chain_id)
             .execute(self)
-            .await {
+            .await
+            .inspect_err(|_| {
                 tracing::Span::current().record("result", "error");
-                return Err(e.into());
-            };
-
+            })?;
         Ok(())
     }
 
     #[instrument(
         target = "metrics",
+        name = "db_remove_opportunity",
         fields(
             category = "db_queries",
             result = "success",
@@ -330,15 +325,15 @@ impl<T: InMemoryStore> Database<T> for DB {
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();
-        if let Err(e) = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
+        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(opportunity.id)
             .execute(self)
-            .await {
+            .await
+            .inspect_err(|_| {
                 tracing::Span::current().record("result", "error");
-                return Err(e.into());
-            };
+            })?;
         Ok(())
     }
 }
