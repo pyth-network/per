@@ -123,6 +123,7 @@ pub enum InstructionError {
     InvalidMintInCreateAtaInstruction { expected: Pubkey, found: Pubkey },
     InvalidOwnerInCreateAtaInstruction { expected: Pubkey, found: Pubkey },
     InvalidPayerInCreateAtaInstruction { expected: Pubkey, found: Pubkey },
+    InvalidTokenProgramInCreateAtaInstruction { expected: Pubkey, found: Pubkey },
     MissingCreateAtaInstruction(Pubkey),
 }
 
@@ -232,6 +233,13 @@ impl std::fmt::Display for InstructionError {
                 write!(
                     f,
                     "Invalid payer in create associated token account instruction. Expected: {:?} found: {:?}",
+                    found, expected
+                )
+            }
+            InstructionError::InvalidTokenProgramInCreateAtaInstruction { expected, found } => {
+                write!(
+                    f,
+                    "Invalid token program in create associated token account instruction. Expected: {:?} found: {:?}",
                     found, expected
                 )
             }

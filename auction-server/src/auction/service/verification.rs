@@ -161,11 +161,12 @@ struct CloseAccountInstructionData {
 
 #[derive(Debug, Clone)]
 struct CreateAtaInstructionData {
-    index: usize,
-    payer: Pubkey,
-    ata:   Pubkey,
-    owner: Pubkey,
-    mint:  Pubkey,
+    index:         usize,
+    payer:         Pubkey,
+    ata:           Pubkey,
+    owner:         Pubkey,
+    mint:          Pubkey,
+    token_program: Pubkey,
 }
 
 impl Service<Evm> {
@@ -1137,26 +1138,23 @@ impl Service<Svm> {
                 let token_program = tx
                     .message
                     .static_account_keys()
-                    .get(instruction.accounts[5] as usize) // todo support lookup table
+                    .get(instruction.accounts[5] as usize) // TODO: support lookup tables
                     .ok_or(RestError::BadParameters(invalid_account_message))?;
 
 
                 if system_program != &system_program::id() {
                     return Err(RestError::BadParameters(
-                        "Invalid system program".to_string(), // todo better message
+                        "Invalid system program".to_string(), // TODO: throw an InvalidInstruction error
                     ));
                 }
-                if token_program != &spl_token::id() && token_program != &spl_token_2022::id() {
-                    return Err(RestError::BadParameters(
-                        "Invalid token program".to_string(), // todo better message
-                    ));
-                }
+
                 result.push(CreateAtaInstructionData {
                     index,
                     payer: *payer,
                     ata: *ata,
                     mint: *mint,
                     owner: *owner,
+                    token_program: *token_program,
                 });
             }
         }
@@ -1339,6 +1337,16 @@ impl Service<Svm> {
                         },
                     ));
                 }
+
+                if matching_instruction.token_program != swap_accounts.token_program_user {
+                    return Err(RestError::InvalidInstruction(
+                        Some(matching_instruction.index),
+                        InstructionError::InvalidTokenProgramInCreateAtaInstruction {
+                            expected: swap_accounts.token_program_user,
+                            found:    matching_instruction.token_program,
+                        },
+                    ));
+                }
             } else {
                 return Err(RestError::InvalidInstruction(
                     None,
@@ -1383,6 +1391,16 @@ impl Service<Svm> {
                         InstructionError::InvalidPayerInCreateAtaInstruction {
                             expected: swap_accounts.user_wallet,
                             found:    matching_instruction.payer,
+                        },
+                    ));
+                }
+
+                if matching_instruction.token_program != swap_accounts.token_program_searcher {
+                    return Err(RestError::InvalidInstruction(
+                        Some(matching_instruction.index),
+                        InstructionError::InvalidTokenProgramInCreateAtaInstruction {
+                            expected: swap_accounts.token_program_searcher,
+                            found:    matching_instruction.token_program,
                         },
                     ));
                 }
