@@ -45,7 +45,7 @@ pub struct HandleOpportunityBidInput {
 }
 
 fn parse_revert_error(revert: &Bytes) -> Option<String> {
-    let apdapter_decoded =
+    let adapter_decoded =
         OpportunityAdapterErrors::decode_with_selector(revert).map(|decoded_error| {
             format!(
                 "Opportunity Adapter Contract Revert Error: {:#?}",
@@ -54,7 +54,7 @@ fn parse_revert_error(revert: &Bytes) -> Option<String> {
         });
     let erc20_decoded = erc20::ERC20Errors::decode_with_selector(revert)
         .map(|decoded_error| format!("ERC20 Contract Revert Error: {:#?}", decoded_error));
-    apdapter_decoded.or(erc20_decoded)
+    adapter_decoded.or(erc20_decoded)
 }
 
 impl Service<ChainTypeEvm> {

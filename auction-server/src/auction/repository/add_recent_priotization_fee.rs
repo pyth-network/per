@@ -11,7 +11,7 @@ use {
 };
 
 impl Repository<Svm> {
-    pub async fn add_recent_priotization_fee(&self, fee: u64) {
+    pub async fn add_recent_prioritization_fee(&self, fee: u64) {
         let mut write_guard = self
             .in_memory_store
             .chain_store
