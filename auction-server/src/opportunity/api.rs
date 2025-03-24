@@ -5,7 +5,10 @@ use {
         service::{
             add_opportunity::AddOpportunityInput,
             get_opportunities::GetOpportunitiesInput,
-            get_quote::GetQuoteInput,
+            get_quote::{
+                is_indicative_price_taker,
+                GetQuoteInput,
+            },
             handle_opportunity_bid::HandleOpportunityBidInput,
             remove_opportunities::RemoveOpportunitiesInput,
         },
@@ -46,7 +49,6 @@ use {
         },
         ErrorBodyResponse,
     },
-    solana_sdk::pubkey::Pubkey,
     std::sync::Arc,
     time::OffsetDateTime,
 };
@@ -200,11 +202,6 @@ pub async fn get_opportunities(
     }
 }
 
-/// This corresponds to the base58 pubkey "Price11111111111111111111111111111111111112"
-pub const INDICATIVE_PRICE_TAKER: Pubkey = Pubkey::new_from_array([
-    0x05, 0xda, 0xfe, 0x58, 0xfc, 0xc9, 0x54, 0xbe, 0x96, 0xc9, 0x32, 0xae, 0x8e, 0x9a, 0x17, 0x68,
-    0x9d, 0x10, 0x17, 0xf8, 0xc9, 0xe1, 0xb0, 0x7c, 0x86, 0x32, 0x71, 0xc0, 0x00, 0x00, 0x00, 0x01,
-]);
 
 /// Submit a quote request.
 ///
@@ -219,10 +216,12 @@ pub async fn post_quote(
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
 ) -> Result<Json<Quote>, RestError> {
-    if params.get_user_wallet_address() == Some(INDICATIVE_PRICE_TAKER) {
-        return Err(RestError::BadParameters(
-            "Invalid user wallet address".to_string(),
-        ));
+    if let Some(address) = params.get_user_wallet_address() {
+        if is_indicative_price_taker(&address) {
+            return Err(RestError::BadParameters(
+                "Invalid user wallet address".to_string(),
+            ));
+        }
     }
     let quote_create: QuoteCreateEntity = params.into();
 

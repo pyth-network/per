@@ -86,7 +86,7 @@ local_resource(
 
 local_resource(
     "svm-build-programs",
-    "cargo build-sbf && anchor build",
+    "cargo build-sbf",
     dir="contracts/svm",
 )
 
