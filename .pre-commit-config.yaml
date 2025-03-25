@@ -30,14 +30,14 @@ repos:
       - id: cargo-clippy-workspace
         name: Cargo clippy for workspace
         language: "rust"
-        entry: cargo +1.83.0 clippy --manifest-path ./Cargo.toml --tests -- -D warnings
+        entry: cargo +1.85.1 clippy --manifest-path ./Cargo.toml --tests -- -D warnings
         pass_filenames: false
         types_or: ["rust", "cargo", "cargo-lock"]
         files: .
       - id: cargo-test-workspace
         name: Cargo test for workspace
         language: "rust"
-        entry: cargo +1.83.0 test --manifest-path ./Cargo.toml
+        entry: cargo +1.85.1 test --manifest-path ./Cargo.toml
         pass_filenames: false
         types_or: ["rust", "cargo", "cargo-lock"]
         files: .
@@ -51,7 +51,7 @@ repos:
       - id: cargo-clippy-contracts-svm
         name: Cargo clippy for svm contracts
         language: "rust"
-        entry: cargo +1.83.0 clippy --manifest-path ./contracts/svm/Cargo.toml --tests -- -D warnings
+        entry: cargo +1.85.1 clippy --manifest-path ./contracts/svm/Cargo.toml --tests -- -D warnings
         pass_filenames: false
         files: contracts/svm
       # EsLint hooks

@@ -1596,11 +1596,12 @@ impl Verification<Svm> for Service<Svm> {
             .await?;
         match bid_payment_instruction_type {
             BidPaymentInstructionType::Swap => {
-                let is_indicative_quote = bid_data
-                    .user_wallet_address
-                    .map_or(false, |user_wallet_address| {
-                        is_indicative_price_taker(&user_wallet_address)
-                    });
+                let is_indicative_quote =
+                    bid_data
+                        .user_wallet_address
+                        .is_some_and(|user_wallet_address| {
+                            is_indicative_price_taker(&user_wallet_address)
+                        });
                 if !is_indicative_quote {
                     self.simulate_swap_bid(&bid, bid_data.express_relay_instruction_index)
                         .await?

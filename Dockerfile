@@ -1,5 +1,4 @@
-ARG RUST_VERSION=1.83.0
-
+ARG RUST_VERSION=1.85.1
 # Get the solidity dependencies using npm
 FROM node:21-alpine3.18 AS npm_build
 WORKDIR /src

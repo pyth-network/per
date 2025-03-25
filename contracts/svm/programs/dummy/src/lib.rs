@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)] // https://github.com/coral-xyz/anchor/issues/3401
+
 use {
     anchor_lang::{
         prelude::*,
