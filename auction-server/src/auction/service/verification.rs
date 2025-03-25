@@ -1345,7 +1345,9 @@ impl Service<Svm> {
             &token_account_initialization_configs.user_ata_mint_searcher,
         )?;
 
-        // we don't care about the other ata creation instructions but searcher must pay
+        // we rely on the simulation to check the other token accounts are created
+        // but we enforce here that the searcher pays for their creation
+        // this includes searcher token accounts and fee token accounts
         for account in create_ata_instructions {
             if account.payer != swap_accounts.searcher {
                 return Err(RestError::InvalidInstruction(
