@@ -40,11 +40,6 @@ use {
             entities::{
                 get_opportunity_swap_data,
                 get_swap_quote_tokens,
-                OpportunitySvm,
-                OpportunitySvmProgram::{
-                    self,
-                    Swap,
-                },
                 OpportunitySvmProgramSwap,
                 QuoteTokens,
                 TokenAccountInitializationConfig,
