@@ -8,9 +8,9 @@
 
 You can use the following SDKs to integrate with the Express Relay APIs and contracts:
 
-- [Javascript SDK](https://github.com/pyth-network/pyth-crosschain/tree/main/express_relay/sdk/js)
-- [Python SDK](https://github.com/pyth-network/pyth-crosschain/tree/main/express_relay/sdk/python)
-- [Solidity SDK](https://github.com/pyth-network/pyth-crosschain/tree/main/express_relay/sdk/solidity)
+- [Javascript SDK](https://github.com/pyth-network/per/tree/main/sdk/js)
+- [Python SDK](https://github.com/pyth-network/per/tree/main/sdk/python)
+- [Solidity SDK](https://github.com/pyth-network/per/tree/main/sdk/solidity)
 
 ### pre-commit hooks
 
