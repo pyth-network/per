@@ -1001,28 +1001,21 @@ impl Service<Svm> {
             .collect()
     }
 
-    fn check_sync_native_instruction_exists(
+    async fn check_sync_native_instruction_exists(
+        &self,
         tx: &VersionedTransaction,
         wallet_address: &Pubkey,
     ) -> Result<(), RestError> {
         let sync_native_instructions = Self::extract_sync_native_instructions(tx);
         let ata = get_associated_token_address(wallet_address, &spl_token::native_mint::id());
 
-        if sync_native_instructions
-            .iter()
-            .filter(|instruction| {
-                if instruction.accounts.len() == 1 {
-                    tx.message
-                        .static_account_keys()
-                        .get(instruction.accounts[0] as usize)
-                        == Some(&ata)
-                } else {
-                    false
-                }
-            })
-            .count()
-            != 1
-        {
+        let mut matching_instructions = 0;
+        for instruction in &sync_native_instructions {
+            if ata == self.extract_account(tx, instruction, 0).await? {
+                matching_instructions += 1;
+            }
+        }
+        if matching_instructions != 1 {
             return Err(RestError::InvalidInstruction(
                 None,
                 InstructionError::InvalidSyncNativeInstructionCount(ata),
@@ -1327,9 +1320,10 @@ impl Service<Svm> {
         self.check_transfer_instruction(tx, swap_data, swap_accounts)
             .await?;
         if swap_accounts.mint_user == spl_token::native_mint::id() {
-            // User have to wrap Sol
+            // User has to wrap Sol
             // So we need to check if there is a sync native instruction
-            Self::check_sync_native_instruction_exists(tx, &swap_accounts.user_wallet)?;
+            self.check_sync_native_instruction_exists(tx, &swap_accounts.user_wallet)
+                .await?;
         }
         self.check_close_account_instruction(tx, swap_accounts)
             .await?;
