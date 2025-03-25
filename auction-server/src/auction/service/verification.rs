@@ -1388,11 +1388,12 @@ impl Service<Svm> {
                 let opportunity = opportunities
                     .first()
                     .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
+                let relayer_signer = self.config.chain_config.express_relay.relayer.pubkey();
                 opportunity
-                    .check_fee_payer(accounts)
+                    .check_fee_payer(accounts, &relayer_signer)
                     .map_err(|e| RestError::InvalidFirstSigner(e.to_string()))?;
                 let mut missing_signers = opportunity.get_missing_signers();
-                missing_signers.push(self.config.chain_config.express_relay.relayer.pubkey());
+                missing_signers.push(relayer_signer);
                 self.relayer_signer_exists(accounts, &signatures)?;
                 self.all_signatures_exists(&message_bytes, accounts, &signatures, &missing_signers)
             }
@@ -2176,6 +2177,48 @@ mod tests {
         );
         assert_eq!(result.1, bid_amount);
     }
+
+    #[tokio::test]
+    async fn test_verify_bid_with_relayer_fee_payer() {
+        let (service, opportunities) = get_service(true);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[instruction],
+            Some(&service.config.chain_config.express_relay.relayer.pubkey()),
+        ); // <- relayer signer is the fee payer
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await
+            .unwrap_err();
+        assert_eq!(
+            result,
+            RestError::InvalidFirstSigner("Fee payer should not be relayer signer".to_string()),
+        );
+    }
+
 
     #[tokio::test]
     async fn test_verify_bid_indicative_price_taker_skip_simulation() {
