@@ -266,6 +266,15 @@ pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
     }
 }
 
+pub fn get_opportunity_swap_data(opp: &OpportunitySvm) -> &OpportunitySvmProgramSwap {
+    match &opp.program {
+        OpportunitySvmProgram::Swap(opportunity_swap_data) => opportunity_swap_data,
+        _ => {
+            panic!("Opportunity must be a swap opportunity to get swap data");
+        }
+    }
+}
+
 impl From<TokenAccountInitializationConfig> for api::TokenAccountInitializationConfig {
     fn from(val: TokenAccountInitializationConfig) -> Self {
         match val {
