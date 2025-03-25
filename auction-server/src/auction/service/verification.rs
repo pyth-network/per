@@ -38,11 +38,17 @@ use {
         opportunity::{
             self as opportunity,
             entities::{
+                get_opportunity_swap_data,
                 get_swap_quote_tokens,
                 OpportunitySvm,
-                OpportunitySvmProgram::Swap,
+                OpportunitySvmProgram::{
+                    self,
+                    Swap,
+                },
+                OpportunitySvmProgramSwap,
                 QuoteTokens,
                 TokenAccountInitializationConfig,
+                TokenAccountInitializationConfigs,
             },
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
@@ -619,7 +625,8 @@ impl Service<Svm> {
     async fn check_svm_swap_bid_fields(
         &self,
         bid_data: &BidChainDataSwapCreateSvm,
-        opp: &OpportunitySvm,
+        opportunity_swap_data: &OpportunitySvmProgramSwap,
+        quote_tokens: &QuoteTokens,
     ) -> Result<(), RestError> {
         let (_, swap_instruction) = self.extract_express_relay_instruction(
             bid_data.transaction.clone(),
@@ -636,16 +643,6 @@ impl Service<Svm> {
         } = self
             .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
             .await?;
-        let quote_tokens = get_swap_quote_tokens(opp);
-        let opp_swap_data = match &opp.program {
-            Swap(opp_swap_data) => opp_swap_data,
-            _ => {
-                return Err(RestError::BadParameters(format!(
-                    "Opportunity with id {} is not a swap opportunity",
-                    bid_data.opportunity_id
-                )));
-            }
-        };
         let (
             expected_mint_user,
             expected_amount_user,
@@ -673,10 +670,10 @@ impl Service<Svm> {
                 Some(searcher_token.amount),
             ),
         };
-        if user_wallet != opp_swap_data.user_wallet_address {
+        if user_wallet != opportunity_swap_data.user_wallet_address {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::UserWalletAddress {
-                    expected: opp_swap_data.user_wallet_address,
+                    expected: opportunity_swap_data.user_wallet_address,
                     found:    user_wallet,
                 },
             ));
@@ -698,19 +695,19 @@ impl Service<Svm> {
             ));
         }
 
-        if token_program_searcher != opp_swap_data.token_program_searcher {
+        if token_program_searcher != opportunity_swap_data.token_program_searcher {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::TokenProgramSearcher {
-                    expected: opp_swap_data.token_program_searcher,
+                    expected: opportunity_swap_data.token_program_searcher,
                     found:    token_program_searcher,
                 },
             ));
         }
 
-        if token_program_user != opp_swap_data.token_program_user {
+        if token_program_user != opportunity_swap_data.token_program_user {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::TokenProgramUser {
-                    expected: opp_swap_data.token_program_user,
+                    expected: opportunity_swap_data.token_program_user,
                     found:    token_program_user,
                 },
             ));
@@ -736,19 +733,19 @@ impl Service<Svm> {
                 ));
             }
         }
-        if opp_swap_data.fee_token != swap_data.fee_token {
+        if opportunity_swap_data.fee_token != swap_data.fee_token {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::FeeToken {
-                    expected: opp_swap_data.fee_token.clone(),
+                    expected: opportunity_swap_data.fee_token.clone(),
                     found:    swap_data.fee_token,
                 },
             ));
         }
 
-        if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
+        if swap_data.referral_fee_bps != opportunity_swap_data.referral_fee_bps {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::ReferralFee {
-                    expected: opp_swap_data.referral_fee_bps,
+                    expected: opportunity_swap_data.referral_fee_bps,
                     found:    swap_data.referral_fee_bps,
                 },
             ));
@@ -1271,21 +1268,11 @@ impl Service<Svm> {
     fn check_create_ata_instructions(
         tx: &VersionedTransaction,
         swap_accounts: &SwapAccounts,
-        opp: &OpportunitySvm,
+        token_account_initialization_configs: &TokenAccountInitializationConfigs,
     ) -> Result<(), RestError> {
-        let token_account_initialization_configs = match &opp.program {
-            Swap(opp_swap_data) => &opp_swap_data.token_account_initialization_config,
-            _ => {
-                return Err(RestError::BadParameters(format!(
-                    "Opportunity with id {} is not a swap opportunity",
-                    opp.id
-                )));
-            }
-        };
-
         let mut create_ata_instructions = Self::extract_create_ata_instructions(tx)?;
 
-        let mut validate_and_remove_create_ata_instruction =
+        let mut validate_and_remove_create_user_ata_instruction =
             |mint: &Pubkey,
              token_program: &Pubkey,
              initialization_config: &TokenAccountInitializationConfig|
@@ -1352,12 +1339,12 @@ impl Service<Svm> {
                 Ok(())
             };
 
-        validate_and_remove_create_ata_instruction(
+        validate_and_remove_create_user_ata_instruction(
             &swap_accounts.mint_user,
             &swap_accounts.token_program_user,
             &token_account_initialization_configs.user_ata_mint_user,
         )?;
-        validate_and_remove_create_ata_instruction(
+        validate_and_remove_create_user_ata_instruction(
             &swap_accounts.mint_searcher,
             &swap_accounts.token_program_searcher,
             &token_account_initialization_configs.user_ata_mint_searcher,
@@ -1453,7 +1440,10 @@ impl Service<Svm> {
                 self.validate_swap_transaction_instructions(
                     bid_chain_data_create_svm.get_transaction(),
                 )?;
-                self.check_svm_swap_bid_fields(bid_data, &opp).await?;
+                let quote_tokens = get_swap_quote_tokens(&opp);
+                let opportunity_swap_data = get_opportunity_swap_data(&opp);
+                self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
+                    .await?;
 
                 let (express_relay_instruction_index, swap_instruction) = self
                     .extract_express_relay_instruction(
@@ -1474,14 +1464,17 @@ impl Service<Svm> {
                     ..
                 } = swap_accounts.clone();
 
-                Self::check_create_ata_instructions(&bid_data.transaction, &swap_accounts, &opp)?;
+                Self::check_create_ata_instructions(
+                    &bid_data.transaction,
+                    &swap_accounts,
+                    &opportunity_swap_data.token_account_initialization_config,
+                )?;
                 Self::check_wrap_unwrap_native_token_instructions(
                     &bid_data.transaction,
                     &swap_data,
                     &swap_accounts,
                 )?;
 
-                let quote_tokens = get_swap_quote_tokens(&opp);
                 let bid_amount = match quote_tokens.clone() {
                     // bid is in the unspecified token
                     QuoteTokens::UserTokenSpecified { .. } => swap_data.amount_searcher,
