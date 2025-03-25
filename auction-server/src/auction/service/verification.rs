@@ -80,7 +80,6 @@ use {
         },
     },
     express_relay::error::ErrorCode,
-    futures::future::join_all,
     litesvm::types::FailedTransactionMetadata,
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
@@ -1026,9 +1025,13 @@ impl Service<Svm> {
         for (index, instruction) in Self::extract_token_instructions(tx) {
             let ix_parsed = TokenInstruction::unpack(&instruction.data).ok();
             if let Some(TokenInstruction::CloseAccount) = ix_parsed {
-                let account = self.extract_account(tx, instruction, 0).await?;
-                let destination = self.extract_account(tx, instruction, 1).await?;
-                let owner = self.extract_account(tx, instruction, 2).await?;
+                let [account, destination, owner] = futures::future::try_join_all(
+                    (0..3).map(|i| self.extract_account(tx, instruction, i)),
+                )
+                .await?
+                .try_into()
+                .expect("This can't panic because we know the length of the vector is 3");
+
                 result.push(CloseAccountInstructionData {
                     index,
                     account,
@@ -1056,12 +1059,12 @@ impl Service<Svm> {
                 )
             ) {
                 let [payer, ata, owner, mint, system_program, token_program] =
-                    join_all((0..6).map(|i| self.extract_account(tx, instruction, i)))
-                        .await
-                        .into_iter()
-                        .collect::<Result<Vec<Pubkey>, RestError>>()?
-                        .try_into()
-                        .expect("This can't panic because we know the length of the vector is 6");
+                    futures::future::try_join_all(
+                        (0..6).map(|i| self.extract_account(tx, instruction, i)),
+                    )
+                    .await?
+                    .try_into()
+                    .expect("This can't panic because we know the length of the vector is 6");
 
                 if system_program != system_program::id() {
                     return Err(RestError::InvalidInstruction(
