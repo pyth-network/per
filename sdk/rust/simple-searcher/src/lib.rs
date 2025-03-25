@@ -270,12 +270,9 @@ impl SimpleSearcher {
                                     payer: payer.pubkey(),
                                     slot: None,
                                     searcher: payer.pubkey(),
-                                    fee_receiver_relayer: metadata
-                                        .fee_receiver_relayer
-                                        .to_bytes()
-                                        .into(),
+                                    fee_receiver_relayer: metadata.fee_receiver_relayer,
                                     signers: vec![payer],
-                                    relayer_signer: metadata.relayer_signer.to_bytes().into(),
+                                    relayer_signer: metadata.relayer_signer,
                                     program_params: svm::ProgramParams::Swap(
                                         svm::ProgramParamsSwap {},
                                     ),

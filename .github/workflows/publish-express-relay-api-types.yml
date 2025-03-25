@@ -1,12 +1,12 @@
-name: Publish Express Relay Client to crates.io
+name: Publish Express Relay API Types to crates.io
 
 on:
   push:
     tags:
       - express-relay-api-types-v*
 jobs:
-  publish-express-relay-client:
-    name: Publish Express Relay Client
+  publish-express-relay-api-types:
+    name: Publish Express Relay API Types
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources

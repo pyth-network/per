@@ -266,6 +266,15 @@ pub fn get_swap_quote_tokens(opp: &OpportunitySvm) -> QuoteTokens {
     }
 }
 
+pub fn get_opportunity_swap_data(opp: &OpportunitySvm) -> &OpportunitySvmProgramSwap {
+    match &opp.program {
+        OpportunitySvmProgram::Swap(opportunity_swap_data) => opportunity_swap_data,
+        _ => {
+            panic!("Opportunity must be a swap opportunity to get swap data");
+        }
+    }
+}
+
 impl From<TokenAccountInitializationConfig> for api::TokenAccountInitializationConfig {
     fn from(val: TokenAccountInitializationConfig) -> Self {
         match val {
@@ -500,7 +509,11 @@ fn get_permission_key(
 }
 
 impl OpportunitySvm {
-    pub fn check_fee_payer(&self, accounts: &[Pubkey]) -> Result<(), anyhow::Error> {
+    pub fn check_fee_payer(
+        &self,
+        accounts: &[Pubkey],
+        relayer_signer: &Pubkey,
+    ) -> Result<(), anyhow::Error> {
         let fee_payer = accounts
             .first()
             .ok_or_else(|| anyhow::anyhow!("Accounts should not be empty"))?;
@@ -508,6 +521,9 @@ impl OpportunitySvm {
             OpportunitySvmProgram::Swap(data) => {
                 if data.user_wallet_address == *fee_payer {
                     return Err(anyhow::anyhow!("Fee payer should not be user"));
+                }
+                if relayer_signer == fee_payer {
+                    return Err(anyhow::anyhow!("Fee payer should not be relayer signer"));
                 }
                 Ok(())
             }

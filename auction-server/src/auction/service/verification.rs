@@ -38,11 +38,12 @@ use {
         opportunity::{
             self as opportunity,
             entities::{
+                get_opportunity_swap_data,
                 get_swap_quote_tokens,
-                OpportunitySvm,
-                OpportunitySvmProgram::Swap,
+                OpportunitySvmProgramSwap,
                 QuoteTokens,
                 TokenAccountInitializationConfig,
+                TokenAccountInitializationConfigs,
             },
             service::{
                 get_live_opportunities::GetLiveOpportunitiesInput,
@@ -619,7 +620,8 @@ impl Service<Svm> {
     async fn check_svm_swap_bid_fields(
         &self,
         bid_data: &BidChainDataSwapCreateSvm,
-        opp: &OpportunitySvm,
+        opportunity_swap_data: &OpportunitySvmProgramSwap,
+        quote_tokens: &QuoteTokens,
     ) -> Result<(), RestError> {
         let (_, swap_instruction) = self.extract_express_relay_instruction(
             bid_data.transaction.clone(),
@@ -636,16 +638,6 @@ impl Service<Svm> {
         } = self
             .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
             .await?;
-        let quote_tokens = get_swap_quote_tokens(opp);
-        let opp_swap_data = match &opp.program {
-            Swap(opp_swap_data) => opp_swap_data,
-            _ => {
-                return Err(RestError::BadParameters(format!(
-                    "Opportunity with id {} is not a swap opportunity",
-                    bid_data.opportunity_id
-                )));
-            }
-        };
         let (
             expected_mint_user,
             expected_amount_user,
@@ -673,10 +665,10 @@ impl Service<Svm> {
                 Some(searcher_token.amount),
             ),
         };
-        if user_wallet != opp_swap_data.user_wallet_address {
+        if user_wallet != opportunity_swap_data.user_wallet_address {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::UserWalletAddress {
-                    expected: opp_swap_data.user_wallet_address,
+                    expected: opportunity_swap_data.user_wallet_address,
                     found:    user_wallet,
                 },
             ));
@@ -698,19 +690,19 @@ impl Service<Svm> {
             ));
         }
 
-        if token_program_searcher != opp_swap_data.token_program_searcher {
+        if token_program_searcher != opportunity_swap_data.token_program_searcher {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::TokenProgramSearcher {
-                    expected: opp_swap_data.token_program_searcher,
+                    expected: opportunity_swap_data.token_program_searcher,
                     found:    token_program_searcher,
                 },
             ));
         }
 
-        if token_program_user != opp_swap_data.token_program_user {
+        if token_program_user != opportunity_swap_data.token_program_user {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::TokenProgramUser {
-                    expected: opp_swap_data.token_program_user,
+                    expected: opportunity_swap_data.token_program_user,
                     found:    token_program_user,
                 },
             ));
@@ -736,19 +728,19 @@ impl Service<Svm> {
                 ));
             }
         }
-        if opp_swap_data.fee_token != swap_data.fee_token {
+        if opportunity_swap_data.fee_token != swap_data.fee_token {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::FeeToken {
-                    expected: opp_swap_data.fee_token.clone(),
+                    expected: opportunity_swap_data.fee_token.clone(),
                     found:    swap_data.fee_token,
                 },
             ));
         }
 
-        if swap_data.referral_fee_bps != opp_swap_data.referral_fee_bps {
+        if swap_data.referral_fee_bps != opportunity_swap_data.referral_fee_bps {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::ReferralFee {
-                    expected: opp_swap_data.referral_fee_bps,
+                    expected: opportunity_swap_data.referral_fee_bps,
                     found:    swap_data.referral_fee_bps,
                 },
             ));
@@ -1203,21 +1195,11 @@ impl Service<Svm> {
         &self,
         tx: &VersionedTransaction,
         swap_accounts: &SwapAccounts,
-        opp: &OpportunitySvm,
+        token_account_initialization_configs: &TokenAccountInitializationConfigs,
     ) -> Result<(), RestError> {
-        let token_account_initialization_configs = match &opp.program {
-            Swap(opp_swap_data) => &opp_swap_data.token_account_initialization_config,
-            _ => {
-                return Err(RestError::BadParameters(format!(
-                    "Opportunity with id {} is not a swap opportunity",
-                    opp.id
-                )));
-            }
-        };
-
         let mut create_ata_instructions = self.extract_create_ata_instructions(tx).await?;
 
-        let mut validate_and_remove_create_ata_instruction =
+        let mut validate_and_remove_create_user_ata_instruction =
             |mint: &Pubkey,
              token_program: &Pubkey,
              initialization_config: &TokenAccountInitializationConfig|
@@ -1284,18 +1266,20 @@ impl Service<Svm> {
                 Ok(())
             };
 
-        validate_and_remove_create_ata_instruction(
+        validate_and_remove_create_user_ata_instruction(
             &swap_accounts.mint_user,
             &swap_accounts.token_program_user,
             &token_account_initialization_configs.user_ata_mint_user,
         )?;
-        validate_and_remove_create_ata_instruction(
+        validate_and_remove_create_user_ata_instruction(
             &swap_accounts.mint_searcher,
             &swap_accounts.token_program_searcher,
             &token_account_initialization_configs.user_ata_mint_searcher,
         )?;
 
-        // we don't care about the other ata creation instructions but searcher must pay
+        // we rely on the simulation to check the other token accounts are created
+        // but we enforce here that the searcher pays for their creation
+        // this includes searcher token accounts and fee token accounts
         for account in create_ata_instructions {
             if account.payer != swap_accounts.searcher {
                 return Err(RestError::InvalidInstruction(
@@ -1389,7 +1373,10 @@ impl Service<Svm> {
                 self.validate_swap_transaction_instructions(
                     bid_chain_data_create_svm.get_transaction(),
                 )?;
-                self.check_svm_swap_bid_fields(bid_data, &opp).await?;
+                let quote_tokens = get_swap_quote_tokens(&opp);
+                let opportunity_swap_data = get_opportunity_swap_data(&opp);
+                self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
+                    .await?;
 
                 let (express_relay_instruction_index, swap_instruction) = self
                     .extract_express_relay_instruction(
@@ -1410,8 +1397,12 @@ impl Service<Svm> {
                     ..
                 } = swap_accounts.clone();
 
-                self.check_create_ata_instructions(&bid_data.transaction, &swap_accounts, &opp)
-                    .await?;
+                self.check_create_ata_instructions(
+                    &bid_data.transaction,
+                    &swap_accounts,
+                    &opportunity_swap_data.token_account_initialization_config,
+                )
+                .await?;
                 self.check_wrap_unwrap_native_token_instructions(
                     &bid_data.transaction,
                     &swap_data,
@@ -1419,7 +1410,6 @@ impl Service<Svm> {
                 )
                 .await?;
 
-                let quote_tokens = get_swap_quote_tokens(&opp);
                 let bid_amount = match quote_tokens.clone() {
                     // bid is in the unspecified token
                     QuoteTokens::UserTokenSpecified { .. } => swap_data.amount_searcher,
@@ -1537,11 +1527,12 @@ impl Service<Svm> {
                 let opportunity = opportunities
                     .first()
                     .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
+                let relayer_signer = self.config.chain_config.express_relay.relayer.pubkey();
                 opportunity
-                    .check_fee_payer(accounts)
+                    .check_fee_payer(accounts, &relayer_signer)
                     .map_err(|e| RestError::InvalidFirstSigner(e.to_string()))?;
                 let mut missing_signers = opportunity.get_missing_signers();
-                missing_signers.push(self.config.chain_config.express_relay.relayer.pubkey());
+                missing_signers.push(relayer_signer);
                 self.relayer_signer_exists(accounts, &signatures)?;
                 self.all_signatures_exists(&message_bytes, accounts, &signatures, &missing_signers)
             }
@@ -1745,11 +1736,12 @@ impl Verification<Svm> for Service<Svm> {
             .await?;
         match bid_payment_instruction_type {
             BidPaymentInstructionType::Swap => {
-                let is_indicative_quote = bid_data
-                    .user_wallet_address
-                    .map_or(false, |user_wallet_address| {
-                        is_indicative_price_taker(&user_wallet_address)
-                    });
+                let is_indicative_quote =
+                    bid_data
+                        .user_wallet_address
+                        .is_some_and(|user_wallet_address| {
+                            is_indicative_price_taker(&user_wallet_address)
+                        });
                 if !is_indicative_quote {
                     self.simulate_swap_bid(&bid, bid_data.express_relay_instruction_index)
                         .await?
@@ -2366,6 +2358,48 @@ mod tests {
         );
         assert_eq!(result.1, bid_amount);
     }
+
+    #[tokio::test]
+    async fn test_verify_bid_with_relayer_fee_payer() {
+        let (service, opportunities) = get_service(true);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunities[0].clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[instruction],
+            Some(&service.config.chain_config.express_relay.relayer.pubkey()),
+        ); // <- relayer signer is the fee payer
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunities[0].core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await
+            .unwrap_err();
+        assert_eq!(
+            result,
+            RestError::InvalidFirstSigner("Fee payer should not be relayer signer".to_string()),
+        );
+    }
+
 
     #[tokio::test]
     async fn test_verify_bid_indicative_price_taker_skip_simulation() {
