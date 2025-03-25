@@ -80,6 +80,7 @@ use {
         },
     },
     express_relay::error::ErrorCode,
+    futures::future::join_all,
     litesvm::types::FailedTransactionMetadata,
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
@@ -1054,12 +1055,13 @@ impl Service<Svm> {
                         | AssociatedTokenAccountInstruction::CreateIdempotent
                 )
             ) {
-                let payer = self.extract_account(tx, instruction, 0).await?;
-                let ata = self.extract_account(tx, instruction, 1).await?;
-                let owner = self.extract_account(tx, instruction, 2).await?;
-                let mint = self.extract_account(tx, instruction, 3).await?;
-                let system_program = self.extract_account(tx, instruction, 4).await?;
-                let token_program = self.extract_account(tx, instruction, 5).await?;
+                let [payer, ata, owner, mint, system_program, token_program] =
+                    join_all((0..6).map(|i| self.extract_account(tx, instruction, i)))
+                        .await
+                        .into_iter()
+                        .collect::<Result<Vec<Pubkey>, RestError>>()?
+                        .try_into()
+                        .expect("This can't panic because we know the length of the vector is 6");
 
                 if system_program != system_program::id() {
                     return Err(RestError::InvalidInstruction(
