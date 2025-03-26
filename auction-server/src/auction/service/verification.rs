@@ -2139,6 +2139,45 @@ mod tests {
 
         let opp_with_user_payer = OpportunitySvm {
             core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+                id:             Uuid::new_v4(),
+                permission_key: OpportunitySvm::get_permission_key(
+                    BidPaymentInstructionType::Swap,
+                    router,
+                    permission_account_user_token_specified,
+                ),
+                chain_id:       chain_id.clone(),
+                sell_tokens:    vec![TokenAmountSvm {
+                    token:  searcher_token_address,
+                    amount: 0,
+                }],
+                buy_tokens:     vec![TokenAmountSvm {
+                    token: user_token_address,
+                    amount,
+                }],
+                creation_time:  now,
+                refresh_time:   now,
+            },
+            router,
+            permission_account: permission_account_user_token_specified,
+            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
+                user_wallet_address,
+                platform_fee_bps: 0,
+                token_program_user: spl_token::id(),
+                token_program_searcher: spl_token::id(),
+                fee_token: fee_token.clone(),
+                referral_fee_bps,
+                user_mint_user_balance: 0,
+                token_account_initialization_config: TokenAccountInitializationConfigs {
+                    user_ata_mint_user: TokenAccountInitializationConfig::UserPayer,
+                    user_ata_mint_searcher: TokenAccountInitializationConfig::UserPayer,
+                    ..TokenAccountInitializationConfigs::searcher_payer()
+                },
+                memo: None,
+            }),
+        };
+
+        let opp_with_memo = OpportunitySvm {
+            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
                 id: Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
@@ -2167,12 +2206,9 @@ mod tests {
                 fee_token,
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config: TokenAccountInitializationConfigs {
-                    user_ata_mint_user: TokenAccountInitializationConfig::UserPayer,
-                    user_ata_mint_searcher: TokenAccountInitializationConfig::UserPayer,
-                    ..TokenAccountInitializationConfigs::searcher_payer()
-                },
-                memo: None,
+                token_account_initialization_config:
+                    TokenAccountInitializationConfigs::searcher_payer(),
+                memo: Some("memo".to_string()),
             }),
         };
 
@@ -2183,6 +2219,7 @@ mod tests {
             opp_searcher_token_wsol.clone(),
             opp_indicative_price_taker.clone(),
             opp_with_user_payer.clone(),
+            opp_with_memo.clone(),
         ];
         let opps_cloned = opps.clone();
 
@@ -2214,6 +2251,7 @@ mod tests {
                 opp_searcher_token_wsol,
                 opp_indicative_price_taker,
                 opp_with_user_payer,
+                opp_with_memo,
             ],
         )
     }
@@ -5087,6 +5125,96 @@ mod tests {
                 InstructionError::InvalidPayerInCreateAtaInstruction {
                     expected: searcher.pubkey(),
                     found:    program.user_wallet_address,
+                }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_with_memo_backward_compatibility() {
+        let (service, opportunities) = get_service(true);
+
+        let opportunity = opportunities[6].clone(); // with memo
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        get_verify_bid_result(
+            service,
+            searcher.insecure_clone(),
+            vec![instruction],
+            opportunity.clone(),
+        )
+        .await
+        .unwrap();
+    }
+
+    async fn test_verify_bid_with_memo() {
+        let (service, opportunities) = get_service(true);
+
+        let opportunity = opportunities[6].clone(); // with memo
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let memo_instruction = svm::Svm::get_memo_instruction("memo".to_string());
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        get_verify_bid_result(
+            service,
+            searcher.insecure_clone(),
+            vec![memo_instruction, instruction],
+            opportunity.clone(),
+        )
+        .await
+        .unwrap();
+    }
+
+    async fn test_verify_bid_with_invalid_memo() {
+        let (service, opportunities) = get_service(true);
+
+        let opportunity = opportunities[6].clone(); // with memo
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let memo_instruction = svm::Svm::get_memo_instruction("invalid memo".to_string()); // invalid memo
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![memo_instruction, instruction],
+            opportunity.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(0),
+                InstructionError::InvalidMemoString {
+                    expected: "memo".to_string(),
+                    found:    "invalid memo".to_string(),
                 }
             )
         );
