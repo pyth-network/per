@@ -707,6 +707,7 @@ dependencies = [
  "solana-sdk",
  "solana-transaction-status",
  "spl-associated-token-account",
+ "spl-memo-client",
  "spl-token",
  "sqlx",
  "strum",

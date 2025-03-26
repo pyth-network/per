@@ -495,17 +495,13 @@ impl Service<Svm> {
             }
             BidPaymentInstructionType::Swap => express_relay_svm::instruction::Swap::DISCRIMINATOR,
         };
-        let instructions = transaction
-            .message
-            .instructions()
-            .iter()
-            .enumerate()
-            .filter(|(_, instruction)| {
-                instruction.program_id(transaction.message.static_account_keys())
-                    == &self.config.chain_config.express_relay.program_id
-            })
-            .map(|(index, instruction)| (index, instruction.clone()))
-            .collect::<Vec<(usize, CompiledInstruction)>>();
+        let instructions = Self::extract_program_instructions(
+            &transaction,
+            &self.config.chain_config.express_relay.program_id,
+        )
+        .into_iter()
+        .map(|(index, instruction)| (index, instruction.clone()))
+        .collect::<Vec<(usize, CompiledInstruction)>>();
 
         let (instruction_index, instruction) = match instructions.len() {
             1 => Ok(instructions
@@ -611,6 +607,8 @@ impl Service<Svm> {
                 _ => Err(InstructionError::UnsupportedAssociatedTokenAccountInstruction(ix_parsed)),
             }
         } else if *program_id == self.config.chain_config.express_relay.program_id {
+            Ok(())
+        } else if *program_id == spl_memo_client::ID {
             Ok(())
         } else {
             Err(InstructionError::UnsupportedProgram(*program_id))
@@ -796,21 +794,16 @@ impl Service<Svm> {
         &self,
         tx: &VersionedTransaction,
     ) -> Result<Vec<TransferInstructionData>, RestError> {
-        let instructions: Vec<(usize, &CompiledInstruction)> = tx
-            .message
-            .instructions()
-            .iter()
-            .enumerate()
-            .filter(|(_, instruction)| {
-                instruction.program_id(tx.message.static_account_keys()) == &system_program::id()
-            })
-            .filter(|(_, instruction)| {
-                matches!(
-                    bincode::deserialize::<SystemInstruction>(&instruction.data),
-                    Ok(SystemInstruction::Transfer { .. })
-                )
-            })
-            .collect();
+        let instructions: Vec<(usize, &CompiledInstruction)> =
+            Self::extract_program_instructions(tx, &system_program::id())
+                .into_iter()
+                .filter(|(_, instruction)| {
+                    matches!(
+                        bincode::deserialize::<SystemInstruction>(&instruction.data),
+                        Ok(SystemInstruction::Transfer { .. })
+                    )
+                })
+                .collect();
         let mut result = vec![];
         for (index, instruction) in instructions {
             let data =
@@ -934,33 +927,23 @@ impl Service<Svm> {
         Ok(())
     }
 
-    fn extract_token_instructions(tx: &VersionedTransaction) -> Vec<(usize, &CompiledInstruction)> {
+    fn extract_program_instructions<'a>(
+        tx: &'a VersionedTransaction,
+        program_id: &Pubkey,
+    ) -> Vec<(usize, &'a CompiledInstruction)> {
         tx.message
             .instructions()
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                instruction.program_id(tx.message.static_account_keys()) == &spl_token::id()
+                instruction.program_id(tx.message.static_account_keys()) == program_id
             })
             .collect()
     }
 
-    fn extract_associated_token_account_instructions(
-        tx: &VersionedTransaction,
-    ) -> Vec<(usize, &CompiledInstruction)> {
-        tx.message
-            .instructions()
-            .iter()
-            .enumerate()
-            .filter(|(_, instruction)| {
-                instruction.program_id(tx.message.static_account_keys())
-                    == &spl_associated_token_account::id()
-            })
-            .collect()
-    }
 
     fn extract_sync_native_instructions(tx: &VersionedTransaction) -> Vec<&CompiledInstruction> {
-        let token_instructions = Self::extract_token_instructions(tx);
+        let token_instructions = Self::extract_program_instructions(tx, &spl_token::id());
         token_instructions
             .into_iter()
             .filter_map(|(_, instruction)| {
@@ -1003,7 +986,7 @@ impl Service<Svm> {
         tx: &VersionedTransaction,
     ) -> Result<Vec<CloseAccountInstructionData>, RestError> {
         let mut result = vec![];
-        for (index, instruction) in Self::extract_token_instructions(tx) {
+        for (index, instruction) in Self::extract_program_instructions(tx, &spl_token::id()) {
             let ix_parsed = TokenInstruction::unpack(&instruction.data).ok();
             if let Some(TokenInstruction::CloseAccount) = ix_parsed {
                 let accounts = futures::future::try_join_all(
@@ -1028,7 +1011,9 @@ impl Service<Svm> {
         tx: &VersionedTransaction,
     ) -> Result<Vec<CreateAtaInstructionData>, RestError> {
         let mut result = vec![];
-        for (index, instruction) in Self::extract_associated_token_account_instructions(tx) {
+        for (index, instruction) in
+            Self::extract_program_instructions(tx, &spl_associated_token_account::id())
+        {
             let ix_parsed =
                 AssociatedTokenAccountInstruction::try_from_slice(&instruction.data).ok();
             if matches!(
@@ -1174,7 +1159,6 @@ impl Service<Svm> {
 
         Ok(())
     }
-
 
     async fn check_create_ata_instructions(
         &self,
@@ -1643,25 +1627,20 @@ impl Service<Svm> {
             .min()
             .unwrap_or(0);
 
-        let budgets: Vec<u64> = transaction
-            .message
-            .instructions()
-            .iter()
-            .filter_map(|instruction| {
-                if instruction.program_id(transaction.message.static_account_keys())
-                    != &compute_budget::id()
-                {
-                    return None;
-                }
-
-                match compute_budget::ComputeBudgetInstruction::try_from_slice(&instruction.data) {
-                    Ok(compute_budget::ComputeBudgetInstruction::SetComputeUnitPrice(price)) => {
-                        Some(price)
+        let budgets: Vec<u64> =
+            Self::extract_program_instructions(&transaction, &compute_budget::id())
+                .into_iter()
+                .filter_map(|(_, instruction)| {
+                    match compute_budget::ComputeBudgetInstruction::try_from_slice(
+                        &instruction.data,
+                    ) {
+                        Ok(compute_budget::ComputeBudgetInstruction::SetComputeUnitPrice(
+                            price,
+                        )) => Some(price),
+                        _ => None,
                     }
-                    _ => None,
-                }
-            })
-            .collect();
+                })
+                .collect();
         if budgets.len() > 1 {
             return Err(RestError::MultipleSetComputeUnitPriceInstructions);
         }
