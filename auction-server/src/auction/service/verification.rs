@@ -107,6 +107,7 @@ use {
     },
     spl_token::instruction::TokenInstruction,
     std::{
+        array,
         collections::VecDeque,
         sync::Arc,
         time::Duration,
@@ -456,7 +457,7 @@ impl Service<Svm> {
                     .await
             }
             None => Err(RestError::BadParameters(
-                "No lookup tables found in submit_bid instruction".to_string(),
+                "No lookup tables found".to_string(),
             )),
         }
     }
@@ -500,11 +501,8 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                let program_id = transaction
-                    .message
-                    .static_account_keys()
-                    .get(instruction.program_id_index as usize);
-                program_id == Some(&self.config.chain_config.express_relay.program_id)
+                instruction.program_id(transaction.message.static_account_keys())
+                    == &self.config.chain_config.express_relay.program_id
             })
             .map(|(index, instruction)| (index, instruction.clone()))
             .collect::<Vec<(usize, CompiledInstruction)>>();
@@ -565,8 +563,11 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .try_for_each(|(index, ix)| {
-                self.validate_swap_transaction_instruction(tx.message.static_account_keys(), ix)
-                    .map_err(|e| RestError::InvalidInstruction(Some(index), e))
+                self.validate_swap_transaction_instruction(
+                    ix.program_id(tx.message.static_account_keys()),
+                    ix,
+                )
+                .map_err(|e| RestError::InvalidInstruction(Some(index), e))
             })?;
 
         Ok(())
@@ -574,15 +575,14 @@ impl Service<Svm> {
 
     fn validate_swap_transaction_instruction(
         &self,
-        accounts: &[Pubkey],
+        program_id: &Pubkey,
         ix: &CompiledInstruction,
     ) -> Result<(), InstructionError> {
-        let program_id = accounts
-            .get(ix.program_id_index as usize)
-            .ok_or(InstructionError::ProgramIdIndexOutOfBounds)?;
-
         if *program_id == system_program::id() {
-            if Self::is_system_program_transfer_instruction(ix, accounts) {
+            if matches!(
+                bincode::deserialize::<SystemInstruction>(&ix.data),
+                Ok(SystemInstruction::Transfer { .. })
+            ) {
                 Ok(())
             } else {
                 Err(InstructionError::UnsupportedSystemProgramInstruction)
@@ -792,22 +792,8 @@ impl Service<Svm> {
         })
     }
 
-    fn is_system_program_transfer_instruction(
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-    ) -> bool {
-        let program_id = accounts.get(instruction.program_id_index as usize);
-        if program_id != Some(&system_program::id()) {
-            return false;
-        }
-
-        matches!(
-            bincode::deserialize::<SystemInstruction>(&instruction.data),
-            Ok(SystemInstruction::Transfer { .. })
-        )
-    }
-
-    fn extract_transfer_instructions(
+    async fn extract_transfer_instructions(
+        &self,
         tx: &VersionedTransaction,
     ) -> Result<Vec<TransferInstructionData>, RestError> {
         let instructions: Vec<(usize, &CompiledInstruction)> = tx
@@ -816,9 +802,12 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                Self::is_system_program_transfer_instruction(
-                    instruction,
-                    tx.message.static_account_keys(),
+                instruction.program_id(tx.message.static_account_keys()) == &system_program::id()
+            })
+            .filter(|(_, instruction)| {
+                matches!(
+                    bincode::deserialize::<SystemInstruction>(&instruction.data),
+                    Ok(SystemInstruction::Transfer { .. })
                 )
             })
             .collect();
@@ -829,31 +818,12 @@ impl Service<Svm> {
                     RestError::BadParameters("Invalid sol transfer instruction data".to_string())
                 })?;
             let transfer_instruction = match data {
-                SystemInstruction::Transfer { lamports } => {
-                    if instruction.accounts.len() != 2 {
-                        return Err(RestError::BadParameters(
-                            "Invalid sol transfer instruction accounts".to_string(),
-                        ));
-                    }
-                    TransferInstructionData {
-                        index,
-                        from: *tx
-                            .message
-                            .static_account_keys()
-                            .get(instruction.accounts[0] as usize)
-                            .ok_or(RestError::BadParameters(
-                                "Invalid account in sol transfer instruction".to_string(),
-                            ))?,
-                        to: *tx
-                            .message
-                            .static_account_keys()
-                            .get(instruction.accounts[1] as usize)
-                            .ok_or(RestError::BadParameters(
-                                "Invalid account in sol transfer instruction".to_string(),
-                            ))?,
-                        lamports,
-                    }
-                }
+                SystemInstruction::Transfer { lamports } => TransferInstructionData {
+                    index,
+                    from: self.extract_account(tx, instruction, 0).await?,
+                    to: self.extract_account(tx, instruction, 1).await?,
+                    lamports,
+                },
                 _ => {
                     return Err(RestError::BadParameters(
                         "Invalid sol transfer instruction data".to_string(),
@@ -865,12 +835,13 @@ impl Service<Svm> {
         Ok(result)
     }
 
-    fn check_transfer_instruction(
+    async fn check_transfer_instruction(
+        &self,
         tx: &VersionedTransaction,
         swap_data: &express_relay_svm::SwapArgs,
         swap_accounts: &SwapAccounts,
     ) -> Result<(), RestError> {
-        let transfer_instructions = Self::extract_transfer_instructions(tx)?;
+        let transfer_instructions = self.extract_transfer_instructions(tx).await?;
         if transfer_instructions.len() > 1 {
             return Err(RestError::InvalidInstruction(
                 transfer_instructions
@@ -969,11 +940,7 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                let program_id = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.program_id_index as usize);
-                program_id == Some(&spl_token::id())
+                instruction.program_id(tx.message.static_account_keys()) == &spl_token::id()
             })
             .collect()
     }
@@ -986,11 +953,8 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                let program_id = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.program_id_index as usize);
-                program_id == Some(&spl_associated_token_account::id())
+                instruction.program_id(tx.message.static_account_keys())
+                    == &spl_associated_token_account::id()
             })
             .collect()
     }
@@ -1010,28 +974,21 @@ impl Service<Svm> {
             .collect()
     }
 
-    fn check_sync_native_instruction_exists(
+    async fn check_sync_native_instruction_exists(
+        &self,
         tx: &VersionedTransaction,
         wallet_address: &Pubkey,
     ) -> Result<(), RestError> {
         let sync_native_instructions = Self::extract_sync_native_instructions(tx);
         let ata = get_associated_token_address(wallet_address, &spl_token::native_mint::id());
 
-        if sync_native_instructions
-            .iter()
-            .filter(|instruction| {
-                if instruction.accounts.len() == 1 {
-                    tx.message
-                        .static_account_keys()
-                        .get(instruction.accounts[0] as usize)
-                        == Some(&ata)
-                } else {
-                    false
-                }
-            })
-            .count()
-            != 1
-        {
+        let mut matching_instructions = 0;
+        for instruction in &sync_native_instructions {
+            if ata == self.extract_account(tx, instruction, 0).await? {
+                matching_instructions += 1;
+            }
+        }
+        if matching_instructions != 1 {
             return Err(RestError::InvalidInstruction(
                 None,
                 InstructionError::InvalidSyncNativeInstructionCount(ata),
@@ -1041,47 +998,33 @@ impl Service<Svm> {
         Ok(())
     }
 
-    fn extract_close_account_instructions(
+    async fn extract_close_account_instructions(
+        &self,
         tx: &VersionedTransaction,
     ) -> Result<Vec<CloseAccountInstructionData>, RestError> {
         let mut result = vec![];
         for (index, instruction) in Self::extract_token_instructions(tx) {
             let ix_parsed = TokenInstruction::unpack(&instruction.data).ok();
             if let Some(TokenInstruction::CloseAccount) = ix_parsed {
-                if instruction.accounts.len() < 3 {
-                    return Err(RestError::BadParameters(
-                        "Invalid close account instruction accounts".to_string(),
-                    ));
-                }
-                let invalid_account_message =
-                    "Invalid account in close account instruction".to_string();
-                let account_to_close = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.accounts[0] as usize)
-                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
-                let destination = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.accounts[1] as usize)
-                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
-                let owner = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.accounts[2] as usize)
-                    .ok_or(RestError::BadParameters(invalid_account_message))?;
+                let accounts = futures::future::try_join_all(
+                    (0..3).map(|i| self.extract_account(tx, instruction, i)),
+                )
+                .await?;
+                let [account, destination, owner] = array::from_fn(|i| accounts[i]);
+
                 result.push(CloseAccountInstructionData {
                     index,
-                    account: *account_to_close,
-                    destination: *destination,
-                    owner: *owner,
+                    account,
+                    destination,
+                    owner,
                 });
             }
         }
         Ok(result)
     }
 
-    fn extract_create_ata_instructions(
+    async fn extract_create_ata_instructions(
+        &self,
         tx: &VersionedTransaction,
     ) -> Result<Vec<CreateAtaInstructionData>, RestError> {
         let mut result = vec![];
@@ -1095,69 +1038,42 @@ impl Service<Svm> {
                         | AssociatedTokenAccountInstruction::CreateIdempotent
                 )
             ) {
-                if instruction.accounts.len() < 6 {
-                    return Err(RestError::BadParameters(
-                        "Invalid create ata instruction accounts".to_string(),
-                    ));
-                }
-                let invalid_account_message =
-                    "Invalid account in create ata instruction".to_string();
-                let payer = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.accounts[0] as usize)
-                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
-                let ata = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.accounts[1] as usize)
-                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
-                let owner = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.accounts[2] as usize)
-                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
-                let mint = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.accounts[3] as usize)
-                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
-                let system_program = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.accounts[4] as usize)
-                    .ok_or(RestError::BadParameters(invalid_account_message.clone()))?;
-                let token_program = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.accounts[5] as usize) // TODO: support lookup tables
-                    .ok_or(RestError::BadParameters(invalid_account_message))?;
+                let accounts = futures::future::try_join_all(
+                    (0..6).map(|i| self.extract_account(tx, instruction, i)),
+                )
+                .await?;
 
+                let [payer, ata, owner, mint, system_program, token_program] =
+                    array::from_fn(|i| accounts[i]);
 
-                if system_program != &system_program::id() {
-                    return Err(RestError::BadParameters(
-                        "Invalid system program".to_string(), // TODO: throw an InvalidInstruction error
+                if system_program != system_program::id() {
+                    return Err(RestError::InvalidInstruction(
+                        Some(index),
+                        InstructionError::InvalidSystemProgramInCreateAtaInstruction(
+                            system_program,
+                        ),
                     ));
                 }
 
                 result.push(CreateAtaInstructionData {
                     index,
-                    payer: *payer,
-                    ata: *ata,
-                    mint: *mint,
-                    owner: *owner,
-                    token_program: *token_program,
+                    payer,
+                    ata,
+                    mint,
+                    owner,
+                    token_program,
                 });
             }
         }
         Ok(result)
     }
 
-    fn check_close_account_instruction(
+    async fn check_close_account_instruction(
+        &self,
         tx: &VersionedTransaction,
         swap_accounts: &SwapAccounts,
     ) -> Result<(), RestError> {
-        let close_account_instructions = Self::extract_close_account_instructions(tx)?;
+        let close_account_instructions = self.extract_close_account_instructions(tx).await?;
 
         let user_ata =
             get_associated_token_address(&swap_accounts.user_wallet, &spl_token::native_mint::id());
@@ -1260,12 +1176,13 @@ impl Service<Svm> {
     }
 
 
-    fn check_create_ata_instructions(
+    async fn check_create_ata_instructions(
+        &self,
         tx: &VersionedTransaction,
         swap_accounts: &SwapAccounts,
         token_account_initialization_configs: &TokenAccountInitializationConfigs,
     ) -> Result<(), RestError> {
-        let mut create_ata_instructions = Self::extract_create_ata_instructions(tx)?;
+        let mut create_ata_instructions = self.extract_create_ata_instructions(tx).await?;
 
         let mut validate_and_remove_create_user_ata_instruction =
             |mint: &Pubkey,
@@ -1363,18 +1280,22 @@ impl Service<Svm> {
         Ok(())
     }
 
-    fn check_wrap_unwrap_native_token_instructions(
+    async fn check_wrap_unwrap_native_token_instructions(
+        &self,
         tx: &VersionedTransaction,
         swap_data: &express_relay_svm::SwapArgs,
         swap_accounts: &SwapAccounts,
     ) -> Result<(), RestError> {
-        Self::check_transfer_instruction(tx, swap_data, swap_accounts)?;
+        self.check_transfer_instruction(tx, swap_data, swap_accounts)
+            .await?;
         if swap_accounts.mint_user == spl_token::native_mint::id() {
-            // User have to wrap Sol
+            // User has to wrap Sol
             // So we need to check if there is a sync native instruction
-            Self::check_sync_native_instruction_exists(tx, &swap_accounts.user_wallet)?;
+            self.check_sync_native_instruction_exists(tx, &swap_accounts.user_wallet)
+                .await?;
         }
-        Self::check_close_account_instruction(tx, swap_accounts)?;
+        self.check_close_account_instruction(tx, swap_accounts)
+            .await?;
         Ok(())
     }
 
@@ -1461,16 +1382,18 @@ impl Service<Svm> {
                     ..
                 } = swap_accounts.clone();
 
-                Self::check_create_ata_instructions(
+                self.check_create_ata_instructions(
                     &bid_data.transaction,
                     &swap_accounts,
                     &opportunity_swap_data.token_account_initialization_config,
-                )?;
-                Self::check_wrap_unwrap_native_token_instructions(
+                )
+                .await?;
+                self.check_wrap_unwrap_native_token_instructions(
                     &bid_data.transaction,
                     &swap_data,
                     &swap_accounts,
-                )?;
+                )
+                .await?;
 
                 let bid_amount = match quote_tokens.clone() {
                     // bid is in the unspecified token
@@ -1523,15 +1446,9 @@ impl Service<Svm> {
         }
     }
 
-    fn relayer_signer_exists(
-        &self,
-        accounts: &[Pubkey],
-        signatures: &[Signature],
-    ) -> Result<(), RestError> {
+    fn relayer_signer_exists(&self, signers: &[Pubkey]) -> Result<(), RestError> {
         let relayer_pubkey = self.config.chain_config.express_relay.relayer.pubkey();
-        let relayer_exists = accounts[..signatures.len()]
-            .iter()
-            .any(|account| account.eq(&relayer_pubkey));
+        let relayer_exists = signers.iter().any(|account| account.eq(&relayer_pubkey));
 
         if !relayer_exists {
             return Err(RestError::RelayerNotSigner(relayer_pubkey));
@@ -1542,11 +1459,11 @@ impl Service<Svm> {
     fn all_signatures_exists(
         &self,
         message_bytes: &[u8],
-        accounts: &[Pubkey],
+        signers: &[Pubkey],
         signatures: &[Signature],
         missing_signers: &[Pubkey],
     ) -> Result<(), RestError> {
-        for (signature, pubkey) in signatures.iter().zip(accounts.iter()) {
+        for (signature, pubkey) in signatures.iter().zip(signers.iter()) {
             if missing_signers.contains(pubkey) {
                 continue;
             }
@@ -1565,7 +1482,7 @@ impl Service<Svm> {
     ) -> Result<(), RestError> {
         let message_bytes = chain_data.transaction.message.serialize();
         let signatures = chain_data.transaction.signatures.clone();
-        let accounts = chain_data.transaction.message.static_account_keys();
+        let signers = &chain_data.transaction.message.static_account_keys()[..signatures.len()];
         let permission_key = chain_data.get_permission_key();
         match submit_type {
             SubmitType::Invalid => {
@@ -1591,18 +1508,18 @@ impl Service<Svm> {
                     .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
                 let relayer_signer = self.config.chain_config.express_relay.relayer.pubkey();
                 opportunity
-                    .check_fee_payer(accounts, &relayer_signer)
+                    .check_fee_payer(signers, &relayer_signer)
                     .map_err(|e| RestError::InvalidFirstSigner(e.to_string()))?;
                 let mut missing_signers = opportunity.get_missing_signers();
                 missing_signers.push(relayer_signer);
-                self.relayer_signer_exists(accounts, &signatures)?;
-                self.all_signatures_exists(&message_bytes, accounts, &signatures, &missing_signers)
+                self.relayer_signer_exists(signers)?;
+                self.all_signatures_exists(&message_bytes, signers, &signatures, &missing_signers)
             }
             SubmitType::ByServer => {
-                self.relayer_signer_exists(accounts, &signatures)?;
+                self.relayer_signer_exists(signers)?;
                 self.all_signatures_exists(
                     &message_bytes,
-                    accounts,
+                    signers,
                     &signatures,
                     &[self.config.chain_config.express_relay.relayer.pubkey()],
                 )
@@ -1731,11 +1648,9 @@ impl Service<Svm> {
             .instructions()
             .iter()
             .filter_map(|instruction| {
-                let program_id = transaction
-                    .message
-                    .static_account_keys()
-                    .get(instruction.program_id_index as usize);
-                if program_id != Some(&compute_budget::id()) {
+                if instruction.program_id(transaction.message.static_account_keys())
+                    != &compute_budget::id()
+                {
                     return None;
                 }
 
