@@ -726,6 +726,7 @@ export class Client {
           userAtaMintUser:
             opportunity.token_account_initialization_configs.user_ata_mint_user,
         },
+        memo: opportunity.memo ?? undefined,
       };
     } else {
       console.warn("Unsupported opportunity", opportunity);

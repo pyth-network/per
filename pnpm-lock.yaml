@@ -362,6 +362,9 @@ importers:
       "@kamino-finance/limo-sdk":
         specifier: "catalog:"
         version: 1.0.8(bufferutil@4.0.8)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)(utf-8-validate@5.0.10)
+      "@solana/spl-memo":
+        specifier: ^0.2.5
+        version: 0.2.5(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))
       "@solana/spl-token":
         specifier: "catalog:"
         version: 0.4.9(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(bufferutil@4.0.8)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)(utf-8-validate@5.0.10)
@@ -3167,6 +3170,15 @@ packages:
       }
     peerDependencies:
       typescript: ">=5"
+
+  "@solana/spl-memo@0.2.5":
+    resolution:
+      {
+        integrity: sha512-0Zx5t3gAdcHlRTt2O3RgGlni1x7vV7Xq7j4z9q8kKOMgU03PyoTbFQ/BSYCcICHzkaqD7ZxAiaJ6dlXolg01oA==,
+      }
+    engines: { node: ">=16" }
+    peerDependencies:
+      "@solana/web3.js": ^1.91.6
 
   "@solana/spl-token-group@0.0.7":
     resolution:
@@ -15420,6 +15432,11 @@ snapshots:
       typescript: 5.7.2
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
+
+  "@solana/spl-memo@0.2.5(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))":
+    dependencies:
+      "@solana/web3.js": 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      buffer: 6.0.3
 
   "@solana/spl-token-group@0.0.7(@solana/web3.js@1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.5.4)":
     dependencies:

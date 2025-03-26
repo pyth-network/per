@@ -29,6 +29,7 @@ import { ExpressRelay } from "./expressRelayTypes";
 import expressRelayIdl from "./idl/idlExpressRelay.json";
 import { SVM_CONSTANTS } from "./const";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
+import { createMemoInstruction } from "@solana/spl-memo";
 
 function getExpressRelayProgram(chain: string): PublicKey {
   if (!SVM_CONSTANTS[chain]) {
@@ -248,6 +249,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
   searcherToken: PublicKey;
   tokenProgramSearcher: PublicKey;
   tokenInitializationConfigs: TokenAccountInitializationConfigs;
+  memo?: string;
 } {
   const tokenProgramSearcher = swapOpportunity.tokens.tokenProgramSearcher;
   const tokenProgramUser = swapOpportunity.tokens.tokenProgramUser;
@@ -260,6 +262,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
       : [userToken, tokenProgramUser];
   const router = swapOpportunity.routerAccount;
   const tokenInitializationConfigs = swapOpportunity.tokenInitializationConfigs;
+  const memo = swapOpportunity.memo;
   return {
     searcherToken,
     tokenProgramSearcher,
@@ -270,6 +273,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
     feeTokenProgram,
     router,
     tokenInitializationConfigs,
+    memo,
   };
 }
 
@@ -434,6 +438,10 @@ export async function constructSwapBid(
 ): Promise<BidSvmSwap> {
   const { userToken, searcherToken, user, tokenInitializationConfigs } =
     extractSwapInfo(swapOpportunity);
+
+  if (swapOpportunity.memo) {
+    tx.instructions.push(createMemoInstruction(swapOpportunity.memo));
+  }
 
   const tokenAccountsToCreate = getTokenAccountsToCreate(
     searcher,

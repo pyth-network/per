@@ -164,6 +164,7 @@ export type OpportunitySvmSwap = {
   tokens: SvmSwapTokens;
   program: "swap";
   tokenInitializationConfigs: TokenAccountInitializationConfigs;
+  memo?: string;
 } & OpportunitySvmMetadata;
 
 export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;
