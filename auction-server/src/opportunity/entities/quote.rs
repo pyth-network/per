@@ -40,6 +40,7 @@ pub struct QuoteCreate {
     pub tokens:              QuoteTokens,
     pub referral_fee_info:   Option<ReferralFeeInfo>,
     pub chain_id:            ChainId,
+    pub memo:                Option<String>,
 }
 
 
@@ -126,6 +127,7 @@ impl From<api::QuoteCreate> for QuoteCreate {
             tokens,
             referral_fee_info,
             chain_id: params.chain_id,
+            memo: params.memo,
         }
     }
 }

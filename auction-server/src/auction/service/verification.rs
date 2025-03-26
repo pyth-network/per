@@ -1965,6 +1965,7 @@ mod tests {
                 user_mint_user_balance: 0,
                 token_account_initialization_config:
                     TokenAccountInitializationConfigs::searcher_payer(),
+                memo: None,
             }),
         };
 
@@ -2000,6 +2001,7 @@ mod tests {
                 user_mint_user_balance: 0,
                 token_account_initialization_config:
                     TokenAccountInitializationConfigs::searcher_payer(),
+                memo: None,
             }),
         };
 
@@ -2037,6 +2039,7 @@ mod tests {
                     user_ata_mint_user: TokenAccountInitializationConfig::SearcherPayer,
                     ..TokenAccountInitializationConfigs::searcher_payer()
                 },
+                memo: None,
             }),
         };
 
@@ -2072,6 +2075,7 @@ mod tests {
                 user_mint_user_balance: 0,
                 token_account_initialization_config:
                     TokenAccountInitializationConfigs::searcher_payer(),
+                memo: None,
             }),
         };
 
@@ -2116,6 +2120,7 @@ mod tests {
                 user_mint_user_balance: 0,
                 token_account_initialization_config:
                     TokenAccountInitializationConfigs::searcher_payer(),
+                memo: None,
             }),
         };
 
@@ -2155,6 +2160,7 @@ mod tests {
                     user_ata_mint_searcher: TokenAccountInitializationConfig::UserPayer,
                     ..TokenAccountInitializationConfigs::searcher_payer()
                 },
+                memo: None,
             }),
         };
 

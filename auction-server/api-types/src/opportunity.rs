@@ -344,6 +344,10 @@ pub enum OpportunityParamsV1ProgramSvm {
 
         /// Details about which token accounts need to be initialized and by whom
         token_account_initialization_configs: TokenAccountInitializationConfigs,
+
+        /// If provided, this memo must be included in the bid transaction as a Memo program instruction.
+        #[schema(example = "memo")]
+        memo: Option<String>,
     },
 }
 
@@ -575,6 +579,9 @@ pub struct QuoteCreateV1SvmParams {
     /// The chain id for creating the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:               ChainId,
+    /// Optional memo to be included in the transaction
+    #[schema(example = "memo")]
+    pub memo:                   Option<String>,
 }
 
 #[serde_as]

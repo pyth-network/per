@@ -100,6 +100,7 @@ pub struct OpportunitySvmProgramSwap {
     pub token_program_user:                  Pubkey,
     pub token_program_searcher:              Pubkey,
     pub token_account_initialization_config: TokenAccountInitializationConfigs,
+    pub memo:                                Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -168,6 +169,7 @@ impl Opportunity for OpportunitySvm {
                         token_account_initialization_config: program
                             .token_account_initialization_config,
                         user_mint_user_balance:              program.user_mint_user_balance,
+                        memo:                                program.memo,
                     },
                 )
             }
@@ -368,6 +370,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     token_account_initialization_configs: program
                         .token_account_initialization_config
                         .into(),
+                    memo: program.memo,
                 }
             }
         };
@@ -423,6 +426,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     token_account_initialization_config: program
                         .token_account_initialization_config,
                     user_mint_user_balance:              program.user_mint_user_balance,
+                    memo:                                program.memo,
                 })
             }
         };
