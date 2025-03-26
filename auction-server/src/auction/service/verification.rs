@@ -594,8 +594,6 @@ impl Service<Svm> {
                     ix_parsed
                 ))),
             }
-        } else if *program_id == compute_budget::id() {
-            Ok(())
         } else if *program_id == spl_associated_token_account::id() {
             let ix_parsed =
                 AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
@@ -606,9 +604,10 @@ impl Service<Svm> {
                 AssociatedTokenAccountInstruction::CreateIdempotent => Ok(()),
                 _ => Err(InstructionError::UnsupportedAssociatedTokenAccountInstruction(ix_parsed)),
             }
-        } else if *program_id == self.config.chain_config.express_relay.program_id {
-            Ok(())
-        } else if *program_id == spl_memo_client::ID {
+        } else if *program_id == self.config.chain_config.express_relay.program_id
+            || *program_id == spl_memo_client::ID
+            || *program_id == compute_budget::id()
+        {
             Ok(())
         } else {
             Err(InstructionError::UnsupportedProgram(*program_id))
