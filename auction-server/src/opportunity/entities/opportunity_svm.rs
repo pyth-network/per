@@ -511,10 +511,10 @@ fn get_permission_key(
 impl OpportunitySvm {
     pub fn check_fee_payer(
         &self,
-        accounts: &[Pubkey],
+        signers: &[Pubkey],
         relayer_signer: &Pubkey,
     ) -> Result<(), anyhow::Error> {
-        let fee_payer = accounts
+        let fee_payer = signers
             .first()
             .ok_or_else(|| anyhow::anyhow!("Accounts should not be empty"))?;
         match self.program.clone() {

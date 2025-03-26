@@ -500,11 +500,8 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                let program_id = transaction
-                    .message
-                    .static_account_keys()
-                    .get(instruction.program_id_index as usize);
-                program_id == Some(&self.config.chain_config.express_relay.program_id)
+                instruction.program_id(&transaction.message.static_account_keys())
+                    == &self.config.chain_config.express_relay.program_id
             })
             .map(|(index, instruction)| (index, instruction.clone()))
             .collect::<Vec<(usize, CompiledInstruction)>>();
@@ -565,8 +562,11 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .try_for_each(|(index, ix)| {
-                self.validate_swap_transaction_instruction(tx.message.static_account_keys(), ix)
-                    .map_err(|e| RestError::InvalidInstruction(Some(index), e))
+                self.validate_swap_transaction_instruction(
+                    ix.program_id(&tx.message.static_account_keys()),
+                    ix,
+                )
+                .map_err(|e| RestError::InvalidInstruction(Some(index), e))
             })?;
 
         Ok(())
@@ -574,15 +574,14 @@ impl Service<Svm> {
 
     fn validate_swap_transaction_instruction(
         &self,
-        accounts: &[Pubkey],
+        program_id: &Pubkey,
         ix: &CompiledInstruction,
     ) -> Result<(), InstructionError> {
-        let program_id = accounts
-            .get(ix.program_id_index as usize)
-            .ok_or(InstructionError::ProgramIdIndexOutOfBounds)?;
-
         if *program_id == system_program::id() {
-            if Self::is_system_program_transfer_instruction(ix, accounts) {
+            if matches!(
+                bincode::deserialize::<SystemInstruction>(&ix.data),
+                Ok(SystemInstruction::Transfer { .. })
+            ) {
                 Ok(())
             } else {
                 Err(InstructionError::UnsupportedSystemProgramInstruction)
@@ -792,21 +791,6 @@ impl Service<Svm> {
         })
     }
 
-    fn is_system_program_transfer_instruction(
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-    ) -> bool {
-        let program_id = accounts.get(instruction.program_id_index as usize);
-        if program_id != Some(&system_program::id()) {
-            return false;
-        }
-
-        matches!(
-            bincode::deserialize::<SystemInstruction>(&instruction.data),
-            Ok(SystemInstruction::Transfer { .. })
-        )
-    }
-
     async fn extract_transfer_instructions(
         &self,
         tx: &VersionedTransaction,
@@ -817,9 +801,12 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                Self::is_system_program_transfer_instruction(
-                    instruction,
-                    tx.message.static_account_keys(),
+                instruction.program_id(&tx.message.static_account_keys()) == &system_program::id()
+            })
+            .filter(|(_, instruction)| {
+                matches!(
+                    bincode::deserialize::<SystemInstruction>(&instruction.data),
+                    Ok(SystemInstruction::Transfer { .. })
                 )
             })
             .collect();
@@ -952,11 +939,7 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                let program_id = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.program_id_index as usize);
-                program_id == Some(&spl_token::id())
+                instruction.program_id(&tx.message.static_account_keys()) == &spl_token::id()
             })
             .collect()
     }
@@ -969,11 +952,8 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                let program_id = tx
-                    .message
-                    .static_account_keys()
-                    .get(instruction.program_id_index as usize);
-                program_id == Some(&spl_associated_token_account::id())
+                instruction.program_id(&tx.message.static_account_keys())
+                    == &spl_associated_token_account::id()
             })
             .collect()
     }
@@ -1466,15 +1446,9 @@ impl Service<Svm> {
         }
     }
 
-    fn relayer_signer_exists(
-        &self,
-        accounts: &[Pubkey],
-        signatures: &[Signature],
-    ) -> Result<(), RestError> {
+    fn relayer_signer_exists(&self, signers: &[Pubkey]) -> Result<(), RestError> {
         let relayer_pubkey = self.config.chain_config.express_relay.relayer.pubkey();
-        let relayer_exists = accounts[..signatures.len()]
-            .iter()
-            .any(|account| account.eq(&relayer_pubkey));
+        let relayer_exists = signers.iter().any(|account| account.eq(&relayer_pubkey));
 
         if !relayer_exists {
             return Err(RestError::RelayerNotSigner(relayer_pubkey));
@@ -1485,11 +1459,11 @@ impl Service<Svm> {
     fn all_signatures_exists(
         &self,
         message_bytes: &[u8],
-        accounts: &[Pubkey],
+        signers: &[Pubkey],
         signatures: &[Signature],
         missing_signers: &[Pubkey],
     ) -> Result<(), RestError> {
-        for (signature, pubkey) in signatures.iter().zip(accounts.iter()) {
+        for (signature, pubkey) in signatures.iter().zip(signers.iter()) {
             if missing_signers.contains(pubkey) {
                 continue;
             }
@@ -1508,7 +1482,7 @@ impl Service<Svm> {
     ) -> Result<(), RestError> {
         let message_bytes = chain_data.transaction.message.serialize();
         let signatures = chain_data.transaction.signatures.clone();
-        let accounts = chain_data.transaction.message.static_account_keys();
+        let signers = &chain_data.transaction.message.static_account_keys()[..signatures.len()];
         let permission_key = chain_data.get_permission_key();
         match submit_type {
             SubmitType::Invalid => {
@@ -1534,18 +1508,18 @@ impl Service<Svm> {
                     .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
                 let relayer_signer = self.config.chain_config.express_relay.relayer.pubkey();
                 opportunity
-                    .check_fee_payer(accounts, &relayer_signer)
+                    .check_fee_payer(&signers, &relayer_signer)
                     .map_err(|e| RestError::InvalidFirstSigner(e.to_string()))?;
                 let mut missing_signers = opportunity.get_missing_signers();
                 missing_signers.push(relayer_signer);
-                self.relayer_signer_exists(accounts, &signatures)?;
-                self.all_signatures_exists(&message_bytes, accounts, &signatures, &missing_signers)
+                self.relayer_signer_exists(&signers)?;
+                self.all_signatures_exists(&message_bytes, &signers, &signatures, &missing_signers)
             }
             SubmitType::ByServer => {
-                self.relayer_signer_exists(accounts, &signatures)?;
+                self.relayer_signer_exists(&signers)?;
                 self.all_signatures_exists(
                     &message_bytes,
-                    accounts,
+                    &signers,
                     &signatures,
                     &[self.config.chain_config.express_relay.relayer.pubkey()],
                 )
@@ -1674,11 +1648,9 @@ impl Service<Svm> {
             .instructions()
             .iter()
             .filter_map(|instruction| {
-                let program_id = transaction
-                    .message
-                    .static_account_keys()
-                    .get(instruction.program_id_index as usize);
-                if program_id != Some(&compute_budget::id()) {
+                if instruction.program_id(&transaction.message.static_account_keys())
+                    != &compute_budget::id()
+                {
                     return None;
                 }
 
