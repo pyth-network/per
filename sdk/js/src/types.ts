@@ -404,6 +404,11 @@ export type QuoteRequest = {
    * @example 11111111111111111111111111111111
    */
   userWallet?: PublicKey;
+  /**
+   * @description Optional memo to be included in the transaction.
+   * @example "memo"
+   */
+  memo?: string;
 };
 
 export type QuoteResponse = {

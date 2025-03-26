@@ -63,6 +63,7 @@ async def send_and_submit_quote(server_url, kp_taker, input_token, output_token,
         "referral_fee_bps": 10,
         "specified_token_amount": {"amount": random.randint(1, 1000), "side": side},
         "user_wallet_address": str(pk_taker),
+        "memo": "memo",
         "version": "v1",
     }
 
