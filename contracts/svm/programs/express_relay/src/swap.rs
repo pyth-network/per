@@ -161,6 +161,7 @@ impl ExpressRelayMetadata {
         if !self.relayer_signer.eq(relayer_signer)
             && !self.secondary_relayer_signer.eq(relayer_signer)
         {
+            // TODO: change to a better error code
             return Err(AnchorErrorCode::ConstraintHasOne.into());
         }
         Ok(())
