@@ -1402,7 +1402,7 @@ impl Service<Svm> {
                 self.check_create_ata_instructions(
                     &bid_data.transaction,
                     &swap_accounts,
-                    &opportunity_swap_data.token_account_initialization_config,
+                    &opportunity_swap_data.token_account_initialization_configs,
                 )
                 .await?;
                 self.check_wrap_unwrap_native_token_instructions(
@@ -1975,7 +1975,7 @@ mod tests {
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config:
+                token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
             }),
@@ -2011,7 +2011,7 @@ mod tests {
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config:
+                token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
             }),
@@ -2047,7 +2047,7 @@ mod tests {
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config: TokenAccountInitializationConfigs {
+                token_account_initialization_configs: TokenAccountInitializationConfigs {
                     user_ata_mint_user: TokenAccountInitializationConfig::SearcherPayer,
                     ..TokenAccountInitializationConfigs::searcher_payer()
                 },
@@ -2085,7 +2085,7 @@ mod tests {
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config:
+                token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
             }),
@@ -2130,7 +2130,7 @@ mod tests {
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config:
+                token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
             }),
@@ -2167,7 +2167,7 @@ mod tests {
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config: TokenAccountInitializationConfigs {
+                token_account_initialization_configs: TokenAccountInitializationConfigs {
                     user_ata_mint_user: TokenAccountInitializationConfig::UserPayer,
                     user_ata_mint_searcher: TokenAccountInitializationConfig::UserPayer,
                     ..TokenAccountInitializationConfigs::searcher_payer()
@@ -2206,7 +2206,7 @@ mod tests {
                 fee_token,
                 referral_fee_bps,
                 user_mint_user_balance: 0,
-                token_account_initialization_config:
+                token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: Some("memo".to_string()),
             }),
