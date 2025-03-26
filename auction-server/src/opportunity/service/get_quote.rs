@@ -281,7 +281,7 @@ impl Service<ChainTypeSvm> {
                 },
             },
         };
-        let (user_wallet_address, user_mint_user_balance, token_account_initialization_config) =
+        let (user_wallet_address, user_mint_user_balance, token_account_initialization_configs) =
             match quote_create.user_wallet_address {
                 Some(address) => {
                     let balances = self
@@ -346,7 +346,7 @@ impl Service<ChainTypeSvm> {
                 platform_fee_bps: metadata.swap_platform_fee_bps,
                 token_program_user,
                 user_mint_user_balance,
-                token_account_initialization_config,
+                token_account_initialization_configs,
                 token_program_searcher,
             });
 

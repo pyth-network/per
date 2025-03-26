@@ -91,15 +91,15 @@ impl TokenAccountInitializationConfigs {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramSwap {
-    pub user_wallet_address:                 Pubkey,
-    pub user_mint_user_balance:              u64,
-    pub fee_token:                           FeeToken,
-    pub referral_fee_bps:                    u16,
-    pub platform_fee_bps:                    u64,
+    pub user_wallet_address:                  Pubkey,
+    pub user_mint_user_balance:               u64,
+    pub fee_token:                            FeeToken,
+    pub referral_fee_bps:                     u16,
+    pub platform_fee_bps:                     u64,
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
-    pub token_program_user:                  Pubkey,
-    pub token_program_searcher:              Pubkey,
-    pub token_account_initialization_config: TokenAccountInitializationConfigs,
+    pub token_program_user:                   Pubkey,
+    pub token_program_searcher:               Pubkey,
+    pub token_account_initialization_configs: TokenAccountInitializationConfigs,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -159,15 +159,15 @@ impl Opportunity for OpportunitySvm {
             OpportunitySvmProgram::Swap(program) => {
                 repository::OpportunityMetadataSvmProgram::Swap(
                     repository::OpportunityMetadataSvmProgramSwap {
-                        user_wallet_address:                 program.user_wallet_address,
-                        fee_token:                           program.fee_token,
-                        referral_fee_bps:                    program.referral_fee_bps,
-                        platform_fee_bps:                    program.platform_fee_bps,
-                        token_program_user:                  program.token_program_user,
-                        token_program_searcher:              program.token_program_searcher,
-                        token_account_initialization_config: program
-                            .token_account_initialization_config,
-                        user_mint_user_balance:              program.user_mint_user_balance,
+                        user_wallet_address:                  program.user_wallet_address,
+                        fee_token:                            program.fee_token,
+                        referral_fee_bps:                     program.referral_fee_bps,
+                        platform_fee_bps:                     program.platform_fee_bps,
+                        token_program_user:                   program.token_program_user,
+                        token_program_searcher:               program.token_program_searcher,
+                        token_account_initialization_configs: program
+                            .token_account_initialization_configs,
+                        user_mint_user_balance:               program.user_mint_user_balance,
                     },
                 )
             }
@@ -366,7 +366,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         token_program_searcher: program.token_program_searcher,
                     },
                     token_account_initialization_configs: program
-                        .token_account_initialization_config
+                        .token_account_initialization_configs
                         .into(),
                 }
             }
@@ -414,15 +414,15 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             }
             repository::OpportunityMetadataSvmProgram::Swap(program) => {
                 OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                    user_wallet_address:                 program.user_wallet_address,
-                    fee_token:                           program.fee_token,
-                    referral_fee_bps:                    program.referral_fee_bps,
-                    platform_fee_bps:                    program.platform_fee_bps,
-                    token_program_user:                  program.token_program_user,
-                    token_program_searcher:              program.token_program_searcher,
-                    token_account_initialization_config: program
-                        .token_account_initialization_config,
-                    user_mint_user_balance:              program.user_mint_user_balance,
+                    user_wallet_address:                  program.user_wallet_address,
+                    fee_token:                            program.fee_token,
+                    referral_fee_bps:                     program.referral_fee_bps,
+                    platform_fee_bps:                     program.platform_fee_bps,
+                    token_program_user:                   program.token_program_user,
+                    token_program_searcher:               program.token_program_searcher,
+                    token_account_initialization_configs: program
+                        .token_account_initialization_configs,
+                    user_mint_user_balance:               program.user_mint_user_balance,
                 })
             }
         };
