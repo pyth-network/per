@@ -1628,7 +1628,7 @@ impl Service<Svm> {
             .unwrap_or(0);
 
         let budgets: Vec<u64> =
-            Self::extract_program_instructions(&transaction, &compute_budget::id())
+            Self::extract_program_instructions(transaction, &compute_budget::id())
                 .into_iter()
                 .filter_map(|(_, instruction)| {
                     match compute_budget::ComputeBudgetInstruction::try_from_slice(
