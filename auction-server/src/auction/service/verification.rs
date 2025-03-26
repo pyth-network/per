@@ -500,7 +500,7 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                instruction.program_id(&transaction.message.static_account_keys())
+                instruction.program_id(transaction.message.static_account_keys())
                     == &self.config.chain_config.express_relay.program_id
             })
             .map(|(index, instruction)| (index, instruction.clone()))
@@ -563,7 +563,7 @@ impl Service<Svm> {
             .enumerate()
             .try_for_each(|(index, ix)| {
                 self.validate_swap_transaction_instruction(
-                    ix.program_id(&tx.message.static_account_keys()),
+                    ix.program_id(tx.message.static_account_keys()),
                     ix,
                 )
                 .map_err(|e| RestError::InvalidInstruction(Some(index), e))
@@ -801,7 +801,7 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                instruction.program_id(&tx.message.static_account_keys()) == &system_program::id()
+                instruction.program_id(tx.message.static_account_keys()) == &system_program::id()
             })
             .filter(|(_, instruction)| {
                 matches!(
@@ -939,7 +939,7 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                instruction.program_id(&tx.message.static_account_keys()) == &spl_token::id()
+                instruction.program_id(tx.message.static_account_keys()) == &spl_token::id()
             })
             .collect()
     }
@@ -952,7 +952,7 @@ impl Service<Svm> {
             .iter()
             .enumerate()
             .filter(|(_, instruction)| {
-                instruction.program_id(&tx.message.static_account_keys())
+                instruction.program_id(tx.message.static_account_keys())
                     == &spl_associated_token_account::id()
             })
             .collect()
@@ -1508,18 +1508,18 @@ impl Service<Svm> {
                     .ok_or_else(|| RestError::BadParameters("Opportunity not found".to_string()))?;
                 let relayer_signer = self.config.chain_config.express_relay.relayer.pubkey();
                 opportunity
-                    .check_fee_payer(&signers, &relayer_signer)
+                    .check_fee_payer(signers, &relayer_signer)
                     .map_err(|e| RestError::InvalidFirstSigner(e.to_string()))?;
                 let mut missing_signers = opportunity.get_missing_signers();
                 missing_signers.push(relayer_signer);
-                self.relayer_signer_exists(&signers)?;
-                self.all_signatures_exists(&message_bytes, &signers, &signatures, &missing_signers)
+                self.relayer_signer_exists(signers)?;
+                self.all_signatures_exists(&message_bytes, signers, &signatures, &missing_signers)
             }
             SubmitType::ByServer => {
-                self.relayer_signer_exists(&signers)?;
+                self.relayer_signer_exists(signers)?;
                 self.all_signatures_exists(
                     &message_bytes,
-                    &signers,
+                    signers,
                     &signatures,
                     &[self.config.chain_config.express_relay.relayer.pubkey()],
                 )
@@ -1648,7 +1648,7 @@ impl Service<Svm> {
             .instructions()
             .iter()
             .filter_map(|instruction| {
-                if instruction.program_id(&transaction.message.static_account_keys())
+                if instruction.program_id(transaction.message.static_account_keys())
                     != &compute_budget::id()
                 {
                     return None;
