@@ -634,6 +634,14 @@ impl QuoteCreate {
             QuoteCreate::Svm(QuoteCreateSvm::V1(params)) => params.user_wallet_address,
         }
     }
+
+    pub fn get_memo_length(&self) -> Option<usize> {
+        match self {
+            QuoteCreate::Svm(QuoteCreateSvm::V1(params)) => {
+                params.memo.as_ref().map(|memo| memo.len())
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
