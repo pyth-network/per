@@ -2,10 +2,7 @@ use {
     crate::{
         error::ErrorCode,
         state::ExpressRelayMetadata,
-        token::{
-            check_receiver_and_transfer_token_if_needed,
-            transfer_token_if_needed,
-        },
+        token::check_receiver_and_transfer_token_if_needed,
         FeeToken,
         Swap,
         SwapArgs,
@@ -14,6 +11,7 @@ use {
     },
     anchor_lang::{
         accounts::interface_account::InterfaceAccount,
+        error::ErrorCode as AnchorErrorCode,
         prelude::*,
     },
     anchor_spl::token_interface::TokenAccount,
@@ -159,6 +157,22 @@ pub struct SwapFees {
     pub express_relay_fee: u64,
 }
 impl ExpressRelayMetadata {
+    pub fn check_relayer_signer(&self, relayer_signer: &Pubkey) -> Result<()> {
+        if !self.relayer_signer.eq(relayer_signer)
+            && !self.secondary_relayer_signer.eq(relayer_signer)
+        {
+            return Err(AnchorErrorCode::ConstraintHasOne.into());
+        }
+        Ok(())
+    }
+
+    pub fn compute_swap_fees_with_default_platform_fee(
+        &self,
+        referral_fee_bps: u16,
+        amount: u64,
+    ) -> Result<SwapFeesWithRemainingAmount> {
+        self.compute_swap_fees(referral_fee_bps, self.swap_platform_fee_bps, amount)
+    }
     pub fn compute_swap_fees(
         &self,
         referral_fee_bps: u16,

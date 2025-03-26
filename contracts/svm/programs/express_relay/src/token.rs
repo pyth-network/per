@@ -38,9 +38,9 @@ pub fn transfer_token_if_needed<'info>(
 ) -> Result<()> {
     if amount > 0 {
         let cpi_accounts = TransferChecked {
-            from:      from.to_account_info(),
-            to:        to.to_account_info(),
-            mint:      mint.to_account_info(),
+            from: from.to_account_info(),
+            to,
+            mint: mint.to_account_info(),
             authority: authority.to_account_info(),
         };
 

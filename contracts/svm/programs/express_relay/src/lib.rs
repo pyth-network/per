@@ -71,6 +71,15 @@ pub mod express_relay {
         Ok(())
     }
 
+    pub fn set_secondary_relayer(ctx: Context<SetSecondaryRelayer>) -> Result<()> {
+        let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata;
+
+        express_relay_metadata_data.secondary_relayer_signer =
+            *ctx.accounts.secondary_relayer_signer.key;
+
+        Ok(())
+    }
+
     pub fn set_splits(ctx: Context<SetSplits>, data: SetSplitsArgs) -> Result<()> {
         validate_fee_split(data.split_router_default)?;
         validate_fee_split(data.split_relayer)?;
@@ -106,6 +115,9 @@ pub mod express_relay {
     /// Submits a bid for a particular (permission, router) pair and distributes bids according to splits.
     pub fn submit_bid(ctx: Context<SubmitBid>, data: SubmitBidArgs) -> Result<()> {
         check_deadline(data.deadline)?;
+        ctx.accounts
+            .express_relay_metadata
+            .check_relayer_signer(ctx.accounts.relayer_signer.key)?;
 
         // check that not cpi.
         if get_stack_height() > TRANSACTION_LEVEL_STACK_HEIGHT {
@@ -171,6 +183,9 @@ pub mod express_relay {
 
     pub fn swap_internal(ctx: Context<Swap>, data: SwapV2Args) -> Result<()> {
         check_deadline(data.deadline)?;
+        ctx.accounts
+            .express_relay_metadata
+            .check_relayer_signer(ctx.accounts.relayer_signer.key)?;
 
         let (
             transfer_swap_fees,
@@ -264,11 +279,22 @@ pub struct SetRelayer<'info> {
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just the relayer's signer PK.
+    /// CHECK: this is the relayer public key which can be any arbitrary key.
     pub relayer_signer: UncheckedAccount<'info>,
 
-    /// CHECK: this is just a PK for the relayer to receive fees at.
+    /// CHECK: this is the relayer fee receiver public key which can be any arbitrary key.
     pub fee_receiver_relayer: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SetSecondaryRelayer<'info> {
+    pub admin: Signer<'info>,
+
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+
+    /// CHECK: this is the secondary relayer public key which can be any arbitrary key.
+    pub secondary_relayer_signer: UncheckedAccount<'info>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
@@ -337,7 +363,7 @@ pub struct SubmitBid<'info> {
     #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
     pub config_router: UncheckedAccount<'info>,
 
-    #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer, has_one = fee_receiver_relayer)]
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = fee_receiver_relayer)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
     /// CHECK: this is just a PK for the relayer to receive fees at.
@@ -465,15 +491,15 @@ pub struct Swap<'info> {
 
     // Fee receivers
     /// Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee
-    /// CHECK: this is cool
+    /// CHECK: we check this account manually since it can be uninitialized if the fee is 0
     #[account(mut)]
     pub router_fee_receiver_ta: UncheckedAccount<'info>,
 
-    /// CHECK: this is cool
+    /// CHECK: we check this account manually since it can be uninitialized if the fee is 0
     #[account(mut)]
     pub relayer_fee_receiver_ata: UncheckedAccount<'info>,
 
-    /// CHECK: this is cool
+    /// CHECK: we check this account manually since it can be uninitialized if the fee is 0
     #[account(mut)]
     pub express_relay_fee_receiver_ata: UncheckedAccount<'info>,
 
@@ -500,7 +526,7 @@ pub struct Swap<'info> {
     pub token_program_fee: Interface<'info, TokenInterface>,
 
     /// Express relay configuration
-    #[account(seeds = [SEED_METADATA], bump, has_one = relayer_signer)]
+    #[account(seeds = [SEED_METADATA], bump)]
     pub express_relay_metadata: Box<Account<'info, ExpressRelayMetadata>>,
 
     pub relayer_signer: Signer<'info>,
