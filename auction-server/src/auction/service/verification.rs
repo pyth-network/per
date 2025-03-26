@@ -1159,6 +1159,37 @@ impl Service<Svm> {
         Ok(())
     }
 
+    async fn check_memo_instructions(
+        tx: &VersionedTransaction,
+        memo: &Option<String>,
+    ) -> Result<(), RestError> {
+        let memo_instructions = Self::extract_program_instructions(tx, &spl_memo_client::ID);
+        match (memo, memo_instructions.len()) {
+            (_, 0) => Ok(()), // todo: this is for backward compatibility, we can fix this once searchers have updated their sdk
+            (Some(memo), 1) => {
+                let (index, instruction) = memo_instructions[0]; // safe to index because we checked the length
+                if instruction.data != memo.as_bytes() {
+                    return Err(RestError::InvalidInstruction(
+                        Some(index),
+                        InstructionError::InvalidMemoString {
+                            expected: memo.clone(),
+                            found:    String::from_utf8(instruction.data.clone())
+                                .unwrap_or_default(),
+                        },
+                    ));
+                }
+                Ok(())
+            }
+            (_, _) => Err(RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidMemoInstructionCount {
+                    expected: memo.as_ref().map_or(0, |_| 1),
+                    found:    memo_instructions.len(),
+                },
+            )),
+        }
+    }
+
     async fn check_create_ata_instructions(
         &self,
         tx: &VersionedTransaction,
@@ -1364,6 +1395,9 @@ impl Service<Svm> {
                     token_program_user,
                     ..
                 } = swap_accounts.clone();
+
+                Self::check_memo_instructions(&bid_data.transaction, &opportunity_swap_data.memo)
+                    .await?;
 
                 self.check_create_ata_instructions(
                     &bid_data.transaction,

@@ -126,6 +126,8 @@ pub enum InstructionError {
     InvalidTokenProgramInCreateAtaInstruction { expected: Pubkey, found: Pubkey },
     InvalidSystemProgramInCreateAtaInstruction(Pubkey),
     MissingCreateAtaInstruction(Pubkey),
+    InvalidMemoInstructionCount { expected: usize, found: usize },
+    InvalidMemoString { expected: String, found: String },
 }
 
 impl std::fmt::Display for InstructionError {
@@ -256,6 +258,20 @@ impl std::fmt::Display for InstructionError {
                     f,
                     "Missing create associated token account instruction for account: {:?}",
                     ata
+                )
+            }
+            InstructionError::InvalidMemoInstructionCount { expected, found } => {
+                write!(
+                    f,
+                    "Invalid memo instruction count. Expected: {:?} found: {:?}",
+                    expected, found
+                )
+            }
+            InstructionError::InvalidMemoString { expected, found } => {
+                write!(
+                    f,
+                    "Invalid memo string in memo instruction. Expected: {:?} found: {:?}",
+                    expected, found
                 )
             }
         }
