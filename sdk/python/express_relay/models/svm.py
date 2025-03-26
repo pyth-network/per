@@ -362,6 +362,7 @@ class SwapOpportunitySvm(BaseOpportunitySvm):
     user_wallet_address: SvmAddress
     tokens: SwapTokensSearcherSpecified | SwapTokensUserSpecified
     token_account_initialization_configs: TokenAccountInitializationConfigs
+    memo: str | None = Field(default=None)
 
 
 OpportunitySvm = SwapOpportunitySvm | LimoOpportunitySvm
