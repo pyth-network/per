@@ -107,6 +107,7 @@ use {
     },
     spl_token::instruction::TokenInstruction,
     std::{
+        array,
         collections::VecDeque,
         sync::Arc,
         time::Duration,
@@ -1005,12 +1006,11 @@ impl Service<Svm> {
         for (index, instruction) in Self::extract_token_instructions(tx) {
             let ix_parsed = TokenInstruction::unpack(&instruction.data).ok();
             if let Some(TokenInstruction::CloseAccount) = ix_parsed {
-                let [account, destination, owner] = futures::future::try_join_all(
+                let accounts = futures::future::try_join_all(
                     (0..3).map(|i| self.extract_account(tx, instruction, i)),
                 )
-                .await?
-                .try_into()
-                .expect("This can't panic because we know the length of the vector is 3");
+                .await?;
+                let [account, destination, owner] = array::from_fn(|i| accounts[i]);
 
                 result.push(CloseAccountInstructionData {
                     index,
@@ -1038,13 +1038,13 @@ impl Service<Svm> {
                         | AssociatedTokenAccountInstruction::CreateIdempotent
                 )
             ) {
+                let accounts = futures::future::try_join_all(
+                    (0..6).map(|i| self.extract_account(tx, instruction, i)),
+                )
+                .await?;
+
                 let [payer, ata, owner, mint, system_program, token_program] =
-                    futures::future::try_join_all(
-                        (0..6).map(|i| self.extract_account(tx, instruction, i)),
-                    )
-                    .await?
-                    .try_into()
-                    .expect("This can't panic because we know the length of the vector is 6");
+                    array::from_fn(|i| accounts[i]);
 
                 if system_program != system_program::id() {
                     return Err(RestError::InvalidInstruction(
