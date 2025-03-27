@@ -1165,7 +1165,7 @@ impl Service<Svm> {
     ) -> Result<(), RestError> {
         let memo_instructions = Self::extract_program_instructions(tx, &spl_memo_client::ID);
         match (memo, memo_instructions.len()) {
-            (_, 0) => Ok(()), // todo: this is for backward compatibility, we can fix this once searchers have updated their sdk
+            (None, 0) => Ok(()),
             (Some(memo), 1) => {
                 let (index, instruction) = memo_instructions[0]; // safe to index because we checked the length
                 if instruction.data != memo.as_bytes() {
@@ -1180,6 +1180,7 @@ impl Service<Svm> {
                 }
                 Ok(())
             }
+            (Some(_), 0) => Ok(()), // todo: this is for backward compatibility, we should remove this line once searchers have updated their sdk
             (_, _) => Err(RestError::InvalidInstruction(
                 None,
                 InstructionError::InvalidMemoInstructionCount {
