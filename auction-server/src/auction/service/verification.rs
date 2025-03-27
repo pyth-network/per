@@ -5111,7 +5111,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_with_memo_backward_compatibility() {
+    async fn test_verify_bid_with_missing_memo() {
         let (service, opportunities) = get_service(true);
 
         let opportunity = opportunities.with_memo.clone();
@@ -5164,14 +5164,14 @@ mod tests {
         .unwrap();
     }
 
-    async fn test_verify_bid_with_invalid_memo() {
+    async fn test_verify_bid_with_mismatched_memo() {
         let (service, opportunities) = get_service(true);
 
         let opportunity = opportunities.with_memo.clone();
 
         let bid_amount = 1;
         let searcher = Keypair::new();
-        let memo_instruction = svm::Svm::get_memo_instruction("invalid memo".to_string()); // invalid memo
+        let memo_instruction = svm::Svm::get_memo_instruction("mismatched memo".to_string());
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
