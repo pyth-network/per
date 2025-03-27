@@ -19,7 +19,10 @@ use {
         rent::Rent,
     },
     spl_associated_token_account::get_associated_token_address_with_program_id,
-    spl_token::state::Account as TokenAccount,
+    spl_token_2022::{
+        extension::StateWithExtensions,
+        state::Account as TokenAccount,
+    },
 };
 
 pub struct QuoteRequestAccountBalancesInput {
@@ -193,12 +196,12 @@ impl Service<ChainTypeSvm> {
                 account
                     .as_ref()
                     .map(|acc| {
-                        TokenAccount::unpack(&acc.data[..TokenAccount::LEN]) // This will also work for token2022 accounts since the first TokenAccount::LEN bytes have the same layout
+                        StateWithExtensions::<TokenAccount>::unpack(&acc.data[..TokenAccount::LEN])
                             .map_err(|err| {
                                 tracing::error!(error = ?err, "Failed to deserialize a token account");
                                 RestError::TemporarilyUnavailable
                             })
-                            .map(|token_account| token_account.amount)
+                            .map(|token_account| token_account.base.amount)
                     })
                     .transpose()
                     .map(|balance| balance.into())

@@ -708,6 +708,7 @@ dependencies = [
  "solana-transaction-status",
  "spl-associated-token-account",
  "spl-token",
+ "spl-token-2022 7.0.0",
  "sqlx",
  "strum",
  "time",
