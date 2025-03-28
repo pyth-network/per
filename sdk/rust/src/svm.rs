@@ -25,21 +25,19 @@ use {
     },
     solana_rpc_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
-        clock::Slot,
-        hash::Hash,
-        instruction::Instruction,
-        pubkey::Pubkey,
-        signature::Keypair,
-        system_instruction::transfer,
+        clock::Slot, hash::Hash, instruction::Instruction, program_pack::Pack, pubkey::Pubkey, rent::Rent, signature::Keypair, system_instruction::transfer
     },
     spl_associated_token_account::{
         get_associated_token_address,
         get_associated_token_address_with_program_id,
         instruction::create_associated_token_account_idempotent,
     },
-    spl_token::instruction::{
-        close_account,
-        sync_native,
+    spl_token::{
+        instruction::{
+            close_account,
+            sync_native,
+        },
+        state::Account as TokenAccount,
     },
     std::str::FromStr,
 };
@@ -467,6 +465,31 @@ impl Svm {
                 e
             ))
         })
+    }
+
+    pub fn get_user_amount_to_wrap(
+        amount_user: u64,
+        user_mint_user_balance: u64,
+        token_account_initialization_configs: &TokenAccountInitializationConfigs,
+    ) -> u64 {
+        let number_of_paid_atas_by_user = match (
+            &token_account_initialization_configs.user_ata_mint_user,
+            &token_account_initialization_configs.user_ata_mint_searcher,
+        ) {
+            (
+                TokenAccountInitializationConfig::UserPayer,
+                TokenAccountInitializationConfig::UserPayer,
+            ) => 2,
+            (TokenAccountInitializationConfig::UserPayer, _) => 1,
+            (_, TokenAccountInitializationConfig::UserPayer) => 1,
+            _ => 0,
+        };
+        std::cmp::min(
+            amount_user,
+            user_mint_user_balance.saturating_sub(
+                number_of_paid_atas_by_user * Rent::default().minimum_balance(TokenAccount::LEN),
+            ),
+        )
     }
 
     /// Adjusts the bid amount in the case where the amount that needs to be provided by the searcher is specified and the fees are in the user token.
