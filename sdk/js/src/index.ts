@@ -519,6 +519,7 @@ export class Client {
       user_wallet_address: quoteRequest.userWallet
         ? quoteRequest.userWallet.toBase58()
         : null,
+      memo: quoteRequest.memo ?? null,
       version: "v1" as const,
     };
     // TODO: we may want to wrap all the GET/POST calls in a try/catch block to handle errors
@@ -725,6 +726,7 @@ export class Client {
           userAtaMintUser:
             opportunity.token_account_initialization_configs.user_ata_mint_user,
         },
+        memo: opportunity.memo ?? undefined,
       };
     } else {
       console.warn("Unsupported opportunity", opportunity);

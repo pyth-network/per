@@ -164,6 +164,7 @@ export type OpportunitySvmSwap = {
   tokens: SvmSwapTokens;
   program: "swap";
   tokenInitializationConfigs: TokenAccountInitializationConfigs;
+  memo?: string;
 } & OpportunitySvmMetadata;
 
 export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;
@@ -404,6 +405,11 @@ export type QuoteRequest = {
    * @example 11111111111111111111111111111111
    */
   userWallet?: PublicKey;
+  /**
+   * @description Optional memo to be included in the transaction.
+   * @example "memo"
+   */
+  memo?: string;
 };
 
 export type QuoteResponse = {

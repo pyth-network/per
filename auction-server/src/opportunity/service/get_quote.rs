@@ -348,6 +348,7 @@ impl Service<ChainTypeSvm> {
                 user_mint_user_balance,
                 token_account_initialization_configs,
                 token_program_searcher,
+                memo: quote_create.memo,
             });
 
         Ok(entities::OpportunityCreateSvm {

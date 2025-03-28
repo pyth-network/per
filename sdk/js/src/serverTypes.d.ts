@@ -797,6 +797,11 @@ export interface components {
           /** @description Specifies whether the fees are to be paid in the searcher or user token. */
           fee_token: components["schemas"]["FeeToken"];
           /**
+           * @description If provided, this memo must be included in the bid transaction as a Memo program instruction.
+           * @example memo
+           */
+          memo?: string | null;
+          /**
            * @description The permission account that serves as an identifier for the swap opportunity.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
@@ -886,6 +891,11 @@ export interface components {
        * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
        */
       input_token_mint: string;
+      /**
+       * @description Optional memo to be included in the transaction
+       * @example memo
+       */
+      memo?: string | null;
       /**
        * @description The mint address of the token the user will receive in the swap.
        * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v

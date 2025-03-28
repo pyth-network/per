@@ -133,7 +133,6 @@ struct OpportunitySwapData<'a> {
     referral_fee_bps: &'a u16,
     platform_fee_bps: &'a u64,
 }
-
 pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
     pub searcher:               Pubkey,
     pub user:                   Pubkey,
@@ -323,6 +322,12 @@ impl Svm {
                 "Invalid opportunity program".to_string(),
             )),
         }
+    }
+
+    pub fn get_memo_instruction(memo: String) -> Instruction {
+        spl_memo_client::instructions::AddMemoBuilder::new()
+            .memo(memo.into())
+            .instruction()
     }
 
     pub fn get_swap_create_accounts_idempotent_instructions(

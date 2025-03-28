@@ -69,6 +69,7 @@ from hexbytes import HexBytes
 from solders.instruction import Instruction
 from solders.pubkey import Pubkey
 from solders.sysvar import INSTRUCTIONS
+from spl.memo.constants import MEMO_PROGRAM_ID
 from spl.token.constants import WRAPPED_SOL_MINT
 from websockets.client import WebSocketClientProtocol
 
@@ -719,6 +720,15 @@ class ExpressRelayClient:
         accs = ExpressRelayClient.extract_swap_info(swap_opportunity)
 
         instructions: List[Instruction] = []
+
+        if swap_opportunity.memo is not None:
+            instructions.append(
+                Instruction(
+                    program_id=MEMO_PROGRAM_ID,
+                    accounts=[],
+                    data=swap_opportunity.memo.encode(),
+                )
+            )
 
         token_accounts_to_create = ExpressRelayClient.get_token_accounts_to_create(
             searcher=searcher,

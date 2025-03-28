@@ -202,6 +202,7 @@ pub async fn get_opportunities(
     }
 }
 
+const MEMO_MAX_LENGTH: usize = 100;
 
 /// Submit a quote request.
 ///
@@ -223,6 +224,16 @@ pub async fn post_quote(
             ));
         }
     }
+
+    if let Some(length) = params.get_memo_length() {
+        if length > MEMO_MAX_LENGTH {
+            return Err(RestError::BadParameters(format!(
+                "Memo must be less than {} characters",
+                MEMO_MAX_LENGTH
+            )));
+        }
+    }
+
     let quote_create: QuoteCreateEntity = params.into();
 
     let quote = store

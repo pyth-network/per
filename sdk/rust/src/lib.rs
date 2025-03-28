@@ -782,6 +782,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                 router_account,
                 referral_fee_bps,
                 token_account_initialization_configs,
+                memo,
                 ..
             } => {
                 let _ = match params.program_params {
@@ -816,6 +817,9 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                     FeeToken::UserToken => (user_token, tokens.token_program_user),
                 };
                 let mut instructions = params.instructions;
+                if let Some(memo) = memo {
+                    instructions.push(svm::Svm::get_memo_instruction(memo));
+                }
                 instructions.extend(svm::Svm::get_swap_create_accounts_idempotent_instructions(
                     svm::GetSwapCreateAccountsIdempotentInstructionsParams {
                         searcher: params.searcher,

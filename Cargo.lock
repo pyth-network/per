@@ -707,6 +707,7 @@ dependencies = [
  "solana-sdk",
  "solana-transaction-status",
  "spl-associated-token-account",
+ "spl-memo-client",
  "spl-token",
  "spl-token-2022 7.0.0",
  "sqlx",
@@ -2586,6 +2587,7 @@ dependencies = [
  "solana-rpc-client",
  "solana-sdk",
  "spl-associated-token-account",
+ "spl-memo-client",
  "spl-token",
  "tokio",
  "tokio-stream",
@@ -3819,6 +3821,15 @@ dependencies = [
  "once_cell",
  "sha2 0.10.8",
  "signature 2.2.0",
+]
+
+[[package]]
+name = "kaigan"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ba15de5aeb137f0f65aa3bf82187647f1285abfe5b20c80c2c37f7007ad519a"
+dependencies = [
+ "borsh 0.10.4",
 ]
 
 [[package]]
@@ -8906,6 +8917,20 @@ dependencies = [
  "solana-program-entrypoint",
  "solana-program-error",
  "solana-pubkey",
+]
+
+[[package]]
+name = "spl-memo-client"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1ce6e135e27600f522db39d8e48eb73cb16a85ad08fa7b282ea4b6356919940"
+dependencies = [
+ "borsh 0.10.4",
+ "kaigan",
+ "num-derive",
+ "num-traits",
+ "solana-program",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
