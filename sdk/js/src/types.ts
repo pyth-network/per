@@ -3,6 +3,7 @@ import type { components } from "./serverTypes";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { OrderStateAndAddress } from "@kamino-finance/limo-sdk/dist/utils";
 import { VersionedTransaction } from "@solana/web3.js";
+import * as anchor from "@coral-xyz/anchor";
 
 /**
  * ERC20 token with contract address and amount
@@ -158,6 +159,7 @@ export type OpportunitySvmSwap = {
   permissionAccount: PublicKey;
   routerAccount: PublicKey;
   userWalletAddress: PublicKey;
+  userMintUserBalance: anchor.BN;
   feeToken: "searcher_token" | "user_token";
   referralFeeBps: number;
   platformFeeBps: number;

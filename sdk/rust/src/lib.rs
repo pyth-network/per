@@ -777,6 +777,7 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
             }
             OpportunityParamsV1ProgramSvm::Swap {
                 user_wallet_address,
+                user_mint_user_balance,
                 tokens,
                 fee_token,
                 router_account,
@@ -834,15 +835,20 @@ impl Biddable for api_types::opportunity::OpportunitySvm {
                         fee_receiver_relayer: params.fee_receiver_relayer,
                         referral_fee_bps,
                         chain_id: opportunity_params.chain_id.clone(),
-                        configs: token_account_initialization_configs,
+                        configs: token_account_initialization_configs.clone(),
                     },
                 ));
                 if user_token == native_mint::id() {
+                    let user_amount_to_wrap = svm::Svm::get_user_amount_to_wrap(
+                        user_amount_including_fees,
+                        user_mint_user_balance,
+                        &token_account_initialization_configs,
+                    );
                     instructions.extend(svm::Svm::get_wrap_sol_instructions(
                         svm::GetWrapSolInstructionsParams {
                             payer:      params.payer,
                             owner:      user_wallet_address,
-                            amount:     user_amount_including_fees,
+                            amount:     user_amount_to_wrap,
                             create_ata: false,
                         },
                     )?);

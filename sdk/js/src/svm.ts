@@ -250,6 +250,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
   tokenProgramSearcher: PublicKey;
   tokenInitializationConfigs: TokenAccountInitializationConfigs;
   memo?: string;
+  userMintUserBalance: anchor.BN;
 } {
   const tokenProgramSearcher = swapOpportunity.tokens.tokenProgramSearcher;
   const tokenProgramUser = swapOpportunity.tokens.tokenProgramUser;
@@ -263,6 +264,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
   const router = swapOpportunity.routerAccount;
   const tokenInitializationConfigs = swapOpportunity.tokenInitializationConfigs;
   const memo = swapOpportunity.memo;
+  const userMintUserBalance = swapOpportunity.userMintUserBalance;
   return {
     searcherToken,
     tokenProgramSearcher,
@@ -274,6 +276,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
     router,
     tokenInitializationConfigs,
     memo,
+    userMintUserBalance,
   };
 }
 
@@ -426,6 +429,29 @@ function getBidAmountIncludingFees(
   return bidAmount;
 }
 
+function getUserAmountToWrap(
+  amountUser: anchor.BN,
+  userMintUserBalance: anchor.BN,
+  tokenAccountInitializationConfigs: TokenAccountInitializationConfigs,
+): anchor.BN {
+  const numberOfPaidAtasByUser =
+    (tokenAccountInitializationConfigs.userAtaMintUser === "user_payer"
+      ? 1
+      : 0) +
+    (tokenAccountInitializationConfigs.userAtaMintSearcher === "user_payer"
+      ? 1
+      : 0);
+
+  console.log(numberOfPaidAtasByUser);
+  return anchor.BN.min(
+    amountUser,
+    anchor.BN.max(
+      userMintUserBalance.sub(new anchor.BN(numberOfPaidAtasByUser * 2039280)),
+      new anchor.BN(0),
+    ),
+  );
+}
+
 export async function constructSwapBid(
   tx: Transaction,
   searcher: PublicKey,
@@ -436,8 +462,13 @@ export async function constructSwapBid(
   feeReceiverRelayer: PublicKey,
   relayerSigner: PublicKey,
 ): Promise<BidSvmSwap> {
-  const { userToken, searcherToken, user, tokenInitializationConfigs } =
-    extractSwapInfo(swapOpportunity);
+  const {
+    userToken,
+    searcherToken,
+    user,
+    tokenInitializationConfigs,
+    userMintUserBalance,
+  } = extractSwapInfo(swapOpportunity);
 
   if (swapOpportunity.memo) {
     tx.instructions.push(createMemoInstruction(swapOpportunity.memo));
@@ -467,7 +498,11 @@ export async function constructSwapBid(
         ...getWrapSolInstructions(
           searcher,
           user,
-          getBidAmountIncludingFees(swapOpportunity, bidAmount),
+          getUserAmountToWrap(
+            getBidAmountIncludingFees(swapOpportunity, bidAmount),
+            userMintUserBalance,
+            tokenInitializationConfigs,
+          ),
           false,
         ), // this account creation is handled in the ata initialization section
       );
@@ -476,8 +511,12 @@ export async function constructSwapBid(
         ...getWrapSolInstructions(
           searcher,
           user,
-          new anchor.BN(
-            swapOpportunity.tokens.userTokenAmountIncludingFees.toString(),
+          getUserAmountToWrap(
+            new anchor.BN(
+              swapOpportunity.tokens.userTokenAmountIncludingFees.toString(),
+            ),
+            userMintUserBalance,
+            tokenInitializationConfigs,
           ),
         ),
       );
