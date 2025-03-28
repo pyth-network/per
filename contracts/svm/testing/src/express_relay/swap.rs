@@ -5,18 +5,18 @@ use {
         InstructionData,
         ToAccountMetas,
     },
-    anchor_spl::{
-        associated_token::{
-            get_associated_token_address_with_program_id,
-            spl_associated_token_account::instruction::create_associated_token_account_idempotent,
-        },
-        token::spl_token,
+    anchor_spl::associated_token::{
+        get_associated_token_address_with_program_id,
+        spl_associated_token_account::instruction::create_associated_token_account_idempotent,
     },
     express_relay::{
         accounts::{
             self,
         },
-        instruction::Swap,
+        instruction::{
+            Swap,
+            SwapV2,
+        },
         FeeToken,
         SwapArgs,
     },
@@ -34,6 +34,7 @@ pub struct SwapParamOverride {
     pub searcher_ta_mint_user:          Option<Pubkey>,
     pub express_relay_fee_receiver_ata: Option<Pubkey>,
     pub relayer_fee_receiver_ata:       Option<Pubkey>,
+    pub platform_fee_bps:               Option<u64>,
 }
 
 pub struct SwapParams {
@@ -69,6 +70,7 @@ pub fn create_swap_instruction(swap_params: SwapParams) -> Instruction {
                 mint_fee_override,
                 express_relay_fee_receiver_ata,
                 relayer_fee_receiver_ata,
+                platform_fee_bps,
             },
     } = swap_params;
     let express_relay_metadata = get_express_relay_metadata_key();
@@ -140,10 +142,17 @@ pub fn create_swap_instruction(swap_params: SwapParams) -> Instruction {
     }
     .to_account_metas(None);
 
+    let data = match platform_fee_bps {
+        Some(fee) => SwapV2 {
+            data: swap_args.convert_to_v2(fee),
+        }
+        .data(),
+        None => Swap { data: swap_args }.data(),
+    };
     Instruction {
         program_id: express_relay::ID,
-        accounts:   accounts_submit_bid,
-        data:       Swap { data: swap_args }.data(),
+        accounts: accounts_submit_bid,
+        data,
     }
 }
 
