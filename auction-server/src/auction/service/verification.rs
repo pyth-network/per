@@ -1833,18 +1833,10 @@ mod tests {
             rpc_client::RpcClientConfig,
         },
         solana_sdk::{
-            compute_budget,
-            hash::Hash,
-            instruction::{
+            compute_budget, hash::Hash, instruction::{
                 AccountMeta,
                 Instruction,
-            },
-            packet::PACKET_DATA_SIZE,
-            pubkey::Pubkey,
-            signature::Keypair,
-            signer::Signer,
-            system_instruction,
-            transaction::Transaction,
+            }, native_token::LAMPORTS_PER_SOL, packet::PACKET_DATA_SIZE, pubkey::Pubkey, signature::Keypair, signer::Signer, system_instruction, transaction::Transaction
         },
         spl_associated_token_account::{
             get_associated_token_address,
@@ -1993,7 +1985,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
@@ -2029,7 +2021,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
@@ -2065,7 +2057,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs: TokenAccountInitializationConfigs {
                     user_ata_mint_user: TokenAccountInitializationConfig::SearcherPayer,
                     ..TokenAccountInitializationConfigs::searcher_payer()
@@ -2103,7 +2095,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
@@ -2148,7 +2140,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
@@ -2185,7 +2177,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs: TokenAccountInitializationConfigs {
                     user_ata_mint_user: TokenAccountInitializationConfig::UserPayer,
                     user_ata_mint_searcher: TokenAccountInitializationConfig::UserPayer,
@@ -2224,7 +2216,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token,
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: Some("memo".to_string()),
