@@ -188,26 +188,26 @@ pub fn build_swap_instructions(swap_params: SwapParams) -> Vec<Instruction> {
 
     if searcher_ta_mint_user.is_none() {
         instructions.push(create_associated_token_account_idempotent(
-            &searcher,
-            &searcher,
+            searcher,
+            searcher,
             &token_user.mint,
             &token_program_user,
         ));
     }
     instructions.push(create_associated_token_account_idempotent(
-        &searcher,
-        &user,
+        searcher,
+        user,
         &token_searcher.mint,
         &token_program_searcher,
     ));
     instructions.push(create_associated_token_account_idempotent(
-        &searcher,
-        &fee_receiver_relayer,
+        searcher,
+        fee_receiver_relayer,
         &mint_fee,
         &token_program_fee,
     ));
     instructions.push(create_associated_token_account_idempotent(
-        &searcher,
+        searcher,
         &get_express_relay_metadata_key(),
         &mint_fee,
         &token_program_fee,
