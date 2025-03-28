@@ -561,7 +561,10 @@ impl Service<ChainTypeSvm> {
         };
         let compute_fees = |amount: u64| {
             metadata
-                .compute_swap_fees(referral_fee_info.referral_fee_bps, amount)
+                .compute_swap_fees_with_default_platform_fee(
+                    referral_fee_info.referral_fee_bps,
+                    amount,
+                )
                 .map_err(|e| {
                     tracing::error!("Failed to compute swap fees: {:?}", e);
                     RestError::TemporarilyUnavailable

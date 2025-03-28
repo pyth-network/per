@@ -2,14 +2,16 @@ use {
     crate::{
         error::ErrorCode,
         state::ExpressRelayMetadata,
-        token::transfer_token_if_needed,
+        token::check_receiver_and_transfer_token_if_needed,
         FeeToken,
         Swap,
         SwapArgs,
+        SwapV2Args,
         FEE_SPLIT_PRECISION,
     },
     anchor_lang::{
         accounts::interface_account::InterfaceAccount,
+        error::ErrorCode as AnchorErrorCode,
         prelude::*,
     },
     anchor_spl::token_interface::TokenAccount,
@@ -22,18 +24,30 @@ pub struct PostFeeSwapArgs {
 
 
 impl<'info> Swap<'info> {
+    pub fn convert_to_v2(&self, args: &SwapArgs) -> SwapV2Args {
+        SwapV2Args {
+            deadline:              args.deadline,
+            amount_searcher:       args.amount_searcher,
+            amount_user:           args.amount_user,
+            fee_token:             args.fee_token,
+            referral_fee_bps:      args.referral_fee_bps,
+            swap_platform_fee_bps: self.express_relay_metadata.swap_platform_fee_bps,
+        }
+    }
     pub fn compute_swap_fees<'a>(
         &'a self,
-        args: &SwapArgs,
+        args: &SwapV2Args,
     ) -> Result<(TransferSwapFeeArgs<'info, 'a>, PostFeeSwapArgs)> {
         match args.fee_token {
             FeeToken::Searcher => {
                 let SwapFeesWithRemainingAmount {
                     fees,
                     remaining_amount,
-                } = self
-                    .express_relay_metadata
-                    .compute_swap_fees(args.referral_fee_bps, args.amount_searcher)?;
+                } = self.express_relay_metadata.compute_swap_fees(
+                    args.referral_fee_bps,
+                    args.swap_platform_fee_bps,
+                    args.amount_searcher,
+                )?;
                 Ok((
                     TransferSwapFeeArgs {
                         fees,
@@ -50,9 +64,11 @@ impl<'info> Swap<'info> {
                 let SwapFeesWithRemainingAmount {
                     fees,
                     remaining_amount,
-                } = self
-                    .express_relay_metadata
-                    .compute_swap_fees(args.referral_fee_bps, args.amount_user)?;
+                } = self.express_relay_metadata.compute_swap_fees(
+                    args.referral_fee_bps,
+                    args.swap_platform_fee_bps,
+                    args.amount_user,
+                )?;
                 Ok((
                     TransferSwapFeeArgs {
                         fees,
@@ -69,11 +85,22 @@ impl<'info> Swap<'info> {
     }
 
     pub fn transfer_swap_fees_cpi<'a>(&self, args: &TransferSwapFeeArgs<'info, 'a>) -> Result<()> {
-        self.transfer_swap_fee_cpi(args.fees.router_fee, &self.router_fee_receiver_ta, args)?;
-        self.transfer_swap_fee_cpi(args.fees.relayer_fee, &self.relayer_fee_receiver_ata, args)?;
+        self.transfer_swap_fee_cpi(
+            args.fees.router_fee,
+            &self.router_fee_receiver_ta,
+            None,
+            args,
+        )?;
+        self.transfer_swap_fee_cpi(
+            args.fees.relayer_fee,
+            &self.relayer_fee_receiver_ata,
+            Some(&self.express_relay_metadata.fee_receiver_relayer),
+            args,
+        )?;
         self.transfer_swap_fee_cpi(
             args.fees.express_relay_fee,
             &self.express_relay_fee_receiver_ata,
+            Some(self.express_relay_metadata.to_account_info().key),
             args,
         )?;
         Ok(())
@@ -82,12 +109,14 @@ impl<'info> Swap<'info> {
     fn transfer_swap_fee_cpi<'a>(
         &self,
         fee: u64,
-        receiver_ta: &InterfaceAccount<'info, TokenAccount>,
+        receiver_ta: &UncheckedAccount<'info>,
+        receiver: Option<&Pubkey>,
         args: &TransferSwapFeeArgs<'info, 'a>,
     ) -> Result<()> {
-        transfer_token_if_needed(
+        check_receiver_and_transfer_token_if_needed(
             args.from,
             receiver_ta,
+            receiver,
             &self.token_program_fee,
             args.authority,
             &self.mint_fee,
@@ -96,7 +125,7 @@ impl<'info> Swap<'info> {
         Ok(())
     }
 
-    pub fn check_enough_balances(&self, args: &SwapArgs) -> Result<()> {
+    pub fn check_enough_balances(&self, args: &SwapV2Args) -> Result<()> {
         require_gte!(
             self.searcher_ta_mint_searcher.amount,
             args.amount_searcher,
@@ -128,9 +157,27 @@ pub struct SwapFees {
     pub express_relay_fee: u64,
 }
 impl ExpressRelayMetadata {
+    pub fn check_relayer_signer(&self, relayer_signer: &Pubkey) -> Result<()> {
+        if !self.relayer_signer.eq(relayer_signer)
+            && !self.secondary_relayer_signer.eq(relayer_signer)
+        {
+            // TODO: change to a better error code
+            return Err(AnchorErrorCode::ConstraintHasOne.into());
+        }
+        Ok(())
+    }
+
+    pub fn compute_swap_fees_with_default_platform_fee(
+        &self,
+        referral_fee_bps: u16,
+        amount: u64,
+    ) -> Result<SwapFeesWithRemainingAmount> {
+        self.compute_swap_fees(referral_fee_bps, self.swap_platform_fee_bps, amount)
+    }
     pub fn compute_swap_fees(
         &self,
         referral_fee_bps: u16,
+        swap_platform_fee_bps: u64,
         amount: u64,
     ) -> Result<SwapFeesWithRemainingAmount> {
         if u64::from(referral_fee_bps) > FEE_SPLIT_PRECISION {
@@ -141,7 +188,7 @@ impl ExpressRelayMetadata {
             .ok_or(ProgramError::ArithmeticOverflow)?
             / FEE_SPLIT_PRECISION;
         let platform_fee = amount
-            .checked_mul(self.swap_platform_fee_bps)
+            .checked_mul(swap_platform_fee_bps)
             .ok_or(ProgramError::ArithmeticOverflow)?
             / FEE_SPLIT_PRECISION;
         let relayer_fee = platform_fee

@@ -73,6 +73,15 @@ pub mod express_relay {
         Ok(())
     }
 
+    pub fn set_secondary_relayer(ctx: Context<SetSecondaryRelayer>) -> Result<()> {
+        let express_relay_metadata_data = &mut ctx.accounts.express_relay_metadata;
+
+        express_relay_metadata_data.secondary_relayer_signer =
+            *ctx.accounts.secondary_relayer_signer.key;
+
+        Ok(())
+    }
+
     pub fn set_splits(ctx: Context<SetSplits>, data: SetSplitsArgs) -> Result<()> {
         validate_fee_split(data.split_router_default)?;
         validate_fee_split(data.split_relayer)?;
@@ -108,6 +117,9 @@ pub mod express_relay {
     /// Submits a bid for a particular (permission, router) pair and distributes bids according to splits.
     pub fn submit_bid(ctx: Context<SubmitBid>, data: SubmitBidArgs) -> Result<()> {
         check_deadline(data.deadline)?;
+        ctx.accounts
+            .express_relay_metadata
+            .check_relayer_signer(ctx.accounts.relayer_signer.key)?;
 
         // check that not cpi.
         if get_stack_height() > TRANSACTION_LEVEL_STACK_HEIGHT {
@@ -170,8 +182,12 @@ pub mod express_relay {
         )
     }
 
-    pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
+
+    pub fn swap_internal(ctx: Context<Swap>, data: SwapV2Args) -> Result<()> {
         check_deadline(data.deadline)?;
+        ctx.accounts
+            .express_relay_metadata
+            .check_relayer_signer(ctx.accounts.relayer_signer.key)?;
 
         let (
             transfer_swap_fees,
@@ -192,7 +208,7 @@ pub mod express_relay {
         // Transfer tokens
         transfer_token_if_needed(
             &ctx.accounts.searcher_ta_mint_searcher,
-            &ctx.accounts.user_ata_mint_searcher,
+            ctx.accounts.user_ata_mint_searcher.to_account_info(),
             &ctx.accounts.token_program_searcher,
             &ctx.accounts.searcher,
             &ctx.accounts.mint_searcher,
@@ -201,7 +217,7 @@ pub mod express_relay {
 
         transfer_token_if_needed(
             &ctx.accounts.user_ata_mint_user,
-            &ctx.accounts.searcher_ta_mint_user,
+            ctx.accounts.searcher_ta_mint_user.to_account_info(),
             &ctx.accounts.token_program_user,
             &ctx.accounts.user,
             &ctx.accounts.mint_user,
@@ -210,6 +226,14 @@ pub mod express_relay {
 
 
         Ok(())
+    }
+    pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
+        let data = ctx.accounts.convert_to_v2(&data);
+        swap_internal(ctx, data)
+    }
+
+    pub fn swap_v2(ctx: Context<Swap>, data: SwapV2Args) -> Result<()> {
+        swap_internal(ctx, data)
     }
 }
 
@@ -257,11 +281,22 @@ pub struct SetRelayer<'info> {
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
-    /// CHECK: this is just the relayer's signer PK.
+    /// CHECK: this is the relayer public key which can be any arbitrary key.
     pub relayer_signer: UncheckedAccount<'info>,
 
-    /// CHECK: this is just a PK for the relayer to receive fees at.
+    /// CHECK: this is the relayer fee receiver public key which can be any arbitrary key.
     pub fee_receiver_relayer: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SetSecondaryRelayer<'info> {
+    pub admin: Signer<'info>,
+
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+
+    /// CHECK: this is the secondary relayer public key which can be any arbitrary key.
+    pub secondary_relayer_signer: UncheckedAccount<'info>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
@@ -330,7 +365,7 @@ pub struct SubmitBid<'info> {
     #[account(seeds = [SEED_CONFIG_ROUTER, router.key().as_ref()], bump)]
     pub config_router: UncheckedAccount<'info>,
 
-    #[account(mut, seeds = [SEED_METADATA], bump, has_one = relayer_signer, has_one = fee_receiver_relayer)]
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = fee_receiver_relayer)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
 
     /// CHECK: this is just a PK for the relayer to receive fees at.
@@ -400,6 +435,19 @@ pub struct SwapArgs {
     pub fee_token:        FeeToken,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
+pub struct SwapV2Args {
+    // deadline as a unix timestamp in seconds
+    pub deadline:              i64,
+    pub amount_searcher:       u64,
+    pub amount_user:           u64,
+    // The referral fee is specified in basis points
+    pub referral_fee_bps:      u16,
+    // Token in which the fees will be paid
+    pub fee_token:             FeeToken,
+    pub swap_platform_fee_bps: u64,
+}
+
 #[derive(Accounts)]
 #[instruction(data: Box<SwapArgs>)]
 pub struct Swap<'info> {
@@ -445,28 +493,17 @@ pub struct Swap<'info> {
 
     // Fee receivers
     /// Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee
-    #[account(
-        mut,
-        token::mint = mint_fee,
-        token::token_program = token_program_fee
-    )]
-    pub router_fee_receiver_ta: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: we check this account manually since it can be uninitialized if the fee is 0
+    #[account(mut)]
+    pub router_fee_receiver_ta: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        associated_token::mint = mint_fee,
-        associated_token::authority = express_relay_metadata.fee_receiver_relayer,
-        associated_token::token_program = token_program_fee
-    )]
-    pub relayer_fee_receiver_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: we check this account manually since it can be uninitialized if the fee is 0
+    #[account(mut)]
+    pub relayer_fee_receiver_ata: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        associated_token::mint = mint_fee,
-        associated_token::authority = express_relay_metadata.key(),
-        associated_token::token_program = token_program_fee
-    )]
-    pub express_relay_fee_receiver_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: we check this account manually since it can be uninitialized if the fee is 0
+    #[account(mut)]
+    pub express_relay_fee_receiver_ata: UncheckedAccount<'info>,
 
     // Mints
     #[account(mint::token_program = token_program_searcher)]
@@ -491,7 +528,7 @@ pub struct Swap<'info> {
     pub token_program_fee: Interface<'info, TokenInterface>,
 
     /// Express relay configuration
-    #[account(seeds = [SEED_METADATA], bump, has_one = relayer_signer)]
+    #[account(seeds = [SEED_METADATA], bump)]
     pub express_relay_metadata: Box<Account<'info, ExpressRelayMetadata>>,
 
     pub relayer_signer: Signer<'info>,
