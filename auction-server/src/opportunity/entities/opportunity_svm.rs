@@ -19,9 +19,9 @@ use {
     },
     ::express_relay::FeeToken as ProgramFeeToken,
     express_relay::state::FEE_SPLIT_PRECISION,
-    express_relay_api_types::{
-        opportunity as api,
-        opportunity::QuoteTokensWithTokenPrograms,
+    express_relay_api_types::opportunity::{
+        self as api,
+        QuoteTokensWithTokenPrograms,
     },
     serde::{
         Deserialize,
@@ -29,7 +29,13 @@ use {
     },
     solana_sdk::{
         clock::Slot,
+        program_pack::Pack,
         pubkey::Pubkey,
+        rent::Rent,
+    },
+    spl_token_2022::{
+        extension::StateWithExtensions,
+        state::Account as TokenAccount,
     },
     std::ops::Deref,
     time::{
@@ -274,6 +280,31 @@ pub fn get_opportunity_swap_data(opp: &OpportunitySvm) -> &OpportunitySvmProgram
         _ => {
             panic!("Opportunity must be a swap opportunity to get swap data");
         }
+    }
+}
+
+impl OpportunitySvmProgramSwap {
+    pub fn get_user_amount_to_wrap(&self, amount_user: u64) -> u64 {
+        let number_of_paid_atas_by_user = match (
+            &self.token_account_initialization_configs.user_ata_mint_user,
+            &self
+                .token_account_initialization_configs
+                .user_ata_mint_searcher,
+        ) {
+            (
+                TokenAccountInitializationConfig::UserPayer,
+                TokenAccountInitializationConfig::UserPayer,
+            ) => 2,
+            (TokenAccountInitializationConfig::UserPayer, _) => 1,
+            (_, TokenAccountInitializationConfig::UserPayer) => 1,
+            _ => 0,
+        };
+        std::cmp::min(
+            amount_user,
+            self.user_mint_user_balance.saturating_sub(
+                number_of_paid_atas_by_user * Rent::default().minimum_balance(TokenAccount::LEN),
+            ),
+        )
     }
 }
 
