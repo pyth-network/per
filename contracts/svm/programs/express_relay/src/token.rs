@@ -18,12 +18,12 @@ pub fn get_token_account_checked(
     }
 
     if account.owner != expected_program_id {
-        return Err(ErrorCode::ConstraintOwner.into());
+        return Err(ErrorCode::ConstraintTokenTokenProgram.into());
     }
 
     let token_account = match TokenAccount::try_deserialize(&mut &account.data.borrow()[..]) {
         Ok(ta) => ta,
-        Err(_) => return Err(ErrorCode::ConstraintTokenTokenProgram.into()),
+        Err(_) => return Err(ErrorCode::AccountDidNotDeserialize.into()),
     };
 
     Ok(token_account)
