@@ -193,14 +193,15 @@ pub struct SwapSetupParams {
 }
 
 pub struct SwapSetupResult {
-    pub svm:                     LiteSVM,
-    pub user:                    Keypair,
-    pub searcher:                Keypair,
-    pub token_searcher:          Token,
-    pub token_user:              Token,
-    pub router_ta_mint_searcher: Pubkey,
-    pub router_ta_mint_user:     Pubkey,
-    pub relayer_signer:          Keypair,
+    pub svm:                      LiteSVM,
+    pub user:                     Keypair,
+    pub searcher:                 Keypair,
+    pub token_searcher:           Token,
+    pub token_user:               Token,
+    pub router_ta_mint_searcher:  Pubkey,
+    pub router_ta_mint_user:      Pubkey,
+    pub relayer_signer:           Keypair,
+    pub secondary_relayer_signer: Keypair,
 }
 
 pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
@@ -209,6 +210,7 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
         admin,
         searcher,
         relayer_signer,
+        secondary_relayer_signer,
         ..
     } = setup(None).expect("setup failed");
 
@@ -240,6 +242,7 @@ pub fn setup_swap(args: SwapSetupParams) -> SwapSetupResult {
         router_ta_mint_searcher,
         router_ta_mint_user,
         relayer_signer,
+        secondary_relayer_signer,
     }
 }
 
@@ -289,6 +292,7 @@ fn test_swap_fee_mint_searcher(args: SwapSetupParams) {
         router_ta_mint_searcher,
         router_ta_mint_user,
         relayer_signer,
+        ..
     } = setup_swap(args);
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
@@ -444,6 +448,7 @@ fn test_swap_fee_mint_user(args: SwapSetupParams) {
         router_ta_mint_searcher,
         router_ta_mint_user,
         relayer_signer,
+        ..
     } = setup_swap(args);
 
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
@@ -1416,4 +1421,119 @@ fn test_swap_exact_balance_user() {
     )
     .unwrap();
 }
-// TODO Add test for having no relayer signer
+
+
+#[test]
+fn test_swap_secondary_relayer() {
+    let SwapSetupResult {
+        mut svm,
+        user,
+        searcher,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
+        secondary_relayer_signer,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    // user token fee
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_searcher:  token_searcher.get_amount_with_decimals(10.),
+        amount_user:      token_user.get_amount_with_decimals(10.), // exact balance of user
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::User,
+    };
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        user.pubkey(),
+        None,
+        None,
+        router_ta_mint_user,
+        express_relay_metadata.fee_receiver_relayer,
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
+        swap_args,
+        None,
+        None,
+        secondary_relayer_signer.pubkey(),
+    );
+    submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &secondary_relayer_signer],
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_swap_wrong_relayer() {
+    let SwapSetupResult {
+        mut svm,
+        user,
+        searcher,
+        token_searcher,
+        token_user,
+        router_ta_mint_user,
+        ..
+    } = setup_swap(SwapSetupParams {
+        platform_fee_bps:        1000,
+        token_program_searcher:  spl_token::ID,
+        token_decimals_searcher: 6,
+        token_program_user:      spl_token::ID,
+        token_decimals_user:     6,
+    });
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    // user token fee
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_searcher:  token_searcher.get_amount_with_decimals(10.),
+        amount_user:      token_user.get_amount_with_decimals(10.), // exact balance of user
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::User,
+    };
+    let wrong_relayer_signer = Keypair::new();
+
+    let instructions = build_swap_instructions(
+        searcher.pubkey(),
+        user.pubkey(),
+        None,
+        None,
+        router_ta_mint_user,
+        express_relay_metadata.fee_receiver_relayer,
+        token_searcher.mint,
+        token_user.mint,
+        Some(token_searcher.token_program),
+        Some(token_user.token_program),
+        swap_args,
+        None,
+        None,
+        wrong_relayer_signer.pubkey(),
+    );
+    let tx_result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &wrong_relayer_signer],
+    )
+    .expect_err("Transaction should fail");
+    assert_custom_error(
+        tx_result.err,
+        4,
+        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
+    );
+}
