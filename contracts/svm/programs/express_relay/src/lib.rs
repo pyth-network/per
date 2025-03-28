@@ -435,6 +435,19 @@ pub struct SwapArgs {
     pub fee_token:        FeeToken,
 }
 
+impl SwapArgs {
+    pub fn convert_to_v2(&self, swap_platform_fee_bps: u64) -> SwapV2Args {
+        SwapV2Args {
+            deadline: self.deadline,
+            amount_searcher: self.amount_searcher,
+            amount_user: self.amount_user,
+            fee_token: self.fee_token,
+            referral_fee_bps: self.referral_fee_bps,
+            swap_platform_fee_bps,
+        }
+    }
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapV2Args {
     // deadline as a unix timestamp in seconds

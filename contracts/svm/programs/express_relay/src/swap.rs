@@ -25,14 +25,7 @@ pub struct PostFeeSwapArgs {
 
 impl<'info> Swap<'info> {
     pub fn convert_to_v2(&self, args: &SwapArgs) -> SwapV2Args {
-        SwapV2Args {
-            deadline:              args.deadline,
-            amount_searcher:       args.amount_searcher,
-            amount_user:           args.amount_user,
-            fee_token:             args.fee_token,
-            referral_fee_bps:      args.referral_fee_bps,
-            swap_platform_fee_bps: self.express_relay_metadata.swap_platform_fee_bps,
-        }
+        args.convert_to_v2(self.express_relay_metadata.swap_platform_fee_bps)
     }
     pub fn compute_swap_fees<'a>(
         &'a self,
