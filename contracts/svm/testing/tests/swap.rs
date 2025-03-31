@@ -1261,6 +1261,115 @@ fn test_no_express_relay_and_relayer_fee_receiver_ata_check_when_fee_is_zero() {
     .unwrap();
 }
 
+#[test]
+fn test_relayer_fee_receiver_non_ata() {
+    let SwapSetupResult {
+        mut svm,
+        user,
+        searcher,
+        token_searcher,
+        token_user,
+        relayer_signer,
+        router_ta_mint_user,
+        ..
+    } = setup_swap(Default::default());
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    // user token fee
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_searcher:  token_searcher.get_amount_with_decimals(10.),
+        amount_user:      token_user.get_amount_with_decimals(10.), // exact balance of user
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::User,
+    };
+
+    let relayer_fee_receiver_ta =
+        token_user.create_token_account(&mut svm, &express_relay_metadata.fee_receiver_relayer);
+
+    let instructions = build_swap_instructions(SwapParams {
+        searcher: searcher.pubkey(),
+        user: user.pubkey(),
+        router_fee_receiver_ta: router_ta_mint_user,
+        fee_receiver_relayer: express_relay_metadata.fee_receiver_relayer,
+        token_searcher: token_searcher.clone(),
+        token_user: token_user.clone(),
+        swap_args,
+        overrides: SwapParamOverride {
+            relayer_fee_receiver_ata: Some(relayer_fee_receiver_ta),
+            ..Default::default()
+        },
+        relayer_signer: relayer_signer.pubkey(),
+    });
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(AnchorErrorCode::AccountNotAssociatedTokenAccount.into()),
+    );
+}
+
+#[test]
+fn test_express_relay_fee_receiver_non_ata() {
+    let SwapSetupResult {
+        mut svm,
+        user,
+        searcher,
+        token_searcher,
+        token_user,
+        relayer_signer,
+        router_ta_mint_user,
+        ..
+    } = setup_swap(Default::default());
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    // user token fee
+    let swap_args = SwapArgs {
+        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_searcher:  token_searcher.get_amount_with_decimals(10.),
+        amount_user:      token_user.get_amount_with_decimals(10.), // exact balance of user
+        referral_fee_bps: 1500,
+        fee_token:        FeeToken::User,
+    };
+
+    let express_relay_fee_receiver_ta =
+        token_user.create_token_account(&mut svm, &get_express_relay_metadata_key());
+
+    let instructions = build_swap_instructions(SwapParams {
+        searcher: searcher.pubkey(),
+        user: user.pubkey(),
+        router_fee_receiver_ta: router_ta_mint_user,
+        fee_receiver_relayer: express_relay_metadata.fee_receiver_relayer,
+        token_searcher: token_searcher.clone(),
+        token_user: token_user.clone(),
+        swap_args,
+        overrides: SwapParamOverride {
+            express_relay_fee_receiver_ata: Some(express_relay_fee_receiver_ta),
+            ..Default::default()
+        },
+        relayer_signer: relayer_signer.pubkey(),
+    });
+    let result = submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap_err();
+    assert_custom_error(
+        result.err,
+        4,
+        InstructionError::Custom(AnchorErrorCode::AccountNotAssociatedTokenAccount.into()),
+    );
+}
 
 #[test]
 fn test_no_relayer_fee_receiver_ata_check_when_fee_is_zero() {

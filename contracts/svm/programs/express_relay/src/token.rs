@@ -1,11 +1,14 @@
 use {
     anchor_lang::prelude::*,
-    anchor_spl::token_interface::{
-        self,
-        Mint,
-        TokenAccount,
-        TokenInterface,
-        TransferChecked,
+    anchor_spl::{
+        associated_token::get_associated_token_address_with_program_id,
+        token_interface::{
+            self,
+            Mint,
+            TokenAccount,
+            TokenInterface,
+            TransferChecked,
+        },
     },
 };
 
@@ -71,6 +74,14 @@ pub fn check_receiver_and_transfer_token_if_needed<'info>(
         if let Some(recipient) = recipient {
             if !to.owner.eq(recipient) {
                 return Err(ErrorCode::ConstraintTokenOwner.into());
+            }
+            if get_associated_token_address_with_program_id(
+                recipient,
+                &mint.key(),
+                &token_program.key(),
+            ) != recipient_token_account.key()
+            {
+                return Err(ErrorCode::AccountNotAssociatedTokenAccount.into());
             }
         }
         if !to.mint.eq(&mint.key()) {
