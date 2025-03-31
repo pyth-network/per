@@ -243,7 +243,7 @@ local_resource(
 
 local_resource(
     "svm-test-swap-endpoint",
-    "poetry -C tilt-scripts run python3 -m tilt-scripts.svm.test_swap --file-private-key-taker keypairs/searcher.json --auction-server-url http://localhost:9000 --input-mint {MINT_SELL} --output-mint {MINT_BUY} --rpc-url {RPC_URL}"
+    "poetry -C tilt-scripts run python3 -m tilt-scripts.svm.test_swap --file-private-key-taker keypairs/admin.json --auction-server-url http://localhost:9000 --input-mint {MINT_SELL} --output-mint {MINT_BUY} --rpc-url {RPC_URL}"
     .format(RPC_URL=rpc_url_solana, MINT_SELL=MINT_SELL, MINT_BUY=MINT_BUY),
     resource_deps=["svm-searcher-js", "rust-searcher", "svm-searcher-py"],
 )
