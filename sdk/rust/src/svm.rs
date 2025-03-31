@@ -479,7 +479,7 @@ impl Svm {
         user_mint_user_balance: u64,
         token_account_initialization_configs: &TokenAccountInitializationConfigs,
     ) -> u64 {
-        let number_of_paid_atas_by_user = [
+        let number_of_atas_paid_by_user = [
             &token_account_initialization_configs.user_ata_mint_user,
             &token_account_initialization_configs.user_ata_mint_searcher,
         ]
@@ -490,7 +490,7 @@ impl Svm {
         std::cmp::min(
             amount_user,
             user_mint_user_balance.saturating_sub(
-                number_of_paid_atas_by_user as u64
+                number_of_atas_paid_by_user as u64
                     * Rent::default().minimum_balance(TokenAccount::LEN),
             ),
         )
