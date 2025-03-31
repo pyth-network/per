@@ -1192,7 +1192,7 @@ fn test_no_router_ata_check_when_fee_is_zero() {
         searcher: searcher.pubkey(),
         user: user.pubkey(),
         // random mutable key instead of actual router token account
-        router_fee_receiver_ta: relayer_signer.pubkey(),
+        router_fee_receiver_ta: Pubkey::new_unique(),
         fee_receiver_relayer: express_relay_metadata.fee_receiver_relayer,
         token_searcher: token_searcher.clone(),
         token_user: token_user.clone(),
