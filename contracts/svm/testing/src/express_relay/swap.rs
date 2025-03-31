@@ -1,21 +1,22 @@
 use {
     super::helpers::get_express_relay_metadata_key,
+    crate::token::Token,
     anchor_lang::{
         InstructionData,
         ToAccountMetas,
     },
-    anchor_spl::{
-        associated_token::{
-            get_associated_token_address_with_program_id,
-            spl_associated_token_account::instruction::create_associated_token_account_idempotent,
-        },
-        token::spl_token,
+    anchor_spl::associated_token::{
+        get_associated_token_address_with_program_id,
+        spl_associated_token_account::instruction::create_associated_token_account_idempotent,
     },
     express_relay::{
         accounts::{
             self,
         },
-        instruction::Swap,
+        instruction::{
+            Swap,
+            SwapV2,
+        },
         FeeToken,
         SwapArgs,
     },
@@ -25,34 +26,62 @@ use {
     },
 };
 
+#[derive(Default)]
+pub struct SwapParamOverride {
+    pub user_ata_mint_user:             Option<Pubkey>,
+    pub mint_fee:                       Option<Pubkey>,
+    pub searcher_ta_mint_searcher:      Option<Pubkey>,
+    pub searcher_ta_mint_user:          Option<Pubkey>,
+    pub express_relay_fee_receiver_ata: Option<Pubkey>,
+    pub relayer_fee_receiver_ata:       Option<Pubkey>,
+    pub platform_fee_bps:               Option<u64>,
+}
+
+pub struct SwapParams {
+    pub searcher:               Pubkey,
+    pub user:                   Pubkey,
+    pub router_fee_receiver_ta: Pubkey,
+    pub fee_receiver_relayer:   Pubkey,
+    pub token_searcher:         Token,
+    pub token_user:             Token,
+    pub swap_args:              SwapArgs,
+    pub relayer_signer:         Pubkey,
+    /// Overrides from default behavior that may result in an invalid instruction
+    /// and are meant to be used for testing.
+    pub overrides:              SwapParamOverride,
+}
+
 /// Builds a swap instruction.
-/// If provides two overrides, `user_ata_mint_user_override` and `mint_fee_override`, that may result in an invalid instruction and are meant to be used for testing.
-#[allow(clippy::too_many_arguments)]
-pub fn create_swap_instruction(
-    searcher: Pubkey,
-    user: Pubkey,
-    searcher_ta_mint_searcher: Option<Pubkey>,
-    searcher_ta_mint_user: Option<Pubkey>,
-    router_fee_receiver_ta: Pubkey,
-    fee_receiver_relayer: Pubkey,
-    mint_searcher: Pubkey,
-    mint_user: Pubkey,
-    token_program_searcher: Option<Pubkey>,
-    token_program_user: Option<Pubkey>,
-    swap_args: SwapArgs,
-    user_ata_mint_user_override: Option<Pubkey>,
-    mint_fee_override: Option<Pubkey>,
-    relayer_signer: Pubkey,
-) -> Instruction {
+pub fn create_swap_instruction(swap_params: SwapParams) -> Instruction {
+    let SwapParams {
+        searcher,
+        user,
+        router_fee_receiver_ta,
+        fee_receiver_relayer,
+        swap_args,
+        relayer_signer,
+        token_searcher,
+        token_user,
+        overrides:
+            SwapParamOverride {
+                searcher_ta_mint_searcher,
+                searcher_ta_mint_user,
+                user_ata_mint_user: user_ata_mint_user_override,
+                mint_fee: mint_fee_override,
+                express_relay_fee_receiver_ata,
+                relayer_fee_receiver_ata,
+                platform_fee_bps,
+            },
+    } = swap_params;
     let express_relay_metadata = get_express_relay_metadata_key();
 
     let mint_fee = mint_fee_override.unwrap_or(match swap_args.fee_token {
-        FeeToken::Searcher => mint_searcher,
-        FeeToken::User => mint_user,
+        FeeToken::Searcher => token_searcher.mint,
+        FeeToken::User => token_user.mint,
     });
 
-    let token_program_searcher = token_program_searcher.unwrap_or(spl_token::ID);
-    let token_program_user = token_program_user.unwrap_or(spl_token::ID);
+    let token_program_searcher = token_searcher.token_program;
+    let token_program_user = token_user.token_program;
 
     let token_program_fee = match swap_args.fee_token {
         FeeToken::Searcher => token_program_searcher,
@@ -64,38 +93,46 @@ pub fn create_swap_instruction(
         searcher_ta_mint_searcher: searcher_ta_mint_searcher.unwrap_or(
             get_associated_token_address_with_program_id(
                 &searcher,
-                &mint_searcher,
+                &token_searcher.mint,
                 &token_program_searcher,
             ),
         ),
         searcher_ta_mint_user: searcher_ta_mint_user.unwrap_or(
             get_associated_token_address_with_program_id(
                 &searcher,
-                &mint_user,
+                &token_user.mint,
                 &token_program_user,
             ),
         ),
         user_ata_mint_searcher: get_associated_token_address_with_program_id(
             &user,
-            &mint_searcher,
+            &token_searcher.mint,
             &token_program_searcher,
         ),
         user_ata_mint_user: user_ata_mint_user_override.unwrap_or(
-            get_associated_token_address_with_program_id(&user, &mint_user, &token_program_user),
+            get_associated_token_address_with_program_id(
+                &user,
+                &token_user.mint,
+                &token_program_user,
+            ),
         ),
         router_fee_receiver_ta,
-        relayer_fee_receiver_ata: get_associated_token_address_with_program_id(
-            &fee_receiver_relayer,
-            &mint_fee,
-            &token_program_fee,
+        relayer_fee_receiver_ata: relayer_fee_receiver_ata.unwrap_or(
+            get_associated_token_address_with_program_id(
+                &fee_receiver_relayer,
+                &mint_fee,
+                &token_program_fee,
+            ),
         ),
-        express_relay_fee_receiver_ata: get_associated_token_address_with_program_id(
-            &express_relay_metadata,
-            &mint_fee,
-            &token_program_fee,
+        express_relay_fee_receiver_ata: express_relay_fee_receiver_ata.unwrap_or(
+            get_associated_token_address_with_program_id(
+                &express_relay_metadata,
+                &mint_fee,
+                &token_program_fee,
+            ),
         ),
-        mint_searcher,
-        mint_user,
+        mint_searcher: token_searcher.mint,
+        mint_user: token_user.mint,
         mint_fee,
         token_program_searcher,
         token_program_user,
@@ -105,39 +142,44 @@ pub fn create_swap_instruction(
     }
     .to_account_metas(None);
 
+    let data = match platform_fee_bps {
+        Some(fee) => SwapV2 {
+            data: swap_args.convert_to_v2(fee),
+        }
+        .data(),
+        None => Swap { data: swap_args }.data(),
+    };
     Instruction {
         program_id: express_relay::ID,
-        accounts:   accounts_submit_bid,
-        data:       Swap { data: swap_args }.data(),
+        accounts: accounts_submit_bid,
+        data,
     }
 }
 
 /// Builds a set of instructions to perform a swap, including creating the associated token accounts.
-/// If provides two overrides, `user_ata_mint_user_override` and `mint_fee_override`, that may result in invalid instructions and are meant to be used for testing.
-#[allow(clippy::too_many_arguments)]
-pub fn build_swap_instructions(
-    searcher: Pubkey,
-    user: Pubkey,
-    searcher_ta_mint_searcher: Option<Pubkey>,
-    searcher_ta_mint_user: Option<Pubkey>,
-    router_fee_receiver_ta: Pubkey,
-    fee_receiver_relayer: Pubkey,
-    mint_searcher: Pubkey,
-    mint_user: Pubkey,
-    token_program_searcher: Option<Pubkey>,
-    token_program_user: Option<Pubkey>,
-    swap_args: SwapArgs,
-    user_ata_mint_user_override: Option<Pubkey>,
-    mint_fee_override: Option<Pubkey>,
-    relayer_signer: Pubkey,
-) -> Vec<Instruction> {
+pub fn build_swap_instructions(swap_params: SwapParams) -> Vec<Instruction> {
+    let SwapParams {
+        searcher,
+        user,
+        fee_receiver_relayer,
+        token_searcher,
+        token_user,
+        swap_args,
+        overrides:
+            SwapParamOverride {
+                searcher_ta_mint_user,
+                mint_fee: mint_fee_override,
+                ..
+            },
+        ..
+    } = &swap_params;
     let mut instructions: Vec<Instruction> = vec![];
 
-    let token_program_searcher = token_program_searcher.unwrap_or(spl_token::ID);
-    let token_program_user = token_program_user.unwrap_or(spl_token::ID);
+    let token_program_searcher = token_searcher.token_program;
+    let token_program_user = token_user.token_program;
     let mint_fee = mint_fee_override.unwrap_or(match swap_args.fee_token {
-        FeeToken::Searcher => mint_searcher,
-        FeeToken::User => mint_user,
+        FeeToken::Searcher => token_searcher.mint,
+        FeeToken::User => token_user.mint,
     });
     let token_program_fee = match swap_args.fee_token {
         FeeToken::Searcher => token_program_searcher,
@@ -146,48 +188,33 @@ pub fn build_swap_instructions(
 
     if searcher_ta_mint_user.is_none() {
         instructions.push(create_associated_token_account_idempotent(
-            &searcher,
-            &searcher,
-            &mint_user,
+            searcher,
+            searcher,
+            &token_user.mint,
             &token_program_user,
         ));
     }
     instructions.push(create_associated_token_account_idempotent(
-        &searcher,
-        &user,
-        &mint_searcher,
+        searcher,
+        user,
+        &token_searcher.mint,
         &token_program_searcher,
     ));
     instructions.push(create_associated_token_account_idempotent(
-        &searcher,
-        &fee_receiver_relayer,
+        searcher,
+        fee_receiver_relayer,
         &mint_fee,
         &token_program_fee,
     ));
     instructions.push(create_associated_token_account_idempotent(
-        &searcher,
+        searcher,
         &get_express_relay_metadata_key(),
         &mint_fee,
         &token_program_fee,
     ));
 
 
-    instructions.push(create_swap_instruction(
-        searcher,
-        user,
-        searcher_ta_mint_searcher,
-        searcher_ta_mint_user,
-        router_fee_receiver_ta,
-        fee_receiver_relayer,
-        mint_searcher,
-        mint_user,
-        Some(token_program_searcher),
-        Some(token_program_user),
-        swap_args,
-        user_ata_mint_user_override,
-        mint_fee_override,
-        relayer_signer,
-    ));
+    instructions.push(create_swap_instruction(swap_params));
 
     instructions
 }
