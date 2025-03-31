@@ -196,7 +196,11 @@ impl Service<ChainTypeSvm> {
                 account
                     .as_ref()
                     .map(|acc| {
-                        StateWithExtensions::<TokenAccount>::unpack(&acc.data[..TokenAccount::LEN])
+                        if acc.data.is_empty()  // Accounts can "exist" (because someone has sent SOL to them) but be uninitialized, this handles that case
+                        {
+                            return Ok(0);
+                        }
+                        StateWithExtensions::<TokenAccount>::unpack(&acc.data)
                             .map_err(|err| {
                                 tracing::error!(error = ?err, "Failed to deserialize a token account");
                                 RestError::TemporarilyUnavailable
