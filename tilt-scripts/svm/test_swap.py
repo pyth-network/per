@@ -78,34 +78,33 @@ async def send_and_submit_quote(server_url, kp_taker, input_token, output_token,
         logger.info("Output token %s", result.json()["output_token"])
         logger.info("Referrer fee %s", result.json()["referrer_fee"])
         logger.info("Platform fee %s", result.json()["platform_fee"])
-        logger.info("Transaction %s", result.json()["transaction"])
-        # response = result.json()
-        # logger.info(response)
-        # tx = SoldersTransaction.from_bytes(base64.b64decode(response["transaction"]))
-        # accounts = tx.message.account_keys
-        # tx = Transaction.from_solders(tx)
-        # tx.sign_partial(kp_taker)
-        # position = accounts.index(pk_taker)
-        # reference_id = response["reference_id"]
+        response = result.json()
+        logger.info(response)
+        tx = SoldersTransaction.from_bytes(base64.b64decode(response["transaction"]))
+        accounts = tx.message.account_keys
+        tx = Transaction.from_solders(tx)
+        tx.sign_partial(kp_taker)
+        position = accounts.index(pk_taker)
+        reference_id = response["reference_id"]
 
-        # payload = {
-        #     "reference_id": reference_id,
-        #     "user_signature": str(tx.signatures[position]),
-        # }
-        # await asyncio.sleep(0.5)
-        # result = await http_client.post(
-        #     server_url + "/v1/{}/quotes/submit".format(chain_id),
-        #     json=payload,
-        # )
-        # if result.status_code != 200:
-        #     logger.error("Failed to submit quote to auction server %s", result.text)
-        #     return
+        payload = {
+            "reference_id": reference_id,
+            "user_signature": str(tx.signatures[position]),
+        }
+        await asyncio.sleep(0.5)
+        result = await http_client.post(
+            server_url + "/v1/{}/quotes/submit".format(chain_id),
+            json=payload,
+        )
+        if result.status_code != 200:
+            logger.error("Failed to submit quote to auction server %s", result.text)
+            return
 
-        # response = result.json()
-        # tx = tx = SoldersTransaction.from_bytes(
-        #     base64.b64decode(response["transaction"])
-        # )
-        # logger.info("Quote submitted to server. Signature: %s", tx.signatures[0])
+        response = result.json()
+        tx = tx = SoldersTransaction.from_bytes(
+            base64.b64decode(response["transaction"])
+        )
+        logger.info("Quote submitted to server. Signature: %s", tx.signatures[0])
 
 
 async def main():
@@ -119,7 +118,7 @@ async def main():
     server_url = args.auction_server_url
     kp_taker = read_kp_from_json(args.file_private_key_taker)
 
-    for input_token in [native_token_address]:
+    for input_token in [input_mint, native_token_address]:
         for output_token in [output_mint, native_token_address]:
             if input_token != output_token:
                 for side in ["input", "output"]:

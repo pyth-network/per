@@ -1417,7 +1417,7 @@ impl Service<Svm> {
                     &bid_data.transaction,
                     &swap_data,
                     &swap_accounts,
-                    &opportunity_swap_data,
+                    opportunity_swap_data,
                 )
                 .await?;
 
@@ -1833,10 +1833,19 @@ mod tests {
             rpc_client::RpcClientConfig,
         },
         solana_sdk::{
-            compute_budget, hash::Hash, instruction::{
+            compute_budget,
+            hash::Hash,
+            instruction::{
                 AccountMeta,
                 Instruction,
-            }, native_token::LAMPORTS_PER_SOL, packet::PACKET_DATA_SIZE, pubkey::Pubkey, signature::Keypair, signer::Signer, system_instruction, transaction::Transaction
+            },
+            native_token::LAMPORTS_PER_SOL,
+            packet::PACKET_DATA_SIZE,
+            pubkey::Pubkey,
+            signature::Keypair,
+            signer::Signer,
+            system_instruction,
+            transaction::Transaction,
         },
         spl_associated_token_account::{
             get_associated_token_address,

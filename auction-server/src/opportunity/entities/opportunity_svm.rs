@@ -33,10 +33,7 @@ use {
         pubkey::Pubkey,
         rent::Rent,
     },
-    spl_token_2022::{
-        extension::StateWithExtensions,
-        state::Account as TokenAccount,
-    },
+    spl_token_2022::state::Account as TokenAccount,
     std::ops::Deref,
     time::{
         Duration,
@@ -287,15 +284,20 @@ impl OpportunitySvmProgramSwap {
     pub fn get_user_amount_to_wrap(&self, amount_user: u64) -> u64 {
         let number_of_paid_atas_by_user = [
             &self.token_account_initialization_configs.user_ata_mint_user,
-            &self.token_account_initialization_configs.user_ata_mint_searcher,
-        ].iter()
-            .filter(|&&config| matches!(config, TokenAccountInitializationConfig::UserPayer))
-            .count();
-        
+            &self
+                .token_account_initialization_configs
+                .user_ata_mint_searcher,
+        ]
+        .iter()
+        .filter(|&&config| matches!(config, TokenAccountInitializationConfig::UserPayer))
+        .count();
+
         std::cmp::min(
             amount_user,
-            self.user_mint_user_balance
-                .saturating_sub(number_of_paid_atas_by_user as u64 * Rent::default().minimum_balance(TokenAccount::LEN))
+            self.user_mint_user_balance.saturating_sub(
+                number_of_paid_atas_by_user as u64
+                    * Rent::default().minimum_balance(TokenAccount::LEN),
+            ),
         )
     }
 }

@@ -25,7 +25,14 @@ use {
     },
     solana_rpc_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
-        clock::Slot, hash::Hash, instruction::Instruction, program_pack::Pack, pubkey::Pubkey, rent::Rent, signature::Keypair, system_instruction::transfer
+        clock::Slot,
+        hash::Hash,
+        instruction::Instruction,
+        program_pack::Pack,
+        pubkey::Pubkey,
+        rent::Rent,
+        signature::Keypair,
+        system_instruction::transfer,
     },
     spl_associated_token_account::{
         get_associated_token_address,
@@ -472,22 +479,19 @@ impl Svm {
         user_mint_user_balance: u64,
         token_account_initialization_configs: &TokenAccountInitializationConfigs,
     ) -> u64 {
-        let number_of_paid_atas_by_user = match (
+        let number_of_paid_atas_by_user = [
             &token_account_initialization_configs.user_ata_mint_user,
             &token_account_initialization_configs.user_ata_mint_searcher,
-        ) {
-            (
-                TokenAccountInitializationConfig::UserPayer,
-                TokenAccountInitializationConfig::UserPayer,
-            ) => 2,
-            (TokenAccountInitializationConfig::UserPayer, _) => 1,
-            (_, TokenAccountInitializationConfig::UserPayer) => 1,
-            _ => 0,
-        };
+        ]
+        .iter()
+        .filter(|&&config| matches!(config, TokenAccountInitializationConfig::UserPayer))
+        .count();
+
         std::cmp::min(
             amount_user,
             user_mint_user_balance.saturating_sub(
-                number_of_paid_atas_by_user * Rent::default().minimum_balance(TokenAccount::LEN),
+                number_of_paid_atas_by_user as u64
+                    * Rent::default().minimum_balance(TokenAccount::LEN),
             ),
         )
     }
