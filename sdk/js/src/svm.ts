@@ -39,6 +39,7 @@ function getExpressRelayProgram(chain: string): PublicKey {
 }
 
 export const FEE_SPLIT_PRECISION = new anchor.BN(10000);
+const RENT_TOKEN_ACCOUNT_LAMPORTS = 2039280;
 
 export function getConfigRouterPda(
   chain: string,
@@ -434,19 +435,17 @@ function getUserAmountToWrap(
   userMintUserBalance: anchor.BN,
   tokenAccountInitializationConfigs: TokenAccountInitializationConfigs,
 ): anchor.BN {
-  const numberOfPaidAtasByUser =
-    (tokenAccountInitializationConfigs.userAtaMintUser === "user_payer"
-      ? 1
-      : 0) +
-    (tokenAccountInitializationConfigs.userAtaMintSearcher === "user_payer"
-      ? 1
-      : 0);
+  const numberOfAtasPaidByUser = [
+    tokenAccountInitializationConfigs.userAtaMintUser,
+    tokenAccountInitializationConfigs.userAtaMintSearcher,
+  ].filter((config) => config === "user_payer").length;
 
-  console.log(numberOfPaidAtasByUser);
   return anchor.BN.min(
     amountUser,
     anchor.BN.max(
-      userMintUserBalance.sub(new anchor.BN(numberOfPaidAtasByUser * 2039280)),
+      userMintUserBalance.sub(
+        new anchor.BN(numberOfAtasPaidByUser * RENT_TOKEN_ACCOUNT_LAMPORTS),
+      ),
       new anchor.BN(0),
     ),
   );
@@ -493,35 +492,24 @@ export async function constructSwapBid(
   }
 
   if (userToken.equals(NATIVE_MINT)) {
-    if (swapOpportunity.tokens.type === "searcher_specified") {
-      tx.instructions.push(
-        ...getWrapSolInstructions(
-          searcher,
-          user,
-          getUserAmountToWrap(
-            getBidAmountIncludingFees(swapOpportunity, bidAmount),
-            userMintUserBalance,
-            tokenInitializationConfigs,
-          ),
-          false,
-        ), // this account creation is handled in the ata initialization section
-      );
-    } else {
-      tx.instructions.push(
-        ...getWrapSolInstructions(
-          searcher,
-          user,
-          getUserAmountToWrap(
-            new anchor.BN(
-              swapOpportunity.tokens.userTokenAmountIncludingFees.toString(),
-            ),
-            userMintUserBalance,
-            tokenInitializationConfigs,
-          ),
-        ),
-      );
-    }
+    const amountUser =
+      swapOpportunity.tokens.type === "user_specified"
+        ? new anchor.BN(
+            swapOpportunity.tokens.userTokenAmountIncludingFees.toString(),
+          )
+        : getBidAmountIncludingFees(swapOpportunity, bidAmount);
+
+    const amountUserToWrap = getUserAmountToWrap(
+      amountUser,
+      userMintUserBalance,
+      tokenInitializationConfigs,
+    );
+
+    tx.instructions.push(
+      ...getWrapSolInstructions(searcher, user, amountUserToWrap, false), // this account creation is handled in the ata initialization section
+    );
   }
+
   const swapInstruction = await constructSwapInstruction(
     searcher,
     swapOpportunity,
