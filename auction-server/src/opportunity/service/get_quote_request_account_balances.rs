@@ -196,7 +196,10 @@ impl Service<ChainTypeSvm> {
                 account
                     .as_ref()
                     .map(|acc| {
-                        StateWithExtensions::<TokenAccount>::unpack(&acc.data[..TokenAccount::LEN])
+                        if acc.data.is_empty() {
+                            return Ok(0);
+                        }
+                        StateWithExtensions::<TokenAccount>::unpack(&acc.data)
                             .map_err(|err| {
                                 tracing::error!(error = ?err, "Failed to deserialize a token account");
                                 RestError::TemporarilyUnavailable
