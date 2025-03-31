@@ -846,8 +846,8 @@ impl Service<Svm> {
 
         // User have to wrap Sol
         if swap_accounts.mint_user == spl_token::native_mint::id() {
-            // Sometimes the user doesn't have enought SOL, but we want the transaction to fail in the Expert Relay program with InsufficientUserFunds
-            // Therefore we allow the user to wrap less SOL than needed to it doesn't fail in the transfer instruction
+            // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Expert Relay program with InsufficientUserFunds
+            // Therefore we allow the user to wrap less SOL than needed so it doesn't fail in the transfer instruction
             let amount_user_to_wrap =
                 opportunity_swap_data.get_user_amount_to_wrap(swap_data.amount_user);
 
@@ -880,7 +880,10 @@ impl Service<Svm> {
                     },
                 ));
             }
-            if amount_user_to_wrap != transfer_instruction.lamports {
+            // todo: remove swap_data.amount_user != transfer_instruction.lamports once searchers have updated their sdk
+            if swap_data.amount_user != transfer_instruction.lamports
+                && amount_user_to_wrap != transfer_instruction.lamports
+            {
                 return Err(RestError::InvalidInstruction(
                     Some(transfer_instruction.index),
                     InstructionError::InvalidAmountTransferInstruction {
