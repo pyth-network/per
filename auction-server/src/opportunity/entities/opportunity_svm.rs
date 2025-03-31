@@ -296,7 +296,7 @@ impl OpportunitySvmProgramSwap {
             amount_user,
             self.user_mint_user_balance.saturating_sub(
                 number_of_atas_paid_by_user as u64
-                    * Rent::default().minimum_balance(TokenAccount::LEN),
+                    * Rent::default().minimum_balance(TokenAccount::LEN), // todo: token2022 accounts can be bigger than this, this hack might not work for them
             ),
         )
     }
