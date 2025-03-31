@@ -832,6 +832,7 @@ impl Service<Svm> {
         tx: &VersionedTransaction,
         swap_data: &express_relay_svm::SwapArgs,
         swap_accounts: &SwapAccounts,
+        opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
         let transfer_instructions = self.extract_transfer_instructions(tx).await?;
         if transfer_instructions.len() > 1 {
@@ -845,6 +846,11 @@ impl Service<Svm> {
 
         // User have to wrap Sol
         if swap_accounts.mint_user == spl_token::native_mint::id() {
+            // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Express Relay program with InsufficientUserFunds
+            // Therefore we allow the user to wrap less SOL than needed so it doesn't fail in the transfer instruction
+            let amount_user_to_wrap =
+                opportunity_swap_data.get_user_amount_to_wrap(swap_data.amount_user);
+
             if transfer_instructions.len() != 1 {
                 return Err(RestError::InvalidInstruction(
                     None,
@@ -874,11 +880,14 @@ impl Service<Svm> {
                     },
                 ));
             }
-            if swap_data.amount_user != transfer_instruction.lamports {
+            // todo: remove swap_data.amount_user != transfer_instruction.lamports once searchers have updated their sdk
+            if swap_data.amount_user != transfer_instruction.lamports
+                && amount_user_to_wrap != transfer_instruction.lamports
+            {
                 return Err(RestError::InvalidInstruction(
                     Some(transfer_instruction.index),
                     InstructionError::InvalidAmountTransferInstruction {
-                        expected: swap_data.amount_user,
+                        expected: amount_user_to_wrap,
                         found:    transfer_instruction.lamports,
                     },
                 ));
@@ -1300,8 +1309,9 @@ impl Service<Svm> {
         tx: &VersionedTransaction,
         swap_data: &express_relay_svm::SwapArgs,
         swap_accounts: &SwapAccounts,
+        opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
-        self.check_transfer_instruction(tx, swap_data, swap_accounts)
+        self.check_transfer_instruction(tx, swap_data, swap_accounts, opportunity_swap_data)
             .await?;
         if swap_accounts.mint_user == spl_token::native_mint::id() {
             // User has to wrap Sol
@@ -1410,6 +1420,7 @@ impl Service<Svm> {
                     &bid_data.transaction,
                     &swap_data,
                     &swap_accounts,
+                    opportunity_swap_data,
                 )
                 .await?;
 
@@ -1831,6 +1842,7 @@ mod tests {
                 AccountMeta,
                 Instruction,
             },
+            native_token::LAMPORTS_PER_SOL,
             packet::PACKET_DATA_SIZE,
             pubkey::Pubkey,
             signature::Keypair,
@@ -1985,7 +1997,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
@@ -2021,7 +2033,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
@@ -2057,7 +2069,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs: TokenAccountInitializationConfigs {
                     user_ata_mint_user: TokenAccountInitializationConfig::SearcherPayer,
                     ..TokenAccountInitializationConfigs::searcher_payer()
@@ -2095,7 +2107,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
@@ -2140,7 +2152,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
@@ -2177,7 +2189,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token: fee_token.clone(),
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs: TokenAccountInitializationConfigs {
                     user_ata_mint_user: TokenAccountInitializationConfig::UserPayer,
                     user_ata_mint_searcher: TokenAccountInitializationConfig::UserPayer,
@@ -2216,7 +2228,7 @@ mod tests {
                 token_program_searcher: spl_token::id(),
                 fee_token,
                 referral_fee_bps,
-                user_mint_user_balance: 0,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: Some("memo".to_string()),

@@ -60,6 +60,7 @@ from express_relay.svm.generated.express_relay.types.submit_bid_args import (
 from express_relay.svm.generated.express_relay.types.swap_args import SwapArgs
 from express_relay.svm.limo_client import LimoClient
 from express_relay.svm.token_utils import (
+    RENT_TOKEN_ACCOUNT_LAMPORTS,
     create_associated_token_account_idempotent,
     get_ata,
     unwrap_sol,
@@ -652,6 +653,32 @@ class ExpressRelayClient:
         )
 
     @staticmethod
+    def get_user_amount_to_wrap(
+        amount_user: int,
+        user_mint_user_balance: int,
+        token_account_initialization_configs: TokenAccountInitializationConfigs,
+    ) -> int:
+        number_of_atas_paid_by_user = len(
+            [
+                x
+                for x in [
+                    token_account_initialization_configs.user_ata_mint_user,
+                    token_account_initialization_configs.user_ata_mint_searcher,
+                ]
+                if x == "user_payer"
+            ]
+        )
+
+        return min(
+            amount_user,
+            max(
+                0,
+                user_mint_user_balance
+                - number_of_atas_paid_by_user * RENT_TOKEN_ACCOUNT_LAMPORTS,
+            ),
+        )
+
+    @staticmethod
     def extract_swap_info(swap_opportunity: SwapOpportunitySvm) -> SwapAccounts:
         token_program_searcher = swap_opportunity.tokens.token_program_searcher
         token_program_user = swap_opportunity.tokens.token_program_user
@@ -749,8 +776,13 @@ class ExpressRelayClient:
             )
 
         if accs["user_token"] == WRAPPED_SOL_MINT:
+            amount_to_wrap_user = ExpressRelayClient.get_user_amount_to_wrap(
+                amount_user=amount_user,
+                user_mint_user_balance=swap_opportunity.user_mint_user_balance,
+                token_account_initialization_configs=swap_opportunity.token_account_initialization_configs,
+            )
             instructions.extend(
-                wrap_sol(searcher, accs["user"], amount_user, create_ata=False)
+                wrap_sol(searcher, accs["user"], amount_to_wrap_user, create_ata=False)
             )
         swap_ix = swap(
             {

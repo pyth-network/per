@@ -167,21 +167,21 @@ impl std::fmt::Display for InstructionError {
                 write!(
                     f,
                     "Invalid from account in sol transfer instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    expected, found
                 )
             }
             InstructionError::InvalidToAccountTransferInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid to account in sol transfer instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    expected, found
                 )
             }
             InstructionError::InvalidAmountTransferInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid amount in sol transfer instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    expected, found
                 )
             }
             InstructionError::InvalidSyncNativeInstructionCount(address) => {
@@ -208,42 +208,42 @@ impl std::fmt::Display for InstructionError {
                 write!(
                     f,
                     "Invalid destination account in close account instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    expected, found
                 )
             }
             InstructionError::InvalidOwnerCloseAccountInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid owner in close account instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    expected, found
                 )
             }
             InstructionError::InvalidMintInCreateAtaInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid mint in create associated token account instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    expected, found
                 )
             }
             InstructionError::InvalidOwnerInCreateAtaInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid owner in create associated token account instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    expected, found
                 )
             }
             InstructionError::InvalidPayerInCreateAtaInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid payer in create associated token account instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    expected, found
                 )
             }
             InstructionError::InvalidTokenProgramInCreateAtaInstruction { expected, found } => {
                 write!(
                     f,
                     "Invalid token program in create associated token account instruction. Expected: {:?} found: {:?}",
-                    found, expected
+                    expected, found
                 )
             }
             InstructionError::InvalidSystemProgramInCreateAtaInstruction(program) => {
