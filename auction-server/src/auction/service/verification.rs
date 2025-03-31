@@ -846,7 +846,7 @@ impl Service<Svm> {
 
         // User have to wrap Sol
         if swap_accounts.mint_user == spl_token::native_mint::id() {
-            // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Expert Relay program with InsufficientUserFunds
+            // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Express Relay program with InsufficientUserFunds
             // Therefore we allow the user to wrap less SOL than needed so it doesn't fail in the transfer instruction
             let amount_user_to_wrap =
                 opportunity_swap_data.get_user_amount_to_wrap(swap_data.amount_user);
