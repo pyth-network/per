@@ -28,8 +28,8 @@ use {
 
 #[derive(Default)]
 pub struct SwapParamOverride {
-    pub user_ata_mint_user_override:    Option<Pubkey>,
-    pub mint_fee_override:              Option<Pubkey>,
+    pub user_ata_mint_user:             Option<Pubkey>,
+    pub mint_fee:                       Option<Pubkey>,
     pub searcher_ta_mint_searcher:      Option<Pubkey>,
     pub searcher_ta_mint_user:          Option<Pubkey>,
     pub express_relay_fee_receiver_ata: Option<Pubkey>,
@@ -66,8 +66,8 @@ pub fn create_swap_instruction(swap_params: SwapParams) -> Instruction {
             SwapParamOverride {
                 searcher_ta_mint_searcher,
                 searcher_ta_mint_user,
-                user_ata_mint_user_override,
-                mint_fee_override,
+                user_ata_mint_user: user_ata_mint_user_override,
+                mint_fee: mint_fee_override,
                 express_relay_fee_receiver_ata,
                 relayer_fee_receiver_ata,
                 platform_fee_bps,
@@ -168,7 +168,7 @@ pub fn build_swap_instructions(swap_params: SwapParams) -> Vec<Instruction> {
         overrides:
             SwapParamOverride {
                 searcher_ta_mint_user,
-                mint_fee_override,
+                mint_fee: mint_fee_override,
                 ..
             },
         ..

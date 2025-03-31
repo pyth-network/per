@@ -55,6 +55,7 @@ fn setup_bid() -> BidSetupResult {
 
     let svm = setup_result.svm;
     let relayer_signer = setup_result.relayer_signer;
+    let secondary_relayer_signer = setup_result.secondary_relayer_signer;
     let searcher = setup_result.searcher;
     let fee_receiver_relayer = setup_result.fee_receiver_relayer;
     let permission_key = Keypair::new().pubkey();
@@ -66,7 +67,7 @@ fn setup_bid() -> BidSetupResult {
     BidSetupResult {
         svm,
         relayer_signer,
-        secondary_relayer_signer: setup_result.secondary_relayer_signer,
+        secondary_relayer_signer,
         searcher,
         fee_receiver_relayer,
         router,

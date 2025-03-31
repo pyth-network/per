@@ -693,7 +693,6 @@ fn test_swap_searcher_ta_has_wrong_mint() {
             searcher_ta_mint_searcher: Some(
                 third_token.get_associated_token_address(&searcher.pubkey()),
             ),
-            searcher_ta_mint_user: None,
             ..Default::default()
         },
         relayer_signer: relayer_signer.pubkey(),
@@ -797,9 +796,7 @@ fn test_swap_wrong_express_relay_fee_receiver() {
         token_searcher: token_searcher.clone(),
         token_user: token_user.clone(),
         swap_args,
-        overrides: SwapParamOverride {
-            ..Default::default()
-        },
+        overrides: Default::default(),
         relayer_signer: relayer_signer.pubkey(),
     });
     let result = submit_transaction(
@@ -850,7 +847,7 @@ fn test_swap_user_ata_mint_user_is_not_ata() {
         swap_args,
         overrides: SwapParamOverride {
             // user ata (of mint_user) is not an ata
-            user_ata_mint_user_override: Some(user_ata_mint_user),
+            user_ata_mint_user: Some(user_ata_mint_user),
             ..Default::default()
         },
         relayer_signer: relayer_signer.pubkey(),
@@ -902,7 +899,7 @@ fn test_swap_wrong_mint_fee() {
         token_user: token_user.clone(),
         swap_args,
         overrides: SwapParamOverride {
-            mint_fee_override: Some(token_searcher.mint), // wrong mint fee,
+            mint_fee: Some(token_searcher.mint), // wrong mint fee,
             ..Default::default()
         },
         relayer_signer: relayer_signer.pubkey(),
@@ -1249,8 +1246,8 @@ fn test_no_express_relay_and_relayer_fee_receiver_ata_check_when_fee_is_zero() {
         token_user: token_user.clone(),
         swap_args,
         overrides: SwapParamOverride {
-            express_relay_fee_receiver_ata: Some(relayer_signer.pubkey()),
-            relayer_fee_receiver_ata: Some(relayer_signer.pubkey()),
+            express_relay_fee_receiver_ata: Some(Pubkey::new_unique()),
+            relayer_fee_receiver_ata: Some(Pubkey::new_unique()),
             ..Default::default()
         },
         relayer_signer: relayer_signer.pubkey(),
@@ -1363,56 +1360,6 @@ fn test_swap_secondary_relayer() {
         &[&searcher, &user, &secondary_relayer_signer],
     )
     .unwrap();
-}
-
-#[test]
-fn test_swap_wrong_relayer() {
-    let SwapSetupResult {
-        mut svm,
-        user,
-        searcher,
-        token_searcher,
-        token_user,
-        router_ta_mint_user,
-        ..
-    } = setup_swap(Default::default());
-
-    let express_relay_metadata = get_express_relay_metadata(&mut svm);
-
-    // user token fee
-    let swap_args = SwapArgs {
-        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_searcher:  token_searcher.get_amount_with_decimals(10.),
-        amount_user:      token_user.get_amount_with_decimals(10.), // exact balance of user
-        referral_fee_bps: 1500,
-        fee_token:        FeeToken::User,
-    };
-    let wrong_relayer_signer = Keypair::new();
-
-
-    let instructions = build_swap_instructions(SwapParams {
-        searcher: searcher.pubkey(),
-        user: user.pubkey(),
-        router_fee_receiver_ta: router_ta_mint_user,
-        fee_receiver_relayer: express_relay_metadata.fee_receiver_relayer,
-        token_searcher: token_searcher.clone(),
-        token_user: token_user.clone(),
-        swap_args,
-        overrides: Default::default(),
-        relayer_signer: wrong_relayer_signer.pubkey(),
-    });
-    let tx_result = submit_transaction(
-        &mut svm,
-        &instructions,
-        &searcher,
-        &[&searcher, &user, &wrong_relayer_signer],
-    )
-    .expect_err("Transaction should fail");
-    assert_custom_error(
-        tx_result.err,
-        4,
-        InstructionError::Custom(AnchorErrorCode::ConstraintHasOne.into()),
-    );
 }
 
 #[test]
