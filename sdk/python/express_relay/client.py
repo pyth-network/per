@@ -658,13 +658,15 @@ class ExpressRelayClient:
         user_mint_user_balance: int,
         token_account_initialization_configs: TokenAccountInitializationConfigs,
     ) -> int:
-        number_of_atas_paid_by_user = (
+        number_of_atas_paid_by_user = len(
             [
-                token_account_initialization_configs.user_ata_mint_user,
-                token_account_initialization_configs.user_ata_mint_searcher,
+                x
+                for x in [
+                    token_account_initialization_configs.user_ata_mint_user,
+                    token_account_initialization_configs.user_ata_mint_searcher,
+                ]
+                if x == "user_payer"
             ]
-            .filter(lambda x: x == "user_payer")
-            .count()
         )
 
         return min(
