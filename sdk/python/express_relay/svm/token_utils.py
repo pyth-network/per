@@ -17,6 +17,8 @@ from spl.token.instructions import (
     sync_native,
 )
 
+RENT_TOKEN_ACCOUNT_LAMPORTS = 2039280
+
 
 def get_ata(
     owner: Pubkey, token_mint_address: Pubkey, token_program_id: Pubkey

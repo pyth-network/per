@@ -60,6 +60,7 @@ from express_relay.svm.generated.express_relay.types.submit_bid_args import (
 from express_relay.svm.generated.express_relay.types.swap_args import SwapArgs
 from express_relay.svm.limo_client import LimoClient
 from express_relay.svm.token_utils import (
+    RENT_TOKEN_ACCOUNT_LAMPORTS,
     create_associated_token_account_idempotent,
     get_ata,
     unwrap_sol,
@@ -657,16 +658,22 @@ class ExpressRelayClient:
         user_mint_user_balance: int,
         token_account_initialization_configs: TokenAccountInitializationConfigs,
     ) -> int:
-        number_of_paid_atas_by_user = sum(
-            config == "user_payer"
-            for config in (
+        number_of_atas_paid_by_user = (
+            [
                 token_account_initialization_configs.user_ata_mint_user,
                 token_account_initialization_configs.user_ata_mint_searcher,
-            )
+            ]
+            .filter(lambda x: x == "user_payer")
+            .count()
         )
+
         return min(
             amount_user,
-            max(0, user_mint_user_balance - number_of_paid_atas_by_user * 2039280),
+            max(
+                0,
+                user_mint_user_balance
+                - number_of_atas_paid_by_user * RENT_TOKEN_ACCOUNT_LAMPORTS,
+            ),
         )
 
     @staticmethod
