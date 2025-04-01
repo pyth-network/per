@@ -59,6 +59,7 @@ impl Service<Svm> {
         bid: entities::Bid<Svm>,
         auction: entities::Auction<Svm>,
         lock: entities::BidLock,
+        send_transaction: bool,
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;
 
@@ -88,8 +89,25 @@ impl Service<Svm> {
         // Send transaction after updating bid status to make sure the bid is not cancellable anymore
         // If we submit the transaction before updating the bid status, the DB update can be failed and the bid can be cancelled later.
         // This will cause the transaction to be submitted but the bid to be cancelled.
-        self.send_transaction(&bid).await;
+        if send_transaction {
+            self.send_transaction(&bid).await;
+        }
         Ok(())
+    }
+
+    pub async fn sign_bid_and_submit_quote(
+        &self,
+        bid: entities::Bid<Svm>,
+        auction: entities::Auction<Svm>,
+        send_transaction: bool,
+    ) -> Result<VersionedTransaction, RestError> {
+        let mut bid = bid;
+        self.add_relayer_signature(&mut bid);
+        let bid_lock = self.repo.get_or_create_in_memory_bid_lock(bid.id).await;
+        self.submit_auction_bid_for_lock(bid.clone(), auction, bid_lock, send_transaction)
+            .await?;
+        self.repo.remove_in_memory_bid_lock(&bid.id).await;
+        Ok(bid.chain_data.transaction)
     }
 
     pub async fn submit_quote(
@@ -132,20 +150,11 @@ impl Service<Svm> {
             .position(|p| p.eq(&user_wallet))
             .expect("User wallet not found in transaction");
         bid.chain_data.transaction.signatures[user_signature_pos] = input.user_signature;
-        self.add_relayer_signature(&mut bid);
-
         if bid.chain_data.bid_payment_instruction_type != entities::BidPaymentInstructionType::Swap
         {
             return Err(RestError::BadParameters("Invalid quote".to_string()));
         }
 
-        let bid_lock = self
-            .repo
-            .get_or_create_in_memory_bid_lock(winner_bid.id)
-            .await;
-        self.submit_auction_bid_for_lock(bid.clone(), auction, bid_lock)
-            .await?;
-        self.repo.remove_in_memory_bid_lock(&winner_bid.id).await;
-        Ok(bid.chain_data.transaction)
+        self.sign_bid_and_submit_quote(bid, auction, true).await
     }
 }
