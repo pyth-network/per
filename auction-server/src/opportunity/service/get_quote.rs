@@ -12,6 +12,7 @@ use {
                 Auction,
                 BidPaymentInstructionType,
                 BidStatusAuction,
+                BidStatusSvm,
             },
             service::{
                 add_auction::AddAuctionInput,
@@ -518,7 +519,6 @@ impl Service<ChainTypeSvm> {
                                         tx_hash: signature,
                                         id:      auction.id,
                                     },
-                                    false,
                                 ),
                                 bid,
                             })
@@ -528,20 +528,27 @@ impl Service<ChainTypeSvm> {
             }
         });
 
+        let new_status = if input.quote_create.cancellable {
+            BidStatusSvm::AwaitingSignature {
+                auction: BidStatusAuction {
+                    tx_hash: signature,
+                    id:      auction.id,
+                },
+            }
+        } else {
+            BidStatusSvm::SentToUserForSubmission {
+                auction: BidStatusAuction {
+                    tx_hash: signature,
+                    id:      auction.id,
+                },
+            }
+        };
         // We check if the winner bid status is successfully updated.
         // This is important for the submit_quote function to work correctly.
         if !auction_service
             .update_bid_status(UpdateBidStatusInput {
-                new_status: AuctionService::get_new_status(
-                    winner_bid,
-                    &vec![winner_bid.clone()],
-                    BidStatusAuction {
-                        tx_hash: signature,
-                        id:      auction.id,
-                    },
-                    false,
-                ),
-                bid:        winner_bid.clone(),
+                new_status,
+                bid: winner_bid.clone(),
             })
             .await?
         {

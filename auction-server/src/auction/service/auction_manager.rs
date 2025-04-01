@@ -133,7 +133,6 @@ pub trait AuctionManager<T: ChainTrait> {
         bid: &entities::Bid<T>,
         winner_bids: &[entities::Bid<T>],
         bid_status_auction: entities::BidStatusAuction<T::BidStatusType>,
-        is_submitted: bool,
     ) -> T::BidStatusType;
 
     /// Check if the auction is expired based on the creation time of the auction.
@@ -310,7 +309,6 @@ impl AuctionManager<Evm> for Service<Evm> {
         bid: &entities::Bid<Evm>,
         submitted_bids: &[entities::Bid<Evm>],
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusEvm>,
-        _is_submitted: bool,
     ) -> entities::BidStatusEvm {
         let index = submitted_bids.iter().position(|b| b.id == bid.id);
         match index {
@@ -571,7 +569,6 @@ impl AuctionManager<Svm> for Service<Svm> {
         bid: &entities::Bid<Svm>,
         winner_bids: &[entities::Bid<Svm>],
         bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
-        is_submitted: bool,
     ) -> entities::BidStatusSvm {
         if winner_bids.iter().any(|b| b.id == bid.id) {
             let auction = BidStatusAuction {
@@ -583,11 +580,7 @@ impl AuctionManager<Svm> for Service<Svm> {
                     .first()
                     .expect("Bid has no signature"),
             };
-            if is_submitted {
-                entities::BidStatusSvm::Submitted { auction }
-            } else {
-                entities::BidStatusSvm::AwaitingSignature { auction }
-            }
+            entities::BidStatusSvm::Submitted { auction }
         } else {
             entities::BidStatusSvm::Lost {
                 auction: Some(bid_status_auction),

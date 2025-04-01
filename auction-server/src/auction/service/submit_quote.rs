@@ -67,15 +67,16 @@ impl Service<Svm> {
         let _ = self.get_bid_to_submit(auction.id).await?;
 
         let tx_hash = bid.chain_data.transaction.signatures[0];
-        let auction = self
-            .repo
-            .submit_auction(auction, tx_hash)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = ?e, "Error repo submitting auction");
-                RestError::TemporarilyUnavailable
-            })?;
 
+        if auction.submission_time.is_none() {
+            self.repo
+                .submit_auction(auction.clone(), tx_hash)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = ?e, "Error repo submitting auction");
+                    RestError::TemporarilyUnavailable
+                })?;
+        }
 
         if send_transaction {
             self.update_bid_status(UpdateBidStatusInput {
