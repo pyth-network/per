@@ -17,7 +17,8 @@
                 "expired",
                 "failed",
                 "awaiting_signature",
-                "cancelled"
+                "cancelled",
+                "sent_to_user_for_submission"
               ]
             }
           }
@@ -36,7 +37,8 @@
                 "expired",
                 "failed",
                 "awaiting_signature",
-                "cancelled"
+                "cancelled",
+                "sent_to_user_for_submission"
               ]
             }
           }
@@ -53,7 +55,8 @@
                 "expired",
                 "failed",
                 "awaiting_signature",
-                "cancelled"
+                "cancelled",
+                "sent_to_user_for_submission"
               ]
             }
           }
@@ -70,7 +73,8 @@
                 "expired",
                 "failed",
                 "awaiting_signature",
-                "cancelled"
+                "cancelled",
+                "sent_to_user_for_submission"
               ]
             }
           }

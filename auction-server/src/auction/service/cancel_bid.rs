@@ -51,7 +51,7 @@ impl Service<Svm> {
                 .await?;
                 Ok(())
             }
-            entities::BidStatusSvm::SentToUserForSubmission { auction:_ } => {
+            entities::BidStatusSvm::SentToUserForSubmission { auction: _ } => {
                 Err(RestError::BadParameters(
                     "Bids can't be cancelled for non-cancellable quotes".to_string(),
                 ))
