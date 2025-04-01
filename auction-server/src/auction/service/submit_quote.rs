@@ -75,21 +75,23 @@ impl Service<Svm> {
                 tracing::error!(error = ?e, "Error repo submitting auction");
                 RestError::TemporarilyUnavailable
             })?;
-        self.update_bid_status(UpdateBidStatusInput {
-            bid:        bid.clone(),
-            new_status: entities::BidStatusSvm::Submitted {
-                auction: entities::BidStatusAuction {
-                    id: auction.id,
-                    tx_hash,
-                },
-            },
-        })
-        .await?;
 
-        // Send transaction after updating bid status to make sure the bid is not cancellable anymore
-        // If we submit the transaction before updating the bid status, the DB update can be failed and the bid can be cancelled later.
-        // This will cause the transaction to be submitted but the bid to be cancelled.
+
         if send_transaction {
+            self.update_bid_status(UpdateBidStatusInput {
+                bid:        bid.clone(),
+                new_status: entities::BidStatusSvm::Submitted {
+                    auction: entities::BidStatusAuction {
+                        id: auction.id,
+                        tx_hash,
+                    },
+                },
+            })
+            .await?;
+
+            // Send transaction after updating bid status to make sure the bid is not cancellable anymore
+            // If we submit the transaction before updating the bid status, the DB update can be failed and the bid can be cancelled later.
+            // This will cause the transaction to be submitted but the bid to be cancelled.
             self.send_transaction(&bid).await;
         }
         Ok(())
