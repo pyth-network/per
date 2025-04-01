@@ -191,7 +191,6 @@ impl Service<Svm> {
                                 "New log trigger received",
                             );
                             if let Ok(signature) = Signature::from_str(&rpc_log.value.signature) {
-                                tracing::info!("New log trigger received for signature: {}", signature);
                                 self.task_tracker.spawn({
                                     let service = self.clone();
                                     async move {
