@@ -88,6 +88,7 @@ pub struct Auction {
 pub enum BidStatus {
     Pending,
     AwaitingSignature,
+    SentToUserForSubmission,
     Submitted,
     Lost,
     Won,
@@ -198,6 +199,9 @@ impl ModelTrait<Evm> for Evm {
             BidStatus::AwaitingSignature => {
                 Err(anyhow::anyhow!("Evm bid cannot be awaiting signature"))
             }
+            BidStatus::SentToUserForSubmission => Err(anyhow::anyhow!(
+                "Evm bid cannot be sent to user for submission"
+            )),
             BidStatus::Submitted => {
                 if bid_status_auction.is_none() || index.is_none() {
                     return Err(anyhow::anyhow!(
@@ -390,6 +394,14 @@ impl ModelTrait<Svm> for Svm {
                     },
                 })
             }
+            (BidStatus::SentToUserForSubmission, Some(auction)) => {
+                Ok(entities::BidStatusSvm::SentToUserForSubmission {
+                    auction: entities::BidStatusAuction {
+                        tx_hash: sig,
+                        id:      auction.id,
+                    },
+                })
+            }
             (BidStatus::Submitted, Some(auction)) => Ok(entities::BidStatusSvm::Submitted {
                 auction: entities::BidStatusAuction {
                     tx_hash: sig,
@@ -427,6 +439,9 @@ impl ModelTrait<Svm> for Svm {
         match status {
             entities::BidStatusSvm::Pending => BidStatus::Pending,
             entities::BidStatusSvm::AwaitingSignature { .. } => BidStatus::AwaitingSignature,
+            entities::BidStatusSvm::SentToUserForSubmission { .. } => {
+                BidStatus::SentToUserForSubmission
+            }
             entities::BidStatusSvm::Submitted { .. } => BidStatus::Submitted,
             entities::BidStatusSvm::Lost { .. } => BidStatus::Lost,
             entities::BidStatusSvm::Won { .. } => BidStatus::Won,
@@ -497,6 +512,13 @@ impl ModelTrait<Svm> for Svm {
             entities::BidStatusSvm::AwaitingSignature { auction } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
                 BidStatus::AwaitingSignature as _,
+                auction.id,
+                bid.id,
+                BidStatus::Pending as _,
+            )),
+            entities::BidStatusSvm::SentToUserForSubmission { auction } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+                BidStatus::SentToUserForSubmission as _,
                 auction.id,
                 bid.id,
                 BidStatus::Pending as _,

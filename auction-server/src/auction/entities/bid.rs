@@ -85,6 +85,9 @@ pub enum BidStatusSvm {
     AwaitingSignature {
         auction: BidStatusAuction<Self>,
     },
+    SentToUserForSubmission {
+        auction: BidStatusAuction<Self>,
+    },
     Submitted {
         auction: BidStatusAuction<Self>,
     },
@@ -156,6 +159,7 @@ impl BidStatus for BidStatusSvm {
         match self {
             BidStatusSvm::Pending => None,
             BidStatusSvm::AwaitingSignature { auction } => Some(auction.id),
+            BidStatusSvm::SentToUserForSubmission { auction } => Some(auction.id),
             BidStatusSvm::Submitted { auction } => Some(auction.id),
             BidStatusSvm::Lost { auction } => auction.as_ref().map(|a| a.id),
             BidStatusSvm::Won { auction } => Some(auction.id),

@@ -105,6 +105,13 @@ pub enum BidStatusSvm {
         #[serde(with = "crate::serde::nullable_signature_svm")]
         result: Option<Signature>,
     },
+    /// The bid was sent to the user for submission.
+    #[schema(title = "SentToUserForSubmission")]
+    SentToUserForSubmission {
+        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        result: Signature,
+    },
     /// The bid won the auction and was submitted to the chain, with the signature of the corresponding transaction provided in the result field.
     /// This state is temporary and will be updated to either Won or Failed after the transaction is included in a block, or Expired if the transaction expires before it is included.
     #[schema(title = "Submitted")]
