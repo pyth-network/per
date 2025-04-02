@@ -27,6 +27,7 @@ class BidStatusVariantsEvm(Enum):
 class BidStatusVariantsSvm(Enum):
     PENDING = "pending"
     AWAITING_SIGNATURE = "awaiting_signature"
+    SENT_TO_USER_FOR_SUBMISSION = "sent_to_user_for_submission"
     SUBMITTED = "submitted"
     LOST = "lost"
     WON = "won"

@@ -133,10 +133,7 @@ impl BidStatus for BidStatusSvm {
     }
 
     fn is_awaiting_signature(&self) -> bool {
-        matches!(
-            self,
-            BidStatusSvm::AwaitingSignature { .. } | BidStatusSvm::SentToUserForSubmission { .. }
-        )
+        matches!(self, BidStatusSvm::AwaitingSignature { .. })
     }
 
     fn is_submitted(&self) -> bool {

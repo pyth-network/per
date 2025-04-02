@@ -685,7 +685,6 @@ impl Service<Svm> {
         let mut receiver = self.config.chain_config.log_sender.subscribe();
         let mut retry_interval = tokio::time::interval(RETRY_DURATION);
         let mut retry_count = 0;
-        tracing::info!("blocking_send_transaction: {:?}", bid.id);
         while retry_count < SEND_TRANSACTION_RETRY_COUNT_SVM {
             tokio::select! {
                 log = receiver.recv() => {
