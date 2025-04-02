@@ -66,8 +66,8 @@ pub trait BidStatus:
     fn is_pending(&self) -> bool;
     fn requires_user_signature(&self) -> bool;
     fn is_submitted(&self) -> bool;
+    fn is_cancelled(&self) -> bool;
     fn is_finalized(&self) -> bool;
-
     fn new_lost() -> Self;
 
     fn get_auction_id(&self) -> Option<AuctionId>;
@@ -143,6 +143,11 @@ impl BidStatus for BidStatusSvm {
         matches!(self, BidStatusSvm::Submitted { .. })
     }
 
+
+    fn is_cancelled(&self) -> bool {
+        matches!(self, BidStatusSvm::Cancelled { .. })
+    }
+
     fn is_finalized(&self) -> bool {
         matches!(
             self,
@@ -186,6 +191,10 @@ impl BidStatus for BidStatusEvm {
 
     fn is_submitted(&self) -> bool {
         matches!(self, BidStatusEvm::Submitted { .. })
+    }
+
+    fn is_cancelled(&self) -> bool {
+        false
     }
 
     fn is_finalized(&self) -> bool {

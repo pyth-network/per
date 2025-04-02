@@ -41,13 +41,21 @@ impl Service<Svm> {
         let winner_bid = auction
             .bids
             .iter()
-            .find(|bid| bid.status.requires_user_signature() || bid.status.is_submitted())
+            .find(|bid| {
+                bid.status.requires_user_signature()
+                    || bid.status.is_submitted()
+                    || bid.status.is_cancelled()
+            })
             .cloned()
             .ok_or(RestError::BadParameters("Invalid quote".to_string()))?;
 
         if winner_bid.status.is_submitted() {
             Err(RestError::BadParameters(
                 "Quote is already submitted".to_string(),
+            ))
+        } else if winner_bid.status.is_cancelled() {
+            Err(RestError::BadParameters(
+                "Quote was cancelled by the searcher".to_string(),
             ))
         } else {
             Ok((auction, winner_bid))
