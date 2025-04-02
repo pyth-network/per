@@ -59,7 +59,7 @@ impl Service<Svm> {
         bid: entities::Bid<Svm>,
         auction: entities::Auction<Svm>,
         lock: entities::BidLock,
-        send_transaction: bool,
+        submit_bid: bool,
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;
 
@@ -68,17 +68,16 @@ impl Service<Svm> {
 
         let tx_hash = bid.chain_data.transaction.signatures[0];
 
-        if auction.submission_time.is_none() {
-            self.repo
-                .submit_auction(auction.clone(), tx_hash)
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = ?e, "Error repo submitting auction");
-                    RestError::TemporarilyUnavailable
-                })?;
-        }
+        self.repo
+            .submit_auction(auction.clone(), tx_hash)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?e, "Error repo submitting auction");
+                RestError::TemporarilyUnavailable
+            })?;
 
-        if send_transaction {
+
+        if submit_bid {
             self.update_bid_status(UpdateBidStatusInput {
                 bid:        bid.clone(),
                 new_status: entities::BidStatusSvm::Submitted {
@@ -98,16 +97,16 @@ impl Service<Svm> {
         Ok(())
     }
 
-    pub async fn sign_bid_and_submit_quote(
+    pub async fn sign_bid_and_submit_auction(
         &self,
         bid: entities::Bid<Svm>,
         auction: entities::Auction<Svm>,
-        send_transaction: bool,
+        submit_bid: bool,
     ) -> Result<VersionedTransaction, RestError> {
         let mut bid = bid;
         self.add_relayer_signature(&mut bid);
         let bid_lock = self.repo.get_or_create_in_memory_bid_lock(bid.id).await;
-        self.submit_auction_bid_for_lock(bid.clone(), auction, bid_lock, send_transaction)
+        self.submit_auction_bid_for_lock(bid.clone(), auction, bid_lock, submit_bid)
             .await?;
         self.repo.remove_in_memory_bid_lock(&bid.id).await;
         Ok(bid.chain_data.transaction)
@@ -158,6 +157,6 @@ impl Service<Svm> {
             return Err(RestError::BadParameters("Invalid quote".to_string()));
         }
 
-        self.sign_bid_and_submit_quote(bid, auction, true).await
+        self.sign_bid_and_submit_auction(bid, auction, true).await
     }
 }

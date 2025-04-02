@@ -614,7 +614,7 @@ impl Service<ChainTypeSvm> {
         let transaction = match (&transaction, input.quote_create.cancellable) {
             (Some(_), false) => Some(
                 auction_service
-                    .sign_bid_and_submit_quote(winner_bid.clone(), auction.clone(), false)
+                    .sign_bid_and_submit_auction(winner_bid.clone(), auction.clone(), false)
                     .await?,
             ),
             _ => transaction,
