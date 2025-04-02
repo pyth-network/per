@@ -41,7 +41,7 @@ impl Service<Svm> {
         let winner_bid = auction
             .bids
             .iter()
-            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_submitted())
+            .find(|bid| bid.status.requires_user_signature() || bid.status.is_submitted())
             .cloned()
             .ok_or(RestError::BadParameters("Invalid quote".to_string()))?;
 
@@ -68,14 +68,15 @@ impl Service<Svm> {
 
         let tx_hash = bid.chain_data.transaction.signatures[0];
 
-        self.repo
-            .submit_auction(auction.clone(), tx_hash)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = ?e, "Error repo submitting auction");
-                RestError::TemporarilyUnavailable
-            })?;
-
+        if auction.submission_time.is_none() {
+            self.repo
+                .submit_auction(auction.clone(), tx_hash)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = ?e, "Error repo submitting auction");
+                    RestError::TemporarilyUnavailable
+                })?;
+        }
 
         if submit_bid {
             self.update_bid_status(UpdateBidStatusInput {
