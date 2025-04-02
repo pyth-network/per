@@ -89,7 +89,7 @@ async def send_and_submit_quote(
         tx = Transaction.from_solders(tx)
         tx.sign_partial(kp_taker)
 
-        if cancellable:
+        if cancellable or random.random() < 1 / 3:
             position = accounts.index(pk_taker)
             reference_id = response["reference_id"]
 
