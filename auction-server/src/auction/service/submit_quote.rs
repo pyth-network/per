@@ -63,7 +63,7 @@ impl Service<Svm> {
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;
 
-        // Make sure the bid is still awaiting signature
+        // Make sure the bid is still awaiting signature, we also get the latest saved version of the auction
         let (auction, _) = self.get_bid_to_submit(auction.id).await?;
 
         let tx_hash = bid.chain_data.transaction.signatures[0];
