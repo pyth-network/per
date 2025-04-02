@@ -63,6 +63,7 @@ use {
         Routable,
         Route,
     },
+    name_variant::NamedVariant,
     solana_sdk::{
         program_error::ProgramError,
         pubkey::Pubkey,
@@ -380,7 +381,7 @@ impl std::fmt::Display for SwapInstructionError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, NamedVariant)]
 pub enum RestError {
     /// The request contained invalid parameters.
     BadParameters(String),
@@ -557,6 +558,10 @@ impl RestError {
                 "Too many open websocket connections".to_string(),
             ),
         }
+    }
+
+    pub fn error_name(&self) -> &'static str {
+        self.variant_name()
     }
 }
 

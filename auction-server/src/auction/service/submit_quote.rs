@@ -13,6 +13,7 @@ use {
         },
         kernel::entities::Svm,
     },
+    axum_prometheus::metrics,
     solana_sdk::{
         signature::Signature,
         transaction::VersionedTransaction,
@@ -93,6 +94,26 @@ impl Service<Svm> {
     }
 
     pub async fn submit_quote(
+        &self,
+        input: SubmitQuoteInput,
+    ) -> Result<VersionedTransaction, RestError> {
+        let result = self.submit_quote_inner(input).await;
+        let result_metric_label = if let Err(err) = &result {
+            err.error_name().to_string()
+        } else {
+            "success".to_string()
+        };
+
+        let labels = [
+            ("chain_id", self.config.chain_id.clone()),
+            ("result", result_metric_label),
+        ];
+        metrics::counter!("submit_quote_result", &labels).increment(1);
+
+        result
+    }
+
+    async fn submit_quote_inner(
         &self,
         input: SubmitQuoteInput,
     ) -> Result<VersionedTransaction, RestError> {
