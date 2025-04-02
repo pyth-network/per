@@ -15,8 +15,9 @@
                 "submitted",
                 "won",
                 "expired",
-                "cancelled",
+                "failed",
                 "awaiting_signature",
+                "cancelled",
                 "sent_to_user_for_submission"
               ]
             }
@@ -35,8 +36,9 @@
                 "submitted",
                 "won",
                 "expired",
-                "cancelled",
+                "failed",
                 "awaiting_signature",
+                "cancelled",
                 "sent_to_user_for_submission"
               ]
             }
