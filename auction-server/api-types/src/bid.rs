@@ -105,7 +105,7 @@ pub enum BidStatusSvm {
         #[serde(with = "crate::serde::nullable_signature_svm")]
         result: Option<Signature>,
     },
-    /// The bid was sent to the user for submission.
+    /// The bid was sent to the user for submission. In this case, the user has the last look and may decide to cancel by not signing and broadcasting the transaction.
     #[schema(title = "SentToUserForSubmission")]
     SentToUserForSubmission {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
