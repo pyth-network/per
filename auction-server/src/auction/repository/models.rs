@@ -553,17 +553,17 @@ impl ModelTrait<Svm> for Svm {
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
                 BidStatus::Submitted as _,
-                // TODO Remove it after all tasks for the last look are done
-                BidStatus::AwaitingSignature as _,
+                BidStatus::SentToUserForSubmission as _,
             )),
             &entities::BidStatusSvm::Expired { .. } => Ok(sqlx::query!(
-                "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5, $6)",
+                "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5, $6, $7)",
                 BidStatus::Expired as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
                 BidStatus::Pending as _,
                 BidStatus::Submitted as _,
                 BidStatus::AwaitingSignature as _,
+                BidStatus::SentToUserForSubmission as _,
             )),
             entities::BidStatusSvm::Cancelled { auction } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status = $5",
