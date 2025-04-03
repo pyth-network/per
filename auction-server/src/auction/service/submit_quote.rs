@@ -36,18 +36,18 @@ impl Service<Svm> {
         let auction: entities::Auction<Svm> = self
             .get_auction_by_id(GetAuctionByIdInput { auction_id })
             .await
-            .ok_or(RestError::BadParameters("Invalid quote".to_string()))?;
+            .ok_or(RestError::BadParameters("Quote not found. The provided reference ID may be invalid, already finalized on-chain, or canceled.".to_string()))?;
 
         let winner_bid = auction
             .bids
             .iter()
             .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_submitted())
             .cloned()
-            .ok_or(RestError::BadParameters("Invalid quote".to_string()))?;
+            .ok_or(RestError::BadParameters("This quote has already been submitted and finalized on-chain. No further changes are allowed.".to_string()))?;
 
         if winner_bid.status.is_submitted() {
             Err(RestError::BadParameters(
-                "Quote is already submitted".to_string(),
+                "Quote is already submitted on-chain.".to_string(),
             ))
         } else {
             Ok((auction, winner_bid))
@@ -104,23 +104,25 @@ impl Service<Svm> {
                 bid.chain_data.transaction.clone(),
                 entities::BidPaymentInstructionType::Swap,
             )
-            .map_err(|_| RestError::BadParameters("Invalid quote".to_string()))?;
+            .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
         let SwapAccounts { user_wallet, .. } = self
             .extract_swap_accounts(&bid.chain_data.transaction, &swap_instruction)
             .await
-            .map_err(|_| RestError::BadParameters("Invalid quote".to_string()))?;
+            .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
         let swap_args = Self::extract_swap_data(&swap_instruction)
-            .map_err(|_| RestError::BadParameters("Invalid quote".to_string()))?;
+            .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
 
         if swap_args.deadline < (OffsetDateTime::now_utc() - DEADLINE_BUFFER).unix_timestamp() {
-            return Err(RestError::BadParameters("Quote is expired".to_string()));
+            return Err(RestError::BadParameters("Quote is expired.".to_string()));
         }
 
         if !input.user_signature.verify(
             &user_wallet.to_bytes(),
             &bid.chain_data.transaction.message.serialize(),
         ) {
-            return Err(RestError::BadParameters("Invalid signature".to_string()));
+            return Err(RestError::BadParameters(
+                "Invalid user signature.".to_string(),
+            ));
         }
 
         let user_signature_pos = bid
@@ -136,7 +138,7 @@ impl Service<Svm> {
 
         if bid.chain_data.bid_payment_instruction_type != entities::BidPaymentInstructionType::Swap
         {
-            return Err(RestError::BadParameters("Invalid quote".to_string()));
+            return Err(RestError::BadParameters("Invalid quote.".to_string()));
         }
 
         let bid_lock = self
