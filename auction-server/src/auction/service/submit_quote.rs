@@ -36,7 +36,7 @@ impl Service<Svm> {
         let auction: entities::Auction<Svm> = self
             .get_auction_by_id(GetAuctionByIdInput { auction_id })
             .await
-            .ok_or(RestError::BadParameters("Quote not found. The provided reference ID may be invalid or refers to a quote that has already been submitted and finalized on-chain.".to_string()))?;
+            .ok_or(RestError::BadParameters("Quote not found. The provided reference ID may be invalid, already finalized on-chain, or canceled.".to_string()))?;
 
         let winner_bid = auction
             .bids
