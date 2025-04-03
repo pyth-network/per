@@ -27,7 +27,7 @@ impl<T: ChainTrait> Service<T>
 where
     Service<T>: AuctionManager<T>,
 {
-    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, winner_bid_ids))]
+    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, winner_bid_ids), err)]
     async fn submit_auction<'a>(
         &self,
         auction: entities::Auction<T>,

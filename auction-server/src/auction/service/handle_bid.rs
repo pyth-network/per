@@ -23,7 +23,8 @@ where
 {
     #[tracing::instrument(
         skip_all,
-        fields(bid_id, profile_name, simulation_error, permission_key)
+        fields(bid_id, profile_name, simulation_error, permission_key),
+        err
     )]
     pub async fn handle_bid(
         &self,

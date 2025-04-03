@@ -360,6 +360,7 @@ class SwapOpportunitySvm(BaseOpportunitySvm):
     platform_fee_bps: int
     router_account: SvmAddress
     user_wallet_address: SvmAddress
+    user_mint_user_balance: int
     tokens: SwapTokensSearcherSpecified | SwapTokensUserSpecified
     token_account_initialization_configs: TokenAccountInitializationConfigs
     memo: str | None = Field(default=None)

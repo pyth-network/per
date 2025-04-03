@@ -17,6 +17,7 @@ pub struct GetBidsInput {
 }
 
 impl<T: ChainTrait> Service<T> {
+    #[tracing::instrument(skip_all, err)]
     pub async fn get_bids(&self, input: GetBidsInput) -> Result<Vec<entities::Bid<T>>, RestError> {
         self.repo.get_bids(input.profile.id, input.from_time).await
     }

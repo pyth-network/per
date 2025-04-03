@@ -19,7 +19,7 @@ pub struct UpdateBidStatusInput<T: ChainTrait> {
 }
 
 impl<T: ChainTrait> Service<T> {
-    #[tracing::instrument(skip_all, fields(bid_id, status))]
+    #[tracing::instrument(skip_all, fields(bid_id, status), err)]
     pub async fn update_bid_status(
         &self,
         input: UpdateBidStatusInput<T>,

@@ -157,7 +157,7 @@ local_resource(
 )
 
 monitor_command = (
-    "source tilt-resources.env; "
+    "source ./tilt-resources.env; "
     + "poetry -C tilt-scripts run "
     + "python3 -m tilt-scripts.protocols.token_vault_monitor "
     + "--chain-id development "
@@ -231,7 +231,7 @@ local_resource(
 )
 
 rust_searcher_command = (
-    "source tilt-resources.env;"
+    "source ./tilt-resources.env;"
     + "export SVM_PRIVATE_KEY_FILE=keypairs/searcher_rust.json;"
     + "cargo run -p testing-searcher -- --api-key=$(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name rust_sdk --email rust_sdk@dourolabs.com --role searcher)"
 )
