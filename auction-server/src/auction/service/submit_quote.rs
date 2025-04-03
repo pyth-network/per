@@ -92,6 +92,7 @@ impl Service<Svm> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all, err)]
     pub async fn submit_quote(
         &self,
         input: SubmitQuoteInput,

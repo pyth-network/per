@@ -257,6 +257,7 @@ impl Verification<Evm> for Service<Evm> {
     // 1. The bid amount should cover gas fees for all bids included in the submission.
     // 2. Depending on the maximum number of bids in the auction, the transaction size for the bid is limited.
     // 3. Depending on the maximum number of bids in the auction, the gas consumption for the bid is limited.
+    #[tracing::instrument(skip_all, err)]
     async fn verify_bid(
         &self,
         input: VerifyBidInput<Evm>,
@@ -1705,6 +1706,7 @@ impl Service<Svm> {
 
 #[async_trait]
 impl Verification<Svm> for Service<Svm> {
+    #[tracing::instrument(skip_all, err)]
     async fn verify_bid(
         &self,
         input: VerifyBidInput<Svm>,
