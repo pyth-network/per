@@ -727,7 +727,9 @@ export class Client {
             opportunity.token_account_initialization_configs.user_ata_mint_user,
         },
         memo: opportunity.memo ?? undefined,
-        userMintUserBalance: new anchor.BN(opportunity.user_mint_user_balance),
+        userMintUserBalance: new anchor.BN(
+          opportunity.user_mint_user_balance.toString(),
+        ),
       };
     } else {
       console.warn("Unsupported opportunity", opportunity);
