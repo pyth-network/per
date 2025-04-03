@@ -14,6 +14,7 @@ impl Service<Svm> {
     /// For each of the last 150 slots, client returns the `config.prioritization_fee_percentile`th percentile
     /// of prioritization fees for transactions that landed in that slot.
     /// The median of such values for the `RECENT_FEES_SLOT_WINDOW` most recent slots is returned.
+    #[tracing::instrument(skip_all, err)]
     pub async fn update_recent_prioritization_fee(&self) -> Result<u64, RestError> {
         let accounts: Vec<String> = vec![];
         let mut args: Vec<serde_json::Value> = vec![

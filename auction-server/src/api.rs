@@ -69,6 +69,10 @@ use {
     },
     spl_associated_token_account::instruction::AssociatedTokenAccountInstruction,
     std::{
+        fmt::{
+            Display,
+            Formatter,
+        },
         sync::{
             atomic::Ordering,
             Arc,
@@ -564,6 +568,12 @@ impl IntoResponse for RestError {
     fn into_response(self) -> Response {
         let (status, msg) = self.to_status_and_message();
         (status, Json(ErrorBodyResponse { error: msg })).into_response()
+    }
+}
+
+impl Display for RestError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_status_and_message().1)
     }
 }
 
