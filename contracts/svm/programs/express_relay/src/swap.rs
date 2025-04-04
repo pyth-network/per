@@ -1,7 +1,11 @@
 use {
     crate::{
         error::ErrorCode,
-        state::ExpressRelayMetadata,
+        state::{
+            ExpressRelayMetadata,
+            FEE_BPS_TO_PPM,
+            FEE_SPLIT_PRECISION_PPM,
+        },
         token::check_receiver_and_transfer_token_if_needed,
         FeeToken,
         Swap,
@@ -23,10 +27,46 @@ pub struct PostFeeSwapArgs {
 }
 
 
-impl<'info> Swap<'info> {
+impl Swap<'_> {
     pub fn convert_to_v2(&self, args: &SwapArgs) -> SwapV2Args {
         args.convert_to_v2(self.express_relay_metadata.swap_platform_fee_bps)
     }
+}
+
+impl<'info> Swap<'info> {
+    fn check_mint_user(&self, fee_token: FeeToken) -> Result<()> {
+        let correct_mint_fee_key = if fee_token == FeeToken::Searcher {
+            self.mint_searcher.key()
+        } else {
+            self.mint_user.key()
+        };
+
+        // Preserve API compatibility by returning the same error as the anchor validator did
+        (self.mint_fee.key() == correct_mint_fee_key)
+            .then_some(())
+            .ok_or(AnchorErrorCode::ConstraintRaw.into())
+    }
+
+    fn check_token_program_fee(&self, fee_token: FeeToken) -> Result<()> {
+        let correct_token_program_fee = if fee_token == FeeToken::Searcher {
+            self.token_program_searcher.key()
+        } else {
+            self.token_program_user.key()
+        };
+
+        // Preserve API compatibility by returning the same error as the anchor validator did
+        (self.token_program_fee.key() == correct_token_program_fee)
+            .then_some(())
+            .ok_or(AnchorErrorCode::ConstraintRaw.into())
+    }
+
+    pub fn check_raw_constraints(&self, fee_token: FeeToken) -> Result<()> {
+        self.check_mint_user(fee_token)?;
+        self.check_token_program_fee(fee_token)?;
+
+        Ok(())
+    }
+
     pub fn compute_swap_fees<'a>(
         &'a self,
         args: &SwapV2Args,
@@ -37,8 +77,8 @@ impl<'info> Swap<'info> {
                     fees,
                     remaining_amount,
                 } = self.express_relay_metadata.compute_swap_fees(
-                    args.referral_fee_bps,
-                    args.swap_platform_fee_bps,
+                    args.referral_fee_ppm,
+                    args.swap_platform_fee_ppm,
                     args.amount_searcher,
                 )?;
                 Ok((
@@ -58,8 +98,8 @@ impl<'info> Swap<'info> {
                     fees,
                     remaining_amount,
                 } = self.express_relay_metadata.compute_swap_fees(
-                    args.referral_fee_bps,
-                    args.swap_platform_fee_bps,
+                    args.referral_fee_ppm,
+                    args.swap_platform_fee_ppm,
                     args.amount_user,
                 )?;
                 Ok((
@@ -165,25 +205,28 @@ impl ExpressRelayMetadata {
         referral_fee_bps: u16,
         amount: u64,
     ) -> Result<SwapFeesWithRemainingAmount> {
-        self.compute_swap_fees(referral_fee_bps, self.swap_platform_fee_bps, amount)
+        let referral_fee_ppms = u64::from(referral_fee_bps) * FEE_BPS_TO_PPM;
+        let swap_platform_fees_ppms = self.swap_platform_fee_bps * FEE_BPS_TO_PPM;
+
+        self.compute_swap_fees(referral_fee_ppms, swap_platform_fees_ppms, amount)
     }
     pub fn compute_swap_fees(
         &self,
-        referral_fee_bps: u16,
-        swap_platform_fee_bps: u64,
+        referral_fee_ppm: u64,
+        swap_platform_fee_ppm: u64,
         amount: u64,
     ) -> Result<SwapFeesWithRemainingAmount> {
-        if u64::from(referral_fee_bps) > FEE_SPLIT_PRECISION {
+        if referral_fee_ppm > FEE_SPLIT_PRECISION_PPM {
             return Err(ErrorCode::InvalidReferralFee.into());
         }
         let router_fee = amount
-            .checked_mul(referral_fee_bps.into())
+            .checked_mul(referral_fee_ppm)
             .ok_or(ProgramError::ArithmeticOverflow)?
-            / FEE_SPLIT_PRECISION;
+            / FEE_SPLIT_PRECISION_PPM;
         let platform_fee = amount
-            .checked_mul(swap_platform_fee_bps)
+            .checked_mul(swap_platform_fee_ppm)
             .ok_or(ProgramError::ArithmeticOverflow)?
-            / FEE_SPLIT_PRECISION;
+            / FEE_SPLIT_PRECISION_PPM;
         let relayer_fee = platform_fee
             .checked_mul(self.split_relayer)
             .ok_or(ProgramError::ArithmeticOverflow)?
