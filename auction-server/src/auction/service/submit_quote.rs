@@ -41,11 +41,7 @@ impl Service<Svm> {
         let winner_bid = auction
             .bids
             .iter()
-            .find(|bid| {
-                bid.status.requires_user_signature()
-                    || bid.status.is_submitted()
-                    || bid.status.is_cancelled()
-            })
+            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_submitted() || bid.status.is_cancelled())
             .cloned()
             .ok_or(RestError::BadParameters("This quote has already been submitted and finalized on-chain. No further changes are allowed.".to_string()))?;
 
@@ -68,7 +64,6 @@ impl Service<Svm> {
         bid: entities::Bid<Svm>,
         auction: entities::Auction<Svm>,
         lock: entities::BidLock,
-        submit_bid: bool,
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;
 
@@ -76,50 +71,30 @@ impl Service<Svm> {
         let (auction, _) = self.get_bid_to_submit(auction.id).await?;
 
         let tx_hash = bid.chain_data.transaction.signatures[0];
-
-        if auction.submission_time.is_none() {
-            self.repo
-                .submit_auction(auction.clone(), tx_hash)
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = ?e, "Error repo submitting auction");
-                    RestError::TemporarilyUnavailable
-                })?;
-        }
-
-        if submit_bid {
-            self.update_bid_status(UpdateBidStatusInput {
-                bid:        bid.clone(),
-                new_status: entities::BidStatusSvm::Submitted {
-                    auction: entities::BidStatusAuction {
-                        id: auction.id,
-                        tx_hash,
-                    },
+        let auction = self
+            .repo
+            .submit_auction(auction, tx_hash)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?e, "Error repo submitting auction");
+                RestError::TemporarilyUnavailable
+            })?;
+        self.update_bid_status(UpdateBidStatusInput {
+            bid:        bid.clone(),
+            new_status: entities::BidStatusSvm::Submitted {
+                auction: entities::BidStatusAuction {
+                    id: auction.id,
+                    tx_hash,
                 },
-            })
-            .await?;
+            },
+        })
+        .await?;
 
-            // Send transaction after updating bid status to make sure the bid is not cancellable anymore
-            // If we submit the transaction before updating the bid status, the DB update can be failed and the bid can be cancelled later.
-            // This will cause the transaction to be submitted but the bid to be cancelled.
-            self.send_transaction(&bid).await;
-        }
+        // Send transaction after updating bid status to make sure the bid is not cancellable anymore
+        // If we submit the transaction before updating the bid status, the DB update can be failed and the bid can be cancelled later.
+        // This will cause the transaction to be submitted but the bid to be cancelled.
+        self.send_transaction(&bid).await;
         Ok(())
-    }
-
-    pub async fn sign_bid_and_submit_auction(
-        &self,
-        bid: entities::Bid<Svm>,
-        auction: entities::Auction<Svm>,
-        submit_bid: bool,
-    ) -> Result<VersionedTransaction, RestError> {
-        let mut bid = bid;
-        self.add_relayer_signature(&mut bid);
-        let bid_lock = self.repo.get_or_create_in_memory_bid_lock(bid.id).await;
-        self.submit_auction_bid_for_lock(bid.clone(), auction, bid_lock, submit_bid)
-            .await?;
-        self.repo.remove_in_memory_bid_lock(&bid.id).await;
-        Ok(bid.chain_data.transaction)
     }
 
     #[tracing::instrument(skip_all, err, fields(bid_id, auction_id = %input.auction_id))]
@@ -166,11 +141,20 @@ impl Service<Svm> {
             .position(|p| p.eq(&user_wallet))
             .expect("User wallet not found in transaction");
         bid.chain_data.transaction.signatures[user_signature_pos] = input.user_signature;
+        self.add_relayer_signature(&mut bid);
+
         if bid.chain_data.bid_payment_instruction_type != entities::BidPaymentInstructionType::Swap
         {
             return Err(RestError::BadParameters("Invalid quote.".to_string()));
         }
 
-        self.sign_bid_and_submit_auction(bid, auction, true).await
+        let bid_lock = self
+            .repo
+            .get_or_create_in_memory_bid_lock(winner_bid.id)
+            .await;
+        self.submit_auction_bid_for_lock(bid.clone(), auction, bid_lock)
+            .await?;
+        self.repo.remove_in_memory_bid_lock(&winner_bid.id).await;
+        Ok(bid.chain_data.transaction)
     }
 }
