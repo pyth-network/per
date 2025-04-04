@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - For swap opportunities, when a user wants to swap SOL but doesn't have enough funds, the sdk will never try to wrap (on behalf of the user) an amount exceeding the SOL balance of the user.
+- Made the Python searcher SDK forward compatible with adding new bid statuses.
 
 ## [Rust: 0.7.0, Python 0.22.0, Javascript 0.23.0] - 2025-03-25
 

@@ -143,7 +143,6 @@ impl BidStatus for BidStatusSvm {
         matches!(self, BidStatusSvm::Submitted { .. })
     }
 
-
     fn is_cancelled(&self) -> bool {
         matches!(self, BidStatusSvm::Cancelled { .. })
     }

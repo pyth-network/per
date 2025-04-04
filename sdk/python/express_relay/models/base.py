@@ -34,6 +34,7 @@ class BidStatusVariantsSvm(Enum):
     FAILED = "failed"
     EXPIRED = "expired"
     CANCELLED = "cancelled"
+    UNKNOWN = "unknown"
 
 
 IntString = Annotated[int, PlainSerializer(lambda x: str(x), return_type=str)]

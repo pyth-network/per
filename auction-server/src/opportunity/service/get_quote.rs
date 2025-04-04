@@ -176,6 +176,7 @@ fn get_fee_token(
 }
 
 impl Service<ChainTypeSvm> {
+    #[tracing::instrument(skip_all, err)]
     async fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
@@ -378,7 +379,18 @@ impl Service<ChainTypeSvm> {
         }
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(
+        skip_all,
+        err,
+        fields(
+            opportunity_id,
+            auction_id,
+            searcher_token,
+            user_token,
+            bid_ids,
+            winner_bid
+        )
+    )]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
         let referral_fee_info = self
             .unwrap_referral_fee_info(
@@ -408,8 +420,11 @@ impl Service<ChainTypeSvm> {
                 opportunity: opportunity_create,
             })
             .await?;
+        tracing::Span::current().record("opportunity_id", opportunity.id.to_string());
         let searcher_token = opportunity.sell_tokens[0].clone();
         let user_token = opportunity.buy_tokens[0].clone();
+        tracing::Span::current().record("searcher_token", format!("{:?}", searcher_token));
+        tracing::Span::current().record("user_token", format!("{:?}", user_token));
         if searcher_token.amount == 0 && user_token.amount == 0 {
             return Err(RestError::BadParameters(
                 "Token amount cannot be zero".to_string(),
@@ -433,7 +448,10 @@ impl Service<ChainTypeSvm> {
                 permission_key: permission_key_svm.clone(),
             })
             .await;
-
+        tracing::Span::current().record(
+            "bid_ids",
+            tracing::field::display(crate::auction::entities::BidContainerTracing(&bids)),
+        );
         let total_bids = if bids.len() < 10 {
             bids.len().to_string()
         } else {
@@ -468,6 +486,7 @@ impl Service<ChainTypeSvm> {
             }
         }
         let winner_bid = bids.first().expect("failed to get first bid");
+        tracing::Span::current().record("winner_bid_id", winner_bid.id.to_string());
 
         let (_, swap_instruction) = auction_service
             .extract_express_relay_instruction(
@@ -496,6 +515,7 @@ impl Service<ChainTypeSvm> {
         let auction = auction_service
             .add_auction(AddAuctionInput { auction })
             .await?;
+        tracing::Span::current().record("auction_id", auction.id.to_string());
 
         // Remove opportunity to prevent further bids
         // The handle auction loop will take care of the bids that were submitted late
