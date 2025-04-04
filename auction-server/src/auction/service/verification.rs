@@ -1504,6 +1504,7 @@ impl Service<Svm> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all, err)]
     async fn verify_signatures(
         &self,
         bid: &entities::BidCreate<Svm>,
@@ -1557,6 +1558,7 @@ impl Service<Svm> {
         }
     }
 
+    #[tracing::instrument(skip_all, err)]
     pub async fn simulate_swap_bid(
         &self,
         bid: &entities::BidCreate<Svm>,
@@ -1601,6 +1603,7 @@ impl Service<Svm> {
         }
     }
 
+    #[tracing::instrument(skip_all, err)]
     pub async fn simulate_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
         const RETRY_LIMIT: usize = 5;
         const RETRY_DELAY: Duration = Duration::from_millis(100);
@@ -1712,6 +1715,10 @@ impl Verification<Svm> for Service<Svm> {
         input: VerifyBidInput<Svm>,
     ) -> Result<VerificationResult<Svm>, RestError> {
         let bid = input.bid_create;
+        if let BidChainDataCreateSvm::Swap(chain_data) = &bid.chain_data {
+            tracing::Span::current()
+                .record("opportunity_id", chain_data.opportunity_id.to_string());
+        }
         let transaction = bid.chain_data.get_transaction().clone();
         Svm::check_tx_size(&transaction)?;
         self.check_compute_budget(&transaction).await?;

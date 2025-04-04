@@ -41,11 +41,15 @@ impl Service<Svm> {
         let winner_bid = auction
             .bids
             .iter()
-            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_submitted())
+            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_submitted() || bid.status.is_cancelled())
             .cloned()
             .ok_or(RestError::BadParameters("This quote has already been submitted and finalized on-chain. No further changes are allowed.".to_string()))?;
 
-        if winner_bid.status.is_submitted() {
+        if winner_bid.status.is_cancelled() {
+            Err(RestError::BadParameters(
+                "This quote has already been cancelled.".to_string(),
+            ))
+        } else if winner_bid.status.is_submitted() {
             Err(RestError::BadParameters(
                 "Quote is already submitted on-chain.".to_string(),
             ))
@@ -54,6 +58,7 @@ impl Service<Svm> {
         }
     }
 
+    #[tracing::instrument(skip_all, err)]
     async fn submit_auction_bid_for_lock(
         &self,
         bid: entities::Bid<Svm>,
@@ -92,7 +97,7 @@ impl Service<Svm> {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err, fields(bid_id, auction_id = %input.auction_id))]
     pub async fn submit_quote(
         &self,
         input: SubmitQuoteInput,
@@ -100,6 +105,7 @@ impl Service<Svm> {
         let (auction, winner_bid) = self.get_bid_to_submit(input.auction_id).await?;
 
         let mut bid = winner_bid.clone();
+        tracing::Span::current().record("bid_id", bid.id.to_string());
         let (_, swap_instruction) = self
             .extract_express_relay_instruction(
                 bid.chain_data.transaction.clone(),
