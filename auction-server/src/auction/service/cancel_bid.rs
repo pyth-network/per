@@ -58,8 +58,9 @@ impl Service<Svm> {
         }
     }
 
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err, fields(bid_id))]
     pub async fn cancel_bid(&self, input: CancelBidInput) -> Result<(), RestError> {
+        tracing::Span::current().record("bid_id", input.bid_id.to_string());
         // Lock the bid to prevent submission
         let bid_lock = self
             .repo

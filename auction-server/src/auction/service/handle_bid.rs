@@ -23,7 +23,7 @@ where
 {
     #[tracing::instrument(
         skip_all,
-        fields(bid_id, profile_name, simulation_error, permission_key),
+        fields(bid_id, profile_name, permission_key, opportunity_id),
         err
     )]
     pub async fn handle_bid(
@@ -33,17 +33,11 @@ where
         if let Some(profile) = &input.bid_create.profile {
             tracing::Span::current().record("profile_name", &profile.name);
         }
-        let verification = self
+        let (chain_data, amount) = self
             .verify_bid(VerifyBidInput {
                 bid_create: input.bid_create.clone(),
             })
-            .await;
-        if let Err(RestError::SimulationError { result: _, reason }) = &verification {
-            // Long values are truncated and the errors are at the end of the simulation logs
-            let error = reason.split('\n').rev().collect::<Vec<_>>().join("\n");
-            tracing::Span::current().record("simulation_error", error);
-        }
-        let (chain_data, amount) = verification?;
+            .await?;
         let bid = self
             .repo
             .add_bid(input.bid_create, &chain_data, &amount)
