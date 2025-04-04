@@ -384,6 +384,7 @@ class BidStatusSvm(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def check_type(cls, data):
+        # This is for forward compatibility with new bid statuses
         if data not in BidStatusVariantsSvm:
             return BidStatusVariantsSvm.UNKNOWN
         return data
