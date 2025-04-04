@@ -122,7 +122,6 @@ impl Service<Svm> {
         Ok(bid.chain_data.transaction)
     }
 
-    #[tracing::instrument(skip_all, err)]
     #[tracing::instrument(skip_all, err, fields(bid_id, auction_id = %input.auction_id))]
     pub async fn submit_quote(
         &self,
