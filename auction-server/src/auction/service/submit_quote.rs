@@ -97,12 +97,11 @@ impl Service<Svm> {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all, err, fields(auction_id, bid_id))]
+    #[tracing::instrument(skip_all, err, fields(auction_id = %input.auction_id, bid_id))]
     pub async fn submit_quote(
         &self,
         input: SubmitQuoteInput,
     ) -> Result<VersionedTransaction, RestError> {
-        tracing::Span::current().record("auction_id", input.auction_id.to_string());
         let (auction, winner_bid) = self.get_bid_to_submit(input.auction_id).await?;
 
         let mut bid = winner_bid.clone();
