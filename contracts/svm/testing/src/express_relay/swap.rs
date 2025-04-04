@@ -19,6 +19,7 @@ use {
         },
         FeeToken,
         SwapArgs,
+        SwapV2Args,
     },
     solana_sdk::{
         instruction::Instruction,
@@ -34,17 +35,42 @@ pub struct SwapParamOverride {
     pub searcher_ta_mint_user:          Option<Pubkey>,
     pub express_relay_fee_receiver_ata: Option<Pubkey>,
     pub relayer_fee_receiver_ata:       Option<Pubkey>,
-    pub platform_fee_bps:               Option<u64>,
 }
 
-pub struct SwapParams {
+pub trait AnyVersionSwapArgs: Sized + Send + Sync {
+    fn get_fee_token(&self) -> FeeToken;
+
+    fn into_swap_instruction_data(self) -> Vec<u8>;
+}
+
+impl AnyVersionSwapArgs for SwapArgs {
+    fn get_fee_token(&self) -> FeeToken {
+        self.fee_token
+    }
+
+    fn into_swap_instruction_data(self) -> Vec<u8> {
+        Swap { data: self }.data()
+    }
+}
+
+impl AnyVersionSwapArgs for SwapV2Args {
+    fn get_fee_token(&self) -> FeeToken {
+        self.fee_token
+    }
+
+    fn into_swap_instruction_data(self) -> Vec<u8> {
+        SwapV2 { data: self }.data()
+    }
+}
+
+pub struct SwapParams<Args: AnyVersionSwapArgs = SwapArgs> {
     pub searcher:               Pubkey,
     pub user:                   Pubkey,
     pub router_fee_receiver_ta: Pubkey,
     pub fee_receiver_relayer:   Pubkey,
     pub token_searcher:         Token,
     pub token_user:             Token,
-    pub swap_args:              SwapArgs,
+    pub swap_args:              Args,
     pub relayer_signer:         Pubkey,
     /// Overrides from default behavior that may result in an invalid instruction
     /// and are meant to be used for testing.
@@ -52,7 +78,7 @@ pub struct SwapParams {
 }
 
 /// Builds a swap instruction.
-pub fn create_swap_instruction(swap_params: SwapParams) -> Instruction {
+pub fn create_swap_instruction(swap_params: SwapParams<impl AnyVersionSwapArgs>) -> Instruction {
     let SwapParams {
         searcher,
         user,
@@ -70,12 +96,11 @@ pub fn create_swap_instruction(swap_params: SwapParams) -> Instruction {
                 mint_fee: mint_fee_override,
                 express_relay_fee_receiver_ata,
                 relayer_fee_receiver_ata,
-                platform_fee_bps,
             },
     } = swap_params;
     let express_relay_metadata = get_express_relay_metadata_key();
 
-    let mint_fee = mint_fee_override.unwrap_or(match swap_args.fee_token {
+    let mint_fee = mint_fee_override.unwrap_or(match swap_args.get_fee_token() {
         FeeToken::Searcher => token_searcher.mint,
         FeeToken::User => token_user.mint,
     });
@@ -83,7 +108,7 @@ pub fn create_swap_instruction(swap_params: SwapParams) -> Instruction {
     let token_program_searcher = token_searcher.token_program;
     let token_program_user = token_user.token_program;
 
-    let token_program_fee = match swap_args.fee_token {
+    let token_program_fee = match swap_args.get_fee_token() {
         FeeToken::Searcher => token_program_searcher,
         FeeToken::User => token_program_user,
     };
@@ -142,13 +167,7 @@ pub fn create_swap_instruction(swap_params: SwapParams) -> Instruction {
     }
     .to_account_metas(None);
 
-    let data = match platform_fee_bps {
-        Some(fee) => SwapV2 {
-            data: swap_args.convert_to_v2(fee),
-        }
-        .data(),
-        None => Swap { data: swap_args }.data(),
-    };
+    let data = swap_args.into_swap_instruction_data();
     Instruction {
         program_id: express_relay::ID,
         accounts: accounts_submit_bid,
@@ -157,7 +176,9 @@ pub fn create_swap_instruction(swap_params: SwapParams) -> Instruction {
 }
 
 /// Builds a set of instructions to perform a swap, including creating the associated token accounts.
-pub fn build_swap_instructions(swap_params: SwapParams) -> Vec<Instruction> {
+pub fn build_swap_instructions(
+    swap_params: SwapParams<impl AnyVersionSwapArgs>,
+) -> Vec<Instruction> {
     let SwapParams {
         searcher,
         user,
@@ -177,11 +198,11 @@ pub fn build_swap_instructions(swap_params: SwapParams) -> Vec<Instruction> {
 
     let token_program_searcher = token_searcher.token_program;
     let token_program_user = token_user.token_program;
-    let mint_fee = mint_fee_override.unwrap_or(match swap_args.fee_token {
+    let mint_fee = mint_fee_override.unwrap_or(match swap_args.get_fee_token() {
         FeeToken::Searcher => token_searcher.mint,
         FeeToken::User => token_user.mint,
     });
-    let token_program_fee = match swap_args.fee_token {
+    let token_program_fee = match swap_args.get_fee_token() {
         FeeToken::Searcher => token_program_searcher,
         FeeToken::User => token_program_user,
     };

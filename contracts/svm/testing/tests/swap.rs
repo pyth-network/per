@@ -11,6 +11,7 @@ use {
         state::FEE_SPLIT_PRECISION,
         FeeToken,
         SwapArgs,
+        SwapV2Args,
     },
     litesvm::LiteSVM,
     solana_sdk::{
@@ -23,6 +24,7 @@ use {
         },
     },
     testing::{
+        assert_all_token_balances,
         express_relay::{
             helpers::{
                 get_express_relay_metadata,
@@ -1488,66 +1490,48 @@ fn test_swap_v2_mint_searcher() {
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     // searcher token balances
-    assert!(Token::token_balance_matches(
+    assert_all_token_balances!(
         &mut svm,
-        &token_searcher.get_associated_token_address(&searcher.pubkey()),
-        token_searcher.get_amount_with_decimals(10.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&user.pubkey()),
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&get_express_relay_metadata_key()),
-        token_searcher.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        token_searcher.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &router_ta_mint_searcher,
-        token_searcher.get_amount_with_decimals(0.),
-    ));
+        token_searcher,
+        {
+            associated: {
+                searcher.pubkey() => 10.0,
+                user.pubkey() => 0.0,
+                get_express_relay_metadata_key() => 0.0,
+                express_relay_metadata.fee_receiver_relayer => 0.0,
+            },
+            raw: {
+                router_ta_mint_searcher => 0.0,
+            }
+        }
+    );
 
     // user token balances
-    assert!(Token::token_balance_matches(
+    assert_all_token_balances!(
         &mut svm,
-        &token_user.get_associated_token_address(&searcher.pubkey()),
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&user.pubkey()),
-        token_user.get_amount_with_decimals(10.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &router_ta_mint_user,
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&get_express_relay_metadata_key()),
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        token_user.get_amount_with_decimals(0.),
-    ));
+        token_user,
+        {
+            associated: {
+                searcher.pubkey() => 0.0,
+                user.pubkey() => 10.0,
+                get_express_relay_metadata_key() => 0.0,
+                express_relay_metadata.fee_receiver_relayer => 0.0,
+            },
+            raw: {
+                router_ta_mint_user => 0.0,
+            }
+        }
+    );
+
 
     // searcher token fee
-    let swap_args = SwapArgs {
-        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
-        amount_user:      token_user.get_amount_with_decimals(1.),
-        referral_fee_bps: 3000,
-        fee_token:        FeeToken::Searcher,
+    let swap_args = SwapV2Args {
+        deadline:              svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_searcher:       token_searcher.get_amount_with_decimals(1.),
+        amount_user:           token_user.get_amount_with_decimals(1.),
+        referral_fee_ppm:      30_000_000,
+        fee_token:             FeeToken::Searcher,
+        swap_platform_fee_ppm: 20_000_000,
     };
     let instructions = build_swap_instructions(SwapParams {
         searcher: searcher.pubkey(),
@@ -1558,7 +1542,6 @@ fn test_swap_v2_mint_searcher() {
         token_user: token_user.clone(),
         swap_args,
         overrides: SwapParamOverride {
-            platform_fee_bps: Some(2000),
             ..Default::default()
         },
         relayer_signer: relayer_signer.pubkey(),
@@ -1572,58 +1555,38 @@ fn test_swap_v2_mint_searcher() {
     .unwrap();
 
     // searcher token balances
-    assert!(Token::token_balance_matches(
+    assert_all_token_balances!(
         &mut svm,
-        &token_searcher.get_associated_token_address(&searcher.pubkey()),
-        token_searcher.get_amount_with_decimals(9.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&user.pubkey()),
-        token_searcher.get_amount_with_decimals(0.5),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&get_express_relay_metadata_key()),
-        token_searcher.get_amount_with_decimals(0.16),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        token_searcher.get_amount_with_decimals(0.04),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &router_ta_mint_searcher,
-        token_searcher.get_amount_with_decimals(0.3),
-    ));
+        token_searcher,
+        {
+            associated: {
+                searcher.pubkey() => 9.0,
+                user.pubkey() => 0.5,
+                get_express_relay_metadata_key() => 0.16,
+                express_relay_metadata.fee_receiver_relayer => 0.04,
+            },
+            raw: {
+                router_ta_mint_searcher => 0.3,
+            }
+        }
+    );
 
     // user token balances
-    assert!(Token::token_balance_matches(
+    assert_all_token_balances!(
         &mut svm,
-        &token_user.get_associated_token_address(&searcher.pubkey()),
-        token_user.get_amount_with_decimals(1.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&user.pubkey()),
-        token_user.get_amount_with_decimals(9.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&get_express_relay_metadata_key()),
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &router_ta_mint_user,
-        token_user.get_amount_with_decimals(0.),
-    ));
+        token_user,
+        {
+            associated: {
+                searcher.pubkey() => 1.0,
+                user.pubkey() => 9.0,
+                get_express_relay_metadata_key() => 0.0,
+                express_relay_metadata.fee_receiver_relayer => 0.0,
+            },
+            raw: {
+                router_ta_mint_user => 0.0,
+            }
+        }
+    );
 }
 
 #[test]
@@ -1643,65 +1606,47 @@ fn test_swap_v2_mint_user() {
     let express_relay_metadata = get_express_relay_metadata(&mut svm);
 
     // searcher token balances
-    assert!(Token::token_balance_matches(
+    assert_all_token_balances!(
         &mut svm,
-        &token_searcher.get_associated_token_address(&searcher.pubkey()),
-        token_searcher.get_amount_with_decimals(10.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&user.pubkey()),
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&get_express_relay_metadata_key()),
-        token_searcher.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        token_searcher.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &router_ta_mint_searcher,
-        token_searcher.get_amount_with_decimals(0.),
-    ));
+        token_searcher,
+        {
+            associated: {
+                searcher.pubkey() => 10.0,
+                user.pubkey() => 0.0,
+                get_express_relay_metadata_key() => 0.0,
+                express_relay_metadata.fee_receiver_relayer => 0.0,
+            },
+            raw: {
+                router_ta_mint_searcher => 0.0,
+            }
+        }
+    );
+
 
     // user token balances
-    assert!(Token::token_balance_matches(
+    assert_all_token_balances!(
         &mut svm,
-        &token_user.get_associated_token_address(&searcher.pubkey()),
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&user.pubkey()),
-        token_user.get_amount_with_decimals(10.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &router_ta_mint_user,
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&get_express_relay_metadata_key()),
-        token_user.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        token_user.get_amount_with_decimals(0.),
-    ));
+        token_user,
+        {
+            associated: {
+                searcher.pubkey() => 0.0,
+                user.pubkey() => 10.0,
+                get_express_relay_metadata_key() => 0.0,
+                express_relay_metadata.fee_receiver_relayer => 0.0,
+            },
+            raw: {
+                router_ta_mint_user => 0.0,
+            }
+        }
+    );
 
-    let swap_args = SwapArgs {
-        deadline:         svm.get_sysvar::<Clock>().unix_timestamp,
-        amount_searcher:  token_searcher.get_amount_with_decimals(1.),
-        amount_user:      token_user.get_amount_with_decimals(1.),
-        referral_fee_bps: 1500,
-        fee_token:        FeeToken::User,
+    let swap_args = SwapV2Args {
+        deadline:              svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_searcher:       token_searcher.get_amount_with_decimals(1.),
+        amount_user:           token_user.get_amount_with_decimals(1.),
+        referral_fee_ppm:      15_000_000,
+        fee_token:             FeeToken::User,
+        swap_platform_fee_ppm: 20_000_000,
     };
 
     let instructions = build_swap_instructions(SwapParams {
@@ -1712,8 +1657,243 @@ fn test_swap_v2_mint_user() {
         token_searcher: token_searcher.clone(),
         token_user: token_user.clone(),
         swap_args,
+        overrides: Default::default(),
+        relayer_signer: relayer_signer.pubkey(),
+    });
+    submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap();
+
+    // searcher token balances
+    assert_all_token_balances!(
+        &mut svm,
+        token_searcher,
+        {
+            associated: {
+                searcher.pubkey() => 9.,
+                user.pubkey() => 1.,
+                get_express_relay_metadata_key() => 0.,
+                express_relay_metadata.fee_receiver_relayer => 0.,
+            },
+            raw: {
+                router_ta_mint_searcher => 0.,
+            }
+        }
+    );
+
+    // user token balances
+    assert_all_token_balances!(
+        &mut svm,
+        token_user,
+        {
+            associated: {
+                searcher.pubkey() => 0.65,
+                user.pubkey() => 9.0,
+                get_express_relay_metadata_key() => 0.16,
+                express_relay_metadata.fee_receiver_relayer => 0.04,
+            },
+            raw: {
+                router_ta_mint_user => 0.15,
+            }
+        }
+    );
+}
+
+#[test]
+fn test_swap_v2_mint_user_ppm_fee() {
+    let SwapSetupResult {
+        mut svm,
+        user,
+        searcher,
+        token_searcher,
+        token_user,
+        router_ta_mint_searcher,
+        router_ta_mint_user,
+        relayer_signer,
+        ..
+    } = setup_swap(Default::default());
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    token_searcher.airdrop(&mut svm, &searcher.pubkey(), 99990.);
+    token_user.airdrop(&mut svm, &user.pubkey(), 99990.);
+
+    // searcher token balances
+    assert_all_token_balances!(
+        &mut svm,
+        token_searcher,
+        {
+            associated: {
+                searcher.pubkey() => 100000.0,
+                user.pubkey() => 0.0,
+                get_express_relay_metadata_key() => 0.0,
+                express_relay_metadata.fee_receiver_relayer => 0.0,
+            },
+            raw: {
+                router_ta_mint_searcher => 0.0,
+            }
+        }
+    );
+
+
+    // user token balances
+    assert_all_token_balances!(
+        &mut svm,
+        token_user,
+        {
+            associated: {
+                searcher.pubkey() => 0.0,
+                user.pubkey() => 100000.0,
+                get_express_relay_metadata_key() => 0.0,
+                express_relay_metadata.fee_receiver_relayer => 0.0,
+            },
+            raw: {
+                router_ta_mint_user => 0.0,
+            }
+        }
+    );
+
+    let swap_args = SwapV2Args {
+        deadline:              svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_searcher:       token_searcher.get_amount_with_decimals(10000.),
+        amount_user:           token_user.get_amount_with_decimals(10000.),
+        referral_fee_ppm:      1589,
+        fee_token:             FeeToken::User,
+        swap_platform_fee_ppm: 2222,
+    };
+
+    let instructions = build_swap_instructions(SwapParams {
+        searcher: searcher.pubkey(),
+        user: user.pubkey(),
+        router_fee_receiver_ta: router_ta_mint_user,
+        fee_receiver_relayer: express_relay_metadata.fee_receiver_relayer,
+        token_searcher: token_searcher.clone(),
+        token_user: token_user.clone(),
+        swap_args,
+        overrides: Default::default(),
+        relayer_signer: relayer_signer.pubkey(),
+    });
+    submit_transaction(
+        &mut svm,
+        &instructions,
+        &searcher,
+        &[&searcher, &user, &relayer_signer],
+    )
+    .unwrap();
+
+    // searcher token balances
+    assert_all_token_balances!(
+        &mut svm,
+        token_searcher,
+        {
+            associated: {
+                searcher.pubkey() => 90000.,
+                user.pubkey() => 10000.,
+                get_express_relay_metadata_key() => 0.,
+                express_relay_metadata.fee_receiver_relayer => 0.,
+            },
+            raw: {
+                router_ta_mint_searcher => 0.,
+            }
+        }
+    );
+
+    // user token balances
+    assert_all_token_balances!(
+        &mut svm,
+        token_user,
+        {
+            associated: {
+                searcher.pubkey() => 9999.618900,
+                user.pubkey() => 90000.0,
+                get_express_relay_metadata_key() => 0.177760,
+                express_relay_metadata.fee_receiver_relayer => 0.044440,
+            },
+            raw: {
+                router_ta_mint_user => 0.158900,
+            }
+        }
+    );
+}
+
+#[test]
+fn test_swap_v2_mint_searcher_ppm_fee() {
+    let SwapSetupResult {
+        mut svm,
+        user,
+        searcher,
+        token_searcher,
+        token_user,
+        router_ta_mint_searcher,
+        router_ta_mint_user,
+        relayer_signer,
+        ..
+    } = setup_swap(Default::default());
+
+    let express_relay_metadata = get_express_relay_metadata(&mut svm);
+
+    token_searcher.airdrop(&mut svm, &searcher.pubkey(), 99990.);
+    token_user.airdrop(&mut svm, &user.pubkey(), 99990.);
+
+    // searcher token balances
+
+    // searcher token balances
+    assert_all_token_balances!(
+        &mut svm,
+        token_searcher,
+        {
+            associated: {
+                searcher.pubkey() => 100000.0,
+                user.pubkey() => 0.0,
+                get_express_relay_metadata_key() => 0.0,
+                express_relay_metadata.fee_receiver_relayer => 0.0,
+            },
+            raw: {
+                router_ta_mint_searcher => 0.0,
+            }
+        }
+    );
+
+
+    // user token balances
+    assert_all_token_balances!(
+        &mut svm,
+        token_user,
+        {
+            associated: {
+                searcher.pubkey() => 0.0,
+                user.pubkey() => 100000.0,
+                get_express_relay_metadata_key() => 0.0,
+                express_relay_metadata.fee_receiver_relayer => 0.0,
+            },
+            raw: {
+                router_ta_mint_user => 0.0,
+            }
+        }
+    );
+
+    // searcher token fee
+    let swap_args = SwapV2Args {
+        deadline:              svm.get_sysvar::<Clock>().unix_timestamp,
+        amount_searcher:       token_searcher.get_amount_with_decimals(10000.),
+        amount_user:           token_user.get_amount_with_decimals(10000.),
+        referral_fee_ppm:      1589,
+        fee_token:             FeeToken::Searcher,
+        swap_platform_fee_ppm: 2222,
+    };
+    let instructions = build_swap_instructions(SwapParams {
+        searcher: searcher.pubkey(),
+        user: user.pubkey(),
+        router_fee_receiver_ta: router_ta_mint_searcher,
+        fee_receiver_relayer: express_relay_metadata.fee_receiver_relayer,
+        token_searcher: token_searcher.clone(),
+        token_user: token_user.clone(),
+        swap_args,
         overrides: SwapParamOverride {
-            platform_fee_bps: Some(2000),
             ..Default::default()
         },
         relayer_signer: relayer_signer.pubkey(),
@@ -1727,56 +1907,36 @@ fn test_swap_v2_mint_user() {
     .unwrap();
 
     // searcher token balances
-    assert!(Token::token_balance_matches(
+    assert_all_token_balances!(
         &mut svm,
-        &token_searcher.get_associated_token_address(&searcher.pubkey()),
-        token_searcher.get_amount_with_decimals(9.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&user.pubkey()),
-        token_searcher.get_amount_with_decimals(1.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&get_express_relay_metadata_key()),
-        token_searcher.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_searcher.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        token_searcher.get_amount_with_decimals(0.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &router_ta_mint_searcher,
-        token_searcher.get_amount_with_decimals(0.),
-    ));
+        token_searcher,
+        {
+            associated: {
+                searcher.pubkey() => 90000.0,
+                user.pubkey() => 9999.618900,
+                get_express_relay_metadata_key() => 0.177760,
+                express_relay_metadata.fee_receiver_relayer => 0.044440,
+            },
+            raw: {
+                router_ta_mint_searcher => 0.158900,
+            }
+        }
+    );
 
     // user token balances
-    assert!(Token::token_balance_matches(
+    assert_all_token_balances!(
         &mut svm,
-        &token_user.get_associated_token_address(&searcher.pubkey()),
-        token_user.get_amount_with_decimals(0.65),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&user.pubkey()),
-        token_user.get_amount_with_decimals(9.),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&get_express_relay_metadata_key()),
-        token_user.get_amount_with_decimals(0.16),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &token_user.get_associated_token_address(&express_relay_metadata.fee_receiver_relayer),
-        token_user.get_amount_with_decimals(0.04),
-    ));
-    assert!(Token::token_balance_matches(
-        &mut svm,
-        &router_ta_mint_user,
-        token_user.get_amount_with_decimals(0.15),
-    ));
+        token_user,
+        {
+            associated: {
+                searcher.pubkey() => 10000.,
+                user.pubkey() => 90000.,
+                get_express_relay_metadata_key() => 0.,
+                express_relay_metadata.fee_receiver_relayer => 0.,
+            },
+            raw: {
+                router_ta_mint_user => 0.,
+            }
+        }
+    );
 }
