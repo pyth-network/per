@@ -65,10 +65,10 @@ pub trait BidStatus:
 
     fn is_pending(&self) -> bool;
     fn is_awaiting_signature(&self) -> bool;
+    fn is_sent_to_user_for_submission(&self) -> bool;
     fn is_submitted(&self) -> bool;
     fn is_cancelled(&self) -> bool;
     fn is_finalized(&self) -> bool;
-
     fn new_lost() -> Self;
 
     fn get_auction_id(&self) -> Option<AuctionId>;
@@ -84,6 +84,9 @@ pub struct BidStatusAuction<T: BidStatus> {
 pub enum BidStatusSvm {
     Pending,
     AwaitingSignature {
+        auction: BidStatusAuction<Self>,
+    },
+    SentToUserForSubmission {
         auction: BidStatusAuction<Self>,
     },
     Submitted {
@@ -134,6 +137,10 @@ impl BidStatus for BidStatusSvm {
         matches!(self, BidStatusSvm::AwaitingSignature { .. })
     }
 
+    fn is_sent_to_user_for_submission(&self) -> bool {
+        matches!(self, BidStatusSvm::SentToUserForSubmission { .. })
+    }
+
     fn is_submitted(&self) -> bool {
         matches!(self, BidStatusSvm::Submitted { .. })
     }
@@ -161,6 +168,7 @@ impl BidStatus for BidStatusSvm {
         match self {
             BidStatusSvm::Pending => None,
             BidStatusSvm::AwaitingSignature { auction } => Some(auction.id),
+            BidStatusSvm::SentToUserForSubmission { auction } => Some(auction.id),
             BidStatusSvm::Submitted { auction } => Some(auction.id),
             BidStatusSvm::Lost { auction } => auction.as_ref().map(|a| a.id),
             BidStatusSvm::Won { auction } => Some(auction.id),
@@ -179,6 +187,10 @@ impl BidStatus for BidStatusEvm {
     }
 
     fn is_awaiting_signature(&self) -> bool {
+        false
+    }
+
+    fn is_sent_to_user_for_submission(&self) -> bool {
         false
     }
 

@@ -6,6 +6,7 @@ import random
 from pathlib import Path
 
 import httpx
+from solana.rpc.api import Client as SolanaClient
 from solana.transaction import Transaction
 from solders.transaction import Transaction as SoldersTransaction
 
@@ -51,7 +52,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def send_and_submit_quote(server_url, kp_taker, input_token, output_token, side):
+async def send_and_submit_quote(
+    server_url, rpc_url, kp_taker, input_token, output_token, side, cancellable
+):
     chain_id = "local-solana"
     pk_taker = kp_taker.pubkey()
     logger.info("Taker pubkey: %s", pk_taker)
@@ -65,6 +68,7 @@ async def send_and_submit_quote(server_url, kp_taker, input_token, output_token,
         "user_wallet_address": str(pk_taker),
         "memo": "memo",
         "version": "v1",
+        "cancellable": cancellable,
     }
 
     async with httpx.AsyncClient() as http_client:
@@ -84,27 +88,33 @@ async def send_and_submit_quote(server_url, kp_taker, input_token, output_token,
         accounts = tx.message.account_keys
         tx = Transaction.from_solders(tx)
         tx.sign_partial(kp_taker)
-        position = accounts.index(pk_taker)
-        reference_id = response["reference_id"]
 
-        payload = {
-            "reference_id": reference_id,
-            "user_signature": str(tx.signatures[position]),
-        }
-        await asyncio.sleep(0.5)
-        result = await http_client.post(
-            server_url + "/v1/{}/quotes/submit".format(chain_id),
-            json=payload,
-        )
-        if result.status_code != 200:
-            logger.error("Failed to submit quote to auction server %s", result.text)
-            return
+        if cancellable or random.random() < 1 / 3:
+            position = accounts.index(pk_taker)
+            reference_id = response["reference_id"]
 
-        response = result.json()
-        tx = tx = SoldersTransaction.from_bytes(
-            base64.b64decode(response["transaction"])
-        )
-        logger.info("Quote submitted to server. Signature: %s", tx.signatures[0])
+            payload = {
+                "reference_id": reference_id,
+                "user_signature": str(tx.signatures[position]),
+            }
+            await asyncio.sleep(0.5)
+            result = await http_client.post(
+                server_url + "/v1/{}/quotes/submit".format(chain_id),
+                json=payload,
+            )
+            if result.status_code != 200:
+                logger.error("Failed to submit quote to auction server %s", result.text)
+                return
+
+            response = result.json()
+            tx = tx = SoldersTransaction.from_bytes(
+                base64.b64decode(response["transaction"])
+            )
+            logger.info("Quote submitted to server. Signature: %s", tx.signatures[0])
+        else:
+            client = SolanaClient(rpc_url)
+            client.send_raw_transaction(tx.serialize())
+            logger.info("Transaction broadcasted. Signature: %s", tx.signatures[0])
 
 
 async def main():
@@ -116,15 +126,23 @@ async def main():
     output_mint = args.output_mint
     native_token_address = "So11111111111111111111111111111111111111112"
     server_url = args.auction_server_url
+    rpc_url = args.rpc_url
     kp_taker = read_kp_from_json(args.file_private_key_taker)
 
     for input_token in [input_mint, native_token_address]:
         for output_token in [output_mint, native_token_address]:
             if input_token != output_token:
                 for side in ["input", "output"]:
-                    await send_and_submit_quote(
-                        server_url, kp_taker, input_token, output_token, side
-                    )
+                    for cancellable in [True, False]:
+                        await send_and_submit_quote(
+                            server_url,
+                            rpc_url,
+                            kp_taker,
+                            input_token,
+                            output_token,
+                            side,
+                            cancellable,
+                        )
 
 
 if __name__ == "__main__":

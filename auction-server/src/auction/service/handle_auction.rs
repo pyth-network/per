@@ -94,7 +94,6 @@ where
                                 tx_hash: tx_hash.clone(),
                                 id:      auction.id,
                             },
-                            true,
                         ),
                         bid:        bid.clone(),
                     })

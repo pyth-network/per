@@ -41,7 +41,7 @@ impl Service<Svm> {
         let winner_bid = auction
             .bids
             .iter()
-            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_submitted() || bid.status.is_cancelled())
+            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_sent_to_user_for_submission() || bid.status.is_submitted() || bid.status.is_cancelled())
             .cloned()
             .ok_or(RestError::BadParameters("This quote has already been submitted and finalized on-chain. No further changes are allowed.".to_string()))?;
 
@@ -58,6 +58,28 @@ impl Service<Svm> {
         }
     }
 
+    pub async fn sign_bid_and_submit_auction(
+        &self,
+        bid: entities::Bid<Svm>,
+        auction: entities::Auction<Svm>,
+    ) -> Result<VersionedTransaction, RestError> {
+        let mut bid = bid;
+        self.add_relayer_signature(&mut bid);
+        let auction = self.get_auction_by_id(GetAuctionByIdInput {auction_id: auction.id,
+        }).await.ok_or_else(|| {
+            tracing::error!(auction_id = %auction.id, "Auction not found when getting most recent version");
+            RestError::TemporarilyUnavailable
+        })?;
+        self.repo
+            .submit_auction(auction, bid.chain_data.transaction.signatures[0])
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?e, "Error repo submitting auction");
+                RestError::TemporarilyUnavailable
+            })?;
+        Ok(bid.chain_data.transaction)
+    }
+
     #[tracing::instrument(skip_all, err)]
     async fn submit_auction_bid_for_lock(
         &self,
@@ -67,8 +89,8 @@ impl Service<Svm> {
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;
 
-        // Make sure the bid is still awaiting signature
-        let _ = self.get_bid_to_submit(auction.id).await?;
+        // Make sure the bid is still awaiting signature, we also get the latest saved version of the auction
+        let (auction, _) = self.get_bid_to_submit(auction.id).await?;
 
         let tx_hash = bid.chain_data.transaction.signatures[0];
         let auction = self
