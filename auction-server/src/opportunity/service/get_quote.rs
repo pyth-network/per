@@ -381,7 +381,14 @@ impl Service<ChainTypeSvm> {
     #[tracing::instrument(
         skip_all,
         err,
-        fields(opportunity_id, auction_id, searcher_token, user_token, winner_bid)
+        fields(
+            opportunity_id,
+            auction_id,
+            searcher_token,
+            user_token,
+            bid_ids,
+            winner_bid
+        )
     )]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
         let referral_fee_info = self
