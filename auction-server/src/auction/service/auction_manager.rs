@@ -460,7 +460,10 @@ impl AuctionManager<Svm> for Service<Svm> {
                     .expect("Signature array is empty on svm bid tx")
             })
             .collect();
-        let statuses = if bids.iter().any(|bid| bid.status.is_submitted()) {
+        let statuses = if bids
+            .iter()
+            .any(|bid| bid.status.is_submitted() || bid.status.is_sent_to_user_for_submission())
+        {
             self.config
                 .chain_config
                 .client

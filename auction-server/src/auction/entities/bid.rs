@@ -64,7 +64,8 @@ pub trait BidStatus:
     }
 
     fn is_pending(&self) -> bool;
-    fn requires_user_signature(&self) -> bool;
+    fn is_awaiting_signature(&self) -> bool;
+    fn is_sent_to_user_for_submission(&self) -> bool;
     fn is_submitted(&self) -> bool;
     fn is_cancelled(&self) -> bool;
     fn is_finalized(&self) -> bool;
@@ -132,11 +133,12 @@ impl BidStatus for BidStatusSvm {
         matches!(self, BidStatusSvm::Pending)
     }
 
-    fn requires_user_signature(&self) -> bool {
-        matches!(
-            self,
-            BidStatusSvm::AwaitingSignature { .. } | BidStatusSvm::SentToUserForSubmission { .. }
-        )
+    fn is_awaiting_signature(&self) -> bool {
+        matches!(self, BidStatusSvm::AwaitingSignature { .. })
+    }
+
+    fn is_sent_to_user_for_submission(&self) -> bool {
+        matches!(self, BidStatusSvm::SentToUserForSubmission { .. })
     }
 
     fn is_submitted(&self) -> bool {
@@ -184,7 +186,11 @@ impl BidStatus for BidStatusEvm {
         matches!(self, BidStatusEvm::Pending)
     }
 
-    fn requires_user_signature(&self) -> bool {
+    fn is_awaiting_signature(&self) -> bool {
+        false
+    }
+
+    fn is_sent_to_user_for_submission(&self) -> bool {
         false
     }
 

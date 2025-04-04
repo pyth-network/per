@@ -41,7 +41,7 @@ impl Service<Svm> {
         let winner_bid = auction
             .bids
             .iter()
-            .find(|bid| bid.status.requires_user_signature() || bid.status.is_submitted() || bid.status.is_cancelled())
+            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_sent_to_user_for_submission() || bid.status.is_submitted() || bid.status.is_cancelled())
             .cloned()
             .ok_or(RestError::BadParameters("This quote has already been submitted and finalized on-chain. No further changes are allowed.".to_string()))?;
 
