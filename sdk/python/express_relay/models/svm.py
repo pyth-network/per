@@ -17,6 +17,7 @@ from pydantic import (
     Field,
     GetCoreSchemaHandler,
     GetJsonSchemaHandler,
+    field_validator,
     model_validator,
 )
 from pydantic.json_schema import JsonSchemaValue
@@ -379,6 +380,14 @@ class BidStatusSvm(BaseModel):
 
     type: BidStatusVariantsSvm
     result: SvmSignature | None = Field(default=None)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def check_type(cls, data):
+        # This is for forward compatibility with new bid statuses
+        if data not in BidStatusVariantsSvm:
+            return BidStatusVariantsSvm.UNKNOWN
+        return data
 
     @model_validator(mode="after")
     def check_result(self):
