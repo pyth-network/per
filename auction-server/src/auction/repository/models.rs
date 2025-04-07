@@ -658,7 +658,7 @@ pub trait Database<T: ChainTrait>: Debug + Send + Sync + 'static {
         &self,
         auction: &entities::Auction<T>,
         transaction_hash: &entities::TxHash<T>,
-    ) -> anyhow::Result<entities::Auction<T>>;
+    ) -> anyhow::Result<Option<entities::Auction<T>>>;
     async fn update_bid_status(
         &self,
         bid: &entities::Bid<T>,
@@ -893,19 +893,19 @@ impl<T: ChainTrait> Database<T> for DB {
         &self,
         auction: &entities::Auction<T>,
         transaction_hash: &entities::TxHash<T>,
-    ) -> anyhow::Result<entities::Auction<T>> {
+    ) -> anyhow::Result<Option<entities::Auction<T>>> {
         let mut auction = auction.clone();
         let now = OffsetDateTime::now_utc();
         auction.tx_hash = Some(transaction_hash.clone());
         auction.submission_time = Some(now);
-        sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
+        let result = sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
             PrimitiveDateTime::new(now.date(), now.time()),
             T::BidStatusType::convert_tx_hash(transaction_hash),
             auction.id,
         ).execute(self).await.inspect_err(|_| {
             tracing::Span::current().record("result", "error");
         })?;
-        Ok(auction)
+        Ok((result.rows_affected() != 0).then_some(auction))
     }
 
     #[instrument(
