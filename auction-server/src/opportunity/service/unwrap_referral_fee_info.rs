@@ -5,7 +5,7 @@ use {
     },
     crate::{
         api::RestError,
-        kernel::entities::ChainId,
+        config::ChainId,
         opportunity::entities::ReferralFeeInfo,
     },
 };

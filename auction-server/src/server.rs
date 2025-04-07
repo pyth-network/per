@@ -29,6 +29,7 @@ use {
         state::{
             ChainStoreEvm,
             ChainStoreSvm,
+            ServerState,
             Store,
             StoreNew,
         },
@@ -323,15 +324,17 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
-        db:               pool.clone(),
-        chains_evm:       chains_evm.clone(),
-        chains_svm:       chains_svm.clone(),
-        ws:               ws::WsState::new(
+        db:            pool.clone(),
+        chains_evm:    chains_evm.clone(),
+        chains_svm:    chains_svm.clone(),
+        ws:            ws::WsState::new(
             run_options.server.requester_ip_header_name.clone(),
             NOTIFICATIONS_CHAN_LEN,
         ),
-        secret_key:       run_options.secret_key.clone(),
-        access_tokens:    RwLock::new(access_tokens),
+        secret_key:    run_options.secret_key.clone(),
+        access_tokens: RwLock::new(access_tokens),
+    });
+    let server_state = Arc::new(ServerState {
         metrics_recorder: setup_metrics_recorder()?,
     });
 
@@ -609,10 +612,11 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),
             store_new.clone(),
+            server_state.clone(),
         )),
         fault_tolerant_handler("start metrics".to_string(), || per_metrics::start_metrics(
             run_options.clone(),
-            store.clone()
+            server_state.clone(),
         )),
     );
 

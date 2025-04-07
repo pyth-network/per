@@ -5,7 +5,7 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        state::Store,
+        state::ServerState,
     },
     anyhow::Result,
     axum::{
@@ -165,11 +165,11 @@ where
     }
 }
 
-pub async fn start_metrics(run_options: RunOptions, store: Arc<Store>) -> Result<()> {
+pub async fn start_metrics(run_options: RunOptions, server_state: Arc<ServerState>) -> Result<()> {
     tracing::info!("Starting Metrics Server...");
 
     let (_, metric_handle) = PrometheusMetricLayerBuilder::new()
-        .with_metrics_from_fn(|| store.metrics_recorder.clone())
+        .with_metrics_from_fn(|| server_state.metrics_recorder.clone())
         .build_pair();
     let app = Router::new();
     let app = app.route("/metrics", get(|| async move { metric_handle.render() }));

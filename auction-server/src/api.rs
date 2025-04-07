@@ -11,7 +11,10 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        state::StoreNew,
+        state::{
+            ServerState,
+            StoreNew,
+        },
     },
     anyhow::Result,
     axum::{
@@ -700,7 +703,11 @@ impl WrappedRouter {
     }
 }
 
-pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<()> {
+pub async fn start_api(
+    run_options: RunOptions,
+    store: Arc<StoreNew>,
+    server_state: Arc<ServerState>,
+) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
     #[openapi(
@@ -839,7 +846,7 @@ pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<
         .merge(ws::get_routes(store.clone()));
 
     let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
-        .with_metrics_from_fn(|| store.store.metrics_recorder.clone())
+        .with_metrics_from_fn(|| server_state.metrics_recorder.clone())
         .with_endpoint_label_type(EndpointLabel::MatchedPathWithFallbackFn(|_| {
             "unknown".to_string()
         }))
