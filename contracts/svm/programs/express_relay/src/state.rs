@@ -2,8 +2,8 @@ use anchor_lang::prelude::*;
 
 pub const FEE_SPLIT_PRECISION: u64 = 10_000;
 
-pub const FEE_SPLIT_PRECISION_PPM: u64 = 100_000_000;
-pub const FEE_BPS_TO_PPM: u64 = 10_000;
+pub const FEE_SPLIT_PRECISION_PPM: u64 = 1_000_000;
+pub const FEE_BPS_TO_PPM: u64 = 100;
 
 pub const RESERVE_EXPRESS_RELAY_METADATA: usize = 8 + 152 + 260;
 pub const SEED_METADATA: &[u8] = b"metadata";

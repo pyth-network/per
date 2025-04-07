@@ -455,11 +455,11 @@ pub struct SwapV2Args {
     pub deadline:              i64,
     pub amount_searcher:       u64,
     pub amount_user:           u64,
-    /// The referral fee is specified in mill percentile
+    /// The referral fee is specified in parts per million
     pub referral_fee_ppm:      u64,
     /// Token in which the fees will be paid
     pub fee_token:             FeeToken,
-    /// The platform fee is specified in mill percentile
+    /// The platform fee is specified in parts per million
     pub swap_platform_fee_ppm: u64,
 }
 
@@ -524,12 +524,12 @@ pub struct Swap<'info> {
     pub mint_searcher: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(mint::token_program = token_program_user)]
-    /// CHECK: we check that this is set correctly based on the fee token manually since the V2 arguments are incompatible on the wire
     pub mint_user: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mint::token_program = token_program_fee,
     )]
+    /// CHECK: we check that this is set correctly based on the fee token manually since the V2 arguments are incompatible on the wire
     pub mint_fee: Box<InterfaceAccount<'info, Mint>>,
 
     // Token programs
