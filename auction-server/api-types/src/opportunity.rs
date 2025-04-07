@@ -348,6 +348,12 @@ pub enum OpportunityParamsV1ProgramSvm {
         /// If provided, this memo must be included in the bid transaction as a Memo program instruction.
         #[schema(example = "memo")]
         memo: Option<String>,
+
+        /// The quote deadline (in seconds) must be at least this many seconds later than the time the request is received by the server.
+        /// A value like `10` means the deadline must be at least 10 seconds after the request is received.
+        /// To ensure the deadline is reasonable, take into account possible network latency, auction and submission delays.
+        #[schema(example = 10, value_type = u32)]
+        minimum_lifetime: u32,
     },
 }
 
@@ -579,7 +585,7 @@ pub struct QuoteCreateV1SvmParams {
     /// The chain id for creating the quote.
     #[schema(example = "solana", value_type = String)]
     pub chain_id:               ChainId,
-    /// Optional memo to be included in the transaction
+    /// Optional memo to be included in the transaction.
     #[schema(example = "memo")]
     pub memo:                   Option<String>,
     /// Whether the quote is cancellable by the searcher between the time the quote is requested and the time the quote is signed and submitted back.
@@ -588,6 +594,9 @@ pub struct QuoteCreateV1SvmParams {
     #[schema(example = "true")]
     #[serde(default = "default_cancellable")]
     pub cancellable:            bool,
+    /// Optional minimum transaction lifetime in seconds.
+    #[schema(example = 10, value_type = Option<u32>)]
+    pub minimum_lifetime:       Option<u32>,
 }
 
 fn default_cancellable() -> bool {

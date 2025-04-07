@@ -351,6 +351,7 @@ impl Service<ChainTypeSvm> {
                 token_account_initialization_configs,
                 token_program_searcher,
                 memo: quote_create.memo,
+                minimum_lifetime: quote_create.minimum_lifetime,
             });
 
         Ok(entities::OpportunityCreateSvm {

@@ -349,10 +349,13 @@ pub struct BidDataSvm {
     pub submit_type:                     SubmitType,
     pub express_relay_instruction_index: usize,
     pub user_wallet_address:             Option<Pubkey>,
+    pub minimum_lifetime:                Duration,
 }
 
+pub const DEFAULT_SWAP_BID_MINIMUM_LIFE_TIME: u32 = 10;
 const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
-const BID_MINIMUM_LIFE_TIME_SVM_OTHER: Duration = Duration::from_secs(10);
+const BID_MINIMUM_LIFE_TIME_SVM_OTHER: Duration =
+    Duration::from_secs(DEFAULT_SWAP_BID_MINIMUM_LIFE_TIME as u64);
 
 impl Service<Svm> {
     //TODO: merge this logic with simulator logic
@@ -523,31 +526,20 @@ impl Service<Svm> {
 
     async fn check_deadline(
         &self,
-        submit_type: &SubmitType,
         deadline: OffsetDateTime,
+        minimum_lifetime: Duration,
     ) -> Result<(), RestError> {
-        let minimum_bid_life_time = match submit_type {
-            SubmitType::ByServer => Some(BID_MINIMUM_LIFE_TIME_SVM_SERVER),
-            SubmitType::ByOther => Some(BID_MINIMUM_LIFE_TIME_SVM_OTHER),
-            SubmitType::Invalid => None,
-        };
-
-        match minimum_bid_life_time {
-            Some(min_life_time) => {
-                let minimum_deadline = OffsetDateTime::now_utc() + min_life_time;
-                // TODO: this uses the time at the server, which can lead to issues if Solana ever experiences clock drift
-                // using the time at the server is not ideal, but the alternative is to make an RPC call to get the Solana block time
-                // we should make this more robust, possibly by polling the current block time in the background
-                if deadline < minimum_deadline {
-                    return Err(RestError::InvalidDeadline {
-                        deadline,
-                        minimum: min_life_time,
-                    });
-                }
-
-                Ok(())
-            }
-            None => Ok(()),
+        let minimum_deadline = OffsetDateTime::now_utc() + minimum_lifetime;
+        // TODO: this uses the time at the server, which can lead to issues if Solana ever experiences clock drift
+        // using the time at the server is not ideal, but the alternative is to make an RPC call to get the Solana block time
+        // we should make this more robust, possibly by polling the current block time in the background
+        if deadline < minimum_deadline {
+            Err(RestError::InvalidDeadline {
+                deadline,
+                minimum: minimum_lifetime,
+            })
+        } else {
+            Ok(())
         }
     }
 
@@ -1371,6 +1363,7 @@ impl Service<Svm> {
                         })?,
                     submit_type: SubmitType::ByServer,
                     user_wallet_address: None,
+                    minimum_lifetime: BID_MINIMUM_LIFE_TIME_SVM_SERVER,
                 })
             }
             BidChainDataCreateSvm::Swap(bid_data) => {
@@ -1456,6 +1449,11 @@ impl Service<Svm> {
                     swap_data.referral_fee_bps,
                 );
 
+                let minimum_lifetime = match opportunity_swap_data.minimum_lifetime {
+                    Some(minimum_lifetime) => Duration::from_secs(minimum_lifetime as u64),
+                    None => BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+                };
+
                 Ok(BidDataSvm {
                     express_relay_instruction_index,
                     amount: bid_amount,
@@ -1471,6 +1469,7 @@ impl Service<Svm> {
                     )?,
                     submit_type: SubmitType::ByOther,
                     user_wallet_address: Some(user_wallet),
+                    minimum_lifetime,
                 })
             }
         }
@@ -1740,7 +1739,7 @@ impl Verification<Svm> for Service<Svm> {
         };
         let permission_key = bid_chain_data.get_permission_key();
         tracing::Span::current().record("permission_key", bid_data.permission_account.to_string());
-        self.check_deadline(&bid_data.submit_type, bid_data.deadline)
+        self.check_deadline(bid_data.deadline, bid_data.minimum_lifetime)
             .await?;
         self.verify_signatures(&bid, &bid_chain_data, &bid_data.submit_type)
             .await?;
@@ -1896,6 +1895,7 @@ mod tests {
         pub with_indicative_price_taker: OpportunitySvm,
         pub with_user_payer:             OpportunitySvm,
         pub with_memo:                   OpportunitySvm,
+        pub with_minimum_lifetime:       OpportunitySvm,
     }
 
     fn get_opportunity_service(
@@ -2010,6 +2010,7 @@ mod tests {
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
+                minimum_lifetime: None,
             }),
         };
 
@@ -2046,6 +2047,7 @@ mod tests {
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
+                minimum_lifetime: None,
             }),
         };
 
@@ -2084,6 +2086,7 @@ mod tests {
                     ..TokenAccountInitializationConfigs::searcher_payer()
                 },
                 memo: None,
+                minimum_lifetime: None,
             }),
         };
 
@@ -2120,9 +2123,9 @@ mod tests {
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
+                minimum_lifetime: None,
             }),
         };
-
 
         let indicative_price_taker = generate_indicative_price_taker();
         let permission_account_indicative_price_taker = get_quote_virtual_permission_account(
@@ -2165,6 +2168,7 @@ mod tests {
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
+                minimum_lifetime: None,
             }),
         };
 
@@ -2205,10 +2209,48 @@ mod tests {
                     ..TokenAccountInitializationConfigs::searcher_payer()
                 },
                 memo: None,
+                minimum_lifetime: None,
             }),
         };
 
         let opp_with_memo = OpportunitySvm {
+            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+                id:             Uuid::new_v4(),
+                permission_key: OpportunitySvm::get_permission_key(
+                    BidPaymentInstructionType::Swap,
+                    router,
+                    permission_account_user_token_specified,
+                ),
+                chain_id:       chain_id.clone(),
+                sell_tokens:    vec![TokenAmountSvm {
+                    token:  searcher_token_address,
+                    amount: 0,
+                }],
+                buy_tokens:     vec![TokenAmountSvm {
+                    token: user_token_address,
+                    amount,
+                }],
+                creation_time:  now,
+                refresh_time:   now,
+            },
+            router,
+            permission_account: permission_account_user_token_specified,
+            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
+                user_wallet_address,
+                platform_fee_bps: 0,
+                token_program_user: spl_token::id(),
+                token_program_searcher: spl_token::id(),
+                fee_token: fee_token.clone(),
+                referral_fee_bps,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
+                token_account_initialization_configs:
+                    TokenAccountInitializationConfigs::searcher_payer(),
+                memo: Some("memo".to_string()),
+                minimum_lifetime: None,
+            }),
+        };
+
+        let opp_with_minimum_lifetime = OpportunitySvm {
             core_fields: OpportunityCoreFields::<TokenAmountSvm> {
                 id: Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
@@ -2241,6 +2283,7 @@ mod tests {
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: Some("memo".to_string()),
+                minimum_lifetime: Some(20),
             }),
         };
 
@@ -2252,6 +2295,7 @@ mod tests {
             opp_with_indicative_price_taker.clone(),
             opp_with_user_payer.clone(),
             opp_with_memo.clone(),
+            opp_with_minimum_lifetime.clone(),
         ];
         let opps_cloned = opps.clone();
 
@@ -2284,6 +2328,7 @@ mod tests {
                 with_indicative_price_taker: opp_with_indicative_price_taker,
                 with_user_payer:             opp_with_user_payer,
                 with_memo:                   opp_with_memo,
+                with_minimum_lifetime:       opp_with_minimum_lifetime,
             },
         )
     }
@@ -2337,6 +2382,7 @@ mod tests {
         user_wallet_address: Pubkey,
         router_account:      Pubkey,
         permission_account:  Pubkey,
+        minimum_lifetime:    u32,
     }
 
     fn get_opportunity_swap_params(opportunity: OpportunitySvm) -> SwapParams {
@@ -2347,11 +2393,13 @@ mod tests {
                 user_wallet_address,
                 router_account,
                 permission_account,
+                minimum_lifetime,
                 ..
             } => SwapParams {
                 user_wallet_address,
                 router_account,
                 permission_account,
+                minimum_lifetime,
             },
             _ => panic!("Expected swap program"),
         }
@@ -5219,5 +5267,80 @@ mod tests {
                 }
             )
         );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_invalid_deadline_minimum_lifetime() {
+        let (service, opportunities) = get_service(true);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let opportunity = opportunities.with_minimum_lifetime.clone();
+        let swap_params = get_opportunity_swap_params(opportunity.clone());
+        let deadline = (OffsetDateTime::now_utc()
+            + Duration::seconds(swap_params.minimum_lifetime as i64 - 1))
+        .unix_timestamp();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline,
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate::<Svm> {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunity.core_fields.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidDeadline {
+                deadline: OffsetDateTime::from_unix_timestamp(deadline).unwrap(),
+                minimum:  std::time::Duration::from_secs(swap_params.minimum_lifetime as u64),
+            },
+        )
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_with_minimum_lifetime() {
+        let (service, opportunities) = get_service(true);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let opportunity = opportunities.with_minimum_lifetime.clone();
+        let swap_params = get_opportunity_swap_params(opportunity.clone());
+        let deadline = (OffsetDateTime::now_utc()
+            + Duration::seconds(swap_params.minimum_lifetime as i64 + 1))
+        .unix_timestamp();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline,
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        get_verify_bid_result(
+            service,
+            searcher.insecure_clone(),
+            vec![instruction],
+            opportunity.clone(),
+        )
+        .await
+        .unwrap();
     }
 }
