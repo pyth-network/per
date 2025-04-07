@@ -112,7 +112,7 @@ async def send_and_submit_quote(
             )
             logger.info("Quote submitted to server. Signature: %s", tx.signatures[0])
         else:
-            client = SolanaClient(rpc_url)
+            client = SolanaClient(rpc_url, commitment="processed")
             client.send_raw_transaction(tx.serialize())
             logger.info("Transaction broadcasted. Signature: %s", tx.signatures[0])
 
