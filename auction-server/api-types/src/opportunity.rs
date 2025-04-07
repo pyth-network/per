@@ -351,7 +351,7 @@ pub enum OpportunityParamsV1ProgramSvm {
 
         /// The quote deadline (in seconds) must be at least this many seconds later than the time the request is received by the server.
         /// A value like `10` means the deadline must be at least 10 seconds after the request is received.
-        /// To ensure the deadline is valid, take into account possible network latency, server-side processing delays, and potential clock drift on-chain when setting this value.
+        /// To ensure the deadline is reasonable, take into account possible network latency, auction and submission delays.
         #[schema(example = 10, value_type = u32)]
         minimum_lifetime: u32,
     },

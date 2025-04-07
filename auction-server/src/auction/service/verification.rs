@@ -2382,6 +2382,7 @@ mod tests {
         user_wallet_address: Pubkey,
         router_account:      Pubkey,
         permission_account:  Pubkey,
+        minimum_lifetime:    u32,
     }
 
     fn get_opportunity_swap_params(opportunity: OpportunitySvm) -> SwapParams {
@@ -2392,11 +2393,13 @@ mod tests {
                 user_wallet_address,
                 router_account,
                 permission_account,
+                minimum_lifetime,
                 ..
             } => SwapParams {
                 user_wallet_address,
                 router_account,
                 permission_account,
+                minimum_lifetime,
             },
             _ => panic!("Expected swap program"),
         }
@@ -5273,9 +5276,10 @@ mod tests {
         let bid_amount = 1;
         let searcher = Keypair::new();
         let opportunity = opportunities.with_minimum_lifetime.clone();
-        let minimum_lifetime: u64 = 20;
-        let deadline = (OffsetDateTime::now_utc() + Duration::seconds(minimum_lifetime as i64 - 1))
-            .unix_timestamp();
+        let swap_params = get_opportunity_swap_params(opportunity.clone());
+        let deadline = (OffsetDateTime::now_utc()
+            + Duration::seconds(swap_params.minimum_lifetime as i64 - 1))
+        .unix_timestamp();
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
@@ -5305,8 +5309,38 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidDeadline {
                 deadline: OffsetDateTime::from_unix_timestamp(deadline).unwrap(),
-                minimum:  std::time::Duration::from_secs(minimum_lifetime),
+                minimum:  std::time::Duration::from_secs(swap_params.minimum_lifetime as u64),
             },
         )
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_with_minimum_lifetime() {
+        let (service, opportunities) = get_service(true);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let opportunity = opportunities.with_minimum_lifetime.clone();
+        let swap_params = get_opportunity_swap_params(opportunity.clone());
+        let deadline = (OffsetDateTime::now_utc()
+            + Duration::seconds(swap_params.minimum_lifetime as i64 + 1))
+        .unix_timestamp();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline,
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        get_verify_bid_result(
+            service,
+            searcher.insecure_clone(),
+            vec![instruction],
+            opportunity.clone(),
+        )
+        .await
+        .unwrap();
     }
 }
