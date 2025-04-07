@@ -11,6 +11,7 @@ use {
         auction::entities,
     },
     express_relay_api_types::bid::BidStatusWithId,
+    tracing::Level,
 };
 
 pub struct UpdateBidStatusInput<T: ChainTrait> {
@@ -19,7 +20,7 @@ pub struct UpdateBidStatusInput<T: ChainTrait> {
 }
 
 impl<T: ChainTrait> Service<T> {
-    #[tracing::instrument(skip_all, fields(bid_id, status), err)]
+    #[tracing::instrument(skip_all, fields(bid_id, status), err(level = Level::INFO))]
     pub async fn update_bid_status(
         &self,
         input: UpdateBidStatusInput<T>,

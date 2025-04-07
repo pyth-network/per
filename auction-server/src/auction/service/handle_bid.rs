@@ -11,8 +11,8 @@ use {
         api::RestError,
         auction::entities,
     },
+    tracing::Level,
 };
-
 pub struct HandleBidInput<T: ChainTrait> {
     pub bid_create: entities::BidCreate<T>,
 }
@@ -24,7 +24,7 @@ where
     #[tracing::instrument(
         skip_all,
         fields(bid_id, profile_name, permission_key, opportunity_id),
-        err
+        err(level = Level::INFO)
     )]
     pub async fn handle_bid(
         &self,

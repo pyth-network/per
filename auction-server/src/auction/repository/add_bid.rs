@@ -13,10 +13,11 @@ use {
             service::ChainTrait,
         },
     },
+    tracing::Level,
 };
 
 impl<T: ChainTrait> Repository<T> {
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err(level = Level::INFO))]
     pub async fn add_bid(
         &self,
         bid_create: entities::BidCreate<T>,

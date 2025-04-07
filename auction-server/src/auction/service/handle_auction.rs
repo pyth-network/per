@@ -17,6 +17,7 @@ use {
     futures::future::join_all,
     time::OffsetDateTime,
     tokio::sync::MutexGuard,
+    tracing::Level,
 };
 
 pub struct HandleAuctionInput<T: ChainTrait> {
@@ -27,7 +28,7 @@ impl<T: ChainTrait> Service<T>
 where
     Service<T>: AuctionManager<T>,
 {
-    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, winner_bid_ids), err)]
+    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, winner_bid_ids), err(level = Level::INFO))]
     async fn submit_auction<'a>(
         &self,
         auction: entities::Auction<T>,

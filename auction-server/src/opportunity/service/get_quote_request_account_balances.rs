@@ -23,6 +23,7 @@ use {
         extension::StateWithExtensions,
         state::Account as TokenAccount,
     },
+    tracing::Level,
 };
 
 pub struct QuoteRequestAccountBalancesInput {
@@ -132,7 +133,7 @@ impl QuoteRequestAccountBalances {
 
 
 impl Service<ChainTypeSvm> {
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err(level = Level::INFO))]
     pub async fn get_quote_request_account_balances(
         &self,
         input: QuoteRequestAccountBalancesInput,

@@ -19,6 +19,7 @@ use {
     },
     std::time::Duration,
     time::OffsetDateTime,
+    tracing::Level,
 };
 
 pub struct SubmitQuoteInput {
@@ -58,7 +59,7 @@ impl Service<Svm> {
         }
     }
 
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err(level = Level::INFO))]
     async fn submit_auction_bid_for_lock(
         &self,
         bid: entities::Bid<Svm>,
@@ -97,7 +98,7 @@ impl Service<Svm> {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all, err, fields(bid_id, auction_id = %input.auction_id))]
+    #[tracing::instrument(skip_all, err(level = Level::INFO), fields(bid_id, auction_id = %input.auction_id))]
     pub async fn submit_quote(
         &self,
         input: SubmitQuoteInput,

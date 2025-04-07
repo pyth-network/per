@@ -49,6 +49,7 @@ use {
     std::time::Duration,
     time::OffsetDateTime,
     tokio::time::sleep,
+    tracing::Level,
 };
 
 // FeeToken and TokenSpecified combinations possible and how they are handled:
@@ -175,7 +176,7 @@ fn get_fee_token(
 }
 
 impl Service<ChainTypeSvm> {
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err(level = Level::INFO))]
     async fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
@@ -380,7 +381,7 @@ impl Service<ChainTypeSvm> {
 
     #[tracing::instrument(
         skip_all,
-        err,
+        err(level = Level::INFO),
         fields(
             opportunity_id,
             auction_id,
