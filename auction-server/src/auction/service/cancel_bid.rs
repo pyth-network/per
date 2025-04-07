@@ -52,6 +52,9 @@ impl Service<Svm> {
                 .await?;
                 Ok(())
             }
+            entities::BidStatusSvm::SentToUserForSubmission { auction: _ } => Err(
+                RestError::BadParameters("Non-cancellable quotes can't be cancelled".to_string()),
+            ),
             _ => Err(RestError::BadParameters(
                 "Bid is only cancellable in awaiting_signature state".to_string(),
             )),

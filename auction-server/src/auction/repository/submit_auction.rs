@@ -16,8 +16,11 @@ impl<T: ChainTrait> Repository<T> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
         tracing::Span::current().record("tx_hash", format!("{:?}", transaction_hash));
 
-        let auction = self.db.submit_auction(&auction, &transaction_hash).await?;
-        self.update_in_memory_auction(auction.clone()).await;
-        Ok(auction)
+        if let Some(updated_auction) = self.db.submit_auction(&auction, &transaction_hash).await? {
+            self.update_in_memory_auction(updated_auction.clone()).await;
+            Ok(updated_auction)
+        } else {
+            Ok(auction)
+        }
     }
 }

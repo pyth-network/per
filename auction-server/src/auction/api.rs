@@ -372,6 +372,11 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
                     result: auction.tx_hash,
                 }
             }
+            entities::BidStatusSvm::SentToUserForSubmission { auction } => {
+                BidStatusSvm::SentToUserForSubmission {
+                    result: auction.tx_hash,
+                }
+            }
             entities::BidStatusSvm::Submitted { auction } => BidStatusSvm::Submitted {
                 result: auction.tx_hash,
             },

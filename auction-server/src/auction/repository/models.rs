@@ -88,6 +88,7 @@ pub struct Auction {
 pub enum BidStatus {
     Pending,
     AwaitingSignature,
+    SentToUserForSubmission,
     Submitted,
     Lost,
     Won,
@@ -198,6 +199,9 @@ impl ModelTrait<Evm> for Evm {
             BidStatus::AwaitingSignature => {
                 Err(anyhow::anyhow!("Evm bid cannot be awaiting signature"))
             }
+            BidStatus::SentToUserForSubmission => Err(anyhow::anyhow!(
+                "Evm bid cannot be sent to user for submission"
+            )),
             BidStatus::Submitted => {
                 if bid_status_auction.is_none() || index.is_none() {
                     return Err(anyhow::anyhow!(
@@ -390,6 +394,14 @@ impl ModelTrait<Svm> for Svm {
                     },
                 })
             }
+            (BidStatus::SentToUserForSubmission, Some(auction)) => {
+                Ok(entities::BidStatusSvm::SentToUserForSubmission {
+                    auction: entities::BidStatusAuction {
+                        tx_hash: sig,
+                        id:      auction.id,
+                    },
+                })
+            }
             (BidStatus::Submitted, Some(auction)) => Ok(entities::BidStatusSvm::Submitted {
                 auction: entities::BidStatusAuction {
                     tx_hash: sig,
@@ -427,6 +439,9 @@ impl ModelTrait<Svm> for Svm {
         match status {
             entities::BidStatusSvm::Pending => BidStatus::Pending,
             entities::BidStatusSvm::AwaitingSignature { .. } => BidStatus::AwaitingSignature,
+            entities::BidStatusSvm::SentToUserForSubmission { .. } => {
+                BidStatus::SentToUserForSubmission
+            }
             entities::BidStatusSvm::Submitted { .. } => BidStatus::Submitted,
             entities::BidStatusSvm::Lost { .. } => BidStatus::Lost,
             entities::BidStatusSvm::Won { .. } => BidStatus::Won,
@@ -501,13 +516,21 @@ impl ModelTrait<Svm> for Svm {
                 bid.id,
                 BidStatus::Pending as _,
             )),
+            entities::BidStatusSvm::SentToUserForSubmission { auction } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
+                BidStatus::SentToUserForSubmission as _,
+                auction.id,
+                bid.id,
+                BidStatus::Pending as _,
+            )),
             entities::BidStatusSvm::Submitted { auction } => Ok(sqlx::query!(
-                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5)",
+                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5, $6)",
                 BidStatus::Submitted as _,
                 auction.id,
                 bid.id,
                 BidStatus::Pending as _,
                 BidStatus::AwaitingSignature as _,
+                BidStatus::SentToUserForSubmission as _,
             )),
             entities::BidStatusSvm::Lost { auction: Some(auction) } => Ok(sqlx::query!(
                     "UPDATE bid SET status = $1, auction_id = $2, conclusion_time = $3 WHERE id = $4 AND status = $5",
@@ -530,17 +553,17 @@ impl ModelTrait<Svm> for Svm {
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
                 BidStatus::Submitted as _,
-                // TODO Remove it after all tasks for the last look are done
-                BidStatus::AwaitingSignature as _,
+                BidStatus::SentToUserForSubmission as _,
             )),
             &entities::BidStatusSvm::Expired { .. } => Ok(sqlx::query!(
-                "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5, $6)",
+                "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5, $6, $7)",
                 BidStatus::Expired as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
                 BidStatus::Pending as _,
                 BidStatus::Submitted as _,
                 BidStatus::AwaitingSignature as _,
+                BidStatus::SentToUserForSubmission as _,
             )),
             entities::BidStatusSvm::Cancelled { auction } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status = $5",
@@ -635,7 +658,7 @@ pub trait Database<T: ChainTrait>: Debug + Send + Sync + 'static {
         &self,
         auction: &entities::Auction<T>,
         transaction_hash: &entities::TxHash<T>,
-    ) -> anyhow::Result<entities::Auction<T>>;
+    ) -> anyhow::Result<Option<entities::Auction<T>>>;
     async fn update_bid_status(
         &self,
         bid: &entities::Bid<T>,
@@ -870,19 +893,19 @@ impl<T: ChainTrait> Database<T> for DB {
         &self,
         auction: &entities::Auction<T>,
         transaction_hash: &entities::TxHash<T>,
-    ) -> anyhow::Result<entities::Auction<T>> {
+    ) -> anyhow::Result<Option<entities::Auction<T>>> {
         let mut auction = auction.clone();
         let now = OffsetDateTime::now_utc();
         auction.tx_hash = Some(transaction_hash.clone());
         auction.submission_time = Some(now);
-        sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
+        let result = sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
             PrimitiveDateTime::new(now.date(), now.time()),
             T::BidStatusType::convert_tx_hash(transaction_hash),
             auction.id,
         ).execute(self).await.inspect_err(|_| {
             tracing::Span::current().record("result", "error");
         })?;
-        Ok(auction)
+        Ok((result.rows_affected() != 0).then_some(auction))
     }
 
     #[instrument(
