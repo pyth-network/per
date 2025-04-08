@@ -537,7 +537,7 @@ impl RestError {
             ),
             RestError::InvalidDeadline { deadline, minimum } => (
                 StatusCode::BAD_REQUEST,
-                format!("Bid deadline {:?} is too early; it must be remain valid at least until {:?}", deadline, minimum),
+                format!("Bid deadline {:?} is too early; it must remain valid at least until {:?}", deadline, minimum),
             ),
             RestError::InvalidSignature(pubkey) => (
                 StatusCode::BAD_REQUEST,

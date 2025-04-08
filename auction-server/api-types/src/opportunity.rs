@@ -351,7 +351,7 @@ pub enum OpportunityParamsV1ProgramSvm {
 
         /// The minimum acceptable deadline for the quote, in seconds since the Unix epoch.
         /// The transaction must have a deadline greater than this value.
-        #[schema(example = 17_000_000_000i64, value_type = i32)]
+        #[schema(example = 17_000_000_000i64, value_type = i64)]
         minimum_deadline: i64,
     },
 }
