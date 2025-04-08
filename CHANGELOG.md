@@ -12,8 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- For swap opportunities, when a user wants to swap SOL but doesn't have enough funds, the sdk will never try to wrap (on behalf of the user) an amount exceeding the SOL balance of the user.
-- Made the Python searcher SDK forward compatible with adding new bid statuses.
+- Fixed a bug in the Python SDK where it expected the variant for swap opportunities to be `phantom` instead of `swap`. [443](https://github.com/pyth-network/per/pull/443)
+- For swap opportunities, when a user wants to swap SOL but doesn't have enough funds, the sdk will never try to wrap (on behalf of the user) an amount exceeding the SOL balance of the user. [461](https://github.com/pyth-network/per/pull/461)
+- Made the Python searcher SDK forward compatible with adding new bid statuses. [469](https://github.com/pyth-network/per/pull/469)
 
 ## [Rust: 0.7.0, Python 0.22.0, Javascript 0.23.0] - 2025-03-25
 
