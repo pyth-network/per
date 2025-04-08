@@ -176,7 +176,7 @@ fn get_fee_token(
 }
 
 impl Service<ChainTypeSvm> {
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
@@ -382,7 +382,7 @@ impl Service<ChainTypeSvm> {
 
     #[tracing::instrument(
         skip_all,
-        err,
+        err(level = tracing::Level::TRACE),
         fields(
             opportunity_id,
             auction_id,

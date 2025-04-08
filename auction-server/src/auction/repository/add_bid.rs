@@ -16,7 +16,7 @@ use {
 };
 
 impl<T: ChainTrait> Repository<T> {
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     pub async fn add_bid(
         &self,
         bid_create: entities::BidCreate<T>,

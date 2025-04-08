@@ -80,7 +80,7 @@ impl Service<Svm> {
         Ok(bid.chain_data.transaction)
     }
 
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn submit_auction_bid_for_lock(
         &self,
         bid: entities::Bid<Svm>,
@@ -119,7 +119,7 @@ impl Service<Svm> {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all, err, fields(bid_id, auction_id = %input.auction_id))]
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE), fields(bid_id, auction_id = %input.auction_id))]
     pub async fn submit_quote(
         &self,
         input: SubmitQuoteInput,
