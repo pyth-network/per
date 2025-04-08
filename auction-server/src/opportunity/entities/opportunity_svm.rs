@@ -362,12 +362,18 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         let user_amount_excluding_fees = match program.fee_token {
                             FeeToken::UserToken => {
                                 // TODO: Do this calculation based on express relay metadata
-                                let router_fee = user_token.amount
-                                    * program.referral_fee_bps as u64
-                                    / FEE_SPLIT_PRECISION;
-                                let platform_fee = user_token.amount * program.platform_fee_bps
-                                    / FEE_SPLIT_PRECISION;
-                                user_token.amount - router_fee - platform_fee
+                                let router_fee = (u128::from(user_token.amount)
+                                    * u128::from(program.referral_fee_bps) // this multiplication is safe because user_token.amount and program.referral_fee_bps are u64
+                                    / u128::from(FEE_SPLIT_PRECISION))
+                                    as u64; // this cast is safe because we know referral_fee_bps is less than FEE_SPLIT_PRECISION
+                                let platform_fee = (u128::from(user_token.amount)
+                                    * u128::from(program.platform_fee_bps) // this multiplication is safe because user_token.amount and program.platform_fee_bps are u64
+                                    / u128::from(FEE_SPLIT_PRECISION))
+                                    as u64; // this cast is safe because we know platform_fee_bps is less than FEE_SPLIT_PRECISION
+                                user_token
+                                    .amount
+                                    .saturating_sub(router_fee)
+                                    .saturating_sub(platform_fee)
                             }
                             FeeToken::SearcherToken => user_token.amount,
                         };
