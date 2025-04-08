@@ -31,6 +31,58 @@ use {
     },
 };
 
+#[macro_export]
+macro_rules! assert_token_balance_matches {
+    ($svm:expr, $address:expr, $account:expr, $amount:expr $(,)?) => {
+        let token_account_option = Token::get_token_account_opt($svm, $account);
+
+        if token_account_option.is_none() {
+            assert_eq!(
+                0,
+                $amount,
+                "token account balance didn't exist but the expected amount wasn't zero for `{}`",
+                stringify!($address)
+            );
+        } else {
+            assert_eq!(
+                token_account_option.unwrap().amount,
+                $amount,
+                "token account balance doesn't match expected value for `{}`",
+                stringify!($address)
+            );
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! assert_all_token_balances {
+    ($svm:expr, $token_user:expr, {
+        associated: {
+            $($address:expr => $am_asc:expr),* $(,)?
+        },
+        raw: {
+            $($raw_address:expr => $am_raw:expr),* $(,)?
+        }
+    }) => {
+        $(
+            $crate::assert_token_balance_matches!(
+                $svm,
+                $address,
+                &$token_user.get_associated_token_address(&$address),
+                $token_user.get_amount_with_decimals($am_asc),
+            );
+        )*
+        $(
+            $crate::assert_token_balance_matches!(
+                $svm,
+                $raw_address,
+                &$raw_address,
+                $token_user.get_amount_with_decimals($am_raw),
+            );
+        )*
+    };
+}
+
 pub struct Token {
     pub mint:          Pubkey,
     pub decimals:      u8,
@@ -82,12 +134,18 @@ impl Token {
         .unwrap();
     }
 
-    pub fn token_balance_matches(svm: &mut LiteSVM, account: &Pubkey, amount: u64) -> bool {
-        let token_account_option = &mut svm.get_account(account).map(|account| {
+    pub fn get_token_account_opt(
+        svm: &mut LiteSVM,
+        account: &Pubkey,
+    ) -> Option<anchor_spl::token_interface::TokenAccount> {
+        svm.get_account(account).map(|account| {
             anchor_spl::token_interface::TokenAccount::try_deserialize(&mut account.data.as_slice())
                 .unwrap()
-        });
+        })
+    }
 
+    pub fn token_balance_matches(svm: &mut LiteSVM, account: &Pubkey, amount: u64) -> bool {
+        let token_account_option = Self::get_token_account_opt(svm, account);
         if token_account_option.is_none() {
             return amount == 0;
         }

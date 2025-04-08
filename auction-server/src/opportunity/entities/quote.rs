@@ -41,6 +41,8 @@ pub struct QuoteCreate {
     pub referral_fee_info:   Option<ReferralFeeInfo>,
     pub chain_id:            ChainId,
     pub memo:                Option<String>,
+    pub cancellable:         bool,
+    pub minimum_lifetime:    Option<u32>,
 }
 
 
@@ -128,6 +130,8 @@ impl From<api::QuoteCreate> for QuoteCreate {
             referral_fee_info,
             chain_id: params.chain_id,
             memo: params.memo,
+            cancellable: params.cancellable,
+            minimum_lifetime: params.minimum_lifetime,
         }
     }
 }

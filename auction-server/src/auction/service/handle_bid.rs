@@ -24,7 +24,7 @@ where
     #[tracing::instrument(
         skip_all,
         fields(bid_id, profile_name, permission_key, opportunity_id),
-        err
+        err(level = tracing::Level::TRACE)
     )]
     pub async fn handle_bid(
         &self,

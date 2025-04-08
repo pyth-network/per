@@ -27,7 +27,7 @@ impl<T: ChainTrait> Service<T>
 where
     Service<T>: AuctionManager<T>,
 {
-    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, winner_bid_ids), err)]
+    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, winner_bid_ids), err(level = tracing::Level::TRACE))]
     async fn submit_auction<'a>(
         &self,
         auction: entities::Auction<T>,
@@ -94,7 +94,6 @@ where
                                 tx_hash: tx_hash.clone(),
                                 id:      auction.id,
                             },
-                            true,
                         ),
                         bid:        bid.clone(),
                     })

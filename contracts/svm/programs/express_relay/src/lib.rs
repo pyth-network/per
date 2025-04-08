@@ -182,8 +182,8 @@ pub mod express_relay {
         )
     }
 
-
     pub fn swap_internal(ctx: Context<Swap>, data: SwapV2Args) -> Result<()> {
+        ctx.accounts.check_raw_constraints(data.fee_token)?;
         check_deadline(data.deadline)?;
         ctx.accounts
             .express_relay_metadata
@@ -227,6 +227,7 @@ pub mod express_relay {
 
         Ok(())
     }
+
     pub fn swap(ctx: Context<Swap>, data: SwapArgs) -> Result<()> {
         let data = ctx.accounts.convert_to_v2(&data);
         swap_internal(ctx, data)
@@ -438,31 +439,31 @@ pub struct SwapArgs {
 impl SwapArgs {
     pub fn convert_to_v2(&self, swap_platform_fee_bps: u64) -> SwapV2Args {
         SwapV2Args {
-            deadline: self.deadline,
-            amount_searcher: self.amount_searcher,
-            amount_user: self.amount_user,
-            fee_token: self.fee_token,
-            referral_fee_bps: self.referral_fee_bps,
-            swap_platform_fee_bps,
+            deadline:              self.deadline,
+            amount_searcher:       self.amount_searcher,
+            amount_user:           self.amount_user,
+            fee_token:             self.fee_token,
+            referral_fee_ppm:      u64::from(self.referral_fee_bps) * FEE_BPS_TO_PPM,
+            swap_platform_fee_ppm: swap_platform_fee_bps * FEE_BPS_TO_PPM,
         }
     }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct SwapV2Args {
-    // deadline as a unix timestamp in seconds
+    /// deadline as a unix timestamp in seconds
     pub deadline:              i64,
     pub amount_searcher:       u64,
     pub amount_user:           u64,
-    // The referral fee is specified in basis points
-    pub referral_fee_bps:      u16,
-    // Token in which the fees will be paid
+    /// The referral fee is specified in parts per million
+    pub referral_fee_ppm:      u64,
+    /// Token in which the fees will be paid
     pub fee_token:             FeeToken,
-    pub swap_platform_fee_bps: u64,
+    /// The platform fee is specified in parts per million
+    pub swap_platform_fee_ppm: u64,
 }
 
 #[derive(Accounts)]
-#[instruction(data: Box<SwapArgs>)]
 pub struct Swap<'info> {
     /// Searcher is the party that fulfills the quote request
     pub searcher: Signer<'info>,
@@ -527,17 +528,15 @@ pub struct Swap<'info> {
 
     #[account(
         mint::token_program = token_program_fee,
-        constraint = mint_fee.key() == if data.fee_token == FeeToken::Searcher { mint_searcher.key() } else { mint_user.key() }
     )]
+    /// CHECK: we check that this is set correctly based on the fee token manually since the V2 arguments are incompatible on the wire
     pub mint_fee: Box<InterfaceAccount<'info, Mint>>,
 
     // Token programs
     pub token_program_searcher: Interface<'info, TokenInterface>,
     pub token_program_user:     Interface<'info, TokenInterface>,
 
-    #[account(
-        constraint = token_program_fee.key() == if data.fee_token == FeeToken::Searcher { token_program_searcher.key() } else { token_program_user.key() }
-    )]
+    /// CHECK: we check that this is set correctly based on the fee token manually since the V2 arguments are incompatible on the wire
     pub token_program_fee: Interface<'info, TokenInterface>,
 
     /// Express relay configuration

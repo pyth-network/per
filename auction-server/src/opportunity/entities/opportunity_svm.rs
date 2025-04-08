@@ -10,7 +10,10 @@ use {
         OpportunityCreate,
     },
     crate::{
-        auction::entities::BidPaymentInstructionType,
+        auction::{
+            entities::BidPaymentInstructionType,
+            service::verification::DEFAULT_SWAP_BID_MINIMUM_LIFE_TIME,
+        },
         kernel::entities::PermissionKey,
         opportunity::{
             entities::QuoteTokens,
@@ -104,6 +107,7 @@ pub struct OpportunitySvmProgramSwap {
     pub token_program_searcher:               Pubkey,
     pub token_account_initialization_configs: TokenAccountInitializationConfigs,
     pub memo:                                 Option<String>,
+    pub minimum_lifetime:                     Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -173,6 +177,7 @@ impl Opportunity for OpportunitySvm {
                             .token_account_initialization_configs,
                         user_mint_user_balance:               program.user_mint_user_balance,
                         memo:                                 program.memo,
+                        minimum_lifetime:                     program.minimum_lifetime,
                     },
                 )
             }
@@ -402,6 +407,9 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         .token_account_initialization_configs
                         .into(),
                     memo: program.memo,
+                    minimum_lifetime: program
+                        .minimum_lifetime
+                        .unwrap_or(DEFAULT_SWAP_BID_MINIMUM_LIFE_TIME),
                 }
             }
         };
@@ -458,6 +466,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                         .token_account_initialization_configs,
                     user_mint_user_balance:               program.user_mint_user_balance,
                     memo:                                 program.memo,
+                    minimum_lifetime:                     program.minimum_lifetime,
                 })
             }
         };
