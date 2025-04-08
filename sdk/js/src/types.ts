@@ -422,8 +422,8 @@ export type QuoteRequest = {
    */
   cancellable?: boolean;
   /**
-   * @description Optional minimum transaction lifetime in seconds.
-   * @example 10
+   * @description Optional minimum transaction lifetime for the quotes in seconds.
+   * @example 60
    */
   minimumLifetime?: number;
 };
