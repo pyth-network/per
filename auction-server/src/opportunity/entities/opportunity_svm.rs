@@ -12,7 +12,10 @@ use {
     crate::{
         auction::{
             entities::BidPaymentInstructionType,
-            service::verification::DEFAULT_SWAP_BID_MINIMUM_LIFE_TIME,
+            service::verification::{
+                get_current_time_rounded_with_offset,
+                BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+            },
         },
         kernel::entities::PermissionKey,
         opportunity::{
@@ -37,11 +40,11 @@ use {
         rent::Rent,
     },
     spl_token_2022::state::Account as TokenAccount,
-    std::ops::Deref,
-    time::{
-        Duration,
-        OffsetDateTime,
+    std::{
+        ops::Deref,
+        time::Duration,
     },
+    time::OffsetDateTime,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -108,6 +111,7 @@ pub struct OpportunitySvmProgramSwap {
     pub token_account_initialization_configs: TokenAccountInitializationConfigs,
     pub memo:                                 Option<String>,
     pub minimum_lifetime:                     Option<u32>,
+    pub minimum_deadline:                     OffsetDateTime,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -135,7 +139,7 @@ pub struct OpportunityCreateSvm {
 }
 
 // Opportunity can be refreshed after 30 seconds
-const MIN_REFRESH_TIME: Duration = Duration::seconds(30);
+const MIN_REFRESH_TIME: Duration = Duration::from_secs(30);
 
 impl Opportunity for OpportunitySvm {
     type TokenAmount = TokenAmountSvm;
@@ -401,9 +405,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         .token_account_initialization_configs
                         .into(),
                     memo: program.memo,
-                    minimum_lifetime: program
-                        .minimum_lifetime
-                        .unwrap_or(DEFAULT_SWAP_BID_MINIMUM_LIFE_TIME),
+                    minimum_deadline: program.minimum_deadline.unix_timestamp(),
                 }
             }
         };
@@ -461,6 +463,12 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     user_mint_user_balance:               program.user_mint_user_balance,
                     memo:                                 program.memo,
                     minimum_lifetime:                     program.minimum_lifetime,
+                    minimum_deadline:                     get_current_time_rounded_with_offset(
+                        program
+                            .minimum_lifetime
+                            .map(|lifetime| Duration::from_secs(lifetime as u64))
+                            .unwrap_or(BID_MINIMUM_LIFE_TIME_SVM_OTHER),
+                    ),
                 })
             }
         };

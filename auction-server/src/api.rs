@@ -77,7 +77,6 @@ use {
             atomic::Ordering,
             Arc,
         },
-        time::Duration,
     },
     time::OffsetDateTime,
     tower_http::cors::CorsLayer,
@@ -431,7 +430,7 @@ pub enum RestError {
     /// Invalid deadline
     InvalidDeadline {
         deadline: OffsetDateTime,
-        minimum:  Duration,
+        minimum:  OffsetDateTime,
     },
     /// Invalid Signature
     InvalidSignature(Pubkey),
@@ -538,7 +537,7 @@ impl RestError {
             ),
             RestError::InvalidDeadline { deadline, minimum } => (
                 StatusCode::BAD_REQUEST,
-                format!("Bid deadline of {:?} is too short, bid must be valid for at least {:?} seconds", deadline, minimum),
+                format!("Bid deadline {:?} is too early; it must be remain valid at least until {:?}", deadline, minimum),
             ),
             RestError::InvalidSignature(pubkey) => (
                 StatusCode::BAD_REQUEST,
