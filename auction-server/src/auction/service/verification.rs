@@ -2235,6 +2235,9 @@ mod tests {
             permission_account: permission_account_user_token_specified,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
                 minimum_lifetime: Some(20),
+                minimum_deadline: get_current_time_rounded_with_offset(
+                    std::time::Duration::from_secs(20),
+                ),
                 ..OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
                     user_wallet_address,
                 )
