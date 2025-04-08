@@ -358,10 +358,10 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                             FeeToken::UserToken => {
                                 // TODO: Do this calculation based on express relay metadata
                                 let router_fee = u128::from(user_token.amount)
-                                    * u128::from(program.referral_fee_bps)
+                                    * u128::from(program.referral_fee_bps) // this multiplication is safe because user_token.amount and program.referral_fee_bps are u64
                                     / u128::from(FEE_SPLIT_PRECISION);
                                 let platform_fee = u128::from(user_token.amount)
-                                    * u128::from(program.platform_fee_bps)
+                                    * u128::from(program.platform_fee_bps) // this multiplication is safe because user_token.amount and program.platform_fee_bps are u64
                                     / u128::from(FEE_SPLIT_PRECISION);
                                 user_token
                                     .amount
