@@ -19,6 +19,10 @@ use {
                 auction_manager::AuctionManager,
                 get_pending_bids::GetLiveBidsInput,
                 update_bid_status::UpdateBidStatusInput,
+                verification::{
+                    get_current_time_rounded_with_offset,
+                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+                },
                 Service as AuctionService,
             },
         },
@@ -353,6 +357,12 @@ impl Service<ChainTypeSvm> {
                 memo: quote_create.memo,
                 cancellable: quote_create.cancellable,
                 minimum_lifetime: quote_create.minimum_lifetime,
+                minimum_deadline: get_current_time_rounded_with_offset(
+                    quote_create
+                        .minimum_lifetime
+                        .map(|lifetime| Duration::from_secs(lifetime as u64))
+                        .unwrap_or(BID_MINIMUM_LIFE_TIME_SVM_OTHER),
+                ),
             });
 
         Ok(entities::OpportunityCreateSvm {

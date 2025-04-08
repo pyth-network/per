@@ -159,13 +159,13 @@ impl SimpleSearcher {
     }
 
     async fn submit_bid(&self, opportunity: Opportunity, private_key: String) -> Result<()> {
-        let deadline = (OffsetDateTime::now_utc() + Duration::days(1)).unix_timestamp();
         let bid = match opportunity.clone() {
             opportunity::Opportunity::Evm(opportunity) => {
                 let wallet = private_key.parse::<LocalWallet>().map_err(|e| {
                     eprintln!("Failed to parse evm private key: {:?}", e);
                     anyhow!("Failed to parse evm private key")
                 })?;
+                let deadline = (OffsetDateTime::now_utc() + Duration::days(1)).unix_timestamp();
                 let bid_params = evm::BidParams {
                     amount:   U256::from(EVM_BID_AMOUNT),
                     nonce:    random().await,
@@ -207,6 +207,7 @@ impl SimpleSearcher {
                         order_address: _order_address,
                         slot: _slot,
                     } => {
+                        // let deadline = (OffsetDateTime::now_utc() + Duration::days(1)).unix_timestamp();
                         // TODO EXTRACT ROUTER DATA FROM LIMONADE SDK
                         // self.client
                         //     .new_bid(
@@ -244,7 +245,11 @@ impl SimpleSearcher {
                             "Limo not supported yet".to_string(),
                         ))
                     }
-                    OpportunityParamsV1ProgramSvm::Swap { tokens, .. } => {
+                    OpportunityParamsV1ProgramSvm::Swap {
+                        tokens,
+                        minimum_deadline,
+                        ..
+                    } => {
                         let (user_token, token_program_user) = match tokens.tokens {
                             QuoteTokens::SearcherTokenSpecified { user_token, .. } => {
                                 (user_token, tokens.token_program_user)
@@ -263,17 +268,21 @@ impl SimpleSearcher {
                             .new_bid(
                                 opportunity.clone(),
                                 svm::NewBidParams {
-                                    amount: SVM_BID_AMOUNT,
-                                    deadline,
-                                    block_hash: svm_update.blockhash,
-                                    instructions: vec![compute_limit_ix, fee_ix, create_ata_ix],
-                                    payer: payer.pubkey(),
-                                    slot: None,
-                                    searcher: payer.pubkey(),
+                                    amount:               SVM_BID_AMOUNT,
+                                    deadline:             minimum_deadline,
+                                    block_hash:           svm_update.blockhash,
+                                    instructions:         vec![
+                                        compute_limit_ix,
+                                        fee_ix,
+                                        create_ata_ix,
+                                    ],
+                                    payer:                payer.pubkey(),
+                                    slot:                 None,
+                                    searcher:             payer.pubkey(),
                                     fee_receiver_relayer: metadata.fee_receiver_relayer,
-                                    signers: vec![payer],
-                                    relayer_signer: metadata.relayer_signer,
-                                    program_params: svm::ProgramParams::Swap(
+                                    signers:              vec![payer],
+                                    relayer_signer:       metadata.relayer_signer,
+                                    program_params:       svm::ProgramParams::Swap(
                                         svm::ProgramParamsSwap {},
                                     ),
                                 },

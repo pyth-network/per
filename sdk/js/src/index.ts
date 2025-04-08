@@ -732,6 +732,7 @@ export class Client {
         userMintUserBalance: new anchor.BN(
           opportunity.user_mint_user_balance.toString(),
         ),
+        minimumDeadline: opportunity.minimum_deadline,
       };
     } else {
       console.warn("Unsupported opportunity", opportunity);

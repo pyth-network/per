@@ -168,6 +168,7 @@ export type OpportunitySvmSwap = {
   tokenInitializationConfigs: TokenAccountInitializationConfigs;
   memo?: string;
   cancellable: boolean;
+  minimumDeadline: number;
 } & OpportunitySvmMetadata;
 
 export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;

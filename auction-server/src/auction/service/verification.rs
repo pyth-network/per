@@ -349,13 +349,23 @@ pub struct BidDataSvm {
     pub submit_type:                     SubmitType,
     pub express_relay_instruction_index: usize,
     pub user_wallet_address:             Option<Pubkey>,
-    pub minimum_lifetime:                Duration,
+    pub minimum_deadline:                OffsetDateTime,
 }
 
-pub const DEFAULT_SWAP_BID_MINIMUM_LIFE_TIME: u32 = 10;
 const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
-const BID_MINIMUM_LIFE_TIME_SVM_OTHER: Duration =
-    Duration::from_secs(DEFAULT_SWAP_BID_MINIMUM_LIFE_TIME as u64);
+pub const BID_MINIMUM_LIFE_TIME_SVM_OTHER: Duration = Duration::from_secs(10);
+
+// TODO: this uses the time at the server, which can lead to issues if Solana ever experiences clock drift
+// using the time at the server is not ideal, but the alternative is to make an RPC call to get the Solana block time
+// we should make this more robust, possibly by polling the current block time in the background
+pub fn get_current_time_rounded_with_offset(offset: Duration) -> OffsetDateTime {
+    let now = OffsetDateTime::now_utc();
+    let precise_seconds = now.unix_timestamp_nanos() as f64 / 1_000_000_000.0;
+    let rounded_seconds = precise_seconds.round() as i64;
+    OffsetDateTime::from_unix_timestamp(rounded_seconds)
+        .expect("Failed to create OffsetDateTime from rounded seconds")
+        + offset
+}
 
 impl Service<Svm> {
     //TODO: merge this logic with simulator logic
@@ -522,25 +532,6 @@ impl Service<Svm> {
             ));
         }
         Ok((instruction_index, instruction))
-    }
-
-    async fn check_deadline(
-        &self,
-        deadline: OffsetDateTime,
-        minimum_lifetime: Duration,
-    ) -> Result<(), RestError> {
-        let minimum_deadline = OffsetDateTime::now_utc() + minimum_lifetime;
-        // TODO: this uses the time at the server, which can lead to issues if Solana ever experiences clock drift
-        // using the time at the server is not ideal, but the alternative is to make an RPC call to get the Solana block time
-        // we should make this more robust, possibly by polling the current block time in the background
-        if deadline < minimum_deadline {
-            Err(RestError::InvalidDeadline {
-                deadline,
-                minimum: minimum_lifetime,
-            })
-        } else {
-            Ok(())
-        }
     }
 
     fn validate_swap_transaction_instructions(
@@ -1363,7 +1354,9 @@ impl Service<Svm> {
                         })?,
                     submit_type: SubmitType::ByServer,
                     user_wallet_address: None,
-                    minimum_lifetime: BID_MINIMUM_LIFE_TIME_SVM_SERVER,
+                    minimum_deadline: get_current_time_rounded_with_offset(
+                        BID_MINIMUM_LIFE_TIME_SVM_SERVER,
+                    ),
                 })
             }
             BidChainDataCreateSvm::Swap(bid_data) => {
@@ -1449,11 +1442,6 @@ impl Service<Svm> {
                     swap_data.referral_fee_bps,
                 );
 
-                let minimum_lifetime = match opportunity_swap_data.minimum_lifetime {
-                    Some(minimum_lifetime) => Duration::from_secs(minimum_lifetime as u64),
-                    None => BID_MINIMUM_LIFE_TIME_SVM_OTHER,
-                };
-
                 Ok(BidDataSvm {
                     express_relay_instruction_index,
                     amount: bid_amount,
@@ -1469,7 +1457,7 @@ impl Service<Svm> {
                     )?,
                     submit_type: SubmitType::ByOther,
                     user_wallet_address: Some(user_wallet),
-                    minimum_lifetime,
+                    minimum_deadline: opportunity_swap_data.minimum_deadline,
                 })
             }
         }
@@ -1739,8 +1727,12 @@ impl Verification<Svm> for Service<Svm> {
         };
         let permission_key = bid_chain_data.get_permission_key();
         tracing::Span::current().record("permission_key", bid_data.permission_account.to_string());
-        self.check_deadline(bid_data.deadline, bid_data.minimum_lifetime)
-            .await?;
+        if bid_data.deadline < bid_data.minimum_deadline {
+            return Err(RestError::InvalidDeadline {
+                deadline: bid_data.deadline,
+                minimum:  bid_data.minimum_deadline,
+            });
+        }
         self.verify_signatures(&bid, &bid_chain_data, &bid_data.submit_type)
             .await?;
         match bid_payment_instruction_type {
@@ -1775,7 +1767,10 @@ impl Verification<Svm> for Service<Svm> {
 #[cfg(test)]
 mod tests {
     use {
-        super::VerificationResult,
+        super::{
+            get_current_time_rounded_with_offset,
+            VerificationResult,
+        },
         crate::{
             api::{
                 InstructionError,
@@ -1901,6 +1896,9 @@ mod tests {
                     TokenAccountInitializationConfigs::searcher_payer(),
                 memo: None,
                 minimum_lifetime: None,
+                minimum_deadline: get_current_time_rounded_with_offset(
+                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+                ),
                 cancellable: true,
             }
         }
@@ -2338,7 +2336,7 @@ mod tests {
         user_wallet_address: Pubkey,
         router_account:      Pubkey,
         permission_account:  Pubkey,
-        minimum_lifetime:    u32,
+        minimum_deadline:    i64,
     }
 
     fn get_opportunity_swap_params(opportunity: OpportunitySvm) -> SwapParams {
@@ -2349,13 +2347,13 @@ mod tests {
                 user_wallet_address,
                 router_account,
                 permission_account,
-                minimum_lifetime,
+                minimum_deadline,
                 ..
             } => SwapParams {
                 user_wallet_address,
                 router_account,
                 permission_account,
-                minimum_lifetime,
+                minimum_deadline,
             },
             _ => panic!("Expected swap program"),
         }
@@ -3953,9 +3951,8 @@ mod tests {
         let bid_amount = 1;
         let searcher = Keypair::new();
         let opportunity = opportunities.user_token_specified.clone();
-        let deadline = (OffsetDateTime::now_utc() + BID_MINIMUM_LIFE_TIME_SVM_OTHER
-            - Duration::seconds(1))
-        .unix_timestamp();
+        let swap_params = get_opportunity_swap_params(opportunity.clone());
+        let deadline = swap_params.minimum_deadline - 1;
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
@@ -3985,7 +3982,8 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidDeadline {
                 deadline: OffsetDateTime::from_unix_timestamp(deadline).unwrap(),
-                minimum:  BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+                minimum:  OffsetDateTime::from_unix_timestamp(swap_params.minimum_deadline)
+                    .unwrap(),
             },
         )
     }
@@ -5233,9 +5231,7 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities.with_minimum_lifetime.clone();
         let swap_params = get_opportunity_swap_params(opportunity.clone());
-        let deadline = (OffsetDateTime::now_utc()
-            + Duration::seconds(swap_params.minimum_lifetime as i64 - 1))
-        .unix_timestamp();
+        let deadline = swap_params.minimum_deadline - 1;
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
@@ -5265,7 +5261,8 @@ mod tests {
             result.unwrap_err(),
             RestError::InvalidDeadline {
                 deadline: OffsetDateTime::from_unix_timestamp(deadline).unwrap(),
-                minimum:  std::time::Duration::from_secs(swap_params.minimum_lifetime as u64),
+                minimum:  OffsetDateTime::from_unix_timestamp(swap_params.minimum_deadline)
+                    .unwrap(),
             },
         )
     }
@@ -5278,9 +5275,7 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities.with_minimum_lifetime.clone();
         let swap_params = get_opportunity_swap_params(opportunity.clone());
-        let deadline = (OffsetDateTime::now_utc()
-            + Duration::seconds(swap_params.minimum_lifetime as i64 + 1))
-        .unix_timestamp();
+        let deadline = swap_params.minimum_deadline + 1;
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
