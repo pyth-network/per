@@ -813,13 +813,12 @@ export interface components {
            */
           memo?: string | null;
           /**
-           * Format: int32
-           * @description The quote deadline (in seconds) must be at least this many seconds later than the time the request is received by the server.
-           *     A value like `10` means the deadline must be at least 10 seconds after the request is received.
-           *     To ensure the deadline is reasonable, take into account possible network latency, auction and submission delays.
-           * @example 10
+           * Format: int64
+           * @description The minimum acceptable deadline for the quote, in seconds since the Unix epoch.
+           *     The transaction must have a deadline greater than this value.
+           * @example 17000000000
            */
-          minimum_lifetime: number;
+          minimum_deadline: number;
           /**
            * @description The permission account that serves as an identifier for the swap opportunity.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
