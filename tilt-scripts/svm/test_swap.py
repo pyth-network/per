@@ -69,6 +69,7 @@ async def send_and_submit_quote(
         "memo": "memo",
         "version": "v1",
         "cancellable": cancellable,
+        "minimum_lifetime": 5,
     }
 
     async with httpx.AsyncClient() as http_client:
