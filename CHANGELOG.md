@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- The minimum lifetime of swap quotes is now configurable. Users can provide a `minimum_lifetime` which represents for how long the quote they receive should be valid and defaults to the old value of 10 seconds. Searchers receive a `minimum_deadline` as a timestamp in the opportunity parameters that they should use as the deadline for their quotes.
 - Now the user can request non-cancellable quotes: these are quotes where the searcher can't call `cancel_bid` while the server is waiting for the user signature. These opportunities have the flag `cancellable` set to false in the opportunity parameters.
 
 ## [Rust: 0.8.0, Python 0.23.0, Javascript 0.24.0] - 2025-04-08
