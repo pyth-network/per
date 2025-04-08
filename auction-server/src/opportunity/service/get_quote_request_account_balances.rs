@@ -132,7 +132,7 @@ impl QuoteRequestAccountBalances {
 
 
 impl Service<ChainTypeSvm> {
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     pub async fn get_quote_request_account_balances(
         &self,
         input: QuoteRequestAccountBalancesInput,

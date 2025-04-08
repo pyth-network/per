@@ -18,7 +18,7 @@ pub struct CancelBidInput {
 }
 
 impl Service<Svm> {
-    #[tracing::instrument(skip_all, err)]
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn cancel_bid_for_lock(
         &self,
         input: CancelBidInput,
@@ -61,7 +61,7 @@ impl Service<Svm> {
         }
     }
 
-    #[tracing::instrument(skip_all, err, fields(bid_id = %input.bid_id))]
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE), fields(bid_id = %input.bid_id))]
     pub async fn cancel_bid(&self, input: CancelBidInput) -> Result<(), RestError> {
         // Lock the bid to prevent submission
         let bid_lock = self

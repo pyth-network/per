@@ -19,12 +19,12 @@ use {
         io::IsTerminal,
         time::Duration,
     },
-    tracing::Metadata,
+    tracing::{
+        Level,
+        Metadata,
+    },
     tracing_subscriber::{
-        filter::{
-            self,
-            LevelFilter,
-        },
+        filter,
         layer::SubscriberExt,
         util::SubscriberInitExt,
         Layer,
@@ -44,6 +44,17 @@ mod subwallet;
 
 fn is_internal(metadata: &Metadata) -> bool {
     metadata.target().starts_with("auction_server")
+}
+
+fn is_loggable(metadata: &Metadata) -> bool {
+    metadata.level() <= &Level::INFO
+        && metadata.is_event()
+        && is_internal(metadata)
+        && !is_metrics(metadata, false)
+}
+
+fn is_traceable(metadata: &Metadata) -> bool {
+    is_internal(metadata) || is_metrics(metadata, true)
 }
 
 #[tokio::main]
@@ -75,31 +86,19 @@ async fn main() -> Result<()> {
 
     let registry = tracing_subscriber::registry()
         .with(MetricsLayer.with_filter(filter::filter_fn(|metadata| is_metrics(metadata, false))))
-        .with(telemetry.with_filter(filter::filter_fn(|metadata| {
-            is_internal(metadata) || is_metrics(metadata, true)
-        })));
+        .with(telemetry.with_filter(filter::filter_fn(is_traceable)));
 
     if std::io::stderr().is_terminal() {
         registry
             .with(
                 log_layer
                     .compact()
-                    .with_filter(LevelFilter::INFO)
-                    .with_filter(filter::filter_fn(|metadata| {
-                        is_internal(metadata) || is_metrics(metadata, true)
-                    })),
+                    .with_filter(filter::filter_fn(is_loggable)),
             )
             .init();
     } else {
         registry
-            .with(
-                log_layer
-                    .json()
-                    .with_filter(LevelFilter::INFO)
-                    .with_filter(filter::filter_fn(|metadata| {
-                        is_internal(metadata) || is_metrics(metadata, true)
-                    })),
-            )
+            .with(log_layer.json().with_filter(filter::filter_fn(is_loggable)))
             .init();
     }
 
