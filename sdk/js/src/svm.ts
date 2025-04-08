@@ -471,8 +471,6 @@ export async function constructSwapBid(
     tokenInitializationConfigs,
     userMintUserBalance,
   } = extractSwapInfo(swapOpportunity);
-  const cancellable = swapOpportunity.cancellable;
-  console.log("cancellable", cancellable);
 
   if (swapOpportunity.memo) {
     tx.instructions.push(createMemoInstruction(swapOpportunity.memo));
