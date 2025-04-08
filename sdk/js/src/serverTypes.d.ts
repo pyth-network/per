@@ -432,6 +432,12 @@ export interface components {
           /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
           result: string;
           /** @enum {string} */
+          type: "sent_to_user_for_submission";
+        }
+      | {
+          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+          result: string;
+          /** @enum {string} */
           type: "submitted";
         }
       | {
@@ -802,6 +808,13 @@ export interface components {
            */
           memo?: string | null;
           /**
+           * Format: int64
+           * @description The minimum acceptable deadline for the quote, in seconds since the Unix epoch.
+           *     The transaction must have a deadline greater than this value.
+           * @example 17000000000
+           */
+          minimum_deadline: number;
+          /**
            * @description The permission account that serves as an identifier for the swap opportunity.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
            */
@@ -882,6 +895,13 @@ export interface components {
     /** @description Parameters needed to create a new opportunity from the swap request. */
     QuoteCreateV1SvmParams: {
       /**
+       * @description Whether the quote is cancellable by the searcher between the time the quote is requested and the time the quote is signed and submitted back.
+       *     For cancellable quotes, the quote needs to be signed and submitted back to the API. If the quote is not cancellable, the user may broadcast the transaction to the blockchain on their own instead of submitting it back to the API.
+       *     Therefore cancellable quotes allow the integrator to reduce the number of API calls to one, but at the cost of potentially worse prices. Price-optimizing integrators should use the default value of false.
+       * @example true
+       */
+      cancellable?: boolean;
+      /**
        * @description The chain id for creating the quote.
        * @example solana
        */
@@ -892,10 +912,16 @@ export interface components {
        */
       input_token_mint: string;
       /**
-       * @description Optional memo to be included in the transaction
+       * @description Optional memo to be included in the transaction.
        * @example memo
        */
       memo?: string | null;
+      /**
+       * Format: int32
+       * @description Optional minimum transaction lifetime in seconds.
+       * @example 10
+       */
+      minimum_lifetime?: number | null;
       /**
        * @description The mint address of the token the user will receive in the swap.
        * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v

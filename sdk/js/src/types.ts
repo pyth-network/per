@@ -167,6 +167,7 @@ export type OpportunitySvmSwap = {
   program: "swap";
   tokenInitializationConfigs: TokenAccountInitializationConfigs;
   memo?: string;
+  minimumDeadline: number;
 } & OpportunitySvmMetadata;
 
 export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;
@@ -412,6 +413,11 @@ export type QuoteRequest = {
    * @example "memo"
    */
   memo?: string;
+  /**
+   * @description Optional minimum transaction lifetime for the quotes in seconds.
+   * @example 60
+   */
+  minimumLifetime?: number;
 };
 
 export type QuoteResponse = {

@@ -42,6 +42,7 @@ export default function Home() {
           amount,
           side: "input",
         },
+        minimumLifetime: 5,
       });
 
       setLog((log) => [

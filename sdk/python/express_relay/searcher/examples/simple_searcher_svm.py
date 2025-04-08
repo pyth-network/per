@@ -209,7 +209,7 @@ class SimpleSearcherSvm:
         swap_ixs = self.client.get_svm_swap_instructions(
             searcher=self.private_key.pubkey(),
             bid_amount=bid_amount,
-            deadline=DEADLINE,
+            deadline=opp.minimum_deadline,
             chain_id=self.chain_id,
             swap_opportunity=opp,
             fee_receiver_relayer=metadata.fee_receiver_relayer,

@@ -180,7 +180,7 @@ export class SimpleSearcherSvm {
       this.searcher.publicKey,
       opportunity,
       bidAmount,
-      new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
+      new anchor.BN(opportunity.minimumDeadline),
       this.chainId,
       config.feeReceiverRelayer,
       config.relayerSigner,
