@@ -351,6 +351,7 @@ impl Service<ChainTypeSvm> {
                 token_account_initialization_configs,
                 token_program_searcher,
                 memo: quote_create.memo,
+                cancellable: quote_create.cancellable,
                 minimum_lifetime: quote_create.minimum_lifetime,
             });
 

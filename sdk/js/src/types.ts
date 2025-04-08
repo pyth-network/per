@@ -167,6 +167,7 @@ export type OpportunitySvmSwap = {
   program: "swap";
   tokenInitializationConfigs: TokenAccountInitializationConfigs;
   memo?: string;
+  cancellable: boolean;
 } & OpportunitySvmMetadata;
 
 export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;
@@ -412,6 +413,18 @@ export type QuoteRequest = {
    * @example "memo"
    */
   memo?: string;
+  /**
+   * @description Whether the quote is cancellable by the searcher between the time the quote is requested and the time the quote is signed and submitted back.
+   * For cancellable quotes, the quote needs to be signed and submitted back to the API. If the quote is not cancellable, the user may broadcast the transaction to the blockchain on their own instead of submitting it back to the API.
+   * Therefore cancellable quotes allow the integrator to reduce the number of API calls to one, but at the cost of potentially worse prices. Price-optimizing integrators should use the default value of false.
+   * @default true
+   */
+  cancellable?: boolean;
+  /**
+   * @description Optional minimum transaction lifetime in seconds.
+   * @example 10
+   */
+  minimumLifetime?: number;
 };
 
 export type QuoteResponse = {

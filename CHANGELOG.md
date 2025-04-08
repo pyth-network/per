@@ -4,6 +4,12 @@ All notable changes to the searcher sdks will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Now the user can request non-cancellable quotes: these are quotes where the searcher can't call `cancel_bid` while the server is waiting for the user signature. These opportunities have the flag `cancellable` set to false in the opportunity parameters.
+
 ## [Rust: 0.8.0, Python 0.23.0, Javascript 0.24.0] - 2025-04-08
 
 ### Added

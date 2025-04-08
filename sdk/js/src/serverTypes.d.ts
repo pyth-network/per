@@ -432,6 +432,12 @@ export interface components {
           /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
           result: string;
           /** @enum {string} */
+          type: "sent_to_user_for_submission";
+        }
+      | {
+          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+          result: string;
+          /** @enum {string} */
           type: "submitted";
         }
       | {
@@ -794,6 +800,11 @@ export interface components {
           slot: number;
         }
       | {
+          /**
+           * @description If true, bids to this opportunity can be cancelled by the searcher.
+           * @example true
+           */
+          cancellable: boolean;
           /** @description Specifies whether the fees are to be paid in the searcher or user token. */
           fee_token: components["schemas"]["FeeToken"];
           /**
@@ -801,6 +812,14 @@ export interface components {
            * @example memo
            */
           memo?: string | null;
+          /**
+           * Format: int32
+           * @description The quote deadline (in seconds) must be at least this many seconds later than the time the request is received by the server.
+           *     A value like `10` means the deadline must be at least 10 seconds after the request is received.
+           *     To ensure the deadline is reasonable, take into account possible network latency, auction and submission delays.
+           * @example 10
+           */
+          minimum_lifetime: number;
           /**
            * @description The permission account that serves as an identifier for the swap opportunity.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -882,6 +901,13 @@ export interface components {
     /** @description Parameters needed to create a new opportunity from the swap request. */
     QuoteCreateV1SvmParams: {
       /**
+       * @description Whether the quote is cancellable by the searcher between the time the quote is requested and the time the quote is signed and submitted back.
+       *     For cancellable quotes, the quote needs to be signed and submitted back to the API. If the quote is not cancellable, the user may broadcast the transaction to the blockchain on their own instead of submitting it back to the API.
+       *     Therefore cancellable quotes allow the integrator to reduce the number of API calls to one, but at the cost of potentially worse prices. Price-optimizing integrators should use the default value of false.
+       * @example true
+       */
+      cancellable?: boolean;
+      /**
        * @description The chain id for creating the quote.
        * @example solana
        */
@@ -892,10 +918,16 @@ export interface components {
        */
       input_token_mint: string;
       /**
-       * @description Optional memo to be included in the transaction
+       * @description Optional memo to be included in the transaction.
        * @example memo
        */
       memo?: string | null;
+      /**
+       * Format: int32
+       * @description Optional minimum transaction lifetime in seconds.
+       * @example 10
+       */
+      minimum_lifetime?: number | null;
       /**
        * @description The mint address of the token the user will receive in the swap.
        * @example EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v

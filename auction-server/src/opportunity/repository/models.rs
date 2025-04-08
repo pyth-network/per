@@ -99,6 +99,7 @@ pub struct OpportunityMetadataSvmProgramSwap {
     pub user_mint_user_balance:               u64,
     pub token_account_initialization_configs: TokenAccountInitializationConfigs,
     pub memo:                                 Option<String>,
+    pub cancellable:                          bool,
     pub minimum_lifetime:                     Option<u32>,
 }
 
