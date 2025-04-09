@@ -44,6 +44,13 @@ pub const TRANSACTION_LANDING_TIME_SVM_BUCKETS: &[f64; 16] = &[
     0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 3.75, 5.0, 10.0, 20.0, 40.0,
 ];
 
+pub const SUBMIT_QUOTE_DEADLINE_BUFFER_METRIC: &str = "submit_quote_deadline_buffer";
+pub const SUBMIT_QUOTE_DEADLINE_BUFFER_BUCKETS: &[f64; 20] = &[
+    -5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 20.0,
+    30.0, 50.0,
+];
+pub const SUBMIT_QUOTE_DEADLINE_TOTAL: &str = "submit_quote_deadline_total";
+
 #[derive(Debug, Clone)]
 pub struct MetricsLayerData {
     category:   String,

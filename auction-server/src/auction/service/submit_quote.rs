@@ -11,13 +11,20 @@ use {
             self,
             BidStatus,
         },
-        kernel::entities::Svm,
+        kernel::entities::{
+            ChainId,
+            Svm,
+        },
+        per_metrics::{
+            SUBMIT_QUOTE_DEADLINE_BUFFER_METRIC,
+            SUBMIT_QUOTE_DEADLINE_TOTAL,
+        },
     },
+    axum_prometheus::metrics,
     solana_sdk::{
         signature::Signature,
         transaction::VersionedTransaction,
     },
-    std::time::Duration,
     time::OffsetDateTime,
 };
 
@@ -26,7 +33,7 @@ pub struct SubmitQuoteInput {
     pub user_signature: Signature,
 }
 
-const DEADLINE_BUFFER: Duration = Duration::from_secs(2);
+const MIN_DEADLINE_BUFFER_SECS: i64 = 2;
 
 impl Service<Svm> {
     async fn get_bid_to_submit(
@@ -119,6 +126,39 @@ impl Service<Svm> {
         Ok(())
     }
 
+    fn check_deadline_buffer(
+        &self,
+        chain_id: ChainId,
+        swap_args: express_relay::SwapArgs,
+    ) -> Result<(), RestError> {
+        let deadline_buffer_secs = swap_args.deadline - OffsetDateTime::now_utc().unix_timestamp();
+
+        metrics::histogram!(
+            SUBMIT_QUOTE_DEADLINE_BUFFER_METRIC,
+            &[("chain_id", chain_id.clone()),]
+        )
+        .record(deadline_buffer_secs as f64);
+
+        if deadline_buffer_secs < MIN_DEADLINE_BUFFER_SECS {
+            metrics::counter!(
+                SUBMIT_QUOTE_DEADLINE_TOTAL,
+                &[
+                    ("chain_id", chain_id.clone()),
+                    ("result", "error".to_string()),
+                ]
+            )
+            .increment(1);
+            return Err(RestError::BadParameters("Quote is expired.".to_string()));
+        }
+
+        metrics::counter!(
+            SUBMIT_QUOTE_DEADLINE_TOTAL,
+            &[("chain_id", chain_id), ("result", "success".to_string()),]
+        )
+        .increment(1);
+        Ok(())
+    }
+
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE), fields(bid_id, auction_id = %input.auction_id))]
     pub async fn submit_quote(
         &self,
@@ -141,9 +181,7 @@ impl Service<Svm> {
         let swap_args = Self::extract_swap_data(&swap_instruction)
             .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
 
-        if swap_args.deadline < (OffsetDateTime::now_utc() - DEADLINE_BUFFER).unix_timestamp() {
-            return Err(RestError::BadParameters("Quote is expired.".to_string()));
-        }
+        self.check_deadline_buffer(auction.chain_id.clone(), swap_args)?;
 
         if !input.user_signature.verify(
             &user_wallet.to_bytes(),
