@@ -68,7 +68,7 @@ pub trait BidStatus:
     fn is_sent_to_user_for_submission(&self) -> bool;
     fn is_submitted(&self) -> bool;
     fn is_cancelled(&self) -> bool;
-    fn is_finalized(&self) -> bool;
+    fn is_concluded(&self) -> bool;
     fn new_lost() -> Self;
 
     fn get_auction_id(&self) -> Option<AuctionId>;
@@ -159,7 +159,7 @@ impl BidStatus for BidStatusSvm {
         matches!(self, BidStatusSvm::Cancelled { .. })
     }
 
-    fn is_finalized(&self) -> bool {
+    fn is_concluded(&self) -> bool {
         matches!(
             self,
             BidStatusSvm::Lost { .. }
@@ -167,6 +167,7 @@ impl BidStatus for BidStatusSvm {
                 | BidStatusSvm::Failed { .. }
                 | BidStatusSvm::Expired { .. }
                 | BidStatusSvm::Cancelled { .. }
+                | BidStatusSvm::SubmissionFailed { .. }
         )
     }
 
@@ -213,7 +214,7 @@ impl BidStatus for BidStatusEvm {
         false
     }
 
-    fn is_finalized(&self) -> bool {
+    fn is_concluded(&self) -> bool {
         matches!(self, BidStatusEvm::Lost { .. } | BidStatusEvm::Won { .. })
     }
 
