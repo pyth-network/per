@@ -185,9 +185,8 @@ impl Service<ChainTypeSvm> {
         &self,
         quote_create: entities::QuoteCreate,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
-        let referral_fee_info = self
-            .unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)
-            .await?;
+        let referral_fee_info =
+            self.unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)?;
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
@@ -403,12 +402,10 @@ impl Service<ChainTypeSvm> {
         )
     )]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
-        let referral_fee_info = self
-            .unwrap_referral_fee_info(
-                input.quote_create.referral_fee_info.clone(),
-                &input.quote_create.chain_id,
-            )
-            .await?;
+        let referral_fee_info = self.unwrap_referral_fee_info(
+            input.quote_create.referral_fee_info.clone(),
+            &input.quote_create.chain_id,
+        )?;
 
         // TODO use compute_swap_fees to make sure instead when the metadata is fetched from on-chain
         if FEE_SPLIT_PRECISION < referral_fee_info.referral_fee_bps.into() {
@@ -419,7 +416,7 @@ impl Service<ChainTypeSvm> {
         }
 
         let config = self.get_config(&input.quote_create.chain_id)?;
-        let auction_service = config.get_auction_service().await;
+        let auction_service = config.auction_service_container.get_service();
 
         tracing::info!(quote_create = ?input.quote_create, "Received request to get quote");
 

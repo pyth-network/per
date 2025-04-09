@@ -8,6 +8,7 @@ license-file = "license.txt"
 anchor-lang-idl = { version = "0.1.1", features = ["convert"] }
 
 [dependencies]
+arc-swap = "1.7.1"
 tokio = { workspace = true, features = ["macros", "sync", "rt-multi-thread", "signal"] }
 tokio-stream = { workspace = true }
 tower-http = { workspace = true, features = ["cors"] }
