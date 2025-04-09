@@ -69,7 +69,7 @@ impl Service<ChainTypeEvm> {
             .ok_or(RestError::OpportunityNotFound)?;
 
         let config = self.get_config(&opportunity.chain_id)?;
-        let auction_service = config.get_auction_service().await;
+        let auction_service = config.auction_service_container.get_service();
         let adapter_calldata = self
             .make_adapter_calldata(MakeAdapterCalldataInput {
                 opportunity:     opportunity.clone().into(),

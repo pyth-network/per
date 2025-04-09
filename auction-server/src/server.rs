@@ -456,13 +456,17 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                 let config = opportunity_service_evm
                     .get_config(chain_id)
                     .expect("Failed to get opportunity service evm config");
-                config.inject_auction_service(service.clone()).await;
+                config
+                    .auction_service_container
+                    .inject_service(service.clone());
             }
             auction_service::ServiceEnum::Svm(service) => {
                 let config = opportunity_service_svm
                     .get_config(chain_id)
                     .expect("Failed to get opportunity service svm config");
-                config.inject_auction_service(service.clone()).await;
+                config
+                    .auction_service_container
+                    .inject_service(service.clone());
             }
         }
     }

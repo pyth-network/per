@@ -150,7 +150,7 @@ impl Service<ChainTypeSvm> {
             .await?;
 
         let config = self.get_config(&input.chain_id)?;
-        let express_relay_metadata_address = Self::calculate_metadata_address(config).await;
+        let express_relay_metadata_address = Self::calculate_metadata_address(config);
 
         let user_ata_mint_user = get_associated_token_address_with_program_id(
             &input.user_wallet_address,

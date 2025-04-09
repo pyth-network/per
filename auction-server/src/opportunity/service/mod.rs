@@ -9,6 +9,7 @@ use {
     crate::{
         auction::service::{
             self as auction_service,
+            ChainTrait,
         },
         kernel::{
             contracts::AdapterFactory,
@@ -27,6 +28,7 @@ use {
             Store,
         },
     },
+    arc_swap::ArcSwap,
     ethers::{
         providers::Provider,
         types::Address,
@@ -72,53 +74,50 @@ mod make_opportunity_execution_params;
 mod make_permitted_tokens;
 mod unwrap_referral_fee_info;
 
-// NOTE: Do not implement debug here. it has a circular reference to auction_service
-pub struct ConfigEvm {
-    pub adapter_factory_contract: Address,
-    pub adapter_bytecode_hash:    [u8; 32],
-    pub chain_id_num:             u64,
-    pub permit2:                  Address,
-    pub provider:                 Provider<TracedClient>,
-    pub weth:                     Address,
-    pub auction_service:          RwLock<Option<auction_service::Service<Evm>>>,
+/// Store for the injectable auction service
+pub struct AuctionServiceContainer<C: ChainTrait> {
+    service: ArcSwap<Option<auction_service::Service<C>>>,
 }
 
-impl ConfigEvm {
-    // TODO Move these to config trait?
-    pub async fn inject_auction_service(&self, service: auction_service::Service<Evm>) {
-        let mut write_guard = self.auction_service.write().await;
-        *write_guard = Some(service);
+impl<C: ChainTrait> AuctionServiceContainer<C> {
+    pub fn new() -> Self {
+        Self {
+            service: ArcSwap::new(Arc::new(None)),
+        }
     }
-    pub async fn get_auction_service(&self) -> auction_service::Service<Evm> {
-        self.auction_service
-            .read()
-            .await
+
+    pub fn inject_service(&self, service: auction_service::Service<C>) {
+        self.service.swap(Arc::new(Some(service)));
+    }
+
+    /// Resolve the stored service
+    fn get_service(&self) -> auction_service::Service<C> {
+        self.service
+            .load()
+            .as_ref()
+            .as_ref()
+            .expect("no injected service")
             .clone()
-            .expect("Failed to get auction service")
     }
+}
+
+// NOTE: Do not implement debug here. it has a circular reference to auction_service
+pub struct ConfigEvm {
+    pub adapter_factory_contract:  Address,
+    pub adapter_bytecode_hash:     [u8; 32],
+    pub chain_id_num:              u64,
+    pub permit2:                   Address,
+    pub provider:                  Provider<TracedClient>,
+    pub weth:                      Address,
+    pub auction_service_container: AuctionServiceContainer<Evm>,
 }
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
-    pub auction_service:         RwLock<Option<auction_service::Service<Svm>>>,
-    pub rpc_client:              RpcClient,
-    pub accepted_token_programs: Vec<Pubkey>,
-    pub ordered_fee_tokens:      Vec<Pubkey>,
-}
-
-impl ConfigSvm {
-    // TODO Move these to config trait?
-    pub async fn inject_auction_service(&self, service: auction_service::Service<Svm>) {
-        let mut write_guard = self.auction_service.write().await;
-        *write_guard = Some(service);
-    }
-    pub async fn get_auction_service(&self) -> auction_service::Service<Svm> {
-        self.auction_service
-            .read()
-            .await
-            .clone()
-            .expect("Failed to get auction service")
-    }
+    pub rpc_client:                RpcClient,
+    pub accepted_token_programs:   Vec<Pubkey>,
+    pub ordered_fee_tokens:        Vec<Pubkey>,
+    pub auction_service_container: AuctionServiceContainer<Svm>,
 }
 
 #[allow(dead_code)]
@@ -182,7 +181,7 @@ impl ConfigEvm {
             adapter_factory_contract,
             chain_id_num,
             provider,
-            auction_service: RwLock::new(None),
+            auction_service_container: AuctionServiceContainer::new(),
         })
     }
 
@@ -220,15 +219,18 @@ impl ConfigSvm {
                 (
                     chain_id.clone(),
                     Self {
-                        auction_service:         RwLock::new(None),
-                        rpc_client:              TracedSenderSvm::new_client(
+                        rpc_client:                TracedSenderSvm::new_client(
                             chain_id.clone(),
                             chain_store.config.rpc_read_url.as_str(),
                             chain_store.config.rpc_timeout,
                             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                         ),
-                        accepted_token_programs: chain_store.config.accepted_token_programs.clone(),
-                        ordered_fee_tokens:      chain_store.config.ordered_fee_tokens.clone(),
+                        accepted_token_programs:   chain_store
+                            .config
+                            .accepted_token_programs
+                            .clone(),
+                        ordered_fee_tokens:        chain_store.config.ordered_fee_tokens.clone(),
+                        auction_service_container: AuctionServiceContainer::new(),
                     },
                 )
             })
@@ -315,13 +317,13 @@ pub mod tests {
             rpc_client: MockRpcClient,
         ) -> (Self, Receiver<UpdateEvent>) {
             let config_svm = crate::opportunity::service::ConfigSvm {
-                auction_service:         RwLock::new(None),
-                rpc_client:              RpcClient::new_sender(
+                rpc_client:                RpcClient::new_sender(
                     rpc_client,
                     RpcClientConfig::default(),
                 ),
-                accepted_token_programs: vec![],
-                ordered_fee_tokens:      vec![],
+                accepted_token_programs:   vec![],
+                ordered_fee_tokens:        vec![],
+                auction_service_container: AuctionServiceContainer::new(),
             };
 
             let mut chains_svm = HashMap::new();
