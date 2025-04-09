@@ -81,6 +81,12 @@ pub struct BidStatusAuction<T: BidStatus> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum BidSubmissionFailedReason {
+    Cancelled,
+    DeadlinePassed,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum BidStatusSvm {
     Pending,
     AwaitingSignature {
@@ -106,6 +112,10 @@ pub enum BidStatusSvm {
     },
     Cancelled {
         auction: BidStatusAuction<Self>,
+    },
+    SubmissionFailed {
+        auction: BidStatusAuction<Self>,
+        reason:  BidSubmissionFailedReason,
     },
 }
 
@@ -175,6 +185,7 @@ impl BidStatus for BidStatusSvm {
             BidStatusSvm::Failed { auction } => Some(auction.id),
             BidStatusSvm::Expired { auction } => Some(auction.id),
             BidStatusSvm::Cancelled { auction } => Some(auction.id),
+            BidStatusSvm::SubmissionFailed { auction, .. } => Some(auction.id),
         }
     }
 }

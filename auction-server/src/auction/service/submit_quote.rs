@@ -48,11 +48,30 @@ impl Service<Svm> {
         let winner_bid = auction
             .bids
             .iter()
-            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_sent_to_user_for_submission() || bid.status.is_submitted() || bid.status.is_cancelled())
+            .find(|bid| {
+                bid.status.is_awaiting_signature()
+                    || bid.status.is_sent_to_user_for_submission()
+                    || bid.status.is_submitted()
+                    || bid.status.is_cancelled()
+            })
             .cloned()
-            .ok_or(RestError::BadParameters("This quote has already been submitted and finalized on-chain. No further changes are allowed.".to_string()))?;
+            .ok_or(RestError::BadParameters(
+                "This quote has already been finalized. No further changes are allowed."
+                    .to_string(),
+            ))?;
 
         if winner_bid.status.is_cancelled() {
+            self.update_bid_status(UpdateBidStatusInput {
+                bid:        winner_bid.clone(),
+                new_status: entities::BidStatusSvm::SubmissionFailed {
+                    auction: entities::BidStatusAuction {
+                        id:      auction.id,
+                        tx_hash: winner_bid.chain_data.transaction.signatures[0],
+                    },
+                    reason:  entities::BidSubmissionFailedReason::Cancelled,
+                },
+            })
+            .await?;
             Err(RestError::BadParameters(
                 "This quote has already been cancelled.".to_string(),
             ))
@@ -126,11 +145,11 @@ impl Service<Svm> {
         Ok(())
     }
 
-    fn check_deadline_buffer(
+    fn is_within_deadline_buffer(
         &self,
         chain_id: ChainId,
         swap_args: express_relay::SwapArgs,
-    ) -> Result<(), RestError> {
+    ) -> bool {
         let deadline_buffer_secs = swap_args.deadline - OffsetDateTime::now_utc().unix_timestamp();
 
         metrics::histogram!(
@@ -139,24 +158,22 @@ impl Service<Svm> {
         )
         .record(deadline_buffer_secs as f64);
 
-        if deadline_buffer_secs < MIN_DEADLINE_BUFFER_SECS {
-            metrics::counter!(
-                SUBMIT_QUOTE_DEADLINE_TOTAL,
-                &[
-                    ("chain_id", chain_id.clone()),
-                    ("result", "error".to_string()),
-                ]
-            )
-            .increment(1);
-            return Err(RestError::BadParameters("Quote is expired.".to_string()));
-        }
+        let result = if deadline_buffer_secs >= MIN_DEADLINE_BUFFER_SECS {
+            "success"
+        } else {
+            "error"
+        };
 
         metrics::counter!(
             SUBMIT_QUOTE_DEADLINE_TOTAL,
-            &[("chain_id", chain_id), ("result", "success".to_string()),]
+            &[
+                ("chain_id", chain_id.clone()),
+                ("result", result.to_string()),
+            ]
         )
         .increment(1);
-        Ok(())
+
+        deadline_buffer_secs >= MIN_DEADLINE_BUFFER_SECS
     }
 
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE), fields(bid_id, auction_id = %input.auction_id))]
@@ -181,7 +198,21 @@ impl Service<Svm> {
         let swap_args = Self::extract_swap_data(&swap_instruction)
             .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
 
-        self.check_deadline_buffer(auction.chain_id.clone(), swap_args)?;
+        if !self.is_within_deadline_buffer(bid.chain_id.clone(), swap_args) {
+            let tx_hash = bid.chain_data.transaction.signatures[0];
+            self.update_bid_status(UpdateBidStatusInput {
+                bid,
+                new_status: entities::BidStatusSvm::SubmissionFailed {
+                    auction: entities::BidStatusAuction {
+                        id: auction.id,
+                        tx_hash,
+                    },
+                    reason:  entities::BidSubmissionFailedReason::DeadlinePassed,
+                },
+            })
+            .await?;
+            return Err(RestError::BadParameters("Quote is expired.".to_string()));
+        }
 
         if !input.user_signature.verify(
             &user_wallet.to_bytes(),

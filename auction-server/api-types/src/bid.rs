@@ -79,6 +79,15 @@ pub enum BidStatusEvm {
     },
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum SubmissionFailedReason {
+    /// The bid was cancelled by the owner.
+    Cancelled,
+    /// The bid was submitted very late.
+    DeadlinePassed,
+}
+
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -148,6 +157,16 @@ pub enum BidStatusSvm {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         result: Signature,
+    },
+    /// The Submission of the bid failed.
+    /// This can happend if the user try to submit the bid after it being cancelled by the owner.
+    /// Or if the user try to submit the bid after late while the bid is in the state of AwaitingSignature.
+    #[schema(title = "Cancelled")]
+    SubmissionFailed {
+        #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
+        #[serde_as(as = "DisplayFromStr")]
+        result: Signature,
+        reason: SubmissionFailedReason,
     },
 }
 

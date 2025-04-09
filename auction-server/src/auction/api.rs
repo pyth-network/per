@@ -395,6 +395,19 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
             entities::BidStatusSvm::Cancelled { auction } => BidStatusSvm::Cancelled {
                 result: auction.tx_hash,
             },
+            entities::BidStatusSvm::SubmissionFailed { auction, reason } => {
+                BidStatusSvm::SubmissionFailed {
+                    result: auction.tx_hash,
+                    reason: match reason {
+                        entities::BidSubmissionFailedReason::Cancelled => {
+                            express_relay_api_types::bid::SubmissionFailedReason::Cancelled
+                        }
+                        entities::BidSubmissionFailedReason::DeadlinePassed => {
+                            express_relay_api_types::bid::SubmissionFailedReason::DeadlinePassed
+                        }
+                    },
+                }
+            }
         }
     }
 }
