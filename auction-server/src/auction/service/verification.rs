@@ -1870,18 +1870,6 @@ mod tests {
         uuid::Uuid,
     };
 
-    impl TokenAccountInitializationConfigs {
-        pub fn searcher_payer() -> Self {
-            Self {
-                user_ata_mint_searcher:         TokenAccountInitializationConfig::SearcherPayer,
-                user_ata_mint_user:             TokenAccountInitializationConfig::Unneeded,
-                router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
-                relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
-                express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
-            }
-        }
-    }
-
     impl OpportunitySvmProgramSwap {
         pub fn default_test_with_user_wallet_address(user_wallet_address: Pubkey) -> Self {
             Self {

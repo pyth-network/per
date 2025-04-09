@@ -96,6 +96,16 @@ impl TokenAccountInitializationConfigs {
             express_relay_fee_receiver_ata: TokenAccountInitializationConfig::Unneeded,
         }
     }
+
+    pub fn searcher_payer() -> Self {
+        Self {
+            user_ata_mint_searcher:         TokenAccountInitializationConfig::SearcherPayer,
+            user_ata_mint_user:             TokenAccountInitializationConfig::Unneeded,
+            router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
+            relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
+            express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

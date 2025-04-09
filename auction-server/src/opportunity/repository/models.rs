@@ -93,14 +93,27 @@ pub struct OpportunityMetadataSvmProgramSwap {
     pub referral_fee_bps:                     u16,
     pub platform_fee_bps:                     u64,
     #[serde_as(as = "DisplayFromStr")]
+    #[serde(default = "default_token_program")]
     pub token_program_user:                   Pubkey,
     #[serde_as(as = "DisplayFromStr")]
+    #[serde(default = "default_token_program")]
     pub token_program_searcher:               Pubkey,
+    #[serde(default)]
     pub user_mint_user_balance:               u64,
+    #[serde(default = "TokenAccountInitializationConfigs::searcher_payer")]
     pub token_account_initialization_configs: TokenAccountInitializationConfigs,
     pub memo:                                 Option<String>,
+    #[serde(default = "default_cancellable")]
     pub cancellable:                          bool,
     pub minimum_lifetime:                     Option<u32>,
+}
+
+fn default_cancellable() -> bool {
+    true
+}
+
+fn default_token_program() -> Pubkey {
+    spl_token::ID
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
