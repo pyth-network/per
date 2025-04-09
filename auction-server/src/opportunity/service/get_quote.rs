@@ -664,7 +664,7 @@ impl Service<ChainTypeSvm> {
             },
             referrer_fee: TokenAmountSvm {
                 token:  fee_token,
-                amount: fees.relayer_fee,
+                amount: fees.router_fee,
             },
             platform_fee: TokenAmountSvm {
                 token:  fee_token,
