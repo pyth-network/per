@@ -1017,6 +1017,7 @@ mod tests {
                 amount: 101,
             }
         );
+        assert_eq!(quote.transaction, None);
     }
 
     #[tokio::test]
