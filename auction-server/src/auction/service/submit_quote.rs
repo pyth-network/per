@@ -17,7 +17,7 @@ use {
         },
         per_metrics::{
             SUBMIT_QUOTE_DEADLINE_BUFFER_METRIC,
-            SUBMIT_QUOTE_DEADLINE_CHECK_METRIC,
+            SUBMIT_QUOTE_DEADLINE_TOTAL,
         },
     },
     axum_prometheus::metrics,
@@ -141,7 +141,7 @@ impl Service<Svm> {
 
         if deadline_buffer_secs < MIN_DEADLINE_BUFFER_SECS {
             metrics::counter!(
-                SUBMIT_QUOTE_DEADLINE_CHECK_METRIC,
+                SUBMIT_QUOTE_DEADLINE_TOTAL,
                 &[
                     ("chain_id", chain_id.clone()),
                     ("result", "error".to_string()),
@@ -152,7 +152,7 @@ impl Service<Svm> {
         }
 
         metrics::counter!(
-            SUBMIT_QUOTE_DEADLINE_CHECK_METRIC,
+            SUBMIT_QUOTE_DEADLINE_TOTAL,
             &[("chain_id", chain_id), ("result", "success".to_string()),]
         )
         .increment(1);

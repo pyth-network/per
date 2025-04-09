@@ -49,7 +49,7 @@ pub const SUBMIT_QUOTE_DEADLINE_BUFFER_BUCKETS: &[f64; 20] = &[
     -5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 20.0,
     30.0, 50.0,
 ];
-pub const SUBMIT_QUOTE_DEADLINE_CHECK_METRIC: &str = "submit_quote_deadline_check";
+pub const SUBMIT_QUOTE_DEADLINE_TOTAL: &str = "submit_quote_deadline_total";
 
 #[derive(Debug, Clone)]
 pub struct MetricsLayerData {
