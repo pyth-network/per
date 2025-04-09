@@ -172,6 +172,13 @@ pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
             per_metrics::TRANSACTION_LANDING_TIME_SVM_BUCKETS,
         )
         .unwrap()
+        .set_buckets_for_metric(
+            axum_prometheus::metrics_exporter_prometheus::Matcher::Full(
+                per_metrics::SUBMIT_QUOTE_DEADLINE_BUFFER_METRIC.to_string(),
+            ),
+            per_metrics::SUBMIT_QUOTE_DEADLINE_BUFFER_BUCKETS,
+        )
+        .unwrap()
         .set_buckets(DEFAULT_METRICS_BUCKET)
         .unwrap()
         .install_recorder()

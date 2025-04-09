@@ -15,6 +15,10 @@ use {
             ChainId,
             Svm,
         },
+        per_metrics::{
+            SUBMIT_QUOTE_DEADLINE_BUFFER_METRIC,
+            SUBMIT_QUOTE_DEADLINE_CHECK_METRIC,
+        },
     },
     axum_prometheus::metrics,
     solana_sdk::{
@@ -129,17 +133,15 @@ impl Service<Svm> {
     ) -> Result<(), RestError> {
         let deadline_buffer_secs = swap_args.deadline - OffsetDateTime::now_utc().unix_timestamp();
 
-        tracing::info!("Deadline buffer: {}", deadline_buffer_secs);
-
         metrics::histogram!(
-            "submit_quote_deadline_buffer",
+            SUBMIT_QUOTE_DEADLINE_BUFFER_METRIC,
             &[("chain_id", chain_id.clone()),]
         )
         .record(deadline_buffer_secs as f64);
 
         if deadline_buffer_secs < MIN_DEADLINE_BUFFER_SECS {
             metrics::counter!(
-                "submit_quote_deadline_check",
+                SUBMIT_QUOTE_DEADLINE_CHECK_METRIC,
                 &[
                     ("chain_id", chain_id.clone()),
                     ("result", "error".to_string()),
@@ -150,7 +152,7 @@ impl Service<Svm> {
         }
 
         metrics::counter!(
-            "submit_quote_deadline_check",
+            SUBMIT_QUOTE_DEADLINE_CHECK_METRIC,
             &[("chain_id", chain_id), ("result", "success".to_string()),]
         )
         .increment(1);
