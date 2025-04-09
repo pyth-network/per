@@ -2073,11 +2073,15 @@ mod tests {
             },
             router,
             permission_account: permission_account_user_token_wsol,
-            program: OpportunitySvmProgram::Swap(
-                OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
+                token_account_initialization_configs: TokenAccountInitializationConfigs {
+                    user_ata_mint_user: TokenAccountInitializationConfig::SearcherPayer,
+                    ..TokenAccountInitializationConfigs::searcher_payer()
+                },
+                ..OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
                     user_wallet_address,
-                ),
-            ),
+                )
+            }),
         };
 
         let opp_searcher_token_wsol = OpportunitySvm {
