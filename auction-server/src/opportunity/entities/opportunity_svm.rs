@@ -96,6 +96,16 @@ impl TokenAccountInitializationConfigs {
             express_relay_fee_receiver_ata: TokenAccountInitializationConfig::Unneeded,
         }
     }
+
+    pub fn searcher_payer() -> Self {
+        Self {
+            user_ata_mint_searcher:         TokenAccountInitializationConfig::SearcherPayer,
+            user_ata_mint_user:             TokenAccountInitializationConfig::Unneeded,
+            router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
+            relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
+            express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -110,6 +120,7 @@ pub struct OpportunitySvmProgramSwap {
     pub token_program_searcher:               Pubkey,
     pub token_account_initialization_configs: TokenAccountInitializationConfigs,
     pub memo:                                 Option<String>,
+    pub cancellable:                          bool,
     pub minimum_lifetime:                     Option<u32>,
     pub minimum_deadline:                     OffsetDateTime,
 }
@@ -181,6 +192,7 @@ impl Opportunity for OpportunitySvm {
                             .token_account_initialization_configs,
                         user_mint_user_balance:               program.user_mint_user_balance,
                         memo:                                 program.memo,
+                        cancellable:                          program.cancellable,
                         minimum_lifetime:                     program.minimum_lifetime,
                     },
                 )
@@ -411,6 +423,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                         .token_account_initialization_configs
                         .into(),
                     memo: program.memo,
+                    cancellable: program.cancellable,
                     minimum_deadline: program.minimum_deadline.unix_timestamp(),
                 }
             }
@@ -468,6 +481,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                         .token_account_initialization_configs,
                     user_mint_user_balance:               program.user_mint_user_balance,
                     memo:                                 program.memo,
+                    cancellable:                          program.cancellable,
                     minimum_lifetime:                     program.minimum_lifetime,
                     minimum_deadline:                     get_current_time_rounded_with_offset(
                         program

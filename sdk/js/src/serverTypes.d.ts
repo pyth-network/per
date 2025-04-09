@@ -800,6 +800,11 @@ export interface components {
           slot: number;
         }
       | {
+          /**
+           * @description If true, bids to this opportunity can be cancelled by the searcher.
+           * @example true
+           */
+          cancellable: boolean;
           /** @description Specifies whether the fees are to be paid in the searcher or user token. */
           fee_token: components["schemas"]["FeeToken"];
           /**

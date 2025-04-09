@@ -251,6 +251,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
   tokenProgramSearcher: PublicKey;
   tokenInitializationConfigs: TokenAccountInitializationConfigs;
   memo?: string;
+  cancellable: boolean;
   userMintUserBalance: anchor.BN;
 } {
   const tokenProgramSearcher = swapOpportunity.tokens.tokenProgramSearcher;
@@ -265,6 +266,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
   const router = swapOpportunity.routerAccount;
   const tokenInitializationConfigs = swapOpportunity.tokenInitializationConfigs;
   const memo = swapOpportunity.memo;
+  const cancellable = swapOpportunity.cancellable;
   const userMintUserBalance = swapOpportunity.userMintUserBalance;
   return {
     searcherToken,
@@ -277,6 +279,7 @@ function extractSwapInfo(swapOpportunity: OpportunitySvmSwap): {
     router,
     tokenInitializationConfigs,
     memo,
+    cancellable,
     userMintUserBalance,
   };
 }

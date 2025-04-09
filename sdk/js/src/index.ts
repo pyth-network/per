@@ -514,18 +514,19 @@ export class Client {
             router: quoteRequest.referralFeeInfo.router.toBase58(),
             referral_fee_bps: quoteRequest.referralFeeInfo.referralFeeBps,
           }
-        : null,
+        : undefined,
       specified_token_amount: quoteRequest.specifiedTokenAmount,
       user_wallet_address: quoteRequest.userWallet
         ? quoteRequest.userWallet.toBase58()
-        : null,
-      memo: quoteRequest.memo ?? null,
+        : undefined,
+      memo: quoteRequest.memo ?? undefined,
+      cancellable: quoteRequest.cancellable ?? undefined,
+      minimum_lifetime: quoteRequest.minimumLifetime ?? undefined,
       version: "v1" as const,
-      minimum_lifetime: quoteRequest.minimumLifetime ?? null,
     };
     // TODO: we may want to wrap all the GET/POST calls in a try/catch block to handle errors
     const response = await client.POST("/v1/opportunities/quote", {
-      body: body,
+      body,
     });
     if (response.error) {
       throw ClientError.newHttpError(
@@ -731,6 +732,7 @@ export class Client {
         userMintUserBalance: new anchor.BN(
           opportunity.user_mint_user_balance.toString(),
         ),
+        cancellable: opportunity.cancellable,
         minimumDeadline: opportunity.minimum_deadline,
       };
     } else {

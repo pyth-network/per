@@ -1870,14 +1870,24 @@ mod tests {
         uuid::Uuid,
     };
 
-    impl TokenAccountInitializationConfigs {
-        pub fn searcher_payer() -> Self {
+    impl OpportunitySvmProgramSwap {
+        pub fn default_test_with_user_wallet_address(user_wallet_address: Pubkey) -> Self {
             Self {
-                user_ata_mint_searcher:         TokenAccountInitializationConfig::SearcherPayer,
-                user_ata_mint_user:             TokenAccountInitializationConfig::Unneeded,
-                router_fee_receiver_ta:         TokenAccountInitializationConfig::SearcherPayer,
-                relayer_fee_receiver_ata:       TokenAccountInitializationConfig::SearcherPayer,
-                express_relay_fee_receiver_ata: TokenAccountInitializationConfig::SearcherPayer,
+                user_wallet_address,
+                platform_fee_bps: 0,
+                token_program_user: spl_token::id(),
+                token_program_searcher: spl_token::id(),
+                fee_token: FeeToken::UserToken,
+                referral_fee_bps: 10,
+                user_mint_user_balance: LAMPORTS_PER_SOL,
+                token_account_initialization_configs:
+                    TokenAccountInitializationConfigs::searcher_payer(),
+                memo: None,
+                minimum_lifetime: None,
+                minimum_deadline: get_current_time_rounded_with_offset(
+                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+                ),
+                cancellable: true,
             }
         }
     }
@@ -1935,7 +1945,6 @@ mod tests {
         };
         let referral_fee_bps = 10;
 
-        let fee_token = FeeToken::UserToken;
         let router_token_account = get_associated_token_address_with_program_id(
             &router,
             &user_token_address,
@@ -1994,22 +2003,11 @@ mod tests {
             },
             router,
             permission_account: permission_account_user_token_specified,
-            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address,
-                platform_fee_bps: 0,
-                token_program_user: spl_token::id(),
-                token_program_searcher: spl_token::id(),
-                fee_token: fee_token.clone(),
-                referral_fee_bps,
-                user_mint_user_balance: LAMPORTS_PER_SOL,
-                token_account_initialization_configs:
-                    TokenAccountInitializationConfigs::searcher_payer(),
-                memo: None,
-                minimum_lifetime: None,
-                minimum_deadline: get_current_time_rounded_with_offset(
-                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+            program: OpportunitySvmProgram::Swap(
+                OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+                    user_wallet_address,
                 ),
-            }),
+            ),
         };
 
         let opp_searcher_token_specified = OpportunitySvm {
@@ -2034,22 +2032,11 @@ mod tests {
             },
             router,
             permission_account: permission_account_searcher_token_specified,
-            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address,
-                platform_fee_bps: 0,
-                token_program_user: spl_token::id(),
-                token_program_searcher: spl_token::id(),
-                fee_token: fee_token.clone(),
-                referral_fee_bps,
-                user_mint_user_balance: LAMPORTS_PER_SOL,
-                token_account_initialization_configs:
-                    TokenAccountInitializationConfigs::searcher_payer(),
-                memo: None,
-                minimum_lifetime: None,
-                minimum_deadline: get_current_time_rounded_with_offset(
-                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+            program: OpportunitySvmProgram::Swap(
+                OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+                    user_wallet_address,
                 ),
-            }),
+            ),
         };
 
         let opp_user_token_wsol = OpportunitySvm {
@@ -2075,22 +2062,13 @@ mod tests {
             router,
             permission_account: permission_account_user_token_wsol,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address,
-                platform_fee_bps: 0,
-                token_program_user: spl_token::id(),
-                token_program_searcher: spl_token::id(),
-                fee_token: fee_token.clone(),
-                referral_fee_bps,
-                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs: TokenAccountInitializationConfigs {
                     user_ata_mint_user: TokenAccountInitializationConfig::SearcherPayer,
                     ..TokenAccountInitializationConfigs::searcher_payer()
                 },
-                memo: None,
-                minimum_lifetime: None,
-                minimum_deadline: get_current_time_rounded_with_offset(
-                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
-                ),
+                ..OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+                    user_wallet_address,
+                )
             }),
         };
 
@@ -2116,22 +2094,11 @@ mod tests {
             },
             router,
             permission_account: permission_account_searcher_token_wsol,
-            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address,
-                platform_fee_bps: 0,
-                token_program_user: spl_token::id(),
-                token_program_searcher: spl_token::id(),
-                fee_token: fee_token.clone(),
-                referral_fee_bps,
-                user_mint_user_balance: LAMPORTS_PER_SOL,
-                token_account_initialization_configs:
-                    TokenAccountInitializationConfigs::searcher_payer(),
-                memo: None,
-                minimum_lifetime: None,
-                minimum_deadline: get_current_time_rounded_with_offset(
-                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+            program: OpportunitySvmProgram::Swap(
+                OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+                    user_wallet_address,
                 ),
-            }),
+            ),
         };
 
         let indicative_price_taker = generate_indicative_price_taker();
@@ -2164,22 +2131,11 @@ mod tests {
             },
             router,
             permission_account: permission_account_indicative_price_taker,
-            program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address: indicative_price_taker,
-                platform_fee_bps: 0,
-                token_program_user: spl_token::id(),
-                token_program_searcher: spl_token::id(),
-                fee_token: fee_token.clone(),
-                referral_fee_bps,
-                user_mint_user_balance: LAMPORTS_PER_SOL,
-                token_account_initialization_configs:
-                    TokenAccountInitializationConfigs::searcher_payer(),
-                memo: None,
-                minimum_lifetime: None,
-                minimum_deadline: get_current_time_rounded_with_offset(
-                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
+            program: OpportunitySvmProgram::Swap(
+                OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+                    indicative_price_taker,
                 ),
-            }),
+            ),
         };
 
 
@@ -2206,23 +2162,14 @@ mod tests {
             router,
             permission_account: permission_account_user_token_specified,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address,
-                platform_fee_bps: 0,
-                token_program_user: spl_token::id(),
-                token_program_searcher: spl_token::id(),
-                fee_token: fee_token.clone(),
-                referral_fee_bps,
-                user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs: TokenAccountInitializationConfigs {
                     user_ata_mint_user: TokenAccountInitializationConfig::UserPayer,
                     user_ata_mint_searcher: TokenAccountInitializationConfig::UserPayer,
                     ..TokenAccountInitializationConfigs::searcher_payer()
                 },
-                memo: None,
-                minimum_lifetime: None,
-                minimum_deadline: get_current_time_rounded_with_offset(
-                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
-                ),
+                ..OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+                    user_wallet_address,
+                )
             }),
         };
 
@@ -2249,20 +2196,10 @@ mod tests {
             router,
             permission_account: permission_account_user_token_specified,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address,
-                platform_fee_bps: 0,
-                token_program_user: spl_token::id(),
-                token_program_searcher: spl_token::id(),
-                fee_token: fee_token.clone(),
-                referral_fee_bps,
-                user_mint_user_balance: LAMPORTS_PER_SOL,
-                token_account_initialization_configs:
-                    TokenAccountInitializationConfigs::searcher_payer(),
                 memo: Some("memo".to_string()),
-                minimum_lifetime: None,
-                minimum_deadline: get_current_time_rounded_with_offset(
-                    BID_MINIMUM_LIFE_TIME_SVM_OTHER,
-                ),
+                ..OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+                    user_wallet_address,
+                )
             }),
         };
 
@@ -2289,20 +2226,13 @@ mod tests {
             router,
             permission_account: permission_account_user_token_specified,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
-                user_wallet_address,
-                platform_fee_bps: 0,
-                token_program_user: spl_token::id(),
-                token_program_searcher: spl_token::id(),
-                fee_token,
-                referral_fee_bps,
-                user_mint_user_balance: LAMPORTS_PER_SOL,
-                token_account_initialization_configs:
-                    TokenAccountInitializationConfigs::searcher_payer(),
-                memo: Some("memo".to_string()),
                 minimum_lifetime: Some(20),
                 minimum_deadline: get_current_time_rounded_with_offset(
                     std::time::Duration::from_secs(20),
                 ),
+                ..OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+                    user_wallet_address,
+                )
             }),
         };
 

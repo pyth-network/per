@@ -365,6 +365,7 @@ class SwapOpportunitySvm(BaseOpportunitySvm):
     tokens: SwapTokensSearcherSpecified | SwapTokensUserSpecified
     token_account_initialization_configs: TokenAccountInitializationConfigs
     memo: str | None = Field(default=None)
+    cancellable: bool
     minimum_deadline: int
 
 
