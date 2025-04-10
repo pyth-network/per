@@ -107,7 +107,7 @@ mod tests {
     use {
         crate::{
             api::ws,
-            kernel::traced_sender_svm::tests::MockRpcClient,
+            kernel::rpc_client_svm_tester::RpcClientSvmTester,
             opportunity::{
                 entities::{
                     OpportunityCoreFieldsCreate,
@@ -134,13 +134,13 @@ mod tests {
     #[tokio::test]
     async fn test_add_opportunity() {
         let chain_id = "solana".to_string();
-        let rpc_client = MockRpcClient::default();
+        let rpc_client = RpcClientSvmTester::new();
         let mut mock_db = MockDatabase::default();
 
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
 
         let (service, mut ws_receiver) =
-            Service::new_with_mocks_svm(chain_id.clone(), mock_db, rpc_client);
+            Service::new_with_mocks_svm(chain_id.clone(), mock_db, &rpc_client);
 
         let permission_account = Pubkey::new_unique();
         let router = Pubkey::new_unique();

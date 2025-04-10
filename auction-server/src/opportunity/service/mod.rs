@@ -169,7 +169,7 @@ pub mod tests {
                 self,
                 UpdateEvent,
             },
-            kernel::traced_sender_svm::tests::MockRpcClient,
+            kernel::rpc_client_svm_tester::RpcClientSvmTester,
             opportunity::repository::MockDatabase,
         },
         tokio::sync::{
@@ -182,13 +182,10 @@ pub mod tests {
         pub fn new_with_mocks_svm(
             chain_id: ChainId,
             db: MockDatabase,
-            rpc_client: MockRpcClient,
+            rpc_tester: &RpcClientSvmTester,
         ) -> (Self, Receiver<UpdateEvent>) {
             let config_svm = crate::opportunity::service::ConfigSvm {
-                rpc_client:                RpcClient::new_sender(
-                    rpc_client,
-                    RpcClientConfig::default(),
-                ),
+                rpc_client:                rpc_tester.make_test_client(),
                 accepted_token_programs:   vec![],
                 ordered_fee_tokens:        vec![],
                 auction_service_container: AuctionServiceContainer::new(),

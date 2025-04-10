@@ -693,7 +693,10 @@ mod tests {
                     StatefulMockAuctionService,
                 },
             },
-            kernel::traced_sender_svm::tests::MockRpcClient,
+            kernel::{
+                rpc_client_svm_tester::RpcClientSvmTester,
+                test_utils::DEFAULT_CHAIN_ID,
+            },
             opportunity::{
                 entities::{
                     QuoteCreate,
@@ -721,9 +724,6 @@ mod tests {
 
     // The default test auction id
     const DEFAULT_AUCTION_ID: Uuid = Uuid::from_u128(4242);
-    // Default chain id
-    const DEFAULT_CHAIN_ID: &str = "solana";
-
 
     #[derive(Clone, Default)]
     struct BidParams {
@@ -874,14 +874,14 @@ mod tests {
         } = params;
 
         let chain_id = DEFAULT_CHAIN_ID.to_string();
-        let rpc_client = MockRpcClient::default();
+        let rpc_client = RpcClientSvmTester::new();
         let mut mock_db = MockDatabase::default();
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
         mock_db.expect_remove_opportunity().returning(|_, _| Ok(()));
 
         let test_token_program_user = Pubkey::new_unique();
         let test_token_program_searcher = Pubkey::new_unique();
-        let (mut service, _) = Service::new_with_mocks_svm(chain_id.clone(), mock_db, rpc_client);
+        let (mut service, _) = Service::new_with_mocks_svm(chain_id.clone(), mock_db, &rpc_client);
         service
             .config
             .get_mut(&chain_id)

@@ -1,5 +1,4 @@
 use {
-    super::token_amount::TokenAmount,
     express_relay_api_types::opportunity as api,
     serde::{
         Deserialize,
@@ -18,10 +17,6 @@ pub struct TokenAmountSvm {
     #[serde_as(as = "DisplayFromStr")]
     pub token:  Pubkey,
     pub amount: u64,
-}
-
-impl TokenAmount for TokenAmountSvm {
-    type ApiTokenAmount = api::TokenAmountSvm;
 }
 
 impl From<TokenAmountSvm> for api::TokenAmountSvm {
