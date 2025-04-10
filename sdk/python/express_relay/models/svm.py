@@ -402,16 +402,17 @@ class BidStatusSvm(BaseModel):
             ), "bid result should not be empty when status is not pending or lost"
         return self
 
-    # @model_validator(mode="after")
-    # def check_failed_reason(self):
-    #     if self.type == BidStatusVariantsSvm.SUBMISSION_FAILED:
-    #         assert (
-    #             self.reason is not None
-    #         ), "bid reason should not be empty when status is submission failed"
-    #     else:
-    #         assert (
-    #             self.reason is None
-    #         ), "bid reason should be empty when status is not submission failed"
+    @model_validator(mode="after")
+    def check_failed_reason(self):
+        if self.type == BidStatusVariantsSvm.SUBMISSION_FAILED:
+            assert (
+                self.reason is not None
+            ), "bid reason should not be empty when status is submission failed"
+        else:
+            assert (
+                self.reason is None
+            ), "bid reason should be empty when status is not submission failed"
+        return self
 
 
 class BidResponseSvm(BaseModel):
