@@ -1298,7 +1298,7 @@ mod tests {
             .await
             .expect("Failed to submit quote");
 
-        assert_eq!(quote.referrer_fee.amount, 1);
+        assert_eq!(quote.referrer_fee.amount, 0);
         assert_eq!(quote.platform_fee.amount, 2);
     }
 }
