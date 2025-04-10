@@ -608,18 +608,31 @@ impl ModelTrait<Svm> for Svm {
                 BidStatus::AwaitingSignature as _,
             )),
             entities::BidStatusSvm::SubmissionFailed { auction, reason } => {
-                let (status, expected_status) = match reason {
-                    entities::BidSubmissionFailedReason::Cancelled => (BidStatus::SubmissionFailedCancelled, BidStatus::Cancelled),
-                    entities::BidSubmissionFailedReason::DeadlinePassed => (BidStatus::SubmissionFailedDeadlinePassed, BidStatus::AwaitingSignature),
-                };
-                Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status = $5",
-                    status as _,
-                    PrimitiveDateTime::new(now.date(), now.time()),
-                    auction.id,
-                    bid.id,
-                    expected_status as _,
-                ))
+                Ok(match reason {
+                    entities::BidSubmissionFailedReason::Cancelled => {
+                        sqlx::query!(
+                            "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status = $5",
+                            BidStatus::SubmissionFailedCancelled as _,
+                            PrimitiveDateTime::new(now.date(), now.time()),
+                            auction.id,
+                            bid.id,
+                            BidStatus::Cancelled as _,
+                        )
+                    },
+                    &entities::BidSubmissionFailedReason::DeadlinePassed => {
+                        sqlx::query!(
+                            "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status IN ($5, $6, $7)",
+                            BidStatus::SubmissionFailedDeadlinePassed as _,
+                            PrimitiveDateTime::new(now.date(), now.time()),
+                            auction.id,
+                            bid.id,
+                            BidStatus::AwaitingSignature as _,
+                            BidStatus::SentToUserForSubmission as _,
+                            BidStatus::Cancelled as _,
+                        )
+                    }
+                })
+
             },
         }
     }

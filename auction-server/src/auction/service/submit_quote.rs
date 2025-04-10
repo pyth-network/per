@@ -36,7 +36,7 @@ pub struct SubmitQuoteInput {
 const MIN_DEADLINE_BUFFER_SECS: i64 = 2;
 
 impl Service<Svm> {
-    async fn get_bid_to_submit(
+    async fn get_winner_bid(
         &self,
         auction_id: entities::AuctionId,
     ) -> Result<(entities::Auction<Svm>, entities::Bid<Svm>), RestError> {
@@ -60,28 +60,13 @@ impl Service<Svm> {
                     .to_string(),
             ))?;
 
-        if winner_bid.status.is_cancelled() {
-            self.update_bid_status(UpdateBidStatusInput {
-                bid:        winner_bid.clone(),
-                new_status: entities::BidStatusSvm::SubmissionFailed {
-                    auction: entities::BidStatusAuction {
-                        id:      auction.id,
-                        tx_hash: winner_bid.chain_data.transaction.signatures[0],
-                    },
-                    reason:  entities::BidSubmissionFailedReason::Cancelled,
-                },
-            })
-            .await?;
-            Err(RestError::BadParameters(
-                "This quote has already been cancelled.".to_string(),
-            ))
-        } else if winner_bid.status.is_submitted() {
-            Err(RestError::BadParameters(
+        if winner_bid.status.is_submitted() {
+            return Err(RestError::BadParameters(
                 "Quote is already submitted on-chain.".to_string(),
-            ))
-        } else {
-            Ok((auction, winner_bid))
+            ));
         }
+
+        Ok((auction, winner_bid))
     }
 
     pub async fn sign_bid_and_submit_auction(
@@ -109,16 +94,32 @@ impl Service<Svm> {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn submit_auction_bid_for_lock(
         &self,
-        bid: entities::Bid<Svm>,
+        signed_bid: entities::Bid<Svm>,
         auction: entities::Auction<Svm>,
         lock: entities::BidLock,
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;
 
-        // Make sure the bid is still awaiting signature, we also get the latest saved version of the auction
-        let (auction, _) = self.get_bid_to_submit(auction.id).await?;
+        // Make sure the bid is still not cancelled, we also get the latest saved version of the auction
+        let (auction, bid_latest_version) = self.get_winner_bid(auction.id).await?;
+        if bid_latest_version.status.is_cancelled() {
+            self.update_bid_status(UpdateBidStatusInput {
+                bid:        bid_latest_version.clone(),
+                new_status: entities::BidStatusSvm::SubmissionFailed {
+                    auction: entities::BidStatusAuction {
+                        id:      auction.id,
+                        tx_hash: bid_latest_version.chain_data.transaction.signatures[0],
+                    },
+                    reason:  entities::BidSubmissionFailedReason::Cancelled,
+                },
+            })
+            .await?;
+            return Err(RestError::BadParameters(
+                "This quote has already been cancelled.".to_string(),
+            ));
+        }
 
-        let tx_hash = bid.chain_data.transaction.signatures[0];
+        let tx_hash = signed_bid.chain_data.transaction.signatures[0];
         let auction = self
             .repo
             .submit_auction(auction, tx_hash)
@@ -128,7 +129,7 @@ impl Service<Svm> {
                 RestError::TemporarilyUnavailable
             })?;
         self.update_bid_status(UpdateBidStatusInput {
-            bid:        bid.clone(),
+            bid:        signed_bid.clone(),
             new_status: entities::BidStatusSvm::Submitted {
                 auction: entities::BidStatusAuction {
                     id: auction.id,
@@ -141,7 +142,7 @@ impl Service<Svm> {
         // Send transaction after updating bid status to make sure the bid is not cancellable anymore
         // If we submit the transaction before updating the bid status, the DB update can be failed and the bid can be cancelled later.
         // This will cause the transaction to be submitted but the bid to be cancelled.
-        self.send_transaction(&bid).await;
+        self.send_transaction(&signed_bid).await;
         Ok(())
     }
 
@@ -181,7 +182,7 @@ impl Service<Svm> {
         &self,
         input: SubmitQuoteInput,
     ) -> Result<VersionedTransaction, RestError> {
-        let (auction, winner_bid) = self.get_bid_to_submit(input.auction_id).await?;
+        let (auction, winner_bid) = self.get_winner_bid(input.auction_id).await?;
 
         let mut bid = winner_bid.clone();
         tracing::Span::current().record("bid_id", bid.id.to_string());
