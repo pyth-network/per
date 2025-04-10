@@ -408,10 +408,6 @@ class BidStatusSvm(BaseModel):
             assert (
                 self.reason is not None
             ), "bid reason should not be empty when status is submission failed"
-        else:
-            assert (
-                self.reason is None
-            ), "bid reason should be empty when status is not submission failed"
         return self
 
 
