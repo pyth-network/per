@@ -5,6 +5,7 @@ from typing import Annotated, Any, ClassVar, Literal
 
 from express_relay.models.base import (
     BidStatusVariantsSvm,
+    BidSubmissionFailedReasonVariantsSvm,
     IntString,
     UnsupportedOpportunityDeleteVersionException,
     UnsupportedOpportunityVersionException,
@@ -378,10 +379,12 @@ class BidStatusSvm(BaseModel):
         type: The current status of the bid.
         result: The result of the bid: a transaction hash if the status is not PENDING.
                 The LOST status may have a result.
+        reason: The reason for the bid submission failure. This is only set when the status is SUBMISSION_FAILED.
     """
 
     type: BidStatusVariantsSvm
     result: SvmSignature | None = Field(default=None)
+    reason: BidSubmissionFailedReasonVariantsSvm | None = Field(default=None)
 
     @field_validator("type", mode="before")
     @classmethod
@@ -398,6 +401,17 @@ class BidStatusSvm(BaseModel):
                 self.result is not None
             ), "bid result should not be empty when status is not pending or lost"
         return self
+
+    # @model_validator(mode="after")
+    # def check_failed_reason(self):
+    #     if self.type == BidStatusVariantsSvm.SUBMISSION_FAILED:
+    #         assert (
+    #             self.reason is not None
+    #         ), "bid reason should not be empty when status is submission failed"
+    #     else:
+    #         assert (
+    #             self.reason is None
+    #         ), "bid reason should be empty when status is not submission failed"
 
 
 class BidResponseSvm(BaseModel):
