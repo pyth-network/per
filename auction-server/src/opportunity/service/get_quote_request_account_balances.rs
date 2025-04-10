@@ -319,6 +319,8 @@ mod tests {
             balances.user_ata_mint_searcher,
             TokenAccountBalance::Initialized(0)
         ); // should this be like this?
+
+        rpc_client.check_all_uncanned().await;
     }
 
     #[tokio::test]
@@ -421,5 +423,6 @@ mod tests {
             balances.express_relay_fee_receiver_ata,
             TokenAccountBalance::Initialized(1010)
         );
+        rpc_client.check_all_uncanned().await;
     }
 }

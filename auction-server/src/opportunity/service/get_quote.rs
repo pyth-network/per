@@ -1403,6 +1403,7 @@ mod tests {
 
         // winning bid signature is present, user can sign it
         assert_eq!(quote.transaction.unwrap().signatures, vec![winner_sig]);
+        rpc_client.check_all_uncanned().await;
     }
 
     #[tokio::test]
@@ -1484,5 +1485,6 @@ mod tests {
 
         // quote became indicative
         assert_eq!(quote.transaction, None);
+        rpc_client.check_all_uncanned().await;
     }
 }
