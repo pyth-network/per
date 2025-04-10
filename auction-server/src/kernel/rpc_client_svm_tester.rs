@@ -1,3 +1,6 @@
+//! This test helper util allows the user to create different static and dynamic canned RPC responses
+//! that are then returned by the rpc client using the RPC client custom sender mechanism.
+
 use {
     anchor_lang::AccountSerialize,
     axum::async_trait,
@@ -122,6 +125,7 @@ impl RpcClientSvmTester {
         )
     }
 
+    /// Panics if not all the canned responses have been consumed during the test
     pub async fn check_all_uncanned(&self) {
         let canned_responses = self.canned_responses.lock().await;
 
