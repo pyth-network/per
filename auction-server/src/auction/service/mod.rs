@@ -273,29 +273,21 @@ pub enum ServiceEnum {
 }
 
 #[cfg(test)]
-pub use {
-    mock_service::MockService as StatefulMockAuctionService,
-    service_wrapper::MockService,
-};
+pub use mock_service::MockServiceInner as StatefulMockAuctionService;
 
-#[cfg(test)]
-mod service_wrapper {
-    use super::*;
-    pub use mock_service::MockService as InnerMockService;
-    #[derive(Clone)]
-    pub struct MockService<T: ChainTrait>(pub Arc<InnerMockService<T>>);
+#[derive(Clone)]
+pub struct MockService<T: ChainTrait>(pub Arc<StatefulMockAuctionService<T>>);
 
-    impl<T: ChainTrait> MockService<T> {
-        pub fn new(mock: InnerMockService<T>) -> Self {
-            Self(Arc::new(mock))
-        }
+impl<T: ChainTrait> MockService<T> {
+    pub fn new(mock: StatefulMockAuctionService<T>) -> Self {
+        Self(Arc::new(mock))
     }
+}
 
-    impl<T: ChainTrait> std::ops::Deref for MockService<T> {
-        type Target = InnerMockService<T>;
-        fn deref(&self) -> &Self::Target {
-            &self.0
-        }
+impl<T: ChainTrait> std::ops::Deref for MockService<T> {
+    type Target = StatefulMockAuctionService<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -322,7 +314,7 @@ mod mock_service {
     };
 
     mock! {
-        pub Service<T: ChainTrait> {
+        pub ServiceInner<T: ChainTrait> {
             pub fn new(
                 db: DB,
                 config: Config<T::ConfigType>,
@@ -393,7 +385,7 @@ mod mock_service {
             ) -> entities::BidStatusSvm;
         }
 
-        impl<T: ChainTrait> Clone for Service<T> {
+        impl<T: ChainTrait> Clone for ServiceInner<T> {
             fn clone(&self) -> Self;
         }
     }
