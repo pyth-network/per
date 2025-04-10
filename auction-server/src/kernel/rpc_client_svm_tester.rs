@@ -22,7 +22,11 @@ use {
             RpcTransportStats,
         },
     },
-    solana_sdk::account::Account,
+    solana_sdk::{
+        account::Account,
+        program_pack::Pack,
+    },
+    spl_token_2022::state::Account as TokenAccount,
     std::sync::Arc,
     tokio::sync::Mutex,
 };
@@ -95,6 +99,12 @@ impl CannedRequest {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct TokenAccountWithLamports {
+    pub token_account: TokenAccount,
+    pub lamports:      u64,
+}
+
 pub struct RpcClientSvmTesterInner {
     canned_responses: Mutex<Vec<CannedRequest>>,
 }
@@ -132,22 +142,49 @@ impl RpcClientSvmTester {
         assert_eq!(canned_responses.len(), 0, "There are canned responses");
     }
 
+    fn pack_account(account: Account) -> serde_json::Value {
+        let b_data = BASE64_STANDARD.encode(&account.data);
+        json!({
+            "lamports": account.lamports,
+            "data": [b_data, "base64"],
+            "owner": account.owner.to_string(),
+            "executable": account.executable,
+            "rentEpoch": account.rent_epoch,
+        })
+    }
+
     /// Can the given account for the next get account request
-    pub async fn can_next_account(&self, account: Account) {
+    pub async fn can_next_account(&self, matcher: CannedRequestMatcher, account: Account) {
         let mut canned_responses = self.canned_responses.lock().await;
 
-        let b_data = BASE64_STANDARD.encode(&account.data);
         canned_responses.push(CannedRequest::new(
-            CannedRequestMatcher::AllByRequest(RpcRequest::GetAccountInfo),
+            matcher,
             CannedResult::Static(json!({
                 "context": { "slot": 1 },
-                "value": {
-                    "lamports": account.lamports,
-                    "data": [b_data, "base64"],
-                    "owner": account.owner.to_string(),
-                    "executable": account.executable,
-                    "rentEpoch": account.rent_epoch,
-                }
+                "value": Self::pack_account(account),
+            })),
+            Some(1),
+        ));
+    }
+
+    /// Can the given accounts for the next get multiple accounts request
+    pub async fn can_next_multi_accounts(
+        &self,
+        matcher: CannedRequestMatcher,
+        accounts: Vec<Account>,
+    ) {
+        let mut canned_responses = self.canned_responses.lock().await;
+
+        let accounts_json = accounts
+            .into_iter()
+            .map(Self::pack_account)
+            .collect::<Vec<_>>();
+
+        canned_responses.push(CannedRequest::new(
+            matcher,
+            CannedResult::Static(json!({
+                "context": { "slot": 1 },
+                "value": accounts_json,
             })),
             Some(1),
         ));
@@ -157,13 +194,54 @@ impl RpcClientSvmTester {
         let mut bytes = Vec::new();
         metadata.try_serialize(&mut bytes).expect("serialize acc");
 
-        self.can_next_account(Account {
-            lamports:   1,
-            data:       bytes,
-            owner:      Default::default(),
-            executable: false,
-            rent_epoch: 0,
-        })
+        self.can_next_account(
+            CannedRequestMatcher::AllByRequest(RpcRequest::GetAccountInfo),
+            Account {
+                lamports:   1,
+                data:       bytes,
+                owner:      Default::default(),
+                executable: false,
+                rent_epoch: 0,
+            },
+        )
+        .await;
+    }
+
+    pub async fn can_next_multi_call_token_accounts(
+        &self,
+        accounts: Vec<TokenAccountWithLamports>,
+    ) {
+        let accounts_len = accounts.len();
+
+        let sol_accounts = accounts
+            .into_iter()
+            .map(|token_account_with_lamports| {
+                let mut data = vec![0u8; TokenAccount::LEN];
+                token_account_with_lamports
+                    .token_account
+                    .pack_into_slice(&mut data);
+
+                Account {
+                    lamports: token_account_with_lamports.lamports,
+                    data,
+                    owner: Default::default(),
+                    executable: false,
+                    rent_epoch: 0,
+                }
+            })
+            .collect::<Vec<_>>();
+        self.can_next_multi_accounts(
+            CannedRequestMatcher::MatchRequestAndParamsDynamically(
+                RpcRequest::GetMultipleAccounts,
+                Box::new(move |params| {
+                    let pubkeys = &params.as_array().expect("array")[0];
+                    let is_all_unique = pubkeys.as_array().expect("array").len() == accounts_len;
+
+                    is_all_unique
+                }),
+            ),
+            sol_accounts,
+        )
         .await;
     }
 }
@@ -181,7 +259,6 @@ impl RpcSender for RpcClientTesterSender {
         params: serde_json::Value,
     ) -> Result<serde_json::Value> {
         let mut canned_responses = self.tester.canned_responses.lock().await;
-
         let (idx, canned_match) = canned_responses
             .iter_mut()
             .enumerate()

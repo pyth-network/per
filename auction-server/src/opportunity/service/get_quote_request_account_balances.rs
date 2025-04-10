@@ -73,6 +73,7 @@ impl From<Option<u64>> for TokenAccountBalance {
 }
 
 /// The balances of some of the accounts that will be used in the swap
+#[derive(Debug, PartialEq)]
 pub struct QuoteRequestAccountBalances {
     pub user_sol_balance:               u64,
     pub user_ata_mint_searcher:         TokenAccountBalance,
@@ -203,6 +204,7 @@ impl Service {
                         StateWithExtensions::<TokenAccount>::unpack(&acc.data)
                             .map_err(|err| {
                                 tracing::error!(error = ?err, "Failed to deserialize a token account");
+                                dbg!(err);
                                 RestError::TemporarilyUnavailable
                             })
                             .map(|token_account| token_account.base.amount)
@@ -223,5 +225,196 @@ impl Service {
             relayer_fee_receiver_ata,
             express_relay_fee_receiver_ata,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use {
+        super::*,
+        crate::{
+            auction::service::StatefulMockAuctionService,
+            kernel::{
+                rpc_client_svm_tester::{
+                    CannedRequestMatcher,
+                    RpcClientSvmTester,
+                    TokenAccountWithLamports,
+                },
+                test_utils::DEFAULT_CHAIN_ID,
+            },
+            opportunity::repository::MockDatabase,
+        },
+        express_relay::state::ExpressRelayMetadata,
+        solana_client::rpc_request::RpcRequest,
+        solana_sdk::account::Account,
+        spl_token_2022::state::AccountState,
+    };
+
+    #[tokio::test]
+    async fn test_get_balance_token_accounts_uninitialized() {
+        let rpc_client = RpcClientSvmTester::new();
+        let mock_db = MockDatabase::default();
+
+        let (service, _) =
+            Service::new_with_mocks_svm(DEFAULT_CHAIN_ID.to_string(), mock_db, &rpc_client);
+
+        service
+            .repo
+            .cache_express_relay_metadata(ExpressRelayMetadata {
+                fee_receiver_relayer: Pubkey::new_unique(),
+                ..Default::default()
+            })
+            .await;
+
+        rpc_client
+            .can_next_multi_accounts(
+                CannedRequestMatcher::AllByRequest(RpcRequest::GetMultipleAccounts),
+                std::iter::repeat(Account {
+                    lamports: 100,
+                    ..Default::default()
+                })
+                .take(6)
+                .collect(),
+            )
+            .await;
+
+        let mut auction_service_in_call = StatefulMockAuctionService::default();
+        auction_service_in_call
+            .expect_get_express_relay_program_id()
+            .returning(|| {
+                // relay program id
+                express_relay::id()
+            });
+
+        let auction_service = crate::auction::service::MockService::new(auction_service_in_call);
+        let config = service
+            .get_config(&(DEFAULT_CHAIN_ID.to_string()))
+            .expect("Failed to get opportunity service evm config");
+        config
+            .auction_service_container
+            .inject_mock_service(auction_service);
+
+        let balances = service
+            .get_quote_request_account_balances(QuoteRequestAccountBalancesInput {
+                chain_id:               DEFAULT_CHAIN_ID.to_string(),
+                fee_token:              FeeToken::UserToken,
+                user_wallet_address:    Pubkey::new_unique(),
+                router:                 Pubkey::new_unique(),
+                mint_searcher:          Pubkey::new_unique(),
+                mint_user:              Pubkey::new_unique(),
+                token_program_searcher: Pubkey::new_unique(),
+                token_program_user:     Pubkey::new_unique(),
+            })
+            .await
+            .expect("balances");
+
+        assert_eq!(balances.user_sol_balance, 100);
+        assert_eq!(
+            balances.user_ata_mint_searcher,
+            TokenAccountBalance::Initialized(0)
+        ); // should this be like this?
+
+        rpc_client.check_all_uncanned().await;
+    }
+
+    #[tokio::test]
+    async fn test_get_balance_token_accounts_initialized() {
+        let rpc_client = RpcClientSvmTester::new();
+        let mock_db = MockDatabase::default();
+
+        let (service, _) = Service::new_with_mocks_svm("solana".to_string(), mock_db, &rpc_client);
+
+        service
+            .repo
+            .cache_express_relay_metadata(ExpressRelayMetadata {
+                fee_receiver_relayer: Pubkey::new_unique(),
+                ..Default::default()
+            })
+            .await;
+
+        let mut accounts = vec![TokenAccountWithLamports {
+            lamports:      100,
+            token_account: TokenAccount {
+                amount: 1010,
+                state: AccountState::Initialized,
+                ..Default::default()
+            },
+        }];
+        accounts.push(TokenAccountWithLamports {
+            lamports:      0,
+            token_account: TokenAccount {
+                amount: 10,
+                state: AccountState::Initialized,
+                ..Default::default()
+            },
+        });
+        accounts.extend(
+            std::iter::repeat(TokenAccountWithLamports {
+                lamports:      0,
+                token_account: TokenAccount {
+                    amount: 1010,
+                    state: AccountState::Initialized,
+                    ..Default::default()
+                },
+            })
+            .take(4),
+        );
+
+        rpc_client
+            .can_next_multi_call_token_accounts(accounts)
+            .await;
+
+        let mut auction_service_in_call = StatefulMockAuctionService::default();
+        auction_service_in_call
+            .expect_get_express_relay_program_id()
+            .returning(|| {
+                // relay program id
+                express_relay::id()
+            });
+
+        let auction_service = crate::auction::service::MockService::new(auction_service_in_call);
+        let config = service
+            .get_config(&(DEFAULT_CHAIN_ID.to_string()))
+            .expect("Failed to get opportunity service evm config");
+        config
+            .auction_service_container
+            .inject_mock_service(auction_service);
+
+        let balances = service
+            .get_quote_request_account_balances(QuoteRequestAccountBalancesInput {
+                chain_id:               DEFAULT_CHAIN_ID.to_string(),
+                fee_token:              FeeToken::UserToken,
+                user_wallet_address:    Pubkey::new_unique(),
+                router:                 Pubkey::new_unique(),
+                mint_searcher:          Pubkey::new_unique(),
+                mint_user:              Pubkey::new_unique(),
+                token_program_searcher: Pubkey::new_unique(),
+                token_program_user:     Pubkey::new_unique(),
+            })
+            .await
+            .expect("balances");
+
+        assert_eq!(balances.user_sol_balance, 100);
+        assert_eq!(
+            balances.user_ata_mint_user,
+            TokenAccountBalance::Initialized(10)
+        );
+        assert_eq!(
+            balances.user_ata_mint_searcher,
+            TokenAccountBalance::Initialized(1010)
+        );
+        assert_eq!(
+            balances.router_fee_receiver_ta,
+            TokenAccountBalance::Initialized(1010)
+        );
+        assert_eq!(
+            balances.relayer_fee_receiver_ata,
+            TokenAccountBalance::Initialized(1010)
+        );
+        assert_eq!(
+            balances.express_relay_fee_receiver_ata,
+            TokenAccountBalance::Initialized(1010)
+        );
+        rpc_client.check_all_uncanned().await;
     }
 }
